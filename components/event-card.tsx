@@ -8,6 +8,7 @@ import { categoryLabels } from "@/lib/types"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
+import { formatEventDateShort } from "@/lib/date-format"
 import type { DisplayEvent } from "@/components/home-content"
 
 interface EventCardProps {
@@ -17,11 +18,7 @@ interface EventCardProps {
 }
 
 export function EventCard({ event, isFavorite, onToggleFavorite }: EventCardProps) {
-  const formattedDate = new Date(event.date).toLocaleDateString("es-AR", {
-    weekday: "short",
-    day: "numeric",
-    month: "short",
-  })
+  const formattedDate = formatEventDateShort(event.date)
 
   const formattedPrice = event.price === "gratis" 
     ? "Gratis" 

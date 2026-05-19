@@ -2,6 +2,7 @@
 
 import { useMemo } from "react"
 import { useSearchParams, useRouter } from "next/navigation"
+import Image from "next/image"
 import type { Event, Category, Venue, EventCategory } from "@/lib/types"
 import { categoryLabels } from "@/lib/types"
 import { Navbar } from "@/components/navbar"
@@ -10,6 +11,7 @@ import { HeroCarousel } from "@/components/hero-carousel"
 import { FiltersBar, DateFilter } from "@/components/filters-bar"
 import { CategoryRow } from "@/components/category-row"
 import Link from "next/link"
+import { formatEventTime } from "@/lib/date-format"
 
 type EventWithRelations = Event & { category: Category; venue: Venue | null }
 
@@ -22,7 +24,7 @@ export function transformEvent(event: EventWithRelations) {
     title: event.title,
     venue: event.venue?.name || 'Lugar por confirmar',
     date: startDate.toISOString().split('T')[0],
-    time: startDate.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }),
+    time: formatEventTime(startDate),
     category: event.category.slug as EventCategory,
     price: event.is_free ? "gratis" as const : event.price_min,
     image: event.image_url || '/placeholder.svg?height=600&width=400',
@@ -162,10 +164,12 @@ export function HomeContent({ events, featuredEvents, categories }: HomeContentP
                   <div 
                     className="group relative aspect-[2/3] w-full max-w-[200px] cursor-pointer overflow-hidden rounded-xl bg-card shadow-lg"
                   >
-                    <img
+                    <Image
                       src={event.image}
                       alt={event.title}
-                      className="size-full object-cover transition-transform duration-300 group-hover:scale-105"
+                      fill
+                      sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 200px"
+                      className="object-cover transition-transform duration-300 group-hover:scale-105"
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent" />
                     <div className="absolute bottom-0 left-0 right-0 p-3 text-white">

@@ -1,6 +1,7 @@
 "use client"
 
 import Image from "next/image"
+import { createElement } from "react"
 import { Calendar, MapPin, Clock, Volume2, Users, ExternalLink, Navigation } from "lucide-react"
 import { categoryLabels, vibeLabels, EventCategory } from "@/lib/types"
 
@@ -33,6 +34,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Slider } from "@/components/ui/slider"
 import { getCategoryIcon } from "@/lib/category-icons"
+import { formatEventDate } from "@/lib/date-format"
 
 interface EventModalProps {
   event: Event | null
@@ -43,15 +45,10 @@ interface EventModalProps {
 export function EventModal({ event, open, onClose }: EventModalProps) {
   if (!event) return null
 
-  const formattedDate = new Date(event.date).toLocaleDateString("es-AR", {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  })
+  const formattedDate = formatEventDate(event.date, true)
 
   const googleMapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(event.address || event.venue)}`
-  const Icon = getCategoryIcon(event.category as EventCategory)
+  const iconComponent = getCategoryIcon(event.category as EventCategory)
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
@@ -65,7 +62,7 @@ export function EventModal({ event, open, onClose }: EventModalProps) {
           />
           <div className="absolute inset-0 bg-gradient-to-t from-background to-transparent" />
           <Badge className="absolute left-4 top-4 bg-primary text-primary-foreground">
-            <Icon className="mr-1 size-3" />
+            {createElement(iconComponent, { className: "mr-1 size-3" })}
             {categoryLabels[event.category as keyof typeof categoryLabels] || event.category}
           </Badge>
         </div>

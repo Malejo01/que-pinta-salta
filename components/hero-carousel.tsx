@@ -6,6 +6,7 @@ import Link from "next/link"
 import { motion, AnimatePresence } from "framer-motion"
 import { ChevronLeft, ChevronRight, Calendar, MapPin, Ticket } from "lucide-react"
 import { categoryLabels } from "@/lib/types"
+import { formatEventDate } from "@/lib/date-format"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import type { DisplayEvent } from "@/components/home-content"
@@ -35,11 +36,7 @@ export function HeroCarousel({ events }: HeroCarouselProps) {
   if (events.length === 0) return null
 
   const currentEvent = events[currentIndex]
-  const formattedDate = new Date(currentEvent.date).toLocaleDateString("es-AR", {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-  })
+  const formattedDate = formatEventDate(currentEvent.date)
 
   return (
     <div className="relative h-[400px] w-full overflow-hidden sm:h-[500px]">

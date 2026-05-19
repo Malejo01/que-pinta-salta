@@ -1,6 +1,7 @@
 "use client"
 
 import { useRouter } from "next/navigation"
+import { createElement } from "react"
 import Image from "next/image"
 import { Calendar, MapPin, Clock, Volume2, Users, ExternalLink, Navigation } from "lucide-react"
 import { categoryLabels, vibeLabels, EventCategory, Event, Category, Venue } from "@/lib/types"
@@ -14,6 +15,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Slider } from "@/components/ui/slider"
 import { getCategoryIcon } from "@/lib/category-icons"
+import { formatEventDate, formatEventTime } from "@/lib/date-format"
 
 type EventWithRelations = Event & { category: Category; venue: Venue | null }
 
@@ -30,7 +32,7 @@ export function EventModalWrapper({ event }: EventModalWrapperProps) {
     title: event.title,
     venue: event.venue?.name || 'Lugar por confirmar',
     date: startDate.toISOString().split('T')[0],
-    time: startDate.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }),
+    time: formatEventTime(startDate),
     category: event.category.slug as EventCategory,
     price: event.is_free ? "gratis" as const : event.price_min,
     image: event.image_url || '/placeholder.svg?height=600&width=400',
@@ -41,15 +43,10 @@ export function EventModalWrapper({ event }: EventModalWrapperProps) {
     vibe: event.age_restriction >= 18 ? "adultos" as const : "familiar" as const,
   }
 
-  const formattedDate = new Date(displayEvent.date).toLocaleDateString("es-AR", {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  })
+  const formattedDate = formatEventDate(displayEvent.date, true)
 
   const googleMapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(displayEvent.address || displayEvent.venue)}`
-  const Icon = getCategoryIcon(displayEvent.category)
+  const iconComponent = getCategoryIcon(displayEvent.category)
 
   const handleClose = () => {
     router.back()
@@ -67,7 +64,7 @@ export function EventModalWrapper({ event }: EventModalWrapperProps) {
           />
           <div className="absolute inset-0 bg-gradient-to-t from-background to-transparent" />
           <Badge className="absolute left-4 top-4 bg-primary text-primary-foreground">
-            <Icon className="mr-1 size-3" />
+            {createElement(iconComponent, { className: "mr-1 size-3" })}
             {categoryLabels[displayEvent.category as keyof typeof categoryLabels] || displayEvent.category}
           </Badge>
         </div>

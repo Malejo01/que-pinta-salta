@@ -3,8 +3,8 @@
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
-import { useTheme } from "next-themes"
 import { Moon, Sun, Plus, LogIn, LogOut, User, Settings } from "lucide-react"
+import { useTheme } from "@/components/theme-provider"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -17,7 +17,7 @@ import { createClient } from "@/lib/supabase/client"
 import type { User as SupabaseUser } from "@supabase/supabase-js"
 
 export function Navbar() {
-  const { theme, setTheme } = useTheme()
+  const { resolvedTheme, setTheme } = useTheme()
   const router = useRouter()
   const [user, setUser] = useState<SupabaseUser | null>(null)
   const [isAdmin, setIsAdmin] = useState(false)
@@ -77,7 +77,7 @@ export function Navbar() {
           <Button
             variant="ghost"
             size="icon"
-            onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+            onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
             aria-label="Toggle theme"
           >
             <Sun className="size-5 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
