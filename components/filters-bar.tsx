@@ -1,5 +1,7 @@
 "use client"
 
+import { useRouter, useSearchParams } from "next/navigation"
+import { useCallback } from "react"
 import { Search } from "lucide-react"
 import { EventCategory, categoryLabels } from "@/lib/types"
 import { Input } from "@/components/ui/input"
@@ -8,15 +10,6 @@ import { cn } from "@/lib/utils"
 import { getCategoryIcon } from "@/lib/category-icons"
 
 export type DateFilter = "hoy" | "semana" | "mes" | "tendencias"
-
-interface FiltersBarProps {
-  searchQuery: string
-  onSearchChange: (query: string) => void
-  selectedDate: DateFilter | null
-  onDateChange: (date: DateFilter | null) => void
-  selectedCategory: EventCategory | null
-  onCategoryChange: (category: EventCategory | null) => void
-}
 
 const dateFilters: { value: DateFilter; label: string }[] = [
   { value: "hoy", label: "Hoy" },
@@ -27,14 +20,38 @@ const dateFilters: { value: DateFilter; label: string }[] = [
 
 const categories = Object.entries(categoryLabels) as [EventCategory, string][]
 
-export function FiltersBar({
-  searchQuery,
-  onSearchChange,
-  selectedDate,
-  onDateChange,
-  selectedCategory,
-  onCategoryChange,
-}: FiltersBarProps) {
+export function FiltersBar() {
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  
+  const searchQuery = searchParams.get("search") || ""
+  const selectedDate = searchParams.get("date") as DateFilter | null
+  const selectedCategory = searchParams.get("category") as EventCategory | null
+
+  const updateParams = useCallback((key: string, value: string | null) => {
+    const params = new URLSearchParams(searchParams.toString())
+    
+    if (value) {
+      params.set(key, value)
+    } else {
+      params.delete(key)
+    }
+    
+    router.push(`/?${params.toString()}`, { scroll: false })
+  }, [router, searchParams])
+
+  const handleSearchChange = useCallback((query: string) => {
+    updateParams("search", query || null)
+  }, [updateParams])
+
+  const handleDateChange = useCallback((date: DateFilter | null) => {
+    updateParams("date", date)
+  }, [updateParams])
+
+  const handleCategoryChange = useCallback((category: EventCategory | null) => {
+    updateParams("category", category)
+  }, [updateParams])
+
   return (
     <div className="sticky top-16 z-40 border-b border-border bg-background/95 py-4 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="container mx-auto px-4">
@@ -45,7 +62,7 @@ export function FiltersBar({
               type="search"
               placeholder="Buscar por evento o lugar..."
               value={searchQuery}
-              onChange={(e) => onSearchChange(e.target.value)}
+              onChange={(e) => handleSearchChange(e.target.value)}
               className="pl-10"
             />
           </div>
@@ -56,7 +73,7 @@ export function FiltersBar({
                 key={filter.value}
                 variant={selectedDate === filter.value ? "default" : "outline"}
                 size="sm"
-                onClick={() => onDateChange(selectedDate === filter.value ? null : filter.value)}
+                onClick={() => handleDateChange(selectedDate === filter.value ? null : filter.value)}
                 className={cn(
                   "shrink-0",
                   selectedDate === filter.value && "bg-primary text-primary-foreground"
@@ -75,7 +92,7 @@ export function FiltersBar({
                   key={value}
                   variant={selectedCategory === value ? "default" : "outline"}
                   size="sm"
-                  onClick={() => onCategoryChange(selectedCategory === value ? null : value)}
+                  onClick={() => handleCategoryChange(selectedCategory === value ? null : value)}
                   className={cn(
                     "shrink-0",
                     selectedCategory === value && "bg-primary text-primary-foreground"

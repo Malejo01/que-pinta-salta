@@ -1,28 +1,9 @@
 "use client"
 
+import { useRouter } from "next/navigation"
 import Image from "next/image"
 import { Calendar, MapPin, Clock, Volume2, Users, ExternalLink, Navigation } from "lucide-react"
-import { categoryLabels, vibeLabels, EventCategory } from "@/lib/types"
-
-// Display event type (transformed from database)
-interface DisplayEvent {
-  id: string
-  title: string
-  venue: string
-  date: string
-  time: string
-  category: string
-  price: number | "gratis"
-  image: string
-  description: string
-  address: string
-  ticketUrl?: string
-  noiseLevel: number
-  vibe: string
-  isFeatured?: boolean
-}
-
-type Event = DisplayEvent
+import { categoryLabels, vibeLabels, EventCategory, Event, Category, Venue } from "@/lib/types"
 import {
   Dialog,
   DialogContent,
@@ -34,45 +15,66 @@ import { Button } from "@/components/ui/button"
 import { Slider } from "@/components/ui/slider"
 import { getCategoryIcon } from "@/lib/category-icons"
 
-interface EventModalProps {
-  event: Event | null
-  open: boolean
-  onClose: () => void
+type EventWithRelations = Event & { category: Category; venue: Venue | null }
+
+interface EventModalWrapperProps {
+  event: EventWithRelations
 }
 
-export function EventModal({ event, open, onClose }: EventModalProps) {
-  if (!event) return null
+export function EventModalWrapper({ event }: EventModalWrapperProps) {
+  const router = useRouter()
+  
+  const startDate = new Date(event.start_date)
+  const displayEvent = {
+    id: event.id,
+    title: event.title,
+    venue: event.venue?.name || 'Lugar por confirmar',
+    date: startDate.toISOString().split('T')[0],
+    time: startDate.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }),
+    category: event.category.slug as EventCategory,
+    price: event.is_free ? "gratis" as const : event.price_min,
+    image: event.image_url || '/placeholder.svg?height=600&width=400',
+    description: event.description || event.short_description || '',
+    address: event.venue?.address || '',
+    ticketUrl: event.ticket_url || undefined,
+    noiseLevel: event.noise_level || 3,
+    vibe: event.age_restriction >= 18 ? "adultos" as const : "familiar" as const,
+  }
 
-  const formattedDate = new Date(event.date).toLocaleDateString("es-AR", {
+  const formattedDate = new Date(displayEvent.date).toLocaleDateString("es-AR", {
     weekday: "long",
     day: "numeric",
     month: "long",
     year: "numeric",
   })
 
-  const googleMapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(event.address || event.venue)}`
-  const Icon = getCategoryIcon(event.category as EventCategory)
+  const googleMapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(displayEvent.address || displayEvent.venue)}`
+  const Icon = getCategoryIcon(displayEvent.category)
+
+  const handleClose = () => {
+    router.back()
+  }
 
   return (
-    <Dialog open={open} onOpenChange={onClose}>
+    <Dialog open onOpenChange={handleClose}>
       <DialogContent className="max-h-[90vh] max-w-lg overflow-y-auto p-0">
         <div className="relative aspect-[3/2] w-full">
           <Image
-            src={event.image}
-            alt={event.title}
+            src={displayEvent.image}
+            alt={displayEvent.title}
             fill
             className="object-cover"
           />
           <div className="absolute inset-0 bg-gradient-to-t from-background to-transparent" />
           <Badge className="absolute left-4 top-4 bg-primary text-primary-foreground">
             <Icon className="mr-1 size-3" />
-            {categoryLabels[event.category as keyof typeof categoryLabels] || event.category}
+            {categoryLabels[displayEvent.category as keyof typeof categoryLabels] || displayEvent.category}
           </Badge>
         </div>
 
         <div className="p-6">
           <DialogHeader className="mb-4">
-            <DialogTitle className="text-2xl">{event.title}</DialogTitle>
+            <DialogTitle className="text-2xl">{displayEvent.title}</DialogTitle>
           </DialogHeader>
 
           <div className="mb-6 space-y-3">
@@ -83,20 +85,20 @@ export function EventModal({ event, open, onClose }: EventModalProps) {
             
             <div className="flex items-center gap-3 text-muted-foreground">
               <Clock className="size-5 text-primary" />
-              <span>{event.time} hs</span>
+              <span>{displayEvent.time} hs</span>
             </div>
             
             <div className="flex items-center gap-3 text-muted-foreground">
               <MapPin className="size-5 text-primary" />
               <div>
-                <p className="font-medium text-foreground">{event.venue}</p>
-                <p className="text-sm">{event.address}</p>
+                <p className="font-medium text-foreground">{displayEvent.venue}</p>
+                <p className="text-sm">{displayEvent.address}</p>
               </div>
             </div>
 
             <div className="flex items-center gap-3 text-muted-foreground">
               <Users className="size-5 text-primary" />
-              <span>{vibeLabels[event.vibe as keyof typeof vibeLabels] || event.vibe}</span>
+              <span>{vibeLabels[displayEvent.vibe as keyof typeof vibeLabels] || displayEvent.vibe}</span>
             </div>
           </div>
 
@@ -107,24 +109,24 @@ export function EventModal({ event, open, onClose }: EventModalProps) {
             </div>
             <div className="flex items-center gap-3">
               <Slider
-                value={[event.noiseLevel]}
-                max={100}
+                value={[displayEvent.noiseLevel]}
+                max={5}
                 step={1}
                 disabled
                 className="flex-1"
               />
-              <span className="text-sm text-muted-foreground">{event.noiseLevel}%</span>
+              <span className="text-sm text-muted-foreground">{displayEvent.noiseLevel}/5</span>
             </div>
           </div>
 
-          <p className="mb-6 text-muted-foreground">{event.description}</p>
+          <p className="mb-6 text-muted-foreground">{displayEvent.description}</p>
 
           <div className="mb-6 rounded-lg bg-muted p-4">
             <p className="mb-1 text-sm text-muted-foreground">Precio de entrada</p>
             <p className="text-2xl font-bold text-foreground">
-              {event.price === "gratis" 
+              {displayEvent.price === "gratis" 
                 ? "Entrada Gratuita" 
-                : `$${event.price.toLocaleString("es-AR")}`}
+                : `$${displayEvent.price.toLocaleString("es-AR")}`}
             </p>
           </div>
 
@@ -139,9 +141,9 @@ export function EventModal({ event, open, onClose }: EventModalProps) {
               </a>
             </Button>
             
-            {event.ticketUrl && (
+            {displayEvent.ticketUrl && (
               <Button variant="outline" className="flex-1" asChild>
-                <a href={event.ticketUrl} target="_blank" rel="noopener noreferrer">
+                <a href={displayEvent.ticketUrl} target="_blank" rel="noopener noreferrer">
                   <ExternalLink className="mr-2 size-4" />
                   Comprar tickets
                 </a>

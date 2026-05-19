@@ -2,19 +2,19 @@
 
 import { useEffect, useState } from "react"
 import Image from "next/image"
+import Link from "next/link"
 import { motion, AnimatePresence } from "framer-motion"
 import { ChevronLeft, ChevronRight, Calendar, MapPin, Ticket } from "lucide-react"
-import { Event } from "@/lib/types"
+import { categoryLabels } from "@/lib/types"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { categoryLabels } from "@/lib/types"
+import type { DisplayEvent } from "@/components/home-content"
 
 interface HeroCarouselProps {
-  events: Event[]
-  onSelectEvent: (event: Event) => void
+  events: DisplayEvent[]
 }
 
-export function HeroCarousel({ events, onSelectEvent }: HeroCarouselProps) {
+export function HeroCarousel({ events }: HeroCarouselProps) {
   const [currentIndex, setCurrentIndex] = useState(0)
 
   useEffect(() => {
@@ -73,7 +73,7 @@ export function HeroCarousel({ events, onSelectEvent }: HeroCarouselProps) {
           className="container mx-auto max-w-4xl"
         >
           <Badge className="mb-3 bg-primary text-primary-foreground">
-            {categoryLabels[currentEvent.category]}
+            {categoryLabels[currentEvent.category as keyof typeof categoryLabels] || currentEvent.category}
           </Badge>
           
           <h2 className="mb-3 text-2xl font-bold text-foreground sm:text-4xl">
@@ -98,11 +98,13 @@ export function HeroCarousel({ events, onSelectEvent }: HeroCarouselProps) {
           <div className="flex flex-wrap items-center gap-3">
             <Button 
               size="lg" 
-              onClick={() => onSelectEvent(currentEvent)}
+              asChild
               className="bg-primary text-primary-foreground hover:bg-primary/90"
             >
-              <Ticket className="mr-2 size-4" />
-              Ver detalles
+              <Link href={`/evento/${currentEvent.id}`}>
+                <Ticket className="mr-2 size-4" />
+                Ver detalles
+              </Link>
             </Button>
             <span className="text-lg font-bold text-foreground">
               {currentEvent.price === "gratis" 
