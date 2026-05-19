@@ -35,19 +35,19 @@ export default async function AdminAliasesPage() {
     .order('created_at', { ascending: false })
   
   return (
-    <div className="min-h-screen bg-background">
-      <div className="container mx-auto px-4 py-8">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-foreground">Panel de Administración</h1>
-          <p className="text-muted-foreground mt-2">Gestiona los aliases de categorías y venues</p>
-        </div>
-        
-        <AliasesManager 
-          categories={categories} 
-          venues={venues} 
-          initialAliases={aliases || []}
-        />
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold text-foreground">Aliases</h1>
+        <p className="mt-1 text-muted-foreground">
+          Mapea nombres alternativos del scraper a categorías y venues existentes.
+        </p>
       </div>
+
+      <AliasesManager
+        categories={categories}
+        venues={venues}
+        initialAliases={aliases || []}
+      />
     </div>
   )
 }
