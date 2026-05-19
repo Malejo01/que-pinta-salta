@@ -2,39 +2,19 @@
 
 import { useEffect, useState } from "react"
 import Image from "next/image"
+import Link from "next/link"
 import { motion, AnimatePresence } from "framer-motion"
 import { ChevronLeft, ChevronRight, Calendar, MapPin, Ticket } from "lucide-react"
 import { categoryLabels } from "@/lib/types"
-
-// Display event type (transformed from database)
-interface DisplayEvent {
-  id: string
-  title: string
-  venue: string
-  date: string
-  time: string
-  category: string
-  price: number | "gratis"
-  image: string
-  description: string
-  address: string
-  ticketUrl?: string
-  noiseLevel: number
-  vibe: string
-  isFeatured?: boolean
-}
-
-type Event = DisplayEvent
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { categoryLabels } from "@/lib/types"
+import type { DisplayEvent } from "@/components/home-content"
 
 interface HeroCarouselProps {
-  events: Event[]
-  onSelectEvent: (event: Event) => void
+  events: DisplayEvent[]
 }
 
-export function HeroCarousel({ events, onSelectEvent }: HeroCarouselProps) {
+export function HeroCarousel({ events }: HeroCarouselProps) {
   const [currentIndex, setCurrentIndex] = useState(0)
 
   useEffect(() => {
@@ -118,11 +98,13 @@ export function HeroCarousel({ events, onSelectEvent }: HeroCarouselProps) {
           <div className="flex flex-wrap items-center gap-3">
             <Button 
               size="lg" 
-              onClick={() => onSelectEvent(currentEvent)}
+              asChild
               className="bg-primary text-primary-foreground hover:bg-primary/90"
             >
-              <Ticket className="mr-2 size-4" />
-              Ver detalles
+              <Link href={`/evento/${currentEvent.id}`}>
+                <Ticket className="mr-2 size-4" />
+                Ver detalles
+              </Link>
             </Button>
             <span className="text-lg font-bold text-foreground">
               {currentEvent.price === "gratis" 

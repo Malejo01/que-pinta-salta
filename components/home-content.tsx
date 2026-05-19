@@ -1,6 +1,7 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useMemo } from "react"
+import { useSearchParams, useRouter } from "next/navigation"
 import type { Event, Category, Venue, EventCategory } from "@/lib/types"
 import { categoryLabels } from "@/lib/types"
 import { Navbar } from "@/components/navbar"
@@ -8,15 +9,16 @@ import { MobileNav } from "@/components/mobile-nav"
 import { HeroCarousel } from "@/components/hero-carousel"
 import { FiltersBar, DateFilter } from "@/components/filters-bar"
 import { CategoryRow } from "@/components/category-row"
-import { EventModal } from "@/components/event-modal"
+import Link from "next/link"
 
 type EventWithRelations = Event & { category: Category; venue: Venue | null }
 
 // Transform database event to display format
-function transformEvent(event: EventWithRelations) {
+export function transformEvent(event: EventWithRelations) {
   const startDate = new Date(event.start_date)
   return {
     id: event.id,
+    slug: event.slug,
     title: event.title,
     venue: event.venue?.name || 'Lugar por confirmar',
     date: startDate.toISOString().split('T')[0],
@@ -30,10 +32,10 @@ function transformEvent(event: EventWithRelations) {
     noiseLevel: event.noise_level || 3,
     vibe: event.age_restriction >= 18 ? "adultos" as const : "familiar" as const,
     isFeatured: event.is_featured,
-    // Keep original data for modal
-    _original: event,
   }
 }
+
+export type DisplayEvent = ReturnType<typeof transformEvent>
 
 interface HomeContentProps {
   events: EventWithRelations[]
@@ -42,11 +44,12 @@ interface HomeContentProps {
 }
 
 export function HomeContent({ events, featuredEvents, categories }: HomeContentProps) {
-  const [searchQuery, setSearchQuery] = useState("")
-  const [selectedDate, setSelectedDate] = useState<DateFilter | null>(null)
-  const [selectedCategory, setSelectedCategory] = useState<EventCategory | null>(null)
-  const [selectedEvent, setSelectedEvent] = useState<ReturnType<typeof transformEvent> | null>(null)
-  const [favorites, setFavorites] = useState<string[]>([])
+  const searchParams = useSearchParams()
+  const router = useRouter()
+  
+  const searchQuery = searchParams.get("search") || ""
+  const selectedDate = searchParams.get("date") as DateFilter | null
+  const selectedCategory = searchParams.get("category") as EventCategory | null
 
   const transformedFeatured = useMemo(() => 
     featuredEvents.map(transformEvent),
@@ -110,14 +113,11 @@ export function HomeContent({ events, featuredEvents, categories }: HomeContentP
     return cats
   }, [categories, filteredEvents])
 
-  const handleToggleFavorite = (eventId: string) => {
-    setFavorites(prev => 
-      prev.includes(eventId)
-        ? prev.filter(id => id !== eventId)
-        : [...prev, eventId]
-    )
+  const clearFilters = () => {
+    router.push("/", { scroll: false })
   }
 
+  const hasFilters = searchQuery || selectedDate || selectedCategory
   const showCategoryRows = !selectedCategory && eventsByCategory.some(cat => cat.events.length > 0)
   const showFilteredGrid = selectedCategory && filteredEvents.length > 0
 
@@ -126,21 +126,13 @@ export function HomeContent({ events, featuredEvents, categories }: HomeContentP
       <Navbar />
       
       <main>
-        {!searchQuery && !selectedDate && !selectedCategory && transformedFeatured.length > 0 && (
+        {!hasFilters && transformedFeatured.length > 0 && (
           <HeroCarousel 
             events={transformedFeatured} 
-            onSelectEvent={setSelectedEvent}
           />
         )}
 
-        <FiltersBar
-          searchQuery={searchQuery}
-          onSearchChange={setSearchQuery}
-          selectedDate={selectedDate}
-          onDateChange={setSelectedDate}
-          selectedCategory={selectedCategory}
-          onCategoryChange={setSelectedCategory}
-        />
+        <FiltersBar />
 
         {showCategoryRows && (
           <div className="py-4">
@@ -150,9 +142,6 @@ export function HomeContent({ events, featuredEvents, categories }: HomeContentP
                 category={category}
                 title={title}
                 events={events}
-                onSelectEvent={setSelectedEvent}
-                favorites={favorites}
-                onToggleFavorite={handleToggleFavorite}
               />
             ))}
           </div>
@@ -165,10 +154,13 @@ export function HomeContent({ events, featuredEvents, categories }: HomeContentP
             </h2>
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
               {filteredEvents.map(event => (
-                <div key={event.id} className="flex justify-center">
+                <Link 
+                  key={event.id} 
+                  href={`/evento/${event.id}`}
+                  className="flex justify-center"
+                >
                   <div 
                     className="group relative aspect-[2/3] w-full max-w-[200px] cursor-pointer overflow-hidden rounded-xl bg-card shadow-lg"
-                    onClick={() => setSelectedEvent(event)}
                   >
                     <img
                       src={event.image}
@@ -188,23 +180,19 @@ export function HomeContent({ events, featuredEvents, categories }: HomeContentP
                       </p>
                     </div>
                   </div>
-                </div>
+                </Link>
               ))}
             </div>
           </div>
         )}
 
-        {filteredEvents.length === 0 && (searchQuery || selectedDate || selectedCategory) && (
+        {filteredEvents.length === 0 && hasFilters && (
           <div className="container mx-auto px-4 py-16 text-center">
             <p className="text-lg text-muted-foreground">
               No se encontraron eventos con los filtros seleccionados.
             </p>
             <button
-              onClick={() => {
-                setSearchQuery("")
-                setSelectedDate(null)
-                setSelectedCategory(null)
-              }}
+              onClick={clearFilters}
               className="mt-4 text-primary hover:underline"
             >
               Limpiar filtros
@@ -212,7 +200,7 @@ export function HomeContent({ events, featuredEvents, categories }: HomeContentP
           </div>
         )}
 
-        {filteredEvents.length === 0 && !searchQuery && !selectedDate && !selectedCategory && (
+        {filteredEvents.length === 0 && !hasFilters && (
           <div className="container mx-auto px-4 py-16 text-center">
             <p className="text-lg text-muted-foreground">
               No hay eventos disponibles en este momento.
@@ -220,12 +208,6 @@ export function HomeContent({ events, featuredEvents, categories }: HomeContentP
           </div>
         )}
       </main>
-
-      <EventModal
-        event={selectedEvent}
-        open={!!selectedEvent}
-        onClose={() => setSelectedEvent(null)}
-      />
 
       <MobileNav />
     </div>

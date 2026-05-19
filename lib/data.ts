@@ -74,6 +74,27 @@ export async function getEventBySlug(slug: string): Promise<(Event & { category:
   return data as Event & { category: Category; venue: Venue | null }
 }
 
+export async function getEventById(id: string): Promise<(Event & { category: Category; venue: Venue | null }) | null> {
+  const supabase = await createClient()
+  
+  const { data, error } = await supabase
+    .from('events')
+    .select(`
+      *,
+      category:categories(*),
+      venue:venues(*)
+    `)
+    .eq('id', id)
+    .single()
+  
+  if (error) {
+    console.error('Error fetching event by id:', error)
+    return null
+  }
+  
+  return data as Event & { category: Category; venue: Venue | null }
+}
+
 export async function getFeaturedEvents(): Promise<(Event & { category: Category; venue: Venue | null })[]> {
   return getEvents({ featured: true, limit: 5 })
 }

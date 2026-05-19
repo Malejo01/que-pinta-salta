@@ -5,46 +5,21 @@ import Link from "next/link"
 import { motion } from "framer-motion"
 import { ChevronLeft, ChevronRight } from "lucide-react"
 import { EventCategory } from "@/lib/types"
-
-// Display event type (transformed from database)
-interface DisplayEvent {
-  id: string
-  title: string
-  venue: string
-  date: string
-  time: string
-  category: string
-  price: number | "gratis"
-  image: string
-  description: string
-  address: string
-  ticketUrl?: string
-  noiseLevel: number
-  vibe: string
-  isFeatured?: boolean
-}
-
-type Event = DisplayEvent
 import { EventCard } from "@/components/event-card"
 import { Button } from "@/components/ui/button"
 import { getCategoryIcon } from "@/lib/category-icons"
+import type { DisplayEvent } from "@/components/home-content"
 
 interface CategoryRowProps {
   category: EventCategory
   title: string
-  events: Event[]
-  onSelectEvent: (event: Event) => void
-  favorites: string[]
-  onToggleFavorite: (eventId: string) => void
+  events: DisplayEvent[]
 }
 
 export function CategoryRow({ 
   category, 
   title, 
   events, 
-  onSelectEvent,
-  favorites,
-  onToggleFavorite
 }: CategoryRowProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
 
@@ -71,7 +46,7 @@ export function CategoryRow({
             </span>
           </div>
           <Link 
-            href={`/categoria/${category}`}
+            href={`/?category=${category}`}
             className="text-sm font-medium text-primary hover:underline"
           >
             Ver todos
@@ -100,12 +75,7 @@ export function CategoryRow({
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ duration: 0.3, delay: index * 0.05 }}
               >
-                <EventCard
-                  event={event}
-                  onSelect={onSelectEvent}
-                  isFavorite={favorites.includes(event.id)}
-                  onToggleFavorite={onToggleFavorite}
-                />
+                <EventCard event={event} />
               </motion.div>
             ))}
           </motion.div>
