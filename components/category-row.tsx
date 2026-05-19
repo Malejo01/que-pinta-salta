@@ -4,7 +4,27 @@ import { useRef } from "react"
 import Link from "next/link"
 import { motion } from "framer-motion"
 import { ChevronLeft, ChevronRight } from "lucide-react"
-import { Event, EventCategory } from "@/lib/types"
+import { EventCategory } from "@/lib/types"
+
+// Display event type (transformed from database)
+interface DisplayEvent {
+  id: string
+  title: string
+  venue: string
+  date: string
+  time: string
+  category: string
+  price: number | "gratis"
+  image: string
+  description: string
+  address: string
+  ticketUrl?: string
+  noiseLevel: number
+  vibe: string
+  isFeatured?: boolean
+}
+
+type Event = DisplayEvent
 import { EventCard } from "@/components/event-card"
 import { Button } from "@/components/ui/button"
 import { getCategoryIcon } from "@/lib/category-icons"

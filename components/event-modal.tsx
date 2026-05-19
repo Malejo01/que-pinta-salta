@@ -2,7 +2,27 @@
 
 import Image from "next/image"
 import { Calendar, MapPin, Clock, Volume2, Users, ExternalLink, Navigation } from "lucide-react"
-import { Event, categoryLabels, vibeLabels } from "@/lib/types"
+import { categoryLabels, vibeLabels, EventCategory } from "@/lib/types"
+
+// Display event type (transformed from database)
+interface DisplayEvent {
+  id: string
+  title: string
+  venue: string
+  date: string
+  time: string
+  category: string
+  price: number | "gratis"
+  image: string
+  description: string
+  address: string
+  ticketUrl?: string
+  noiseLevel: number
+  vibe: string
+  isFeatured?: boolean
+}
+
+type Event = DisplayEvent
 import {
   Dialog,
   DialogContent,
@@ -30,8 +50,8 @@ export function EventModal({ event, open, onClose }: EventModalProps) {
     year: "numeric",
   })
 
-  const googleMapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(event.address)}`
-  const Icon = getCategoryIcon(event.category)
+  const googleMapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(event.address || event.venue)}`
+  const Icon = getCategoryIcon(event.category as EventCategory)
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
@@ -46,7 +66,7 @@ export function EventModal({ event, open, onClose }: EventModalProps) {
           <div className="absolute inset-0 bg-gradient-to-t from-background to-transparent" />
           <Badge className="absolute left-4 top-4 bg-primary text-primary-foreground">
             <Icon className="mr-1 size-3" />
-            {categoryLabels[event.category]}
+            {categoryLabels[event.category as keyof typeof categoryLabels] || event.category}
           </Badge>
         </div>
 
@@ -76,7 +96,7 @@ export function EventModal({ event, open, onClose }: EventModalProps) {
 
             <div className="flex items-center gap-3 text-muted-foreground">
               <Users className="size-5 text-primary" />
-              <span>{vibeLabels[event.vibe]}</span>
+              <span>{vibeLabels[event.vibe as keyof typeof vibeLabels] || event.vibe}</span>
             </div>
           </div>
 

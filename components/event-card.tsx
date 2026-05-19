@@ -3,7 +3,27 @@
 import Image from "next/image"
 import { motion } from "framer-motion"
 import { Calendar, MapPin, Heart } from "lucide-react"
-import { Event, categoryLabels } from "@/lib/types"
+import { categoryLabels } from "@/lib/types"
+
+// Display event type (transformed from database)
+interface DisplayEvent {
+  id: string
+  title: string
+  venue: string
+  date: string
+  time: string
+  category: string
+  price: number | "gratis"
+  image: string
+  description: string
+  address: string
+  ticketUrl?: string
+  noiseLevel: number
+  vibe: string
+  isFeatured?: boolean
+}
+
+type Event = DisplayEvent
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
@@ -58,7 +78,7 @@ export function EventCard({ event, onSelect, isFavorite, onToggleFavorite }: Eve
         variant="secondary" 
         className="absolute left-2 top-2 bg-primary text-primary-foreground"
       >
-        {categoryLabels[event.category]}
+        {categoryLabels[event.category as keyof typeof categoryLabels] || event.category}
       </Badge>
 
       <div className="absolute bottom-0 left-0 right-0 p-3 text-white">

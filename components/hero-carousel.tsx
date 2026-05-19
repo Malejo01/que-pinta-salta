@@ -4,7 +4,27 @@ import { useEffect, useState } from "react"
 import Image from "next/image"
 import { motion, AnimatePresence } from "framer-motion"
 import { ChevronLeft, ChevronRight, Calendar, MapPin, Ticket } from "lucide-react"
-import { Event } from "@/lib/types"
+import { categoryLabels } from "@/lib/types"
+
+// Display event type (transformed from database)
+interface DisplayEvent {
+  id: string
+  title: string
+  venue: string
+  date: string
+  time: string
+  category: string
+  price: number | "gratis"
+  image: string
+  description: string
+  address: string
+  ticketUrl?: string
+  noiseLevel: number
+  vibe: string
+  isFeatured?: boolean
+}
+
+type Event = DisplayEvent
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { categoryLabels } from "@/lib/types"
@@ -73,7 +93,7 @@ export function HeroCarousel({ events, onSelectEvent }: HeroCarouselProps) {
           className="container mx-auto max-w-4xl"
         >
           <Badge className="mb-3 bg-primary text-primary-foreground">
-            {categoryLabels[currentEvent.category]}
+            {categoryLabels[currentEvent.category as keyof typeof categoryLabels] || currentEvent.category}
           </Badge>
           
           <h2 className="mb-3 text-2xl font-bold text-foreground sm:text-4xl">
