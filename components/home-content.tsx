@@ -43,9 +43,10 @@ interface HomeContentProps {
   events: EventWithRelations[]
   featuredEvents: EventWithRelations[]
   categories: Category[]
+  serverNowISO: string
 }
 
-export function HomeContent({ events, featuredEvents, categories }: HomeContentProps) {
+export function HomeContent({ events, featuredEvents, categories, serverNowISO }: HomeContentProps) {
   const searchParams = useSearchParams()
   const router = useRouter()
   
@@ -71,7 +72,7 @@ export function HomeContent({ events, featuredEvents, categories }: HomeContentP
     }
 
     if (selectedDate) {
-      const today = new Date()
+      const today = new Date(serverNowISO)
       today.setHours(0, 0, 0, 0)
       
       filtered = filtered.filter(event => {
@@ -104,7 +105,7 @@ export function HomeContent({ events, featuredEvents, categories }: HomeContentP
     }
 
     return filtered
-  }, [events, searchQuery, selectedDate, selectedCategory])
+  }, [events, searchQuery, selectedDate, selectedCategory, serverNowISO])
 
   const eventsByCategory = useMemo(() => {
     const cats = categories.map(cat => ({

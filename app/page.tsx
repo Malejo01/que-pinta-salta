@@ -7,12 +7,14 @@ export default async function HomePage() {
     getFeaturedEvents(),
     getCategories(),
   ])
+  const serverNowISO = new Date().toISOString()
 
   return (
     <HomeContent 
       events={events} 
       featuredEvents={featuredEvents}
       categories={categories}
+      serverNowISO={serverNowISO}
     />
   )
 }
