@@ -5,6 +5,7 @@ import {
   Store, 
   Palette,
   Film,
+  Calendar,
   LucideIcon
 } from "lucide-react"
 import { EventCategory } from "./types"
@@ -18,6 +19,6 @@ const categoryIcons: Record<EventCategory, LucideIcon> = {
   cine: Film,
 }
 
-export function getCategoryIcon(category: EventCategory): LucideIcon {
-  return categoryIcons[category]
+export function getCategoryIcon(category: EventCategory | string): LucideIcon {
+  return categoryIcons[category as EventCategory] || Calendar
 }
