@@ -5,7 +5,8 @@ import {
   Store, 
   Palette,
   Film,
-  Tag
+  Calendar,
+  LucideIcon
 } from "lucide-react"
 import type { LucideIcon } from "lucide-react"
 
@@ -19,6 +20,6 @@ const categoryIcons: Record<string, LucideIcon> = {
   recitales: Guitar,
 }
 
-export function getCategoryIcon(categorySlug: string): LucideIcon {
-  return categoryIcons[categorySlug] ?? Tag
+export function getCategoryIcon(category: EventCategory | string): LucideIcon {
+  return categoryIcons[category as EventCategory] || Calendar
 }
