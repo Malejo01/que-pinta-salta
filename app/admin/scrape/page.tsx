@@ -1,6 +1,8 @@
 import { redirect } from "next/navigation"
 import { createClient } from "@/lib/supabase/server"
+import { getScrapeDashboardData } from "@/lib/scrape-admin-data"
 import { ScrapeManager } from "@/components/scrape-manager"
+import { Button } from "@/components/ui/button"
 import Link from "next/link"
 
 export default async function AdminScrapePage() {
@@ -17,6 +19,8 @@ export default async function AdminScrapePage() {
 
   if (profile?.role !== 'ADMIN') redirect('/?error=unauthorized')
 
+  const dashboard = await getScrapeDashboardData()
+
   // Últimos eventos importados (para referencia)
   const { data: recentEvents } = await supabase
     .from('events')
@@ -27,20 +31,25 @@ export default async function AdminScrapePage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <div className="container mx-auto px-4 py-8 max-w-3xl">
-        <div className="mb-6">
-          <div className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
-            <Link href="/admin/aliases" className="hover:underline">Panel Admin</Link>
-            <span>/</span>
-            <span>Scraper</span>
+      <div className="container mx-auto max-w-5xl px-4 py-8">
+        <div className="mb-6 flex items-start justify-between gap-4">
+          <div>
+            <div className="mb-2 flex items-center gap-2 text-sm text-muted-foreground">
+              <Link href="/admin" className="hover:underline">Panel Admin</Link>
+              <span>/</span>
+              <span>Scraper</span>
+            </div>
+            <h1 className="text-3xl font-bold">Scrapers y Sincronización</h1>
+            <p className="mt-1 text-muted-foreground">
+              Ejecuta scrapers por fuente, revisa la última corrida y consulta el historial de sincronizaciones.
+            </p>
           </div>
-          <h1 className="text-3xl font-bold">Importar desde Norteticket</h1>
-          <p className="text-muted-foreground mt-1">
-            Sincroniza automáticamente los eventos de Salta publicados en Norteticket.
-          </p>
+          <Button asChild variant="outline">
+            <Link href="/">Volver al inicio</Link>
+          </Button>
         </div>
 
-        <ScrapeManager />
+        <ScrapeManager sources={dashboard.sources} warning={dashboard.warning} />
 
         {recentEvents && recentEvents.length > 0 && (
           <div className="mt-8">

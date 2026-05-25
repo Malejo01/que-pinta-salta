@@ -1,23 +1,53 @@
+"use client"
+
 import Image from "next/image"
 import Link from "next/link"
-import { createElement } from "react"
-import { Calendar, MapPin, Clock, Volume2, Users, ExternalLink, Navigation, ArrowLeft } from "lucide-react"
-import { categoryLabels, vibeLabels, EventCategory, Event, Category, Venue } from "@/lib/types"
+import { useRouter } from "next/navigation"
+import { createElement, useMemo, useState, useTransition } from "react"
+import { Calendar, MapPin, Clock, Volume2, Users, ExternalLink, Navigation, ArrowLeft, Pencil, Check, X } from "lucide-react"
+import { vibeLabels, Event, Category, Venue } from "@/lib/types"
 import { Navbar } from "@/components/navbar"
 import { MobileNav } from "@/components/mobile-nav"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Slider } from "@/components/ui/slider"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import { Input } from "@/components/ui/input"
 import { getCategoryIcon } from "@/lib/category-icons"
 import { formatEventDate, formatEventTime } from "@/lib/date-format"
+import { createCategory, updateEventCategory } from "@/lib/admin-actions"
+import { deferredRefresh } from "@/lib/deferred-refresh"
 
-type EventWithRelations = Event & { category: Category; venue: Venue | null }
+type EventWithRelations = Event & { category: Category | null; venue: Venue | null }
 
 interface EventDetailPageProps {
   event: EventWithRelations
+  isAdmin?: boolean
+  categories?: Category[]
 }
 
-export function EventDetailPage({ event }: EventDetailPageProps) {
+export function EventDetailPage({ event, isAdmin = false, categories = [] }: EventDetailPageProps) {
+  const router = useRouter()
+  const [localCategories, setLocalCategories] = useState<Category[]>(categories)
+  const [isEditingCategory, setIsEditingCategory] = useState(false)
+  const [isPending, startTransition] = useTransition()
+  const [isPendingCreateCategory, startCreateCategoryTransition] = useTransition()
+  const [categoryError, setCategoryError] = useState<string | null>(null)
+  const [currentCategoryId, setCurrentCategoryId] = useState<string>(event.category_id ?? "")
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string>(event.category_id ?? "")
+  const [newCategoryName, setNewCategoryName] = useState("")
+
+  const currentCategory = useMemo(() => {
+    if (!currentCategoryId) return null
+    return localCategories.find((category) => category.id === currentCategoryId) ?? event.category
+  }, [localCategories, currentCategoryId, event.category])
+
   const startDate = new Date(event.start_date)
   const displayEvent = {
     id: event.id,
@@ -25,7 +55,8 @@ export function EventDetailPage({ event }: EventDetailPageProps) {
     venue: event.venue?.name || 'Lugar por confirmar',
     date: startDate.toISOString().split('T')[0],
     time: formatEventTime(startDate),
-    category: event.category.slug as EventCategory,
+    category: currentCategory?.slug || 'uncategorized',
+    categoryName: currentCategory?.name || 'Sin categorizar',
     price: event.is_free ? "gratis" as const : event.price_min,
     image: event.image_url || '/placeholder.svg?height=600&width=400',
     description: event.description || event.short_description || '',
@@ -39,6 +70,54 @@ export function EventDetailPage({ event }: EventDetailPageProps) {
 
   const googleMapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(displayEvent.address || displayEvent.venue)}`
   const iconComponent = getCategoryIcon(displayEvent.category)
+
+  const handleSaveCategory = () => {
+    if (!selectedCategoryId) return
+    setCategoryError(null)
+
+    startTransition(async () => {
+      const result = await updateEventCategory(event.id, selectedCategoryId)
+      if (result.error) {
+        setCategoryError(result.error)
+        return
+      }
+
+      setCurrentCategoryId(selectedCategoryId)
+      setIsEditingCategory(false)
+      deferredRefresh(router.refresh)
+    })
+  }
+
+  const handleCreateCategoryAndAssign = () => {
+    const name = newCategoryName.trim()
+    if (!name) return
+    setCategoryError(null)
+
+    startCreateCategoryTransition(async () => {
+      const created = await createCategory(name)
+      if (created.error || !created.category) {
+        setCategoryError(created.error ?? 'No se pudo crear la categoría')
+        return
+      }
+
+      setLocalCategories((prev) => {
+        if (prev.some((category) => category.id === created.category.id)) return prev
+        return [...prev, created.category]
+      })
+
+      const assign = await updateEventCategory(event.id, created.category.id)
+      if (assign.error) {
+        setCategoryError(assign.error)
+        return
+      }
+
+      setCurrentCategoryId(created.category.id)
+      setSelectedCategoryId(created.category.id)
+      setNewCategoryName("")
+      setIsEditingCategory(false)
+      deferredRefresh(router.refresh)
+    })
+  }
 
   return (
     <div className="min-h-screen bg-background pb-20 sm:pb-0">
@@ -64,7 +143,7 @@ export function EventDetailPage({ event }: EventDetailPageProps) {
             />
             <Badge className="absolute left-4 top-4 bg-primary text-primary-foreground">
               {createElement(iconComponent, { className: "mr-1 size-3" })}
-              {categoryLabels[displayEvent.category as keyof typeof categoryLabels] || displayEvent.category}
+              {displayEvent.categoryName}
             </Badge>
           </div>
 
@@ -72,6 +151,83 @@ export function EventDetailPage({ event }: EventDetailPageProps) {
             <h1 className="mb-4 text-3xl font-bold text-foreground lg:text-4xl">
               {displayEvent.title}
             </h1>
+
+            {isAdmin && (
+              <div className="mb-6 rounded-lg border bg-muted/40 p-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-xs text-muted-foreground">Categoría (Admin)</p>
+                    {!isEditingCategory && (
+                      <p className="text-sm font-medium text-foreground">{displayEvent.categoryName}</p>
+                    )}
+                  </div>
+
+                  {!isEditingCategory ? (
+                    <Button size="sm" variant="outline" onClick={() => setIsEditingCategory(true)}>
+                      <Pencil className="mr-2 size-4" />
+                      Editar
+                    </Button>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => {
+                          setSelectedCategoryId(currentCategoryId)
+                          setIsEditingCategory(false)
+                          setCategoryError(null)
+                        }}
+                      >
+                        <X className="mr-1 size-4" />
+                        Cancelar
+                      </Button>
+                      <Button size="sm" onClick={handleSaveCategory} disabled={isPending || !selectedCategoryId}>
+                        <Check className="mr-1 size-4" />
+                        Guardar
+                      </Button>
+                    </div>
+                  )}
+                </div>
+
+                {isEditingCategory && (
+                  <div className="mt-3 space-y-3">
+                    <Select value={selectedCategoryId} onValueChange={setSelectedCategoryId}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Seleccionar categoría" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {localCategories.map((category) => (
+                          <SelectItem key={category.id} value={category.id}>
+                            {category.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+
+                    <div className="flex flex-col gap-2 rounded-md border bg-background p-3">
+                      <p className="text-xs text-muted-foreground">Crear nueva categoría y asignar este evento</p>
+                      <div className="flex items-center gap-2">
+                        <Input
+                          value={newCategoryName}
+                          onChange={(e) => setNewCategoryName(e.target.value)}
+                          placeholder="Ej: Automovilismo"
+                        />
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          onClick={handleCreateCategoryAndAssign}
+                          disabled={isPendingCreateCategory || !newCategoryName.trim()}
+                        >
+                          {isPendingCreateCategory ? 'Creando...' : 'Crear y asignar'}
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {categoryError && <p className="mt-2 text-xs text-destructive">{categoryError}</p>}
+              </div>
+            )}
 
             <div className="mb-6 space-y-4">
               <div className="flex items-center gap-3 text-muted-foreground">

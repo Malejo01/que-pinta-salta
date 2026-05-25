@@ -5,11 +5,11 @@ import {
   Store, 
   Palette,
   Film,
+  Sparkles,
   LucideIcon
 } from "lucide-react"
-import { EventCategory } from "./types"
 
-const categoryIcons: Record<EventCategory, LucideIcon> = {
+const categoryIcons: Record<string, LucideIcon> = {
   penas: Guitar,
   boliches: Wine,
   teatro: Theater,
@@ -18,6 +18,6 @@ const categoryIcons: Record<EventCategory, LucideIcon> = {
   cine: Film,
 }
 
-export function getCategoryIcon(category: EventCategory): LucideIcon {
-  return categoryIcons[category]
+export function getCategoryIcon(categorySlug: string): LucideIcon {
+  return categoryIcons[categorySlug] ?? Sparkles
 }

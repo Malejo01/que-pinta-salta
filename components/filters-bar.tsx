@@ -3,7 +3,7 @@
 import { useRouter, useSearchParams } from "next/navigation"
 import { useCallback } from "react"
 import { Search } from "lucide-react"
-import { EventCategory, categoryLabels } from "@/lib/types"
+import type { Category } from "@/lib/types"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
@@ -18,15 +18,17 @@ const dateFilters: { value: DateFilter; label: string }[] = [
   { value: "tendencias", label: "Tendencias" },
 ]
 
-const categories = Object.entries(categoryLabels) as [EventCategory, string][]
+interface FiltersBarProps {
+  categories: Category[]
+}
 
-export function FiltersBar() {
+export function FiltersBar({ categories }: FiltersBarProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
   
   const searchQuery = searchParams.get("search") || ""
   const selectedDate = searchParams.get("date") as DateFilter | null
-  const selectedCategory = searchParams.get("category") as EventCategory | null
+  const selectedCategory = searchParams.get("category")
 
   const updateParams = useCallback((key: string, value: string | null) => {
     const params = new URLSearchParams(searchParams.toString())
@@ -48,7 +50,7 @@ export function FiltersBar() {
     updateParams("date", date)
   }, [updateParams])
 
-  const handleCategoryChange = useCallback((category: EventCategory | null) => {
+  const handleCategoryChange = useCallback((category: string | null) => {
     updateParams("category", category)
   }, [updateParams])
 
@@ -85,21 +87,21 @@ export function FiltersBar() {
           </div>
 
           <div className="scrollbar-hide flex gap-2 overflow-x-auto pb-1">
-            {categories.map(([value, label]) => {
-              const Icon = getCategoryIcon(value)
+            {categories.map((category) => {
+              const Icon = getCategoryIcon(category.slug)
               return (
                 <Button
-                  key={value}
-                  variant={selectedCategory === value ? "default" : "outline"}
+                  key={category.id}
+                  variant={selectedCategory === category.slug ? "default" : "outline"}
                   size="sm"
-                  onClick={() => handleCategoryChange(selectedCategory === value ? null : value)}
+                  onClick={() => handleCategoryChange(selectedCategory === category.slug ? null : category.slug)}
                   className={cn(
                     "shrink-0",
-                    selectedCategory === value && "bg-primary text-primary-foreground"
+                    selectedCategory === category.slug && "bg-primary text-primary-foreground"
                   )}
                 >
                   <Icon className="mr-1.5 size-4" />
-                  {label}
+                  {category.name}
                 </Button>
               )
             })}

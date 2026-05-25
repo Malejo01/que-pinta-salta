@@ -3,8 +3,7 @@
 import { useMemo } from "react"
 import { useSearchParams, useRouter } from "next/navigation"
 import Image from "next/image"
-import type { Event, Category, Venue, EventCategory } from "@/lib/types"
-import { categoryLabels } from "@/lib/types"
+import type { Event, Category, Venue } from "@/lib/types"
 import { Navbar } from "@/components/navbar"
 import { MobileNav } from "@/components/mobile-nav"
 import { HeroCarousel } from "@/components/hero-carousel"
@@ -25,7 +24,8 @@ export function transformEvent(event: EventWithRelations) {
     venue: event.venue?.name || 'Lugar por confirmar',
     date: startDate.toISOString().split('T')[0],
     time: formatEventTime(startDate),
-    category: event.category.slug as EventCategory,
+    category: event.category.slug,
+    categoryName: event.category.name,
     price: event.is_free ? "gratis" as const : event.price_min,
     image: event.image_url || '/placeholder.svg?height=600&width=400',
     description: event.description || event.short_description || '',
@@ -52,7 +52,11 @@ export function HomeContent({ events, featuredEvents, categories, serverNowISO }
   
   const searchQuery = searchParams.get("search") || ""
   const selectedDate = searchParams.get("date") as DateFilter | null
-  const selectedCategory = searchParams.get("category") as EventCategory | null
+  const selectedCategory = searchParams.get("category")
+
+  const categoryNameBySlug = useMemo(() => {
+    return new Map(categories.map((category) => [category.slug, category.name]))
+  }, [categories])
 
   const transformedFeatured = useMemo(() => 
     featuredEvents.map(transformEvent),
@@ -60,7 +64,10 @@ export function HomeContent({ events, featuredEvents, categories, serverNowISO }
   )
 
   const filteredEvents = useMemo(() => {
-    let filtered = events.map(transformEvent)
+    // Excluir eventos aún sin categoría para no romper filtros/listados públicos.
+    let filtered = events
+      .filter((event) => event.category)
+      .map(transformEvent)
 
     if (searchQuery) {
       const query = searchQuery.toLowerCase()
@@ -109,7 +116,7 @@ export function HomeContent({ events, featuredEvents, categories, serverNowISO }
 
   const eventsByCategory = useMemo(() => {
     const cats = categories.map(cat => ({
-      category: cat.slug as EventCategory,
+      category: cat.slug,
       title: cat.name,
       events: filteredEvents.filter(event => event.category === cat.slug)
     }))
@@ -135,7 +142,7 @@ export function HomeContent({ events, featuredEvents, categories, serverNowISO }
           />
         )}
 
-        <FiltersBar />
+        <FiltersBar categories={categories} />
 
         {showCategoryRows && (
           <div className="py-4">
@@ -153,7 +160,7 @@ export function HomeContent({ events, featuredEvents, categories, serverNowISO }
         {showFilteredGrid && (
           <div className="container mx-auto px-4 py-8">
             <h2 className="mb-6 text-2xl font-bold text-foreground">
-              {categoryLabels[selectedCategory]} ({filteredEvents.length})
+              {categoryNameBySlug.get(selectedCategory) ?? selectedCategory} ({filteredEvents.length})
             </h2>
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
               {filteredEvents.map(event => (

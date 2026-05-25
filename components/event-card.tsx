@@ -4,7 +4,6 @@ import Image from "next/image"
 import Link from "next/link"
 import { motion } from "framer-motion"
 import { Calendar, MapPin, Heart } from "lucide-react"
-import { categoryLabels } from "@/lib/types"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
@@ -59,7 +58,7 @@ export function EventCard({ event, isFavorite, onToggleFavorite }: EventCardProp
           variant="secondary" 
           className="absolute left-2 top-2 bg-primary text-primary-foreground"
         >
-          {categoryLabels[event.category as keyof typeof categoryLabels] || event.category}
+          {event.categoryName}
         </Badge>
 
         <div className="absolute bottom-0 left-0 right-0 p-3 text-white">

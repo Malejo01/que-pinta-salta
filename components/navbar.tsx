@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
-import { Moon, Sun, Plus, LogIn, LogOut, User, Settings } from "lucide-react"
+import { Moon, Sun, Plus, LogIn, LogOut, User, Settings, SearchCheck, Tags } from "lucide-react"
 import { useTheme } from "@/components/theme-provider"
 import { Button } from "@/components/ui/button"
 import {
@@ -111,9 +111,21 @@ export function Navbar() {
                     {isAdmin && (
                       <>
                         <DropdownMenuItem asChild>
-                          <Link href="/admin/aliases">
+                          <Link href="/admin">
                             <Settings className="mr-2 size-4" />
                             Panel Admin
+                          </Link>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem asChild>
+                          <Link href="/admin/scrape">
+                            <SearchCheck className="mr-2 size-4" />
+                            Scrapers
+                          </Link>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem asChild>
+                          <Link href="/admin/clasificacion">
+                            <Tags className="mr-2 size-4" />
+                            Clasificación
                           </Link>
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />

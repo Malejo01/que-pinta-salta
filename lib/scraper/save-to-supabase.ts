@@ -70,6 +70,41 @@ export async function resolveCategoryId(slug: string): Promise<string> {
   return fallback?.id ?? '';
 }
 
+/**
+ * Intenta clasificar un evento buscando coincidencias de alias
+ * contra el nombre del venue y palabras clave del título.
+ * Retorna { categoryId, source } si hay match, o null si no.
+ */
+async function autoClassifyEvent(
+  title: string,
+  venueName: string
+): Promise<{ categoryId: string; source: 'alias' } | null> {
+  const supabase = getAdminClient()
+
+  const candidates = [
+    venueName.toLowerCase().trim(),
+    ...title
+      .toLowerCase()
+      .split(/\s+/)
+      .filter((w) => w.length > 3),
+  ].filter(Boolean)
+
+  for (const text of candidates) {
+    const { data } = await supabase
+      .from('aliases')
+      .select('target_id')
+      .eq('alias', text)
+      .eq('target_type', 'category')
+      .maybeSingle()
+
+    if (data?.target_id) {
+      return { categoryId: data.target_id, source: 'alias' }
+    }
+  }
+
+  return null
+}
+
 export type SaveResult = {
   inserted: number;
   skipped: number;
@@ -83,7 +118,8 @@ export type SaveResult = {
  * - Resuelve la category_id real.
  */
 export async function saveEventsToSupabase(
-  events: Partial<Event & { venue?: string }>[]
+  events: Partial<Event & { venue?: string }>[],
+  sourceKey?: string
 ): Promise<SaveResult> {
   const supabase = getAdminClient();
   const result: SaveResult = { inserted: 0, skipped: 0, errors: [] };
@@ -107,14 +143,26 @@ export async function saveEventsToSupabase(
       const venueName = typeof event.venue === 'string' ? event.venue : '';
       const venue_id = await upsertVenue(venueName);
 
-      // Resolver category_id real
-      const category_id = event.category_id
-        ? await resolveCategoryId(event.category_id)
-        : await resolveCategoryId('uncategorized');
+      // Clasificación: 1) scraper ya provee slug → resolver a ID
+      //                2) alias match en venue/título
+      //                3) null → va a la cola de "sin categorizar"
+      let category_id: string | null = null;
+      let classification_source: 'scraper' | 'alias' | null = null;
+
+      if (event.category_id) {
+        const resolved = await resolveCategoryId(event.category_id);
+        if (resolved) {
+          category_id = resolved;
+          classification_source = 'scraper';
+        }
+      }
 
       if (!category_id) {
-        result.errors.push(`Sin categoría válida para: ${event.title}`);
-        continue;
+        const autoMatch = await autoClassifyEvent(event.title ?? '', venueName);
+        if (autoMatch) {
+          category_id = autoMatch.categoryId;
+          classification_source = 'alias';
+        }
       }
 
       const { error } = await supabase.from('events').insert({
@@ -141,6 +189,8 @@ export async function saveEventsToSupabase(
         is_featured: false,
         view_count: 0,
         created_by: null,
+        scrape_source_key: sourceKey || null,
+        classification_source,
       });
 
       if (error) {

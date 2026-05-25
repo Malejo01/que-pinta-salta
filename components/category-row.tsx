@@ -4,14 +4,13 @@ import { createElement, useRef } from "react"
 import Link from "next/link"
 import { motion } from "framer-motion"
 import { ChevronLeft, ChevronRight } from "lucide-react"
-import { EventCategory } from "@/lib/types"
 import { EventCard } from "@/components/event-card"
 import { Button } from "@/components/ui/button"
 import { getCategoryIcon } from "@/lib/category-icons"
 import type { DisplayEvent } from "@/components/home-content"
 
 interface CategoryRowProps {
-  category: EventCategory
+  category: string
   title: string
   events: DisplayEvent[]
 }
