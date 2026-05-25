@@ -1,5 +1,6 @@
 export type ScrapeSourceKey =
   | 'norteticket'
+  | 'vamos'
   | 'paseshow'
   | 'tuentrada'
   | 'ticketek'
@@ -22,6 +23,13 @@ export const SCRAPE_SOURCES: ScrapeSourceConfig[] = [
     name: 'Norteticket',
     description: 'Eventos publicados para Salta en Norteticket.',
     siteUrl: 'https://norteticket.com/?subcategoria=Salta',
+    enabled: true,
+  },
+  {
+    key: 'vamos',
+    name: 'Vamos Salta',
+    description: 'Eventos culturales y espectáculos del Gobierno de la Provincia de Salta.',
+    siteUrl: 'https://www.vamos.gob.ar',
     enabled: true,
   },
   {

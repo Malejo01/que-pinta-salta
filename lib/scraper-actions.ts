@@ -145,6 +145,21 @@ async function executeSourceScrape(sourceKey: ScrapeSourceKey): Promise<Omit<Scr
         message: `Scrape completado: ${result.inserted} eventos nuevos, ${result.skipped} ya existían.`,
       }
     }
+    case 'vamos': {
+      const { scrapeVamosGobAr } = await import('@/lib/scraper/vamos-scraper')
+
+      const result = await scrapeVamosGobAr()
+
+      return {
+        success: true,
+        sourceKey,
+        sourceName: getScrapeSourceConfig(sourceKey)?.name ?? sourceKey,
+        inserted: result.inserted,
+        skipped: result.skipped,
+        errors: result.errors,
+        message: `Scrape completado: ${result.inserted} eventos nuevos, ${result.skipped} ya existían.`,
+      }
+    }
     default: {
       return {
         success: false,
