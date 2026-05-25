@@ -1,7 +1,6 @@
 "use client"
 
 import { useState, useRef } from "react"
-import { useRouter } from "next/navigation"
 import Image from "next/image"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
@@ -12,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch"
 import { Slider } from "@/components/ui/slider"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { ArrowLeft, Upload, Loader2, ImageIcon, Volume2 } from "lucide-react"
+import { ArrowLeft, Loader2, ImageIcon, Volume2 } from "lucide-react"
 import { createEvent, uploadFlyer } from "@/lib/actions"
 import type { Category, Venue } from "@/lib/types"
 
@@ -22,7 +21,6 @@ interface EventFormProps {
 }
 
 export function EventForm({ categories, venues }: EventFormProps) {
-  const router = useRouter()
   const fileInputRef = useRef<HTMLInputElement>(null)
   
   const [isSubmitting, setIsSubmitting] = useState(false)

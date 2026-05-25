@@ -1,5 +1,6 @@
 "use client"
 
+import { useRouter } from "next/navigation"
 import { useState, useTransition } from "react"
 import { Trash2, Plus, Tag, MapPin } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -29,6 +30,7 @@ import {
 } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { createAlias, deleteAlias } from "@/lib/admin-actions"
+import { deferredRefresh } from "@/lib/deferred-refresh"
 import type { Category, Venue } from "@/lib/types"
 
 interface Alias {
@@ -46,6 +48,7 @@ interface AliasesManagerProps {
 }
 
 export function AliasesManager({ categories, venues, initialAliases }: AliasesManagerProps) {
+  const router = useRouter()
   const [aliases, setAliases] = useState<Alias[]>(initialAliases)
   const [targetType, setTargetType] = useState<'category' | 'venue'>('category')
   const [targetId, setTargetId] = useState<string>('')
@@ -78,6 +81,7 @@ export function AliasesManager({ categories, venues, initialAliases }: AliasesMa
         setAliases([newAlias, ...aliases])
         setAliasValue('')
         setTargetId('')
+        deferredRefresh(router.refresh)
       }
     })
   }
@@ -87,6 +91,7 @@ export function AliasesManager({ categories, venues, initialAliases }: AliasesMa
       const result = await deleteAlias(id)
       if (!result.error) {
         setAliases(aliases.filter(a => a.id !== id))
+        deferredRefresh(router.refresh)
       }
     })
   }

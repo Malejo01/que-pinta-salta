@@ -1,17 +1,16 @@
 "use client"
 
-import { useRef } from "react"
+import { createElement, useRef } from "react"
 import Link from "next/link"
 import { motion } from "framer-motion"
 import { ChevronLeft, ChevronRight } from "lucide-react"
-import { EventCategory } from "@/lib/types"
 import { EventCard } from "@/components/event-card"
 import { Button } from "@/components/ui/button"
 import { getCategoryIcon } from "@/lib/category-icons"
 import type { DisplayEvent } from "@/components/home-content"
 
 interface CategoryRowProps {
-  category: EventCategory
+  category: string
   title: string
   events: DisplayEvent[]
 }
@@ -32,14 +31,14 @@ export function CategoryRow({
 
   if (events.length === 0) return null
 
-  const Icon = getCategoryIcon(category)
+  const iconComponent = getCategoryIcon(category)
 
   return (
     <section className="py-6">
       <div className="container mx-auto px-4">
         <div className="mb-4 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Icon className="size-5 text-primary" />
+            {createElement(iconComponent, { className: "size-5 text-primary" })}
             <h2 className="text-xl font-bold text-foreground">{title}</h2>
             <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
               {events.length}

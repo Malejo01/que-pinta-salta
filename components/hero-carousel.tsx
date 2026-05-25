@@ -6,6 +6,7 @@ import Link from "next/link"
 import { motion, AnimatePresence } from "framer-motion"
 import { ChevronLeft, ChevronRight, Calendar, MapPin, Ticket } from "lucide-react"
 import { categoryLabels } from "@/lib/types"
+import { formatEventDate } from "@/lib/date-format"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import type { DisplayEvent } from "@/components/home-content"
@@ -35,14 +36,10 @@ export function HeroCarousel({ events }: HeroCarouselProps) {
   if (events.length === 0) return null
 
   const currentEvent = events[currentIndex]
-  const formattedDate = new Date(currentEvent.date).toLocaleDateString("es-AR", {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-  })
+  const formattedDate = formatEventDate(currentEvent.date)
 
   return (
-    <div className="relative h-[400px] w-full overflow-hidden sm:h-[500px]">
+    <div className="relative h-[250px] w-full overflow-hidden sm:h-[320px] lg:h-[360px]">
       <AnimatePresence mode="wait">
         <motion.div
           key={currentIndex}
@@ -50,21 +47,21 @@ export function HeroCarousel({ events }: HeroCarouselProps) {
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.5 }}
-          className="absolute inset-0"
+          className="absolute inset-0 bg-black"
         >
           <Image
             src={currentEvent.image}
             alt={currentEvent.title}
             fill
-            className="object-cover"
+            className="scale-125 object-contain sm:scale-130"
             priority
           />
-          <div className="absolute inset-0 bg-gradient-to-t from-background via-background/60 to-transparent" />
-          <div className="absolute inset-0 bg-gradient-to-r from-background/80 to-transparent" />
+          <div className="absolute inset-0 bg-transparent dark:bg-gradient-to-t dark:from-background/85 dark:via-background/45 dark:to-transparent" />
+          <div className="absolute inset-0 bg-gradient-to-r from-black/40 via-transparent to-black/40" />
         </motion.div>
       </AnimatePresence>
 
-      <div className="absolute bottom-0 left-0 right-0 p-6 sm:p-10">
+      <div className="absolute bottom-0 left-0 right-0 p-3 sm:p-8">
         <motion.div
           key={`content-${currentIndex}`}
           initial={{ opacity: 0, y: 20 }}
@@ -72,41 +69,41 @@ export function HeroCarousel({ events }: HeroCarouselProps) {
           transition={{ duration: 0.5, delay: 0.2 }}
           className="container mx-auto max-w-4xl"
         >
-          <Badge className="mb-3 bg-primary text-primary-foreground">
+          <Badge className="mb-2 bg-primary text-[10px] text-primary-foreground sm:mb-3 sm:text-xs">
             {categoryLabels[currentEvent.category as keyof typeof categoryLabels] || currentEvent.category}
           </Badge>
           
-          <h2 className="mb-3 text-2xl font-bold text-foreground sm:text-4xl">
+          <h2 className="mb-2 text-lg font-bold leading-tight text-white sm:mb-3 sm:text-3xl lg:text-[2rem]">
             {currentEvent.title}
           </h2>
           
-          <div className="mb-4 flex flex-wrap items-center gap-4 text-sm text-muted-foreground sm:text-base">
+          <div className="mb-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground sm:mb-3 sm:gap-3 sm:text-sm">
             <div className="flex items-center gap-2">
-              <Calendar className="size-4 text-primary" />
+              <Calendar className="size-3 text-primary sm:size-4" />
               <span className="capitalize">{formattedDate} - {currentEvent.time}</span>
             </div>
             <div className="flex items-center gap-2">
-              <MapPin className="size-4 text-primary" />
+              <MapPin className="size-3 text-primary sm:size-4" />
               <span>{currentEvent.venue}</span>
             </div>
           </div>
           
-          <p className="mb-6 line-clamp-2 max-w-2xl text-sm text-muted-foreground sm:text-base">
+          <p className="mb-3 line-clamp-1 max-w-2xl text-xs text-muted-foreground sm:mb-4 sm:line-clamp-2 sm:text-sm">
             {currentEvent.description}
           </p>
           
           <div className="flex flex-wrap items-center gap-3">
             <Button 
-              size="lg" 
+              size="sm"
               asChild
-              className="bg-primary text-primary-foreground hover:bg-primary/90"
+              className="bg-primary text-primary-foreground hover:bg-primary/90 sm:h-11 sm:px-8 sm:text-sm"
             >
               <Link href={`/evento/${currentEvent.id}`}>
                 <Ticket className="mr-2 size-4" />
                 Ver detalles
               </Link>
             </Button>
-            <span className="text-lg font-bold text-foreground">
+            <span className="text-sm font-bold text-foreground sm:text-base">
               {currentEvent.price === "gratis" 
                 ? "Entrada Gratuita" 
                 : `$${currentEvent.price.toLocaleString("es-AR")}`}

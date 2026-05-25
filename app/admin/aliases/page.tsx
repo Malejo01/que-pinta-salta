@@ -1,7 +1,4 @@
 import { redirect } from "next/navigation"
-import { createClient } from "@/lib/supabase/server"
-import { getCategories, getVenues } from "@/lib/data"
-import { AliasesManager } from "@/components/aliases-manager"
 
 export default async function AdminAliasesPage() {
   const supabase = await createClient()
@@ -51,3 +48,4 @@ export default async function AdminAliasesPage() {
     </div>
   )
 }
+

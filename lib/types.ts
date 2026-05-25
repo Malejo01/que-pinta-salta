@@ -42,8 +42,10 @@ export interface Event {
   slug: string
   description: string | null
   short_description: string | null
-  category_id: string
+  category_id: string | null
   venue_id: string | null
+  scrape_source_key?: string | null
+  classification_source?: 'manual' | 'alias' | 'scraper' | null
   image_url: string | null
   gallery_urls: string[]
   start_date: string
