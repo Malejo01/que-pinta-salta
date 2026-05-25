@@ -96,7 +96,28 @@ export async function getEventById(id: string): Promise<(Event & { category: Cat
 }
 
 export async function getFeaturedEvents(): Promise<(Event & { category: Category; venue: Venue | null })[]> {
-  return getEvents({ featured: true, limit: 5 })
+  const supabase = await createClient()
+  const nowIso = new Date().toISOString()
+
+  const { data, error } = await supabase
+    .from('events')
+    .select(`
+      *,
+      category:categories(*),
+      venue:venues(*)
+    `)
+    .eq('status', 'PUBLISHED')
+    .not('category_id', 'is', null)
+    .gte('start_date', nowIso)
+    .order('start_date', { ascending: true })
+    .limit(6)
+
+  if (error) {
+    console.error('Error fetching upcoming carousel events:', error)
+    return []
+  }
+
+  return data as (Event & { category: Category; venue: Venue | null })[]
 }
 
 export async function getEventsByCategory(categorySlug: string): Promise<(Event & { category: Category; venue: Venue | null })[]> {
