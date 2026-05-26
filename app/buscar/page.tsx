@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useDeferredValue, useMemo, useState } from "react"
 import Link from "next/link"
 import { ArrowLeft, Search } from "lucide-react"
 import { Event, EventCategory, categoryLabels } from "@/lib/types"
@@ -19,17 +19,18 @@ export default function BuscarPage() {
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null)
   const [favorites, setFavorites] = useState<string[]>([])
+  const deferredSearchQuery = useDeferredValue(searchQuery)
 
   const filteredEvents = useMemo(() => {
-    if (!searchQuery) return []
-    const query = searchQuery.toLowerCase()
+    if (!deferredSearchQuery) return []
+    const query = deferredSearchQuery.toLowerCase()
     return mockEvents.filter(
       event => 
         event.title.toLowerCase().includes(query) ||
         event.venue.toLowerCase().includes(query) ||
         event.description.toLowerCase().includes(query)
     )
-  }, [searchQuery])
+  }, [deferredSearchQuery])
 
   const handleToggleFavorite = (eventId: string) => {
     setFavorites(prev => 

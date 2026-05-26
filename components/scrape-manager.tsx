@@ -19,10 +19,13 @@ interface ScrapeManagerProps {
 function formatRunTimestamp(value: string | null) {
   if (!value) return "Nunca ejecutado"
 
-  return new Date(value).toLocaleString("es-AR", {
+  const formatted = new Intl.DateTimeFormat("es-AR", {
     dateStyle: "medium",
     timeStyle: "short",
-  })
+    timeZone: "America/Argentina/Salta",
+  }).format(new Date(value))
+
+  return formatted.replace(/\u00a0/g, " ")
 }
 
 function getStatusBadge(lastRun: ScrapeSourceDashboardItem["lastRun"]) {

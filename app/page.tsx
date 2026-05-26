@@ -1,10 +1,9 @@
-import { getEvents, getFeaturedEvents, getCategories } from "@/lib/data"
+import { getEvents, getCategories } from "@/lib/data"
 import { HomeContent } from "@/components/home-content"
 
 export default async function HomePage() {
-  const [events, featuredEvents, categories] = await Promise.all([
+  const [events, categories] = await Promise.all([
     getEvents(),
-    getFeaturedEvents(),
     getCategories(),
   ])
   const serverNowISO = new Date().toISOString()
@@ -12,7 +11,6 @@ export default async function HomePage() {
   return (
     <HomeContent 
       events={events} 
-      featuredEvents={featuredEvents}
       categories={categories}
       serverNowISO={serverNowISO}
     />

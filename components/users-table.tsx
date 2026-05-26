@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useTransition } from "react"
+import { useDeferredValue, useMemo, useState, useTransition } from "react"
 import { ShieldCheck, ShieldOff, Search } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -27,14 +27,21 @@ interface Profile {
 export function UsersTable({ initialUsers }: { initialUsers: Profile[] }) {
   const [users, setUsers] = useState<Profile[]>(initialUsers)
   const [search, setSearch] = useState("")
+  const deferredSearch = useDeferredValue(search)
   const [isPending, startTransition] = useTransition()
   const { toast } = useToast()
 
-  const filtered = users.filter(
-    (u) =>
-      u.email.toLowerCase().includes(search.toLowerCase()) ||
-      (u.full_name ?? "").toLowerCase().includes(search.toLowerCase())
-  )
+  const filtered = useMemo(() => {
+    const query = deferredSearch.toLowerCase()
+
+    if (!query) return users
+
+    return users.filter(
+      (u) =>
+        u.email.toLowerCase().includes(query) ||
+        (u.full_name ?? "").toLowerCase().includes(query)
+    )
+  }, [deferredSearch, users])
 
   const handleRoleToggle = (user: Profile) => {
     const newRole = user.role === "ADMIN" ? "USER" : "ADMIN"

@@ -114,18 +114,18 @@ export function HeroCarousel({ events }: HeroCarouselProps) {
 
       <button
         onClick={goToPrevious}
-        className="absolute left-4 top-1/2 z-10 flex size-10 -translate-y-1/2 items-center justify-center rounded-full bg-background/50 text-foreground backdrop-blur transition-colors hover:bg-background/80"
+        className="absolute left-2 top-1/2 z-10 flex size-8 -translate-y-1/2 items-center justify-center rounded-full bg-background/20 text-foreground/75 backdrop-blur-sm transition-colors hover:bg-background/35 hover:text-foreground sm:left-4 sm:size-10 sm:bg-background/50 sm:text-foreground sm:backdrop-blur"
         aria-label="Evento anterior"
       >
-        <ChevronLeft className="size-6" />
+        <ChevronLeft className="size-4 sm:size-6" />
       </button>
 
       <button
         onClick={goToNext}
-        className="absolute right-4 top-1/2 z-10 flex size-10 -translate-y-1/2 items-center justify-center rounded-full bg-background/50 text-foreground backdrop-blur transition-colors hover:bg-background/80"
+        className="absolute right-2 top-1/2 z-10 flex size-8 -translate-y-1/2 items-center justify-center rounded-full bg-background/20 text-foreground/75 backdrop-blur-sm transition-colors hover:bg-background/35 hover:text-foreground sm:right-4 sm:size-10 sm:bg-background/50 sm:text-foreground sm:backdrop-blur"
         aria-label="Siguiente evento"
       >
-        <ChevronRight className="size-6" />
+        <ChevronRight className="size-4 sm:size-6" />
       </button>
 
       <div className="absolute bottom-4 left-1/2 z-10 flex -translate-x-1/2 gap-2">
