@@ -56,7 +56,7 @@ export const SCRAPE_SOURCES: ScrapeSourceConfig[] = [
   {
     key: 'passline',
     name: 'Passline',
-    description: 'Fuente reservada para futura integración.',
+    description: 'Eventos de Passline para Salta (requiere sesion manual valida de Queue-it).',
     siteUrl: 'https://www.passline.com/',
     enabled: false,
   },

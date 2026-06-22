@@ -3,6 +3,7 @@
 import { createClient } from "@/lib/supabase/server"
 import { getScrapeSourceConfig, SCRAPE_SOURCES, type ScrapeSourceKey } from "@/lib/scraper-config"
 import { revalidatePath } from "next/cache"
+import { PasslineSessionRequiredError } from "@/lib/scraper/passline-session"
 
 export type ScrapeResult = {
   success: boolean
@@ -158,6 +159,37 @@ async function executeSourceScrape(sourceKey: ScrapeSourceKey): Promise<Omit<Scr
         skipped: result.skipped,
         errors: result.errors,
         message: `Scrape completado: ${result.inserted} eventos nuevos, ${result.skipped} ya existían.`,
+      }
+    }
+    case 'passline': {
+      const { scrapePasslineSalta } = await import('@/lib/scraper/passline-scraper')
+
+      try {
+        const result = await scrapePasslineSalta()
+
+        return {
+          success: true,
+          sourceKey,
+          sourceName: getScrapeSourceConfig(sourceKey)?.name ?? sourceKey,
+          inserted: result.inserted,
+          skipped: result.skipped,
+          errors: result.errors,
+          message: `Scrape completado: ${result.inserted} eventos nuevos, ${result.skipped} ya existían.`,
+        }
+      } catch (error) {
+        if (error instanceof PasslineSessionRequiredError) {
+          return {
+            success: false,
+            sourceKey,
+            sourceName: getScrapeSourceConfig(sourceKey)?.name ?? sourceKey,
+            inserted: 0,
+            skipped: 0,
+            errors: [error.message],
+            message: 'Passline requiere renovacion manual de sesion para continuar.',
+          }
+        }
+
+        throw error
       }
     }
     default: {

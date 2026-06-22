@@ -5,6 +5,7 @@
         "Set-Content": true,
         "Test-Path": true,
         "Get-Item": true,
-        "New-Item": true
+        "New-Item": true,
+        "npx tsc": true
     }
 }

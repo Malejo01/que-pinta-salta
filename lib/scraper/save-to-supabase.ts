@@ -118,7 +118,7 @@ export type SaveResult = {
  * - Resuelve la category_id real.
  */
 export async function saveEventsToSupabase(
-  events: Partial<Event & { venue?: string }>[],
+  events: (Partial<Omit<Event, 'venue'>> & { venue?: string })[],
   sourceKey?: string
 ): Promise<SaveResult> {
   const supabase = getAdminClient();
