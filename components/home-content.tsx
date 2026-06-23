@@ -11,6 +11,7 @@ import { FiltersBar, DateFilter } from "@/components/filters-bar"
 import { CategoryRow } from "@/components/category-row"
 import Link from "next/link"
 import { formatEventTime } from "@/lib/date-format"
+import { AdSenseBanner } from "@/components/adsense-banner"
 
 type EventWithRelations = Event & { category: Category; venue: Venue | null }
 
@@ -124,18 +125,48 @@ export function HomeContent({
 
   const carouselEvents = useMemo(() => {
     const now = new Date(serverNowISO).getTime()
-
-    return sortedCategories
+    const limit = 6
+    
+    // 1. Obtener eventos futuros destacados, ordenados por fecha
+    const featuredUpcoming = allDisplayEvents
+      .filter((event) => event.isFeatured && new Date(event.startDateTime).getTime() >= now)
+      .sort((a, b) => new Date(a.startDateTime).getTime() - new Date(b.startDateTime).getTime())
+      
+    // Limitar los destacados al máximo de cupos
+    const selectedCarousel = featuredUpcoming.slice(0, limit)
+    
+    // Si completamos el cupo, los retornamos directamente
+    if (selectedCarousel.length >= limit) {
+      return selectedCarousel
+    }
+    
+    // Usar Set para evitar duplicados al agregar los fallbacks
+    const selectedIds = new Set(selectedCarousel.map(e => e.id))
+    
+    // 2. Rellenar con la lógica por categoría existente (evitando duplicados)
+    const categoryFallbacks = sortedCategories
       .map((category) => {
         return allDisplayEvents
           .filter((event) => event.category === category.slug)
           .filter((event) => new Date(event.startDateTime).getTime() >= now)
+          .filter((event) => !selectedIds.has(event.id))
           .sort(
             (a, b) =>
               new Date(a.startDateTime).getTime() - new Date(b.startDateTime).getTime()
           )[0]
       })
       .filter((event): event is DisplayEvent => Boolean(event))
+      
+    // Agregar fallbacks al carrusel
+    for (const event of categoryFallbacks) {
+      if (selectedCarousel.length >= limit) break
+      if (!selectedIds.has(event.id)) {
+        selectedCarousel.push(event)
+        selectedIds.add(event.id)
+      }
+    }
+    
+    return selectedCarousel
   }, [allDisplayEvents, sortedCategories, serverNowISO])
 
   const filteredEvents = useMemo(() => {
@@ -258,14 +289,20 @@ export function HomeContent({
         <FiltersBar categories={sortedCategories} />
 
         {showCategoryRows && (
-          <div className="py-4">
-            {eventsByCategory.map(({ category, title, events }) => (
-              <CategoryRow
-                key={category}
-                category={category}
-                title={title}
-                events={events}
-              />
+          <div className="py-4 space-y-6">
+            {eventsByCategory.map(({ category, title, events }, index) => (
+              <div key={category} className="space-y-6">
+                <CategoryRow
+                  category={category}
+                  title={title}
+                  events={events}
+                />
+                {index === 1 && (
+                  <div className="container mx-auto px-4 py-2">
+                    <AdSenseBanner slot="home-middle-banner" />
+                  </div>
+                )}
+              </div>
             ))}
           </div>
         )}

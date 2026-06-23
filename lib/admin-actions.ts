@@ -276,3 +276,34 @@ export async function createCategory(name: string) {
   revalidatePath('/admin/clasificacion')
   return { success: true, category: data }
 }
+
+export async function toggleEventFeatured(eventId: string, isFeatured: boolean) {
+  const supabase = await createClient()
+
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'No autenticado' }
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single()
+
+  if (profile?.role !== 'ADMIN') return { error: 'No tienes permisos de administrador' }
+
+  const adminClient = getPrivilegedClient()
+
+  const { data, error } = await adminClient
+    .from('events')
+    .update({ is_featured: isFeatured })
+    .eq('id', eventId)
+    .select('id')
+    .maybeSingle()
+
+  if (error) return { error: error.message }
+  if (!data?.id) return { error: 'No se pudo actualizar el evento.' }
+
+  revalidatePath('/')
+  revalidatePath(`/evento/${eventId}`)
+  return { success: true }
+}

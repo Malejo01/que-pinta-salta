@@ -21,8 +21,12 @@ import {
 import { Input } from "@/components/ui/input"
 import { getCategoryIcon } from "@/lib/category-icons"
 import { formatEventDate, formatEventTime } from "@/lib/date-format"
-import { createCategory, updateEventCategory } from "@/lib/admin-actions"
+import { createCategory, updateEventCategory, toggleEventFeatured } from "@/lib/admin-actions"
 import { deferredRefresh } from "@/lib/deferred-refresh"
+import { AdSenseBanner } from "@/components/adsense-banner"
+import { Switch } from "@/components/ui/switch"
+import { Label } from "@/components/ui/label"
+import { useToast } from "@/hooks/use-toast"
 
 type EventWithRelations = Event & { category: Category | null; venue: Venue | null }
 
@@ -42,6 +46,32 @@ export function EventDetailPage({ event, isAdmin = false, categories = [] }: Eve
   const [currentCategoryId, setCurrentCategoryId] = useState<string>(event.category_id ?? "")
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>(event.category_id ?? "")
   const [newCategoryName, setNewCategoryName] = useState("")
+
+  const [isFeatured, setIsFeatured] = useState(event.is_featured)
+  const [isPendingFeatured, startFeaturedTransition] = useTransition()
+  const { toast } = useToast()
+
+  const handleToggleFeatured = (checked: boolean) => {
+    startFeaturedTransition(async () => {
+      const result = await toggleEventFeatured(event.id, checked)
+      if (result.error) {
+        toast({
+          title: "Error",
+          description: result.error,
+          variant: "destructive",
+        })
+        return
+      }
+      setIsFeatured(checked)
+      toast({
+        title: checked ? "Evento destacado" : "Evento quitado de destacados",
+        description: checked 
+          ? "El evento ahora se mostrará con prioridad en la página principal."
+          : "El evento ya no se mostrará como destacado.",
+      })
+      deferredRefresh(router.refresh)
+    })
+  }
 
   const currentCategory = useMemo(() => {
     if (!currentCategoryId) return null
@@ -226,6 +256,23 @@ export function EventDetailPage({ event, isAdmin = false, categories = [] }: Eve
                 )}
 
                 {categoryError && <p className="mt-2 text-xs text-destructive">{categoryError}</p>}
+
+                <div className="mt-4 border-t pt-3 flex items-center justify-between">
+                  <div className="space-y-0.5 pr-2">
+                    <Label htmlFor="featured-toggle" className="text-sm font-medium text-foreground cursor-pointer">
+                      Destacar Evento
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      Aparecerá en el carrusel de inicio y tendrá una etiqueta especial.
+                    </p>
+                  </div>
+                  <Switch
+                    id="featured-toggle"
+                    checked={isFeatured}
+                    onCheckedChange={handleToggleFeatured}
+                    disabled={isPendingFeatured}
+                  />
+                </div>
               </div>
             )}
 
@@ -304,6 +351,10 @@ export function EventDetailPage({ event, isAdmin = false, categories = [] }: Eve
               )}
             </div>
           </div>
+        </div>
+
+        <div className="mt-12 border-t border-border pt-8 max-w-4xl mx-auto">
+          <AdSenseBanner slot="event-detail-bottom-banner" />
         </div>
       </main>
 

@@ -28,7 +28,10 @@ export function EventCard({ event, isFavorite, onToggleFavorite }: EventCardProp
       <motion.div
         whileHover={{ scale: 1.03 }}
         whileTap={{ scale: 0.98 }}
-        className="group relative aspect-[2/3] w-[180px] shrink-0 cursor-pointer overflow-hidden rounded-xl bg-card shadow-lg sm:w-[200px]"
+        className={cn(
+          "group relative aspect-[2/3] w-[180px] shrink-0 cursor-pointer overflow-hidden rounded-xl bg-card shadow-lg sm:w-[200px] transition-all",
+          event.isFeatured && "ring-1 ring-amber-500/50 hover:ring-amber-500"
+        )}
       >
         <Image
           src={event.image}
@@ -60,6 +63,14 @@ export function EventCard({ event, isFavorite, onToggleFavorite }: EventCardProp
         >
           {event.categoryName}
         </Badge>
+
+        {event.isFeatured && (
+          <Badge 
+            className="absolute left-2 top-8 bg-gradient-to-r from-amber-500 to-yellow-500 text-black font-bold flex items-center gap-0.5 shadow-md border-none text-[10px] py-0 px-1.5"
+          >
+            ★ Destacado
+          </Badge>
+        )}
 
         <div className="absolute bottom-0 left-0 right-0 p-3 text-white">
           <h3 className="mb-1 line-clamp-2 text-sm font-semibold leading-tight">
