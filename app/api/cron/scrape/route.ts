@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
-import { scrapeNorteTicket, scrapeCentralTicket, scrapeEntradaUno } from './providers'
+import { scrapeNorteTicket, scrapeCentralTicket, scrapeEntradaUno, scrapeAlpogo } from './providers'
 import { ScrapedEvent } from './types'
 import { upsertEventWithDeduplication } from '@/lib/scraper/deduplicate'
 
@@ -196,18 +196,20 @@ export async function GET(request: Request) {
   
   try {
     // Run all scrapers in parallel
-    const [norteTicketEvents, centralTicketEvents, entradaUnoEvents] = await Promise.all([
+    const [norteTicketEvents, centralTicketEvents, entradaUnoEvents, alpogoEvents] = await Promise.all([
       scrapeNorteTicket(),
       scrapeCentralTicket(),
-      scrapeEntradaUno()
+      scrapeEntradaUno(),
+      scrapeAlpogo()
     ])
     
-    const allEvents = [...norteTicketEvents, ...centralTicketEvents, ...entradaUnoEvents]
+    const allEvents = [...norteTicketEvents, ...centralTicketEvents, ...entradaUnoEvents, ...alpogoEvents]
     
     console.log(`[v0] Total events scraped: ${allEvents.length}`)
     console.log(`[v0] - NorteTicket: ${norteTicketEvents.length}`)
     console.log(`[v0] - CentralTicket: ${centralTicketEvents.length}`)
     console.log(`[v0] - EntradaUno: ${entradaUnoEvents.length}`)
+    console.log(`[v0] - AlPogo: ${alpogoEvents.length}`)
     
     // Upsert all events to database
     const results = await upsertScrapedEvents(allEvents)
@@ -220,6 +222,7 @@ export async function GET(request: Request) {
         norteticket: norteTicketEvents.length,
         centralticket: centralTicketEvents.length,
         entradauno: entradaUnoEvents.length,
+        alpogo: alpogoEvents.length,
         total: allEvents.length
       },
       database: results,

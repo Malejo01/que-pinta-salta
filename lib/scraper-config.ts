@@ -78,9 +78,9 @@ export const SCRAPE_SOURCES: ScrapeSourceConfig[] = [
   {
     key: 'alpogo',
     name: 'AlPogo',
-    description: 'Fuente reservada para futura integración.',
+    description: 'Eventos publicados para Salta en AlPogo.',
     siteUrl: 'https://alpogo.com/',
-    enabled: false,
+    enabled: true,
   },
   {
     key: 'independientes',

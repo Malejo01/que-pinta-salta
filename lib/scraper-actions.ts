@@ -175,6 +175,21 @@ async function executeSourceScrape(sourceKey: ScrapeSourceKey): Promise<Omit<Scr
         message: `Scrape completado: ${result.inserted} eventos nuevos, ${result.skipped} ya existían.`,
       }
     }
+    case 'alpogo': {
+      const { scrapeAlpogoSalta } = await import('@/lib/scraper/alpogo-scraper')
+
+      const result = await scrapeAlpogoSalta()
+
+      return {
+        success: true,
+        sourceKey,
+        sourceName: getScrapeSourceConfig(sourceKey)?.name ?? sourceKey,
+        inserted: result.inserted,
+        skipped: result.skipped,
+        errors: result.errors,
+        message: `Scrape completado: ${result.inserted} eventos nuevos, ${result.skipped} ya existían.`,
+      }
+    }
     default: {
       return {
         success: false,
