@@ -39,7 +39,7 @@ export function HeroCarousel({ events }: HeroCarouselProps) {
   const formattedDate = formatEventDate(currentEvent.date)
 
   return (
-    <div className="relative h-[250px] w-full overflow-hidden sm:h-[320px] lg:h-[360px]">
+    <div className="relative h-[250px] w-full overflow-hidden sm:h-[320px] lg:h-[360px] bg-black">
       <AnimatePresence mode="wait">
         <motion.div
           key={currentIndex}
@@ -47,16 +47,34 @@ export function HeroCarousel({ events }: HeroCarouselProps) {
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.5 }}
-          className="absolute inset-0 bg-black"
+          className="absolute inset-0"
         >
-          <Image
-            src={currentEvent.image}
-            alt={currentEvent.title}
-            fill
-            className="scale-125 object-contain sm:scale-130"
-            priority
-          />
-          <div className="absolute inset-0 bg-transparent dark:bg-gradient-to-t dark:from-background/85 dark:via-background/45 dark:to-transparent" />
+          {/* Blurred backdrop to fill the background and handle varying aspect ratios */}
+          <div className="absolute inset-0 overflow-hidden select-none pointer-events-none opacity-45">
+            <Image
+              src={currentEvent.image}
+              alt=""
+              fill
+              sizes="100vw"
+              className="object-cover blur-2xl scale-110"
+              priority
+            />
+          </div>
+
+          {/* Sharp, unscaled contained event poster */}
+          <div className="relative mx-auto flex h-full w-full items-center justify-center p-4">
+            <Image
+              src={currentEvent.image}
+              alt={currentEvent.title}
+              fill
+              sizes="(max-width: 640px) 100vw, (max-width: 1024px) 80vw, 1200px"
+              className="object-contain"
+              priority
+            />
+          </div>
+
+          {/* Dark gradients to ensure readability on any background */}
+          <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/50 to-transparent" />
           <div className="absolute inset-0 bg-gradient-to-r from-black/40 via-transparent to-black/40" />
         </motion.div>
       </AnimatePresence>
@@ -73,11 +91,11 @@ export function HeroCarousel({ events }: HeroCarouselProps) {
             {categoryLabels[currentEvent.category as keyof typeof categoryLabels] || currentEvent.category}
           </Badge>
           
-          <h2 className="mb-2 text-lg font-bold leading-tight text-white sm:mb-3 sm:text-3xl lg:text-[2rem]">
+          <h2 className="mb-2 text-lg font-bold leading-tight text-white sm:mb-3 sm:text-3xl lg:text-[2rem] drop-shadow-md">
             {currentEvent.title}
           </h2>
           
-          <div className="mb-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground sm:mb-3 sm:gap-3 sm:text-sm">
+          <div className="mb-2 flex flex-wrap items-center gap-2 text-xs text-zinc-300 sm:mb-3 sm:gap-3 sm:text-sm drop-shadow-sm">
             <div className="flex items-center gap-2">
               <Calendar className="size-3 text-primary sm:size-4" />
               <span className="capitalize">{formattedDate} - {currentEvent.time}</span>
@@ -88,7 +106,7 @@ export function HeroCarousel({ events }: HeroCarouselProps) {
             </div>
           </div>
           
-          <p className="mb-3 line-clamp-1 max-w-2xl text-xs text-muted-foreground sm:mb-4 sm:line-clamp-2 sm:text-sm">
+          <p className="mb-3 line-clamp-1 max-w-2xl text-xs text-zinc-300 sm:mb-4 sm:line-clamp-2 sm:text-sm drop-shadow-sm">
             {currentEvent.description}
           </p>
           
@@ -103,7 +121,7 @@ export function HeroCarousel({ events }: HeroCarouselProps) {
                 Ver detalles
               </Link>
             </Button>
-            <span className="text-sm font-bold text-foreground sm:text-base">
+            <span className="text-sm font-bold text-white sm:text-base drop-shadow-sm">
               {currentEvent.price === "gratis" 
                 ? "Entrada Gratuita" 
                 : `$${currentEvent.price.toLocaleString("es-AR")}`}
