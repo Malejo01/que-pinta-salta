@@ -8,6 +8,7 @@ export async function getEvents(options?: {
   search?: string
 }): Promise<(Event & { category: Category; venue: Venue | null })[]> {
   const supabase = await createClient()
+  const nowIso = new Date().toISOString()
   
   let query = supabase
     .from('events')
@@ -17,6 +18,7 @@ export async function getEvents(options?: {
       venue:venues(*)
     `)
     .eq('status', 'PUBLISHED')
+    .gte('start_date', nowIso)
     .order('start_date', { ascending: true })
   
   if (options?.categorySlug) {

@@ -1,10 +1,9 @@
 "use client"
 
-import { useDeferredValue, useMemo, useState } from "react"
+import { useDeferredValue, useMemo, useState, useEffect } from "react"
 import Link from "next/link"
 import { ArrowLeft, Search } from "lucide-react"
-import { Event, EventCategory, categoryLabels } from "@/lib/types"
-import { mockEvents } from "@/lib/events-data"
+import { EventCategory, categoryLabels } from "@/lib/types"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Navbar } from "@/components/navbar"
@@ -12,25 +11,55 @@ import { MobileNav } from "@/components/mobile-nav"
 import { EventCard } from "@/components/event-card"
 import { EventModal } from "@/components/event-modal"
 import { getCategoryIcon } from "@/lib/category-icons"
+import { createClient } from "@/lib/supabase/client"
+import { transformEvent, type DisplayEvent } from "@/components/home-content"
 
 const categories = Object.entries(categoryLabels) as [EventCategory, string][]
 
 export default function BuscarPage() {
   const [searchQuery, setSearchQuery] = useState("")
-  const [selectedEvent, setSelectedEvent] = useState<Event | null>(null)
+  const [selectedEvent, setSelectedEvent] = useState<DisplayEvent | null>(null)
   const [favorites, setFavorites] = useState<string[]>([])
+  const [events, setEvents] = useState<DisplayEvent[]>([])
+  const [loading, setLoading] = useState(true)
   const deferredSearchQuery = useDeferredValue(searchQuery)
+
+  useEffect(() => {
+    const supabase = createClient()
+    const nowIso = new Date().toISOString()
+    
+    async function loadEvents() {
+      const { data, error } = await supabase
+        .from('events')
+        .select(`
+          *,
+          category:categories(*),
+          venue:venues(*)
+        `)
+        .eq('status', 'PUBLISHED')
+        .gte('start_date', nowIso)
+        .order('start_date', { ascending: true })
+
+      if (!error && data) {
+        const validEvents = data.filter((e: any) => e.category)
+        setEvents(validEvents.map(e => transformEvent(e as any)))
+      }
+      setLoading(false)
+    }
+    
+    loadEvents()
+  }, [])
 
   const filteredEvents = useMemo(() => {
     if (!deferredSearchQuery) return []
     const query = deferredSearchQuery.toLowerCase()
-    return mockEvents.filter(
+    return events.filter(
       event => 
         event.title.toLowerCase().includes(query) ||
         event.venue.toLowerCase().includes(query) ||
         event.description.toLowerCase().includes(query)
     )
-  }, [deferredSearchQuery])
+  }, [deferredSearchQuery, events])
 
   const handleToggleFavorite = (eventId: string) => {
     setFavorites(prev => 
@@ -75,7 +104,7 @@ export default function BuscarPage() {
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
               {categories.map(([value, label]) => {
                 const Icon = getCategoryIcon(value)
-                const count = mockEvents.filter(e => e.category === value).length
+                const count = events.filter(e => e.category === value).length
                 return (
                   <Link
                     key={value}
@@ -106,7 +135,6 @@ export default function BuscarPage() {
                 <EventCard
                   key={event.id}
                   event={event}
-                  onSelect={setSelectedEvent}
                   isFavorite={favorites.includes(event.id)}
                   onToggleFavorite={handleToggleFavorite}
                 />
