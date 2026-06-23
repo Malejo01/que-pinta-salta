@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/server'
 import { scrapeNorteTicket, scrapeCentralTicket } from './providers'
 import { ScrapedEvent } from './types'
 
@@ -24,7 +24,7 @@ function generateSlug(title: string): string {
  * Attempts to match a raw venue name to an existing venue in the database
  * using aliases or direct name matching
  */
-async function resolveVenue(supabase: Awaited<ReturnType<typeof createClient>>, rawVenueName: string) {
+async function resolveVenue(supabase: ReturnType<typeof createAdminClient>, rawVenueName: string) {
   // First try direct venue match
   const { data: directMatch } = await supabase
     .from('venues')
@@ -56,7 +56,7 @@ async function resolveVenue(supabase: Awaited<ReturnType<typeof createClient>>, 
 /**
  * Attempts to infer category from event title or venue
  */
-async function resolveCategory(supabase: Awaited<ReturnType<typeof createClient>>, title: string, venueName: string) {
+async function resolveCategory(supabase: ReturnType<typeof createAdminClient>, title: string, venueName: string) {
   const titleLower = title.toLowerCase()
   const venueLower = venueName.toLowerCase()
   const combined = `${titleLower} ${venueLower}`
@@ -110,7 +110,7 @@ async function resolveCategory(supabase: Awaited<ReturnType<typeof createClient>
  * Inserts or updates scraped events in the database
  */
 async function upsertScrapedEvents(events: ScrapedEvent[]) {
-  const supabase = await createClient()
+  const supabase = createAdminClient()
   
   const results = {
     inserted: 0,
