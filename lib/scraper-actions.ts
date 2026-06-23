@@ -160,6 +160,21 @@ async function executeSourceScrape(sourceKey: ScrapeSourceKey): Promise<Omit<Scr
         message: `Scrape completado: ${result.inserted} eventos nuevos, ${result.skipped} ya existían.`,
       }
     }
+    case 'entradauno': {
+      const { scrapeEntradaUno } = await import('@/lib/scraper/entradauno-scraper')
+
+      const result = await scrapeEntradaUno()
+
+      return {
+        success: true,
+        sourceKey,
+        sourceName: getScrapeSourceConfig(sourceKey)?.name ?? sourceKey,
+        inserted: result.inserted,
+        skipped: result.skipped,
+        errors: result.errors,
+        message: `Scrape completado: ${result.inserted} eventos nuevos, ${result.skipped} ya existían.`,
+      }
+    }
     default: {
       return {
         success: false,

@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Event, Venue } from '../types';
+import { upsertEventWithDeduplication } from './deduplicate';
 
 // Cliente directo (service role key para uso en scripts, nunca en browser)
 function getAdminClient() {
@@ -113,12 +114,12 @@ export type SaveResult = {
 
 /**
  * Guarda los eventos scrapeados en Supabase.
- * - Verifica duplicados por slug o ticket_url antes de insertar.
+ * - Verifica duplicados utilizando el motor de de-duplicación (mismo venue y fecha + similitud).
  * - Crea/reutiliza venues automáticamente.
  * - Resuelve la category_id real.
  */
 export async function saveEventsToSupabase(
-  events: Partial<Event & { venue?: string }>[],
+  events: Partial<Omit<Event, 'venue'> & { venue?: string }>[],
   sourceKey?: string
 ): Promise<SaveResult> {
   const supabase = getAdminClient();
@@ -126,19 +127,6 @@ export async function saveEventsToSupabase(
 
   for (const event of events) {
     try {
-      // Verificar duplicado por slug
-      const { data: existing } = await supabase
-        .from('events')
-        .select('id')
-        .or(`slug.eq.${event.slug},ticket_url.eq.${event.ticket_url}`)
-        .limit(1)
-        .single();
-
-      if (existing?.id) {
-        result.skipped++;
-        continue;
-      }
-
       // Resolver venue_id
       const venueName = typeof event.venue === 'string' ? event.venue : '';
       const venue_id = await upsertVenue(venueName);
@@ -165,7 +153,7 @@ export async function saveEventsToSupabase(
         }
       }
 
-      const { error } = await supabase.from('events').insert({
+      const eventData = {
         title: event.title,
         slug: event.slug,
         description: event.description || null,
@@ -182,6 +170,7 @@ export async function saveEventsToSupabase(
         price_max: event.price_max || null,
         is_free: event.is_free ?? false,
         ticket_url: event.ticket_url || null,
+        is_commercial: event.is_commercial ?? false,
         noise_level: null,
         age_restriction: 0,
         tags: event.tags || [],
@@ -189,15 +178,21 @@ export async function saveEventsToSupabase(
         is_featured: false,
         view_count: 0,
         created_by: null,
-        scrape_source_key: sourceKey || null,
         classification_source,
-      });
+      };
 
-      if (error) {
-        result.errors.push(`Error insertando "${event.title}": ${error.message}`);
-      } else {
+      const upsertResult = await upsertEventWithDeduplication(
+        eventData,
+        sourceKey || 'unknown',
+        supabase
+      );
+
+      if (upsertResult.action === 'insert') {
         result.inserted++;
-        console.log(`✓ Guardado: ${event.title}`);
+        console.log(`✓ Guardado (Nuevo): ${event.title}`);
+      } else {
+        result.skipped++;
+        console.log(`⟳ Fusionado (Duplicado): ${event.title}`);
       }
     } catch (e: any) {
       result.errors.push(`Excepción en "${event.title}": ${e?.message}`);

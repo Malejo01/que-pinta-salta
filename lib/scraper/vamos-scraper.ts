@@ -1,4 +1,4 @@
-﻿import slugify from 'slugify';
+import slugify from 'slugify';
 import {
   fetchVamosCartelera,
   normalizeVamosEvento,
@@ -23,7 +23,7 @@ export async function scrapeVamosGobAr(): Promise<SaveResult> {
     console.log(`[vamos] ${eventos.length} evento(s) recibidos de la API.`);
 
     // 2. Normalizar
-    const eventsToSave: Partial<Event & { venue?: string }>[] = [];
+    const eventsToSave: Partial<Omit<Event, 'venue'> & { venue?: string }>[] = [];
 
     for (const apiEvento of eventos) {
       const normalized = normalizeVamosEvento(apiEvento, venues);

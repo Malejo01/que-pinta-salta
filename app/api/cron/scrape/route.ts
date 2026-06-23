@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
-import { scrapeNorteTicket, scrapeCentralTicket } from './providers'
+import { scrapeNorteTicket, scrapeCentralTicket, scrapeEntradaUno } from './providers'
 import { ScrapedEvent } from './types'
+import { upsertEventWithDeduplication } from '@/lib/scraper/deduplicate'
 
 // Verify cron secret to prevent unauthorized access
 const CRON_SECRET = process.env.CRON_SECRET
@@ -119,20 +120,11 @@ async function upsertScrapedEvents(events: ScrapedEvent[]) {
     errors: 0
   }
   
+  // Categorías consideradas comerciales prioritarias
+  const commercialCategories = new Set(['recitales', 'teatro', 'boliches', 'penas'])
+
   for (const event of events) {
     try {
-      // Generate a unique slug
-      const baseSlug = generateSlug(event.title)
-      const dateStr = event.dateTime.toISOString().split('T')[0]
-      const slug = `${baseSlug}-${dateStr}-${event.source}`
-      
-      // Check if event already exists
-      const { data: existing } = await supabase
-        .from('events')
-        .select('id')
-        .eq('slug', slug)
-        .single()
-      
       // Resolve venue and category
       const venueId = await resolveVenue(supabase, event.rawVenueName)
       const categoryId = await resolveCategory(supabase, event.title, event.rawVenueName)
@@ -142,6 +134,20 @@ async function upsertScrapedEvents(events: ScrapedEvent[]) {
         results.errors++
         continue
       }
+
+      // Obtener el slug de la categoría para determinar si es de tipo comercial
+      const { data: catData } = await supabase
+        .from('categories')
+        .select('slug')
+        .eq('id', categoryId)
+        .single()
+      
+      const isCommercial = catData ? commercialCategories.has(catData.slug) : false
+      
+      // Generate a unique base slug (without source at the end to unify duplicates)
+      const baseSlug = generateSlug(event.title)
+      const dateStr = event.dateTime.toISOString().split('T')[0]
+      const slug = `${baseSlug}-${dateStr}`
       
       const eventData = {
         title: event.title,
@@ -157,34 +163,18 @@ async function upsertScrapedEvents(events: ScrapedEvent[]) {
         ticket_url: event.ticketLink,
         status: 'PUBLISHED' as const,
         is_featured: false,
+        is_commercial: isCommercial,
         tags: [event.source, 'scraped']
       }
       
-      if (existing) {
-        // Update existing event
-        const { error } = await supabase
-          .from('events')
-          .update(eventData)
-          .eq('id', existing.id)
-        
-        if (error) {
-          console.error(`[v0] Error updating event ${event.title}:`, error)
-          results.errors++
-        } else {
-          results.updated++
-        }
+      const upsertResult = await upsertEventWithDeduplication(eventData, event.source, supabase)
+      
+      if (upsertResult.action === 'insert') {
+        results.inserted++
+      } else if (upsertResult.action === 'update') {
+        results.updated++
       } else {
-        // Insert new event
-        const { error } = await supabase
-          .from('events')
-          .insert(eventData)
-        
-        if (error) {
-          console.error(`[v0] Error inserting event ${event.title}:`, error)
-          results.errors++
-        } else {
-          results.inserted++
-        }
+        results.skipped++
       }
     } catch (err) {
       console.error(`[v0] Error processing event ${event.title}:`, err)
@@ -206,16 +196,18 @@ export async function GET(request: Request) {
   
   try {
     // Run all scrapers in parallel
-    const [norteTicketEvents, centralTicketEvents] = await Promise.all([
+    const [norteTicketEvents, centralTicketEvents, entradaUnoEvents] = await Promise.all([
       scrapeNorteTicket(),
-      scrapeCentralTicket()
+      scrapeCentralTicket(),
+      scrapeEntradaUno()
     ])
     
-    const allEvents = [...norteTicketEvents, ...centralTicketEvents]
+    const allEvents = [...norteTicketEvents, ...centralTicketEvents, ...entradaUnoEvents]
     
     console.log(`[v0] Total events scraped: ${allEvents.length}`)
     console.log(`[v0] - NorteTicket: ${norteTicketEvents.length}`)
     console.log(`[v0] - CentralTicket: ${centralTicketEvents.length}`)
+    console.log(`[v0] - EntradaUno: ${entradaUnoEvents.length}`)
     
     // Upsert all events to database
     const results = await upsertScrapedEvents(allEvents)
@@ -227,6 +219,7 @@ export async function GET(request: Request) {
       scraped: {
         norteticket: norteTicketEvents.length,
         centralticket: centralTicketEvents.length,
+        entradauno: entradaUnoEvents.length,
         total: allEvents.length
       },
       database: results,

@@ -36,6 +36,12 @@ export interface Profile {
   updated_at: string
 }
 
+export interface TicketSource {
+  source: string
+  url: string
+  price_min?: number
+}
+
 export interface Event {
   id: string
   title: string
@@ -56,6 +62,8 @@ export interface Event {
   price_max: number | null
   is_free: boolean
   ticket_url: string | null
+  ticket_sources?: TicketSource[] | null
+  is_commercial?: boolean
   noise_level: number | null
   age_restriction: number
   tags: string[]

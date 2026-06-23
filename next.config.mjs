@@ -17,7 +17,7 @@ const nextConfig = {
               "default-src 'self'",
               "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://va.vercel-scripts.com",
               "style-src 'self' 'unsafe-inline'",
-              "img-src 'self' blob: data: https://*.supabase.co",
+              "img-src 'self' blob: data: https://*.supabase.co https://*.entradauno.com https://*.norteticket.com https://*.norteticket.com.ar https://*.centralticket.com.ar https://*.vamos.gob.ar https://www.vamos.gob.ar",
               "font-src 'self' data:",
               "connect-src 'self' https://*.supabase.co wss://*.supabase.co",
               "frame-ancestors 'none'",
