@@ -2,13 +2,14 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Tag, Users, Home } from "lucide-react"
+import { Tag, Users, Home, Instagram } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { ScraperButton } from "@/components/scraper-button"
 
 const navItems = [
   { href: "/admin/aliases", label: "Aliases", icon: Tag },
   { href: "/admin/users", label: "Usuarios", icon: Users },
+  { href: "/admin/instagram", label: "Instagram", icon: Instagram },
 ]
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {

@@ -9,6 +9,7 @@ export type ScrapeSourceKey =
   | 'eventbrite'
   | 'alpogo'
   | 'independientes'
+  | 'instagram'
 
 export type ScrapeSourceConfig = {
   key: ScrapeSourceKey
@@ -88,6 +89,13 @@ export const SCRAPE_SOURCES: ScrapeSourceConfig[] = [
     description: 'Carga manual o scrapers dedicados por productor.',
     siteUrl: 'https://quepintasalta.com',
     enabled: false,
+  },
+  {
+    key: 'instagram',
+    name: 'Instagram (Apify)',
+    description: 'Flyers de boliches salteños extraídos de Instagram vía Apify.',
+    siteUrl: 'https://www.instagram.com',
+    enabled: true,
   },
 ]
 

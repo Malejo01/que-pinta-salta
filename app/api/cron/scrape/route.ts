@@ -3,6 +3,7 @@ import { createAdminClient } from '@/lib/supabase/server'
 import { scrapeNorteTicket, scrapeCentralTicket, scrapeEntradaUno, scrapeAlpogo } from './providers'
 import { ScrapedEvent } from './types'
 import { upsertEventWithDeduplication } from '@/lib/scraper/deduplicate'
+import { archiveExpiredFlyers } from '@/lib/instagram/process-apify-payload'
 
 // Verify cron secret to prevent unauthorized access
 const CRON_SECRET = process.env.CRON_SECRET
@@ -215,6 +216,15 @@ export async function GET(request: Request) {
     const results = await upsertScrapedEvents(allEvents)
     
     console.log('[v0] Scrape job completed:', results)
+
+    // Limpieza de flyers de Instagram expirados (TTL 14 días)
+    let archivedFlyersCount = 0
+    try {
+      archivedFlyersCount = await archiveExpiredFlyers()
+      console.log(`[v0] Instagram flyer cleanup: ${archivedFlyersCount} archivados`)
+    } catch (cleanupError) {
+      console.error('[v0] Error en cleanup de flyers IG:', cleanupError)
+    }
     
     return NextResponse.json({
       success: true,
@@ -226,6 +236,9 @@ export async function GET(request: Request) {
         total: allEvents.length
       },
       database: results,
+      instagramCleanup: {
+        archivedFlyers: archivedFlyersCount
+      },
       timestamp: new Date().toISOString()
     })
     

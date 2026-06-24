@@ -1,10 +1,12 @@
 import { getEvents, getCategories } from "@/lib/data"
+import { getActiveFlyers } from "@/lib/instagram/data"
 import { HomeContent } from "@/components/home-content"
 
 export default async function HomePage() {
-  const [events, categories] = await Promise.all([
+  const [events, categories, flyers] = await Promise.all([
     getEvents(),
     getCategories(),
+    getActiveFlyers(),
   ])
   const serverNowISO = new Date().toISOString()
 
@@ -13,6 +15,7 @@ export default async function HomePage() {
       events={events} 
       categories={categories}
       serverNowISO={serverNowISO}
+      flyers={flyers}
     />
   )
 }

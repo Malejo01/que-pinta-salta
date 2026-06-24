@@ -4,11 +4,13 @@ import { useMemo } from "react"
 import { useSearchParams, useRouter } from "next/navigation"
 import Image from "next/image"
 import type { Event, Category, Venue } from "@/lib/types"
+import type { FlyerWithAccount } from "@/lib/instagram-config"
 import { Navbar } from "@/components/navbar"
 import { MobileNav } from "@/components/mobile-nav"
 import { HeroCarousel } from "@/components/hero-carousel"
 import { FiltersBar, DateFilter } from "@/components/filters-bar"
 import { CategoryRow } from "@/components/category-row"
+import { FlyerGrid } from "@/components/flyer-grid"
 import Link from "next/link"
 import { formatEventTime } from "@/lib/date-format"
 import { AdSenseBanner } from "@/components/adsense-banner"
@@ -91,6 +93,7 @@ interface HomeContentProps {
   categories: Category[]
   serverNowISO: string
   favoriteCategorySlugs?: string[]
+  flyers?: FlyerWithAccount[]
 }
 
 export function HomeContent({
@@ -98,6 +101,7 @@ export function HomeContent({
   categories,
   serverNowISO,
   favoriteCategorySlugs = [],
+  flyers = [],
 }: HomeContentProps) {
   const searchParams = useSearchParams()
   const router = useRouter()
@@ -287,6 +291,11 @@ export function HomeContent({
         )}
 
         <FiltersBar categories={sortedCategories} />
+
+        {/* Sección Instagram - Pinta Jodita 🍻 */}
+        {!hasFilters && flyers.length > 0 && (
+          <FlyerGrid flyers={flyers} />
+        )}
 
         {showCategoryRows && (
           <div className="py-4 space-y-6">
