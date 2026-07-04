@@ -9,9 +9,8 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
-import { Slider } from "@/components/ui/slider"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { ArrowLeft, Loader2, ImageIcon, Volume2 } from "lucide-react"
+import { ArrowLeft, Loader2, ImageIcon } from "lucide-react"
 import { createEvent, uploadFlyer } from "@/lib/actions"
 import type { Category, Venue } from "@/lib/types"
 
@@ -27,7 +26,6 @@ export function EventForm({ categories, venues }: EventFormProps) {
   const [isUploading, setIsUploading] = useState(false)
   const [imageUrl, setImageUrl] = useState<string | null>(null)
   const [isFree, setIsFree] = useState(false)
-  const [noiseLevel, setNoiseLevel] = useState([3])
   const [error, setError] = useState<string | null>(null)
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -58,7 +56,6 @@ export function EventForm({ categories, venues }: EventFormProps) {
 
     const formData = new FormData(e.currentTarget)
     formData.set("isFree", isFree.toString())
-    formData.set("noiseLevel", noiseLevel[0].toString())
     if (imageUrl) {
       formData.set("imageUrl", imageUrl)
     }
@@ -70,9 +67,6 @@ export function EventForm({ categories, venues }: EventFormProps) {
       setIsSubmitting(false)
     }
   }
-
-  const noiseLevelLabels = ["Silencioso", "Tranquilo", "Moderado", "Animado", "Muy ruidoso"]
-
   return (
     <div className="min-h-screen bg-background">
       <header className="sticky top-0 z-50 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -287,24 +281,6 @@ export function EventForm({ categories, venues }: EventFormProps) {
               <CardTitle>Ambiente</CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <Label>Nivel de Ruido</Label>
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <Volume2 className="size-4" />
-                    <span>{noiseLevelLabels[noiseLevel[0] - 1]}</span>
-                  </div>
-                </div>
-                <Slider
-                  value={noiseLevel}
-                  onValueChange={setNoiseLevel}
-                  min={1}
-                  max={5}
-                  step={1}
-                  className="w-full"
-                />
-              </div>
-
               <div className="space-y-2">
                 <Label htmlFor="ageRestriction">Restricción de Edad</Label>
                 <Select name="ageRestriction" defaultValue="0">

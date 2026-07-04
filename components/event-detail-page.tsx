@@ -4,13 +4,12 @@ import Image from "next/image"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { createElement, useMemo, useState, useTransition } from "react"
-import { Calendar, MapPin, Clock, Volume2, Users, ExternalLink, Navigation, ArrowLeft, Pencil, Check, X } from "lucide-react"
+import { Calendar, MapPin, Clock, Users, ExternalLink, Navigation, ArrowLeft, Pencil, Check, X } from "lucide-react"
 import { vibeLabels, Event, Category, Venue } from "@/lib/types"
 import { Navbar } from "@/components/navbar"
 import { MobileNav } from "@/components/mobile-nav"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Slider } from "@/components/ui/slider"
 import {
   Select,
   SelectContent,
@@ -92,7 +91,6 @@ export function EventDetailPage({ event, isAdmin = false, categories = [] }: Eve
     description: event.description || event.short_description || '',
     address: event.venue?.address || '',
     ticketUrl: event.ticket_url || undefined,
-    noiseLevel: event.noise_level || 3,
     vibe: event.age_restriction >= 18 ? "adultos" as const : "familiar" as const,
   }
 
@@ -298,23 +296,6 @@ export function EventDetailPage({ event, isAdmin = false, categories = [] }: Eve
               <div className="flex items-center gap-3 text-muted-foreground">
                 <Users className="size-5 text-primary" />
                 <span>{vibeLabels[displayEvent.vibe as keyof typeof vibeLabels] || displayEvent.vibe}</span>
-              </div>
-            </div>
-
-            <div className="mb-6">
-              <div className="mb-2 flex items-center gap-2">
-                <Volume2 className="size-4 text-primary" />
-                <span className="text-sm font-medium text-foreground">Nivel de ruido</span>
-              </div>
-              <div className="flex items-center gap-3">
-                <Slider
-                  value={[displayEvent.noiseLevel]}
-                  max={5}
-                  step={1}
-                  disabled
-                  className="flex-1 max-w-xs"
-                />
-                <span className="text-sm text-muted-foreground">{displayEvent.noiseLevel}/5</span>
               </div>
             </div>
 

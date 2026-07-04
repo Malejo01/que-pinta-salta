@@ -132,7 +132,7 @@ export function HeroCarousel({ events }: HeroCarouselProps) {
 
       <button
         onClick={goToPrevious}
-        className="absolute left-2 top-1/2 z-10 flex size-8 -translate-y-1/2 items-center justify-center rounded-full bg-background/20 text-foreground/75 backdrop-blur-sm transition-colors hover:bg-background/35 hover:text-foreground sm:left-4 sm:size-10 sm:bg-background/50 sm:text-foreground sm:backdrop-blur"
+        className="absolute left-2 top-6 z-10 hidden size-8 items-center justify-center rounded-full bg-background/20 text-foreground/75 backdrop-blur-sm transition-colors hover:bg-background/35 hover:text-foreground sm:left-4 sm:top-1/2 sm:flex sm:size-10 sm:-translate-y-1/2 sm:bg-background/50 sm:text-foreground sm:backdrop-blur"
         aria-label="Evento anterior"
       >
         <ChevronLeft className="size-4 sm:size-6" />
@@ -140,7 +140,7 @@ export function HeroCarousel({ events }: HeroCarouselProps) {
 
       <button
         onClick={goToNext}
-        className="absolute right-2 top-1/2 z-10 flex size-8 -translate-y-1/2 items-center justify-center rounded-full bg-background/20 text-foreground/75 backdrop-blur-sm transition-colors hover:bg-background/35 hover:text-foreground sm:right-4 sm:size-10 sm:bg-background/50 sm:text-foreground sm:backdrop-blur"
+        className="absolute right-2 top-6 z-10 hidden size-8 items-center justify-center rounded-full bg-background/20 text-foreground/75 backdrop-blur-sm transition-colors hover:bg-background/35 hover:text-foreground sm:right-4 sm:top-1/2 sm:flex sm:size-10 sm:-translate-y-1/2 sm:bg-background/50 sm:text-foreground sm:backdrop-blur"
         aria-label="Siguiente evento"
       >
         <ChevronRight className="size-4 sm:size-6" />

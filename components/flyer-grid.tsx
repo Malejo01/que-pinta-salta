@@ -14,7 +14,7 @@ export function FlyerGrid({ flyers }: FlyerGridProps) {
   if (!flyers.length) return null
 
   return (
-    <section className="py-6">
+    <section className="py-8">
       <div className="container mx-auto px-4">
         {/* Header de la sección */}
         <div className="mb-4 flex items-center justify-between">

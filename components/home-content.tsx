@@ -80,7 +80,6 @@ export function transformEvent(event: EventWithRelations) {
     address: event.venue?.address || '',
     startDateTime: event.start_date,
     ticketUrl: event.ticket_url || undefined,
-    noiseLevel: event.noise_level || 3,
     vibe: event.age_restriction >= 18 ? "adultos" as const : "familiar" as const,
     isFeatured: event.is_featured,
   }
@@ -298,7 +297,7 @@ export function HomeContent({
         )}
 
         {showCategoryRows && (
-          <div className="py-4 space-y-6">
+          <div className="py-8 space-y-10">
             {eventsByCategory.map(({ category, title, events }, index) => (
               <div key={category} className="space-y-6">
                 <CategoryRow

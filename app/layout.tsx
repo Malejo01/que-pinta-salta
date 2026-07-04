@@ -1,9 +1,17 @@
 import type { Metadata, Viewport } from 'next'
+import { Montserrat } from 'next/font/google'
 import Script from 'next/script'
 import { Analytics } from '@vercel/analytics/next'
 import { ThemeProvider } from '@/components/theme-provider'
+import { Footer } from '@/components/footer'
 import { Toaster } from '@/components/ui/toaster'
 import './globals.css'
+
+const montserrat = Montserrat({
+  subsets: ['latin'],
+  display: 'swap',
+  variable: '--font-montserrat',
+})
 
 export const metadata: Metadata = {
   title: 'Que pinta Salta - Eventos en Salta Capital',
@@ -48,7 +56,7 @@ export default function RootLayout({
   modal: React.ReactNode
 }>) {
   return (
-    <html lang="es" suppressHydrationWarning>
+    <html lang="es" className={montserrat.variable} suppressHydrationWarning>
       <head>
         <Script id="google-tag-manager" strategy="afterInteractive">
           {`
@@ -84,6 +92,7 @@ export default function RootLayout({
         >
           {children}
           {modal}
+          <Footer />
           <Toaster />
         </ThemeProvider>
         {process.env.NODE_ENV === 'production' && <Analytics />}

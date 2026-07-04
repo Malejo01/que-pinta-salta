@@ -34,9 +34,9 @@ export function CategoryRow({
   const iconComponent = getCategoryIcon(category)
 
   return (
-    <section className="py-6">
+    <section className="py-8">
       <div className="container mx-auto px-4">
-        <div className="mb-4 flex items-center justify-between">
+        <div className="mb-5 flex items-center justify-between">
           <div className="flex items-center gap-2">
             {createElement(iconComponent, { className: "size-5 text-primary" })}
             <h2 className="text-xl font-bold text-foreground">{title}</h2>
@@ -64,7 +64,7 @@ export function CategoryRow({
 
           <motion.div
             ref={scrollRef}
-            className="scrollbar-hide flex gap-4 overflow-x-auto pb-4"
+            className="scrollbar-hide flex gap-5 overflow-x-auto pb-4"
             style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
           >
             {events.map((event, index) => (

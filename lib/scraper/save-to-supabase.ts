@@ -171,7 +171,6 @@ export async function saveEventsToSupabase(
         is_free: event.is_free ?? false,
         ticket_url: event.ticket_url || null,
         is_commercial: event.is_commercial ?? false,
-        noise_level: null,
         age_restriction: 0,
         tags: event.tags || [],
         status: 'PUBLISHED',

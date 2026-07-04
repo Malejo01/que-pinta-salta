@@ -2,7 +2,7 @@
 
 import Image from "next/image"
 import { createElement } from "react"
-import { Calendar, MapPin, Clock, Volume2, Users, ExternalLink, Navigation } from "lucide-react"
+import { Calendar, MapPin, Clock, Users, ExternalLink, Navigation } from "lucide-react"
 import { categoryLabels, vibeLabels, EventCategory } from "@/lib/types"
 
 // Display event type (transformed from database)
@@ -18,8 +18,6 @@ interface DisplayEvent {
   description: string
   address: string
   ticketUrl?: string
-  noiseLevel: number
-  vibe: string
   isFeatured?: boolean
 }
 
@@ -32,7 +30,6 @@ import {
 } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Slider } from "@/components/ui/slider"
 import { getCategoryIcon } from "@/lib/category-icons"
 import { formatEventDate } from "@/lib/date-format"
 
@@ -94,23 +91,6 @@ export function EventModal({ event, open, onClose }: EventModalProps) {
             <div className="flex items-center gap-3 text-muted-foreground">
               <Users className="size-5 text-primary" />
               <span>{vibeLabels[event.vibe as keyof typeof vibeLabels] || event.vibe}</span>
-            </div>
-          </div>
-
-          <div className="mb-6">
-            <div className="mb-2 flex items-center gap-2">
-              <Volume2 className="size-4 text-primary" />
-              <span className="text-sm font-medium text-foreground">Nivel de ruido</span>
-            </div>
-            <div className="flex items-center gap-3">
-              <Slider
-                value={[event.noiseLevel]}
-                max={100}
-                step={1}
-                disabled
-                className="flex-1"
-              />
-              <span className="text-sm text-muted-foreground">{event.noiseLevel}%</span>
             </div>
           </div>
 

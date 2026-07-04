@@ -34,7 +34,6 @@ export async function createEvent(formData: FormData) {
   const priceMax = parseFloat(formData.get("priceMax") as string) || null
   const isFree = formData.get("isFree") === "true"
   const ticketUrl = formData.get("ticketUrl") as string
-  const noiseLevel = parseInt(formData.get("noiseLevel") as string) || 3
   const ageRestriction = parseInt(formData.get("ageRestriction") as string) || 0
   const imageUrl = formData.get("imageUrl") as string
 
@@ -55,7 +54,6 @@ export async function createEvent(formData: FormData) {
       price_max: isFree ? null : priceMax,
       is_free: isFree,
       ticket_url: ticketUrl || null,
-      noise_level: noiseLevel,
       age_restriction: ageRestriction,
       image_url: imageUrl || null,
       status: "PUBLISHED",

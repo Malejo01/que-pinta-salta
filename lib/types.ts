@@ -64,7 +64,6 @@ export interface Event {
   ticket_url: string | null
   ticket_sources?: TicketSource[] | null
   is_commercial?: boolean
-  noise_level: number | null
   age_restriction: number
   tags: string[]
   status: EventStatus
