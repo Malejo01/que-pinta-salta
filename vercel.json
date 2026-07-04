@@ -5,8 +5,8 @@
       "schedule": "0 8 * * *"
     },
     {
-      "path": "/api/cron/keep-alive",
-      "schedule": "0 4 * * *"
+      "path": "/api/cron/instagram",
+      "schedule": "0 0 * * 0,1,5,6"
     }
   ]
 }

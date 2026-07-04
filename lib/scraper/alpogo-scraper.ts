@@ -1,5 +1,6 @@
 import slugify from 'slugify';
 import { saveEventsToSupabase, type SaveResult } from './save-to-supabase';
+import { inferCategorySlug } from './categorize';
 import type { Event } from '../types';
 
 function isTextFree(title: string, description: string): boolean {
@@ -28,7 +29,7 @@ export function mapAlpogoCategory(actividad: string): string {
     'Deportes y salud': 'deportes',
     'Cultural': 'espectaculos',
     'Festival': 'espectaculos',
-    'Taller o curso': 'espectaculos',
+    'Taller o curso': 'talleres',
     'Otros': 'espectaculos'
   };
   return mapping[act] || 'espectaculos';
@@ -116,7 +117,10 @@ export async function scrapeAlpogoSalta(): Promise<SaveResult> {
       const { description, short_description } = cleanDescription(item.descripcion || item.descripcion_corta);
 
       // Category & Commercial Check
-      const categorySlug = mapAlpogoCategory(item.actividad);
+      let categorySlug = inferCategorySlug(item.nombre, description, item.lugar || '');
+      if (categorySlug === 'espectaculos') {
+        categorySlug = mapAlpogoCategory(item.actividad);
+      }
       const isCommercial = COMMERCIAL_CATEGORIES.has(categorySlug);
 
       // Prices & Free status

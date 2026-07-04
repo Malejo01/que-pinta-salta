@@ -217,6 +217,24 @@ export async function upsertEventWithDeduplication(
       finalImageUrl = eventData.image_url;
     }
 
+    // Consolidar category_id y su clasificación
+    let finalCategoryId = existingEvent.category_id;
+    let finalClassificationSource = existingEvent.classification_source;
+    
+    if (eventData.category_id) {
+      const currentSource = existingEvent.classification_source;
+      const newSource = eventData.classification_source;
+      
+      if (
+        !existingEvent.category_id || 
+        currentSource === null || 
+        (currentSource === 'scraper' && (newSource === 'alias' || newSource === 'scraper'))
+      ) {
+        finalCategoryId = eventData.category_id;
+        finalClassificationSource = newSource || 'scraper';
+      }
+    }
+
     // Actualizar base de datos
     const { error } = await supabase
       .from('events')
@@ -226,6 +244,8 @@ export async function upsertEventWithDeduplication(
         is_free: finalIsFree,
         image_url: finalImageUrl,
         is_commercial: finalIsCommercial,
+        category_id: finalCategoryId,
+        classification_source: finalClassificationSource,
         updated_at: new Date().toISOString()
       })
       .eq('id', existingEvent.id);

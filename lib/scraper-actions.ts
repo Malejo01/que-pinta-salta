@@ -190,6 +190,21 @@ async function executeSourceScrape(sourceKey: ScrapeSourceKey): Promise<Omit<Scr
         message: `Scrape completado: ${result.inserted} eventos nuevos, ${result.skipped} ya existían.`,
       }
     }
+    case 'instagram': {
+      const { triggerApifyInstagramScraper } = await import('@/lib/instagram/process-apify-payload')
+
+      const result = await triggerApifyInstagramScraper()
+
+      return {
+        success: result.success,
+        sourceKey,
+        sourceName: getScrapeSourceConfig(sourceKey)?.name ?? sourceKey,
+        inserted: 0,
+        skipped: 0,
+        errors: result.errors,
+        message: result.message,
+      }
+    }
     default: {
       return {
         success: false,

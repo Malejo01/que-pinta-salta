@@ -1,5 +1,6 @@
 import * as cheerio from 'cheerio';
 import type { Event } from '../types';
+import { inferCategorySlug } from './categorize';
 
 export const VAMOS_BASE_URL = 'https://www.vamos.gob.ar';
 const CARTELERA_API = 'https://api-ecommerce-live-salta.entradauno.com/v1/api/v2/Cartelera';
@@ -115,22 +116,7 @@ export type VamosEventNormalized = {
   image_url: string;
 };
 
-// ─── Mapeo de categorías por keywords del nombre ───────────────────────────
 
-export function inferVamosCategory(nombre: string): string {
-  const n = nombre.toLowerCase()
-    .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-
-  if (/recital|concierto|show\b|banda\b|tour\b/.test(n))      return 'recitales';
-  if (/ballet|danza/.test(n))                                  return 'ballet';
-  if (/stand.?up|standup|comedia/.test(n))                     return 'humor';
-  if (/humor/.test(n))                                         return 'humor';
-  if (/infantil|niños|para chicos|topa\b|magia|circo/.test(n)) return 'infantil';
-  if (/teatro|obra\b|drama|tragicomedia|monolo/.test(n))       return 'teatro';
-  if (/deport|futbol|basket|tenis|maraton|ciclismo/.test(n))   return 'deportes';
-  if (/museo|arqueolog|antropolog|vid\s*y\s*el\s*vino|explora/.test(n)) return 'espectaculos';
-  return 'espectaculos';
-}
 
 // ─── Decode descripción HTML URL-encoded ──────────────────────────────────
 
@@ -234,7 +220,7 @@ export function normalizeVamosEvento(
   );
 
   // ── Categoría ──
-  const category_id = inferVamosCategory(evento.cNombre);
+  const category_id = inferCategorySlug(evento.cNombre, description, venue_name);
 
   // ── Precio ──
   const price_min = evento.fPrecioDesde ?? 0;

@@ -1,5 +1,6 @@
 import slugify from 'slugify';
 import { saveEventsToSupabase, type SaveResult } from './save-to-supabase';
+import { inferCategorySlug } from './categorize';
 import type { Event } from '../types';
 
 const CARTELERA_JSON_URL = 'https://s3.sa-east-1.amazonaws.com/contenido.general.entradauno/cache/12/cartelera.json';
@@ -41,22 +42,7 @@ function getBestImage(rawEvent: any): string {
   return '';
 }
 
-/**
- * Infiere la categoría basada en palabras clave del título del evento
- */
-function inferCategory(nombre: string): string {
-  const n = nombre.toLowerCase()
-    .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 
-  if (/recital|concierto|show\b|banda\b|tour\b|homenaje|tributo|rock|metal|pop|folklore|cumbia/.test(n)) return 'recitales';
-  if (/ballet|danza/.test(n))                                  return 'teatro'; // Agrupar danza/ballet en teatro o categoria general
-  if (/stand.?up|standup|comedia|humor|monolo/.test(n))         return 'teatro'; // Teatro/Humor es comercial
-  if (/infantil|niños|para chicos|titeres|magia|circo/.test(n))  return 'teatro'; // Infantil comercial
-  if (/teatro|obra\b|drama|tragicomedia/.test(n))              return 'teatro';
-  if (/deport|futbol|basket|tenis|maraton|ciclismo/.test(n))   return 'deportes';
-  if (/museo|arqueolog|antropolog|visita|exposi/.test(n))      return 'cine'; // O cine/otros si no es masivo
-  return 'teatro'; // Valor por defecto
-}
 
 /**
  * Limpia y decodifica el HTML de la descripción
@@ -171,14 +157,14 @@ export async function scrapeEntradaUno(): Promise<SaveResult> {
         ? toISO(functions[functions.length - 1].dFuncion)
         : null;
 
-      // Clasificación e inferencia comercial
-      const categorySlug = inferCategory(rawEvent.cNombre);
-      const isCommercial = COMMERCIAL_CATEGORIES.has(categorySlug);
-
       // Limpieza de descripción
       const { description, short_description } = cleanDescription(
         rawEvent.cDescripcion || rawEvent.cDescripcion_l172
       );
+
+      // Clasificación e inferencia comercial
+      const categorySlug = inferCategorySlug(rawEvent.cNombre, description, venueName);
+      const isCommercial = COMMERCIAL_CATEGORIES.has(categorySlug);
 
       // Slug
       const slug = slugify(rawEvent.cNombre, { lower: true, strict: true });

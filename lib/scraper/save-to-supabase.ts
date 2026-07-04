@@ -78,32 +78,38 @@ export async function resolveCategoryId(slug: string): Promise<string> {
  */
 async function autoClassifyEvent(
   title: string,
-  venueName: string
+  venueName: string,
+  description: string = ''
 ): Promise<{ categoryId: string; source: 'alias' } | null> {
   const supabase = getAdminClient()
 
-  const candidates = [
-    venueName.toLowerCase().trim(),
-    ...title
-      .toLowerCase()
-      .split(/\s+/)
-      .filter((w) => w.length > 3),
-  ].filter(Boolean)
-
-  for (const text of candidates) {
-    const { data } = await supabase
+  try {
+    const { data: aliases } = await supabase
       .from('aliases')
-      .select('target_id')
-      .eq('alias', text)
-      .eq('target_type', 'category')
-      .maybeSingle()
+      .select('alias, target_id')
+      .eq('target_type', 'category');
 
-    if (data?.target_id) {
-      return { categoryId: data.target_id, source: 'alias' }
+    if (aliases && aliases.length > 0) {
+      const combined = `${title} ${venueName} ${description}`.toLowerCase()
+        .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
+      for (const item of aliases) {
+        if (!item.alias || !item.target_id) continue;
+        const cleanAlias = item.alias.toLowerCase().trim()
+          .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+        
+        const escaped = cleanAlias.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const regex = new RegExp(`\\b${escaped}\\b`, 'i');
+        if (regex.test(combined)) {
+          return { categoryId: item.target_id, source: 'alias' };
+        }
+      }
     }
+  } catch (err) {
+    console.error('[save-to-supabase:autoClassifyEvent] Error reading aliases:', err);
   }
 
-  return null
+  return null;
 }
 
 export type SaveResult = {
@@ -131,25 +137,24 @@ export async function saveEventsToSupabase(
       const venueName = typeof event.venue === 'string' ? event.venue : '';
       const venue_id = await upsertVenue(venueName);
 
-      // Clasificación: 1) scraper ya provee slug → resolver a ID
-      //                2) alias match en venue/título
-      //                3) null → va a la cola de "sin categorizar"
+      // Clasificación:
+      // 1) Priorizar coincidencia de alias en base de datos (admin overrides)
+      // 2) Si no coincide ningún alias, resolver el slug provisto por el scraper
+      // 3) Si no hay ninguno, null (uncategorized)
       let category_id: string | null = null;
       let classification_source: 'scraper' | 'alias' | null = null;
 
-      if (event.category_id) {
+      const autoMatch = await autoClassifyEvent(event.title ?? '', venueName, event.description ?? '');
+      if (autoMatch) {
+        category_id = autoMatch.categoryId;
+        classification_source = 'alias';
+      }
+
+      if (!category_id && event.category_id) {
         const resolved = await resolveCategoryId(event.category_id);
         if (resolved) {
           category_id = resolved;
           classification_source = 'scraper';
-        }
-      }
-
-      if (!category_id) {
-        const autoMatch = await autoClassifyEvent(event.title ?? '', venueName);
-        if (autoMatch) {
-          category_id = autoMatch.categoryId;
-          classification_source = 'alias';
         }
       }
 

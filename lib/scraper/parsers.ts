@@ -2,6 +2,7 @@ import type { Event } from '../types';
 import * as cheerio from 'cheerio';
 import slugify from 'slugify';
 import puppeteer from 'puppeteer';
+import { inferCategorySlug } from './categorize';
 
 function isTextFree(title: string, description: string): boolean {
   const text = `${title} ${description}`.toLowerCase()
@@ -146,14 +147,8 @@ export async function parseEventDetail(url: string): Promise<{ description: stri
     const short_description = firstPara ? firstPara.slice(0, 160) : '';
 
     // Categoría: inferir por keywords en título + descripción
-    const textForCategory = ($('h1').first().text() + ' ' + description).toLowerCase();
-    let category_id = 'uncategorized';
-    if (textForCategory.includes('peña'))        category_id = 'penas';
-    else if (textForCategory.includes('boliche')) category_id = 'boliches';
-    else if (textForCategory.includes('teatro'))  category_id = 'teatro';
-    else if (textForCategory.includes('feria'))   category_id = 'ferias';
-    else if (textForCategory.includes('taller'))  category_id = 'talleres';
-    else if (textForCategory.includes('cine'))    category_id = 'cine';
+    const title = $('h1').first().text().trim();
+    const category_id = inferCategorySlug(title, description);
 
     return { description, short_description, category_id };
 

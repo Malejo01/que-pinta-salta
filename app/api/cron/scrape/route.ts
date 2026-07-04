@@ -4,6 +4,7 @@ import { scrapeNorteTicket, scrapeCentralTicket, scrapeEntradaUno, scrapeAlpogo 
 import { ScrapedEvent } from './types'
 import { upsertEventWithDeduplication } from '@/lib/scraper/deduplicate'
 import { archiveExpiredFlyers } from '@/lib/instagram/process-apify-payload'
+import { resolveCategoryWithAliases } from '@/lib/scraper/categorize'
 
 // Verify cron secret to prevent unauthorized access
 const CRON_SECRET = process.env.CRON_SECRET
@@ -55,58 +56,7 @@ async function resolveVenue(supabase: ReturnType<typeof createAdminClient>, rawV
   return null
 }
 
-/**
- * Attempts to infer category from event title or venue
- */
-async function resolveCategory(supabase: ReturnType<typeof createAdminClient>, title: string, venueName: string) {
-  const titleLower = title.toLowerCase()
-  const venueLower = venueName.toLowerCase()
-  const combined = `${titleLower} ${venueLower}`
-  
-  // Keyword mappings for category inference
-  const categoryKeywords: Record<string, string[]> = {
-    'penas': ['peña', 'folklore', 'folklorica', 'chacarera', 'zamba', 'carnavalito'],
-    'boliches': ['boliche', 'disco', 'electrónica', 'dj', 'fiesta', 'amnesia', 'club'],
-    'teatro': ['teatro', 'obra', 'musical', 'ballet', 'danza', 'comedia'],
-    'cine': ['cine', 'película', 'film', 'proyección'],
-    'ferias': ['feria', 'mercado', 'artesanal', 'gastronomía'],
-    'talleres': ['taller', 'curso', 'workshop', 'clase']
-  }
-  
-  for (const [slug, keywords] of Object.entries(categoryKeywords)) {
-    if (keywords.some(kw => combined.includes(kw))) {
-      const { data } = await supabase
-        .from('categories')
-        .select('id')
-        .eq('slug', slug)
-        .single()
-      
-      if (data) return data.id
-    }
-  }
-  
-  // Check category aliases
-  const { data: aliasMatch } = await supabase
-    .from('aliases')
-    .select('target_id')
-    .eq('target_type', 'category')
-    .or(categoryKeywords['penas'].map(k => `alias.ilike.%${k}%`).join(','))
-    .limit(1)
-    .single()
-  
-  if (aliasMatch) {
-    return aliasMatch.target_id
-  }
-  
-  // Default to first category if nothing matches
-  const { data: defaultCategory } = await supabase
-    .from('categories')
-    .select('id')
-    .limit(1)
-    .single()
-  
-  return defaultCategory?.id || null
-}
+
 
 /**
  * Inserts or updates scraped events in the database
@@ -128,7 +78,7 @@ async function upsertScrapedEvents(events: ScrapedEvent[]) {
     try {
       // Resolve venue and category
       const venueId = await resolveVenue(supabase, event.rawVenueName)
-      const categoryId = await resolveCategory(supabase, event.title, event.rawVenueName)
+      const categoryId = await resolveCategoryWithAliases(supabase, event.title, '', event.rawVenueName)
       
       if (!categoryId) {
         console.error(`[v0] Could not resolve category for: ${event.title}`)

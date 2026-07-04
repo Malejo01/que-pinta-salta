@@ -224,3 +224,114 @@ export async function archiveExpiredFlyers(): Promise<number> {
 
   return count
 }
+
+/**
+ * Dispara el actor de Apify para extraer flyers de las cuentas activas
+ * utilizando una ventana de extracción de 7 días.
+ */
+export async function triggerApifyInstagramScraper(): Promise<{
+  success: boolean
+  message: string
+  runId?: string
+  errors: string[]
+}> {
+  const supabase = createAdminClient()
+  const errors: string[] = []
+
+  const APIFY_API_TOKEN = process.env.APIFY_API_TOKEN
+  if (!APIFY_API_TOKEN) {
+    const msg = 'APIFY_API_TOKEN no configurado en las variables de entorno'
+    console.error(`[IG Engine] ${msg}`)
+    return { success: false, message: msg, errors: [msg] }
+  }
+
+  try {
+    // 1. Obtener cuentas activas a monitorear
+    const { data: accounts, error: accountsError } = await supabase
+      .from('instagram_accounts')
+      .select('username')
+      .eq('is_active', true)
+
+    if (accountsError) {
+      const msg = `Error al consultar instagram_accounts: ${accountsError.message}`
+      console.error(`[IG Engine] ${msg}`)
+      return { success: false, message: msg, errors: [msg] }
+    }
+
+    if (!accounts || accounts.length === 0) {
+      const msg = 'No hay cuentas de Instagram activas registradas para scrapear'
+      console.warn(`[IG Engine] ${msg}`)
+      return { success: true, message: msg, errors: [] }
+    }
+
+    const usernames = accounts.map(acc => acc.username)
+    console.log(`[IG Engine] Cuentas activas a scrapear (${usernames.length}):`, usernames)
+
+    // 2. Calcular ventana de extracción (7 días atrás YYYY-MM-DD)
+    const sevenDaysAgo = new Date()
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
+    const onlyPostsNewerThan = sevenDaysAgo.toISOString().split('T')[0]
+    
+    // Usar la cantidad de posts configurada en el motor
+    const resultsLimit = INSTAGRAM_ENGINE_CONFIG.MAX_POSTS_PER_ACCOUNT || 3
+
+    const apifyPayload = {
+      usernames,
+      resultsLimit,
+      onlyPostsNewerThan,
+      skipPinnedPosts: true
+    }
+
+    console.log(`[IG Engine] Configurando payload de Apify: ventana desde ${onlyPostsNewerThan}, límite de ${resultsLimit} posts por cuenta`)
+
+    // 3. Disparar el actor de Apify
+    const actorUrl = `https://api.apify.com/v2/acts/apify~instagram-post-scraper/runs?token=${APIFY_API_TOKEN}`
+    
+    const response = await fetch(actorUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(apifyPayload)
+    })
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      let parsedError
+      try {
+        parsedError = JSON.parse(errorText)
+      } catch {
+        parsedError = null
+      }
+      
+      const errorMessage = parsedError?.error?.message || errorText || 'Error desconocido'
+      
+      if (response.status === 401) {
+        errors.push('Fallo de Autenticación: El APIFY_API_TOKEN configurado no es válido.')
+      } else if (response.status === 402) {
+        errors.push('Fallo de Saldo/Límites: Se ha agotado el saldo o cuota en Apify.')
+      } else {
+        errors.push(`Error de Apify (${response.status}): ${errorMessage}`)
+      }
+      
+      console.error(`[IG Engine] Falló disparo del scraper. Código HTTP: ${response.status}`, errorText)
+      return { success: false, message: 'Fallo al disparar el scraper de Apify', errors }
+    }
+
+    const runData = await response.json()
+    const runId = runData.data?.id
+    console.log(`[IG Engine] Scraper disparado exitosamente. Run ID: ${runId}`)
+
+    return {
+      success: true,
+      message: `Scraper de Instagram iniciado exitosamente en Apify (Run ID: ${runId}).`,
+      runId,
+      errors: []
+    }
+  } catch (error: any) {
+    const msg = `Excepción al disparar el scraper de Apify: ${error?.message || 'Error desconocido'}`
+    console.error(`[IG Engine] ${msg}`, error)
+    return { success: false, message: msg, errors: [msg] }
+  }
+}
+
