@@ -3,6 +3,9 @@
 import { createClient } from "@/lib/supabase/server"
 import { revalidatePath } from "next/cache"
 import { redirect } from "next/navigation"
+import { Resend } from "resend"
+
+const resend = new Resend(process.env.RESEND_API_KEY)
 
 function generateSlug(title: string): string {
   return title
@@ -39,6 +42,16 @@ export async function createEvent(formData: FormData) {
 
   const slug = generateSlug(title) + "-" + Date.now().toString(36)
 
+  // Obtener rol del usuario
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", user.id)
+    .single()
+  
+  const isAdmin = profile?.role === "ADMIN"
+  const status = isAdmin ? "PUBLISHED" : "DRAFT"
+
   const { data, error } = await supabase
     .from("events")
     .insert({
@@ -56,7 +69,7 @@ export async function createEvent(formData: FormData) {
       ticket_url: ticketUrl || null,
       age_restriction: ageRestriction,
       image_url: imageUrl || null,
-      status: "PUBLISHED",
+      status,
       created_by: user.id,
     })
     .select()
@@ -67,8 +80,45 @@ export async function createEvent(formData: FormData) {
     return { error: "Error al crear el evento: " + error.message }
   }
 
-  revalidatePath("/")
-  redirect(`/evento/${data.id}`)
+  // Notificar por email al administrador si es un evento pendiente de revisión
+  if (status === "DRAFT") {
+    try {
+      const adminEmail = process.env.ADMIN_EMAIL || "tu-email-de-notificacion@gmail.com"
+      const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000"
+      
+      await resend.emails.send({
+        from: "Que Pinta Salta <noreply@resend.dev>",
+        to: adminEmail,
+        subject: `Nuevo evento pendiente de moderación: ${title}`,
+        html: `
+          <div style="font-family: sans-serif; padding: 20px; color: #333; max-width: 600px; margin: 0 auto; border: 1px solid #eaeaea; border-radius: 10px;">
+            <h2 style="color: #ea580c; border-bottom: 2px solid #ea580c; padding-bottom: 10px; margin-top: 0;">¡Nuevo evento para moderar!</h2>
+            <p>Se ha subido un nuevo evento en estado de revisión por el usuario: <strong>${user.email}</strong></p>
+            <div style="background-color: #f9fafb; padding: 15px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #ea580c;">
+              <p style="margin: 0 0 10px 0;"><strong>Título:</strong> ${title}</p>
+              <p style="margin: 0 0 10px 0;"><strong>Descripción corta:</strong> ${shortDescription || "Sin descripción corta"}</p>
+              <p style="margin: 0;"><strong>Fecha de inicio:</strong> ${startDate}</p>
+            </div>
+            <p style="margin-bottom: 20px;">Por favor, ingresá al Panel de Administración para verificar y publicar el evento.</p>
+            <div style="text-align: center;">
+              <a href="${siteUrl}/admin" style="background-color: #ea580c; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">Ir al Panel Admin</a>
+            </div>
+          </div>
+        `
+      })
+    } catch (emailError) {
+      console.error("Error al enviar notificación de email con Resend:", emailError)
+    }
+  }
+
+  if (isAdmin) {
+    revalidatePath("/")
+    redirect(`/evento/${data.id}`)
+  } else {
+    revalidatePath("/perfil")
+    revalidatePath("/")
+    redirect("/perfil")
+  }
 }
 
 export async function uploadFlyer(formData: FormData) {

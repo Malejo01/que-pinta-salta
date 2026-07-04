@@ -85,7 +85,7 @@ export function Navbar() {
           </Button>
           
           <Button asChild variant="outline" className="hidden sm:inline-flex">
-            <Link href="/nuevo-evento">
+            <Link href={user ? "/nuevo-evento" : "/auth/login?next=/nuevo-evento"}>
               <Plus className="mr-2 size-4" />
               Agregar Evento
             </Link>
@@ -107,6 +107,13 @@ export function Navbar() {
                         <p className="text-xs text-primary">Administrador</p>
                       )}
                     </div>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem asChild>
+                      <Link href="/perfil">
+                        <User className="mr-2 size-4" />
+                        Mi Perfil
+                      </Link>
+                    </DropdownMenuItem>
                     <DropdownMenuSeparator />
                     {isAdmin && (
                       <>

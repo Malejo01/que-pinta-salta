@@ -1,7 +1,10 @@
 "use client"
 
 import Link from "next/link"
+import { useEffect, useState } from "react"
 import { Github, Linkedin, Globe, MessageCircle } from "lucide-react"
+import { createClient } from "@/lib/supabase/client"
+import type { User } from "@supabase/supabase-js"
 
 const socialLinks = [
   {
@@ -24,6 +27,23 @@ const socialLinks = [
 const CONTACT_URL = "https://www.linkedin.com/in/mauro-alejandro-lizarraga-8260711a3/"
 
 export function Footer() {
+  const [user, setUser] = useState<User | null>(null)
+
+  useEffect(() => {
+    const supabase = createClient()
+    const getSession = async () => {
+      const { data: { session } } = await supabase.auth.getSession()
+      setUser(session?.user ?? null)
+    }
+    getSession()
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null)
+    })
+
+    return () => subscription.unsubscribe()
+  }, [])
+
   return (
     <footer className="relative border-t border-border/40 bg-card/80 backdrop-blur-sm">
       {/* Subtle gradient accent line */}
@@ -58,7 +78,7 @@ export function Footer() {
                 Política de Privacidad
               </Link>
               <Link
-                href="/nuevo-evento"
+                href={user ? "/nuevo-evento" : "/auth/login?next=/nuevo-evento"}
                 className="text-sm text-muted-foreground transition-colors hover:text-foreground"
               >
                 Agregar Evento
