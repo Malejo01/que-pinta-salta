@@ -1,7 +1,7 @@
 'use server'
 
 import { createAdminClient } from '@/lib/supabase/server'
-import type { ApifyInstagramPost } from '@/lib/instagram-config'
+import type { ApifyInstagramPost, InstagramAccount } from '@/lib/instagram-config'
 import { INSTAGRAM_ENGINE_CONFIG } from '@/lib/instagram-config'
 
 type ProcessResult = {
@@ -91,13 +91,10 @@ export async function processApifyPayload(
   const supabase = createAdminClient()
   const result: ProcessResult = { inserted: 0, skipped: 0, errors: [] }
 
-  // Agrupar posts por username para resolver accounts en batch
-  const usernameSet = new Set(posts.map((p) => p.ownerUsername.toLowerCase()))
-
   // Obtener accounts activas de la DB
   const { data: accounts, error: accountsError } = await supabase
     .from('instagram_accounts')
-    .select('id, username')
+    .select('id, username, default_venue_name, default_maps_url, default_category')
     .eq('is_active', true)
 
   if (accountsError || !accounts) {
@@ -105,9 +102,9 @@ export async function processApifyPayload(
     return result
   }
 
-  // Mapa username -> account_id
-  const accountMap = new Map(
-    accounts.map((a) => [a.username.toLowerCase(), a.id as string])
+  // Mapa username -> account
+  const accountMap = new Map<string, InstagramAccount>(
+    accounts.map((a) => [a.username.toLowerCase(), a as InstagramAccount])
   )
 
   // Obtener IDs de posts ya existentes para deduplicar en batch
@@ -126,12 +123,13 @@ export async function processApifyPayload(
 
     try {
       // Verificar que la cuenta está registrada
-      const accountId = accountMap.get(username)
-      if (!accountId) {
+      const account = accountMap.get(username)
+      if (!account) {
         console.log(`[IG Engine] Cuenta no registrada, skip: @${username}`)
         result.skipped++
         continue
       }
+      const accountId = account.id
 
       // Deduplicar
       if (existingPostIds.has(post.id)) {
@@ -170,6 +168,11 @@ export async function processApifyPayload(
           original_image_url: imageUrl,
           storage_image_path: storagePath,
           storage_image_url: storageUrl || imageUrl, // fallback a URL original
+          venue_name: account.default_venue_name,
+          maps_url: account.default_maps_url,
+          category: account.default_category || 'boliches',
+          price_min: 0,
+          is_free: false,
         })
 
       if (insertError) {
@@ -184,8 +187,9 @@ export async function processApifyPayload(
 
       result.inserted++
       console.log(`[IG Engine] ✓ Nuevo flyer: @${username} - ${post.id}`)
-    } catch (err: any) {
-      result.errors.push(`Excepción en post ${post.id}: ${err?.message}`)
+    } catch (err) {
+      const errMsg = err instanceof Error ? err.message : String(err)
+      result.errors.push(`Excepción en post ${post.id}: ${errMsg}`)
     }
   }
 
@@ -328,8 +332,9 @@ export async function triggerApifyInstagramScraper(): Promise<{
       runId,
       errors: []
     }
-  } catch (error: any) {
-    const msg = `Excepción al disparar el scraper de Apify: ${error?.message || 'Error desconocido'}`
+  } catch (error) {
+    const errMsg = error instanceof Error ? error.message : 'Error desconocido'
+    const msg = `Excepción al disparar el scraper de Apify: ${errMsg}`
     console.error(`[IG Engine] ${msg}`, error)
     return { success: false, message: msg, errors: [msg] }
   }

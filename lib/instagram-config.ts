@@ -13,6 +13,9 @@ export interface InstagramAccount {
   notes: string | null
   created_at: string
   updated_at: string
+  default_venue_name: string | null
+  default_maps_url: string | null
+  default_category: string
 }
 
 /** Registro de la tabla `instagram_flyers` */
@@ -31,6 +34,11 @@ export interface InstagramFlyer {
   fetched_at: string
   archived_at: string | null
   created_at: string
+  venue_name: string | null
+  maps_url: string | null
+  category: string
+  price_min: number
+  is_free: boolean
 }
 
 /** Flyer con datos de la cuenta (JOIN) */

@@ -3,6 +3,7 @@ import { notFound } from "next/navigation"
 import Image from "next/image"
 import { Instagram, ExternalLink, MapPin, Calendar, ArrowLeft } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
 import { Navbar } from "@/components/navbar"
 import { MobileNav } from "@/components/mobile-nav"
 import Link from "next/link"
@@ -74,8 +75,18 @@ export default async function FlyerPage({ params }: FlyerPageProps) {
             <div className="mb-4 flex items-center gap-2">
               <MapPin className="size-5 text-primary" />
               <h1 className="text-2xl font-bold text-foreground">
-                {flyer.account.display_name}
+                {flyer.venue_name || flyer.account.default_venue_name || flyer.account.display_name}
               </h1>
+            </div>
+
+            {/* Categoría y Precio */}
+            <div className="mb-4 flex flex-wrap gap-2 text-sm">
+              <Badge variant="outline" className="capitalize font-medium">
+                {flyer.category || flyer.account.default_category || "boliches"}
+              </Badge>
+              <Badge className="bg-primary/10 text-primary hover:bg-primary/20 border-none font-medium">
+                {!flyer.is_free && flyer.price_min === 0 ? "Precio a confirmar" : (flyer.is_free ? "Gratis" : `$${flyer.price_min}`)}
+              </Badge>
             </div>
 
             <div className="mb-4 flex items-center gap-2 text-sm text-muted-foreground">
@@ -107,9 +118,22 @@ export default async function FlyerPage({ params }: FlyerPageProps) {
                   rel="noopener noreferrer"
                 >
                   <Instagram className="mr-2 size-4" />
-                  Ver en Instagram
+                  Instagram
                 </a>
               </Button>
+
+              {(flyer.maps_url || flyer.account.default_maps_url) && (
+                <Button variant="outline" className="flex-1" asChild>
+                  <a
+                    href={flyer.maps_url || flyer.account.default_maps_url || "#"}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    <MapPin className="mr-2 size-4 text-green-500" />
+                    Ubicación
+                  </a>
+                </Button>
+              )}
 
               <Button variant="outline" className="flex-1" asChild>
                 <a
@@ -118,7 +142,7 @@ export default async function FlyerPage({ params }: FlyerPageProps) {
                   rel="noopener noreferrer"
                 >
                   <ExternalLink className="mr-2 size-4" />
-                  Perfil de {flyer.account.display_name}
+                  Perfil
                 </a>
               </Button>
             </div>

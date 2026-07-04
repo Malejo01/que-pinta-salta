@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/server'
-import type { FlyerWithAccount, InstagramAccount, InstagramFlyer } from '@/lib/instagram-config'
+import type { FlyerWithAccount, InstagramAccount } from '@/lib/instagram-config'
 
 /**
  * Obtiene todos los flyers activos con datos de su cuenta.

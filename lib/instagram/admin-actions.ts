@@ -27,7 +27,10 @@ async function ensureAdmin() {
 export async function createInstagramAccount(
   username: string,
   displayName: string,
-  notes?: string
+  notes?: string,
+  defaultVenueName?: string,
+  defaultMapsUrl?: string,
+  defaultCategory?: string
 ) {
   const { supabase, error } = await ensureAdmin()
   if (error) return { error }
@@ -45,6 +48,9 @@ export async function createInstagramAccount(
       username: cleanUsername,
       display_name: displayName.trim(),
       notes: notes?.trim() || null,
+      default_venue_name: defaultVenueName?.trim() || null,
+      default_maps_url: defaultMapsUrl?.trim() || null,
+      default_category: defaultCategory?.trim() || 'boliches',
     })
     .select()
     .single()
@@ -66,6 +72,9 @@ export async function updateInstagramAccount(
     display_name?: string
     notes?: string | null
     is_active?: boolean
+    default_venue_name?: string | null
+    default_maps_url?: string | null
+    default_category?: string
   }
 ) {
   const { supabase, error } = await ensureAdmin()

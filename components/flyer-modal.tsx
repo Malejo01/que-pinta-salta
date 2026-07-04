@@ -11,6 +11,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
 
 interface FlyerModalProps {
   flyer: FlyerWithAccount
@@ -45,11 +46,21 @@ export function FlyerModal({ flyer }: FlyerModalProps) {
         {/* Contenido del modal */}
         <div className="p-6">
           <DialogHeader className="mb-4">
-            <DialogTitle className="flex items-center gap-2 text-xl">
+            <DialogTitle className="flex items-center gap-2 text-xl font-bold">
               <MapPin className="size-5 text-primary" />
-              {flyer.account.display_name}
+              {flyer.venue_name || flyer.account.default_venue_name || flyer.account.display_name}
             </DialogTitle>
           </DialogHeader>
+
+          {/* Categoría y Precio */}
+          <div className="mb-4 flex flex-wrap gap-2 text-sm">
+            <Badge variant="outline" className="capitalize font-medium">
+              {flyer.category || flyer.account.default_category || "boliches"}
+            </Badge>
+            <Badge className="bg-primary/10 text-primary hover:bg-primary/20 border-none font-medium">
+              {!flyer.is_free && flyer.price_min === 0 ? "Precio a confirmar" : (flyer.is_free ? "Gratis" : `$${flyer.price_min}`)}
+            </Badge>
+          </div>
 
           {/* Fecha de publicación */}
           <div className="mb-4 flex items-center gap-2 text-sm text-muted-foreground">
@@ -83,9 +94,22 @@ export function FlyerModal({ flyer }: FlyerModalProps) {
                 rel="noopener noreferrer"
               >
                 <Instagram className="mr-2 size-4" />
-                Ver en Instagram
+                Instagram
               </a>
             </Button>
+
+            {(flyer.maps_url || flyer.account.default_maps_url) && (
+              <Button variant="outline" className="flex-1" asChild>
+                <a
+                  href={flyer.maps_url || flyer.account.default_maps_url || "#"}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <MapPin className="mr-2 size-4 text-green-500" />
+                  Ubicación
+                </a>
+              </Button>
+            )}
 
             <Button variant="outline" className="flex-1" asChild>
               <a
@@ -94,7 +118,7 @@ export function FlyerModal({ flyer }: FlyerModalProps) {
                 rel="noopener noreferrer"
               >
                 <ExternalLink className="mr-2 size-4" />
-                Perfil de {flyer.account.display_name}
+                Perfil
               </a>
             </Button>
           </div>

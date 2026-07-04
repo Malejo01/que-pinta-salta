@@ -1,11 +1,13 @@
 import { Instagram } from "lucide-react"
 import { getInstagramAccounts, getInstagramStats } from "@/lib/instagram/data"
+import { getCategories } from "@/lib/data"
 import { InstagramAdminClient } from "./instagram-admin-client"
 
 export default async function InstagramAdminPage() {
-  const [accounts, stats] = await Promise.all([
+  const [accounts, stats, categories] = await Promise.all([
     getInstagramAccounts(),
     getInstagramStats(),
+    getCategories(),
   ])
 
   return (
@@ -25,6 +27,7 @@ export default async function InstagramAdminPage() {
       <InstagramAdminClient
         initialAccounts={accounts}
         stats={stats}
+        categories={categories}
       />
     </div>
   )
