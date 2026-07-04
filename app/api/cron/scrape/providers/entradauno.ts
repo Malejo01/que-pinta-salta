@@ -11,6 +11,41 @@ function toDate(isoString: string): Date {
 }
 
 /**
+ * Detecta si el evento es realmente gratis analizando el título
+ * (Como en cron no tenemos la descripción larga del todo en el mapping, podemos buscar también en cDescripcion si existiera)
+ */
+function isTextFree(title: string, description: string = ''): boolean {
+  const text = `${title} ${description}`.toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  return /gratis|gratuito|entrada libre|sin costo|libre y gratuit/.test(text);
+}
+
+/**
+ * Retorna la mejor imagen disponible para el evento (prioriza resoluciones altas sobre miniaturas)
+ */
+function getBestImage(rawEvent: any): string {
+  const images = rawEvent.listaImagen || [];
+  
+  // Preferencias de etiquetas de imagen
+  const tagsPreference = ['WEB_DESTACADO', 'WEB_CARRUSEL_CHICO', 'WEB_CARRUSEL_GRANDE', 'WEB_TOP', 'MAIL_TOP'];
+  
+  for (const tag of tagsPreference) {
+    const found = images.find((img: any) => img.listaIdEtiqueta?.includes(tag));
+    if (found && found.cUri) {
+      return found.cUri;
+    }
+  }
+  
+  // Si no se encuentra ninguna imagen etiquetada, usar los fallbacks en este orden:
+  if (rawEvent.cImagenBanner) return rawEvent.cImagenBanner;
+  if (rawEvent.cImagenEquityBanner) return rawEvent.cImagenEquityBanner;
+  if (rawEvent.cImagenBannerMovil) return rawEvent.cImagenBannerMovil;
+  if (rawEvent.cImagenEquityThumb) return rawEvent.cImagenEquityThumb;
+  
+  return '';
+}
+
+/**
  * Scrapes events from EntradaUno S3 JSON for the cron job
  */
 export async function scrapeEntradaUno(): Promise<ScrapedEvent[]> {
@@ -80,17 +115,17 @@ export async function scrapeEntradaUno(): Promise<ScrapedEvent[]> {
         `&cHashValidacion=${rawEvent.cHashValidacion}`
 
       // Imagen
-      const flyerUrl =
-        rawEvent.cImagenEquityThumb ||
-        rawEvent.cImagenBanner ||
-        rawEvent.cImagenEquityBanner ||
-        ''
+      const flyerUrl = getBestImage(rawEvent)
+
+      const priceFrom = rawEvent.fPrecioDesde ?? 0
+      const isFree = priceFrom === 0 && isTextFree(rawEvent.cNombre, rawEvent.cDescripcion || '')
 
       events.push({
         title: rawEvent.cNombre.trim(),
         rawVenueName: venueName,
         dateTime,
-        priceFrom: rawEvent.fPrecioDesde ?? 0,
+        priceFrom,
+        isFree,
         flyerUrl,
         ticketLink,
         source: 'entradauno'

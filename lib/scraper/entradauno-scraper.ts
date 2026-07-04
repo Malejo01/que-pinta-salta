@@ -8,6 +8,40 @@ const CARTELERA_JSON_URL = 'https://s3.sa-east-1.amazonaws.com/contenido.general
 const COMMERCIAL_CATEGORIES = new Set(['recitales', 'teatro', 'humor', 'deportes', 'espectaculos']);
 
 /**
+ * Detecta si el evento es realmente gratis analizando título y descripción
+ */
+function isTextFree(title: string, description: string): boolean {
+  const text = `${title} ${description}`.toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  return /gratis|gratuito|entrada libre|sin costo|libre y gratuit/.test(text);
+}
+
+/**
+ * Retorna la mejor imagen disponible para el evento (prioriza resoluciones altas sobre miniaturas)
+ */
+function getBestImage(rawEvent: any): string {
+  const images = rawEvent.listaImagen || [];
+  
+  // Preferencias de etiquetas de imagen
+  const tagsPreference = ['WEB_DESTACADO', 'WEB_CARRUSEL_CHICO', 'WEB_CARRUSEL_GRANDE', 'WEB_TOP', 'MAIL_TOP'];
+  
+  for (const tag of tagsPreference) {
+    const found = images.find((img: any) => img.listaIdEtiqueta?.includes(tag));
+    if (found && found.cUri) {
+      return found.cUri;
+    }
+  }
+  
+  // Si no se encuentra ninguna imagen etiquetada, usar los fallbacks en este orden:
+  if (rawEvent.cImagenBanner) return rawEvent.cImagenBanner;
+  if (rawEvent.cImagenEquityBanner) return rawEvent.cImagenEquityBanner;
+  if (rawEvent.cImagenBannerMovil) return rawEvent.cImagenBannerMovil;
+  if (rawEvent.cImagenEquityThumb) return rawEvent.cImagenEquityThumb;
+  
+  return '';
+}
+
+/**
  * Infiere la categoría basada en palabras clave del título del evento
  */
 function inferCategory(nombre: string): string {
@@ -155,11 +189,10 @@ export async function scrapeEntradaUno(): Promise<SaveResult> {
         `&cHashValidacion=${rawEvent.cHashValidacion}`;
 
       // Imagen
-      const image_url =
-        rawEvent.cImagenEquityThumb ||
-        rawEvent.cImagenBanner ||
-        rawEvent.cImagenEquityBanner ||
-        '';
+      const image_url = getBestImage(rawEvent);
+
+      const price_min = rawEvent.fPrecioDesde ?? 0;
+      const is_free = price_min === 0 && isTextFree(rawEvent.cNombre, description || '');
 
       eventsToSave.push({
         title: rawEvent.cNombre.trim(),
@@ -170,8 +203,8 @@ export async function scrapeEntradaUno(): Promise<SaveResult> {
         venue: venueName,
         start_date,
         end_date,
-        is_free: (rawEvent.fPrecioDesde ?? 0) === 0,
-        price_min: rawEvent.fPrecioDesde ?? 0,
+        is_free,
+        price_min,
         ticket_url: ticketUrl,
         image_url: image_url || null,
         is_commercial: isCommercial,

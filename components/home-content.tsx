@@ -74,7 +74,7 @@ export function transformEvent(event: EventWithRelations) {
     time: formatEventTime(startDate),
     category: event.category.slug,
     categoryName: event.category.name,
-    price: event.is_free ? "gratis" as const : event.price_min,
+    price: event.is_free ? "gratis" as const : (event.price_min === 0 ? "confirmar" as const : event.price_min),
     image: event.image_url || '/placeholder.svg?height=600&width=400',
     description: event.description || event.short_description || '',
     address: event.venue?.address || '',
@@ -346,6 +346,8 @@ export function HomeContent({
                       <p className="mt-1 text-sm font-bold">
                         {event.price === "gratis" 
                           ? "Gratis" 
+                          : event.price === "confirmar"
+                          ? "Precio a confirmar"
                           : `$${event.price.toLocaleString("es-AR")}`}
                       </p>
                     </div>

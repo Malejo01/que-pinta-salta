@@ -160,7 +160,7 @@ async function upsertScrapedEvents(events: ScrapedEvent[]) {
         image_url: event.flyerUrl,
         start_date: event.dateTime.toISOString(),
         price_min: event.priceFrom,
-        is_free: event.priceFrom === 0,
+        is_free: event.isFree ?? (event.priceFrom === 0),
         ticket_url: event.ticketLink,
         status: 'PUBLISHED' as const,
         is_featured: false,

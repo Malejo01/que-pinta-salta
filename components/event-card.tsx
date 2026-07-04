@@ -21,6 +21,8 @@ export function EventCard({ event, isFavorite, onToggleFavorite }: EventCardProp
 
   const formattedPrice = event.price === "gratis" 
     ? "Gratis" 
+    : event.price === "confirmar"
+    ? "Precio a confirmar"
     : `$${event.price.toLocaleString("es-AR")}`
 
   return (

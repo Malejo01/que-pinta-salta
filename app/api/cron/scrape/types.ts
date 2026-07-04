@@ -3,6 +3,7 @@ export interface ScrapedEvent {
   rawVenueName: string
   dateTime: Date
   priceFrom: number
+  isFree?: boolean
   flyerUrl: string
   ticketLink: string
   source: string

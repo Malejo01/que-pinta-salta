@@ -124,6 +124,8 @@ export function HeroCarousel({ events }: HeroCarouselProps) {
             <span className="text-sm font-bold text-white sm:text-base drop-shadow-sm">
               {currentEvent.price === "gratis" 
                 ? "Entrada Gratuita" 
+                : currentEvent.price === "confirmar"
+                ? "Precio a confirmar"
                 : `$${currentEvent.price.toLocaleString("es-AR")}`}
             </span>
           </div>

@@ -1,6 +1,4 @@
-﻿import { Event } from "./types"
-
-export const mockEvents: Event[] = [
+export const mockEvents: any[] = [
   {
     id: "1",
     title: "PeÃ±a FolklÃ³rica en Balcarce",

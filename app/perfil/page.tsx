@@ -173,12 +173,12 @@ export default async function PerfilPage() {
                               <Clock className="size-4 shrink-0 text-primary" />
                               <span>{formatEventTime(event.start_date)} hs</span>
                             </div>
-                            {event.venue?.name && (
-                              <div className="flex items-center gap-2">
-                                <MapPin className="size-4 shrink-0 text-primary" />
-                                <span className="line-clamp-1">{event.venue.name}</span>
-                              </div>
-                            )}
+                             {(event.venue as any)?.name && (
+                               <div className="flex items-center gap-2">
+                                 <MapPin className="size-4 shrink-0 text-primary" />
+                                 <span className="line-clamp-1">{(event.venue as any).name}</span>
+                               </div>
+                             )}
                           </div>
                         </div>
                       </div>

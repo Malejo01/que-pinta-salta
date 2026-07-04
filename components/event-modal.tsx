@@ -13,12 +13,13 @@ interface DisplayEvent {
   date: string
   time: string
   category: string
-  price: number | "gratis"
+  price: number | "gratis" | "confirmar"
   image: string
   description: string
   address: string
   ticketUrl?: string
   isFeatured?: boolean
+  vibe?: string
 }
 
 type Event = DisplayEvent
@@ -101,6 +102,8 @@ export function EventModal({ event, open, onClose }: EventModalProps) {
             <p className="text-2xl font-bold text-foreground">
               {event.price === "gratis" 
                 ? "Entrada Gratuita" 
+                : event.price === "confirmar"
+                ? "Precio a confirmar"
                 : `$${event.price.toLocaleString("es-AR")}`}
             </p>
           </div>

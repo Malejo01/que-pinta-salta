@@ -203,12 +203,28 @@ export async function upsertEventWithDeduplication(
     // Consolidar flags comerciales (si cualquiera es comercial, el evento pasa a ser comercial)
     const finalIsCommercial = existingEvent.is_commercial || eventData.is_commercial || false;
 
+    // Consolidar is_free: si el nuevo scrape determina que no es gratis o si el precio mínimo final es > 0, corregimos a false
+    let finalIsFree = existingEvent.is_free;
+    if (eventData.is_free !== undefined) {
+      if (eventData.is_free === false || finalPriceMin > 0) {
+        finalIsFree = false;
+      }
+    }
+
+    // Consolidar imagen: si la imagen actual es nula o es una miniatura, y la nueva es mejor, la actualizamos
+    let finalImageUrl = existingEvent.image_url;
+    if (eventData.image_url && (!existingEvent.image_url || existingEvent.image_url.includes('150x150') || existingEvent.image_url.toLowerCase().includes('thumb') || existingEvent.image_url.toLowerCase().includes('equity'))) {
+      finalImageUrl = eventData.image_url;
+    }
+
     // Actualizar base de datos
     const { error } = await supabase
       .from('events')
       .update({
         ticket_sources: updatedSources,
         price_min: finalPriceMin,
+        is_free: finalIsFree,
+        image_url: finalImageUrl,
         is_commercial: finalIsCommercial,
         updated_at: new Date().toISOString()
       })

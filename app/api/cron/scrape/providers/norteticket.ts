@@ -69,6 +69,12 @@ function parsePrice(priceStr: string): number {
   return parseInt(cleaned, 10) || 0
 }
 
+function isTextFree(title: string, description: string = ''): boolean {
+  const text = `${title} ${description}`.toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  return /gratis|gratuito|entrada libre|sin costo|libre y gratuit/.test(text);
+}
+
 /**
  * Ensures URL is absolute
  */
@@ -117,7 +123,7 @@ export async function scrapeNorteTicket(): Promise<ScrapedEvent[]> {
       '.events-list .event'
     ]
     
-    let $cards = $([])
+    let $cards: any = $([])
     for (const selector of cardSelectors) {
       const found = $(selector)
       if (found.length > 0) {
@@ -133,7 +139,7 @@ export async function scrapeNorteTicket(): Promise<ScrapedEvent[]> {
       console.log(`[v0] NorteTicket: Fallback found ${$cards.length} event containers`)
     }
     
-    $cards.each((_, element) => {
+    $cards.each((_: any, element: any) => {
       try {
         const $card = $(element)
         
@@ -174,11 +180,15 @@ export async function scrapeNorteTicket(): Promise<ScrapedEvent[]> {
                           $card.find('a').first().attr('href') ||
                           ''
         
+        const priceFrom = parsePrice(priceText)
+        const isFree = priceFrom === 0 && isTextFree(title, priceText)
+        
         const event: ScrapedEvent = {
           title,
           rawVenueName,
           dateTime: parseArgentineDate(rawDateStr),
-          priceFrom: parsePrice(priceText),
+          priceFrom,
+          isFree,
           flyerUrl: absoluteUrl(flyerUrl, NORTE_TICKET_URL),
           ticketLink: absoluteUrl(ticketLink, NORTE_TICKET_URL),
           source: 'norteticket'

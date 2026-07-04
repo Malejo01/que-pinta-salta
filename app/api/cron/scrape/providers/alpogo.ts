@@ -2,6 +2,12 @@ import { ScrapedEvent } from '../types'
 
 const ALPOGO_API_URL = 'https://alpogo.com/api/events/getEvents2'
 
+function isTextFree(title: string, description: string = ''): boolean {
+  const text = `${title} ${description}`.toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  return /gratis|gratuito|entrada libre|sin costo|libre y gratuit/.test(text);
+}
+
 /**
  * Scrapes events from Alpogo API for the cron job
  */
@@ -44,6 +50,7 @@ export async function scrapeAlpogo(): Promise<ScrapedEvent[]> {
 
       const dateTime = new Date(item.fecha_funcion.replace(' ', 'T'))
       const priceFrom = parseInt(item.menor_precio || item.botonPrecio || '0', 10) || 0
+      const isFree = item.gratuito === '1' || (priceFrom === 0 && isTextFree(item.nombre, item.descripcion || ''))
       const flyerUrl = item.imagen_grilla || item.imagen_logo || ''
       const ticketLink = item.urlCompra || item.url || ''
 
@@ -52,6 +59,7 @@ export async function scrapeAlpogo(): Promise<ScrapedEvent[]> {
         rawVenueName: item.lugar || 'Salta',
         dateTime,
         priceFrom,
+        isFree,
         flyerUrl,
         ticketLink,
         source: 'alpogo'

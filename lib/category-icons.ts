@@ -29,6 +29,6 @@ const categoryIcons: Record<string, LucideIcon> = {
   espectaculos: Zap,
 }
 
-export function getCategoryIcon(category: EventCategory | string): LucideIcon {
-  return categoryIcons[category as EventCategory] || Calendar
+export function getCategoryIcon(category: string): LucideIcon {
+  return categoryIcons[category] || Calendar
 }

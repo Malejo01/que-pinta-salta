@@ -17,6 +17,40 @@ const API_HEADERS: Record<string, string> = {
   'xp1_devicefingerprint':  'b27f82310d0afbd238501dd2e5ba489f',
 };
 
+/**
+ * Detecta si el evento es realmente gratis analizando título y descripción
+ */
+function isTextFree(title: string, description: string): boolean {
+  const text = `${title} ${description}`.toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  return /gratis|gratuito|entrada libre|sin costo|libre y gratuit/.test(text);
+}
+
+/**
+ * Retorna la mejor imagen disponible para el evento (prioriza resoluciones altas sobre miniaturas)
+ */
+function getBestImage(rawEvent: any): string {
+  const images = rawEvent.listaImagen || [];
+  
+  // Preferencias de etiquetas de imagen
+  const tagsPreference = ['WEB_DESTACADO', 'WEB_CARRUSEL_CHICO', 'WEB_CARRUSEL_GRANDE', 'WEB_TOP', 'MAIL_TOP'];
+  
+  for (const tag of tagsPreference) {
+    const found = images.find((img: any) => img.listaIdEtiqueta?.includes(tag));
+    if (found && found.cUri) {
+      return found.cUri;
+    }
+  }
+  
+  // Si no se encuentra ninguna imagen etiquetada, usar los fallbacks en este orden:
+  if (rawEvent.cImagenBanner) return rawEvent.cImagenBanner;
+  if (rawEvent.cImagenEquityBanner) return rawEvent.cImagenEquityBanner;
+  if (rawEvent.cImagenBannerMovil) return rawEvent.cImagenBannerMovil;
+  if (rawEvent.cImagenEquityThumb) return rawEvent.cImagenEquityThumb;
+  
+  return '';
+}
+
 // ─── Tipos de la API ───────────────────────────────────────────────────────
 
 type ApiFuncion = {
@@ -204,14 +238,10 @@ export function normalizeVamosEvento(
 
   // ── Precio ──
   const price_min = evento.fPrecioDesde ?? 0;
-  const is_free = price_min === 0;
+  const is_free = price_min === 0 && isTextFree(evento.cNombre, description || '');
 
   // ── Imagen ──
-  const image_url =
-    evento.cImagenEquityThumb ||
-    evento.cImagenBanner ||
-    evento.cImagenEquityBanner ||
-    '';
+  const image_url = getBestImage(evento);
 
   // ── URL de landing ──
   const ticket_url = `${VAMOS_BASE_URL}/landing/${evento.cSeo}` +

@@ -3,14 +3,20 @@ import * as cheerio from 'cheerio';
 import slugify from 'slugify';
 import puppeteer from 'puppeteer';
 
+function isTextFree(title: string, description: string): boolean {
+  const text = `${title} ${description}`.toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  return /gratis|gratuito|entrada libre|sin costo|libre y gratuit/.test(text);
+}
+
 /**
  * Parsea todos los eventos de la página de Salta de Norteticket.
  * Usa el selector real del DOM: div#boxEvent (card desktop), evitando
  * duplicados mobile (div.d-sm-none) y ruido del navbar/footer.
  */
-export function parseAllEventsFromHtml(html: string): Partial<Event>[] {
+export function parseAllEventsFromHtml(html: string): Partial<Omit<Event, 'venue'> & { venue?: string }>[] {
   const $ = cheerio.load(html);
-  const events: Partial<Event>[] = [];
+  const events: Partial<Omit<Event, 'venue'> & { venue?: string }>[] = [];
 
   // Selector exacto: solo los cards desktop de eventos (evita mobile y modales del nav)
   $('div#boxEvent').each((_, card) => {
@@ -56,11 +62,12 @@ export function parseAllEventsFromHtml(html: string): Partial<Event>[] {
     // Precio: extraer primer número después de "ARS"
     let price_min = 0;
     let is_free = false;
-    const priceMatch = precioText.match(/ARS\s*(\d+)/);
+    const priceMatch = precioText.match(/ARS\s*(\d+)/i);
     if (priceMatch) {
       price_min = parseInt(priceMatch[1], 10);
+      is_free = price_min === 0;
     } else {
-      is_free = true;
+      is_free = isTextFree(title, precioText);
     }
 
     // URL de compra: a.buy-button

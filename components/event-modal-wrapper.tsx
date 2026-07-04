@@ -60,7 +60,7 @@ export function EventModalWrapper({ event, isAdmin = false, categories = [] }: E
     time: formatEventTime(startDate),
     category: currentCategory?.slug || 'uncategorized',
     categoryName: currentCategory?.name || 'Sin categorizar',
-    price: event.is_free ? "gratis" as const : event.price_min,
+    price: event.is_free ? "gratis" as const : (event.price_min === 0 ? "confirmar" as const : event.price_min),
     image: event.image_url || '/placeholder.svg?height=600&width=400',
     description: event.description || event.short_description || '',
     address: event.venue?.address || '',
@@ -264,6 +264,8 @@ export function EventModalWrapper({ event, isAdmin = false, categories = [] }: E
             <p className="text-2xl font-bold text-foreground">
               {displayEvent.price === "gratis" 
                 ? "Entrada Gratuita" 
+                : displayEvent.price === "confirmar"
+                ? "Precio a confirmar"
                 : `$${displayEvent.price.toLocaleString("es-AR")}`}
             </p>
           </div>

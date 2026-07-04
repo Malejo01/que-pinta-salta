@@ -60,12 +60,12 @@ export async function scrapeNorteticketSalta(): Promise<Event[]> {
     // Deduplicar
     let isNew = true;
     try {
-      isNew = await deduplicateEvent(baseEvent);
+      isNew = await deduplicateEvent(baseEvent as any);
     } catch (e) {
       console.warn('Error deduplicando evento', baseEvent.title, e);
     }
     if (isNew) {
-      events.push(baseEvent as Event);
+      events.push(baseEvent as any);
     }
   }
 
