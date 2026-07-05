@@ -112,3 +112,31 @@ export const vibeLabels: Record<EventVibe, string> = {
   adultos: "Adultos",
   exterior: "Al Aire Libre",
 }
+
+// Cinema Types
+export interface ShowingTime {
+  type: string;
+  times: string[];
+}
+
+export interface CinemaShowingsDetails {
+  name: string;
+  booking_url: string;
+  formats: ShowingTime[];
+}
+
+export interface MovieShowings {
+  [cinemaKey: string]: CinemaShowingsDetails;
+}
+
+export interface CinemaMovie {
+  id: string;
+  slug: string;
+  title: string;
+  poster_url: string | null;
+  is_currently_showing: boolean;
+  showings: MovieShowings;
+  created_at: string;
+  updated_at: string;
+}
+
