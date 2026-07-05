@@ -199,8 +199,8 @@ async function executeSourceScrape(sourceKey: ScrapeSourceKey): Promise<Omit<Scr
         success: result.success,
         sourceKey,
         sourceName: getScrapeSourceConfig(sourceKey)?.name ?? sourceKey,
-        inserted: 0,
-        skipped: 0,
+        inserted: result.inserted,
+        skipped: result.skipped,
         errors: result.errors,
         message: result.message,
       }

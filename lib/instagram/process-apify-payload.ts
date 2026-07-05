@@ -230,13 +230,17 @@ export async function archiveExpiredFlyers(): Promise<number> {
 }
 
 /**
- * Dispara el actor de Apify para extraer flyers de las cuentas activas
- * utilizando una ventana de extracción de 7 días.
+ * Dispara el actor de Apify, espera a que termine (polling),
+ * descarga los resultados del dataset, y los procesa con processApifyPayload.
+ *
+ * Timeout máximo: 3 minutos. Intervalo de polling: 5 segundos.
  */
 export async function triggerApifyInstagramScraper(): Promise<{
   success: boolean
   message: string
   runId?: string
+  inserted: number
+  skipped: number
   errors: string[]
 }> {
   const supabase = createAdminClient()
@@ -246,7 +250,7 @@ export async function triggerApifyInstagramScraper(): Promise<{
   if (!APIFY_API_TOKEN) {
     const msg = 'APIFY_API_TOKEN no configurado en las variables de entorno'
     console.error(`[IG Engine] ${msg}`)
-    return { success: false, message: msg, errors: [msg] }
+    return { success: false, message: msg, inserted: 0, skipped: 0, errors: [msg] }
   }
 
   try {
@@ -259,13 +263,13 @@ export async function triggerApifyInstagramScraper(): Promise<{
     if (accountsError) {
       const msg = `Error al consultar instagram_accounts: ${accountsError.message}`
       console.error(`[IG Engine] ${msg}`)
-      return { success: false, message: msg, errors: [msg] }
+      return { success: false, message: msg, inserted: 0, skipped: 0, errors: [msg] }
     }
 
     if (!accounts || accounts.length === 0) {
       const msg = 'No hay cuentas de Instagram activas registradas para scrapear'
       console.warn(`[IG Engine] ${msg}`)
-      return { success: true, message: msg, errors: [] }
+      return { success: true, message: msg, inserted: 0, skipped: 0, errors: [] }
     }
 
     const usernames = accounts.map(acc => acc.username)
@@ -280,7 +284,7 @@ export async function triggerApifyInstagramScraper(): Promise<{
     const resultsLimit = INSTAGRAM_ENGINE_CONFIG.MAX_POSTS_PER_ACCOUNT || 3
 
     const apifyPayload = {
-      usernames,
+      username: usernames,
       resultsLimit,
       onlyPostsNewerThan,
       skipPinnedPosts: true
@@ -319,24 +323,105 @@ export async function triggerApifyInstagramScraper(): Promise<{
       }
       
       console.error(`[IG Engine] Falló disparo del scraper. Código HTTP: ${response.status}`, errorText)
-      return { success: false, message: 'Fallo al disparar el scraper de Apify', errors }
+      return { success: false, message: 'Fallo al disparar el scraper de Apify', inserted: 0, skipped: 0, errors }
     }
 
     const runData = await response.json()
     const runId = runData.data?.id
-    console.log(`[IG Engine] Scraper disparado exitosamente. Run ID: ${runId}`)
+    const datasetId = runData.data?.defaultDatasetId
+    console.log(`[IG Engine] Scraper disparado exitosamente. Run ID: ${runId}, Dataset ID: ${datasetId}`)
+
+    // 4. Polling: esperar a que el run de Apify termine
+    const MAX_WAIT_MS = 3 * 60 * 1000 // 3 minutos
+    const POLL_INTERVAL_MS = 5_000     // 5 segundos
+    const startTime = Date.now()
+
+    let runStatus = runData.data?.status
+    const runStatusUrl = `https://api.apify.com/v2/actor-runs/${runId}?token=${APIFY_API_TOKEN}`
+
+    while (runStatus !== 'SUCCEEDED' && runStatus !== 'FAILED' && runStatus !== 'ABORTED' && runStatus !== 'TIMED-OUT') {
+      if (Date.now() - startTime > MAX_WAIT_MS) {
+        const msg = `Timeout esperando a Apify (>${MAX_WAIT_MS / 1000}s). Run ID: ${runId}. El run puede seguir en Apify.`
+        console.warn(`[IG Engine] ${msg}`)
+        errors.push(msg)
+        return { success: false, message: msg, runId, inserted: 0, skipped: 0, errors }
+      }
+
+      // Esperar antes de volver a consultar
+      await new Promise(resolve => setTimeout(resolve, POLL_INTERVAL_MS))
+
+      try {
+        const statusResponse = await fetch(runStatusUrl)
+        if (statusResponse.ok) {
+          const statusData = await statusResponse.json()
+          runStatus = statusData.data?.status
+          console.log(`[IG Engine] Polling run ${runId}: estado = ${runStatus} (${Math.round((Date.now() - startTime) / 1000)}s)`)
+        } else {
+          console.warn(`[IG Engine] Error consultando estado del run: HTTP ${statusResponse.status}`)
+        }
+      } catch (pollErr) {
+        console.warn(`[IG Engine] Excepción durante polling:`, pollErr)
+      }
+    }
+
+    if (runStatus !== 'SUCCEEDED') {
+      const msg = `El run de Apify terminó con estado: ${runStatus}. Run ID: ${runId}`
+      console.error(`[IG Engine] ${msg}`)
+      errors.push(msg)
+      return { success: false, message: msg, runId, inserted: 0, skipped: 0, errors }
+    }
+
+    console.log(`[IG Engine] ✅ Run de Apify completado exitosamente. Descargando dataset...`)
+
+    // 5. Descargar resultados del dataset
+    const finalDatasetId = datasetId || runId
+    const datasetUrl = `https://api.apify.com/v2/datasets/${finalDatasetId}/items?token=${APIFY_API_TOKEN}&format=json`
+
+    const datasetResponse = await fetch(datasetUrl)
+    if (!datasetResponse.ok) {
+      const msg = `Error descargando dataset de Apify: HTTP ${datasetResponse.status}`
+      console.error(`[IG Engine] ${msg}`)
+      errors.push(msg)
+      return { success: false, message: msg, runId, inserted: 0, skipped: 0, errors }
+    }
+
+    const posts = await datasetResponse.json() as ApifyInstagramPost[]
+    console.log(`[IG Engine] Descargados ${posts.length} posts del dataset de Apify`)
+
+    if (!posts.length) {
+      return {
+        success: true,
+        message: 'Scraper completado pero no devolvió posts.',
+        runId,
+        inserted: 0,
+        skipped: 0,
+        errors: []
+      }
+    }
+
+    // 6. Filtrar posts inválidos (ej: entradas de perfil sin ID real)
+    const validPosts = posts.filter(p => p.id && p.ownerUsername && p.displayUrl)
+    console.log(`[IG Engine] Posts válidos para procesar: ${validPosts.length} de ${posts.length}`)
+
+    // 7. Procesar los posts e insertarlos en la DB
+    const processResult = await processApifyPayload(validPosts)
+
+    const summary = `Scrape IG completado: ${processResult.inserted} insertados, ${processResult.skipped} omitidos.`
+    console.log(`[IG Engine] ${summary}`)
 
     return {
       success: true,
-      message: `Scraper de Instagram iniciado exitosamente en Apify (Run ID: ${runId}).`,
+      message: summary,
       runId,
-      errors: []
+      inserted: processResult.inserted,
+      skipped: processResult.skipped,
+      errors: [...processResult.errors]
     }
   } catch (error) {
     const errMsg = error instanceof Error ? error.message : 'Error desconocido'
     const msg = `Excepción al disparar el scraper de Apify: ${errMsg}`
     console.error(`[IG Engine] ${msg}`, error)
-    return { success: false, message: msg, errors: [msg] }
+    return { success: false, message: msg, inserted: 0, skipped: 0, errors: [msg] }
   }
 }
 
