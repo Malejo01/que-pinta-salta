@@ -3,7 +3,7 @@
 import Image from "next/image"
 import Link from "next/link"
 import { motion } from "framer-motion"
-import { Calendar, MapPin, Heart, Instagram } from "lucide-react"
+import { Calendar, MapPin, Heart, Instagram, Film } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
@@ -14,9 +14,10 @@ interface EventCardProps {
   event: DisplayEvent
   isFavorite?: boolean
   onToggleFavorite?: (eventId: string) => void
+  onOpenMovie?: (movie: DisplayEvent) => void
 }
 
-export function EventCard({ event, isFavorite, onToggleFavorite }: EventCardProps) {
+export function EventCard({ event, isFavorite, onToggleFavorite, onOpenMovie }: EventCardProps) {
   const formattedDate = formatEventDateShort(event.date)
 
   const formattedPrice = event.price === "gratis" 
@@ -29,8 +30,16 @@ export function EventCard({ event, isFavorite, onToggleFavorite }: EventCardProp
     ? `/flyer/${event.flyerId}`
     : `/evento/${event.id}`
 
+  const handleClick = (e: React.MouseEvent) => {
+    if (event.isCinemaMovie && onOpenMovie) {
+      e.preventDefault()
+      e.stopPropagation()
+      onOpenMovie(event)
+    }
+  }
+
   return (
-    <Link href={linkHref}>
+    <Link href={event.isCinemaMovie ? "#" : linkHref} onClick={handleClick}>
       <motion.div
         whileHover={{ scale: 1.03 }}
         whileTap={{ scale: 0.98 }}
@@ -45,6 +54,40 @@ export function EventCard({ event, isFavorite, onToggleFavorite }: EventCardProp
           fill
           className="object-cover transition-transform duration-300 group-hover:scale-105"
         />
+
+        {/* Hover overlay con horarios de cine */}
+        {event.isCinemaMovie && event.showings && (
+          <div className="absolute inset-0 bg-black/95 p-3 opacity-0 group-hover:opacity-100 transition-all duration-300 flex flex-col justify-between z-20 text-white overflow-y-auto scrollbar-hide">
+            <div className="space-y-3">
+              <h4 className="text-xs font-bold text-primary border-b border-primary/20 pb-1 flex items-center gap-1.5">
+                <Film className="size-3.5" />
+                Funciones Hoy
+              </h4>
+              <div className="space-y-2">
+                {Object.entries(event.showings).map(([cinemaKey, details]: [string, any]) => (
+                  <div key={cinemaKey} className="space-y-0.5">
+                    <p className="text-[10px] font-bold text-zinc-300 truncate">
+                      {details.name}
+                    </p>
+                    <div className="flex flex-wrap gap-1">
+                      {details.formats.flatMap((f: any) => f.times).slice(0, 5).map((time: string, tIdx: number) => (
+                        <span 
+                          key={tIdx} 
+                          className="bg-zinc-800 text-zinc-200 text-[9px] px-1 py-0.5 rounded border border-zinc-700/30"
+                        >
+                          {time}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <p className="text-[9px] text-zinc-400 text-center italic mt-2 border-t border-zinc-800/80 pt-1">
+              Click para ver horarios y comprar
+            </p>
+          </div>
+        )}
         
         <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent" />
         

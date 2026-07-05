@@ -1,7 +1,6 @@
 "use client"
 
-import { useRouter, useSearchParams } from "next/navigation"
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { Building2, CalendarDays, ChevronDown, MapPin, Search, SlidersHorizontal } from "lucide-react"
 import type { Category } from "@/lib/types"
 import { Input } from "@/components/ui/input"
@@ -32,6 +31,24 @@ const dateFilters: { value: DateFilter; label: string }[] = [
 
 interface FiltersBarProps {
   categories: Category[]
+  filters: {
+    search: string
+    date: DateFilter | null
+    category: string | null
+    establishment: string
+    location: string
+    dateExact: string | null
+    instagram: boolean
+  }
+  onFilterChange: (updates: {
+    search?: string
+    date?: DateFilter | null
+    category?: string | null
+    establishment?: string
+    location?: string
+    dateExact?: string | null
+    instagram?: boolean
+  }) => void
 }
 
 function formatDateParam(date: Date) {
@@ -51,9 +68,7 @@ function formatDateLabel(value: string | null) {
   }).format(parsed)
 }
 
-export function FiltersBar({ categories }: FiltersBarProps) {
-  const router = useRouter()
-  const searchParams = useSearchParams()
+export function FiltersBar({ categories, filters, onFilterChange }: FiltersBarProps) {
   const [advancedFiltersOpen, setAdvancedFiltersOpen] = useState(false)
   const searchInputRef = useRef<HTMLInputElement>(null)
   const establishmentInputRef = useRef<HTMLInputElement>(null)
@@ -62,58 +77,36 @@ export function FiltersBar({ categories }: FiltersBarProps) {
   const establishmentTimeoutRef = useRef<number | null>(null)
   const locationTimeoutRef = useRef<number | null>(null)
   
-  const searchQuery = searchParams.get("search") || ""
-  const selectedDate = searchParams.get("date") as DateFilter | null
-  const selectedCategory = searchParams.get("category")
-  const selectedEstablishment = searchParams.get("establishment") || ""
-  const selectedLocation = searchParams.get("location") || ""
-  const selectedExactDate = searchParams.get("dateExact")
-  const instagramParam = searchParams.get("instagram")
-  const instagramEnabled = instagramParam !== "false"
+  const {
+    search: searchQuery,
+    date: selectedDate,
+    category: selectedCategory,
+    establishment: selectedEstablishment,
+    location: selectedLocation,
+    dateExact: selectedExactDate,
+    instagram: instagramEnabled,
+  } = filters
+
   const advancedFiltersCount = [selectedEstablishment, selectedLocation].filter(Boolean).length
 
-  const updateParams = useCallback((updates: Record<string, string | null>, mode: "push" | "replace" = "push") => {
-    const params = new URLSearchParams(searchParams.toString())
+  const handleInstagramChange = (checked: boolean) => {
+    onFilterChange({ instagram: checked })
+  }
 
-    for (const [key, value] of Object.entries(updates)) {
-      if (value !== undefined) {
-        if (value) {
-          params.set(key, value)
-        } else {
-          params.delete(key)
-        }
-      }
-    }
+  const handleDateChange = (date: DateFilter | null) => {
+    onFilterChange({ date, dateExact: null })
+  }
 
-    const nextQuery = params.toString()
-    const nextUrl = nextQuery ? `/?${nextQuery}` : "/"
+  const handleCategoryChange = (category: string | null) => {
+    onFilterChange({ category })
+  }
 
-    if (mode === "replace") {
-      router.replace(nextUrl, { scroll: false })
-      return
-    }
-
-    router.push(nextUrl, { scroll: false })
-  }, [router, searchParams])
-
-  const handleInstagramChange = useCallback((checked: boolean) => {
-    updateParams({ instagram: checked ? null : "false" })
-  }, [updateParams])
-
-  const handleDateChange = useCallback((date: DateFilter | null) => {
-    updateParams({ date, dateExact: null })
-  }, [updateParams])
-
-  const handleCategoryChange = useCallback((category: string | null) => {
-    updateParams({ category })
-  }, [updateParams])
-
-  const handleExactDateChange = useCallback((date: Date | undefined) => {
-    updateParams({
+  const handleExactDateChange = (date: Date | undefined) => {
+    onFilterChange({
       date: null,
       dateExact: date ? formatDateParam(date) : null,
     })
-  }, [updateParams])
+  }
 
   useEffect(() => {
     if (searchInputRef.current && searchInputRef.current.value !== searchQuery) {
@@ -134,34 +127,27 @@ export function FiltersBar({ categories }: FiltersBarProps) {
   }, [selectedLocation])
 
   useEffect(() => {
-    const searchTimeout = searchTimeoutRef.current
-    const establishmentTimeout = establishmentTimeoutRef.current
-    const locationTimeout = locationTimeoutRef.current
-
     return () => {
-      if (searchTimeout !== null) window.clearTimeout(searchTimeout)
-      if (establishmentTimeout !== null) window.clearTimeout(establishmentTimeout)
-      if (locationTimeout !== null) window.clearTimeout(locationTimeout)
+      if (searchTimeoutRef.current !== null) window.clearTimeout(searchTimeoutRef.current)
+      if (establishmentTimeoutRef.current !== null) window.clearTimeout(establishmentTimeoutRef.current)
+      if (locationTimeoutRef.current !== null) window.clearTimeout(locationTimeoutRef.current)
     }
   }, [])
 
-  const handleDebouncedTextFilterChange = useCallback(
-    (
-      key: "search" | "establishment" | "location",
-      value: string,
-      timeoutRef: React.MutableRefObject<number | null>
-    ) => {
-      if (timeoutRef.current !== null) {
-        window.clearTimeout(timeoutRef.current)
-      }
+  const handleDebouncedTextFilterChange = (
+    key: "search" | "establishment" | "location",
+    value: string,
+    timeoutRef: React.MutableRefObject<number | null>
+  ) => {
+    if (timeoutRef.current !== null) {
+      window.clearTimeout(timeoutRef.current)
+    }
 
-      timeoutRef.current = window.setTimeout(() => {
-        updateParams({ [key]: value || null }, "replace")
-        timeoutRef.current = null
-      }, 250)
-    },
-    [updateParams]
-  )
+    timeoutRef.current = window.setTimeout(() => {
+      onFilterChange({ [key]: value })
+      timeoutRef.current = null
+    }, 250)
+  }
 
   return (
     <div className="border-b border-border bg-background/95 py-2 md:py-4 backdrop-blur supports-[backdrop-filter]:bg-background/60">

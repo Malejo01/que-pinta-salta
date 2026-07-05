@@ -1,18 +1,21 @@
 "use client"
 
-import { useMemo } from "react"
+import { useMemo, useState, useEffect } from "react"
 import { useSearchParams, useRouter } from "next/navigation"
 import Image from "next/image"
-import type { Event, Category, Venue } from "@/lib/types"
+import type { Event, Category, Venue, CinemaMovie } from "@/lib/types"
 import type { FlyerWithAccount } from "@/lib/instagram-config"
 import { Navbar } from "@/components/navbar"
 import { MobileNav } from "@/components/mobile-nav"
 import { HeroCarousel } from "@/components/hero-carousel"
 import { FiltersBar, DateFilter } from "@/components/filters-bar"
 import { CategoryRow } from "@/components/category-row"
+import { EventCard } from "@/components/event-card"
+import { MovieModal } from "@/components/movie-modal"
 import Link from "next/link"
 import { formatEventTime } from "@/lib/date-format"
 import { AdSenseBanner } from "@/components/adsense-banner"
+import { Film } from "lucide-react"
 
 type EventWithRelations = Event & { category: Category; venue: Venue | null }
 
@@ -84,6 +87,9 @@ export interface DisplayEvent {
   flyerId?: string
   instagramPostUrl?: string
   instagramUsername?: string
+  // Campos opcionales para películas de cine
+  isCinemaMovie?: boolean
+  showings?: any
 }
 
 // Transform database event to display format
@@ -143,6 +149,7 @@ interface HomeContentProps {
   serverNowISO: string
   favoriteCategorySlugs?: string[]
   flyers?: FlyerWithAccount[]
+  cinemaMovies?: CinemaMovie[]
 }
 
 export function HomeContent({
@@ -151,17 +158,40 @@ export function HomeContent({
   serverNowISO,
   favoriteCategorySlugs = [],
   flyers = [],
+  cinemaMovies = [],
 }: HomeContentProps) {
   const searchParams = useSearchParams()
   const router = useRouter()
   
-  const searchQuery = searchParams.get("search") || ""
-  const selectedDate = searchParams.get("date") as DateFilter | null
-  const selectedCategory = searchParams.get("category")
-  const selectedEstablishment = searchParams.get("establishment") || ""
-  const selectedLocation = searchParams.get("location") || ""
-  const selectedExactDate = searchParams.get("dateExact")
-  const showInstagram = searchParams.get("instagram") !== "false"
+  // Estado para la película seleccionada que se mostrará en el modal
+  const [selectedMovie, setSelectedMovie] = useState<DisplayEvent | null>(null)
+  
+  // Inicializar estado local de filtros a partir de la URL (solo en la carga inicial)
+  const [search, setSearch] = useState(() => searchParams.get("search") || "")
+  const [date, setDate] = useState<DateFilter | null>(() => searchParams.get("date") as DateFilter | null)
+  const [category, setCategory] = useState<string | null>(() => searchParams.get("category"))
+  const [establishment, setEstablishment] = useState(() => searchParams.get("establishment") || "")
+  const [location, setLocation] = useState(() => searchParams.get("location") || "")
+  const [dateExact, setDateExact] = useState<string | null>(() => searchParams.get("dateExact"))
+  const [instagram, setInstagram] = useState(() => searchParams.get("instagram") !== "false")
+
+  // Efecto para sincronizar silenciosamente el estado de los filtros con la URL del navegador
+  useEffect(() => {
+    const params = new URLSearchParams()
+    if (search) params.set("search", search)
+    if (date) params.set("date", date)
+    if (category) params.set("category", category)
+    if (establishment) params.set("establishment", establishment)
+    if (location) params.set("location", location)
+    if (dateExact) params.set("dateExact", dateExact)
+    if (!instagram) params.set("instagram", "false")
+
+    const nextQuery = params.toString()
+    const nextUrl = nextQuery ? `/?${nextQuery}` : "/"
+    
+    // Actualizar la URL de forma shallow (silenciosa), sin recargar componentes del servidor ni relanzar peticiones
+    window.history.replaceState(null, "", nextUrl)
+  }, [search, date, category, establishment, location, dateExact, instagram])
 
   const categoryNameBySlug = useMemo(() => {
     return new Map(categories.map((category) => [category.slug, category.name]))
@@ -174,9 +204,33 @@ export function HomeContent({
     
     // Transformar flyers de Instagram y mezclarlos con los eventos
     const flyerItems = flyers.map((flyer) => transformFlyer(flyer, categoryNameBySlug))
+
+    // Transformar películas de cine y mezclarlas con los eventos
+    const movieItems = (cinemaMovies || []).map((movie): DisplayEvent => {
+      const showCount = Object.keys(movie.showings || {}).length
+      return {
+        id: `movie-${movie.id}`,
+        slug: movie.slug,
+        title: movie.title,
+        venue: `${showCount} ${showCount === 1 ? 'Cine' : 'Cines'} de Salta`,
+        date: new Date().toISOString().split('T')[0], // Se proyecta hoy
+        time: '',
+        category: 'cine',
+        categoryName: 'Cine',
+        price: 'confirmar' as const,
+        image: movie.poster_url || '/placeholder.svg?height=600&width=400',
+        description: '',
+        address: '',
+        startDateTime: movie.created_at, // for ordering
+        vibe: 'familiar' as const,
+        isFeatured: false,
+        isCinemaMovie: true,
+        showings: movie.showings,
+      }
+    })
     
-    return [...eventItems, ...flyerItems]
-  }, [events, flyers, categoryNameBySlug])
+    return [...eventItems, ...flyerItems, ...movieItems]
+  }, [events, flyers, cinemaMovies, categoryNameBySlug])
 
   const sortedCategories = useMemo(() => {
     return getCategoryPriority(categories, allDisplayEvents, serverNowISO, favoriteCategorySlugs)
@@ -231,8 +285,8 @@ export function HomeContent({
   const filteredEvents = useMemo(() => {
     let filtered = allDisplayEvents
 
-    if (searchQuery) {
-      const query = normalizeFilterText(searchQuery)
+    if (search) {
+      const query = normalizeFilterText(search)
       filtered = filtered.filter(
         event => 
           normalizeFilterText(event.title).includes(query) ||
@@ -240,19 +294,19 @@ export function HomeContent({
       )
     }
 
-    if (selectedEstablishment) {
-      const query = normalizeFilterText(selectedEstablishment)
+    if (establishment) {
+      const query = normalizeFilterText(establishment)
       filtered = filtered.filter((event) => normalizeFilterText(event.venue).includes(query))
     }
 
-    if (selectedLocation) {
-      const query = normalizeFilterText(selectedLocation)
+    if (location) {
+      const query = normalizeFilterText(location)
       filtered = filtered.filter((event) => normalizeFilterText(event.address).includes(query))
     }
 
-    if (selectedExactDate) {
-      filtered = filtered.filter((event) => event.date === selectedExactDate)
-    } else if (selectedDate) {
+    if (dateExact) {
+      filtered = filtered.filter((event) => event.date === dateExact)
+    } else if (date) {
       const today = new Date(serverNowISO)
       today.setHours(0, 0, 0, 0)
       
@@ -260,7 +314,7 @@ export function HomeContent({
         const eventDate = new Date(event.date)
         eventDate.setHours(0, 0, 0, 0)
         
-        switch (selectedDate) {
+        switch (date) {
           case "hoy":
             return eventDate.getTime() === today.getTime()
           case "semana": {
@@ -281,7 +335,12 @@ export function HomeContent({
       })
     }
 
-    if (!showInstagram) {
+    // CORRECCIÓN URGENTE: Aplicar el filtro de categoría seleccionada
+    if (category) {
+      filtered = filtered.filter((event) => event.category === category)
+    }
+
+    if (!instagram) {
       filtered = filtered.filter(event => !event.isInstagramFlyer)
     }
 
@@ -296,13 +355,13 @@ export function HomeContent({
     })
   }, [
     allDisplayEvents,
-    searchQuery,
-    selectedEstablishment,
-    selectedLocation,
-    selectedExactDate,
-    selectedDate,
-    selectedCategory,
-    showInstagram,
+    search,
+    establishment,
+    location,
+    dateExact,
+    date,
+    category,
+    instagram,
     serverNowISO,
   ])
 
@@ -326,21 +385,27 @@ export function HomeContent({
   }, [sortedCategories, filteredEvents])
 
   const clearFilters = () => {
-    router.push("/", { scroll: false })
+    setSearch("")
+    setDate(null)
+    setCategory(null)
+    setEstablishment("")
+    setLocation("")
+    setDateExact(null)
+    setInstagram(true)
   }
 
   const hasFilters = Boolean(
-    searchQuery ||
-    selectedDate ||
-    selectedExactDate ||
-    selectedCategory ||
-    selectedEstablishment ||
-    selectedLocation
+    search ||
+    date ||
+    dateExact ||
+    category ||
+    establishment ||
+    location
   )
   const showCategoryRows = !hasFilters && eventsByCategory.some(cat => cat.events.length > 0)
   const showFilteredGrid = hasFilters && filteredEvents.length > 0
-  const filteredTitle = selectedCategory
-    ? categoryNameBySlug.get(selectedCategory) ?? selectedCategory
+  const filteredTitle = category
+    ? categoryNameBySlug.get(category) ?? category
     : "Resultados filtrados"
 
   return (
@@ -354,17 +419,38 @@ export function HomeContent({
           />
         )}
 
-        <FiltersBar categories={sortedCategories} />
+        <FiltersBar 
+          categories={sortedCategories} 
+          filters={{
+            search,
+            date,
+            category,
+            establishment,
+            location,
+            dateExact,
+            instagram,
+          }}
+          onFilterChange={(updates) => {
+            if (updates.search !== undefined) setSearch(updates.search)
+            if (updates.date !== undefined) setDate(updates.date)
+            if (updates.category !== undefined) setCategory(updates.category)
+            if (updates.establishment !== undefined) setEstablishment(updates.establishment)
+            if (updates.location !== undefined) setLocation(updates.location)
+            if (updates.dateExact !== undefined) setDateExact(updates.dateExact)
+            if (updates.instagram !== undefined) setInstagram(updates.instagram)
+          }}
+        />
 
 
         {showCategoryRows && (
           <div className="py-8 space-y-10">
-            {eventsByCategory.map(({ category, title, events }, index) => (
-              <div key={category} className="space-y-6">
+            {eventsByCategory.map(({ category: catSlug, title, events }, index) => (
+              <div key={catSlug} className="space-y-6">
                 <CategoryRow
-                  category={category}
+                  category={catSlug}
                   title={title}
                   events={events}
+                  onOpenMovie={setSelectedMovie}
                 />
                 {index === 1 && (
                   <div className="container mx-auto px-4 py-2">
@@ -381,39 +467,13 @@ export function HomeContent({
             <h2 className="mb-6 text-2xl font-bold text-foreground">
               {filteredTitle} ({filteredEvents.length})
             </h2>
-            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 justify-items-center">
               {filteredEvents.map(event => (
-                <Link 
+                <EventCard 
                   key={event.id} 
-                  href={`/evento/${event.id}`}
-                  className="flex justify-center"
-                >
-                  <div 
-                    className="group relative aspect-[2/3] w-full max-w-[200px] cursor-pointer overflow-hidden rounded-xl bg-card shadow-lg"
-                  >
-                    <Image
-                      src={event.image}
-                      alt={event.title}
-                      fill
-                      sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 200px"
-                      className="object-cover transition-transform duration-300 group-hover:scale-105"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent" />
-                    <div className="absolute bottom-0 left-0 right-0 p-3 text-white">
-                      <h3 className="mb-1 line-clamp-2 text-sm font-semibold leading-tight">
-                        {event.title}
-                      </h3>
-                      <p className="line-clamp-1 text-xs text-white/80">{event.venue}</p>
-                      <p className="mt-1 text-sm font-bold">
-                        {event.price === "gratis" 
-                          ? "Gratis" 
-                          : event.price === "confirmar"
-                          ? "Precio a confirmar"
-                          : `$${event.price.toLocaleString("es-AR")}`}
-                      </p>
-                    </div>
-                  </div>
-                </Link>
+                  event={event} 
+                  onOpenMovie={setSelectedMovie}
+                />
               ))}
             </div>
           </div>
@@ -443,6 +503,14 @@ export function HomeContent({
       </main>
 
       <MobileNav />
+
+      {/* Modal para visualizar los horarios de la película */}
+      {selectedMovie && (
+        <MovieModal 
+          movie={selectedMovie} 
+          onClose={() => setSelectedMovie(null)} 
+        />
+      )}
     </div>
   )
 }

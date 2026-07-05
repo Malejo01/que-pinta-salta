@@ -28,6 +28,9 @@ const CONTACT_URL = "https://www.linkedin.com/in/mauro-alejandro-lizarraga-82607
 
 export function Footer() {
   const [user, setUser] = useState<User | null>(null)
+  
+  const whatsappNumber = process.env.NEXT_PUBLIC_CONTACT_WHATSAPP || "5493875813233"
+  const whatsappUrl = `https://wa.me/${whatsappNumber}?text=Hola!%20Me%20interesa%20anunciar%20mi%20negocio%20o%20evento%20en%20Que%20Pinta%20Salta.`
 
   useEffect(() => {
     const supabase = createClient()
@@ -83,6 +86,14 @@ export function Footer() {
               >
                 Agregar Evento
               </Link>
+              <a
+                href={whatsappUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-sm text-muted-foreground transition-colors hover:text-foreground"
+              >
+                Anunciar / Publicidad 📢
+              </a>
             </nav>
           </div>
 

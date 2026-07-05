@@ -13,12 +13,14 @@ interface CategoryRowProps {
   category: string
   title: string
   events: DisplayEvent[]
+  onOpenMovie?: (movie: DisplayEvent) => void
 }
 
 export function CategoryRow({ 
   category, 
   title, 
   events, 
+  onOpenMovie,
 }: CategoryRowProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
 
@@ -74,7 +76,7 @@ export function CategoryRow({
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ duration: 0.3, delay: index * 0.05 }}
               >
-                <EventCard event={event} />
+                <EventCard event={event} onOpenMovie={onOpenMovie} />
               </motion.div>
             ))}
           </motion.div>

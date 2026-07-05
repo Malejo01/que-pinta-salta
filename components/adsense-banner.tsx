@@ -17,7 +17,10 @@ export function AdSenseBanner({
   className = "",
 }: AdSenseBannerProps) {
   const [adLoaded, setAdLoaded] = useState(false)
+  const [adError, setAdError] = useState(false)
   const [isClient, setIsClient] = useState(false)
+  const insRef = useRef<HTMLModElement>(null)
+  
   const adClientId = process.env.NEXT_PUBLIC_ADSENSE_CLIENT_ID
   const isDev = process.env.NODE_ENV === "development"
   
@@ -33,18 +36,54 @@ export function AdSenseBanner({
     if (isClient && adClientId && !isDev) {
       try {
         // @ts-ignore
-        (window.adsbygoogle = window.adsbygoogle || []).push({})
+        const ads = window.adsbygoogle || []
+        // @ts-ignore
+        window.adsbygoogle = ads
+        ads.push({})
         setAdLoaded(true)
       } catch (err) {
         console.error("AdSense initialization failed:", err)
+        setAdError(true)
+        return
       }
+
+      // Configurar una verificación de estado del anuncio después de que cargue
+      const checkAdStatus = () => {
+        try {
+          // Verificar si el script de adsbygoogle cargó correctamente en el objeto window
+          // @ts-ignore
+          const isScriptLoaded = window.adsbygoogle && (window.adsbygoogle.loaded === true || typeof window.adsbygoogle === "object")
+          
+          if (!isScriptLoaded) {
+            setAdError(true)
+            return
+          }
+
+          if (insRef.current) {
+            const status = insRef.current.getAttribute("data-ad-status")
+            const height = insRef.current.offsetHeight
+            
+            // Si AdSense explícitamente dice 'unfilled' (no hay anuncios para mostrar)
+            // o si la altura quedó en 0 (bloqueado por AdBlocker)
+            if (status === "unfilled" || height === 0) {
+              setAdError(true)
+            }
+          }
+        } catch (e) {
+          setAdError(true)
+        }
+      }
+
+      const timer = setTimeout(checkAdStatus, 2000)
+      return () => clearTimeout(timer)
     }
   }, [isClient, adClientId, isDev])
 
   if (!isClient) return null
 
-  // Si no hay un ID de cliente o estamos en desarrollo, mostramos un banner premium para anunciantes locales
-  if (!adClientId || isDev) {
+  // Si no hay un ID de cliente, estamos en desarrollo, o ocurrió un error/bloqueo de AdSense,
+  // mostramos un banner premium para anunciantes locales
+  if (!adClientId || isDev || adError) {
     return (
       <div 
         className={`w-full overflow-hidden rounded-xl border border-primary/20 bg-gradient-to-r from-primary/5 via-card to-primary/5 p-6 text-center shadow-sm backdrop-blur-sm transition-all duration-300 hover:border-primary/40 hover:shadow-md ${className}`}
@@ -77,6 +116,7 @@ export function AdSenseBanner({
   return (
     <div className={`w-full overflow-hidden py-2 ${className}`}>
       <ins
+        ref={insRef}
         className="adsbygoogle text-center"
         style={{ display: "block" }}
         data-ad-client={adClientId}
