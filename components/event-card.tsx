@@ -44,7 +44,7 @@ export function EventCard({ event, isFavorite, onToggleFavorite, onOpenMovie }: 
         whileHover={{ scale: 1.03 }}
         whileTap={{ scale: 0.98 }}
         className={cn(
-          "group relative aspect-[2/3] w-[180px] shrink-0 cursor-pointer overflow-hidden rounded-xl bg-card shadow-lg sm:w-[200px] transition-all",
+          "group/card relative aspect-[2/3] w-[180px] shrink-0 cursor-pointer overflow-hidden rounded-xl bg-card shadow-lg sm:w-[200px] transition-all",
           event.isFeatured && "ring-1 ring-amber-500/50 hover:ring-amber-500"
         )}
       >
@@ -52,12 +52,12 @@ export function EventCard({ event, isFavorite, onToggleFavorite, onOpenMovie }: 
           src={event.image}
           alt={event.title}
           fill
-          className="object-cover transition-transform duration-300 group-hover:scale-105"
+          className="object-cover transition-transform duration-300 group-hover/card:scale-105"
         />
 
         {/* Hover overlay con horarios de cine */}
         {event.isCinemaMovie && event.showings && (
-          <div className="absolute inset-0 bg-black/95 p-3 opacity-0 group-hover:opacity-100 transition-all duration-300 flex flex-col justify-between z-20 text-white overflow-y-auto scrollbar-hide">
+          <div className="absolute inset-0 bg-black/95 p-3 opacity-0 group-hover/card:opacity-100 transition-all duration-300 flex flex-col justify-between z-20 text-white overflow-y-auto scrollbar-hide">
             <div className="space-y-3">
               <h4 className="text-xs font-bold text-primary border-b border-primary/20 pb-1 flex items-center gap-1.5">
                 <Film className="size-3.5" />
@@ -85,6 +85,40 @@ export function EventCard({ event, isFavorite, onToggleFavorite, onOpenMovie }: 
             </div>
             <p className="text-[9px] text-zinc-400 text-center italic mt-2 border-t border-zinc-800/80 pt-1">
               Click para ver horarios y comprar
+            </p>
+          </div>
+        )}
+
+        {/* Hover overlay para eventos con múltiples fechas/horarios */}
+        {!event.isCinemaMovie && event.occurrences && event.occurrences.length > 1 && (
+          <div className="absolute inset-0 bg-black/95 p-3 opacity-0 group-hover/card:opacity-100 transition-all duration-300 flex flex-col justify-between z-20 text-white overflow-y-auto scrollbar-hide">
+            <div className="space-y-3">
+              <h4 className="text-xs font-bold text-primary border-b border-primary/20 pb-1 flex items-center gap-1.5">
+                <Calendar className="size-3.5" />
+                Próximas Funciones
+              </h4>
+              <div className="space-y-1.5 max-h-[120px] overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-zinc-800 scrollbar-track-transparent">
+                {event.occurrences.map((occ, idx) => {
+                  const dateObj = new Date(occ.date + 'T00:00:00')
+                  const formattedOccDate = dateObj.toLocaleDateString("es-AR", {
+                    day: "numeric",
+                    month: "short"
+                  })
+                  return (
+                    <div key={idx} className="flex justify-between items-center text-[10px] py-1 border-b border-zinc-800/40 last:border-none">
+                      <span className="font-medium text-zinc-200">
+                        {formattedOccDate}
+                      </span>
+                      <span className="bg-zinc-850 text-zinc-300 border border-zinc-700/20 px-1 py-0.5 rounded text-[9px] font-semibold">
+                        {occ.time || "Sin hora"}
+                      </span>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+            <p className="text-[9px] text-zinc-400 text-center italic mt-2 border-t border-zinc-800/80 pt-1">
+              Click para ver detalles
             </p>
           </div>
         )}

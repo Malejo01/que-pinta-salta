@@ -90,6 +90,23 @@ export interface DisplayEvent {
   // Campos opcionales para películas de cine
   isCinemaMovie?: boolean
   showings?: any
+  // Campos opcionales para consolidar eventos duplicados
+  occurrences?: { id: string; date: string; time: string }[]
+}
+
+// Normalizar fechas y zonas horarias para Salta (America/Argentina/Salta)
+function formatDateInSalta(date: Date): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Argentina/Salta",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  }).format(date)
+}
+
+function parseLocalDate(dateStr: string): Date {
+  const [year, month, day] = dateStr.split('-').map(Number)
+  return new Date(year, month - 1, day)
 }
 
 // Transform database event to display format
@@ -100,7 +117,7 @@ export function transformEvent(event: EventWithRelations): DisplayEvent {
     slug: event.slug,
     title: event.title,
     venue: event.venue?.name || 'Lugar por confirmar',
-    date: startDate.toISOString().split('T')[0],
+    date: formatDateInSalta(startDate),
     time: formatEventTime(startDate),
     category: event.category.slug,
     categoryName: event.category.name,
@@ -124,7 +141,7 @@ function transformFlyer(flyer: FlyerWithAccount, categoryNameBySlug: Map<string,
     slug: `ig-${flyer.id}`,
     title: flyer.account.display_name,
     venue: flyer.venue_name || flyer.account.default_venue_name || flyer.account.display_name,
-    date: publishedDate.toISOString().split('T')[0],
+    date: formatDateInSalta(publishedDate),
     time: '',
     category: categorySlug,
     categoryName: categoryNameBySlug.get(categorySlug) || categorySlug,
@@ -202,18 +219,65 @@ export function HomeContent({
       .filter((event) => event.category)
       .map(transformEvent)
     
+    // Agrupar eventos duplicados por la clave Título + Lugar
+    const groupedEventItemsMap = new Map<string, DisplayEvent>()
+    
+    eventItems.forEach(item => {
+      const groupKey = `${item.title.toLowerCase().trim()}|${item.venue.toLowerCase().trim()}`
+      
+      if (groupedEventItemsMap.has(groupKey)) {
+        const existing = groupedEventItemsMap.get(groupKey)!
+        const existingDate = new Date(existing.startDateTime).getTime()
+        const currentDate = new Date(item.startDateTime).getTime()
+        
+        if (currentDate < existingDate) {
+          const occurrences = existing.occurrences || [{ id: existing.id, date: existing.date, time: existing.time }]
+          occurrences.push({ id: item.id, date: item.date, time: item.time })
+          
+          existing.id = item.id
+          existing.date = item.date
+          existing.time = item.time
+          existing.startDateTime = item.startDateTime
+          existing.occurrences = occurrences
+        } else {
+          if (!existing.occurrences) {
+            existing.occurrences = [{ id: existing.id, date: existing.date, time: existing.time }]
+          }
+          existing.occurrences.push({ id: item.id, date: item.date, time: item.time })
+        }
+      } else {
+        groupedEventItemsMap.set(groupKey, {
+          ...item,
+          occurrences: [{ id: item.id, date: item.date, time: item.time }]
+        })
+      }
+    })
+    
+    const finalEventItems = Array.from(groupedEventItemsMap.values()).map(item => {
+      if (item.occurrences && item.occurrences.length > 1) {
+        item.occurrences.sort((a, b) => new Date(a.date + 'T00:00:00').getTime() - new Date(b.date + 'T00:00:00').getTime())
+        const first = item.occurrences[0]
+        item.id = first.id
+        item.date = first.date
+        item.time = first.time
+      }
+      return item
+    })
+
     // Transformar flyers de Instagram y mezclarlos con los eventos
     const flyerItems = flyers.map((flyer) => transformFlyer(flyer, categoryNameBySlug))
 
     // Transformar películas de cine y mezclarlas con los eventos
     const movieItems = (cinemaMovies || []).map((movie): DisplayEvent => {
       const showCount = Object.keys(movie.showings || {}).length
+      const saltaTodayStr = formatDateInSalta(new Date(serverNowISO))
+
       return {
         id: `movie-${movie.id}`,
         slug: movie.slug,
         title: movie.title,
         venue: `${showCount} ${showCount === 1 ? 'Cine' : 'Cines'} de Salta`,
-        date: new Date().toISOString().split('T')[0], // Se proyecta hoy
+        date: saltaTodayStr, // Se proyecta hoy en Salta
         time: '',
         category: 'cine',
         categoryName: 'Cine',
@@ -229,8 +293,8 @@ export function HomeContent({
       }
     })
     
-    return [...eventItems, ...flyerItems, ...movieItems]
-  }, [events, flyers, cinemaMovies, categoryNameBySlug])
+    return [...finalEventItems, ...flyerItems, ...movieItems]
+  }, [events, flyers, cinemaMovies, categoryNameBySlug, serverNowISO])
 
   const sortedCategories = useMemo(() => {
     return getCategoryPriority(categories, allDisplayEvents, serverNowISO, favoriteCategorySlugs)
@@ -307,16 +371,15 @@ export function HomeContent({
     if (dateExact) {
       filtered = filtered.filter((event) => event.date === dateExact)
     } else if (date) {
-      const today = new Date(serverNowISO)
-      today.setHours(0, 0, 0, 0)
+      const saltaTodayStr = formatDateInSalta(new Date(serverNowISO))
+      const today = parseLocalDate(saltaTodayStr)
       
       filtered = filtered.filter(event => {
-        const eventDate = new Date(event.date)
-        eventDate.setHours(0, 0, 0, 0)
+        const eventDate = parseLocalDate(event.date)
         
         switch (date) {
           case "hoy":
-            return eventDate.getTime() === today.getTime()
+            return event.date === saltaTodayStr
           case "semana": {
             const weekFromNow = new Date(today)
             weekFromNow.setDate(weekFromNow.getDate() + 7)
