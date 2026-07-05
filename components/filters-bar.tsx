@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/popover"
 import { cn } from "@/lib/utils"
 import { getCategoryIcon } from "@/lib/category-icons"
+import { Switch } from "@/components/ui/switch"
 
 export type DateFilter = "hoy" | "semana" | "mes" | "tendencias"
 
@@ -67,16 +68,20 @@ export function FiltersBar({ categories }: FiltersBarProps) {
   const selectedEstablishment = searchParams.get("establishment") || ""
   const selectedLocation = searchParams.get("location") || ""
   const selectedExactDate = searchParams.get("dateExact")
+  const instagramParam = searchParams.get("instagram")
+  const instagramEnabled = instagramParam !== "false"
   const advancedFiltersCount = [selectedEstablishment, selectedLocation].filter(Boolean).length
 
   const updateParams = useCallback((updates: Record<string, string | null>, mode: "push" | "replace" = "push") => {
     const params = new URLSearchParams(searchParams.toString())
 
     for (const [key, value] of Object.entries(updates)) {
-      if (value) {
-        params.set(key, value)
-      } else {
-        params.delete(key)
+      if (value !== undefined) {
+        if (value) {
+          params.set(key, value)
+        } else {
+          params.delete(key)
+        }
       }
     }
 
@@ -90,6 +95,10 @@ export function FiltersBar({ categories }: FiltersBarProps) {
 
     router.push(nextUrl, { scroll: false })
   }, [router, searchParams])
+
+  const handleInstagramChange = useCallback((checked: boolean) => {
+    updateParams({ instagram: checked ? null : "false" })
+  }, [updateParams])
 
   const handleDateChange = useCallback((date: DateFilter | null) => {
     updateParams({ date, dateExact: null })
@@ -263,28 +272,41 @@ export function FiltersBar({ categories }: FiltersBarProps) {
           </div>
 
           <Collapsible open={advancedFiltersOpen} onOpenChange={setAdvancedFiltersOpen}>
-            <CollapsibleTrigger asChild>
-              <Button
-                variant="outline"
-                className="flex w-full items-center justify-between"
-              >
-                <span className="flex items-center gap-2 text-sm">
-                  <SlidersHorizontal className="size-4" />
-                  Más filtros
-                  {advancedFiltersCount > 0 && (
-                    <span className="rounded-full bg-primary/12 px-2 py-0.5 text-xs font-medium text-primary">
-                      {advancedFiltersCount}
-                    </span>
-                  )}
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <CollapsibleTrigger asChild>
+                <Button
+                  variant="outline"
+                  className="flex w-full items-center justify-between sm:w-auto"
+                >
+                  <span className="flex items-center gap-2 text-sm">
+                    <SlidersHorizontal className="size-4" />
+                    Más filtros
+                    {advancedFiltersCount > 0 && (
+                      <span className="rounded-full bg-primary/12 px-2 py-0.5 text-xs font-medium text-primary">
+                        {advancedFiltersCount}
+                      </span>
+                    )}
+                  </span>
+                  <ChevronDown
+                    className={cn(
+                      "size-4 transition-transform",
+                      advancedFiltersOpen && "rotate-180"
+                    )}
+                  />
+                </Button>
+              </CollapsibleTrigger>
+
+              <div className="flex items-center justify-between rounded-lg border border-border bg-card px-3 py-2 shadow-xs sm:justify-start sm:gap-3">
+                <span className="text-xs font-medium text-muted-foreground select-none">
+                  Mostrar flyers de redes
                 </span>
-                <ChevronDown
-                  className={cn(
-                    "size-4 transition-transform",
-                    advancedFiltersOpen && "rotate-180"
-                  )}
+                <Switch
+                  id="instagram-toggle"
+                  checked={instagramEnabled}
+                  onCheckedChange={handleInstagramChange}
                 />
-              </Button>
-            </CollapsibleTrigger>
+              </div>
+            </div>
 
             <CollapsibleContent className="pt-2 md:pt-3">
               <div className="grid grid-cols-2 gap-2 md:gap-3">

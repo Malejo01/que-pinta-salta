@@ -19,7 +19,7 @@ export default async function InstagramAdminPage() {
             Instagram Event Engine
           </h1>
           <p className="text-sm text-muted-foreground">
-            Gestión de cuentas de Instagram para la sección &ldquo;Pinta Jodita 🍻&rdquo;
+            Cuentas de Instagram monitoreadas. Los flyers se distribuyen automáticamente según su categoría.
           </p>
         </div>
       </div>

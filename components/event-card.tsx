@@ -3,7 +3,7 @@
 import Image from "next/image"
 import Link from "next/link"
 import { motion } from "framer-motion"
-import { Calendar, MapPin, Heart } from "lucide-react"
+import { Calendar, MapPin, Heart, Instagram } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
@@ -25,8 +25,12 @@ export function EventCard({ event, isFavorite, onToggleFavorite }: EventCardProp
     ? "Precio a confirmar"
     : `$${event.price.toLocaleString("es-AR")}`
 
+  const linkHref = event.isInstagramFlyer && event.flyerId
+    ? `/flyer/${event.flyerId}`
+    : `/evento/${event.id}`
+
   return (
-    <Link href={`/evento/${event.id}`}>
+    <Link href={linkHref}>
       <motion.div
         whileHover={{ scale: 1.03 }}
         whileTap={{ scale: 0.98 }}
@@ -65,6 +69,12 @@ export function EventCard({ event, isFavorite, onToggleFavorite }: EventCardProp
         >
           {event.categoryName}
         </Badge>
+
+        {event.isInstagramFlyer && (
+          <div className="absolute right-2 top-2 flex items-center gap-1 rounded-full bg-black/50 px-2 py-1 backdrop-blur-sm">
+            <Instagram className="size-3 text-pink-400" />
+          </div>
+        )}
 
         {event.isFeatured && (
           <Badge 

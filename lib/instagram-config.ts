@@ -93,10 +93,4 @@ export const INSTAGRAM_ENGINE_CONFIG = {
 
   /** Tamaño máximo de imagen en bytes (5MB) */
   MAX_IMAGE_SIZE: 5 * 1024 * 1024,
-
-  /** Nombre de la sección en el frontend */
-  SECTION_TITLE: 'Pinta Jodita 🍻',
-
-  /** Nombre de la sección (subtítulo) */
-  SECTION_SUBTITLE: 'Lo último de los boliches salteños, directo de Instagram',
 } as const

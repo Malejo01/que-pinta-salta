@@ -269,143 +269,138 @@ export function InstagramAdminClient({ initialAccounts, stats, categories }: Ins
         )}
       </div>
 
-      {/* Tabla de cuentas */}
-      <div className="rounded-lg border shadow-sm">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b bg-muted/50 text-left">
-                <th className="p-3 font-semibold text-muted-foreground">Cuenta</th>
-                <th className="p-3 font-semibold text-muted-foreground">Nombre</th>
-                <th className="p-3 font-semibold text-muted-foreground">Lugar por Defecto</th>
-                <th className="p-3 font-semibold text-muted-foreground">Categoría</th>
-                <th className="p-3 font-semibold text-muted-foreground">Estado</th>
-                <th className="p-3 font-semibold text-muted-foreground">Notas</th>
-                <th className="p-3 font-semibold text-muted-foreground text-right">Acciones</th>
-              </tr>
-            </thead>
-            <tbody>
-              {accounts.map((account) => (
-                <tr key={account.id} className="border-b last:border-0 hover:bg-muted/20 transition-colors">
-                  <td className="p-3">
+      {/* Lista de cuentas (cards) */}
+      <div className="space-y-3">
+        <h3 className="text-base font-semibold text-foreground">
+          Cuentas configuradas ({accounts.length})
+        </h3>
+
+        {accounts.length === 0 && (
+          <div className="rounded-lg border border-dashed p-8 text-center text-muted-foreground">
+            No hay cuentas de Instagram configuradas
+          </div>
+        )}
+
+        {accounts.map((account) => (
+          <div
+            key={account.id}
+            className="rounded-lg border bg-card p-4 shadow-sm transition-colors hover:bg-muted/20"
+          >
+            {/* Fila superior: Info principal + Acciones */}
+            <div className="flex items-start justify-between gap-3">
+              {/* Lado izquierdo: cuenta + nombre */}
+              <div className="min-w-0 flex-1 space-y-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <a
+                    href={account.instagram_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1.5 font-semibold text-primary hover:underline"
+                  >
+                    <Instagram className="size-4 text-pink-500" />
+                    @{account.username}
+                    <ExternalLink className="size-3" />
+                  </a>
+                  <Badge variant={account.is_active ? "default" : "secondary"} className="text-xs">
+                    {account.is_active ? "Activa" : "Inactiva"}
+                  </Badge>
+                  <Badge variant="outline" className="capitalize text-xs font-medium">
+                    {account.default_category || "boliches"}
+                  </Badge>
+                </div>
+                <p className="text-sm font-medium text-foreground">{account.display_name}</p>
+              </div>
+
+              {/* Lado derecho: Botones de acción siempre visibles */}
+              <div className="flex items-center gap-1 shrink-0">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => handleStartEdit(account)}
+                  disabled={isPending}
+                  title="Editar"
+                  className="gap-1.5"
+                >
+                  <Edit className="size-3.5 text-blue-500" />
+                  <span className="hidden sm:inline">Editar</span>
+                </Button>
+
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => handleToggle(account.id, account.is_active)}
+                  disabled={isPending}
+                  title={account.is_active ? "Desactivar" : "Activar"}
+                >
+                  {account.is_active ? (
+                    <PowerOff className="size-4 text-amber-500" />
+                  ) : (
+                    <Power className="size-4 text-green-500" />
+                  )}
+                </Button>
+
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      disabled={isPending}
+                      title="Eliminar"
+                    >
+                      <Trash2 className="size-4 text-destructive" />
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>
+                        ¿Eliminar @{account.username}?
+                      </AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Esto eliminará la cuenta y todos sus flyers asociados.
+                        Esta acción no se puede deshacer.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                      <AlertDialogAction
+                        onClick={() => handleDelete(account.id)}
+                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                      >
+                        Eliminar
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              </div>
+            </div>
+
+            {/* Fila inferior: detalles */}
+            <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+              {account.default_venue_name && (
+                <span className="flex items-center gap-1">
+                  <MapPin className="size-3 text-green-500" />
+                  {account.default_venue_name}
+                  {account.default_maps_url && (
                     <a
-                      href={account.instagram_url}
+                      href={account.default_maps_url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="flex items-center gap-2 text-primary hover:underline font-medium"
+                      className="text-primary hover:text-primary/80"
+                      title="Ver en Google Maps"
                     >
-                      <Instagram className="size-4 text-pink-500" />
-                      @{account.username}
-                      <ExternalLink className="size-3" />
+                      ↗
                     </a>
-                  </td>
-                  <td className="p-3 font-medium text-foreground">{account.display_name}</td>
-                  <td className="p-3">
-                    {account.default_venue_name ? (
-                      <span className="flex items-center gap-1.5 font-medium text-foreground">
-                        {account.default_venue_name}
-                        {account.default_maps_url && (
-                          <a
-                            href={account.default_maps_url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-primary hover:text-primary/80"
-                            title="Ver en Google Maps"
-                          >
-                            <MapPin className="size-3.5 text-green-500" />
-                          </a>
-                        )}
-                      </span>
-                    ) : (
-                      <span className="text-muted-foreground">—</span>
-                    )}
-                  </td>
-                  <td className="p-3">
-                    <Badge variant="outline" className="capitalize font-medium">
-                      {account.default_category || "boliches"}
-                    </Badge>
-                  </td>
-                  <td className="p-3">
-                    <Badge variant={account.is_active ? "default" : "secondary"}>
-                      {account.is_active ? "Activa" : "Inactiva"}
-                    </Badge>
-                  </td>
-                  <td className="p-3 text-muted-foreground max-w-[150px] truncate" title={account.notes || undefined}>
-                    {account.notes || "—"}
-                  </td>
-                  <td className="p-3">
-                    <div className="flex items-center justify-end gap-1">
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => handleStartEdit(account)}
-                        disabled={isPending}
-                        title="Editar"
-                      >
-                        <Edit className="size-4 text-blue-500" />
-                      </Button>
-
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => handleToggle(account.id, account.is_active)}
-                        disabled={isPending}
-                        title={account.is_active ? "Desactivar" : "Activar"}
-                      >
-                        {account.is_active ? (
-                          <PowerOff className="size-4 text-amber-500" />
-                        ) : (
-                          <Power className="size-4 text-green-500" />
-                        )}
-                      </Button>
-
-                      <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            disabled={isPending}
-                            title="Eliminar"
-                          >
-                            <Trash2 className="size-4 text-destructive" />
-                          </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>
-                              ¿Eliminar @{account.username}?
-                            </AlertDialogTitle>
-                            <AlertDialogDescription>
-                              Esto eliminará la cuenta y todos sus flyers asociados.
-                              Esta acción no se puede deshacer.
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                            <AlertDialogAction
-                              onClick={() => handleDelete(account.id)}
-                              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                            >
-                              Eliminar
-                            </AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-
-              {accounts.length === 0 && (
-                <tr>
-                  <td colSpan={7} className="p-8 text-center text-muted-foreground">
-                    No hay cuentas de Instagram configuradas
-                  </td>
-                </tr>
+                  )}
+                </span>
               )}
-            </tbody>
-          </table>
-        </div>
+              {account.notes && (
+                <span className="truncate max-w-[250px]" title={account.notes}>
+                  💬 {account.notes}
+                </span>
+              )}
+            </div>
+          </div>
+        ))}
       </div>
 
       {/* Modal de Edición de Cuenta */}

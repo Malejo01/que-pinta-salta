@@ -10,7 +10,6 @@ import { MobileNav } from "@/components/mobile-nav"
 import { HeroCarousel } from "@/components/hero-carousel"
 import { FiltersBar, DateFilter } from "@/components/filters-bar"
 import { CategoryRow } from "@/components/category-row"
-import { FlyerGrid } from "@/components/flyer-grid"
 import Link from "next/link"
 import { formatEventTime } from "@/lib/date-format"
 import { AdSenseBanner } from "@/components/adsense-banner"
@@ -62,8 +61,33 @@ function getCategoryPriority(
   })
 }
 
+// Tipo unificado para eventos y flyers de Instagram
+export interface DisplayEvent {
+  id: string
+  slug: string
+  title: string
+  venue: string
+  date: string
+  time: string
+  category: string
+  categoryName: string
+  price: "gratis" | "confirmar" | number
+  image: string
+  description: string
+  address: string
+  startDateTime: string
+  ticketUrl?: string
+  vibe: "adultos" | "familiar" | "exterior"
+  isFeatured: boolean
+  // Campos opcionales para flyers de Instagram
+  isInstagramFlyer?: boolean
+  flyerId?: string
+  instagramPostUrl?: string
+  instagramUsername?: string
+}
+
 // Transform database event to display format
-export function transformEvent(event: EventWithRelations) {
+export function transformEvent(event: EventWithRelations): DisplayEvent {
   const startDate = new Date(event.start_date)
   return {
     id: event.id,
@@ -85,7 +109,33 @@ export function transformEvent(event: EventWithRelations) {
   }
 }
 
-export type DisplayEvent = ReturnType<typeof transformEvent>
+// Transform Instagram flyer to display format
+function transformFlyer(flyer: FlyerWithAccount, categoryNameBySlug: Map<string, string>): DisplayEvent {
+  const publishedDate = new Date(flyer.published_at)
+  const categorySlug = flyer.category || flyer.account.default_category || 'boliches'
+  return {
+    id: `ig-${flyer.id}`,
+    slug: `ig-${flyer.id}`,
+    title: flyer.account.display_name,
+    venue: flyer.venue_name || flyer.account.default_venue_name || flyer.account.display_name,
+    date: publishedDate.toISOString().split('T')[0],
+    time: '',
+    category: categorySlug,
+    categoryName: categoryNameBySlug.get(categorySlug) || categorySlug,
+    price: flyer.is_free ? "gratis" as const : (flyer.price_min === 0 ? "confirmar" as const : flyer.price_min),
+    image: flyer.storage_image_url || flyer.original_image_url || '/placeholder.svg?height=600&width=400',
+    description: flyer.caption || '',
+    address: '',
+    startDateTime: flyer.published_at,
+    vibe: "adultos" as const,
+    isFeatured: false,
+    // Metadatos de Instagram
+    isInstagramFlyer: true,
+    flyerId: flyer.id,
+    instagramPostUrl: flyer.ig_post_url,
+    instagramUsername: flyer.account.username,
+  }
+}
 
 interface HomeContentProps {
   events: EventWithRelations[]
@@ -111,16 +161,22 @@ export function HomeContent({
   const selectedEstablishment = searchParams.get("establishment") || ""
   const selectedLocation = searchParams.get("location") || ""
   const selectedExactDate = searchParams.get("dateExact")
+  const showInstagram = searchParams.get("instagram") !== "false"
 
   const categoryNameBySlug = useMemo(() => {
     return new Map(categories.map((category) => [category.slug, category.name]))
   }, [categories])
 
   const allDisplayEvents = useMemo(() => {
-    return events
+    const eventItems = events
       .filter((event) => event.category)
       .map(transformEvent)
-  }, [events])
+    
+    // Transformar flyers de Instagram y mezclarlos con los eventos
+    const flyerItems = flyers.map((flyer) => transformFlyer(flyer, categoryNameBySlug))
+    
+    return [...eventItems, ...flyerItems]
+  }, [events, flyers, categoryNameBySlug])
 
   const sortedCategories = useMemo(() => {
     return getCategoryPriority(categories, allDisplayEvents, serverNowISO, favoriteCategorySlugs)
@@ -225,11 +281,19 @@ export function HomeContent({
       })
     }
 
-    if (selectedCategory) {
-      filtered = filtered.filter(event => event.category === selectedCategory)
+    if (!showInstagram) {
+      filtered = filtered.filter(event => !event.isInstagramFlyer)
     }
 
-    return filtered
+    // Ordenamiento inteligente: flyers de Instagram primero, luego eventos normales
+    return [...filtered].sort((a, b) => {
+      const aIsIg = a.isInstagramFlyer ? 1 : 0
+      const bIsIg = b.isInstagramFlyer ? 1 : 0
+      if (bIsIg !== aIsIg) {
+        return bIsIg - aIsIg // 1 (IG) antes que 0 (normal)
+      }
+      return new Date(a.startDateTime).getTime() - new Date(b.startDateTime).getTime()
+    })
   }, [
     allDisplayEvents,
     searchQuery,
@@ -238,6 +302,7 @@ export function HomeContent({
     selectedExactDate,
     selectedDate,
     selectedCategory,
+    showInstagram,
     serverNowISO,
   ])
 
@@ -291,10 +356,6 @@ export function HomeContent({
 
         <FiltersBar categories={sortedCategories} />
 
-        {/* Sección Instagram - Pinta Jodita 🍻 */}
-        {!hasFilters && flyers.length > 0 && (
-          <FlyerGrid flyers={flyers} />
-        )}
 
         {showCategoryRows && (
           <div className="py-8 space-y-10">
