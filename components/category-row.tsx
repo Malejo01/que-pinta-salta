@@ -13,6 +13,7 @@ interface CategoryRowProps {
   category: string
   title: string
   events: DisplayEvent[]
+  userFavorites?: string[]
   onOpenMovie?: (movie: DisplayEvent) => void
 }
 
@@ -20,6 +21,7 @@ export function CategoryRow({
   category, 
   title, 
   events, 
+  userFavorites = [],
   onOpenMovie,
 }: CategoryRowProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -76,7 +78,11 @@ export function CategoryRow({
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ duration: 0.3, delay: index * 0.05 }}
               >
-                <EventCard event={event} onOpenMovie={onOpenMovie} />
+                <EventCard 
+                  event={event} 
+                  isFavorite={userFavorites.includes(event.id)}
+                  onOpenMovie={onOpenMovie} 
+                />
               </motion.div>
             ))}
           </motion.div>

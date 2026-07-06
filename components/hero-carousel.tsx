@@ -121,13 +121,13 @@ export function HeroCarousel({ events }: HeroCarouselProps) {
                 Ver detalles
               </Link>
             </Button>
-            <span className="text-sm font-bold text-white sm:text-base drop-shadow-sm">
-              {currentEvent.price === "gratis" 
-                ? "Entrada Gratuita" 
-                : currentEvent.price === "confirmar"
-                ? "Precio a confirmar"
-                : `$${currentEvent.price.toLocaleString("es-AR")}`}
-            </span>
+            {currentEvent.price !== "confirmar" && (
+              <span className="text-sm font-bold text-white sm:text-base drop-shadow-sm">
+                {currentEvent.price === "gratis" 
+                  ? "Entrada Gratuita" 
+                  : `$${currentEvent.price.toLocaleString("es-AR")}`}
+              </span>
+            )}
           </div>
         </motion.div>
       </div>

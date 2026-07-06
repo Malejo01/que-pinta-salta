@@ -259,16 +259,16 @@ export function EventModalWrapper({ event, isAdmin = false, categories = [] }: E
 
           <p className="mb-6 text-muted-foreground">{displayEvent.description}</p>
 
-          <div className="mb-6 rounded-lg bg-muted p-4">
-            <p className="mb-1 text-sm text-muted-foreground">Precio de entrada</p>
-            <p className="text-2xl font-bold text-foreground">
-              {displayEvent.price === "gratis" 
-                ? "Entrada Gratuita" 
-                : displayEvent.price === "confirmar"
-                ? "Precio a confirmar"
-                : `$${displayEvent.price.toLocaleString("es-AR")}`}
-            </p>
-          </div>
+          {displayEvent.price !== "confirmar" && (
+            <div className="mb-6 rounded-lg bg-muted p-4">
+              <p className="mb-1 text-sm text-muted-foreground">Precio de entrada</p>
+              <p className="text-2xl font-bold text-foreground">
+                {displayEvent.price === "gratis" 
+                  ? "Entrada Gratuita" 
+                  : `$${displayEvent.price.toLocaleString("es-AR")}`}
+              </p>
+            </div>
+          )}
 
           <div className="flex flex-col gap-3 sm:flex-row">
             <Button 

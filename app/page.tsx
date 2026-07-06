@@ -2,11 +2,12 @@ import { getEvents, getCategories } from "@/lib/data"
 import { getActiveFlyers } from "@/lib/instagram/data"
 import { HomeContent } from "@/components/home-content"
 import { createClient } from "@/lib/supabase/server"
+import { getUserFavorites } from "@/lib/actions/favorites"
 
 export default async function HomePage() {
   const supabase = await createClient()
 
-  const [events, categories, flyers, { data: cinemaMovies }] = await Promise.all([
+  const [events, categories, flyers, { data: cinemaMovies }, userFavorites] = await Promise.all([
     getEvents(),
     getCategories(),
     getActiveFlyers(),
@@ -14,7 +15,8 @@ export default async function HomePage() {
       .from('cinema_movies')
       .select('*')
       .eq('is_currently_showing', true)
-      .order('title', { ascending: true })
+      .order('title', { ascending: true }),
+    getUserFavorites()
   ])
   const serverNowISO = new Date().toISOString()
 
@@ -25,6 +27,7 @@ export default async function HomePage() {
       serverNowISO={serverNowISO}
       flyers={flyers}
       cinemaMovies={cinemaMovies || []}
+      userFavorites={userFavorites}
     />
   )
 }

@@ -57,9 +57,11 @@ export function FlyerModal({ flyer }: FlyerModalProps) {
             <Badge variant="outline" className="capitalize font-medium">
               {flyer.category || flyer.account.default_category || "boliches"}
             </Badge>
-            <Badge className="bg-primary/10 text-primary hover:bg-primary/20 border-none font-medium">
-              {!flyer.is_free && flyer.price_min === 0 ? "Precio a confirmar" : (flyer.is_free ? "Gratis" : `$${flyer.price_min}`)}
-            </Badge>
+            {(flyer.is_free || flyer.price_min > 0) && (
+              <Badge className="bg-primary/10 text-primary hover:bg-primary/20 border-none font-medium">
+                {flyer.is_free ? "Gratis" : `$${flyer.price_min}`}
+              </Badge>
+            )}
           </div>
 
           {/* Fecha de publicación */}

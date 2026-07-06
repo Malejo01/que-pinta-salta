@@ -12,13 +12,15 @@ import { Ticket, Film, Calendar, Building2 } from "lucide-react"
 import Image from "next/image"
 import type { DisplayEvent } from "@/components/home-content"
 import type { MovieShowings } from "@/lib/types"
+import { FavoriteButton } from "@/components/favorite-button"
 
 interface MovieModalProps {
   movie: DisplayEvent
+  isFavorite?: boolean
   onClose: () => void
 }
 
-export function MovieModal({ movie, onClose }: MovieModalProps) {
+export function MovieModal({ movie, isFavorite = false, onClose }: MovieModalProps) {
   const cinemasCount = movie.showings ? Object.keys(movie.showings).length : 0
 
   return (
@@ -54,10 +56,16 @@ export function MovieModal({ movie, onClose }: MovieModalProps) {
                   <Film className="size-3" />
                   Cartelera de Cine
                 </span>
-                <DialogHeader className="text-left">
-                  <DialogTitle className="text-2xl font-extrabold text-white tracking-tight">
+                <DialogHeader className="text-left flex flex-row items-start justify-between gap-4">
+                  <DialogTitle className="text-2xl font-extrabold text-white tracking-tight flex-1">
                     {movie.title}
                   </DialogTitle>
+                  <FavoriteButton 
+                    itemId={movie.id}
+                    type="cinema"
+                    initialIsFavorite={isFavorite}
+                    className="size-10 bg-zinc-900 border border-zinc-800 hover:bg-zinc-800 text-zinc-100 flex-shrink-0"
+                  />
                 </DialogHeader>
               </div>
 

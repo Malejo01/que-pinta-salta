@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Navbar } from "@/components/navbar"
 import { MobileNav } from "@/components/mobile-nav"
+import { FavoriteButton } from "@/components/favorite-button"
+import { createClient } from "@/lib/supabase/server"
 import Link from "next/link"
 import type { Metadata } from "next"
 
@@ -38,6 +40,20 @@ export default async function FlyerPage({ params }: FlyerPageProps) {
     notFound()
   }
 
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+
+  let isFavorite = false
+  if (user) {
+    const { data: fav } = await supabase
+      .from('user_favorites')
+      .select('id')
+      .eq('user_id', user.id)
+      .eq('instagram_flyer_id', id)
+      .maybeSingle()
+    isFavorite = !!fav
+  }
+
   const imageUrl =
     flyer.storage_image_url ||
     flyer.original_image_url ||
@@ -68,6 +84,12 @@ export default async function FlyerPage({ params }: FlyerPageProps) {
               className="object-cover"
               priority
             />
+            <FavoriteButton 
+              itemId={flyer.id}
+              type="flyer"
+              initialIsFavorite={isFavorite}
+              className="absolute right-4 top-4 z-10 size-10 bg-black/60 hover:bg-black/80"
+            />
           </div>
 
           {/* Info */}
@@ -84,9 +106,11 @@ export default async function FlyerPage({ params }: FlyerPageProps) {
               <Badge variant="outline" className="capitalize font-medium">
                 {flyer.category || flyer.account.default_category || "boliches"}
               </Badge>
-              <Badge className="bg-primary/10 text-primary hover:bg-primary/20 border-none font-medium">
-                {!flyer.is_free && flyer.price_min === 0 ? "Precio a confirmar" : (flyer.is_free ? "Gratis" : `$${flyer.price_min}`)}
-              </Badge>
+              {(flyer.is_free || flyer.price_min > 0) && (
+                <Badge className="bg-primary/10 text-primary hover:bg-primary/20 border-none font-medium">
+                  {flyer.is_free ? "Gratis" : `$${flyer.price_min}`}
+                </Badge>
+              )}
             </div>
 
             <div className="mb-4 flex items-center gap-2 text-sm text-muted-foreground">

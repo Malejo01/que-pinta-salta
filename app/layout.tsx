@@ -5,6 +5,7 @@ import { Analytics } from '@vercel/analytics/next'
 import { ThemeProvider } from '@/components/theme-provider'
 import { Footer } from '@/components/footer'
 import { Toaster } from '@/components/ui/toaster'
+import { AuthModalProvider } from '@/components/auth-modal'
 import './globals.css'
 
 const montserrat = Montserrat({
@@ -72,10 +73,12 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
-          {children}
-          {modal}
-          <Footer />
-          <Toaster />
+          <AuthModalProvider>
+            {children}
+            {modal}
+            <Footer />
+            <Toaster />
+          </AuthModalProvider>
         </ThemeProvider>
         {process.env.NODE_ENV === 'production' && <Analytics />}
       </body>

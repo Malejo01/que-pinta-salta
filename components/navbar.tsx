@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
-import { Moon, Sun, Plus, LogIn, LogOut, User, Settings, SearchCheck, Tags } from "lucide-react"
+import { Moon, Sun, Plus, LogIn, LogOut, User, Settings, SearchCheck, Tags, Heart } from "lucide-react"
 import { useTheme } from "@/components/theme-provider"
 import { Button } from "@/components/ui/button"
 import {
@@ -84,6 +84,14 @@ export function Navbar() {
             <Moon className="absolute size-5 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
           </Button>
           
+          {user && (
+            <Button asChild variant="ghost" size="icon" className="hidden sm:inline-flex text-muted-foreground hover:text-red-500 transition-colors mr-1" title="Mis Favoritos">
+              <Link href="/favoritos">
+                <Heart className="size-5 text-red-500 fill-red-500/10" />
+              </Link>
+            </Button>
+          )}
+
           <Button asChild variant="outline" className="hidden sm:inline-flex">
             <Link href={user ? "/nuevo-evento" : "/auth/login?next=/nuevo-evento"}>
               <Plus className="mr-2 size-4" />
@@ -108,6 +116,12 @@ export function Navbar() {
                       )}
                     </div>
                     <DropdownMenuSeparator />
+                    <DropdownMenuItem asChild>
+                      <Link href="/favoritos">
+                        <Heart className="mr-2 size-4 text-red-500" />
+                        Mis Favoritos
+                      </Link>
+                    </DropdownMenuItem>
                     <DropdownMenuItem asChild>
                       <Link href="/perfil">
                         <User className="mr-2 size-4" />

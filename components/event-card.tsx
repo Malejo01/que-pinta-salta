@@ -3,11 +3,12 @@
 import Image from "next/image"
 import Link from "next/link"
 import { motion } from "framer-motion"
-import { Calendar, MapPin, Heart, Instagram, Film } from "lucide-react"
+import { Calendar, MapPin, Instagram, Film } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { formatEventDateShort } from "@/lib/date-format"
+import { FavoriteButton } from "@/components/favorite-button"
 import type { DisplayEvent } from "@/components/home-content"
 
 interface EventCardProps {
@@ -23,7 +24,7 @@ export function EventCard({ event, isFavorite, onToggleFavorite, onOpenMovie }: 
   const formattedPrice = event.price === "gratis" 
     ? "Gratis" 
     : event.price === "confirmar"
-    ? "Precio a confirmar"
+    ? null
     : `$${event.price.toLocaleString("es-AR")}`
 
   const linkHref = event.isInstagramFlyer && event.flyerId
@@ -125,20 +126,12 @@ export function EventCard({ event, isFavorite, onToggleFavorite, onOpenMovie }: 
         
         <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent" />
         
-        {onToggleFavorite && (
-          <Button
-            variant="ghost"
-            size="icon"
-            className="absolute right-2 top-2 z-10 size-8 rounded-full bg-black/30 text-white hover:bg-black/50"
-            onClick={(e) => {
-              e.preventDefault()
-              e.stopPropagation()
-              onToggleFavorite(event.id)
-            }}
-          >
-            <Heart className={cn("size-4", isFavorite && "fill-primary text-primary")} />
-          </Button>
-        )}
+        <FavoriteButton 
+          itemId={event.id}
+          type={event.isCinemaMovie ? 'cinema' : (event.isInstagramFlyer ? 'flyer' : 'event')}
+          initialIsFavorite={!!isFavorite}
+          className="absolute right-2 top-2 z-30"
+        />
 
         <Badge 
           variant="secondary" 
@@ -148,7 +141,7 @@ export function EventCard({ event, isFavorite, onToggleFavorite, onOpenMovie }: 
         </Badge>
 
         {event.isInstagramFlyer && (
-          <div className="absolute right-2 top-2 flex items-center gap-1 rounded-full bg-black/50 px-2 py-1 backdrop-blur-sm">
+          <div className="absolute right-2 top-12 flex items-center gap-1 rounded-full bg-black/50 px-2 py-1 backdrop-blur-sm z-30">
             <Instagram className="size-3 text-pink-400" />
           </div>
         )}
@@ -179,14 +172,16 @@ export function EventCard({ event, isFavorite, onToggleFavorite, onOpenMovie }: 
             </div>
           </div>
           
-          <div className="mt-2 flex items-center justify-between">
-            <span className={cn(
-              "text-sm font-bold",
-              event.price === "gratis" ? "text-green-400" : "text-white"
-            )}>
-              {formattedPrice}
-            </span>
-          </div>
+          {formattedPrice && (
+            <div className="mt-2 flex items-center justify-between">
+              <span className={cn(
+                "text-sm font-bold",
+                event.price === "gratis" ? "text-green-400" : "text-white"
+              )}>
+                {formattedPrice}
+              </span>
+            </div>
+          )}
         </div>
       </motion.div>
     </Link>

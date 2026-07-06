@@ -5,7 +5,11 @@ function normalizeLocaleOutput(value: string) {
 }
 
 function toDate(input: string | Date) {
-  return input instanceof Date ? input : new Date(input)
+  if (input instanceof Date) return input
+  if (typeof input === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(input)) {
+    return new Date(`${input}T00:00:00-03:00`)
+  }
+  return new Date(input)
 }
 
 export function formatEventTime(input: string | Date) {

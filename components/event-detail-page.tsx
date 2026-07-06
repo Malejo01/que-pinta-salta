@@ -10,6 +10,7 @@ import { Navbar } from "@/components/navbar"
 import { MobileNav } from "@/components/mobile-nav"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { FavoriteButton } from "@/components/favorite-button"
 import {
   Select,
   SelectContent,
@@ -33,9 +34,10 @@ interface EventDetailPageProps {
   event: EventWithRelations
   isAdmin?: boolean
   categories?: Category[]
+  isFavorite?: boolean
 }
 
-export function EventDetailPage({ event, isAdmin = false, categories = [] }: EventDetailPageProps) {
+export function EventDetailPage({ event, isAdmin = false, categories = [], isFavorite = false }: EventDetailPageProps) {
   const router = useRouter()
   const [localCategories, setLocalCategories] = useState<Category[]>(categories)
   const [isEditingCategory, setIsEditingCategory] = useState(false)
@@ -176,9 +178,17 @@ export function EventDetailPage({ event, isAdmin = false, categories = [] }: Eve
           </div>
 
           <div className="flex flex-col">
-            <h1 className="mb-4 text-3xl font-bold text-foreground lg:text-4xl">
-              {displayEvent.title}
-            </h1>
+            <div className="flex items-start justify-between gap-4 mb-4">
+              <h1 className="text-3xl font-bold text-foreground lg:text-4xl flex-1 leading-tight">
+                {displayEvent.title}
+              </h1>
+              <FavoriteButton 
+                itemId={event.id}
+                type="event"
+                initialIsFavorite={isFavorite}
+                className="size-10 bg-muted/40 hover:bg-muted text-foreground flex-shrink-0"
+              />
+            </div>
 
             {isAdmin && (
               <div className="mb-6 rounded-lg border bg-muted/40 p-3">
@@ -301,16 +311,16 @@ export function EventDetailPage({ event, isAdmin = false, categories = [] }: Eve
 
             <p className="mb-8 flex-1 text-muted-foreground">{displayEvent.description}</p>
 
-            <div className="mb-6 rounded-xl bg-muted p-6">
-              <p className="mb-1 text-sm text-muted-foreground">Precio de entrada</p>
-              <p className="text-3xl font-bold text-foreground">
-                {displayEvent.price === "gratis" 
-                  ? "Entrada Gratuita" 
-                  : displayEvent.price === "confirmar"
-                  ? "Precio a confirmar"
-                  : `$${displayEvent.price.toLocaleString("es-AR")}`}
-              </p>
-            </div>
+            {displayEvent.price !== "confirmar" && (
+              <div className="mb-6 rounded-xl bg-muted p-6">
+                <p className="mb-1 text-sm text-muted-foreground">Precio de entrada</p>
+                <p className="text-3xl font-bold text-foreground">
+                  {displayEvent.price === "gratis" 
+                    ? "Entrada Gratuita" 
+                    : `$${displayEvent.price.toLocaleString("es-AR")}`}
+                </p>
+              </div>
+            )}
 
             <div className="flex flex-col gap-3 sm:flex-row">
               <Button 

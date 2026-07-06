@@ -167,6 +167,7 @@ interface HomeContentProps {
   favoriteCategorySlugs?: string[]
   flyers?: FlyerWithAccount[]
   cinemaMovies?: CinemaMovie[]
+  userFavorites?: string[]
 }
 
 export function HomeContent({
@@ -176,6 +177,7 @@ export function HomeContent({
   favoriteCategorySlugs = [],
   flyers = [],
   cinemaMovies = [],
+  userFavorites = [],
 }: HomeContentProps) {
   const searchParams = useSearchParams()
   const router = useRouter()
@@ -465,8 +467,8 @@ export function HomeContent({
     establishment ||
     location
   )
-  const showCategoryRows = !hasFilters && eventsByCategory.some(cat => cat.events.length > 0)
-  const showFilteredGrid = hasFilters && filteredEvents.length > 0
+  const showCategoryRows = !category && eventsByCategory.some(cat => cat.events.length > 0)
+  const showFilteredGrid = category && filteredEvents.length > 0
   const filteredTitle = category
     ? categoryNameBySlug.get(category) ?? category
     : "Resultados filtrados"
@@ -513,6 +515,7 @@ export function HomeContent({
                   category={catSlug}
                   title={title}
                   events={events}
+                  userFavorites={userFavorites}
                   onOpenMovie={setSelectedMovie}
                 />
                 {index === 1 && (
@@ -535,6 +538,7 @@ export function HomeContent({
                 <EventCard 
                   key={event.id} 
                   event={event} 
+                  isFavorite={userFavorites.includes(event.id)}
                   onOpenMovie={setSelectedMovie}
                 />
               ))}
@@ -571,6 +575,7 @@ export function HomeContent({
       {selectedMovie && (
         <MovieModal 
           movie={selectedMovie} 
+          isFavorite={userFavorites.includes(selectedMovie.id)}
           onClose={() => setSelectedMovie(null)} 
         />
       )}

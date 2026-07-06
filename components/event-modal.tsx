@@ -97,16 +97,16 @@ export function EventModal({ event, open, onClose }: EventModalProps) {
 
           <p className="mb-6 text-muted-foreground">{event.description}</p>
 
-          <div className="mb-6 rounded-lg bg-muted p-4">
-            <p className="mb-1 text-sm text-muted-foreground">Precio de entrada</p>
-            <p className="text-2xl font-bold text-foreground">
-              {event.price === "gratis" 
-                ? "Entrada Gratuita" 
-                : event.price === "confirmar"
-                ? "Precio a confirmar"
-                : `$${event.price.toLocaleString("es-AR")}`}
-            </p>
-          </div>
+          {event.price !== "confirmar" && (
+            <div className="mb-6 rounded-lg bg-muted p-4">
+              <p className="mb-1 text-sm text-muted-foreground">Precio de entrada</p>
+              <p className="text-2xl font-bold text-foreground">
+                {event.price === "gratis" 
+                  ? "Entrada Gratuita" 
+                  : `$${event.price.toLocaleString("es-AR")}`}
+              </p>
+            </div>
+          )}
 
           <div className="flex flex-col gap-3 sm:flex-row">
             <Button 

@@ -19,21 +19,38 @@ export default async function EventPage({ params }: EventPageProps) {
   ])
 
   let isAdmin = false
+  let isFavorite = false
   const user = userResult.data.user
 
   if (user) {
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', user.id)
-      .single()
+    const [profileRes, favoriteRes] = await Promise.all([
+      supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', user.id)
+        .single(),
+      supabase
+        .from('user_favorites')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('event_id', id)
+        .maybeSingle()
+    ])
 
-    isAdmin = profile?.role === 'ADMIN'
+    isAdmin = profileRes.data?.role === 'ADMIN'
+    isFavorite = !!favoriteRes.data
   }
 
   if (!event) {
     notFound()
   }
 
-  return <EventDetailPage event={event} isAdmin={isAdmin} categories={categories} />
+  return (
+    <EventDetailPage 
+      event={event} 
+      isAdmin={isAdmin} 
+      categories={categories} 
+      isFavorite={isFavorite}
+    />
+  )
 }
