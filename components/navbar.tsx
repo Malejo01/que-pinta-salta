@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
-import { Moon, Sun, Plus, LogIn, LogOut, User, Settings, SearchCheck, Tags, Heart } from "lucide-react"
+import { Moon, Sun, Plus, LogIn, LogOut, User, Settings, SearchCheck, Tags, Heart, Radio } from "lucide-react"
 import { useTheme } from "@/components/theme-provider"
 import { Button } from "@/components/ui/button"
 import {
@@ -85,19 +85,30 @@ export function Navbar() {
           </Button>
           
           {user && (
-            <Button asChild variant="ghost" size="icon" className="hidden sm:inline-flex text-muted-foreground hover:text-red-500 transition-colors mr-1" title="Mis Favoritos">
-              <Link href="/favoritos">
-                <Heart className="size-5 text-red-500 fill-red-500/10" />
+            <>
+              <Button asChild variant="ghost" className="hidden sm:inline-flex text-muted-foreground hover:text-red-500 transition-colors mr-1 gap-2 font-semibold text-sm">
+                <Link href="/favoritos">
+                  <span>Agrega tus favoritos</span>
+                  <Heart className="size-4.5 text-red-500 fill-red-500/10" />
+                </Link>
+              </Button>
+              <Button asChild variant="ghost" className="hidden sm:inline-flex text-muted-foreground hover:text-primary transition-colors mr-1 gap-2 font-semibold text-sm" title="Mi Radar">
+                <Link href="/radar">
+                  <span>Radar Salteño</span>
+                  <Radio className="size-4.5 text-primary" />
+                </Link>
+              </Button>
+            </>
+          )}
+
+          {isAdmin && (
+            <Button asChild variant="outline" className="hidden sm:inline-flex">
+              <Link href="/nuevo-evento">
+                <Plus className="mr-2 size-4" />
+                Agregar Evento
               </Link>
             </Button>
           )}
-
-          <Button asChild variant="outline" className="hidden sm:inline-flex">
-            <Link href={user ? "/nuevo-evento" : "/auth/login?next=/nuevo-evento"}>
-              <Plus className="mr-2 size-4" />
-              Agregar Evento
-            </Link>
-          </Button>
 
           {!loading && (
             <>
@@ -120,6 +131,12 @@ export function Navbar() {
                       <Link href="/favoritos">
                         <Heart className="mr-2 size-4 text-red-500" />
                         Mis Favoritos
+                      </Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem asChild>
+                      <Link href="/radar">
+                        <Radio className="mr-2 size-4 text-primary" />
+                        Mi Radar Salteño
                       </Link>
                     </DropdownMenuItem>
                     <DropdownMenuItem asChild>

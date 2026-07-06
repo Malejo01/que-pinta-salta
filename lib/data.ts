@@ -157,3 +157,20 @@ export async function getVenues(): Promise<Venue[]> {
   
   return data as Venue[]
 }
+
+export async function getInstagramAccounts(): Promise<any[]> {
+  const supabase = await createClient()
+  
+  const { data, error } = await supabase
+    .from('instagram_accounts')
+    .select('*')
+    .eq('is_active', true)
+    .order('display_name')
+  
+  if (error) {
+    console.error('Error fetching instagram accounts:', error)
+    return []
+  }
+  
+  return data
+}

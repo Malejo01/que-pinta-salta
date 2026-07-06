@@ -36,16 +36,30 @@ export default async function FavoritosPage() {
   const flyerIds = favorites?.map(f => f.instagram_flyer_id).filter(Boolean) as string[] || []
   const movieIds = favorites?.map(f => f.cinema_movie_id).filter(Boolean) as string[] || []
 
-  // 2. Fetch paralelos de los detalles de los elementos guardados
+  // 2. Fetch paralelos de los detalles de los elementos guardados (filtrando solo activos y futuros)
+  const nowIso = new Date().toISOString()
   const [eventsRes, flyersRes, moviesRes, categories] = await Promise.all([
     eventIds.length > 0 
-      ? supabase.from("events").select("*, category:categories(*), venue:venues(*)").in("id", eventIds)
+      ? supabase
+          .from("events")
+          .select("*, category:categories(*), venue:venues(*)")
+          .in("id", eventIds)
+          .eq("status", "PUBLISHED")
+          .gte("start_date", nowIso)
       : Promise.resolve({ data: [] }),
     flyerIds.length > 0
-      ? supabase.from("instagram_flyers").select("*, account:instagram_accounts(*)").in("id", flyerIds)
+      ? supabase
+          .from("instagram_flyers")
+          .select("*, account:instagram_accounts(*)")
+          .in("id", flyerIds)
+          .eq("status", "ACTIVE")
       : Promise.resolve({ data: [] }),
     movieIds.length > 0
-      ? supabase.from("cinema_movies").select("*").in("id", movieIds)
+      ? supabase
+          .from("cinema_movies")
+          .select("*")
+          .in("id", movieIds)
+          .eq("is_currently_showing", true)
       : Promise.resolve({ data: [] }),
     getCategories()
   ])

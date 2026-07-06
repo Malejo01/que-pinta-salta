@@ -3,7 +3,7 @@
 import Image from "next/image"
 import Link from "next/link"
 import { motion } from "framer-motion"
-import { Calendar, MapPin, Instagram, Film } from "lucide-react"
+import { Calendar, MapPin, Instagram, Film, Share2 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
@@ -37,6 +37,27 @@ export function EventCard({ event, isFavorite, onToggleFavorite, onOpenMovie }: 
       e.stopPropagation()
       onOpenMovie(event)
     }
+  }
+
+  const handleShareClick = (e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+
+    const currentOrigin = typeof window !== "undefined" ? window.location.origin : "https://quepintasalta.com.ar"
+    let message = ""
+
+    if (event.isCinemaMovie) {
+      message = `¡Che! Mirá esta película en Salta: *${event.title}* 🎬\n🔗 ${currentOrigin}/cines`
+    } else if (event.isInstagramFlyer) {
+      message = `¡Che! Mirá este flyer en Salta: *${event.title}* (en ${event.venue}) 🍻\n🔗 ${currentOrigin}/flyer/${event.flyerId}`
+    } else {
+      const formattedOccDate = formatEventDateShort(event.date)
+      message = `¡Che! Mirá este evento en Salta: *${event.title}* (${formattedOccDate} en ${event.venue}) 📅\n🔗 ${currentOrigin}/evento/${event.id}`
+    }
+
+    const encodedText = encodeURIComponent(message)
+    const url = `https://api.whatsapp.com/send?text=${encodedText}`
+    window.open(url, "_blank")
   }
 
   return (
@@ -132,6 +153,14 @@ export function EventCard({ event, isFavorite, onToggleFavorite, onOpenMovie }: 
           initialIsFavorite={!!isFavorite}
           className="absolute right-2 top-2 z-30"
         />
+
+        <button
+          onClick={handleShareClick}
+          className="absolute right-11 top-2 z-30 flex size-8 items-center justify-center rounded-full bg-black/60 text-white backdrop-blur-md transition-all hover:scale-110 active:scale-95 cursor-pointer"
+          title="Compartir en WhatsApp"
+        >
+          <Share2 className="size-4 hover:text-emerald-400 text-zinc-100" />
+        </button>
 
         <Badge 
           variant="secondary" 

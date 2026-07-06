@@ -13,6 +13,7 @@ import { CategoryRow } from "@/components/category-row"
 import { EventCard } from "@/components/event-card"
 import { MovieModal } from "@/components/movie-modal"
 import Link from "next/link"
+import { Button } from "@/components/ui/button"
 import { formatEventTime } from "@/lib/date-format"
 import { AdSenseBanner } from "@/components/adsense-banner"
 import { Film } from "lucide-react"
@@ -518,7 +519,28 @@ export function HomeContent({
                   userFavorites={userFavorites}
                   onOpenMovie={setSelectedMovie}
                 />
-                {index === 1 && (
+                
+                {/* 1. Banner de Radar después de la segunda categoría */}
+                {index === 1 && !hasFilters && (
+                  <div className="container mx-auto px-4 py-2">
+                    <div className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl p-6 flex flex-col sm:flex-row justify-between items-center gap-4 shadow-lg">
+                      <div className="space-y-1 text-center sm:text-left">
+                        <h3 className="text-xl font-bold text-white">¡No te pierdas ningún evento!</h3>
+                        <p className="text-sm text-zinc-400">
+                          Elegí tus categorías favoritas y recibí la agenda del fin de semana directamente en tu correo.
+                        </p>
+                      </div>
+                      <Button asChild className="bg-primary hover:bg-primary/95 text-primary-foreground font-bold px-6 py-4 rounded-xl shadow-md transition-transform duration-200 hover:scale-105 cursor-pointer">
+                        <Link href="/radar" className="flex items-center gap-2">
+                          Configurar mi Radar 📡
+                        </Link>
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {/* 2. Banner de Publicidad/Anunciar después de la cuarta categoría */}
+                {index === 3 && !hasFilters && (
                   <div className="container mx-auto px-4 py-2">
                     <AdSenseBanner slot="home-middle-banner" />
                   </div>
@@ -570,6 +592,8 @@ export function HomeContent({
       </main>
 
       <MobileNav />
+
+
 
       {/* Modal para visualizar los horarios de la película */}
       {selectedMovie && (
