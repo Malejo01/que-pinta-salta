@@ -16,6 +16,7 @@ export async function getActiveFlyers(): Promise<FlyerWithAccount[]> {
       account:instagram_accounts(*)
     `)
     .eq('status', 'ACTIVE')
+    .eq('ai_status', 'PENDING')
     .order('published_at', { ascending: false })
 
   if (error) {

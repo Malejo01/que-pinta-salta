@@ -307,3 +307,196 @@ export async function toggleEventFeatured(eventId: string, isFeatured: boolean) 
   revalidatePath(`/evento/${eventId}`)
   return { success: true }
 }
+
+export async function publishDraftEvent(eventId: string, eventData: any) {
+  const supabase = await createClient()
+
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'No autenticado' }
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single()
+
+  if (profile?.role !== 'ADMIN') return { error: 'No tienes permisos de administrador' }
+
+  const adminClient = getPrivilegedClient()
+
+  // Generar slug basado en el título (o usar el existente si no cambió)
+  const baseSlug = slugifyCategoryName(eventData.title)
+  let slug = eventData.slug || baseSlug
+  
+  // Si el título cambió, generamos un nuevo slug único
+  if (baseSlug && baseSlug !== eventData.slug) {
+    slug = baseSlug
+    // Asegurar unicidad sumando parte del ID o fecha
+    const shortId = eventId.substring(0, 5)
+    slug = `${baseSlug}-${shortId}`
+  }
+
+  const { error } = await adminClient
+    .from('events')
+    .update({
+      title: eventData.title,
+      slug,
+      description: eventData.description || null,
+      category_id: eventData.category_id || null,
+      venue_id: eventData.venue_id || null,
+      start_date: eventData.start_date,
+      price_min: eventData.price_min ?? 0,
+      is_free: eventData.is_free ?? false,
+      ticket_url: eventData.ticket_url || null,
+      image_url: eventData.image_url || null,
+      status: 'PUBLISHED', // Publicar!
+      updated_at: new Date().toISOString()
+    })
+    .eq('id', eventId)
+
+  if (error) {
+    console.error('Error publicando evento:', error)
+    return { error: error.message }
+  }
+
+  // Si tiene un flyer asociado, marcarlo como PROCESSED en la tabla instagram_flyers
+  if (eventData.ai_metadata?.flyer_id) {
+    await adminClient
+      .from('instagram_flyers')
+      .update({
+        ai_status: 'PROCESSED',
+        ai_processed_at: new Date().toISOString()
+      })
+      .eq('id', eventData.ai_metadata.flyer_id)
+  }
+
+  revalidatePath('/')
+  revalidatePath('/admin/revision')
+  return { success: true }
+}
+
+export async function deleteDraftEvent(eventId: string, flyerId?: string) {
+  const supabase = await createClient()
+
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'No autenticado' }
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single()
+
+  if (profile?.role !== 'ADMIN') return { error: 'No tienes permisos de administrador' }
+
+  const adminClient = getPrivilegedClient()
+
+  // 1. Si hay un flyerId asociado, cambiar su estado de procesamiento a SKIPPED para no volver a intentar procesarlo
+  if (flyerId) {
+    await adminClient
+      .from('instagram_flyers')
+      .update({
+        ai_status: 'SKIPPED',
+        ai_processed_at: new Date().toISOString()
+      })
+      .eq('id', flyerId)
+  }
+
+  // 2. Eliminar el evento en borrador
+  const { error } = await adminClient
+    .from('events')
+    .delete()
+    .eq('id', eventId)
+
+  if (error) {
+    console.error('Error eliminando evento borrador:', error)
+    return { error: error.message }
+  }
+
+  revalidatePath('/')
+  revalidatePath('/admin/revision')
+  return { success: true }
+}
+
+export async function triggerAIProcessing(limit: number = 3) {
+  const supabase = await createClient()
+
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'No autenticado' }
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single()
+
+  if (profile?.role !== 'ADMIN') return { error: 'No tienes permisos de administrador' }
+
+  const adminClient = getPrivilegedClient()
+
+  // Buscar flyers pendientes que estén activos
+  const { data: pendingFlyers, error: fetchError } = await adminClient
+    .from('instagram_flyers')
+    .select('id, ig_post_id')
+    .eq('ai_status', 'PENDING')
+    .eq('status', 'ACTIVE')
+    .order('published_at', { ascending: false })
+    .limit(limit)
+
+  if (fetchError) {
+    console.error('Error fetching pending flyers:', fetchError)
+    return { error: `Error en base de datos: ${fetchError.message}` }
+  }
+
+  if (!pendingFlyers || pendingFlyers.length === 0) {
+    return { message: 'No hay flyers activos con procesamiento de IA pendiente.', processedCount: 0, success: true }
+  }
+
+  // Importar dinámicamente para evitar dependencias circulares y optimizar peso en Server Component
+  const { processFlyerWithAI } = await import('@/lib/ai/process-flyer-ai')
+
+  const tasks = pendingFlyers.map(async (flyer) => {
+    try {
+      const result = await processFlyerWithAI(flyer.id)
+      return {
+        flyerId: flyer.id,
+        igPostId: flyer.ig_post_id,
+        success: result.success,
+        eventId: result.eventId,
+        error: result.error,
+      }
+    } catch (err: any) {
+      return {
+        flyerId: flyer.id,
+        igPostId: flyer.ig_post_id,
+        success: false,
+        error: err.message || String(err),
+      }
+    }
+  })
+
+  const results = await Promise.allSettled(tasks)
+  const processedResults = results.map((res, index) => {
+    if (res.status === 'fulfilled') return res.value
+    return {
+      flyerId: pendingFlyers[index].id,
+      igPostId: pendingFlyers[index].ig_post_id,
+      success: false,
+      error: `Error crítico en promesa: ${res.reason}`,
+    }
+  })
+
+  const successCount = processedResults.filter(r => r.success).length
+  const failCount = processedResults.length - successCount
+
+  revalidatePath('/')
+  revalidatePath('/admin/revision')
+
+  return {
+    success: true,
+    message: `Procesamiento en lote finalizado. Éxitos: ${successCount}, Fallas: ${failCount}`,
+    processedCount: processedResults.length
+  }
+}
+
+

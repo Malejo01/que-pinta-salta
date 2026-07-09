@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
-import { Database, Home, SearchCheck, Tags } from 'lucide-react'
+import { Database, Home, SearchCheck, Tags, Sparkles } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -17,6 +17,12 @@ const adminSections = [
     title: 'Clasificación',
     description: 'Clasificá eventos sin categoría importados por scrapers y gestioná las reglas de clasificación automática.',
     icon: Tags,
+  },
+  {
+    href: '/admin/revision',
+    title: 'Borradores (IA)',
+    description: 'Revisá, corregí y aprobá eventos extraídos de flyers de Instagram mediante inteligencia artificial.',
+    icon: Sparkles,
   },
 ]
 

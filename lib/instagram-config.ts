@@ -39,6 +39,9 @@ export interface InstagramFlyer {
   category: string
   price_min: number
   is_free: boolean
+  ai_metadata?: any | null
+  ai_processed_at?: string | null
+  ai_status?: 'PENDING' | 'PROCESSED' | 'FAILED' | 'SKIPPED'
 }
 
 /** Flyer con datos de la cuenta (JOIN) */
