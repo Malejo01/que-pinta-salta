@@ -180,6 +180,15 @@ export async function processFlyerWithAI(flyerId: string): Promise<AIProcessingR
     const eventTitle = rawTitle || `Evento flyer @${account?.username}`
     const eventSlug = `${slugify(eventTitle)}-${flyer.ig_post_id}`
 
+    // Evaluar si califica para auto-publicación: requiere título, fecha, hora y lugar válidos y detectados
+    const hasTitle = !!extractedData.title && extractedData.title.trim().length > 0
+    const hasDate = !!extractedData.date && /^\d{4}-\d{2}-\d{2}$/.test(extractedData.date)
+    const hasTime = !!extractedData.start_time && /^\d{2}:\d{2}$/.test(extractedData.start_time)
+    const hasVenue = !!venueName && venueName !== 'Lugar no especificado'
+    
+    const qualifiesForAutoPublish = !!(hasTitle && hasDate && hasTime && hasVenue)
+    const eventStatus = qualifiesForAutoPublish ? 'PUBLISHED' : 'DRAFT'
+
     // Armar data del evento
     const eventData = {
       title: eventTitle,
@@ -201,7 +210,7 @@ export async function processFlyerWithAI(flyerId: string): Promise<AIProcessingR
       is_commercial: false,
       age_restriction: 0,
       tags: extractedData.artists || [],
-      status: 'DRAFT', // Obligatorio guardar en DRAFT para revisión humana
+      status: eventStatus,
       is_featured: false,
       view_count: 0,
       created_by: null,
@@ -211,6 +220,7 @@ export async function processFlyerWithAI(flyerId: string): Promise<AIProcessingR
         original_caption: flyer.caption,
         flyer_id: flyer.id,
         processed_at: new Date().toISOString(),
+        auto_published: qualifiesForAutoPublish,
       },
     }
 
@@ -226,6 +236,7 @@ export async function processFlyerWithAI(flyerId: string): Promise<AIProcessingR
           extracted_data: extractedData,
           event_id: upsertRes.eventId,
           action: upsertRes.action,
+          auto_published: qualifiesForAutoPublish,
         },
         ai_processed_at: new Date().toISOString(),
         venue_name: venueName,
