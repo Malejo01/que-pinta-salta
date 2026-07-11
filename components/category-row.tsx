@@ -15,6 +15,7 @@ interface CategoryRowProps {
   events: DisplayEvent[]
   userFavorites?: string[]
   onOpenMovie?: (movie: DisplayEvent) => void
+  onSeeAll?: (category: string) => void
 }
 
 export function CategoryRow({ 
@@ -23,6 +24,7 @@ export function CategoryRow({
   events, 
   userFavorites = [],
   onOpenMovie,
+  onSeeAll,
 }: CategoryRowProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
 
@@ -48,12 +50,24 @@ export function CategoryRow({
               {events.length}
             </span>
           </div>
-          <Link 
-            href={`/?category=${category}`}
-            className="text-sm font-medium text-primary hover:underline"
-          >
-            Ver todos
-          </Link>
+          {onSeeAll ? (
+            <button 
+              onClick={(e) => {
+                e.preventDefault()
+                onSeeAll(category)
+              }}
+              className="text-sm font-medium text-primary hover:underline cursor-pointer bg-transparent border-0 p-0"
+            >
+              Ver todos
+            </button>
+          ) : (
+            <Link 
+              href={`/?category=${category}`}
+              className="text-sm font-medium text-primary hover:underline"
+            >
+              Ver todos
+            </Link>
+          )}
         </div>
 
         <div className="group relative">

@@ -66,7 +66,7 @@ export function EventCard({ event, isFavorite, onToggleFavorite, onOpenMovie }: 
         whileHover={{ scale: 1.03 }}
         whileTap={{ scale: 0.98 }}
         className={cn(
-          "group/card relative aspect-[2/3] w-[180px] shrink-0 cursor-pointer overflow-hidden rounded-xl bg-card shadow-lg sm:w-[200px] transition-all",
+          "group/card relative aspect-[2/3] w-[180px] shrink-0 cursor-pointer overflow-hidden rounded-xl bg-card shadow-lg hover:shadow-2xl hover:shadow-primary/10 sm:w-[200px] transition-all duration-300",
           event.isFeatured && "ring-1 ring-amber-500/50 hover:ring-amber-500"
         )}
       >
@@ -151,12 +151,12 @@ export function EventCard({ event, isFavorite, onToggleFavorite, onOpenMovie }: 
           itemId={event.id}
           type={event.isCinemaMovie ? 'cinema' : (event.isInstagramFlyer ? 'flyer' : 'event')}
           initialIsFavorite={!!isFavorite}
-          className="absolute right-2 top-2 z-30"
+          className="absolute right-2 top-2 z-30 sm:opacity-0 sm:group-hover/card:opacity-100 transition-all duration-350"
         />
 
         <button
           onClick={handleShareClick}
-          className="absolute right-11 top-2 z-30 flex size-8 items-center justify-center rounded-full bg-black/60 text-white backdrop-blur-md transition-all hover:scale-110 active:scale-95 cursor-pointer"
+          className="absolute right-11 top-2 z-30 flex size-8 items-center justify-center rounded-full bg-black/60 text-white backdrop-blur-md transition-all hover:scale-110 active:scale-95 cursor-pointer sm:opacity-0 sm:group-hover/card:opacity-100 duration-350"
           title="Compartir en WhatsApp"
         >
           <Share2 className="size-4 hover:text-emerald-400 text-zinc-100" />
@@ -183,7 +183,7 @@ export function EventCard({ event, isFavorite, onToggleFavorite, onOpenMovie }: 
           </Badge>
         )}
 
-        <div className="absolute bottom-0 left-0 right-0 p-3 text-white">
+        <div className="absolute bottom-0 left-0 right-0 p-3 text-white transition-all duration-300 group-hover/card:-translate-y-1">
           <h3 className="mb-1 line-clamp-2 text-sm font-semibold leading-tight">
             {event.title}
           </h3>

@@ -13,6 +13,7 @@ import { CategoryRow } from "@/components/category-row"
 import { EventCard } from "@/components/event-card"
 import { MovieModal } from "@/components/movie-modal"
 import Link from "next/link"
+import { motion, AnimatePresence } from "framer-motion"
 import { Button } from "@/components/ui/button"
 import { formatEventTime } from "@/lib/date-format"
 import { AdSenseBanner } from "@/components/adsense-banner"
@@ -212,6 +213,26 @@ export function HomeContent({
     // Actualizar la URL de forma shallow (silenciosa), sin recargar componentes del servidor ni relanzar peticiones
     window.history.replaceState(null, "", nextUrl)
   }, [search, date, category, establishment, location, dateExact, instagram])
+
+  // Sincronizar el estado local cuando cambian los query parameters en la URL (por ejemplo, al hacer click en el logo o navegar atrás/adelante)
+  useEffect(() => {
+    const urlSearch = searchParams.get("search") || ""
+    const urlDate = searchParams.get("date") as DateFilter | null
+    const urlCategory = searchParams.get("category")
+    const urlEstablishment = searchParams.get("establishment") || ""
+    const urlLocation = searchParams.get("location") || ""
+    const urlDateExact = searchParams.get("dateExact")
+    const urlInstagram = searchParams.get("instagram") !== "false"
+
+    setSearch(urlSearch)
+    setDate(urlDate)
+    setCategory(urlCategory)
+    setEstablishment(urlEstablishment)
+    setLocation(urlLocation)
+    setDateExact(urlDateExact)
+    setInstagram(urlInstagram)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams])
 
   const categoryNameBySlug = useMemo(() => {
     return new Map(categories.map((category) => [category.slug, category.name]))
@@ -511,13 +532,21 @@ export function HomeContent({
         {showCategoryRows && (
           <div className="py-8 space-y-10">
             {eventsByCategory.map(({ category: catSlug, title, events }, index) => (
-              <div key={catSlug} className="space-y-6">
+              <motion.div
+                key={catSlug}
+                initial={{ opacity: 0, y: 30 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, margin: "-80px" }}
+                transition={{ duration: 0.5, ease: "easeOut" }}
+                className="space-y-6"
+              >
                 <CategoryRow
                   category={catSlug}
                   title={title}
                   events={events}
                   userFavorites={userFavorites}
                   onOpenMovie={setSelectedMovie}
+                  onSeeAll={setCategory}
                 />
                 
                 {/* 1. Banner de Radar después de la segunda categoría */}
@@ -545,7 +574,7 @@ export function HomeContent({
                     <AdSenseBanner slot="home-middle-banner" />
                   </div>
                 )}
-              </div>
+              </motion.div>
             ))}
           </div>
         )}
@@ -555,16 +584,29 @@ export function HomeContent({
             <h2 className="mb-6 text-2xl font-bold text-foreground">
               {filteredTitle} ({filteredEvents.length})
             </h2>
-            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 justify-items-center">
-              {filteredEvents.map(event => (
-                <EventCard 
-                  key={event.id} 
-                  event={event} 
-                  isFavorite={userFavorites.includes(event.id)}
-                  onOpenMovie={setSelectedMovie}
-                />
-              ))}
-            </div>
+            <motion.div 
+              layout
+              className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 justify-items-center"
+            >
+              <AnimatePresence mode="popLayout">
+                {filteredEvents.map(event => (
+                  <motion.div
+                    key={event.id}
+                    layout
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.9 }}
+                    transition={{ duration: 0.3 }}
+                  >
+                    <EventCard 
+                      event={event} 
+                      isFavorite={userFavorites.includes(event.id)}
+                      onOpenMovie={setSelectedMovie}
+                    />
+                  </motion.div>
+                ))}
+              </AnimatePresence>
+            </motion.div>
           </div>
         )}
 

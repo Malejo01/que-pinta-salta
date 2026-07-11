@@ -1,7 +1,8 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import { Building2, CalendarDays, ChevronDown, MapPin, Search, SlidersHorizontal } from "lucide-react"
+import { Building2, CalendarDays, ChevronDown, MapPin, Search, SlidersHorizontal, X } from "lucide-react"
+import { motion } from "framer-motion"
 import type { Category } from "@/lib/types"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -70,6 +71,64 @@ function formatDateLabel(value: string | null) {
 
 export function FiltersBar({ categories, filters, onFilterChange }: FiltersBarProps) {
   const [advancedFiltersOpen, setAdvancedFiltersOpen] = useState(false)
+  const [isInteracting, setIsInteracting] = useState(true)
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const interactionTimeoutRef = useRef<number | null>(null)
+
+  useEffect(() => {
+    // Pausar el auto-scroll durante los primeros 2.6 segundos para el nudge inicial
+    const timer = setTimeout(() => {
+      setIsInteracting(false)
+    }, 2600)
+    return () => clearTimeout(timer)
+  }, [])
+
+  useEffect(() => {
+    const el = scrollRef.current
+    if (!el) return
+
+    let animationId: number
+    const speed = 0.25 // píxeles por frame
+    let direction = 1 // 1 = derecha, -1 = izquierda
+
+    const step = () => {
+      if (!isInteracting) {
+        el.scrollLeft += speed * direction
+
+        const maxScroll = el.scrollWidth - el.clientWidth
+        if (maxScroll > 0) {
+          if (el.scrollLeft >= maxScroll - 1) {
+            direction = -1
+          } else if (el.scrollLeft <= 1) {
+            direction = 1
+          }
+        }
+      }
+      animationId = requestAnimationFrame(step)
+    }
+
+    animationId = requestAnimationFrame(step)
+    return () => {
+      cancelAnimationFrame(animationId)
+    }
+  }, [isInteracting])
+
+  const handleInteractionStart = () => {
+    setIsInteracting(true)
+    if (interactionTimeoutRef.current) {
+      window.clearTimeout(interactionTimeoutRef.current)
+    }
+  }
+
+  const handleInteractionEnd = () => {
+    if (interactionTimeoutRef.current) {
+      window.clearTimeout(interactionTimeoutRef.current)
+    }
+    interactionTimeoutRef.current = window.setTimeout(() => {
+      setIsInteracting(false)
+    }, 2500)
+  }
+
   const searchInputRef = useRef<HTMLInputElement>(null)
   const establishmentInputRef = useRef<HTMLInputElement>(null)
   const locationInputRef = useRef<HTMLInputElement>(null)
@@ -88,6 +147,73 @@ export function FiltersBar({ categories, filters, onFilterChange }: FiltersBarPr
   } = filters
 
   const advancedFiltersCount = [selectedEstablishment, selectedLocation].filter(Boolean).length
+
+  const handleClearAll = () => {
+    onFilterChange({
+      search: "",
+      date: null,
+      category: null,
+      establishment: "",
+      location: "",
+      dateExact: null,
+    })
+  }
+
+  const activeCategoryName = selectedCategory
+    ? categories.find((c) => c.slug === selectedCategory)?.name || selectedCategory
+    : null
+
+  const activeChips = []
+  if (searchQuery) {
+    activeChips.push({
+      id: "search",
+      label: `Búsqueda: "${searchQuery}"`,
+      onClear: () => onFilterChange({ search: "" }),
+    })
+  }
+  if (selectedDate) {
+    const labels: Record<DateFilter, string> = {
+      hoy: "Hoy",
+      semana: "Esta semana",
+      mes: "Este mes",
+      tendencias: "Tendencias",
+    }
+    activeChips.push({
+      id: "date",
+      label: labels[selectedDate],
+      onClear: () => onFilterChange({ date: null }),
+    })
+  }
+  if (selectedExactDate) {
+    activeChips.push({
+      id: "dateExact",
+      label: formatDateLabel(selectedExactDate),
+      onClear: () => onFilterChange({ dateExact: null }),
+    })
+  }
+  if (selectedCategory) {
+    activeChips.push({
+      id: "category",
+      label: activeCategoryName || selectedCategory,
+      onClear: () => onFilterChange({ category: null }),
+    })
+  }
+  if (selectedEstablishment) {
+    activeChips.push({
+      id: "establishment",
+      label: `Lugar: ${selectedEstablishment}`,
+      onClear: () => onFilterChange({ establishment: "" }),
+    })
+  }
+  if (selectedLocation) {
+    activeChips.push({
+      id: "location",
+      label: `Zona: ${selectedLocation}`,
+      onClear: () => onFilterChange({ location: "" }),
+    })
+  }
+
+  const hasActiveFilters = activeChips.length > 0
 
   const handleInstagramChange = (checked: boolean) => {
     onFilterChange({ instagram: checked })
@@ -166,20 +292,32 @@ export function FiltersBar({ categories, filters, onFilterChange }: FiltersBarPr
           </div>
 
           <div className="scrollbar-hide flex gap-2 overflow-x-auto pb-1">
-            {dateFilters.map((filter) => (
-              <Button
-                key={filter.value}
-                variant={selectedDate === filter.value ? "default" : "outline"}
-                size="sm"
-                onClick={() => handleDateChange(selectedDate === filter.value ? null : filter.value)}
-                className={cn(
-                  "shrink-0",
-                  selectedDate === filter.value && "bg-primary text-primary-foreground"
-                )}
-              >
-                {filter.label}
-              </Button>
-            ))}
+            {dateFilters.map((filter) => {
+              const isActive = selectedDate === filter.value
+              return (
+                <Button
+                  key={filter.value}
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => handleDateChange(selectedDate === filter.value ? null : filter.value)}
+                  className={cn(
+                    "shrink-0 relative transition-colors border",
+                    isActive
+                      ? "text-primary-foreground font-semibold border-transparent"
+                      : "text-foreground border-border hover:bg-muted"
+                  )}
+                >
+                  <span className="relative z-10">{filter.label}</span>
+                  {isActive && (
+                    <motion.div
+                      layoutId="activeDatePill"
+                      className="absolute inset-0 bg-primary rounded-[calc(var(--radius)-2px)]"
+                      transition={{ type: "spring", stiffness: 380, damping: 30 }}
+                    />
+                  )}
+                </Button>
+              )
+            })}
 
             <Popover>
               <PopoverTrigger asChild>
@@ -221,39 +359,76 @@ export function FiltersBar({ categories, filters, onFilterChange }: FiltersBarPr
             <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
               Categorías
             </p>
-            <div className="scrollbar-hide flex gap-2 overflow-x-auto pb-1 md:flex-wrap md:overflow-visible">
-              <Button
-                variant={!selectedCategory ? "default" : "outline"}
-                size="sm"
-                onClick={() => handleCategoryChange(null)}
-                className={cn(
-                  "shrink-0",
-                  !selectedCategory && "bg-primary text-primary-foreground"
-                )}
+            <div 
+              ref={scrollRef}
+              className="scrollbar-hide flex gap-2 overflow-x-auto pb-1 w-full min-w-0"
+              onTouchStart={handleInteractionStart}
+              onTouchEnd={handleInteractionEnd}
+              onMouseDown={handleInteractionStart}
+              onMouseUp={handleInteractionEnd}
+              onMouseLeave={handleInteractionEnd}
+            >
+              <motion.div 
+                className="flex gap-2 shrink-0"
+                initial={{ x: 0 }}
+                animate={{ x: [0, -35, 0] }}
+                transition={{
+                  duration: 1.6,
+                  ease: "easeInOut",
+                  delay: 0.8,
+                }}
               >
-                Todas
-              </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => handleCategoryChange(null)}
+                  className={cn(
+                    "shrink-0 relative transition-colors border",
+                    !selectedCategory
+                      ? "text-primary-foreground font-semibold border-transparent"
+                      : "text-foreground border-border hover:bg-muted"
+                  )}
+                >
+                  <span className="relative z-10">Todas</span>
+                  {!selectedCategory && (
+                    <motion.div
+                      layoutId="activeCategoryPill"
+                      className="absolute inset-0 bg-primary rounded-[calc(var(--radius)-2px)]"
+                      transition={{ type: "spring", stiffness: 380, damping: 30 }}
+                    />
+                  )}
+                </Button>
 
-              {categories.map((category) => {
-                const Icon = getCategoryIcon(category.slug)
-                const isActive = selectedCategory === category.slug
+                {categories.map((category) => {
+                  const Icon = getCategoryIcon(category.slug)
+                  const isActive = selectedCategory === category.slug
 
-                return (
-                  <Button
-                    key={category.id}
-                    variant={isActive ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => handleCategoryChange(isActive ? null : category.slug)}
-                    className={cn(
-                      "shrink-0",
-                      isActive && "bg-primary text-primary-foreground"
-                    )}
-                  >
-                    <Icon className="mr-1.5 size-4" />
-                    {category.name}
-                  </Button>
-                )
-              })}
+                  return (
+                    <Button
+                      key={category.id}
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleCategoryChange(isActive ? null : category.slug)}
+                      className={cn(
+                        "shrink-0 relative transition-colors border",
+                        isActive
+                          ? "text-primary-foreground font-semibold border-transparent"
+                          : "text-foreground border-border hover:bg-muted"
+                      )}
+                    >
+                      <Icon className="mr-1.5 size-4 relative z-10" />
+                      <span className="relative z-10">{category.name}</span>
+                      {isActive && (
+                        <motion.div
+                          layoutId="activeCategoryPill"
+                          className="absolute inset-0 bg-primary rounded-[calc(var(--radius)-2px)]"
+                          transition={{ type: "spring", stiffness: 380, damping: 30 }}
+                        />
+                      )}
+                    </Button>
+                  )
+                })}
+              </motion.div>
             </div>
           </div>
 
@@ -330,6 +505,41 @@ export function FiltersBar({ categories, filters, onFilterChange }: FiltersBarPr
               </div>
             </CollapsibleContent>
           </Collapsible>
+
+          {hasActiveFilters && (
+            <div className="flex flex-wrap items-center gap-2 border-t border-border/60 pt-3 mt-1">
+              <span className="text-xs font-semibold text-muted-foreground mr-1">
+                Filtros activos:
+              </span>
+              
+              <div className="flex flex-wrap items-center gap-2">
+                {activeChips.map((chip) => (
+                  <span
+                    key={chip.id}
+                    className="inline-flex items-center gap-1.5 rounded-full bg-muted/60 border border-border/80 px-2.5 py-0.5 text-xs text-foreground font-medium transition-colors hover:bg-muted"
+                  >
+                    {chip.label}
+                    <button
+                      onClick={chip.onClear}
+                      className="rounded-full p-0.5 text-muted-foreground hover:text-foreground hover:bg-muted-foreground/10 transition-colors"
+                      title="Quitar filtro"
+                    >
+                      <X className="size-3" />
+                    </button>
+                  </span>
+                ))}
+              </div>
+
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleClearAll}
+                className="h-7 text-xs text-destructive hover:text-destructive hover:bg-destructive/10 rounded-full px-3 font-semibold transition-colors ml-auto sm:ml-2"
+              >
+                Limpiar todo
+              </Button>
+            </div>
+          )}
         </div>
       </div>
     </div>

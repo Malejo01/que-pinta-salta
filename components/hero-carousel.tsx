@@ -17,20 +17,39 @@ interface HeroCarouselProps {
 
 export function HeroCarousel({ events }: HeroCarouselProps) {
   const [currentIndex, setCurrentIndex] = useState(0)
+  const [direction, setDirection] = useState(1) // 1 = next, -1 = prev
 
   useEffect(() => {
     const timer = setInterval(() => {
+      setDirection(1)
       setCurrentIndex((prev) => (prev + 1) % events.length)
     }, 5000)
     return () => clearInterval(timer)
   }, [events.length])
 
   const goToPrevious = () => {
+    setDirection(-1)
     setCurrentIndex((prev) => (prev - 1 + events.length) % events.length)
   }
 
   const goToNext = () => {
+    setDirection(1)
     setCurrentIndex((prev) => (prev + 1) % events.length)
+  }
+
+  const slideVariants = {
+    enter: (dir: number) => ({
+      x: dir > 0 ? 40 : -40,
+      opacity: 0
+    }),
+    center: {
+      x: 0,
+      opacity: 1
+    },
+    exit: (dir: number) => ({
+      x: dir < 0 ? 40 : -40,
+      opacity: 0
+    })
   }
 
   if (events.length === 0) return null
@@ -40,25 +59,38 @@ export function HeroCarousel({ events }: HeroCarouselProps) {
 
   return (
     <div className="relative h-[250px] w-full overflow-hidden sm:h-[320px] lg:h-[360px] bg-black">
-      <AnimatePresence mode="wait">
+      <AnimatePresence mode="wait" initial={false} custom={direction}>
         <motion.div
           key={currentIndex}
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.5 }}
+          custom={direction}
+          variants={slideVariants}
+          initial="enter"
+          animate="center"
+          exit="exit"
+          transition={{
+            x: { type: "spring", stiffness: 300, damping: 30 },
+            opacity: { duration: 0.4 }
+          }}
           className="absolute inset-0"
         >
-          {/* Blurred backdrop to fill the background and handle varying aspect ratios */}
+          {/* Blurred backdrop with Ken Burns zoom */}
           <div className="absolute inset-0 overflow-hidden select-none pointer-events-none opacity-45">
-            <Image
-              src={currentEvent.image}
-              alt=""
-              fill
-              sizes="100vw"
-              className="object-cover blur-2xl scale-110"
-              priority
-            />
+            <motion.div
+              key={`bg-${currentIndex}`}
+              initial={{ scale: 1.12 }}
+              animate={{ scale: 1.02 }}
+              transition={{ duration: 5, ease: "linear" }}
+              className="relative h-full w-full"
+            >
+              <Image
+                src={currentEvent.image}
+                alt=""
+                fill
+                sizes="100vw"
+                className="object-cover blur-2xl"
+                priority
+              />
+            </motion.div>
           </div>
 
           {/* Sharp, unscaled contained event poster */}
