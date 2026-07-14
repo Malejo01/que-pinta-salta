@@ -1,5 +1,6 @@
 "use client"
 
+import { useState, useEffect } from "react"
 import Image from "next/image"
 import Link from "next/link"
 import { motion } from "framer-motion"
@@ -19,6 +20,12 @@ interface EventCardProps {
 }
 
 export function EventCard({ event, isFavorite, onToggleFavorite, onOpenMovie }: EventCardProps) {
+  const [imgSrc, setImgSrc] = useState<string>(event.image || "/placeholder.jpg")
+
+  useEffect(() => {
+    setImgSrc(event.image || "/placeholder.jpg")
+  }, [event.image])
+
   const formattedDate = formatEventDateShort(event.date)
 
   const formattedPrice = event.price === "gratis" 
@@ -71,10 +78,13 @@ export function EventCard({ event, isFavorite, onToggleFavorite, onOpenMovie }: 
         )}
       >
         <Image
-          src={event.image}
+          src={imgSrc}
           alt={event.title}
           fill
           className="object-cover transition-transform duration-300 group-hover/card:scale-105"
+          onError={() => {
+            setImgSrc("/placeholder.jpg")
+          }}
         />
 
         {/* Hover overlay con horarios de cine */}

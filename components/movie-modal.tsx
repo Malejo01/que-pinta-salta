@@ -1,5 +1,7 @@
 "use client"
 
+import { useState, useEffect } from "react"
+
 import {
   Dialog,
   DialogContent,
@@ -21,6 +23,12 @@ interface MovieModalProps {
 }
 
 export function MovieModal({ movie, isFavorite = false, onClose }: MovieModalProps) {
+  const [imgSrc, setImgSrc] = useState<string>(movie.image || "")
+
+  useEffect(() => {
+    setImgSrc(movie.image || "")
+  }, [movie.image])
+
   const cinemasCount = movie.showings ? Object.keys(movie.showings).length : 0
 
   return (
@@ -30,14 +38,15 @@ export function MovieModal({ movie, isFavorite = false, onClose }: MovieModalPro
           {/* Columna del Poster */}
           <div className="md:col-span-2 flex flex-col items-center">
             <div className="relative aspect-[2/3] w-full max-w-[240px] overflow-hidden rounded-xl border border-zinc-800/80 shadow-2xl bg-zinc-900">
-              {movie.image ? (
+              {imgSrc ? (
                 <Image
-                  src={movie.image}
+                  src={imgSrc}
                   alt={movie.title}
                   fill
                   sizes="(max-width: 768px) 100vw, 240px"
                   className="object-cover"
                   unoptimized
+                  onError={() => setImgSrc("")}
                 />
               ) : (
                 <div className="flex h-full w-full flex-col items-center justify-center bg-zinc-900 text-zinc-600">
