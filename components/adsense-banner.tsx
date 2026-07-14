@@ -33,7 +33,7 @@ export function AdSenseBanner({
   }, [])
 
   useEffect(() => {
-    if (isClient && adClientId && !isDev) {
+    if (isClient && adClientId && !isDev && insRef.current) {
       try {
         // @ts-ignore
         const ads = window.adsbygoogle || []
@@ -47,10 +47,26 @@ export function AdSenseBanner({
         return
       }
 
-      // Configurar una verificación de estado del anuncio después de que cargue
+      // Observador para detectar cambios en los atributos que mete AdSense
+      const observer = new MutationObserver((mutations) => {
+        mutations.forEach((mutation) => {
+          if (mutation.type === "attributes" && mutation.attributeName === "data-ad-status") {
+            const status = insRef.current?.getAttribute("data-ad-status")
+            if (status === "unfilled") {
+              setAdError(true)
+            }
+          }
+        })
+      })
+
+      observer.observe(insRef.current, {
+        attributes: true,
+        attributeFilter: ["data-ad-status"],
+      })
+
+      // Verificación de respaldo pasados unos segundos
       const checkAdStatus = () => {
         try {
-          // Verificar si el script de adsbygoogle cargó correctamente en el objeto window
           // @ts-ignore
           const isScriptLoaded = window.adsbygoogle && (window.adsbygoogle.loaded === true || typeof window.adsbygoogle === "object")
           
@@ -63,8 +79,7 @@ export function AdSenseBanner({
             const status = insRef.current.getAttribute("data-ad-status")
             const height = insRef.current.offsetHeight
             
-            // Si AdSense explícitamente dice 'unfilled' (no hay anuncios para mostrar)
-            // o si la altura quedó en 0 (bloqueado por AdBlocker)
+            // Si el estado es unfilled o si se detecta altura 0 (bloqueo)
             if (status === "unfilled" || height === 0) {
               setAdError(true)
             }
@@ -74,8 +89,11 @@ export function AdSenseBanner({
         }
       }
 
-      const timer = setTimeout(checkAdStatus, 2000)
-      return () => clearTimeout(timer)
+      const timer = setTimeout(checkAdStatus, 3000)
+      return () => {
+        observer.disconnect()
+        clearTimeout(timer)
+      }
     }
   }, [isClient, adClientId, isDev])
 

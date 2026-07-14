@@ -20,7 +20,7 @@ export const metadata: Metadata = {
     default: 'Que pinta Salta - Eventos, Peñas y Boliches en Salta Capital',
     template: '%s | Que pinta Salta',
   },
-  description: 'Descubre todos los eventos, peñas, boliches, teatros, ferias y talleres que están ocurriendo en Salta Capital hoy.',
+  description: 'La agenda cultural definitiva de Salta Capital. Encontrá peñas folclóricas, boliches, recitales, teatros, ferias, talleres y cine hoy en Salta.',
   keywords: [
     'salta',
     'salta capital',
@@ -60,7 +60,7 @@ export const metadata: Metadata = {
     locale: 'es_AR',
     url: 'https://www.quepintasalta.com.ar',
     title: 'Que pinta Salta - Eventos, Peñas y Boliches en Salta Capital',
-    description: 'Descubre todos los eventos, peñas, boliches, teatros, ferias y talleres que están ocurriendo en Salta Capital hoy.',
+    description: 'La agenda cultural definitiva de Salta Capital. Encontrá peñas folclóricas, boliches, recitales, teatros, ferias, talleres y cine hoy en Salta.',
     siteName: 'Que pinta Salta',
     images: [
       {
@@ -74,7 +74,7 @@ export const metadata: Metadata = {
   twitter: {
     card: 'summary_large_image',
     title: 'Que pinta Salta - Eventos, Peñas y Boliches en Salta Capital',
-    description: 'Descubre todos los eventos, peñas, boliches, teatros, ferias y talleres que están ocurriendo en Salta Capital hoy.',
+    description: 'La agenda cultural definitiva de Salta Capital. Encontrá peñas folclóricas, boliches, recitales, teatros, ferias, talleres y cine hoy en Salta.',
     images: ['/og-image.png'],
   },
   robots: {
