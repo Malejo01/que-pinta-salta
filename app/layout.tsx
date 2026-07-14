@@ -15,10 +15,29 @@ const montserrat = Montserrat({
 })
 
 export const metadata: Metadata = {
-  title: 'Que pinta Salta - Eventos en Salta Capital',
-  description: 'Descubre todos los eventos, peñas, boliches, teatros, ferias y talleres que están ocurriendo en Salta Capital.',
-  generator: 'v0.app',
-  keywords: ['salta', 'eventos', 'peñas', 'boliches', 'teatro', 'ferias', 'talleres', 'argentina'],
+  metadataBase: new URL('https://www.quepintasalta.com.ar'),
+  title: {
+    default: 'Que pinta Salta - Eventos, Peñas y Boliches en Salta Capital',
+    template: '%s | Que pinta Salta',
+  },
+  description: 'Descubre todos los eventos, peñas, boliches, teatros, ferias y talleres que están ocurriendo en Salta Capital hoy.',
+  keywords: [
+    'salta',
+    'salta capital',
+    'que pinta salta',
+    'eventos salta',
+    'peñas salta',
+    'boliches salta',
+    'teatro salta',
+    'ferias salta',
+    'talleres salta',
+    'cine salta',
+    'que hacer en salta',
+    'agenda cultural salta',
+    'cartelera cines salta',
+    'recitales salta',
+    'salta la linda',
+  ],
   icons: {
     icon: [
       {
@@ -35,6 +54,39 @@ export const metadata: Metadata = {
       },
     ],
     apple: '/apple-icon.png',
+  },
+  openGraph: {
+    type: 'website',
+    locale: 'es_AR',
+    url: 'https://www.quepintasalta.com.ar',
+    title: 'Que pinta Salta - Eventos, Peñas y Boliches en Salta Capital',
+    description: 'Descubre todos los eventos, peñas, boliches, teatros, ferias y talleres que están ocurriendo en Salta Capital hoy.',
+    siteName: 'Que pinta Salta',
+    images: [
+      {
+        url: '/og-image.png',
+        width: 1200,
+        height: 630,
+        alt: 'Que pinta Salta - Agenda de Eventos y Peñas en Salta Capital',
+      },
+    ],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Que pinta Salta - Eventos, Peñas y Boliches en Salta Capital',
+    description: 'Descubre todos los eventos, peñas, boliches, teatros, ferias y talleres que están ocurriendo en Salta Capital hoy.',
+    images: ['/og-image.png'],
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      'max-video-preview': -1,
+      'max-image-preview': 'large',
+      'max-snippet': -1,
+    },
   },
 }
 

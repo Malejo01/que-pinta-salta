@@ -21,13 +21,33 @@ export async function generateMetadata({ params }: FlyerPageProps): Promise<Meta
 
   if (!flyer) return { title: "Flyer no encontrado" }
 
+  const venueName = flyer.venue_name || flyer.account.default_venue_name || flyer.account.display_name
+  const title = `Flyer de ${venueName} - Qué Pinta Salta`
+  const description = flyer.caption
+    ? flyer.caption.substring(0, 160)
+    : `Flyer y novedades de ${flyer.account.display_name} en Salta.`
+  const imageUrl = flyer.storage_image_url || flyer.original_image_url || '/og-image.png'
+
   return {
-    title: `${flyer.account.display_name} — Qué Pinta Salta`,
-    description: flyer.caption
-      ? flyer.caption.substring(0, 160)
-      : `Flyer de ${flyer.account.display_name} en Salta`,
+    title,
+    description,
     openGraph: {
-      images: [flyer.storage_image_url || flyer.original_image_url || ''],
+      title,
+      description,
+      type: 'article',
+      url: `https://www.quepintasalta.com.ar/flyer/${id}`,
+      images: [
+        {
+          url: imageUrl,
+          alt: `Flyer de ${venueName}`,
+        },
+      ],
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title,
+      description,
+      images: [imageUrl],
     },
   }
 }

@@ -68,7 +68,7 @@ export function Navbar() {
             <span className="text-xl font-bold text-primary-foreground">QP</span>
           </div>
           <div className="hidden sm:block">
-            <h1 className="text-lg font-bold leading-tight text-foreground">Que pinta</h1>
+            <span className="text-lg font-bold leading-tight text-foreground block">Que pinta</span>
             <p className="text-xs font-medium text-primary">SALTA</p>
           </div>
         </Link>

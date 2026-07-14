@@ -500,6 +500,7 @@ export function HomeContent({
       <Navbar />
       
       <main>
+        <h1 className="sr-only">Que pinta Salta - Agenda de Eventos, Peñas y Boliches en Salta Capital</h1>
         {!hasFilters && carouselEvents.length > 0 && (
           <HeroCarousel 
             events={carouselEvents} 
