@@ -18,7 +18,7 @@ export async function toggleFavorite(
   const { data: { user }, error: authError } = await supabase.auth.getUser()
 
   if (!user || authError) {
-    return { error: "AUTH_REQUIRED", message: "Debes iniciar sesión para guardar favoritos" }
+    return { success: false, error: "AUTH_REQUIRED", message: "Debes iniciar sesión para guardar favoritos" }
   }
 
   // Sanitizar prefijos comunes del frontend
@@ -41,7 +41,7 @@ export async function toggleFavorite(
 
   if (selectError) {
     console.error("[toggleFavorite] Error al consultar favorito:", selectError)
-    return { error: "DB_ERROR", message: "Error al verificar el estado del favorito" }
+    return { success: false, error: "DB_ERROR", message: "Error al verificar el estado del favorito" }
   }
 
   if (existing) {
@@ -53,7 +53,7 @@ export async function toggleFavorite(
 
     if (deleteError) {
       console.error("[toggleFavorite] Error al eliminar favorito:", deleteError)
-      return { error: "DB_ERROR", message: "Error al quitar de favoritos" }
+      return { success: false, error: "DB_ERROR", message: "Error al quitar de favoritos" }
     }
 
     revalidatePath("/favoritos")
@@ -78,7 +78,7 @@ export async function toggleFavorite(
 
     if (insertError) {
       console.error("[toggleFavorite] Error al insertar favorito:", insertError)
-      return { error: "DB_ERROR", message: "Error al guardar en favoritos" }
+      return { success: false, error: "DB_ERROR", message: "Error al guardar en favoritos" }
     }
 
     revalidatePath("/favoritos")

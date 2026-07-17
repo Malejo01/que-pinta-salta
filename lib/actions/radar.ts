@@ -91,7 +91,7 @@ export async function updateRadarSettings(data: {
   const { data: { user }, error: authError } = await supabase.auth.getUser()
 
   if (!user || authError) {
-    return { error: "AUTH_REQUIRED", message: "Debes iniciar sesión para configurar tu radar." }
+    return { success: false, error: "AUTH_REQUIRED", message: "Debes iniciar sesión para configurar tu radar." }
   }
 
   // 1. Guardar configuraciones generales
@@ -106,7 +106,7 @@ export async function updateRadarSettings(data: {
 
   if (settingsError) {
     console.error("[updateRadarSettings] Error guardando configuraciones básicas:", settingsError)
-    return { error: "DB_ERROR", message: "Error al guardar la configuración básica del radar." }
+    return { success: false, error: "DB_ERROR", message: "Error al guardar la configuración básica del radar." }
   }
 
   // 2. Sincronizar categorías (Junction)
@@ -117,7 +117,7 @@ export async function updateRadarSettings(data: {
 
   if (delCatError) {
     console.error("[updateRadarSettings] Error eliminando categorías anteriores:", delCatError)
-    return { error: "DB_ERROR", message: "Error al limpiar categorías anteriores." }
+    return { success: false, error: "DB_ERROR", message: "Error al limpiar categorías anteriores." }
   }
 
   if (data.categoryIds.length > 0) {
@@ -131,7 +131,7 @@ export async function updateRadarSettings(data: {
 
     if (insCatError) {
       console.error("[updateRadarSettings] Error insertando nuevas categorías:", insCatError)
-      return { error: "DB_ERROR", message: "Error al guardar las categorías seleccionadas." }
+      return { success: false, error: "DB_ERROR", message: "Error al guardar las categorías seleccionadas." }
     }
   }
 
@@ -143,7 +143,7 @@ export async function updateRadarSettings(data: {
 
   if (delVenError) {
     console.error("[updateRadarSettings] Error eliminando locales anteriores:", delVenError)
-    return { error: "DB_ERROR", message: "Error al limpiar locales anteriores." }
+    return { success: false, error: "DB_ERROR", message: "Error al limpiar locales anteriores." }
   }
 
   if (data.venueIds.length > 0) {
@@ -157,7 +157,7 @@ export async function updateRadarSettings(data: {
 
     if (insVenError) {
       console.error("[updateRadarSettings] Error insertando nuevos locales:", insVenError)
-      return { error: "DB_ERROR", message: "Error al guardar los locales seleccionados." }
+      return { success: false, error: "DB_ERROR", message: "Error al guardar los locales seleccionados." }
     }
   }
 
@@ -169,7 +169,7 @@ export async function updateRadarSettings(data: {
 
   if (delIgError) {
     console.error("[updateRadarSettings] Error eliminando cuentas de Instagram anteriores:", delIgError)
-    return { error: "DB_ERROR", message: "Error al limpiar cuentas de Instagram anteriores." }
+    return { success: false, error: "DB_ERROR", message: "Error al limpiar cuentas de Instagram anteriores." }
   }
 
   if (data.instagramAccountIds.length > 0) {
@@ -183,7 +183,7 @@ export async function updateRadarSettings(data: {
 
     if (insIgError) {
       console.error("[updateRadarSettings] Error insertando nuevas cuentas de Instagram:", insIgError)
-      return { error: "DB_ERROR", message: "Error al guardar los organizadores seleccionados." }
+      return { success: false, error: "DB_ERROR", message: "Error al guardar los organizadores seleccionados." }
     }
   }
 
@@ -355,7 +355,7 @@ export async function triggerTestRadarEmail(): Promise<{ success: boolean; messa
   try {
     const htmlContent = buildRadarEmailHtml(events, email_target)
 
-    const senderEmail = "onboarding@resend.dev" // Requerido en modo sandbox si el dominio no está verificado
+    const senderEmail = process.env.RESEND_FROM_EMAIL || "onboarding@resend.dev"
     
     const { error: sendError } = await resend.emails.send({
       from: `Qué Pinta Salta <${senderEmail}>`,

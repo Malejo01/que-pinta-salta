@@ -207,7 +207,7 @@ export async function GET(request: Request) {
       // Generar HTML y enviar (en sandbox Resend requiere enviar desde onboarding@resend.dev)
       try {
         const htmlContent = buildRadarEmailHtml(emailEvents, emailTarget)
-        const senderEmail = "onboarding@resend.dev"
+        const senderEmail = process.env.RESEND_FROM_EMAIL || "onboarding@resend.dev"
 
         const { error: sendError } = await resend.emails.send({
           from: `Qué Pinta Salta <${senderEmail}>`,
