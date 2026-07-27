@@ -26,6 +26,7 @@ const VALID_CATEGORIES: GeminiCategorySlug[] = [
   'congresos',
   'automovilismo',
   'espectaculos',
+  'museos',
 ]
 
 /**

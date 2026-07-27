@@ -27,6 +27,7 @@ export function inferCategorySlug(title: string, description: string = '', venue
   if (/deporte|futbol|basket|tenis|padel|rugby|maraton|ciclismo|carrera|torneo/.test(combined)) return 'deportes';
   if (/congreso|simposio|conferencia|encuentro/.test(combined)) return 'congresos';
   if (/automovilismo|rally|karting|motociclismo/.test(combined)) return 'automovilismo';
+  if (/museo|museos|galeria\b|galerias\b/.test(combined)) return 'museos';
   
   return 'espectaculos'; // Default fallback
 }

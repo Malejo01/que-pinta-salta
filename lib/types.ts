@@ -95,7 +95,7 @@ export interface EventView {
 }
 
 // Legacy type aliases for backwards compatibility
-export type EventCategory = "penas" | "boliches" | "teatro" | "ferias" | "talleres" | "cine"
+export type EventCategory = "penas" | "boliches" | "teatro" | "ferias" | "talleres" | "cine" | "museos"
 
 export const categoryLabels: Record<EventCategory, string> = {
   penas: "Peñas",
@@ -104,6 +104,7 @@ export const categoryLabels: Record<EventCategory, string> = {
   ferias: "Ferias",
   talleres: "Talleres",
   cine: "Cine",
+  museos: "Museos",
 }
 
 export type EventVibe = "familiar" | "adultos" | "exterior"

@@ -11,6 +11,7 @@ import {
   Baby,
   Trophy,
   Zap,
+  Landmark,
   type LucideIcon,
 } from "lucide-react"
 
@@ -27,6 +28,7 @@ const categoryIcons: Record<string, LucideIcon> = {
   infantil:     Baby,
   deportes:     Trophy,
   espectaculos: Zap,
+  museos:       Landmark,
 }
 
 export function getCategoryIcon(category: string): LucideIcon {
