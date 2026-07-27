@@ -1,8 +1,9 @@
 import type { Event } from '../types';
 import * as cheerio from 'cheerio';
 import slugify from 'slugify';
-import puppeteer from 'puppeteer';
 import { inferCategorySlug } from './categorize';
+
+const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
 
 function isTextFree(title: string, description: string): boolean {
   const text = `${title} ${description}`.toLowerCase()
@@ -108,12 +109,21 @@ export function parseAllEventsFromHtml(html: string): Partial<Omit<Event, 'venue
 export async function parseEventDetail(url: string): Promise<{ description: string; short_description: string; category_id: string; }> {
   if (!url) return { description: '', short_description: '', category_id: 'uncategorized' };
 
-  const browser = await puppeteer.launch({ headless: true });
-  const page = await browser.newPage();
-
   try {
-    await page.goto(url, { waitUntil: 'networkidle2', timeout: 15000 });
-    const html = await page.content();
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
+
+    const response = await fetch(url, {
+      headers: { 'User-Agent': USER_AGENT },
+      signal: controller.signal,
+    });
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      throw new Error(`HTTP error ${response.status} fetching ${url}`);
+    }
+
+    const html = await response.text();
     const $ = cheerio.load(html);
 
     // Descripción: localizar el comentario "INSERTA DESCRIPCION DEL EVENTO CON TEXTO ENRIQUECIDO"
@@ -155,8 +165,7 @@ export async function parseEventDetail(url: string): Promise<{ description: stri
   } catch (e) {
     console.warn('Error en parseEventDetail:', url, e);
     return { description: '', short_description: '', category_id: 'uncategorized' };
-  } finally {
-    await browser.close();
   }
 }
+
 

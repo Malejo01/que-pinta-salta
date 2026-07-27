@@ -1,5 +1,4 @@
 
-import puppeteer from 'puppeteer';
 import { parseAllEventsFromHtml, parseEventDetail } from './parsers';
 import { enrichVenueWithGoogle } from './venue-enrichment';
 import { deduplicateEvent } from './deduplicate';
@@ -16,15 +15,22 @@ type VenueData = {
 };
 import { saveEventsToSupabase, type SaveResult } from './save-to-supabase';
 
+const NORTE_TICKET_SALTA_URL = 'https://norteticket.com/?subcategoria=Salta';
+const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+
 /**
  * Scrapea todos los eventos de Salta en Norteticket y retorna un array de eventos completos.
  */
 export async function scrapeNorteticketSalta(): Promise<Event[]> {
-  const browser = await puppeteer.launch({ headless: true });
-  const page = await browser.newPage();
+  const response = await fetch(NORTE_TICKET_SALTA_URL, {
+    headers: { 'User-Agent': USER_AGENT }
+  });
 
-  await page.goto('https://norteticket.com/?subcategoria=Salta', { waitUntil: 'networkidle2' });
-  const html = await page.content();
+  if (!response.ok) {
+    throw new Error(`HTTP error ${response.status} fetching ${NORTE_TICKET_SALTA_URL}`);
+  }
+
+  const html = await response.text();
   const baseEvents = parseAllEventsFromHtml(html);
   const events: Event[] = [];
 
@@ -69,7 +75,6 @@ export async function scrapeNorteticketSalta(): Promise<Event[]> {
     }
   }
 
-  await browser.close();
   return events;
 }
 
@@ -83,3 +88,4 @@ if (require.main === module) {
     if (result.errors.length) console.error('Errores:', result.errors);
   });
 }
+

@@ -20,7 +20,7 @@ export function inferCategorySlug(title: string, description: string = '', venue
   if (/teatro|obra\b|drama|tragicomedia|escena/.test(textClean)) return 'teatro';
   
   if (/boliche|disco|electronica|dj\b|fiesta|club\b|party|dance|cachengue|retro/.test(combined)) return 'boliches';
-  if (/cine|pelicula|film|proyeccion|cortometraje/.test(textClean)) return 'cine';
+  if (/\bcine\b|\bcartelera\b|\bpelicula\b|\bfilm\b|\bproyeccion\b|\bcortometraje\b/.test(textClean)) return 'cine';
   
   if (/feria|mercado|artesanal|gastronomia|exposicion|expo\b/.test(combined)) return 'ferias';
   if (/taller|curso|workshop|clase|seminario|charla/.test(combined)) return 'talleres';

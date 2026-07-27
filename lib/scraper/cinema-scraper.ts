@@ -293,6 +293,19 @@ async function scrapeCineOpera(
 }
 
 /**
+ * Checks if a poster URL is valid (HTTP 200 and not empty/placeholder)
+ */
+async function isPosterUrlValid(url: string): Promise<boolean> {
+  if (!url || url.includes('no-image') || url.trim() === '') return false;
+  try {
+    const res = await fetch(url, { method: 'HEAD', headers: { 'User-Agent': 'Mozilla/5.0' } });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Runs the scraper for all 3 cinemas, aggregates showtimes, upserts to DB and soft-deletes inactive listings
  */
 export async function runCinemaScrapeAndSync() {
@@ -337,9 +350,13 @@ export async function runCinemaScrapeAndSync() {
 
     const movie = consolidatedMovies[slug];
     
-    // Si obtenemos una mejor imagen de portada, actualizarla
-    if (posterUrl && (!movie.poster_url || movie.poster_url.includes('no-image') || movie.poster_url.length < posterUrl.length)) {
-      movie.poster_url = posterUrl;
+    // Si obtenemos una mejor imagen de portada, actualizarla (dar prioridad a Cinemark CDN o si estaba vacía)
+    if (posterUrl) {
+      if (!movie.poster_url || movie.poster_url.includes('no-image')) {
+        movie.poster_url = posterUrl;
+      } else if (posterUrl.includes('cinemark.com.ar') && !movie.poster_url.includes('cinemark.com.ar')) {
+        movie.poster_url = posterUrl;
+      }
     }
 
     if (!movie.showings[cinemaKey]) {
@@ -422,7 +439,7 @@ export async function runCinemaScrapeAndSync() {
     // Verificar existencia previa
     const { data: existingMovie, error: fetchError } = await supabase
       .from('cinema_movies')
-      .select('id, showings')
+      .select('id, poster_url, showings')
       .eq('slug', slug)
       .maybeSingle();
 
@@ -431,13 +448,26 @@ export async function runCinemaScrapeAndSync() {
       continue;
     }
 
+    // Validar poster_url obtenida
+    let finalPosterUrl = movieData.poster_url;
+    const isValidNew = await isPosterUrlValid(finalPosterUrl);
+
+    if (!isValidNew) {
+      // Si la nueva URL da 404 o es inválida, verificar si existía una imagen previa en DB que sea válida
+      if (existingMovie?.poster_url && await isPosterUrlValid(existingMovie.poster_url)) {
+        finalPosterUrl = existingMovie.poster_url;
+      } else {
+        finalPosterUrl = '';
+      }
+    }
+
     if (existingMovie) {
       // Actualizar película existente
       const { error: updateError } = await supabase
         .from('cinema_movies')
         .update({
           title: movieData.title,
-          poster_url: movieData.poster_url,
+          poster_url: finalPosterUrl,
           is_currently_showing: true,
           showings: movieData.showings,
           updated_at: new Date().toISOString()
@@ -456,7 +486,7 @@ export async function runCinemaScrapeAndSync() {
         .insert({
           slug,
           title: movieData.title,
-          poster_url: movieData.poster_url,
+          poster_url: finalPosterUrl,
           is_currently_showing: true,
           showings: movieData.showings
         });
