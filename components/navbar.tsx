@@ -4,7 +4,7 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
 import Image from "next/image"
-import { Moon, Sun, Plus, LogIn, LogOut, User, Settings, SearchCheck, Tags, Heart, Radio, Coffee } from "lucide-react"
+import { Moon, Sun, Plus, LogIn, LogOut, User, Settings, SearchCheck, Tags, Heart, Radio, Coffee, Search } from "lucide-react"
 import { useTheme } from "@/components/theme-provider"
 import { useDonation } from "@/components/donation-context"
 import { Button } from "@/components/ui/button"
@@ -97,6 +97,12 @@ export function Navbar() {
         </Link>
 
         <div className="flex items-center gap-2">
+          <Button asChild variant="ghost" size="icon" className="hidden sm:inline-flex text-muted-foreground hover:text-primary transition-colors">
+            <Link href="/buscar" aria-label="Buscar eventos">
+              <Search className="size-5" />
+            </Link>
+          </Button>
+
           <Button
             variant="outline"
             size="sm"
@@ -122,7 +128,7 @@ export function Navbar() {
             <>
               <Button asChild variant="ghost" className="hidden sm:inline-flex text-muted-foreground hover:text-red-500 transition-colors mr-1 gap-2 font-semibold text-sm">
                 <Link href="/favoritos">
-                  <span>Agrega tus favoritos</span>
+                  <span>Tus Favoritos</span>
                   <Heart className="size-4.5 text-red-500 fill-red-500/10" />
                 </Link>
               </Button>

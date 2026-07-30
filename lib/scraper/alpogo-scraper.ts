@@ -12,7 +12,7 @@ function isTextFree(title: string, description: string): boolean {
 const ALPOGO_API_URL = 'https://alpogo.com/api/events/getEvents2';
 
 // Commercial categories matching EntradaUno criteria
-const COMMERCIAL_CATEGORIES = new Set(['recitales', 'teatro', 'boliches', 'penas']);
+const COMMERCIAL_CATEGORIES = new Set(['recitales', 'teatro', 'boliches', 'penas', 'alternativo']);
 
 /**
  * Maps Alpogo activity name to database category slugs

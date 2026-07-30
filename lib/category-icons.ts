@@ -12,6 +12,7 @@ import {
   Trophy,
   Zap,
   Landmark,
+  Flame,
   type LucideIcon,
 } from "lucide-react"
 
@@ -29,6 +30,7 @@ const categoryIcons: Record<string, LucideIcon> = {
   deportes:     Trophy,
   espectaculos: Zap,
   museos:       Landmark,
+  alternativo:  Flame,
 }
 
 export function getCategoryIcon(category: string): LucideIcon {

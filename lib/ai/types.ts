@@ -14,6 +14,7 @@ export type GeminiCategorySlug =
   | 'automovilismo'
   | 'espectaculos'
   | 'museos'
+  | 'alternativo'
 
 export interface GeminiExtractionResult {
   title: string

@@ -19,6 +19,8 @@ export function inferCategorySlug(title: string, description: string = '', venue
   if (/recital|concierto|show\b|banda\b|tour\b|gira\b|homenaje|tributo|rock|metal|pop|cumbia|trap|rap|sinfonica|orquesta|instrumental/.test(textClean)) return 'recitales';
   if (/teatro|obra\b|drama|tragicomedia|escena/.test(textClean)) return 'teatro';
   
+  if (/alternativ|gotica|gótica|dark\b|tributo.*banda|fiesta.*tematica|kpop/.test(combined)) return 'alternativo';
+  
   if (/boliche|disco|electronica|dj\b|fiesta|club\b|party|dance|cachengue|retro/.test(combined)) return 'boliches';
   if (/\bcine\b|\bcartelera\b|\bpelicula\b|\bfilm\b|\bproyeccion\b|\bcortometraje\b/.test(textClean)) return 'cine';
   

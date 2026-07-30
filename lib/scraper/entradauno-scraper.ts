@@ -6,7 +6,7 @@ import type { Event } from '../types';
 const CARTELERA_JSON_URL = 'https://s3.sa-east-1.amazonaws.com/contenido.general.entradauno/cache/12/cartelera.json';
 
 // Categorías comerciales prioritarias para monetización/Google Ads
-const COMMERCIAL_CATEGORIES = new Set(['recitales', 'teatro', 'humor', 'deportes', 'espectaculos']);
+const COMMERCIAL_CATEGORIES = new Set(['recitales', 'teatro', 'humor', 'deportes', 'espectaculos', 'alternativo']);
 
 /**
  * Detecta si el evento es realmente gratis analizando título y descripción

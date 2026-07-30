@@ -143,7 +143,6 @@ export function EventModalWrapper({ event, isAdmin = false, categories = [] }: E
             fill
             className="object-cover"
           />
-          <div className="absolute inset-0 bg-gradient-to-t from-background to-transparent" />
           <Badge className="absolute left-4 top-4 bg-primary text-primary-foreground">
             {createElement(iconComponent, { className: "mr-1 size-3" })}
             {displayEvent.categoryName}
