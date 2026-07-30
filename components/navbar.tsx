@@ -101,10 +101,11 @@ export function Navbar() {
             variant="outline"
             size="sm"
             onClick={() => openDonationModal()}
-            className="hidden sm:flex border-[#C12026]/30 text-[#C12026] hover:bg-[#C12026]/10 hover:text-[#C12026] transition-colors"
+            className="flex items-center justify-center border-[#C12026]/30 text-[#C12026] hover:bg-[#C12026]/10 hover:text-[#C12026] transition-colors p-2 sm:px-3"
+            title="Apoyar a Qué Pinta Salta"
           >
-            <Coffee className="mr-2 size-4" />
-            Apoyar
+            <Coffee className="size-4 sm:mr-2" />
+            <span className="hidden sm:inline">Apoyar</span>
           </Button>
           
           <Button

@@ -1,7 +1,6 @@
 export const DONATION_CONFIG = {
-  // TODO: Reemplazar con los links de Mercado Pago correspondientes
-  AMOUNT_2000: "#",
-  AMOUNT_5000: "#",
-  AMOUNT_10000: "#",
-  AMOUNT_CUSTOM: "#",
+  AMOUNT_2000: "https://mpago.la/1zqGwsS",
+  AMOUNT_5000: "https://mpago.la/1C2EUAB",
+  AMOUNT_10000: "https://mpago.la/1wfC2RQ",
+  AMOUNT_CUSTOM: "https://link.mercadopago.com.ar/quepintasalta",
 } as const;
