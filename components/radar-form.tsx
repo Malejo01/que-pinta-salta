@@ -8,6 +8,8 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { useToast } from "@/hooks/use-toast"
+import { ToastAction } from "@/components/ui/toast"
+import { useDonation } from "@/components/donation-context"
 import {
   Select,
   SelectContent,
@@ -29,6 +31,7 @@ interface RadarFormProps {
 export function RadarForm({ initialSettings, categories, venues, instagramAccounts }: RadarFormProps) {
   const router = useRouter()
   const { toast } = useToast()
+  const { openDonationModal } = useDonation()
   
   // Estados de formulario
   const [frequency, setFrequency] = useState<EmailFrequency>(
@@ -177,8 +180,17 @@ export function RadarForm({ initialSettings, categories, venues, instagramAccoun
       }
 
       toast({
-        title: "¡Configuración guardada!",
-        description: "Tu Radar Salteño se ha actualizado con tus preferencias.",
+        title: "¡Ya estás en el Radar! 📧",
+        description: "Vas a recibir los mejores eventos. Ayudanos a seguir creciendo y lanzar la App móvil haciendo una donación.",
+        action: (
+          <ToastAction 
+            altText="Donar ahora" 
+            onClick={() => openDonationModal("Vas a recibir los mejores eventos en tu correo. ¡Ayudanos a seguir creciendo y lanzar la App móvil haciendo una donación!")}
+            className="bg-[#C12026] text-white hover:bg-[#A0191F] border-none"
+          >
+            Donar ahora
+          </ToastAction>
+        ),
       })
       router.refresh()
     } catch (err) {

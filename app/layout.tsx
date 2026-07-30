@@ -6,6 +6,8 @@ import { ThemeProvider } from '@/components/theme-provider'
 import { Footer } from '@/components/footer'
 import { Toaster } from '@/components/ui/toaster'
 import { AuthModalProvider } from '@/components/auth-modal'
+import { DonationProvider } from '@/components/donation-context'
+import { DonationModal } from '@/components/donation-modal'
 import './globals.css'
 
 const montserrat = Montserrat({
@@ -140,10 +142,13 @@ export default function RootLayout({
           disableTransitionOnChange
         >
           <AuthModalProvider>
-            {children}
-            {modal}
-            <Footer />
-            <Toaster />
+            <DonationProvider>
+              {children}
+              {modal}
+              <Footer />
+              <Toaster />
+              <DonationModal />
+            </DonationProvider>
           </AuthModalProvider>
         </ThemeProvider>
         {process.env.NODE_ENV === 'production' && <Analytics />}

@@ -6,6 +6,8 @@ import { toggleFavorite } from "@/lib/actions/favorites"
 import { useAuthModal } from "./auth-modal"
 import { cn } from "@/lib/utils"
 import { useToast } from "@/hooks/use-toast"
+import { ToastAction } from "@/components/ui/toast"
+import { useDonation } from "@/components/donation-context"
 
 interface FavoriteButtonProps {
   itemId: string
@@ -24,6 +26,7 @@ export function FavoriteButton({
   const [isPending, setIsPending] = useState(false)
   const { open: openAuthModal } = useAuthModal()
   const { toast } = useToast()
+  const { openDonationModal } = useDonation()
 
   const handleToggle = async (e: React.MouseEvent) => {
     e.preventDefault()
@@ -57,12 +60,34 @@ export function FavoriteButton({
         return
       }
 
-      toast({
-        title: result.favorited ? "Favorito guardado" : "Favorito eliminado",
-        description: result.favorited 
-          ? "El elemento se agregó a tu agenda."
-          : "El elemento se quitó de tu agenda.",
-      })
+      if (result.favorited) {
+        let count = parseInt(sessionStorage.getItem('favorite_toast_count') || '0', 10);
+        count++;
+        sessionStorage.setItem('favorite_toast_count', count.toString());
+        
+        const shouldShowDonation = count % 2 !== 0; // 1, 3, 5, etc.
+
+        toast({
+          title: "Favorito guardado",
+          description: shouldShowDonation 
+            ? "¡Plan guardado! ❤️ Si Qué Pinta Salta te ayuda a organizar tu finde, invitamos un cafecito para ayudarnos a crear la App móvil."
+            : "El elemento se agregó a tu agenda.",
+          action: shouldShowDonation ? (
+            <ToastAction 
+              altText="Donar ahora" 
+              onClick={() => openDonationModal("¡Plan guardado! ❤️ Si Qué Pinta Salta te ayuda a organizar tu finde, invitamos un cafecito para ayudarnos a crear la App móvil.")}
+              className="bg-[#C12026] text-white hover:bg-[#A0191F] border-none"
+            >
+              Donar ahora
+            </ToastAction>
+          ) : undefined,
+        })
+      } else {
+        toast({
+          title: "Favorito eliminado",
+          description: "El elemento se quitó de tu agenda.",
+        })
+      }
     } catch (err) {
       setIsFavorite(previousState)
       toast({

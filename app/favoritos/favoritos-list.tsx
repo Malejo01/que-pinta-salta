@@ -6,6 +6,7 @@ import { ArrowLeft, Heart, MessageCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { EventCard } from "@/components/event-card"
 import { MovieModal } from "@/components/movie-modal"
+import { useDonation } from "@/components/donation-context"
 import type { DisplayEvent } from "@/components/home-content"
 
 interface FavoritosListProps {
@@ -32,6 +33,7 @@ function formatHeaderDate(dateStr: string): string {
 
 export function FavoritosList({ initialFavorites }: FavoritosListProps) {
   const [selectedMovie, setSelectedMovie] = useState<DisplayEvent | null>(null)
+  const { openDonationModal } = useDonation()
 
   // Agrupamiento y ordenamiento de favoritos
   const { flexible, datedGroups, sortedDates } = useMemo(() => {
@@ -100,6 +102,11 @@ export function FavoritosList({ initialFavorites }: FavoritosListProps) {
     const encodedText = encodeURIComponent(message)
     const url = `https://api.whatsapp.com/send?text=${encodedText}`
     window.open(url, "_blank")
+    
+    // Mostramos el modal de donación luego de compartir
+    setTimeout(() => {
+      openDonationModal("¡Gracias por compartir tu agenda! ¿Nos invitás un cafecito para fondear el desarrollo de la App móvil oficial?")
+    }, 800)
   }
 
   if (initialFavorites.length === 0) {

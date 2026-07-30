@@ -3,8 +3,9 @@
 import Link from "next/link"
 import Image from "next/image"
 import { useEffect, useState } from "react"
-import { Github, Linkedin, Globe, MessageCircle } from "lucide-react"
+import { Github, Linkedin, Globe, MessageCircle, Coffee } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
+import { useDonation } from "@/components/donation-context"
 import type { User } from "@supabase/supabase-js"
 
 const socialLinks = [
@@ -29,6 +30,7 @@ const CONTACT_URL = "https://www.linkedin.com/in/mauro-alejandro-lizarraga-82607
 
 export function Footer() {
   const [user, setUser] = useState<User | null>(null)
+  const { openDonationModal } = useDonation()
   
   const whatsappNumber = process.env.NEXT_PUBLIC_CONTACT_WHATSAPP || "5493875813233"
   const whatsappUrl = `https://wa.me/${whatsappNumber}?text=Hola!%20Me%20interesa%20anunciar%20mi%20negocio%20o%20evento%20en%20Que%20Pinta%20Salta.`
@@ -142,6 +144,25 @@ export function Footer() {
               Contactame
             </a>
           </div>
+        </div>
+
+        {/* Donation CTA */}
+        <div className="mt-12 rounded-2xl border border-[#C12026]/20 bg-[#C12026]/5 p-6 sm:p-8 flex flex-col sm:flex-row items-center justify-between gap-6 text-center sm:text-left">
+          <div className="max-w-xl space-y-2">
+            <h3 className="text-lg font-bold text-foreground flex items-center justify-center sm:justify-start gap-2">
+              <Coffee className="size-5 text-[#C12026]" />
+              ¿Te gusta la plataforma?
+            </h3>
+            <p className="text-sm text-muted-foreground leading-relaxed">
+              Ayudanos a llevarla a tu celular. Hacé tu aporte para fondear el desarrollo de la futura aplicación móvil oficial (Android/iOS) de Qué Pinta Salta.
+            </p>
+          </div>
+          <button
+            onClick={() => openDonationModal("Ayudanos a llevar Qué Pinta Salta a tu celular. Tu aporte es clave para el desarrollo de la App.")}
+            className="shrink-0 rounded-xl bg-[#C12026] px-6 py-3 text-sm font-bold text-white shadow-lg shadow-[#C12026]/20 transition-all hover:scale-105 hover:bg-[#A0191F]"
+          >
+            Hacer un aporte
+          </button>
         </div>
 
         {/* Bottom bar */}

@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { formatEventDateShort } from "@/lib/date-format"
 import { FavoriteButton } from "@/components/favorite-button"
+import { useDonation } from "@/components/donation-context"
 import type { DisplayEvent } from "@/components/home-content"
 
 interface EventCardProps {
@@ -21,6 +22,7 @@ interface EventCardProps {
 
 export function EventCard({ event, isFavorite, onToggleFavorite, onOpenMovie }: EventCardProps) {
   const [imgSrc, setImgSrc] = useState<string>(event.image || "/placeholder.jpg")
+  const { openDonationModal } = useDonation()
 
   useEffect(() => {
     setImgSrc(event.image || "/placeholder.jpg")
@@ -65,6 +67,11 @@ export function EventCard({ event, isFavorite, onToggleFavorite, onOpenMovie }: 
     const encodedText = encodeURIComponent(message)
     const url = `https://api.whatsapp.com/send?text=${encodedText}`
     window.open(url, "_blank")
+    
+    // Mostramos el modal de donación luego de compartir
+    setTimeout(() => {
+      openDonationModal("¡Gracias por compartir! Si Qué Pinta Salta te ayuda a organizar tu finde, ¿nos invitás un cafecito para fondear el desarrollo de la App móvil oficial?")
+    }, 800)
   }
 
   return (

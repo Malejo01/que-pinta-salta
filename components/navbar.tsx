@@ -4,8 +4,9 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
 import Image from "next/image"
-import { Moon, Sun, Plus, LogIn, LogOut, User, Settings, SearchCheck, Tags, Heart, Radio } from "lucide-react"
+import { Moon, Sun, Plus, LogIn, LogOut, User, Settings, SearchCheck, Tags, Heart, Radio, Coffee } from "lucide-react"
 import { useTheme } from "@/components/theme-provider"
+import { useDonation } from "@/components/donation-context"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -23,6 +24,7 @@ export function Navbar() {
   const [user, setUser] = useState<SupabaseUser | null>(null)
   const [isAdmin, setIsAdmin] = useState(false)
   const [loading, setLoading] = useState(true)
+  const { openDonationModal } = useDonation()
 
   useEffect(() => {
     const supabase = createClient()
@@ -95,6 +97,16 @@ export function Navbar() {
         </Link>
 
         <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => openDonationModal()}
+            className="hidden sm:flex border-[#C12026]/30 text-[#C12026] hover:bg-[#C12026]/10 hover:text-[#C12026] transition-colors"
+          >
+            <Coffee className="mr-2 size-4" />
+            Apoyar
+          </Button>
+          
           <Button
             variant="ghost"
             size="icon"
