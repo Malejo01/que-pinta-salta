@@ -11,6 +11,7 @@ import {
 } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import Image from 'next/image'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
@@ -66,18 +67,48 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-svh w-full flex-col items-center justify-center bg-background p-6 md:p-10">
-      <div className="w-full max-w-sm">
-        <Link 
-          href="/" 
+    <div className="relative flex min-h-svh w-full flex-col items-center justify-center p-6 md:p-10 bg-background overflow-hidden">
+      {/* Patrón de fondo de marca */}
+      <div
+        className="pointer-events-none absolute inset-0 bg-repeat opacity-[0.06] dark:opacity-[0.035] dark:invert dark:hue-rotate-180"
+        style={{ backgroundImage: "url('/brand/patron-claro.png')", backgroundSize: '280px' }}
+      />
+
+      <div className="relative w-full max-w-sm">
+        <Link
+          href="/"
           className="mb-6 flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
         >
           <ArrowLeft className="size-4" />
           Volver a inicio
         </Link>
-        
-        <div className="mb-8 text-center">
-          <h1 className="text-2xl font-bold text-primary">Que pinta Salta</h1>
+
+        {/* Logo y nombre de marca */}
+        <div className="mb-8 flex flex-col items-center gap-3">
+          <div className="rounded-full dark:ring-2 dark:ring-[#C12026]/70 dark:ring-offset-2 dark:ring-offset-background drop-shadow-md">
+            <Image
+              src="/brand/logo-circular.png"
+              alt="Que pinta Salta"
+              width={72}
+              height={72}
+              className="rounded-full block"
+              priority
+            />
+          </div>
+          <div className="text-center leading-none">
+            <p
+              className="text-2xl leading-snug"
+              style={{ fontFamily: 'var(--font-yellowtail)', color: '#C12026' }}
+            >
+              Que pinta?
+            </p>
+            <p
+              className="text-lg tracking-normal text-center text-[#232F42] dark:text-zinc-100 uppercase"
+              style={{ fontFamily: 'var(--font-poppins)', fontWeight: 800 }}
+            >
+              Salta
+            </p>
+          </div>
           <p className="text-sm text-muted-foreground">Eventos en Salta Capital</p>
         </div>
 

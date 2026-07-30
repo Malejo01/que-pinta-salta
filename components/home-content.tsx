@@ -612,24 +612,45 @@ export function HomeContent({
         )}
 
         {filteredEvents.length === 0 && hasFilters && (
-          <div className="container mx-auto px-4 py-16 text-center">
-            <p className="text-lg text-muted-foreground">
-              No se encontraron eventos con los filtros seleccionados.
-            </p>
-            <button
-              onClick={clearFilters}
-              className="mt-4 text-primary hover:underline"
-            >
-              Limpiar filtros
-            </button>
+          <div className="relative overflow-hidden">
+            {/* Patrón de fondo de marca */}
+            <div
+              className="pointer-events-none absolute inset-0 bg-repeat opacity-[0.07] dark:opacity-[0.04] dark:invert dark:hue-rotate-180"
+              style={{ backgroundImage: "url('/brand/patron-claro.png')", backgroundSize: "320px" }}
+            />
+            <div className="container mx-auto px-4 py-20 text-center relative">
+              <p className="text-lg text-muted-foreground">
+                No se encontraron eventos con los filtros seleccionados.
+              </p>
+              <button
+                onClick={clearFilters}
+                className="mt-4 text-primary hover:underline font-semibold"
+              >
+                Limpiar filtros
+              </button>
+            </div>
           </div>
         )}
 
         {filteredEvents.length === 0 && !hasFilters && (
-          <div className="container mx-auto px-4 py-16 text-center">
-            <p className="text-lg text-muted-foreground">
-              No hay eventos disponibles en este momento.
-            </p>
+          <div className="relative overflow-hidden min-h-[300px] flex items-center justify-center">
+            {/* Patrón de fondo de marca */}
+            <div
+              className="pointer-events-none absolute inset-0 bg-repeat opacity-[0.07] dark:opacity-[0.04] dark:invert dark:hue-rotate-180"
+              style={{ backgroundImage: "url('/brand/patron-claro.png')", backgroundSize: "320px" }}
+            />
+            <div className="container mx-auto px-4 py-16 text-center relative flex flex-col items-center gap-4">
+              <Image
+                src="/brand/logo-circular.png"
+                alt="Que pinta Salta"
+                width={80}
+                height={80}
+                className="opacity-30"
+              />
+              <p className="text-lg text-muted-foreground">
+                No hay eventos disponibles en este momento.
+              </p>
+            </div>
           </div>
         )}
       </main>

@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from 'next'
-import { Montserrat } from 'next/font/google'
+import { Montserrat, Yellowtail, Poppins } from 'next/font/google'
 import { GoogleTagManager } from '@next/third-parties/google'
 import { Analytics } from '@vercel/analytics/next'
 import { ThemeProvider } from '@/components/theme-provider'
@@ -12,6 +12,20 @@ const montserrat = Montserrat({
   subsets: ['latin'],
   display: 'swap',
   variable: '--font-montserrat',
+})
+
+const yellowtail = Yellowtail({
+  subsets: ['latin'],
+  weight: '400',
+  display: 'swap',
+  variable: '--font-yellowtail',
+})
+
+const poppins = Poppins({
+  subsets: ['latin'],
+  weight: ['800'],
+  display: 'swap',
+  variable: '--font-poppins',
 })
 
 export const metadata: Metadata = {
@@ -107,7 +121,7 @@ export default function RootLayout({
   modal: React.ReactNode
 }>) {
   return (
-    <html lang="es" className={montserrat.variable} suppressHydrationWarning>
+    <html lang="es" className={`${montserrat.variable} ${yellowtail.variable} ${poppins.variable}`} suppressHydrationWarning>
       <head>
         {process.env.NEXT_PUBLIC_ADSENSE_CLIENT_ID && (
           <script

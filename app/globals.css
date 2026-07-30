@@ -76,6 +76,8 @@
 
 @theme inline {
   --font-sans: var(--font-montserrat), 'Montserrat', sans-serif;
+  --font-yellowtail: var(--font-yellowtail), 'Yellowtail', cursive;
+  --font-poppins: var(--font-poppins), 'Poppins', sans-serif;
   --font-mono: 'Geist Mono', 'Geist Mono Fallback';
   --color-background: var(--background);
   --color-foreground: var(--foreground);

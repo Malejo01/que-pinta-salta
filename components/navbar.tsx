@@ -3,6 +3,7 @@
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
+import Image from "next/image"
 import { Moon, Sun, Plus, LogIn, LogOut, User, Settings, SearchCheck, Tags, Heart, Radio } from "lucide-react"
 import { useTheme } from "@/components/theme-provider"
 import { Button } from "@/components/ui/button"
@@ -63,13 +64,33 @@ export function Navbar() {
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <nav className="container mx-auto flex h-16 items-center justify-between px-4">
-        <Link href="/" className="flex items-center gap-2">
-          <div className="flex size-10 items-center justify-center rounded-lg bg-primary">
-            <span className="text-xl font-bold text-primary-foreground">QP</span>
+        <Link href="/" className="flex items-center gap-2.5">
+          {/* Wrapper con ring rojo en dark mode para reemplazar el halo crema */}
+          <div className="rounded-full dark:ring-2 dark:ring-[#C12026]/70 dark:ring-offset-1 dark:ring-offset-background">
+            <Image
+              src="/brand/logo-circular.png"
+              alt="Que pinta Salta logo"
+              width={44}
+              height={44}
+              className="rounded-full object-contain block"
+              priority
+            />
           </div>
-          <div className="hidden sm:block">
-            <span className="text-lg font-bold leading-tight text-foreground block">Que pinta</span>
-            <p className="text-xs font-medium text-primary">SALTA</p>
+          <div className="hidden sm:block leading-none">
+            <span
+              className="block text-lg leading-tight"
+              style={{ fontFamily: 'var(--font-yellowtail)', color: '#C12026' }}
+              suppressHydrationWarning
+            >
+              Que pinta?
+            </span>
+            <span
+              className="block text-base tracking-normal text-center text-[#232F42] dark:text-zinc-100 uppercase"
+              style={{ fontFamily: 'var(--font-poppins)', fontWeight: 800 }}
+              suppressHydrationWarning
+            >
+              Salta
+            </span>
           </div>
         </Link>
 
