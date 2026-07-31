@@ -4,7 +4,7 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
 import Image from "next/image"
-import { Moon, Sun, Plus, LogIn, LogOut, User, Settings, SearchCheck, Tags, Heart, Radio, Coffee, Search } from "lucide-react"
+import { Moon, Sun, Plus, LogIn, LogOut, User, Settings, SearchCheck, Tags, Heart, Radio, Coffee, Search, Calendar } from "lucide-react"
 import { useTheme } from "@/components/theme-provider"
 import { useDonation } from "@/components/donation-context"
 import { Button } from "@/components/ui/button"
@@ -15,6 +15,12 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 import { createClient } from "@/lib/supabase/client"
 import type { User as SupabaseUser } from "@supabase/supabase-js"
 
@@ -125,20 +131,35 @@ export function Navbar() {
           </Button>
           
           {user && (
-            <>
-              <Button asChild variant="ghost" className="hidden sm:inline-flex text-muted-foreground hover:text-red-500 transition-colors mr-1 gap-2 font-semibold text-sm">
-                <Link href="/favoritos">
-                  <span>Tus Favoritos</span>
-                  <Heart className="size-4.5 text-red-500 fill-red-500/10" />
-                </Link>
-              </Button>
-              <Button asChild variant="ghost" className="hidden sm:inline-flex text-muted-foreground hover:text-primary transition-colors mr-1 gap-2 font-semibold text-sm" title="Mi Radar">
-                <Link href="/radar">
-                  <span>Radar Salteño</span>
-                  <Radio className="size-4.5 text-primary" />
-                </Link>
-              </Button>
-            </>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button asChild variant="ghost" className="text-muted-foreground hover:text-red-500 transition-colors mr-1 gap-2 font-semibold text-sm">
+                    <Link href="/favoritos">
+                      <Heart className="size-4.5 text-red-500 fill-red-500/10" />
+                      <span className="hidden sm:inline">Tus Favoritos</span>
+                    </Link>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Tus Favoritos</p>
+                </TooltipContent>
+              </Tooltip>
+
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button asChild variant="ghost" className="text-muted-foreground hover:text-primary transition-colors mr-1 gap-2 font-semibold text-sm">
+                    <Link href="/radar">
+                      <Radio className="size-4.5 text-primary" />
+                      <span className="hidden sm:inline">Radar Salteño</span>
+                    </Link>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Radar Salteño</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           )}
 
           {isAdmin && (
@@ -167,6 +188,13 @@ export function Navbar() {
                       )}
                     </div>
                     <DropdownMenuSeparator />
+                    {/* Grupo 1: Perfil, Favoritos, Radar */}
+                    <DropdownMenuItem asChild>
+                      <Link href="/perfil">
+                        <User className="mr-2 size-4" />
+                        Mi Perfil
+                      </Link>
+                    </DropdownMenuItem>
                     <DropdownMenuItem asChild>
                       <Link href="/favoritos">
                         <Heart className="mr-2 size-4 text-red-500" />
@@ -179,13 +207,20 @@ export function Navbar() {
                         Mi Radar Salteño
                       </Link>
                     </DropdownMenuItem>
+                    
+                    <DropdownMenuSeparator />
+                    
+                    {/* Grupo 2: Mis Eventos */}
                     <DropdownMenuItem asChild>
-                      <Link href="/perfil">
-                        <User className="mr-2 size-4" />
-                        Mi Perfil
+                      <Link href="/mis-eventos">
+                        <Calendar className="mr-2 size-4" />
+                        Mis Eventos
                       </Link>
                     </DropdownMenuItem>
+
                     <DropdownMenuSeparator />
+
+                    {/* Grupo 3: Admin */}
                     {isAdmin && (
                       <>
                         <DropdownMenuItem asChild>
@@ -209,6 +244,8 @@ export function Navbar() {
                         <DropdownMenuSeparator />
                       </>
                     )}
+                    
+                    {/* Grupo 4: Logout */}
                     <DropdownMenuItem onClick={handleSignOut}>
                       <LogOut className="mr-2 size-4" />
                       Cerrar sesión

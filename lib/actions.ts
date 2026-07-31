@@ -39,6 +39,24 @@ export async function createEvent(formData: FormData) {
   const ticketUrl = formData.get("ticketUrl") as string
   const ageRestriction = parseInt(formData.get("ageRestriction") as string) || 0
   const imageUrl = formData.get("imageUrl") as string
+  const cloneId = formData.get("cloneId") as string | null
+
+  if (cloneId) {
+    const { data: originalEvent } = await supabase
+      .from("events")
+      .select("start_date, image_url")
+      .eq("id", cloneId)
+      .single()
+
+    if (originalEvent) {
+      const originalDate = new Date(originalEvent.start_date).getTime()
+      const newDate = new Date(startDate).getTime()
+      
+      if (originalDate === newDate && originalEvent.image_url === imageUrl) {
+        return { error: "Debes cambiar la fecha o la imagen para duplicar este evento" }
+      }
+    }
+  }
 
   const slug = generateSlug(title) + "-" + Date.now().toString(36)
 
@@ -111,14 +129,9 @@ export async function createEvent(formData: FormData) {
     }
   }
 
-  if (isAdmin) {
-    revalidatePath("/")
-    redirect(`/evento/${data.id}`)
-  } else {
-    revalidatePath("/perfil")
-    revalidatePath("/")
-    redirect("/perfil")
-  }
+  revalidatePath("/mis-eventos")
+  revalidatePath("/")
+  redirect("/mis-eventos")
 }
 
 export async function uploadFlyer(formData: FormData) {
@@ -213,4 +226,107 @@ export async function getUserFavorites() {
     .eq("user_id", user.id)
 
   return data?.map(f => f.event_id) || []
+}
+
+export async function deleteUserEvent(eventId: string) {
+  const supabase = await createClient()
+  
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) {
+    return { error: "No autorizado" }
+  }
+
+  const { data: event } = await supabase
+    .from("events")
+    .select("created_by")
+    .eq("id", eventId)
+    .single()
+    
+  if (!event || event.created_by !== user.id) {
+    return { error: "No tienes permiso para eliminar este evento" }
+  }
+
+  const { error } = await supabase
+    .from("events")
+    .delete()
+    .eq("id", eventId)
+
+  if (error) {
+    return { error: "Error al eliminar el evento" }
+  }
+
+  revalidatePath("/mis-eventos")
+  return { success: true }
+}
+
+export async function updateUserEvent(formData: FormData) {
+  const supabase = await createClient()
+  
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) {
+    return { error: "Debes iniciar sesión para actualizar un evento" }
+  }
+
+  const editId = formData.get("editId") as string
+  if (!editId) {
+    return { error: "Falta el ID del evento a editar" }
+  }
+
+  // Verificar propiedad
+  const { data: existingEvent } = await supabase
+    .from("events")
+    .select("created_by, status")
+    .eq("id", editId)
+    .single()
+    
+  if (!existingEvent || existingEvent.created_by !== user.id) {
+    return { error: "No tienes permiso para editar este evento" }
+  }
+
+  const title = formData.get("title") as string
+  const description = formData.get("description") as string
+  const shortDescription = formData.get("shortDescription") as string
+  const categoryId = formData.get("categoryId") as string
+  const venueId = formData.get("venueId") as string
+  const startDate = formData.get("startDate") as string
+  const endDate = formData.get("endDate") as string
+  const priceMin = parseFloat(formData.get("priceMin") as string) || 0
+  const priceMax = parseFloat(formData.get("priceMax") as string) || null
+  const isFree = formData.get("isFree") === "true"
+  const ticketUrl = formData.get("ticketUrl") as string
+  const ageRestriction = parseInt(formData.get("ageRestriction") as string) || 0
+  const imageUrl = formData.get("imageUrl") as string
+
+  // Keep slug unchanged or update it? Typically we keep it to not break links,
+  // but if title changes maybe update? Let's just update the fields and leave slug.
+
+  const { error } = await supabase
+    .from("events")
+    .update({
+      title,
+      description,
+      short_description: shortDescription,
+      category_id: categoryId,
+      venue_id: venueId || null,
+      start_date: startDate,
+      end_date: endDate || null,
+      price_min: isFree ? 0 : priceMin,
+      price_max: isFree ? null : priceMax,
+      is_free: isFree,
+      ticket_url: ticketUrl || null,
+      age_restriction: ageRestriction,
+      image_url: imageUrl || null,
+    })
+    .eq("id", editId)
+
+  if (error) {
+    console.error("Error updating event:", error)
+    return { error: "Error al actualizar el evento: " + error.message }
+  }
+
+  revalidatePath("/mis-eventos")
+  revalidatePath("/")
+  revalidatePath(`/evento/${editId}`)
+  
+  redirect("/mis-eventos")
 }
