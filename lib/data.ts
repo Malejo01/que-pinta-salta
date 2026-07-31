@@ -84,7 +84,8 @@ export async function getEventById(id: string): Promise<(Event & { category: Cat
     .select(`
       *,
       category:categories(*),
-      venue:venues(*)
+      venue:venues(*),
+      profile:profiles!events_created_by_fkey(role, full_name, contact_type, contact_value)
     `)
     .eq('id', id)
     .single()

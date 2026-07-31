@@ -31,7 +31,7 @@ export async function getUsers() {
   return { data: data ?? [], error: dbError?.message ?? null }
 }
 
-export async function updateUserRole(userId: string, newRole: "USER" | "ADMIN") {
+export async function updateUserRole(userId: string, newRole: "USER" | "ADMIN" | "COLLABORATOR") {
   const { supabase, error } = await assertAdmin()
   if (error || !supabase) return { error }
 

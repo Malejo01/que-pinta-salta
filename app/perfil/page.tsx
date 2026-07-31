@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
 import { formatEventDateShort, formatEventTime } from "@/lib/date-format"
 import { ChangePasswordForm } from "@/components/change-password-form"
+import { ContactSettingsForm } from "@/components/contact-settings-form"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -18,6 +19,12 @@ export default async function PerfilPage() {
   if (!user) {
     redirect("/auth/login?next=/perfil")
   }
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("role, contact_type, contact_value")
+    .eq("id", user.id)
+    .single()
 
   // Obtener los eventos creados por el usuario
   const { data: events, error } = await supabase
@@ -52,9 +59,11 @@ export default async function PerfilPage() {
               <h1 className="text-2xl font-bold tracking-tight text-foreground md:text-3xl">Mi Perfil</h1>
               <p className="text-sm font-medium text-muted-foreground">{user.email}</p>
               <div className="flex flex-wrap justify-center gap-2 pt-2 md:justify-start">
-                <Badge variant="outline" className="bg-background/80 py-1 font-semibold">
-                  Colaborador local
-                </Badge>
+                {profile?.role === "COLLABORATOR" && (
+                  <Badge variant="outline" className="bg-background/80 py-1 font-semibold">
+                    Colaborador local
+                  </Badge>
+                )}
                 <Badge variant="secondary" className="font-semibold">
                   {events?.length || 0} {events?.length === 1 ? "evento subido" : "eventos subidos"}
                 </Badge>
@@ -111,6 +120,7 @@ export default async function PerfilPage() {
             ) : (
               <div className="grid gap-4 sm:grid-cols-1 md:grid-cols-2">
                 {events.map((event) => {
+                  const isPending = event.status === "PENDING"
                   const isDraft = event.status === "DRAFT"
                   const isPublished = event.status === "PUBLISHED"
                   const isCancelled = event.status === "CANCELLED"
@@ -135,9 +145,14 @@ export default async function PerfilPage() {
                           
                           {/* Badge de Estado flotante */}
                           <div className="absolute left-3 top-3">
-                            {isDraft && (
+                            {isPending && (
                               <Badge className="bg-amber-500/90 text-white font-semibold shadow border-0 hover:bg-amber-500">
                                 Pendiente de revisión
+                              </Badge>
+                            )}
+                            {isDraft && (
+                              <Badge className="bg-slate-500/90 text-white font-semibold shadow border-0 hover:bg-slate-500">
+                                Borrador local
                               </Badge>
                             )}
                             {isPublished && (
@@ -194,7 +209,9 @@ export default async function PerfilPage() {
                           </Button>
                         ) : (
                           <span className="text-xs text-muted-foreground italic flex items-center py-1">
-                            {isDraft ? "Sometido a revisión el " + new Date(event.created_at).toLocaleDateString() : "No publicado"}
+                            {isPending 
+                              ? "Sometido a revisión el " + new Date(event.created_at).toLocaleDateString() 
+                              : isDraft ? "Guardado como borrador" : "No publicado"}
                           </span>
                         )}
                       </div>
@@ -207,6 +224,7 @@ export default async function PerfilPage() {
 
           {/* Columna de cambio de contraseña (1/3 de ancho) */}
           <div className="space-y-6 lg:col-span-1">
+            {profile && <ContactSettingsForm profile={{ id: user.id, ...profile }} />}
             <ChangePasswordForm />
           </div>
 

@@ -14,13 +14,20 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { useToast } from "@/hooks/use-toast"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { updateUserRole } from "@/lib/user-actions"
 
 interface Profile {
   id: string
   email: string
   full_name: string | null
-  role: "USER" | "ADMIN"
+  role: "USER" | "ADMIN" | "COLLABORATOR"
   created_at: string
 }
 
@@ -43,8 +50,8 @@ export function UsersTable({ initialUsers }: { initialUsers: Profile[] }) {
     )
   }, [deferredSearch, users])
 
-  const handleRoleToggle = (user: Profile) => {
-    const newRole = user.role === "ADMIN" ? "USER" : "ADMIN"
+  const handleRoleChange = (user: Profile, newRole: "USER" | "ADMIN" | "COLLABORATOR") => {
+    if (user.role === newRole) return
 
     // Optimistic update
     setUsers((prev) =>
@@ -64,9 +71,14 @@ export function UsersTable({ initialUsers }: { initialUsers: Profile[] }) {
           variant: "destructive",
         })
       } else {
+        const roleNames = {
+          USER: "Usuario",
+          ADMIN: "Administrador",
+          COLLABORATOR: "Colaborador"
+        }
         toast({
           title: "Rol actualizado",
-          description: `${user.email} ahora es ${newRole === "ADMIN" ? "Administrador" : "Usuario"}.`,
+          description: `${user.email} ahora es ${roleNames[newRole]}.`,
         })
       }
     })
@@ -118,37 +130,34 @@ export function UsersTable({ initialUsers }: { initialUsers: Profile[] }) {
                   </TableCell>
                   <TableCell>
                     <Badge
-                      variant={user.role === "ADMIN" ? "default" : "secondary"}
+                      variant={user.role === "ADMIN" ? "default" : user.role === "COLLABORATOR" ? "outline" : "secondary"}
                       className="gap-1"
                     >
                       {user.role === "ADMIN" ? (
                         <ShieldCheck className="size-3" />
+                      ) : user.role === "COLLABORATOR" ? (
+                        <ShieldCheck className="size-3 text-muted-foreground" />
                       ) : (
                         <ShieldOff className="size-3" />
                       )}
-                      {user.role === "ADMIN" ? "Administrador" : "Usuario"}
+                      {user.role === "ADMIN" ? "Administrador" : user.role === "COLLABORATOR" ? "Colaborador" : "Usuario"}
                     </Badge>
                   </TableCell>
                   <TableCell className="text-right">
-                    <Button
-                      variant="outline"
-                      size="sm"
+                    <Select
                       disabled={isPending}
-                      onClick={() => handleRoleToggle(user)}
-                      className="gap-2"
+                      value={user.role}
+                      onValueChange={(val: "USER" | "ADMIN" | "COLLABORATOR") => handleRoleChange(user, val)}
                     >
-                      {user.role === "ADMIN" ? (
-                        <>
-                          <ShieldOff className="size-3" />
-                          Revocar Admin
-                        </>
-                      ) : (
-                        <>
-                          <ShieldCheck className="size-3" />
-                          Hacer Admin
-                        </>
-                      )}
-                    </Button>
+                      <SelectTrigger className="w-[140px] ml-auto h-8 text-xs">
+                        <SelectValue placeholder="Seleccionar rol" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="USER">Usuario</SelectItem>
+                        <SelectItem value="COLLABORATOR">Colaborador</SelectItem>
+                        <SelectItem value="ADMIN">Administrador</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </TableCell>
                 </TableRow>
               ))

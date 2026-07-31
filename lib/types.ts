@@ -1,6 +1,6 @@
 // Database types matching Supabase schema
-export type UserRole = 'USER' | 'ADMIN'
-export type EventStatus = 'DRAFT' | 'PUBLISHED' | 'CANCELLED' | 'PAST'
+export type UserRole = 'USER' | 'ADMIN' | 'COLLABORATOR'
+export type EventStatus = 'DRAFT' | 'PUBLISHED' | 'CANCELLED' | 'PAST' | 'PENDING'
 export type NotificationType = 'EMAIL' | 'PUSH' | 'WHATSAPP'
 
 export interface Category {
@@ -32,6 +32,8 @@ export interface Profile {
   role: UserRole
   favorite_categories: string[]
   notification_preferences: NotificationType[]
+  contact_type?: 'whatsapp' | 'instagram' | 'facebook' | null
+  contact_value?: string | null
   created_at: string
   updated_at: string
 }

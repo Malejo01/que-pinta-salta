@@ -499,4 +499,67 @@ export async function triggerAIProcessing(limit: number = 3) {
   }
 }
 
+export async function getPendingEvents() {
+  const supabase = await createClient()
+
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return []
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single()
+
+  if (profile?.role !== 'ADMIN') return []
+
+  // El left join con profiles se debe hacer a través del created_by
+  const { data, error } = await supabase
+    .from('events')
+    .select(`
+      *,
+      category:categories(id, name, slug),
+      venue:venues(id, name),
+      profile:profiles!events_created_by_fkey(full_name, email)
+    `)
+    .eq('status', 'PENDING')
+    .order('created_at', { ascending: false })
+
+  if (error) {
+    console.error('Error fetching pending events:', error)
+    return []
+  }
+
+  return data || []
+}
+
+export async function approvePendingEvent(eventId: string) {
+  const supabase = await createClient()
+
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'No autenticado' }
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single()
+
+  if (profile?.role !== 'ADMIN') return { error: 'No tienes permisos de administrador' }
+
+  const adminClient = getPrivilegedClient()
+
+  const { error } = await adminClient
+    .from('events')
+    .update({ status: 'PUBLISHED', updated_at: new Date().toISOString() })
+    .eq('id', eventId)
+
+  if (error) return { error: error.message }
+
+  revalidatePath('/admin/pendientes')
+  revalidatePath('/')
+  return { success: true }
+}
+
+
 

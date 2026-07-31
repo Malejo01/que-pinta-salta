@@ -50,7 +50,8 @@ export async function createEvent(formData: FormData) {
     .single()
   
   const isAdmin = profile?.role === "ADMIN"
-  const status = isAdmin ? "PUBLISHED" : "DRAFT"
+  const isCollaborator = profile?.role === "COLLABORATOR"
+  const status = isAdmin ? "PUBLISHED" : isCollaborator ? "PENDING" : "DRAFT"
 
   const { data, error } = await supabase
     .from("events")
@@ -81,7 +82,7 @@ export async function createEvent(formData: FormData) {
   }
 
   // Notificar por email al administrador si es un evento pendiente de revisión
-  if (status === "DRAFT") {
+  if (status === "PENDING" || status === "DRAFT") {
     try {
       const adminEmail = process.env.ADMIN_EMAIL || "tu-email-de-notificacion@gmail.com"
       const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000"

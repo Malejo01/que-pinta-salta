@@ -4,7 +4,7 @@ import Image from "next/image"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { createElement, useMemo, useState, useTransition } from "react"
-import { Calendar, MapPin, Clock, Users, ExternalLink, Navigation, ArrowLeft, Pencil, Check, X } from "lucide-react"
+import { Calendar, MapPin, Clock, Users, ExternalLink, Navigation, ArrowLeft, Pencil, Check, X, Instagram, Facebook, MessageCircle, User } from "lucide-react"
 import { vibeLabels, Event, Category, Venue } from "@/lib/types"
 import { Navbar } from "@/components/navbar"
 import { MobileNav } from "@/components/mobile-nav"
@@ -28,7 +28,11 @@ import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
 import { useToast } from "@/hooks/use-toast"
 
-type EventWithRelations = Event & { category: Category | null; venue: Venue | null }
+type EventWithRelations = Event & { 
+  category: Category | null; 
+  venue: Venue | null; 
+  profile?: { role: string; full_name: string | null; contact_type?: string | null; contact_value?: string | null } | null 
+}
 
 interface EventDetailPageProps {
   event: EventWithRelations
@@ -319,6 +323,40 @@ export function EventDetailPage({ event, isAdmin = false, categories = [], isFav
                     ? "Entrada Gratuita" 
                     : `$${displayEvent.price.toLocaleString("es-AR")}`}
                 </p>
+              </div>
+            )}
+
+            {event.profile?.role === "COLLABORATOR" && (
+              <div className="mb-6 rounded-xl border bg-card p-4">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+                    <User className="size-5" />
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Publicado por:</p>
+                    <p className="font-semibold">{event.profile.full_name || 'Colaborador Local'}</p>
+                  </div>
+                </div>
+                {event.profile.contact_value && (
+                  <Button 
+                    variant="outline" 
+                    className="w-full gap-2 justify-center"
+                    asChild
+                  >
+                    <a href={
+                      event.profile.contact_type === 'whatsapp' 
+                        ? `https://wa.me/${event.profile.contact_value.replace(/[^0-9]/g, '')}` 
+                        : event.profile.contact_value.startsWith('http') 
+                          ? event.profile.contact_value 
+                          : `https://${event.profile.contact_value}`
+                    } target="_blank" rel="noopener noreferrer">
+                      {event.profile.contact_type === 'whatsapp' ? <MessageCircle className="size-4" /> : null}
+                      {event.profile.contact_type === 'instagram' ? <Instagram className="size-4" /> : null}
+                      {event.profile.contact_type === 'facebook' ? <Facebook className="size-4" /> : null}
+                      Contactar Organizador
+                    </a>
+                  </Button>
+                )}
               </div>
             )}
 

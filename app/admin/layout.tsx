@@ -2,13 +2,14 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Tag, Users, Home, Instagram, Sparkles } from "lucide-react"
+import { Tag, Users, Home, Instagram, Sparkles, ClipboardList } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { ScraperButton } from "@/components/scraper-button"
 
 const navItems = [
   { href: "/admin/aliases", label: "Aliases", icon: Tag },
   { href: "/admin/users", label: "Usuarios", icon: Users },
+  { href: "/admin/pendientes", label: "Pendientes", icon: ClipboardList },
   { href: "/admin/instagram", label: "Instagram", icon: Instagram },
   { href: "/admin/revision", label: "Borradores (IA)", icon: Sparkles },
 ]
