@@ -11,21 +11,24 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { ArrowLeft, Loader2, ImageIcon } from "lucide-react"
-import { createEvent, uploadFlyer } from "@/lib/actions"
+import { createEvent, uploadFlyer, updateUserEvent } from "@/lib/actions"
 import type { Category, Venue } from "@/lib/types"
 
 interface EventFormProps {
   categories: Category[]
   venues: Venue[]
+  initialData?: any
+  cloneId?: string
+  editId?: string
 }
 
-export function EventForm({ categories, venues }: EventFormProps) {
+export function EventForm({ categories, venues, initialData, cloneId, editId }: EventFormProps) {
   const fileInputRef = useRef<HTMLInputElement>(null)
   
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
-  const [imageUrl, setImageUrl] = useState<string | null>(null)
-  const [isFree, setIsFree] = useState(false)
+  const [imageUrl, setImageUrl] = useState<string | null>(initialData?.image_url || null)
+  const [isFree, setIsFree] = useState(initialData?.is_free || false)
   const [error, setError] = useState<string | null>(null)
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -60,7 +63,9 @@ export function EventForm({ categories, venues }: EventFormProps) {
       formData.set("imageUrl", imageUrl)
     }
 
-    const result = await createEvent(formData)
+    const result = editId 
+      ? await updateUserEvent(formData)
+      : await createEvent(formData)
 
     if (result?.error) {
       setError(result.error)
@@ -76,12 +81,18 @@ export function EventForm({ categories, venues }: EventFormProps) {
               <ArrowLeft className="size-5" />
             </Link>
           </Button>
-          <h1 className="text-xl font-bold">Crear Nuevo Evento</h1>
+          <h1 className="text-xl font-bold">{editId ? "Editar Evento" : "Crear Nuevo Evento"}</h1>
         </div>
       </header>
 
       <main className="container mx-auto max-w-2xl px-4 py-8">
         <form onSubmit={handleSubmit} className="space-y-8">
+          {cloneId && (
+            <input type="hidden" name="cloneId" value={cloneId} />
+          )}
+          {editId && (
+            <input type="hidden" name="editId" value={editId} />
+          )}
           {error && (
             <div className="rounded-lg border border-destructive bg-destructive/10 p-4 text-sm text-destructive">
               {error}
@@ -137,6 +148,7 @@ export function EventForm({ categories, venues }: EventFormProps) {
                   id="title"
                   name="title"
                   placeholder="Ej: Peña Folklorica en La Casona"
+                  defaultValue={initialData?.title}
                   required
                 />
               </div>
@@ -147,6 +159,7 @@ export function EventForm({ categories, venues }: EventFormProps) {
                   id="shortDescription"
                   name="shortDescription"
                   placeholder="Una línea describiendo el evento"
+                  defaultValue={initialData?.short_description}
                   maxLength={500}
                 />
               </div>
@@ -157,13 +170,14 @@ export function EventForm({ categories, venues }: EventFormProps) {
                   id="description"
                   name="description"
                   placeholder="Describe el evento en detalle..."
+                  defaultValue={initialData?.description}
                   rows={4}
                 />
               </div>
 
               <div className="space-y-2">
                 <Label htmlFor="categoryId">Categoría *</Label>
-                <Select name="categoryId" required>
+                <Select name="categoryId" defaultValue={initialData?.category_id} required>
                   <SelectTrigger>
                     <SelectValue placeholder="Selecciona una categoría" />
                   </SelectTrigger>
@@ -179,7 +193,7 @@ export function EventForm({ categories, venues }: EventFormProps) {
 
               <div className="space-y-2">
                 <Label htmlFor="venueId">Lugar</Label>
-                <Select name="venueId">
+                <Select name="venueId" defaultValue={initialData?.venue_id || undefined}>
                   <SelectTrigger>
                     <SelectValue placeholder="Selecciona un lugar (opcional)" />
                   </SelectTrigger>
@@ -208,6 +222,7 @@ export function EventForm({ categories, venues }: EventFormProps) {
                     id="startDate"
                     name="startDate"
                     type="datetime-local"
+                    defaultValue={initialData?.start_date ? new Date(initialData.start_date).toISOString().slice(0, 16) : undefined}
                     required
                   />
                 </div>
@@ -217,6 +232,7 @@ export function EventForm({ categories, venues }: EventFormProps) {
                     id="endDate"
                     name="endDate"
                     type="datetime-local"
+                    defaultValue={initialData?.end_date ? new Date(initialData.end_date).toISOString().slice(0, 16) : undefined}
                   />
                 </div>
               </div>
@@ -248,6 +264,7 @@ export function EventForm({ categories, venues }: EventFormProps) {
                       type="number"
                       min="0"
                       placeholder="1000"
+                      defaultValue={initialData?.price_min}
                     />
                   </div>
                   <div className="space-y-2">
@@ -258,6 +275,7 @@ export function EventForm({ categories, venues }: EventFormProps) {
                       type="number"
                       min="0"
                       placeholder="3000"
+                      defaultValue={initialData?.price_max}
                     />
                   </div>
                 </div>
@@ -270,6 +288,7 @@ export function EventForm({ categories, venues }: EventFormProps) {
                   name="ticketUrl"
                   type="url"
                   placeholder="https://..."
+                  defaultValue={initialData?.ticket_url}
                 />
               </div>
             </CardContent>
@@ -283,7 +302,7 @@ export function EventForm({ categories, venues }: EventFormProps) {
             <CardContent className="space-y-6">
               <div className="space-y-2">
                 <Label htmlFor="ageRestriction">Restricción de Edad</Label>
-                <Select name="ageRestriction" defaultValue="0">
+                <Select name="ageRestriction" defaultValue={initialData?.age_restriction?.toString() || "0"}>
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
@@ -301,16 +320,16 @@ export function EventForm({ categories, venues }: EventFormProps) {
           {/* Submit */}
           <div className="flex gap-4">
             <Button type="button" variant="outline" className="flex-1" asChild>
-              <Link href="/">Cancelar</Link>
+              <Link href="/mis-eventos">Cancelar</Link>
             </Button>
             <Button type="submit" className="flex-1" disabled={isSubmitting}>
               {isSubmitting ? (
                 <>
                   <Loader2 className="mr-2 size-4 animate-spin" />
-                  Creando...
+                  {editId ? "Actualizando..." : "Creando..."}
                 </>
               ) : (
-                "Crear Evento"
+                editId ? "Actualizar Evento" : "Crear Evento"
               )}
             </Button>
           </div>
