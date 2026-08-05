@@ -1,10 +1,12 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
-import { scrapeNorteTicket, scrapeCentralTicket, scrapeEntradaUno, scrapeAlpogo } from './providers'
+import { scrapeNorteTicket, scrapeEntradaUno, scrapeAlpogo } from './providers'
 import { ScrapedEvent } from './types'
 import { upsertEventWithDeduplication } from '@/lib/scraper/deduplicate'
+import { upsertVenue } from '@/lib/scraper/save-to-supabase'
 import { archiveExpiredFlyers } from '@/lib/instagram/process-apify-payload'
 import { resolveCategoryWithAliases } from '@/lib/scraper/categorize'
+import { formatSaltaDayKey } from '@/lib/date-format'
 
 // Verify cron secret to prevent unauthorized access
 const CRON_SECRET = process.env.CRON_SECRET
@@ -25,35 +27,47 @@ function generateSlug(title: string): string {
 
 /**
  * Attempts to match a raw venue name to an existing venue in the database
- * using aliases or direct name matching
+ * using aliases or direct name matching. Si no existe, lo crea.
+ *
+ * Algunas fuentes traen el venue como "Teatro del Huerto, Salta, Salta"
+ * (nombre + domicilio), así que el match se hace contra la parte anterior
+ * a la primera coma. Crear el venue faltante importa: sin venue_id,
+ * findDuplicateEvent() no puede deduplicar por lugar y fecha.
  */
 async function resolveVenue(supabase: ReturnType<typeof createAdminClient>, rawVenueName: string) {
+  if (!rawVenueName) return null
+
+  const name = rawVenueName.split(',')[0].trim()
+  if (!name) return null
+
   // First try direct venue match
   const { data: directMatch } = await supabase
     .from('venues')
     .select('id, name')
-    .ilike('name', `%${rawVenueName}%`)
+    .ilike('name', `%${name}%`)
     .limit(1)
     .single()
-  
+
   if (directMatch) {
     return directMatch.id
   }
-  
+
   // Try aliases table
   const { data: aliasMatch } = await supabase
     .from('aliases')
     .select('target_id')
     .eq('target_type', 'venue')
-    .ilike('alias', `%${rawVenueName}%`)
+    .ilike('alias', `%${name}%`)
     .limit(1)
     .single()
-  
+
   if (aliasMatch) {
     return aliasMatch.target_id
   }
-  
-  return null
+
+  // Crear el venue, igual que hace la ruta manual vía saveEventsToSupabase.
+  // Se pasa la cadena completa para que quede el domicilio en `address`.
+  return await upsertVenue(rawVenueName)
 }
 
 
@@ -97,7 +111,7 @@ async function upsertScrapedEvents(events: ScrapedEvent[]) {
       
       // Generate a unique base slug (without source at the end to unify duplicates)
       const baseSlug = generateSlug(event.title)
-      const dateStr = event.dateTime.toISOString().split('T')[0]
+      const dateStr = formatSaltaDayKey(event.dateTime)
       const slug = `${baseSlug}-${dateStr}`
       
       const eventData = {
@@ -146,22 +160,40 @@ export async function GET(request: Request) {
   console.log('[v0] Starting scrape job...')
   
   try {
-    // Run all scrapers in parallel
-    const [norteTicketEvents, centralTicketEvents, entradaUnoEvents, alpogoEvents] = await Promise.all([
-      scrapeNorteTicket(),
-      scrapeCentralTicket(),
-      scrapeEntradaUno(),
-      scrapeAlpogo()
-    ])
-    
-    const allEvents = [...norteTicketEvents, ...centralTicketEvents, ...entradaUnoEvents, ...alpogoEvents]
-    
+    // Run all scrapers in parallel.
+    // allSettled y no all: si una fuente falla, las demás igual se ingestan y
+    // el error queda reportado por fuente en vez de perderse.
+    const providers = [
+      { key: 'norteticket', run: scrapeNorteTicket },
+      { key: 'entradauno', run: scrapeEntradaUno },
+      { key: 'alpogo', run: scrapeAlpogo },
+    ] as const
+
+    const settled = await Promise.allSettled(providers.map((provider) => provider.run()))
+
+    const allEvents: ScrapedEvent[] = []
+    const scrapedBySource: Record<string, number> = {}
+    const sourceErrors: Record<string, string> = {}
+
+    settled.forEach((outcome, index) => {
+      const { key } = providers[index]
+
+      if (outcome.status === 'fulfilled') {
+        scrapedBySource[key] = outcome.value.length
+        allEvents.push(...outcome.value)
+        console.log(`[v0] - ${key}: ${outcome.value.length}`)
+      } else {
+        const message = outcome.reason instanceof Error
+          ? outcome.reason.message
+          : String(outcome.reason)
+        scrapedBySource[key] = 0
+        sourceErrors[key] = message
+        console.error(`[v0] - ${key}: FALLÓ -> ${message}`)
+      }
+    })
+
     console.log(`[v0] Total events scraped: ${allEvents.length}`)
-    console.log(`[v0] - NorteTicket: ${norteTicketEvents.length}`)
-    console.log(`[v0] - CentralTicket: ${centralTicketEvents.length}`)
-    console.log(`[v0] - EntradaUno: ${entradaUnoEvents.length}`)
-    console.log(`[v0] - AlPogo: ${alpogoEvents.length}`)
-    
+
     // Upsert all events to database
     const results = await upsertScrapedEvents(allEvents)
     
@@ -176,15 +208,15 @@ export async function GET(request: Request) {
       console.error('[v0] Error en cleanup de flyers IG:', cleanupError)
     }
     
+    const failedSources = Object.keys(sourceErrors)
+
     return NextResponse.json({
-      success: true,
+      success: failedSources.length === 0,
       scraped: {
-        norteticket: norteTicketEvents.length,
-        centralticket: centralTicketEvents.length,
-        entradauno: entradaUnoEvents.length,
-        alpogo: alpogoEvents.length,
+        ...scrapedBySource,
         total: allEvents.length
       },
+      sourceErrors,
       database: results,
       instagramCleanup: {
         archivedFlyers: archivedFlyersCount

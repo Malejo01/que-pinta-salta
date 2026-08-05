@@ -3,6 +3,7 @@ import { extractEventFromFlyer } from './gemini'
 import { AIProcessingResult, GeminiExtractionResult } from './types'
 import { upsertVenue, resolveCategoryId } from '@/lib/scraper/save-to-supabase'
 import { upsertEventWithDeduplication } from '@/lib/scraper/deduplicate'
+import { saltaWallClockToUtcISO } from '@/lib/date-format'
 
 // Helper simple de slugify para evitar problemas con importaciones
 function slugify(text: string): string {
@@ -138,7 +139,8 @@ export async function processFlyerWithAI(flyerId: string): Promise<AIProcessingR
     const categorySlug = rawCategorySlug || account?.default_category || 'espectaculos'
     const categoryId = await resolveCategoryId(categorySlug)
 
-    // Formatear Fecha de Inicio. Si Gemini no extrajo fecha, usamos fallback published_at
+    // Formatear Fecha de Inicio. Si Gemini no extrajo fecha, usamos fallback published_at.
+    // Ojo: published_at viene de Apify como instante UTC real, así que NO se convierte.
     let startDate = flyer.published_at
     const rawDate = cleanStringField(extractedData.date)
     const isValidDate = rawDate && /^\d{4}-\d{2}-\d{2}$/.test(rawDate)
@@ -172,7 +174,8 @@ export async function processFlyerWithAI(flyerId: string): Promise<AIProcessingR
       const rawTime = cleanStringField(extractedData.start_time)
       const isValidTime = rawTime && /^\d{2}:\d{2}$/.test(rawTime)
       const timeStr = isValidTime ? rawTime : '20:00'
-      startDate = `${rawDate}T${timeStr}:00`
+      // Gemini lee la hora del flyer, que es hora de pared de Salta.
+      startDate = saltaWallClockToUtcISO(`${rawDate}T${timeStr}:00`)
     }
 
     // Generar slug del evento

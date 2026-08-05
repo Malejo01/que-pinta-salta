@@ -12,6 +12,7 @@ import { Switch } from "@/components/ui/switch"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { ArrowLeft, Loader2, ImageIcon } from "lucide-react"
 import { createEvent, uploadFlyer, updateUserEvent } from "@/lib/actions"
+import { formatSaltaInputValue } from "@/lib/date-format"
 import type { Category, Venue } from "@/lib/types"
 
 interface EventFormProps {
@@ -222,7 +223,7 @@ export function EventForm({ categories, venues, initialData, cloneId, editId }: 
                     id="startDate"
                     name="startDate"
                     type="datetime-local"
-                    defaultValue={initialData?.start_date ? new Date(initialData.start_date).toISOString().slice(0, 16) : undefined}
+                    defaultValue={initialData?.start_date ? formatSaltaInputValue(initialData.start_date) : undefined}
                     required
                   />
                 </div>
@@ -232,7 +233,7 @@ export function EventForm({ categories, venues, initialData, cloneId, editId }: 
                     id="endDate"
                     name="endDate"
                     type="datetime-local"
-                    defaultValue={initialData?.end_date ? new Date(initialData.end_date).toISOString().slice(0, 16) : undefined}
+                    defaultValue={initialData?.end_date ? formatSaltaInputValue(initialData.end_date) : undefined}
                   />
                 </div>
               </div>

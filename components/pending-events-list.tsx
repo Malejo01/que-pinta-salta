@@ -2,8 +2,6 @@
 
 import { useState, useTransition } from "react"
 import { Calendar, MapPin, CheckCircle, XCircle } from "lucide-react"
-import { format } from "date-fns"
-import { es } from "date-fns/locale"
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -16,6 +14,7 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { useToast } from "@/hooks/use-toast"
 import { approvePendingEvent, deleteDraftEvent } from "@/lib/admin-actions"
+import { formatEventDate, formatSaltaClock } from "@/lib/date-format"
 
 export function PendingEventsList({ initialEvents }: { initialEvents: any[] }) {
   const [events, setEvents] = useState(initialEvents)
@@ -89,7 +88,7 @@ export function PendingEventsList({ initialEvents }: { initialEvents: any[] }) {
               <div className="flex items-center gap-2 text-muted-foreground">
                 <Calendar className="size-4 shrink-0" />
                 <span>
-                  {format(new Date(event.start_date), "EEEE d 'de' MMMM, HH:mm 'hs'", { locale: es })}
+                  {`${formatEventDate(event.start_date)}, ${formatSaltaClock(event.start_date)} hs`}
                 </span>
               </div>
               {event.venue && (

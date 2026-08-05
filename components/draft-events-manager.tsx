@@ -20,6 +20,7 @@ import {
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { publishDraftEvent, deleteDraftEvent, triggerAIProcessing } from '@/lib/admin-actions'
+import { splitSaltaDateTime, formatSaltaDayKey } from '@/lib/date-format'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -116,12 +117,16 @@ export function DraftEventsManager({
       setTicketUrl(selectedEvent.ticket_url || '')
       setImageUrl(selectedEvent.image_url || '')
 
-      // Formatear la fecha para inputs HTML sin corrimiento de zona horaria
-      const isoString = selectedEvent.start_date || ''
-      const parts = isoString.split('T')
-      setStartDateDay(parts[0] || '')
-      const timePart = parts[1] ? parts[1].substring(0, 5) : '20:00'
-      setStartDateTime(timePart)
+      // start_date se guarda como instante UTC: hay que leerlo en hora de Salta
+      // para que el editor muestre la misma hora que ve el usuario en el sitio.
+      if (selectedEvent.start_date) {
+        const { day, time } = splitSaltaDateTime(selectedEvent.start_date)
+        setStartDateDay(day)
+        setStartDateTime(time)
+      } else {
+        setStartDateDay('')
+        setStartDateTime('20:00')
+      }
     } else {
       setTitle('')
       setDescription('')
@@ -361,7 +366,7 @@ export function DraftEventsManager({
                           </h4>
                           <p className="text-xs text-muted-foreground truncate flex items-center gap-1 mt-0.5">
                             <Calendar className="size-3 shrink-0" />
-                            {item.start_date ? item.start_date.split('T')[0] : 'Sin fecha'}
+                            {item.start_date ? formatSaltaDayKey(item.start_date) : 'Sin fecha'}
                           </p>
                         </div>
                         <div className="flex gap-1.5 mt-1.5">

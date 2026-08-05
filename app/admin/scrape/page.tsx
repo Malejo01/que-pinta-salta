@@ -60,7 +60,7 @@ export default async function AdminScrapePage() {
                   <div>
                     <p className="font-medium text-sm">{event.title}</p>
                     <p className="text-xs text-muted-foreground">
-                      {event.start_date ? new Date(event.start_date).toLocaleDateString('es-AR') : '—'}
+                      {event.start_date ? new Date(event.start_date).toLocaleDateString('es-AR', { timeZone: 'America/Argentina/Salta' }) : '—'}
                     </p>
                   </div>
                   {event.ticket_url && (

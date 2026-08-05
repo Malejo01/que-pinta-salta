@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server"
 import { revalidatePath } from "next/cache"
 import { redirect } from "next/navigation"
 import { Resend } from "resend"
+import { saltaWallClockToUtcISO } from "@/lib/date-format"
 
 const resend = new Resend(process.env.RESEND_API_KEY)
 
@@ -80,8 +81,9 @@ export async function createEvent(formData: FormData) {
       short_description: shortDescription,
       category_id: categoryId,
       venue_id: venueId || null,
-      start_date: startDate,
-      end_date: endDate || null,
+      // El <input type="datetime-local"> entrega hora de pared de Salta, sin zona.
+      start_date: saltaWallClockToUtcISO(startDate),
+      end_date: endDate ? saltaWallClockToUtcISO(endDate) : null,
       price_min: isFree ? 0 : priceMin,
       price_max: isFree ? null : priceMax,
       is_free: isFree,
@@ -309,8 +311,9 @@ export async function updateUserEvent(formData: FormData) {
       short_description: shortDescription,
       category_id: categoryId,
       venue_id: venueId || null,
-      start_date: startDate,
-      end_date: endDate || null,
+      // El <input type="datetime-local"> entrega hora de pared de Salta, sin zona.
+      start_date: saltaWallClockToUtcISO(startDate),
+      end_date: endDate ? saltaWallClockToUtcISO(endDate) : null,
       price_min: isFree ? 0 : priceMin,
       price_max: isFree ? null : priceMax,
       is_free: isFree,

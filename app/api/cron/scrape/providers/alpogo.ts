@@ -1,3 +1,4 @@
+import { saltaWallClockToDate } from '@/lib/date-format'
 import { ScrapedEvent } from '../types'
 
 const ALPOGO_API_URL = 'https://alpogo.com/api/events/getEvents2'
@@ -48,7 +49,8 @@ export async function scrapeAlpogo(): Promise<ScrapedEvent[]> {
     for (const item of data) {
       if (!item.nombre || !item.fecha_funcion) continue
 
-      const dateTime = new Date(item.fecha_funcion.replace(' ', 'T'))
+      // La API entrega hora de pared de Salta sin zona ("2026-08-07 21:00:00").
+      const dateTime = saltaWallClockToDate(item.fecha_funcion)
       const priceFrom = parseInt(item.menor_precio || item.botonPrecio || '0', 10) || 0
       const isFree = item.gratuito === '1' || (priceFrom === 0 && isTextFree(item.nombre, item.descripcion || ''))
       const flyerUrl = item.imagen_grilla || item.imagen_logo || ''

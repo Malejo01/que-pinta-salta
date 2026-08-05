@@ -22,7 +22,7 @@ import {
 } from "@/components/ui/select"
 import { Input } from "@/components/ui/input"
 import { getCategoryIcon } from "@/lib/category-icons"
-import { formatEventDate, formatEventTime } from "@/lib/date-format"
+import { formatEventDate, formatEventTime, formatSaltaDayKey } from "@/lib/date-format"
 import { createCategory, updateEventCategory } from "@/lib/admin-actions"
 import { deferredRefresh } from "@/lib/deferred-refresh"
 
@@ -56,7 +56,7 @@ export function EventModalWrapper({ event, isAdmin = false, categories = [] }: E
     id: event.id,
     title: event.title,
     venue: event.venue?.name || 'Lugar por confirmar',
-    date: startDate.toISOString().split('T')[0],
+    date: formatSaltaDayKey(startDate),
     time: formatEventTime(startDate),
     category: currentCategory?.slug || 'uncategorized',
     categoryName: currentCategory?.name || 'Sin categorizar',
