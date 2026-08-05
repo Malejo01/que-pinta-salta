@@ -1,21 +1,15 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
 import { Resend } from 'resend'
+import { formatEventDate, formatSaltaClock } from '@/lib/date-format'
 
 const CRON_SECRET = process.env.CRON_SECRET
 
 function buildRadarEmailHtml(events: any[], emailTarget: string): string {
   const eventRows = events.map(event => {
     const dateObj = new Date(event.start_date)
-    const formattedDate = dateObj.toLocaleDateString("es-AR", {
-      weekday: "long",
-      day: "numeric",
-      month: "long"
-    })
-    const formattedTime = dateObj.toLocaleTimeString("es-AR", {
-      hour: "2-digit",
-      minute: "2-digit"
-    })
+    const formattedDate = formatEventDate(dateObj)
+    const formattedTime = formatSaltaClock(dateObj)
 
     const priceText = event.is_free ? "Gratis" : (event.price_min > 0 ? `$${event.price_min}` : "A confirmar")
     const detailUrl = `https://quepintasalta.com.ar/evento/${event.id}`

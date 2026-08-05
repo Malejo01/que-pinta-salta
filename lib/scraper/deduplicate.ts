@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Event, TicketSource } from '../types';
+import { formatSaltaDayKey } from '../date-format';
 
 // Helper to get admin Supabase client if not passed
 function getAdminClient() {
@@ -163,9 +164,7 @@ export async function upsertEventWithDeduplication(
       } else {
         // Tienen el mismo slug original pero son eventos completamente distintos.
         // Agregamos la fecha al slug del nuevo evento para evitar violar el constraint único en BD.
-        const dateStr = eventData.start_date
-          ? eventData.start_date.split('T')[0]
-          : new Date().toISOString().split('T')[0];
+        const dateStr = formatSaltaDayKey(eventData.start_date || new Date());
         eventData.slug = `${eventData.slug}-${dateStr}`;
         console.log(`[deduplicate] Colisión de slug evitada para "${eventData.title}". Nuevo slug: "${eventData.slug}"`);
       }

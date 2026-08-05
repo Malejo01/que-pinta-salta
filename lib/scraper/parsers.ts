@@ -105,8 +105,12 @@ export function parseAllEventsFromHtml(html: string): Partial<Omit<Event, 'venue
 
 /**
  * Scrapea la página de detalle de un evento y retorna descripción y categoría.
+ *
+ * venueName es opcional pero conviene pasarlo: muchos eventos de Norteticket
+ * traen una descripción mínima (solo el aviso de edad mínima), y el nombre del
+ * lugar suele ser la única señal para clasificar ("Teatro del Huerto" -> teatro).
  */
-export async function parseEventDetail(url: string): Promise<{ description: string; short_description: string; category_id: string; }> {
+export async function parseEventDetail(url: string, venueName: string = ''): Promise<{ description: string; short_description: string; category_id: string; }> {
   if (!url) return { description: '', short_description: '', category_id: 'uncategorized' };
 
   try {
@@ -156,9 +160,9 @@ export async function parseEventDetail(url: string): Promise<{ description: stri
     const firstPara = richParas[0] || description;
     const short_description = firstPara ? firstPara.slice(0, 160) : '';
 
-    // Categoría: inferir por keywords en título + descripción
+    // Categoría: inferir por keywords en título + descripción + lugar
     const title = $('h1').first().text().trim();
-    const category_id = inferCategorySlug(title, description);
+    const category_id = inferCategorySlug(title, description, venueName);
 
     return { description, short_description, category_id };
 

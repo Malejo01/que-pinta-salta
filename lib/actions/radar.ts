@@ -3,6 +3,7 @@
 import { createClient } from "@/lib/supabase/server"
 import { revalidatePath } from "next/cache"
 import { Resend } from "resend"
+import { formatEventDate, formatSaltaClock } from "@/lib/date-format"
 
 export type EmailFrequency = 'weekly' | 'biweekly' | 'monthly' | 'disabled'
 
@@ -194,15 +195,8 @@ export async function updateRadarSettings(data: {
 function buildRadarEmailHtml(events: any[], emailTarget: string): string {
   const eventRows = events.map(event => {
     const dateObj = new Date(event.start_date)
-    const formattedDate = dateObj.toLocaleDateString("es-AR", {
-      weekday: "long",
-      day: "numeric",
-      month: "long"
-    })
-    const formattedTime = dateObj.toLocaleTimeString("es-AR", {
-      hour: "2-digit",
-      minute: "2-digit"
-    })
+    const formattedDate = formatEventDate(dateObj)
+    const formattedTime = formatSaltaClock(dateObj)
 
     const priceText = event.is_free ? "Gratis" : (event.price_min > 0 ? `$${event.price_min}` : "A confirmar")
     const detailUrl = `https://quepintasalta.com.ar/evento/${event.id}`

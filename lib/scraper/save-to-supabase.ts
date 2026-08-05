@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Event, Venue } from '../types';
 import { upsertEventWithDeduplication } from './deduplicate';
+import { saltaWallClockToUtcISO } from '../date-format';
 
 // Cliente directo (service role key para uso en scripts, nunca en browser)
 function getAdminClient() {
@@ -167,8 +168,10 @@ export async function saveEventsToSupabase(
         venue_id,
         image_url: event.image_url || null,
         gallery_urls: event.gallery_urls || [],
-        start_date: event.start_date,
-        end_date: event.end_date || null,
+        // Las ticketeras publican la hora de pared de Salta, sin zona.
+        // Se convierte al instante UTC real antes de tocar la columna timestamptz.
+        start_date: event.start_date ? saltaWallClockToUtcISO(event.start_date) : event.start_date,
+        end_date: event.end_date ? saltaWallClockToUtcISO(event.end_date) : null,
         is_recurring: false,
         recurrence_rule: null,
         price_min: event.price_min ?? 0,

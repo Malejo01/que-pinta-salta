@@ -4,6 +4,7 @@ import { redirect } from "next/navigation"
 import { Navbar } from "@/components/navbar"
 import { MobileNav } from "@/components/mobile-nav"
 import { FavoritosList } from "./favoritos-list"
+import { formatSaltaDayKey, formatSaltaClock } from "@/lib/date-format"
 
 export const metadata = {
   title: "Mis Favoritos — Qué Pinta Salta",
@@ -77,8 +78,8 @@ export default async function FavoritosPage() {
       slug: event.slug,
       title: event.title,
       venue: event.venue?.name || 'Lugar por confirmar',
-      date: event.start_date.split('T')[0],
-      time: event.start_date.split('T')[1]?.substring(0, 5) || '',
+      date: formatSaltaDayKey(event.start_date),
+      time: formatSaltaClock(event.start_date),
       category: categorySlugById.get(event.category_id) || 'uncategorized',
       categoryName: categoryNameById.get(event.category_id) || 'Sin categorizar',
       price: event.is_free ? ("gratis" as const) : (event.price_min === 0 ? ("confirmar" as const) : event.price_min),
@@ -100,7 +101,7 @@ export default async function FavoritosPage() {
       slug: `ig-${flyer.id}`,
       title: flyer.account.display_name,
       venue: flyer.venue_name || flyer.account.default_venue_name || flyer.account.display_name,
-      date: flyer.published_at.split('T')[0],
+      date: formatSaltaDayKey(flyer.published_at),
       time: '',
       category: categorySlug,
       categoryName: categoryNameBySlug.get(categorySlug) || categorySlug,
@@ -125,7 +126,7 @@ export default async function FavoritosPage() {
       slug: movie.slug,
       title: movie.title,
       venue: `${showCount} ${showCount === 1 ? 'Cine' : 'Cines'} de Salta`,
-      date: new Date().toISOString().split('T')[0],
+      date: formatSaltaDayKey(new Date()),
       time: '',
       category: 'cine',
       categoryName: 'Cine',

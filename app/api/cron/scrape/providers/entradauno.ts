@@ -1,13 +1,14 @@
+import { saltaWallClockToDate } from '@/lib/date-format'
 import { ScrapedEvent } from '../types'
 
 const CARTELERA_JSON_URL = 'https://s3.sa-east-1.amazonaws.com/contenido.general.entradauno/cache/12/cartelera.json'
 
 /**
- * Normaliza las fechas del formato API de EntradaUno a objeto Date
+ * Normaliza las fechas del formato API de EntradaUno a objeto Date.
+ * La API entrega hora de pared de Salta sin zona ("2026-05-27T11:00:00").
  */
 function toDate(isoString: string): Date {
-  const normalized = isoString.includes('T') ? isoString : `${isoString}T00:00:00`
-  return new Date(normalized)
+  return saltaWallClockToDate(isoString)
 }
 
 /**

@@ -3,6 +3,7 @@
 import { createClient } from "@/lib/supabase/server"
 import { createClient as createSupabaseClient } from "@supabase/supabase-js"
 import { revalidatePath } from "next/cache"
+import { saltaWallClockToUtcISO } from "@/lib/date-format"
 
 function slugifyCategoryName(value: string) {
   return value
@@ -344,7 +345,8 @@ export async function publishDraftEvent(eventId: string, eventData: any) {
       description: eventData.description || null,
       category_id: eventData.category_id || null,
       venue_id: eventData.venue_id || null,
-      start_date: eventData.start_date,
+      // El editor de borradores manda hora de pared de Salta, sin zona.
+      start_date: saltaWallClockToUtcISO(eventData.start_date),
       price_min: eventData.price_min ?? 0,
       is_free: eventData.is_free ?? false,
       ticket_url: eventData.ticket_url || null,
