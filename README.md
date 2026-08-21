@@ -40,13 +40,14 @@ flowchart TB
         CRON2["Vercel Cron 00:00 V-S-D-L<br/>GET /api/cron/instagram"]
         APIFY["Actor Apify<br/>instagram-post-scraper<br/>polling hasta SUCCEEDED"]
         WH["POST /api/webhooks/apify<br/>entrada alternativa"]
-        CINAPI["GET /api/scrape-cinemas"]
+        CINAPI["runCinemaScrapeAndSync()<br/>vía GET /api/scrape-cinemas<br/>o job cines del scheduler"]
+        SCHED["Vercel Cron cada 6 h<br/>GET /api/cron/dispatch<br/>scheduler unificado"]
     end
 
     subgraph AI["Extracción multimodal"]
         STORE["Descarga de imagen y<br/>re-upload a Supabase Storage<br/>bucket flyers_ig"]
         FLY[("instagram_flyers<br/>ai_status = PENDING")]
-        BATCH["POST /api/ai/process-flyers<br/>lote de hasta 10"]
+        BATCH["processFlyerWithAI()<br/>vía POST /api/ai/process-flyers<br/>o job flyers-ai del scheduler<br/>lote con tope configurable"]
         GEM["Gemini 2.5 Flash<br/>imagen + caption -> JSON<br/>responseSchema estricto"]
     end
 
@@ -63,6 +64,7 @@ flowchart TB
         EVD[("events<br/>status = DRAFT")]
         EVPEND[("events<br/>status = PENDING")]
         MOV[("cinema_movies")]
+        RUNS[("job_runs<br/>bitácora de corridas")]
     end
 
     subgraph APP["Next.js App Router"]
@@ -99,6 +101,11 @@ flowchart TB
     GATE -->|"no"| EVD
     GEM -.->|"error de IA o imagen rota"| EVD
 
+    SCHED -->|"diario 06:00"| CINAPI
+    SCHED -->|"cada 6 h, tope por corrida"| BATCH
+    SCHED -->|"jueves 18:00<br/>GET /api/cron/radar-newsletter"| MAIL
+    SCHED -->|"una fila por corrida"| RUNS
+
     DEDUP --> EVP
     CINAPI --> MOV
 
@@ -117,6 +124,7 @@ flowchart TB
 - **Solo Instagram pasa por Gemini.** Las otras cuatro fuentes devuelven datos ya estructurados (JSON de API en Vamos Salta, EntradaUno y AlPogo; DOM parseado con Cheerio en NorteTicket) y se normalizan con código determinista. No hay LLM en esa ruta.
 - **Existen dos rutas de ingesta para las ticketeras**: el cron diario usa los providers de `app/api/cron/scrape/providers/`, y el panel admin usa los scrapers de `lib/scraper/` mediante Server Actions. La diferencia práctica es que la ruta manual además visita la página de detalle de cada evento, así que trae descripción real y clasifica mejor; el cron se queda con lo que hay en el listado.
 - **La clasificación tiene tres niveles de prioridad**: alias definidos por un admin en la tabla `aliases` (override manual), inferencia por keywords de `inferCategorySlug`, y fallback a `espectaculos`. El campo `classification_source` deja registro de cuál ganó.
+- **Los tres procesos que el scheduler dispara ya existían como rutas**: `/api/scrape-cinemas`, `/api/ai/process-flyers` y `/api/cron/radar-newsletter` andaban, pero no las llamaba nadie y había que entrar a la URL a mano. El scheduler no cambió ni una línea de esa lógica: sólo agregó quién las invoca, con qué frecuencia, cuántos reintentos y dónde queda el registro.
 - **Los flyers de Instagram tienen TTL de 14 días**: `archiveExpiredFlyers` corre al final del cron de scraping y los pasa a `ARCHIVED`.
 - **Si Gemini falla** (timeout, imagen ilegible, error de API), el pipeline no descarta el flyer: crea un evento `DRAFT` con título `Revisar: Flyer de @cuenta`, marca el flyer como `FAILED` y lo deja en la cola de revisión humana con el caption original como descripción.
 
@@ -186,12 +194,12 @@ El provider del cron lanza en vez de devolver un array vacío cuando la fuente n
 | Email | Resend | Newsletter del Radar |
 | Validación | Zod 3 + React Hook Form | |
 | Analítica | Vercel Analytics + Google Tag Manager | |
-| Hosting y cron | Vercel | `vercel.json` define los dos cron jobs |
+| Hosting y cron | Vercel | `vercel.json` define tres cron jobs; uno de ellos es el dispatcher del scheduler |
 | Lenguaje | TypeScript 5.7 | |
 
 ### Modelo de datos
 
-Tablas principales: `events`, `venues`, `categories`, `aliases`, `profiles`, `user_favorites`, `instagram_accounts`, `instagram_flyers`, `cinema_movies`, `scrape_sources`, `scrape_runs`, `event_views`, y las tablas del Radar (`user_radar_settings`, `user_followed_categories`, `user_followed_venues`, `user_followed_instagram_accounts`).
+Tablas principales: `events`, `venues`, `categories`, `aliases`, `profiles`, `user_favorites`, `instagram_accounts`, `instagram_flyers`, `cinema_movies`, `scrape_sources`, `scrape_runs`, `job_runs`, `event_views`, y las tablas del Radar (`user_radar_settings`, `user_followed_categories`, `user_followed_venues`, `user_followed_instagram_accounts`).
 
 `data_migrations` es una tabla auxiliar: registra las migraciones que modifican datos (no esquema) para que reaplicarlas sea idempotente.
 
@@ -203,14 +211,87 @@ Enums relevantes:
 
 RLS está habilitado en todas ellas. El patrón general es lectura pública de contenido publicado, escritura restringida a `ADMIN` o al dueño de la fila, y una migración dedicada (`20260623_prevent_role_tampering.sql`) que impide que un usuario se escale el propio `role`.
 
-### Cron jobs
+### Cron jobs y scheduler
 
-| Path | Schedule | Qué hace |
+`vercel.json` declara tres entradas de cron. Dos son las históricas, que llaman
+directo a su ruta; la tercera es el dispatcher del scheduler unificado.
+
+| Path | Schedule (UTC) | Qué hace |
 |---|---|---|
-| `/api/cron/scrape` | `0 8 * * *` | Corre los tres providers de ticketeras en paralelo (`allSettled`), hace upsert con deduplicación y archiva flyers de Instagram vencidos |
-| `/api/cron/instagram` | `0 0 * * 0,1,5,6` | Dispara el actor de Apify sobre las cuentas activas, espera el run y persiste los flyers nuevos |
+| `/api/cron/scrape` | `0 8 * * *` (05:00 Salta) | Corre los tres providers de ticketeras en paralelo (`allSettled`), hace upsert con deduplicación y archiva flyers de Instagram vencidos |
+| `/api/cron/instagram` | `0 0 * * 0,1,5,6` (21:00 Salta, jue a dom) | Dispara el actor de Apify sobre las cuentas activas, espera el run y persiste los flyers nuevos |
+| `/api/cron/dispatch` | `0 3,9,15,21 * * *` (00, 06, 12 y 18 Salta) | Dispatcher del scheduler: mira qué procesos vencieron y los corre |
 
-Ambos validan `Authorization: Bearer ${CRON_SECRET}`. `/api/ai/process-flyers` y `/api/webhooks/apify` validan `APIFY_WEBHOOK_SECRET`.
+Todas validan `Authorization: Bearer ${CRON_SECRET}`. `/api/ai/process-flyers` y
+`/api/webhooks/apify` validan `APIFY_WEBHOOK_SECRET`.
+
+#### El scheduler unificado
+
+Antes de esto, tres procesos existían pero no los disparaba nadie: la cartelera
+de cines (`/api/scrape-cinemas`), la cola de lectura de flyers con IA
+(`/api/ai/process-flyers`) y el newsletter semanal
+(`/api/cron/radar-newsletter`). Las tres rutas estaban escritas y andaban; lo
+que faltaba era quién las llamara. El scheduler es exactamente esa capa: no
+toca la lógica de ningún scraper ni la del parser de flyers, sólo decide
+cuándo invocarlos, los reintenta y deja registro.
+
+**Un dispatcher en vez de una entrada de cron por proceso.** El tick de las
+6 h llega a `/api/cron/dispatch` y ahí adentro se decide qué corre, mirando la
+última corrida sana de cada job en `job_runs`. Sale más barato en entradas de
+cron (los planes las limitan), permite calendarios que la sintaxis cron no
+expresa —"cada 6 h, pero sólo si la anterior terminó bien"— y hace que un tick
+perdido por un deploy se recupere en el siguiente en vez de saltear el día.
+
+| Job | Cuándo | Tope por corrida | Reintento |
+|---|---|---|---|
+| `cines` | Diario 06:00 Salta, con ventana de reintento a las 12 y 18 | — | 2 intentos con backoff |
+| `flyers-ai` | Cada 6 h | `SCHEDULER_FLYERS_BATCH_LIMIT` (10 por defecto) | Ninguno a nivel job; el error se aísla por flyer |
+| `newsletter` | Jueves 18:00 Salta | — | Ninguno: el envío no es idempotente |
+
+`ticketeras` e `instagram` también están en el registro (`lib/scheduler/jobs.ts`)
+pero con `managed: false`: los sigue disparando su propio cron, el dispatcher no
+los toca y sólo se los puede correr a mano. Para pasarlos al scheduler, poner
+`managed: true` y sacar su entrada de `vercel.json`.
+
+**Endpoints**
+
+| Path | Para qué |
+|---|---|
+| `GET /api/cron/dispatch` | Tick del scheduler. `?jobs=a,b` corre esos ignorando el calendario, `?force=1` corre todos los `managed`, `?limit=N` cambia el tope, `?dry=1` informa qué correría sin correr nada |
+| `GET\|POST /api/cron/run/[job]` | Disparo manual de un proceso, con la misma bitácora y el mismo lock que el automático |
+| `GET /api/cron/health` | Antigüedad de la última corrida sana de cada proceso. Devuelve 503 si algo está vencido o fallando, para engancharlo a un monitor; con `?strict=0` siempre devuelve 200 |
+
+Los tres aceptan el secreto como `Authorization: Bearer`, como header
+`x-cron-secret` o como `?secret=`. A diferencia de las rutas viejas, **si
+`CRON_SECRET` no está seteado el scheduler se cierra en producción** en vez de
+quedar abierto: el dispatcher gasta cuota de Gemini y manda mails.
+
+```bash
+curl -H "Authorization: Bearer $CRON_SECRET" https://quepintasalta.com.ar/api/cron/health
+```
+
+**Bitácora.** Cada corrida deja una fila en `job_runs`: timestamp, job, estado,
+items procesados, items fallados, cantidad de intentos y los errores como JSON.
+La vista `job_last_runs` resume la última corrida y la última corrida sana de
+cada job, que es lo que responde el health check. Un índice único parcial sobre
+`(job_key) where status = 'RUNNING'` funciona de lock: si el dispatcher y un
+disparo manual coinciden, el segundo devuelve `SKIPPED` en vez de duplicar el
+trabajo. Las corridas que quedan colgadas en `RUNNING` —porque la función
+serverless se cortó— las cierra como `TIMEOUT` el barrido que corre al inicio
+de cada tick.
+
+**Aislamiento.** El dispatcher corre los jobs con `Promise.allSettled` y
+`runJob` está escrito para no lanzar nunca: devuelve `status: 'FAILED'` con el
+detalle adentro. Una fuente caída no frena a las demás ni deja al dispatcher
+sin responder.
+
+**Presupuesto de tiempo.** Todo tiene que entrar en el `maxDuration = 60` de
+los route handlers, así que los timeouts por intento están calibrados por
+debajo (`lib/scheduler/jobs.ts`): si el job se corta solo, la corrida queda
+cerrada con su motivo; si lo corta la plataforma, muere sin poder escribir. Hay
+dos capas de reintento: la de adentro de la corrida, y el propio tick —un job
+que termina `FAILED` no actualiza su última corrida sana, así que sigue vencido
+y se reintenta en el tick siguiente.
 
 ---
 
@@ -284,8 +365,11 @@ GEMINI_API_KEY=
 APIFY_API_TOKEN=
 APIFY_WEBHOOK_SECRET=
 
-# Cron
+# Cron y scheduler
 CRON_SECRET=
+SCHEDULER_FLYERS_BATCH_LIMIT=   # opcional, items de la cola de IA por corrida (10 por defecto)
+SCHEDULER_BASE_URL=             # opcional, URL que el scheduler usa para invocarse a sí mismo
+                                # (por defecto NEXT_PUBLIC_SITE_URL, y si no VERCEL_URL)
 
 # Email
 RESEND_API_KEY=
