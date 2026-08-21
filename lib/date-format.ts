@@ -89,6 +89,16 @@ export function formatSaltaInputValue(input: string | Date): string {
   return `${day}T${time}`
 }
 
+/**
+ * Fecha ISO 8601 con la hora de pared de Salta y su offset explícito
+ * ("2026-08-07T21:00:00-03:00"), tal como schema.org / Google Rich Results
+ * esperan para Event.startDate. Mandar el UTC crudo hace que los buscadores
+ * muestren el evento tres horas corrido.
+ */
+export function formatSaltaSchemaDate(input: string | Date): string {
+  return `${formatSaltaInputValue(input)}:00${SALTA_UTC_OFFSET}`
+}
+
 export function formatEventTime(input: string | Date) {
   const formatted = new Intl.DateTimeFormat('es-AR', {
     hour: '2-digit',
