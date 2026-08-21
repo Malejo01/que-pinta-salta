@@ -3,7 +3,7 @@ import { createAdminClient } from '@/lib/supabase/server'
 import { scrapeNorteTicket, scrapeEntradaUno, scrapeAlpogo } from './providers'
 import { ScrapedEvent } from './types'
 import { upsertEventWithDeduplication } from '@/lib/scraper/deduplicate'
-import { upsertVenue } from '@/lib/scraper/save-to-supabase'
+import { resolveVenueId } from '@/lib/venues/resolve'
 import { archiveExpiredFlyers } from '@/lib/instagram/process-apify-payload'
 import { resolveCategoryWithAliases } from '@/lib/scraper/categorize'
 import { formatSaltaDayKey } from '@/lib/date-format'
@@ -26,48 +26,24 @@ function generateSlug(title: string): string {
 }
 
 /**
- * Attempts to match a raw venue name to an existing venue in the database
- * using aliases or direct name matching. Si no existe, lo crea.
+ * Resuelve el venue_id canónico de un nombre crudo. Si no existe, lo crea.
  *
- * Algunas fuentes traen el venue como "Teatro del Huerto, Salta, Salta"
- * (nombre + domicilio), así que el match se hace contra la parte anterior
- * a la primera coma. Crear el venue faltante importa: sin venue_id,
- * findDuplicateEvent() no puede deduplicar por lugar y fecha.
+ * Antes esta ruta tenía su propia resolución con `ilike('name', '%'+name+'%')`,
+ * distinta de la de saveEventsToSupabase. Dos problemas: el match por
+ * substring devolvía cualquier fila que contuviera el texto (con `%one%`
+ * matcheaba "Centro de Convenciones Salta"), y `.single()` sobre un ilike que
+ * devolvía varias filas fallaba y caía a crear un venue duplicado.
+ *
+ * Ahora las dos rutas van por resolve_venue_id() en Postgres, que hace match
+ * exacto contra aliases antes que nada y deja el fuzzy sólo como sugerencia
+ * hacia venue_review_queue.
  */
-async function resolveVenue(supabase: ReturnType<typeof createAdminClient>, rawVenueName: string) {
-  if (!rawVenueName) return null
-
-  const name = rawVenueName.split(',')[0].trim()
-  if (!name) return null
-
-  // First try direct venue match
-  const { data: directMatch } = await supabase
-    .from('venues')
-    .select('id, name')
-    .ilike('name', `%${name}%`)
-    .limit(1)
-    .single()
-
-  if (directMatch) {
-    return directMatch.id
-  }
-
-  // Try aliases table
-  const { data: aliasMatch } = await supabase
-    .from('aliases')
-    .select('target_id')
-    .eq('target_type', 'venue')
-    .ilike('alias', `%${name}%`)
-    .limit(1)
-    .single()
-
-  if (aliasMatch) {
-    return aliasMatch.target_id
-  }
-
-  // Crear el venue, igual que hace la ruta manual vía saveEventsToSupabase.
-  // Se pasa la cadena completa para que quede el domicilio en `address`.
-  return await upsertVenue(rawVenueName)
+async function resolveVenue(
+  supabase: ReturnType<typeof createAdminClient>,
+  rawVenueName: string,
+  source: string
+) {
+  return resolveVenueId(supabase, rawVenueName, { source, autocreate: true })
 }
 
 
@@ -91,7 +67,7 @@ async function upsertScrapedEvents(events: ScrapedEvent[]) {
   for (const event of events) {
     try {
       // Resolve venue and category
-      const venueId = await resolveVenue(supabase, event.rawVenueName)
+      const venueId = await resolveVenue(supabase, event.rawVenueName, event.source)
       const categoryId = await resolveCategoryWithAliases(supabase, event.title, '', event.rawVenueName)
       
       if (!categoryId) {

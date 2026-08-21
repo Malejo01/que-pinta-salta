@@ -132,7 +132,7 @@ export async function processFlyerWithAI(flyerId: string): Promise<AIProcessingR
     // Resolver Venue
     const rawVenueName = cleanStringField(extractedData.venue_name)
     const venueName = rawVenueName || account?.default_venue_name || 'Lugar no especificado'
-    const venueId = await upsertVenue(venueName)
+    const venueId = await upsertVenue(venueName, 'instagram-ai')
 
     // Resolver Categoría
     const rawCategorySlug = cleanStringField(extractedData.category_slug)
@@ -283,7 +283,7 @@ async function handleProcessingFallback(
   try {
     // Resolver Venue y Categoría por defecto de la cuenta de Instagram
     const venueName = account?.default_venue_name || 'Lugar no especificado'
-    const venueId = await upsertVenue(venueName)
+    const venueId = await upsertVenue(venueName, 'instagram-ai')
 
     const categorySlug = account?.default_category || 'espectaculos'
     const categoryId = await resolveCategoryId(categorySlug)

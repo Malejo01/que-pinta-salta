@@ -14,6 +14,7 @@ export interface Category {
 
 export interface Venue {
   id: string
+  /** Nombre canónico. Las variantes viven en `venue_aliases`. */
   name: string
   address: string
   latitude: number | null
@@ -22,6 +23,42 @@ export interface Venue {
   phone: string | null
   capacity: number | null
   created_at: string
+  slug?: string | null
+  /** NULL = esta fila es canónica. No NULL = duplicado absorbido. */
+  canonical_venue_id?: string | null
+  merged_at?: string | null
+  /** Centinela que no es un lugar real ("Lugar no especificado"). */
+  is_placeholder?: boolean
+  updated_at?: string
+}
+
+export interface VenueAlias {
+  id: string
+  venue_id: string
+  alias: string
+  alias_normalized: string
+  source: 'manual' | 'migration' | 'ingest'
+  created_at: string
+  created_by: string | null
+}
+
+export type VenueReviewStatus = 'pending' | 'resolved' | 'rejected'
+
+export interface VenueReviewItem {
+  id: string
+  raw_name: string
+  normalized: string
+  source: string | null
+  legacy_venue_id: string | null
+  suggested_venue_id: string | null
+  similarity: number | null
+  occurrences: number
+  status: VenueReviewStatus
+  resolved_venue_id: string | null
+  notes: string | null
+  created_at: string
+  reviewed_at: string | null
+  reviewed_by: string | null
 }
 
 export interface Profile {
