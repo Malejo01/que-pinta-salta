@@ -131,6 +131,32 @@ La única excepción es `instagram_flyers.published_at`, que Apify entrega como 
 
 Nunca hay que hacer `start_date.split('T')[0]` ni `toISOString().split('T')[0]` para obtener el día: devuelven el día UTC y corren la fecha en cualquier evento de la noche. Para eso está `formatSaltaDayKey()`.
 
+### Deduplicación de eventos
+
+El mismo evento entra por varias fuentes a la vez y sin dedup queda como N filas con datos contradictorios. La clave de agrupación es **título normalizado + día calendario de Salta** ([`lib/scraper/dedup-key.ts`](lib/scraper/dedup-key.ts)): sin diacríticos, en minúsculas, sin sufijo de ciudad (`"EN SALTA"`, `"Salta 2026"`, `"Salta Capital"`) y con los espacios colapsados. No se usa el venue en la clave, justamente porque los duplicados que importan son los que escriben el lugar distinto o no lo traen.
+
+Cuando dos registros coinciden pero difieren en un campo, gana la fuente de mayor prioridad ([`lib/scraper/source-priority.ts`](lib/scraper/source-priority.ts)):
+
+| Tramo | Peso | Fuentes | Por qué |
+|---|---|---|---|
+| Ticketera oficial | 400 | `norteticket`, `entradauno`, `alpogo`, … | Vende la entrada: si el evento se mudó de sala o cambió de horario, su dato tiene que estar bien o no cobra |
+| Portal provincial | 300 | `vamos` | Agenda oficial, confiable pero copiada a mano y lenta para los cambios |
+| Carga manual | 200 | formulario de admin/colaborador | Puede ser más precisa que cualquier scraper, pero nadie vuelve a editarla |
+| Instagram | 100 | `instagram-ai` | Máxima cobertura, mínima precisión: el lugar sale del handle y el horario lo leyó Gemini de una imagen |
+
+El merge **no pisa datos**: une todos los links de compra en `ticket_sources`, completa los campos vacíos, y guarda cada variante descartada — con su motivo y su fuente — en `events.merge_audit`. `price_min` se agrega al mínimo positivo en vez de resolverse por prioridad (es "lo más barato que se consigue", no un dato en disputa), el `slug` nunca cambia porque la URL ya está publicada, y el `status` no se toca salvo para promover un `DRAFT` que una ticketera confirmó.
+
+La dedup se aplica **en la ingesta**, en `upsertEventWithDeduplication()`, que es el único punto de escritura de las tres rutas automáticas (cron, panel admin, Instagram). El job de limpieza es sólo para lo que ya está en la base:
+
+```bash
+npm run dedup:events                 # dry-run desde hoy: reporta qué fusionaría
+npm run dedup:events -- --include-past   # dry-run sobre todo el histórico
+npm run dedup:events -- --apply      # ejecuta las fusiones
+npm run dedup:check                  # chequeo de la lógica sobre fixtures, sin base
+```
+
+El dry-run es el default y no escribe nada: imprime el total de fusiones, quién sobrevive en cada grupo y qué conflicto se resuelve cómo. Lo mismo está expuesto en `GET /api/admin/dedup` (dry-run) y `POST /api/admin/dedup` con `{ "apply": true }`. Al aplicar, las filas absorbidas se borran recién después de dejar su snapshot JSON completo en el `merge_audit` del sobreviviente, y los favoritos y las vistas se repuntan.
+
 ### El filtro determinista
 
 En `lib/ai/process-flyer-ai.ts`, después de la extracción:

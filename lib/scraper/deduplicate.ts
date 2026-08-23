@@ -1,6 +1,9 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Event, TicketSource } from '../types';
 import { formatSaltaDayKey } from '../date-format';
+import { buildDedupKey, dedupKeyOf, saltaDayRangeUtc, normalizeTitleForKey } from './dedup-key';
+import { mergeEvents, appendAudit, mergeTicketSources } from './merge-events';
+import { describeSource } from './source-priority';
 
 // Helper to get admin Supabase client if not passed
 function getAdminClient() {
@@ -11,11 +14,47 @@ function getAdminClient() {
 }
 
 /**
+ * Las columnas `dedup_key` y `merge_audit` las agrega
+ * supabase/migrations/20260821_event_dedup.sql. Si el código se despliega
+ * antes que la migración, escribirlas rompe TODA la ingesta. En vez de eso se
+ * detecta el error una vez, se avisa, y se sigue funcionando sin ellas: la
+ * dedup no depende de la columna (la clave se recalcula en memoria), sólo
+ * pierde el rastro de auditoría hasta que la migración se aplique.
+ */
+let dedupColumnsAvailable = true;
+
+function isMissingDedupColumn(error: any): boolean {
+  const message = `${error?.message || ''} ${error?.details || ''}`.toLowerCase();
+  return message.includes('dedup_key') || message.includes('merge_audit');
+}
+
+function warnMissingColumnsOnce() {
+  if (!dedupColumnsAvailable) return;
+  dedupColumnsAvailable = false;
+  console.warn(
+    '[deduplicate] Falta aplicar 20260821_event_dedup.sql: se sigue deduplicando ' +
+    'pero sin persistir dedup_key ni merge_audit.'
+  );
+}
+
+function stripDedupColumns(payload: Record<string, any>): Record<string, any> {
+  const rest = { ...payload };
+  delete rest.dedup_key;
+  delete rest.merge_audit;
+  return rest;
+}
+
+/**
  * Normaliza una cadena de texto quitando acentos, caracteres especiales y palabras vacías.
+ *
+ * OJO: esto NO es la clave de deduplicación. Saca stop words, así que
+ * "Show de Rock" y "Rock" colapsan al mismo string — sirve para puntuar
+ * similitud, no para agrupar. La clave es normalizeTitleForKey() en
+ * dedup-key.ts.
  */
 export function normalizeTitle(title: string): string {
   if (!title) return '';
-  
+
   // Lista de palabras vacías (stop words) comunes en títulos de eventos
   const stopWords = new Set([
     'de', 'la', 'el', 'en', 'con', 'para', 'un', 'una', 'los', 'las', 'del', 'al',
@@ -40,7 +79,7 @@ export function calculateSimilarity(title1: string, title2: string): number {
 
   if (!clean1 || !clean2) return 0;
   if (clean1 === clean2) return 1.0;
-  
+
   // Si uno contiene al otro por completo (y tiene longitud significativa), es muy probable que sea el mismo
   if ((clean1.length > 5 && clean2.includes(clean1)) || (clean2.length > 5 && clean1.includes(clean2))) {
     return 0.9;
@@ -73,34 +112,52 @@ export function calculateSimilarity(title1: string, title2: string): number {
   return intersection / union;
 }
 
+/** Umbral de Jaccard del matcher difuso de respaldo. */
+const SIMILARITY_THRESHOLD = 0.65;
+
+export type DuplicateMatch = {
+  event: Event;
+  matchedBy: 'dedup_key' | 'venue_similarity' | 'slug';
+  score: number;
+};
+
 /**
- * Busca si ya existe un evento equivalente en la misma fecha y lugar (venue).
- * Retorna el evento completo encontrado o null.
+ * Busca el evento equivalente que ya está en la base.
+ *
+ * Dos pasadas, en este orden:
+ *
+ *   1. Clave de dedup exacta (título normalizado + día en hora de Salta).
+ *      Es la regla principal y no necesita venue_id: justamente los duplicados
+ *      que importan son los que escriben el lugar distinto o no lo traen.
+ *
+ *   2. Respaldo difuso: mismo venue_id + similitud de título >= 0.65, sobre los
+ *      mismos candidatos del día. Cubre lo que la clave exacta no puede —
+ *      "Airbag" vs "Airbag: Gira El Rey del Mundo" — y es el comportamiento que
+ *      esta función ya tenía, así que no se pierde ningún match que antes
+ *      encontraba.
+ *
+ * Los candidatos se traen por rango del día calendario de Salta, no de UTC: un
+ * evento de las 22:00 es 01:00 UTC del día siguiente, y agrupar por día UTC
+ * partiría en dos los duplicados de casi todos los eventos nocturnos.
  */
-export async function findDuplicateEvent(
+export async function findDuplicateMatch(
   event: Partial<Event>,
   supabaseClient?: any
-): Promise<Event | null> {
+): Promise<DuplicateMatch | null> {
   const supabase = supabaseClient || getAdminClient();
-  
-  if (!event.start_date || !event.venue_id) {
+
+  if (!event.start_date || !event.title) {
     return null;
   }
 
-  // 1. Definir rango de fecha (mismo día calendario en hora UTC/Local)
-  const eventDate = new Date(event.start_date);
-  const startOfDay = new Date(eventDate);
-  startOfDay.setUTCHours(0, 0, 0, 0);
-  const endOfDay = new Date(eventDate);
-  endOfDay.setUTCHours(23, 59, 59, 999);
+  const incomingKey = buildDedupKey(event.title, event.start_date);
+  const { from, to } = saltaDayRangeUtc(event.start_date);
 
-  // 2. Buscar candidatos en el mismo lugar y mismo día
   const { data: candidates, error } = await supabase
     .from('events')
     .select('*')
-    .eq('venue_id', event.venue_id)
-    .gte('start_date', startOfDay.toISOString())
-    .lte('start_date', endOfDay.toISOString());
+    .gte('start_date', from)
+    .lte('start_date', to);
 
   if (error) {
     console.error('[deduplicate] Error buscando candidatos:', error.message);
@@ -111,32 +168,68 @@ export async function findDuplicateEvent(
     return null;
   }
 
-  // 3. Comparar títulos de los candidatos usando similitud lingüística
-  const THRESHOLD = 0.65; // Umbral de Jaccard aceptable
+  // 1. Clave exacta. Se recalcula sobre el candidato en vez de leer la columna
+  //    para que un cambio en la normalización aplique sin backfill previo.
+  if (incomingKey) {
+    for (const candidate of candidates) {
+      if (dedupKeyOf(candidate) === incomingKey) {
+        console.log(
+          `[deduplicate] MATCH por clave: "${event.title}" == "${candidate.title}" (${incomingKey})`
+        );
+        return { event: candidate as Event, matchedBy: 'dedup_key', score: 1 };
+      }
+    }
+  }
+
+  // 2. Respaldo difuso, sólo dentro del mismo lugar.
+  if (!event.venue_id) return null;
+
   let bestMatch: Event | null = null;
   let highestScore = 0;
 
   for (const candidate of candidates) {
+    if (candidate.venue_id !== event.venue_id) continue;
     const score = calculateSimilarity(event.title || '', candidate.title);
-    if (score >= THRESHOLD && score > highestScore) {
+    if (score >= SIMILARITY_THRESHOLD && score > highestScore) {
       highestScore = score;
-      bestMatch = candidate;
+      bestMatch = candidate as Event;
     }
   }
 
   if (bestMatch) {
     console.log(
-      `[deduplicate] MATCH ENCONTRADO: "${event.title}" coincide con ` +
-      `"${bestMatch.title}" (Similitud: ${(highestScore * 100).toFixed(1)}%)`
+      `[deduplicate] MATCH por similitud: "${event.title}" ~ "${bestMatch.title}" ` +
+      `(${(highestScore * 100).toFixed(1)}%, mismo venue)`
     );
+    return { event: bestMatch, matchedBy: 'venue_similarity', score: highestScore };
   }
 
-  return bestMatch;
+  return null;
 }
 
 /**
- * Mapea e inserta o actualiza un evento según corresponda.
- * Retorna true si se insertó, false si se actualizó (fusionó), o lanza error.
+ * Compatibilidad con la firma anterior: devuelve sólo el evento encontrado.
+ */
+export async function findDuplicateEvent(
+  event: Partial<Event>,
+  supabaseClient?: any
+): Promise<Event | null> {
+  const match = await findDuplicateMatch(event, supabaseClient);
+  return match?.event ?? null;
+}
+
+/**
+ * Inserta o fusiona un evento entrante.
+ *
+ * Fusionar significa: unir los links de compra, completar los huecos, resolver
+ * los campos en conflicto por prioridad de fuente y dejar cada valor descartado
+ * en `merge_audit`. Nunca se pisa un dato en silencio.
+ *
+ * Es el único punto de escritura de la ingesta automática: lo llaman
+ * save-to-supabase.ts (scrapers manuales), app/api/cron/scrape/route.ts (cron)
+ * y lib/ai/process-flyer-ai.ts (Instagram). Deduplicar acá es lo que evita que
+ * el duplicado llegue a existir; el job de limpieza es sólo para lo que ya
+ * está en la base.
  */
 export async function upsertEventWithDeduplication(
   eventData: any,
@@ -145,10 +238,12 @@ export async function upsertEventWithDeduplication(
 ): Promise<{ success: boolean; action: 'insert' | 'update' | 'skip'; eventId: string }> {
   const supabase = supabaseClient || getAdminClient();
 
-  // 1. Buscar duplicado por lugar y fecha
+  const dedupKey = buildDedupKey(eventData.title, eventData.start_date);
+
+  // 1. Buscar duplicado por clave y, como respaldo, por lugar + similitud.
   let existingEvent = await findDuplicateEvent(eventData, supabase);
 
-  // 2. Si no se encontró por lugar y fecha, verificar colisión por slug único
+  // 2. Si no se encontró, verificar colisión por slug único
   if (!existingEvent && eventData.slug) {
     const { data: eventBySlug } = await supabase
       .from('events')
@@ -157,8 +252,10 @@ export async function upsertEventWithDeduplication(
       .maybeSingle();
 
     if (eventBySlug) {
+      const sameKey = dedupKey && dedupKeyOf(eventBySlug) === dedupKey;
       const score = calculateSimilarity(eventData.title || '', eventBySlug.title);
-      if (score >= 0.65) {
+
+      if (sameKey || score >= SIMILARITY_THRESHOLD) {
         existingEvent = eventBySlug;
         console.log(`[deduplicate] MATCH POR SLUG: "${eventData.title}" coincide con "${eventBySlug.title}" (ID: ${eventBySlug.id})`);
       } else {
@@ -172,126 +269,83 @@ export async function upsertEventWithDeduplication(
   }
 
   if (existingEvent) {
-    // Si existe coincidencia, agregamos el link de compra alternativo (UPDATE)
-    const existingSources: TicketSource[] = Array.isArray(existingEvent.ticket_sources)
-      ? (existingEvent.ticket_sources as TicketSource[])
-      : [];
+    const merge = mergeEvents(existingEvent, eventData, {
+      incomingSource: sourceKey,
+      dedupKey: dedupKey || dedupKeyOf(existingEvent),
+      context: 'ingest',
+    });
 
-    const newSourceUrl = eventData.ticket_url;
-    
-    // Verificar si esta fuente ya está registrada en el evento
-    const hasSource = existingSources.some(
-      src => src.url === newSourceUrl || src.source === sourceKey
-    );
+    const finalTitle = merge.patch.title ?? existingEvent.title;
+    const finalStart = merge.patch.start_date ?? existingEvent.start_date;
 
-    let updatedSources = [...existingSources];
-    if (!hasSource && newSourceUrl) {
-      updatedSources.push({
-        source: sourceKey,
-        url: newSourceUrl,
-        price_min: eventData.price_min ?? 0
-      });
+    const update: Record<string, any> = {
+      ...merge.patch,
+      dedup_key: buildDedupKey(finalTitle, finalStart) || null,
+      updated_at: new Date().toISOString(),
+    };
+
+    // Sólo se anota en auditoría si hubo algo que descartar. Si la corrida no
+    // aportó nada nuevo, no tiene sentido engordar el array en cada cron.
+    if (merge.audit.discarded.length > 0) {
+      update.merge_audit = appendAudit((existingEvent as any).merge_audit, merge.audit);
+      console.log(
+        `[deduplicate] Fusión ${describeSource(sourceKey)} -> ${describeSource(existingEvent.scrape_source_key)}: ` +
+        merge.audit.discarded.map(d => `${d.field} (gana ${d.kept_source})`).join(', ')
+      );
     }
 
-    // Actualizar precio mínimo general si la nueva opción es más barata
-    let finalPriceMin = existingEvent.price_min;
-    if (eventData.price_min !== undefined && eventData.price_min < existingEvent.price_min) {
-      finalPriceMin = eventData.price_min;
+    let { error } = await supabase.from('events').update(update).eq('id', existingEvent.id);
+
+    if (error && isMissingDedupColumn(error)) {
+      warnMissingColumnsOnce();
+      ({ error } = await supabase.from('events').update(stripDedupColumns(update)).eq('id', existingEvent.id));
     }
-
-    // Consolidar flags comerciales (si cualquiera es comercial, el evento pasa a ser comercial)
-    const finalIsCommercial = existingEvent.is_commercial || eventData.is_commercial || false;
-
-    // Consolidar is_free: si el nuevo scrape determina que no es gratis o si el precio mínimo final es > 0, corregimos a false
-    let finalIsFree = existingEvent.is_free;
-    if (eventData.is_free !== undefined) {
-      if (eventData.is_free === false || finalPriceMin > 0) {
-        finalIsFree = false;
-      }
-    }
-
-    // Consolidar imagen: si la imagen actual es nula o es una miniatura, y la nueva es mejor, la actualizamos
-    let finalImageUrl = existingEvent.image_url;
-    if (eventData.image_url && (!existingEvent.image_url || existingEvent.image_url.includes('150x150') || existingEvent.image_url.toLowerCase().includes('thumb') || existingEvent.image_url.toLowerCase().includes('equity'))) {
-      finalImageUrl = eventData.image_url;
-    }
-
-    // Consolidar category_id y su clasificación
-    let finalCategoryId = existingEvent.category_id;
-    let finalClassificationSource = existingEvent.classification_source;
-    
-    if (eventData.category_id) {
-      const currentSource = existingEvent.classification_source;
-      const newSource = eventData.classification_source;
-      
-      if (
-        !existingEvent.category_id || 
-        currentSource === null || 
-        (currentSource === 'scraper' && (newSource === 'alias' || newSource === 'scraper'))
-      ) {
-        finalCategoryId = eventData.category_id;
-        finalClassificationSource = newSource || 'scraper';
-      }
-    }
-
-    // Actualizar base de datos
-    const { error } = await supabase
-      .from('events')
-      .update({
-        ticket_sources: updatedSources,
-        price_min: finalPriceMin,
-        is_free: finalIsFree,
-        image_url: finalImageUrl,
-        is_commercial: finalIsCommercial,
-        category_id: finalCategoryId,
-        classification_source: finalClassificationSource,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', existingEvent.id);
 
     if (error) {
       throw new Error(`Error actualizando evento duplicado: ${error.message}`);
     }
 
     return { success: true, action: 'update', eventId: existingEvent.id };
-  } else {
-    // Si no existe, creamos el arreglo de ticket_sources inicial e insertamos
-    const initialSources: TicketSource[] = [];
-    if (eventData.ticket_url) {
-      initialSources.push({
-        source: sourceKey,
-        url: eventData.ticket_url,
-        price_min: eventData.price_min ?? 0
-      });
-    }
-
-    const newEvent = {
-      ...eventData,
-      ticket_sources: initialSources,
-      scrape_source_key: sourceKey,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    };
-
-    // Eliminar propiedad temporal 'venue' que se usa para resolver
-    delete newEvent.venue;
-
-    const { data, error } = await supabase
-      .from('events')
-      .insert(newEvent)
-      .select('id')
-      .single();
-
-    if (error) {
-      throw new Error(`Error insertando nuevo evento: ${error.message}`);
-    }
-
-    return { success: true, action: 'insert', eventId: data.id };
   }
+
+  // 3. Evento nuevo: se crea el array de links con la fuente que lo trajo.
+  const initialSources: TicketSource[] = mergeTicketSources(
+    [],
+    eventData.ticket_sources,
+    sourceKey,
+    eventData.ticket_url,
+    eventData.price_min
+  );
+
+  const newEvent: Record<string, any> = {
+    ...eventData,
+    ticket_sources: initialSources,
+    scrape_source_key: sourceKey,
+    dedup_key: dedupKey || null,
+    merge_audit: [],
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  };
+
+  // Eliminar propiedad temporal 'venue' que se usa para resolver
+  delete newEvent.venue;
+
+  let { data, error } = await supabase.from('events').insert(newEvent).select('id').single();
+
+  if (error && isMissingDedupColumn(error)) {
+    warnMissingColumnsOnce();
+    ({ data, error } = await supabase.from('events').insert(stripDedupColumns(newEvent)).select('id').single());
+  }
+
+  if (error) {
+    throw new Error(`Error insertando nuevo evento: ${error.message}`);
+  }
+
+  return { success: true, action: 'insert', eventId: data.id };
 }
 
 /**
- * Verifica si el evento ya existe en la base de datos (por slug, ticket_url o similitud).
+ * Verifica si el evento ya existe en la base de datos.
  * Retorna true si es nuevo, false si es duplicado.
  */
 export async function deduplicateEvent(
@@ -301,3 +355,6 @@ export async function deduplicateEvent(
   const duplicate = await findDuplicateEvent(event, supabaseClient);
   return duplicate === null;
 }
+
+// Re-export para que los consumidores no tengan que conocer la estructura interna.
+export { buildDedupKey, dedupKeyOf, normalizeTitleForKey };
