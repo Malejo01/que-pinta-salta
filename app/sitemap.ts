@@ -21,8 +21,12 @@ function latest(dates: (string | null | undefined)[], fallback: Date): Date {
   return times.length ? new Date(Math.max(...times)) : fallback
 }
 
+/** Cuántos días hacia atrás sigue anunciándose un evento ya pasado. */
+const SITEMAP_PAST_DAYS = 30
+
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const now = new Date()
+  const sitemapCutoff = new Date(now.getTime() - SITEMAP_PAST_DAYS * 24 * 60 * 60 * 1000)
 
   const staticRoute = (
     path: string,
@@ -47,10 +51,21 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const supabase = createClient(supabaseUrl, supabaseKey)
 
   const [eventsRes, flyersRes, moviesRes] = await Promise.all([
+    // Sólo eventos vigentes: los futuros más una cola de 30 días.
+    //
+    // Sin el filtro el sitemap listaba los 824 publicados, de los cuales 744
+    // ya habían pasado: 90% del crawl budget en páginas de eventos vencidos.
+    // La cola de 30 días existe porque un evento recién pasado todavía recibe
+    // búsquedas ("¿cómo estuvo…?") y sacarlo del sitemap el día después
+    // desperdicia el posicionamiento que acaba de ganar.
+    //
+    // Las páginas siguen existiendo y respondiendo 200; sólo dejan de
+    // anunciarse para rastreo.
     supabase
       .from("events")
       .select("id, updated_at")
       .eq("status", "PUBLISHED")
+      .gte("start_date", sitemapCutoff.toISOString())
       .order("start_date", { ascending: false }),
     supabase
       .from("instagram_flyers")

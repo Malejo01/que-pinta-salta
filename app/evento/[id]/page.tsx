@@ -95,6 +95,35 @@ export default async function EventPage({ params }: EventPageProps) {
   const hasCoords = typeof venue?.latitude === 'number' && typeof venue?.longitude === 'number'
   const isCancelled = event.status === 'CANCELLED'
 
+  /**
+   * `events.tags` mezcla dos cosas: nombres de artista cargados por la IA de
+   * Instagram ("La Joaqui", "Tomy Wahl"), que sí son keywords legítimas, y
+   * marcas internas de la ingesta ("scraped", "norteticket", "instagram-ai"),
+   * que no tienen por qué ser públicas — decían cómo entró el dato, no de qué
+   * se trata el evento.
+   *
+   * Se filtran por lista negra y no por lista blanca porque los nombres de
+   * artista son abiertos: no se pueden enumerar de antemano.
+   */
+  const INTERNAL_TAGS = new Set([
+    'scraped',
+    'norteticket',
+    'entradauno',
+    'alpogo',
+    'vamos',
+    'instagram-ai',
+    'instagram',
+    'manual',
+    'cines',
+    'cinema',
+  ])
+
+  const publicKeywords = (event.tags ?? [])
+    .filter((tag): tag is string => typeof tag === 'string')
+    .map((tag) => tag.trim())
+    .filter((tag) => tag.length > 0 && !INTERNAL_TAGS.has(tag.toLowerCase()))
+    .join(', ')
+
   const jsonLd = {
     '@context': 'https://schema.org',
     '@type': 'Event',
@@ -102,7 +131,11 @@ export default async function EventPage({ params }: EventPageProps) {
     'url': eventUrl,
     'name': event.title,
     'startDate': formatSaltaSchemaDate(event.start_date),
-    'endDate': formatSaltaSchemaDate(event.end_date || event.start_date),
+    // Sólo si hay una fecha de fin de verdad. Antes se repetía `start_date`
+    // cuando faltaba, y un evento que empieza y termina en el mismo instante
+    // es una duración de cero: Google lo marca en el informe de Eventos.
+    // Omitir el campo es válido en schema.org y no dispara el aviso.
+    ...(event.end_date && { 'endDate': formatSaltaSchemaDate(event.end_date) }),
     'eventStatus': isCancelled ? 'https://schema.org/EventCancelled' : 'https://schema.org/EventScheduled',
     'eventAttendanceMode': 'https://schema.org/OfflineEventAttendanceMode',
     'inLanguage': 'es-AR',
@@ -142,7 +175,7 @@ export default async function EventPage({ params }: EventPageProps) {
     ...(event.category?.name && {
       'about': { '@type': 'Thing', 'name': event.category.name },
     }),
-    ...(event.tags?.length && { 'keywords': event.tags.join(', ') }),
+    ...(publicKeywords && { 'keywords': publicKeywords }),
   }
 
   return (
