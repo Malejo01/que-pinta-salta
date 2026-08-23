@@ -37,23 +37,6 @@ export const metadata: Metadata = {
     template: '%s | Que pinta Salta',
   },
   description: 'La agenda cultural definitiva de Salta Capital. Encontrá peñas folclóricas, boliches, recitales, teatros, ferias, talleres y cine hoy en Salta.',
-  keywords: [
-    'salta',
-    'salta capital',
-    'que pinta salta',
-    'eventos salta',
-    'peñas salta',
-    'boliches salta',
-    'teatro salta',
-    'ferias salta',
-    'talleres salta',
-    'cine salta',
-    'que hacer en salta',
-    'agenda cultural salta',
-    'cartelera cines salta',
-    'recitales salta',
-    'salta la linda',
-  ],
   icons: {
     icon: [
       {

@@ -3,6 +3,7 @@ import { getEventById } from "@/lib/data"
 import { getCategories } from "@/lib/data"
 import { EventDetailPage } from "@/components/event-detail-page"
 import { createClient } from "@/lib/supabase/server"
+import { formatSaltaSchemaDate } from "@/lib/date-format"
 import type { Metadata } from "next"
 
 interface EventPageProps {
@@ -84,43 +85,77 @@ export default async function EventPage({ params }: EventPageProps) {
     notFound()
   }
 
-  // Schema.org Structured Data (JSON-LD) for Google Rich Results
+  // Schema.org Structured Data (JSON-LD) for Google Rich Results.
+  // Sólo para eventos que realmente están publicados: emitir schema de un
+  // borrador o de algo pendiente de revisión sería datos estructurados de
+  // contenido que el público no debería estar viendo.
+  const isIndexable = ['PUBLISHED', 'CANCELLED', 'PAST'].includes(event.status)
+  const eventUrl = `https://www.quepintasalta.com.ar/evento/${event.id}`
+  const venue = event.venue
+  const hasCoords = typeof venue?.latitude === 'number' && typeof venue?.longitude === 'number'
+  const isCancelled = event.status === 'CANCELLED'
+
   const jsonLd = {
     '@context': 'https://schema.org',
     '@type': 'Event',
+    '@id': eventUrl,
+    'url': eventUrl,
     'name': event.title,
-    'startDate': event.start_date,
-    'endDate': event.end_date || event.start_date,
-    'eventStatus': event.status === 'CANCELLED' ? 'https://schema.org/EventCancelled' : 'https://schema.org/EventScheduled',
+    'startDate': formatSaltaSchemaDate(event.start_date),
+    'endDate': formatSaltaSchemaDate(event.end_date || event.start_date),
+    'eventStatus': isCancelled ? 'https://schema.org/EventCancelled' : 'https://schema.org/EventScheduled',
     'eventAttendanceMode': 'https://schema.org/OfflineEventAttendanceMode',
+    'inLanguage': 'es-AR',
+    'isAccessibleForFree': !!event.is_free,
     'location': {
       '@type': 'Place',
-      'name': event.venue?.name || 'Lugar por confirmar',
+      'name': venue?.name || 'Lugar por confirmar',
       'address': {
         '@type': 'PostalAddress',
-        'streetAddress': event.venue?.address || 'Salta, Argentina',
+        'streetAddress': venue?.address || 'Salta, Argentina',
         'addressLocality': 'Salta',
+        'addressRegion': 'Salta',
         'addressCountry': 'AR',
       },
+      ...(hasCoords && {
+        'geo': {
+          '@type': 'GeoCoordinates',
+          'latitude': venue!.latitude,
+          'longitude': venue!.longitude,
+        },
+      }),
+      ...(venue?.google_maps_url && { 'hasMap': venue.google_maps_url }),
     },
     'image': event.image_url ? [event.image_url] : ['https://www.quepintasalta.com.ar/og-image.png'],
-    'description': event.short_description || event.description || '',
+    'description': event.short_description || event.description || `${event.title} en Salta Capital.`,
     'offers': {
       '@type': 'Offer',
-      'url': event.ticket_url || `https://www.quepintasalta.com.ar/evento/${event.id}`,
-      'price': event.price_min || 0,
+      'name': event.is_free ? 'Entrada libre y gratuita' : 'Entrada',
+      'url': event.ticket_url || eventUrl,
+      'price': event.is_free ? 0 : (event.price_min ?? 0),
       'priceCurrency': 'ARS',
-      'availability': 'https://schema.org/InStock',
+      'availability': isCancelled
+        ? 'https://schema.org/SoldOut'
+        : 'https://schema.org/InStock',
       'validFrom': event.created_at,
     },
+    ...(event.category?.name && {
+      'about': { '@type': 'Thing', 'name': event.category.name },
+    }),
+    ...(event.tags?.length && { 'keywords': event.tags.join(', ') }),
   }
 
   return (
     <>
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
-      />
+      {isIndexable && (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            // Escapamos "<" para que un título con "</script>" no rompa el documento.
+            __html: JSON.stringify(jsonLd).replace(/</g, '\\u003c'),
+          }}
+        />
+      )}
       <EventDetailPage 
         event={event} 
         isAdmin={isAdmin} 
