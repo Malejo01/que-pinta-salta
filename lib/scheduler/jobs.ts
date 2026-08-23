@@ -19,9 +19,25 @@ import type { JobDefinition } from './types'
  * el trigger manual, la bitácora y el health check lo toman de este registro
  * sin tocar nada más.
  *
- * Horarios en hora local de Salta (UTC-3). El dispatcher corre cada 6 h
- * (00, 06, 12 y 18 de Salta), así que las horas de `hoursSalta` tienen que
- * caer en esos ticks; ver `vercel.json`.
+ * Cadencia: UN tick diario
+ * -------------------------
+ * El proyecto está en Vercel Hobby, y ese plan admite como máximo una
+ * ejecución por día por cron. No es un límite blando: el build falla con
+ * "Hobby accounts are limited to daily Cron Jobs" si alguna expresión
+ * dispara más seguido. El dispatcher está en `0 21 * * *`, o sea
+ * 21:00 UTC = 18:00 de Salta, todos los días (ver `vercel.json`).
+ *
+ * Consecuencia de diseño: la HORA de cada job ya no la elige el job, la
+ * define el cron. Por eso ninguno de los `managed` usa `hoursSalta`: con un
+ * solo tick al día, pedir una hora distinta a las 18:00 equivale a no correr
+ * nunca, y pedir exactamente las 18:00 lo vuelve frágil ante un tick que
+ * llegue tarde (Vercel no garantiza el minuto exacto, y `toSaltaParts` lee
+ * la hora entera). `daysOfWeekSalta` sí se sigue usando: filtrar por día es
+ * compatible con un tick diario.
+ *
+ * Todas las expresiones cron de Vercel se interpretan en UTC. Salta es
+ * UTC-3 fijo, sin horario de verano, igual que asume `SALTA_UTC_OFFSET` en
+ * `lib/date-format.ts`. Cada `label` de acá abajo indica las dos horas.
  */
 
 /**
@@ -69,12 +85,13 @@ export const JOBS: JobDefinition[] = [
       'Scrapea Cinemark Alto NOA, Cinemark Paseo Salta y Cine Ópera, y sincroniza `cinema_movies`.',
     managed: true,
     schedule: {
-      // Las 12 y las 18 son la ventana de reintento del día: con
-      // `everyMinutes` de 24 h, si la corrida de las 06 salió bien no vuelve
-      // a estar vencido hasta mañana, y si falló lo reintenta al mediodía.
-      label: 'Todos los días a las 06:00 (Salta), con reintento a las 12:00 y 18:00',
+      // Antes eran las 06:00 con reintento a las 12:00 y 18:00. Con un solo
+      // tick diario esa ventana de reintento ya no existe: si la corrida
+      // falla, el job queda vencido y se reintenta en el tick de mañana.
+      // La red de contención sigue siendo `IN_RUN_RETRY`, que reintenta
+      // dentro de la misma invocación.
+      label: 'Todos los días a las 18:00 de Salta (21:00 UTC)',
       everyMinutes: 24 * 60,
-      hoursSalta: [6, 12, 18],
     },
     // La cartelera es idempotente (upsert por slug), así que reintentar es
     // seguro y conviene: la fuente falla sobre todo por timeouts puntuales.
@@ -92,17 +109,37 @@ export const JOBS: JobDefinition[] = [
       'Toma flyers de Instagram con `ai_status = PENDING` y los pasa por Gemini Vision, con tope de items por corrida.',
     managed: true,
     schedule: {
-      label: 'Cada 6 horas (00, 06, 12 y 18 de Salta)',
-      everyMinutes: 6 * 60,
+      // Era cada 6 h. Pasa a diario porque Hobby no admite un cron más
+      // frecuente, y el tope por corrida sube para compensar el caudal.
+      label: 'Todos los días a las 18:00 de Salta (21:00 UTC)',
+      everyMinutes: 24 * 60,
     },
     // Sin reintento a nivel job: cada llamada a Gemini se paga y el handler
     // ya aísla el fallo por flyer. Reintentar el lote entero volvería a
     // gastar por los que sí salieron bien.
     retry: NO_RETRY,
-    defaultLimit: envInt('SCHEDULER_FLYERS_BATCH_LIMIT', 10),
+    // Tope por corrida — es el control de costo del modelo.
+    //
+    // Antes: 4 corridas/día x 10 = 40 flyers/día.
+    // Ahora: 1 corrida/día x 20 = 20 flyers/día.
+    //
+    // 20 y no 40 porque la corrida entera tiene que entrar en
+    // SINGLE_ATTEMPT_TIMEOUT_MS (50 s) dentro del `maxDuration = 60` de la
+    // ruta. Con CONCURRENCY = 3 son ceil(20/3) = 7 tandas; a ~6 s por
+    // llamada de Gemini Vision da ~42 s, con margen. Con 40 serían 14 tandas
+    // (~84 s) y la corrida se cortaría por timeout todos los días.
+    //
+    // 20/día alcanza para el caudal real: entran ~11 flyers/día en promedio,
+    // con picos de ~33 los días que corre el cron de Instagram. Los picos se
+    // absorben al día siguiente.
+    //
+    // Para drenar un backlog grande sin esperar, disparar a mano varias
+    // veces: POST /api/cron/run/flyers-ai
+    defaultLimit: envInt('SCHEDULER_FLYERS_BATCH_LIMIT', 20),
     timeoutMs: SINGLE_ATTEMPT_TIMEOUT_MS,
-    // Son 4 corridas por día: 12 h sin ninguna significa que algo se rompió.
-    staleAfterMinutes: 12 * 60,
+    // Ahora es una corrida por día: 36 h sin ninguna es lo que delata que se
+    // rompió, no 12.
+    staleAfterMinutes: 36 * 60,
     handler: flyersAiHandler,
   },
   {
@@ -112,10 +149,14 @@ export const JOBS: JobDefinition[] = [
       'Envía por Resend la agenda personalizada a los usuarios con `email_frequency = weekly`.',
     managed: true,
     schedule: {
-      label: 'Jueves a las 18:00 (Salta)',
+      // El único job que necesita filtro de día. La hora sale del cron
+      // (21:00 UTC = 18:00 de Salta), que es justo la hora de envío que ya
+      // tenía, así que el cambio de cadencia no lo movió. `hoursSalta` se
+      // saca a propósito: con un solo tick diario sería redundante, y un
+      // tick que llegue tarde haría que el envío se saltee la semana entera.
+      label: 'Jueves a las 18:00 de Salta (21:00 UTC)',
       everyMinutes: 7 * 24 * 60,
-      daysOfWeekSalta: [4], // jueves
-      hoursSalta: [18],
+      daysOfWeekSalta: [4], // jueves en hora de Salta
     },
     // Reintentar reenvía mails a quien ya los recibió: el envío no es
     // idempotente y la ruta no lleva registro por destinatario. Si falla, se
@@ -145,7 +186,8 @@ export const JOBS: JobDefinition[] = [
       'NorteTicket, EntradaUno y AlPogo. Hoy lo dispara su propio cron de Vercel a las 05:00 (Salta).',
     managed: false,
     schedule: {
-      label: 'Todos los días a las 05:00 (Salta) — cron propio en vercel.json',
+      // vercel.json: "0 8 * * *" -> 08:00 UTC = 05:00 de Salta. 1 disparo/día.
+      label: 'Todos los días a las 05:00 de Salta (08:00 UTC) — cron propio en vercel.json',
       everyMinutes: 24 * 60,
     },
     retry: NO_RETRY,
@@ -175,7 +217,10 @@ export const JOBS: JobDefinition[] = [
       'Dispara el actor de Apify sobre las cuentas activas. Hoy lo dispara su propio cron de Vercel.',
     managed: false,
     schedule: {
-      label: 'Jueves, viernes, sábado y domingo a las 21:00 (Salta) — cron propio en vercel.json',
+      // vercel.json: "0 0 * * 0,1,5,6" -> 00:00 UTC de dom/lun/vie/sáb.
+      // Restando 3 h cae 21:00 del día ANTERIOR en Salta: sáb/dom/jue/vie.
+      // 1 disparo por día en los días que corre.
+      label: 'Jueves, viernes, sábado y domingo a las 21:00 de Salta (00:00 UTC del día siguiente) — cron propio en vercel.json',
       everyMinutes: 24 * 60,
     },
     retry: NO_RETRY,
