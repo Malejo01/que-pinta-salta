@@ -91,12 +91,26 @@ BEGIN
     ('One Club',                              'ONE'),                      -- 0 + 1
     ('One Club',                              'One Oficial Salta'),        -- + 2
     ('Trewa Club',                            'Trewa'),                    -- 4 + 1
-    -- nombre parcial: la fuente publica el apodo, no el nombre del lugar
-    ('El Patio de la Roka',                   'LA ROKA'),                  -- 3 + 5
-    ('El Patio de la Roka',                   'La Roka Salta'),            -- + 1
-    ('El Patio de la Roka',                   'Roka'),                     -- + 0
-    ('El Patio de la Roka',                   'Salta Roka'),               -- + 2
-    ('El Patio de la Roka',                   'Saltaroka'),                -- + 5
+    -- Cluster "Roka". Se consolidan SÓLO las variantes de escritura de
+    -- "La Roka" entre sí. "El Patio de la Roka" queda como venue SEPARADO.
+    --
+    -- Por qué no se fusiona con El Patio de la Roka
+    -- ---------------------------------------------
+    -- Los datos no alcanzan para decidir si es el mismo espacio físico o dos
+    -- espacios dentro del mismo predio. Las 6 filas tienen lat/lng en NULL y
+    -- ninguna trae un domicilio real (todas repiten su propio nombre). Lo
+    -- único observable es el perfil de evento, y apunta a que son distintos:
+    --   El Patio de la Roka -> 3 shows nacionales por ticketera
+    --                          (No Te Va Gustar, Bersuit, peña de Los Nocheros)
+    --   La Roka / Saltaroka -> 13 fiestas locales semanales, todas de Instagram
+    -- Un "patio" es, por definición, un espacio propio dentro de un predio.
+    -- Fusionarlos sería afirmar algo que no se puede verificar acá, y como el
+    -- merge repuntea events.venue_id, el error se propaga a la agenda.
+    -- Queda encolado en venue_review_queue para que lo resuelva una persona.
+    ('LA ROKA',                               'La Roka Salta'),            -- 5 + 1
+    ('LA ROKA',                               'Roka'),                     -- + 0
+    ('LA ROKA',                               'Salta Roka'),               -- + 2
+    ('LA ROKA',                               'Saltaroka'),                -- + 5
     -- iniciales y handle de Instagram
     ('Juan de los Palotes',                   'JP'),                       -- 12 + 2
     ('Juan de los Palotes',                   'juandelospalotes.jp'),      -- + 3
@@ -133,8 +147,17 @@ BEGIN
     -- El duplicado puede traer datos que al canónico le faltan (el caso
     -- "Teatro Provincial de Salta", que tiene lat/lng y el canónico no).
     -- Se copia sólo lo que esté vacío del lado canónico: nunca se pisa.
+    -- El domicilio del canónico gana sólo si es un domicilio de verdad. La
+    -- mayoría de las filas repiten su propio nombre en `address`, y sin este
+    -- filtro ese eco le ganaba por COALESCE al único domicilio real del
+    -- cluster: "Teatro Provincial de Salta" trae "Zuviría 70, Salta" y el
+    -- canónico tiene "Teatro Provincial Juan Carlos Saravia", que no es una
+    -- dirección. Se perdía el dato al fusionar.
     UPDATE public.venues c SET
-        address         = COALESCE(NULLIF(btrim(c.address), ''), v_dup.address),
+        address         = COALESCE(
+                            public.venue_useful_address(c.name, c.address),
+                            public.venue_useful_address(v_dup.name, v_dup.address),
+                            c.address),
         latitude        = COALESCE(c.latitude,  v_dup.latitude),
         longitude       = COALESCE(c.longitude, v_dup.longitude),
         google_maps_url = COALESCE(c.google_maps_url, v_dup.google_maps_url),
@@ -142,10 +165,10 @@ BEGIN
         capacity        = COALESCE(c.capacity,  v_dup.capacity),
         updated_at      = now()
       WHERE c.id = v_canon_id
-        -- si address del canónico es sólo el nombre repetido, no aporta nada
         AND (v_dup.latitude IS NOT NULL OR v_dup.longitude IS NOT NULL
              OR v_dup.google_maps_url IS NOT NULL OR v_dup.phone IS NOT NULL
-             OR v_dup.capacity IS NOT NULL);
+             OR v_dup.capacity IS NOT NULL
+             OR public.venue_useful_address(v_dup.name, v_dup.address) IS NOT NULL);
 
     -- Repuntear eventos, guardando el origen para poder revertir.
     INSERT INTO public.venue_merge_log (migration_tag, entity, entity_id, from_venue_id, to_venue_id)
@@ -246,7 +269,8 @@ BEGIN
       ('casagrande pena',     'Casagrande Peña'),
       ('la casona de guemes', 'La Casona de Güemes'),
       ('amnesia pub musica',  'Amnesia Pub & Música'),
-      ('museo antropologico', 'Museo Antropológico')
+      ('museo antropologico', 'Museo Antropológico'),
+      ('la roka',             'La Roka')
     ) AS p(key, preferred)
    WHERE v.canonical_venue_id IS NULL
      AND public.venue_normalize(v.name) = p.key
@@ -316,7 +340,9 @@ BEGIN
       ('Balcarce 980',              'Sólo domicilio, sin nombre de lugar. Identificar a qué venue corresponde.'),
       ('General Guemes 485',        'Sólo domicilio, sin nombre de lugar. Identificar a qué venue corresponde.'),
       ('Salon',                     'Genérico. Identificar el lugar real.'),
-      ('Centro Comercial',          'Genérico. Identificar el lugar real.')
+      ('Centro Comercial',          'Genérico. Identificar el lugar real.'),
+      ('El Patio de la Roka',       'DECISIÓN PENDIENTE: ¿es el mismo espacio que "La Roka" o un espacio propio dentro del mismo predio? Los datos no alcanzan (sin coordenadas, sin domicilio real). El Patio recibe shows nacionales por ticketera; La Roka, fiestas locales de Instagram. Si es el mismo lugar: agregar "La Roka" como alias. Si no: dejarlos separados y cargar dirección/coordenadas en ambos.'),
+      ('LA ROKA',                   'DECISIÓN PENDIENTE: ver la nota de "El Patio de la Roka". Esta fila ya absorbió las variantes de escritura (La Roka Salta, Roka, Salta Roka, Saltaroka).')
     ) AS x(nm, note)
     JOIN public.venues v ON public.venue_normalize(v.name) = public.venue_normalize(x.nm)
   ON CONFLICT (normalized) DO UPDATE
@@ -345,3 +371,9 @@ SELECT v.id, v.name, v.slug, v.address, v.latitude, v.longitude,
        (SELECT count(*) FROM public.venue_aliases a WHERE a.venue_id = v.id) AS alias_count
   FROM public.venues v
  WHERE v.canonical_venue_id IS NULL AND NOT v.is_placeholder;
+
+-- Sin esto la vista corre con los privilegios de su dueño y saltea el RLS de
+-- las tablas que lee, que es lo que el linter de Supabase marca como
+-- `security_definer_view`. Hoy no cambia qué se ve (events tiene lectura
+-- pública), pero deja la vista atada al RLS real en vez de a quién la creó.
+ALTER VIEW public.venues_canonical SET (security_invoker = on);

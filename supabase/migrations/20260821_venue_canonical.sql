@@ -118,6 +118,24 @@ COMMENT ON FUNCTION public.venue_core_key(TEXT) IS
   'Clave de match relajado: venue_normalize() menos artículo inicial y sufijo de ciudad. "La Casona de Güemes"/"Casona de Guemes" -> "casona de guemes".';
 
 
+-- Muchas filas guardan el propio nombre en `address` ("Amnesia" -> addr
+-- "Amnesia", "LA ROKA" -> addr "LA ROKA, salta, Salta"): eso no es un
+-- domicilio, es ruido de la ingesta. Devuelve NULL en ese caso para que un
+-- COALESCE pueda preferir un domicilio de verdad aunque venga de otra fila.
+CREATE OR REPLACE FUNCTION public.venue_useful_address(p_name TEXT, p_address TEXT)
+RETURNS TEXT
+LANGUAGE sql
+IMMUTABLE
+PARALLEL SAFE
+AS $fn$
+  SELECT CASE
+    WHEN p_address IS NULL OR btrim(p_address) = ''                    THEN NULL
+    WHEN public.venue_core_key(p_address) = public.venue_core_key(p_name) THEN NULL
+    ELSE btrim(p_address)
+  END;
+$fn$;
+
+
 CREATE OR REPLACE FUNCTION public.venue_slugify(raw TEXT)
 RETURNS TEXT
 LANGUAGE sql
