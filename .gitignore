@@ -14,3 +14,5 @@ next.user-config.*
 node_modules
 .next/
 .DS_Store
+# Build artifacts de TypeScript: se regenera en cada build y ensucia todos los diffs.
+tsconfig.tsbuildinfo
