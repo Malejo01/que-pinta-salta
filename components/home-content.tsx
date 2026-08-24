@@ -16,6 +16,7 @@ import Link from "next/link"
 import { motion, AnimatePresence } from "framer-motion"
 import { Button } from "@/components/ui/button"
 import { formatEventTime } from "@/lib/date-format"
+import { aplicarOrdenDemo } from "@/lib/config/category-order"
 import { AdSenseBanner } from "@/components/adsense-banner"
 import { Film } from "lucide-react"
 
@@ -48,7 +49,7 @@ function getCategoryPriority(
     }
   }
 
-  return [...categories].sort((a, b) => {
+  const ordenNormal = [...categories].sort((a, b) => {
     const aFavoriteIndex = favoriteIndex.get(a.slug)
     const bFavoriteIndex = favoriteIndex.get(b.slug)
 
@@ -64,6 +65,10 @@ function getCategoryPriority(
 
     return a.name.localeCompare(b.name, "es")
   })
+
+  // Cambio TEMPORAL para la demo institucional. Con el flag apagado esto
+  // devuelve `ordenNormal` sin tocar. Ver lib/config/category-order.ts.
+  return aplicarOrdenDemo(ordenNormal, serverNowISO)
 }
 
 // Tipo unificado para eventos y flyers de Instagram
