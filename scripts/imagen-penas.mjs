@@ -1,9 +1,10 @@
 /**
  * Carga la imagen de portada de las peñas cargadas por cargar-penas.mjs.
  *
- *   node scripts/imagen-penas.mjs --vieja-estacion=./foto1.jpg --balderrama=./foto2.jpg
- *   node scripts/imagen-penas.mjs --vieja-estacion=./foto1.jpg --apply
- *   node scripts/imagen-penas.mjs --undo
+ *   node scripts/imagen-penas.mjs                              # DRY-RUN
+ *   node scripts/imagen-penas.mjs --apply                      # re-aplica lo que ya esta en el bucket
+ *   node scripts/imagen-penas.mjs --balderrama=./foto.jpg --apply   # sube una foto nueva
+ *   node scripts/imagen-penas.mjs --undo --apply               # vuelve image_url a null
  *
  * Por qué existe
  * -------------
@@ -19,9 +20,14 @@
  * que son una fila por día (14 y 9 al momento de escribir esto).
  *
  * Es idempotente: `upsert: true` en el storage y un update por título+venue,
- * así que re-correrlo con la misma foto no duplica nada. Volvé a correrlo
- * después de cada `cargar-penas.mjs --apply`, porque las fechas nuevas entran
- * otra vez con `image_url` en null.
+ * así que re-correrlo con la misma foto no duplica nada.
+ *
+ * Sin argumentos de archivo no hace falta tener las fotos a mano: si el objeto
+ * ya está en el bucket, reutiliza su URL pública. Eso importa porque
+ * `cargar-penas.mjs --apply` inserta las fechas nuevas de la ventana semanal
+ * con `image_url` en null, y entonces alcanza con `imagen-penas.mjs --apply`
+ * para volver a taparlas. Pasá un `--<flag>=<archivo>` solo cuando quieras
+ * cambiar la foto.
  */
 
 import { createClient } from '@supabase/supabase-js'
@@ -113,22 +119,33 @@ for (const p of PENAS) {
   }
 
   const ruta = arg(p.flag)
-  if (!ruta) { console.log(`  sin --${p.flag}=<archivo>, se saltea`); continue }
-  if (!fs.existsSync(ruta)) { console.error(`  ERROR: no existe el archivo ${ruta}`); continue }
+  let destino = null
 
-  const original = fs.readFileSync(ruta)
-  const { buf, ext, tipo, nota } = await optimizar(original, ruta)
-  const destino = `${PREFIJO}/${p.slug}.${ext}`
-  console.log(`  archivo: ${ruta}`)
-  console.log(`  ${nota}`)
-  console.log(`  destino: ${BUCKET}/${destino}`)
+  if (ruta) {
+    // Foto nueva: se optimiza y se sube pisando la anterior.
+    if (!fs.existsSync(ruta)) { console.error(`  ERROR: no existe el archivo ${ruta}`); continue }
+    const original = fs.readFileSync(ruta)
+    const { buf, ext, tipo, nota } = await optimizar(original, ruta)
+    destino = `${PREFIJO}/${p.slug}.${ext}`
+    console.log(`  archivo: ${ruta}`)
+    console.log(`  ${nota}`)
+    console.log(`  destino: ${BUCKET}/${destino}`)
+    if (!APPLY) { console.log(`  [dry-run] subiría la imagen y pondría su URL en ${evs.length} filas`); continue }
+    const { error: e3 } = await sb.storage.from(BUCKET).upload(destino, buf, {
+      cacheControl: '3600', upsert: true, contentType: tipo || undefined,
+    })
+    if (e3) { console.error(`  ERROR subiendo: ${e3.message}`); continue }
+  } else {
+    // Sin archivo: reutiliza la que ya esté subida para esta peña. Es el caso
+    // de after `cargar-penas.mjs --apply`, que mete fechas nuevas en null.
+    const { data: objs } = await sb.storage.from(BUCKET).list(PREFIJO)
+    const ya = (objs || []).find((o) => o.name.startsWith(`${p.slug}.`))
+    if (!ya) { console.log(`  sin --${p.flag}=<archivo> y no hay nada en ${BUCKET}/${PREFIJO}/${p.slug}.*, se saltea`); continue }
+    destino = `${PREFIJO}/${ya.name}`
+    console.log(`  reutiliza la imagen ya subida: ${BUCKET}/${destino}`)
+    if (!APPLY) { console.log(`  [dry-run] pondría esa URL en ${evs.length} filas (${sinImagen} en null hoy)`); continue }
+  }
 
-  if (!APPLY) { console.log(`  [dry-run] subiría la imagen y pondría su URL en ${evs.length} filas`); continue }
-
-  const { error: e3 } = await sb.storage.from(BUCKET).upload(destino, buf, {
-    cacheControl: '3600', upsert: true, contentType: tipo || undefined,
-  })
-  if (e3) { console.error(`  ERROR subiendo: ${e3.message}`); continue }
   const { data: pub } = sb.storage.from(BUCKET).getPublicUrl(destino)
   console.log(`  url: ${pub.publicUrl}`)
 
