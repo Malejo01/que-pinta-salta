@@ -18,9 +18,10 @@ interface EventCardProps {
   isFavorite?: boolean
   onToggleFavorite?: (eventId: string) => void
   onOpenMovie?: (movie: DisplayEvent) => void
+  className?: string
 }
 
-export function EventCard({ event, isFavorite, onToggleFavorite, onOpenMovie }: EventCardProps) {
+export function EventCard({ event, isFavorite, onToggleFavorite, onOpenMovie, className }: EventCardProps) {
   const [imgSrc, setImgSrc] = useState<string>(event.image || "/placeholder.jpg")
   const { openDonationModal } = useDonation()
 
@@ -81,7 +82,8 @@ export function EventCard({ event, isFavorite, onToggleFavorite, onOpenMovie }: 
         whileTap={{ scale: 0.98 }}
         className={cn(
           "group/card relative aspect-[2/3] w-[180px] shrink-0 cursor-pointer overflow-hidden rounded-xl bg-card shadow-lg hover:shadow-2xl hover:shadow-primary/10 sm:w-[200px] transition-all duration-300",
-          event.isFeatured && "ring-1 ring-amber-500/50 hover:ring-amber-500"
+          event.isFeatured && "ring-1 ring-amber-500/50 hover:ring-amber-500",
+          className
         )}
       >
         <Image

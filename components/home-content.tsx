@@ -598,7 +598,7 @@ export function HomeContent({
             </h2>
             <motion.div 
               layout
-              className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 justify-items-center"
+              className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5"
             >
               <AnimatePresence mode="popLayout">
                 {filteredEvents.map(event => (
@@ -611,6 +611,7 @@ export function HomeContent({
                     transition={{ duration: 0.3 }}
                   >
                     <EventCard 
+                      className="w-full sm:w-full max-w-[200px] mx-auto"
                       event={event} 
                       isFavorite={userFavorites.includes(event.id)}
                       onOpenMovie={setSelectedMovie}
