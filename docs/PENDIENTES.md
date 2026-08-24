@@ -8,35 +8,33 @@ Cada ítem dice **dónde** se toca y **qué se midió**, para no re-diagnosticar
 
 ---
 
-## Bloqueantes de producción
+## Cerrados — no volver a abrirlos
 
-### 1. `CRON_SECRET` parece no estar seteado en Vercel
+Están acá, y no simplemente borrados, porque en el historial de chat de esa noche
+figuran como problemas abiertos. Si alguien relee ese hilo sin ver esto, los
+reabre.
 
-`/api/scrape-cinemas`, `/api/cron/instagram` y `/api/cron/scrape` usan el mismo
-patrón: si la variable no existe, **no validan nada**.
+- **`CRON_SECRET` en Vercel — CERRADO el 2026-08-23.** Durante la auditoría, un
+  GET a `/api/scrape-cinemas` con Bearer vacío devolvía `200` y ejecutaba el
+  scraper (16s), lo que implicaba que la variable no estaba seteada en Vercel y
+  que los tres endpoints (`scrape-cinemas`, `cron/instagram`, `cron/scrape`)
+  quedaban disparables por cualquiera. Se cargó la variable y se redeployó.
+  **Verificado esa misma noche:** un Bearer inválido devuelve `401
+  {"error":"Unauthorized"}` en 1,06s, sin ejecutar el scraper. La clave en
+  `.env.local` también quedó normalizada (antes estaba escrita como
+  `CRON_SECRET =`, con un espacio antes del igual).
 
-```js
-// app/api/scrape-cinemas/route.ts:12
-const isAuthorized = !CRON_SECRET || authHeader === "Bearer " + CRON_SECRET || ...
-```
-
-**Evidencia:** un GET a `/api/scrape-cinemas` en producción con el header
-`Authorization: Bearer` vacío devolvió `200` y ejecutó el scraper. En producción
-`NODE_ENV === 'production'`, y un Bearer vacío no puede igualar a un secreto no
-vacío, así que la única rama que pudo pasar es `!CRON_SECRET`.
-
-**Impacto:** cualquiera puede disparar scraping saliente y escrituras a la base.
-Amplificación de costo, porque Apify se cobra por corrida.
-
-**Además:** en `.env.local` la clave está escrita como `CRON_SECRET =`, con un
-espacio antes del igual. Los scripts la levantan igual porque hacen `.trim()`,
-pero conviene normalizarla.
+- **Ramas locales sin pushear — CERRADO el 2026-08-23.** `feat/scheduler`,
+  `fix/venue-canonical` y `fix/event-dedup` (5 commits: Olas 2, 3 y 4 con sus
+  migraciones, el merge plan de venues y la dedup) existían solo en la máquina de
+  Mauro. Están pusheadas y trackeando `origin`. Ninguna está mergeada a `main`;
+  pushear no mergea ni deploya.
 
 ---
 
 ## Cines
 
-### 2. Re-disparar el scraper de día
+### 1. Re-disparar el scraper de día
 
 Corrió el 2026-08-23 a las 23:02 de Salta y **capturó casi nada**: quedaron
 **5 funciones**, todas de Cine Ópera. Los dos Cinemark devolvieron cero.
@@ -46,21 +44,23 @@ No es un bug del scraper. A esa hora la página de Cinemark ya rotó a mañana: 
 ninguno para el día en curso, y el filtro de `cinema-scraper.ts:177` y `:273`
 descarta todo lo que no sea hoy.
 
-Se arregla corriéndolo de día, con el mismo endpoint.
+Se arregla corriéndolo de día, con el mismo endpoint (ahora requiere el Bearer
+correcto).
 
 Antes de esa corrida había 61 funciones, pero eran del **2026-07-27** — un mes de
 antigüedad mostrándose como si fueran de hoy. No se restauró ese snapshot a
 propósito.
 
-### 3. El scraper de cines no está en ningún cron
+### 2. El scraper de cines no está en ningún cron
 
 `vercel.json` tiene dos crons y ninguno lo incluye: `/api/cron/scrape` (08:00
 diario) importa solo `scrapeNorteTicket`, `scrapeEntradaUno` y `scrapeAlpogo`.
 El único disparador es a mano.
 
-Cuando se enganche a un scheduler, **que corra de día** (ver ítem 2).
+Cuando se enganche a un scheduler, **que corra de día** (ver ítem 1). La rama
+`feat/scheduler` unifica el disparo de cines, cola de IA y newsletter.
 
-### 4. `cinema_movies` no guarda fechas — decisión de producto
+### 3. `cinema_movies` no guarda fechas — decisión de producto
 
 Una fila por película, y las funciones viven en un JSON `showings` que solo tiene
 horas: `"times": ["22:40"]`. No hay campo de fecha en ningún lado.
@@ -75,7 +75,7 @@ solo la frecuencia de corrida.
 
 Medido sobre el HTML servido por `next start`, no sobre el className.
 
-### 5. Ningún variant de `Button` llega a 44×44
+### 4. Ningún variant de `Button` llega a 44×44
 
 `components/ui/button.tsx:24-30`: `default h-9` (36px), `sm h-8` (32),
 `lg h-10` (40), `icon size-9` (36), `icon-sm size-8` (32), `icon-lg size-10` (40).
@@ -98,7 +98,7 @@ La bottom nav está bien: 56px.
 Ojo al tocar `button.tsx`: los CTA de la ficha de evento quedaron en 40px
 justamente porque `size="lg"` es `h-10`. Subir el variant los arregla de paso.
 
-### 6. `images: { unoptimized: true }`
+### 5. `images: { unoptimized: true }`
 
 `next.config.mjs:6-8`. Desactiva la optimización para **todo** el sitio.
 
@@ -111,7 +111,7 @@ Para revertirlo hacen falta `remotePatterns` de los 5 hosts: `*.supabase.co`,
 `contenidos.entradauno.com`, `norteticket.com`, `cdn.cinemark.com.ar` y
 `*.adro.studio`.
 
-### 7. Peso de la home
+### 6. Peso de la home
 
 | | Wire | Sin comprimir |
 |---|---|---|
@@ -122,20 +122,20 @@ Para revertirlo hacen falta `remotePatterns` de los 5 hosts: `*.supabase.co`,
 
 Los 759 KB de HTML salen de serializar las 86 cards en el payload RSC inline.
 
-### 8. Texto por debajo de 14px
+### 7. Texto por debajo de 14px
 
 **117 nodos en 9px** (`event-card.tsx:115, 125, 151, 159`) y **67 en 10px**
 (`:108, :147, :197`). Los `text-[9px]` son los críticos; el resto es `text-xs` de
 Tailwind, discutible pero convencional.
 
-### 9. Prefetch RSC duplicado
+### 8. Prefetch RSC duplicado
 
 30 requests de prefetch al cargar la home. `/auth/login` se pide **7 veces** con 7
 hashes `_rsc` distintos, sin cache hit entre ellas, y `/buscar` 2 veces a **31 KB**
 comprimidos cada una. Son ~150-200 KB de datos móviles que no se usan salvo que
 el usuario navegue ahí.
 
-### 10. Las 2 grillas de `/favoritos` tienen el bug de solape
+### 9. Las 2 grillas de `/favoritos` tienen el bug de solape
 
 `app/favoritos/favoritos-list.tsx:183` y `:209` usan el mismo
 `grid grid-cols-2 gap-4 ... justify-items-center` que tenía `home-content.tsx`.
@@ -154,7 +154,7 @@ a 156 pero la card sigue pintando 180 y aparece scroll horizontal (`scrollWidth`
 
 Se dejó afuera a propósito el 2026-08-23 por requerir sesión.
 
-### 11. Falta `viewportFit: 'cover'` (menor)
+### 10. Falta `viewportFit: 'cover'` (menor)
 
 `app/layout.tsx:92-99`. El meta viewport está bien
 (`width=device-width, initial-scale=1`, sin `user-scalable=no`), pero sin
@@ -165,7 +165,7 @@ porque el wrapper tiene `pb-20` y la nav mide 56px.
 
 ## Peñas / Instagram
 
-### 12. Revisar solapamiento después del próximo cron de IG
+### 11. Revisar solapamiento después del próximo cron de IG
 
 El 2026-08-23 se dieron de alta `@laviejaestacionensalta` y `@bolichebalderrama`
 en `instagram_accounts`, activas y con `default_category: penas`.
@@ -175,7 +175,7 @@ como flyers y aparecer como cards propias en la categoría Peñas, **además** d
 14 + 9 filas manuales de `cargar-penas.mjs` para los mismos locales. Hay que mirar
 cómo queda: puede que convenga desactivar la carga manual de esos dos, o al revés.
 
-### 13. Las fotos de las peñas son de baja resolución
+### 12. Las fotos de las peñas son de baja resolución
 
 `flyers/penas/vieja-estacion.webp` (444×602) y `balderrama.webp` (447×597).
 Alcanzan para las cards (200px CSS × 2 = 400px) pero quedan blandas en la ficha de
@@ -187,7 +187,7 @@ derecha**, artefacto de la captura original.
 Reemplazarlas es un comando:
 `node scripts/imagen-penas.mjs --vieja-estacion=<archivo> --apply`
 
-### 14. Cablear `imagen-penas.mjs` dentro de `cargar-penas.mjs`
+### 13. Cablear `imagen-penas.mjs` dentro de `cargar-penas.mjs`
 
 Hoy son dos pasos: `cargar-penas.mjs --apply` inserta las fechas nuevas con
 `image_url` en null, y hay que acordarse de correr `imagen-penas.mjs --apply`
@@ -199,7 +199,7 @@ directo.
 
 ## Higiene del repo
 
-### 15. Worktrees viejos
+### 14. Worktrees viejos
 
 - `.claude/worktrees/mcp-list-eec87a` — worktree registrado en detached HEAD
   `60349cd`, del 2026-08-05, **sin cambios sin commitear**.
@@ -208,21 +208,10 @@ directo.
 Limpiar con `git worktree prune` y borrar los directorios. `.claude/` ya está en
 `.gitignore` desde el 2026-08-23.
 
-### 16. Ramas locales sin pushear
+También se pueden borrar `chore/seo-audit` y `claude/mcp-list-eec87a`: están
+mergeadas, 0 commits fuera de `main`.
 
-Cinco commits que existen **solo en esta máquina**: ninguna de estas ramas tiene
-contraparte en `origin`.
-
-| Rama | Commits fuera de main | Último |
-|---|---|---|
-| `feat/scheduler` | 2 | 2026-08-23 `fix(scheduler): un tick diario…` |
-| `fix/venue-canonical` | 2 | 2026-08-23 `fix(venues): sacar el cluster Roka…` |
-| `fix/event-dedup` | 1 | 2026-08-23 `feat(dedup): deduplicación por título…` |
-
-`chore/seo-audit` y `claude/mcp-list-eec87a` están mergeadas (0 commits fuera de
-main) y se pueden borrar.
-
-### 17. Verificar `c08eb58`
+### 15. Verificar `c08eb58`
 
 `feat(contenido): generador de fechas futuras del circuito de museos` estaba
 commiteado sin pushear cuando arrancó la sesión del 2026-08-23 y **se fue en el
