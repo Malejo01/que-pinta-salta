@@ -468,13 +468,19 @@ export function HomeContent({
       events: filteredEvents.filter(event => event.category === cat.slug)
     }))
 
-    return cats.sort((a, b) => {
+    const porVolumen = cats.sort((a, b) => {
       const countDiff = b.events.length - a.events.length
       if (countDiff !== 0) return countDiff
 
       return (categoryOrderIndex.get(a.category) ?? 0) - (categoryOrderIndex.get(b.category) ?? 0)
     })
-  }, [sortedCategories, filteredEvents])
+
+    // Este es el orden que efectivamente se ve: el sort de arriba ordena por
+    // cantidad de eventos y sólo usa `sortedCategories` para desempatar, así
+    // que el flag de la demo tiene que aplicarse acá también o no se nota.
+    // Apagado, `aplicarOrdenDemo` devuelve `porVolumen` sin tocar.
+    return aplicarOrdenDemo(porVolumen, serverNowISO, (c) => c.category)
+  }, [sortedCategories, filteredEvents, serverNowISO])
 
   const clearFilters = () => {
     setSearch("")

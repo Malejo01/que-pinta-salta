@@ -77,9 +77,10 @@ const ULTIMAS = ['boliches']
  *                    `new Date()` para que el corte no dependa del reloj del
  *                    visitante, que puede estar mal.
  */
-export function aplicarOrdenDemo<T extends { slug: string }>(
+export function aplicarOrdenDemo<T>(
   categorias: T[],
   ahoraISO: string,
+  getSlug: (item: T) => string = (item) => (item as { slug: string }).slug,
 ): T[] {
   if (!ORDEN_DEMO_ACTIVO) return categorias
 
@@ -99,5 +100,5 @@ export function aplicarOrdenDemo<T extends { slug: string }>(
 
   // sort() de Array es estable en todos los motores modernos, así que el
   // bloque "resto" conserva el orden por volumen que traía de entrada.
-  return [...categorias].sort((a, b) => posicion(a.slug) - posicion(b.slug))
+  return [...categorias].sort((a, b) => posicion(getSlug(a)) - posicion(getSlug(b)))
 }
