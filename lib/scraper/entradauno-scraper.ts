@@ -1,6 +1,7 @@
 import slugify from 'slugify';
 import { saveEventsToSupabase, type SaveResult } from './save-to-supabase';
 import { inferCategorySlug } from './categorize';
+import { filtrarSaltaCapital, loguearDescartes } from './salta-capital';
 import type { Event } from '../types';
 
 const CARTELERA_JSON_URL = 'https://s3.sa-east-1.amazonaws.com/contenido.general.entradauno/cache/12/cartelera.json';
@@ -115,15 +116,24 @@ export async function scrapeEntradaUno(): Promise<SaveResult> {
     // 1. Filtrar establecimientos de Salta
     // - cZona === 'Salta'
     // - idProvincia === 16 (Provincia de Salta en el sistema de EntradaUno)
-    const saltaVenues = rawVenues.filter((v: any) => 
+    const provinciaVenues = rawVenues.filter((v: any) =>
       (v.cZona && v.cZona.toLowerCase().trim() === 'salta') ||
       (v.idProvincia === 16)
     );
-    
+
+    console.log(`[entradauno] Filtrados ${provinciaVenues.length} establecimientos en la provincia de Salta.`);
+
+    // Mismo segundo filtro que el provider del cron: la agenda es de Salta
+    // Capital, y el filtro de arriba es por provincia. Esta ruta la dispara
+    // el botón de scrape manual del panel admin (lib/scraper-actions.ts), así
+    // que sin esto Cachi y Cafayate seguirían entrando por ahí.
+    const { dentro: saltaVenues, descartados } = filtrarSaltaCapital(provinciaVenues);
+    loguearDescartes('[entradauno]', descartados);
+
     const saltaVenueIds = new Set(saltaVenues.map((v: any) => v.idEstablecimiento));
     const venueMap = new Map(saltaVenues.map((v: any) => [v.idEstablecimiento, v]));
 
-    console.log(`[entradauno] Filtrados ${saltaVenues.length} establecimientos en Salta.`);
+    console.log(`[entradauno] Quedan ${saltaVenues.length} establecimientos en Salta Capital.`);
 
     // 2. Filtrar y procesar eventos asociados a los venues de Salta
     const eventsToSave: Partial<Omit<Event, 'venue'> & { venue?: string }>[] = [];

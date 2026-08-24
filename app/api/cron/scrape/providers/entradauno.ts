@@ -1,4 +1,5 @@
 import { saltaWallClockToDate } from '@/lib/date-format'
+import { filtrarSaltaCapital, loguearDescartes } from '@/lib/scraper/salta-capital'
 import { ScrapedEvent } from '../types'
 
 const CARTELERA_JSON_URL = 'https://s3.sa-east-1.amazonaws.com/contenido.general.entradauno/cache/12/cartelera.json'
@@ -75,16 +76,26 @@ export async function scrapeEntradaUno(): Promise<ScrapedEvent[]> {
     const rawEvents = oCartelera.listaEspectaculoCartel || []
     const rawVenues = oCartelera.listaEstablecimiento || []
 
-    // 1. Filtrar establecimientos de Salta
-    const saltaVenues = rawVenues.filter((v: any) => 
+    // 1. Filtrar establecimientos de la PROVINCIA de Salta
+    const provinciaVenues = rawVenues.filter((v: any) =>
       (v.cZona && v.cZona.toLowerCase().trim() === 'salta') ||
       (v.idProvincia === 16)
     )
-    
+
+    console.log(`[cron-entradauno] Filtrados ${provinciaVenues.length} establecimientos en la provincia de Salta.`)
+
+    // 2. Segundo filtro: sólo Salta Capital.
+    // El de arriba es por provincia y deja pasar Cachi (84 km) y Cafayate
+    // (154 km). Se acota por distancia real a la Plaza 9 de Julio; ver
+    // lib/scraper/salta-capital.ts para por qué no alcanza ningún campo
+    // declarado de la fuente.
+    const { dentro: saltaVenues, descartados } = filtrarSaltaCapital(provinciaVenues)
+    loguearDescartes('[cron-entradauno]', descartados)
+
     const saltaVenueIds = new Set(saltaVenues.map((v: any) => v.idEstablecimiento))
     const venueMap = new Map(saltaVenues.map((v: any) => [v.idEstablecimiento, v]))
 
-    console.log(`[cron-entradauno] Filtrados ${saltaVenues.length} establecimientos en Salta.`)
+    console.log(`[cron-entradauno] Quedan ${saltaVenues.length} establecimientos en Salta Capital.`)
 
     // 2. Mapear espectáculos
     for (const rawEvent of rawEvents) {
