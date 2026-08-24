@@ -363,7 +363,7 @@ export function EventDetailPage({ event, isAdmin = false, categories = [], isFav
             <div className="flex flex-col gap-3 sm:flex-row">
               <Button 
                 size="lg"
-                className="flex-1 bg-primary text-primary-foreground hover:bg-primary/90"
+                className="w-full sm:flex-1 bg-primary text-primary-foreground hover:bg-primary/90"
                 asChild
               >
                 <a href={googleMapsUrl} target="_blank" rel="noopener noreferrer">
@@ -373,7 +373,7 @@ export function EventDetailPage({ event, isAdmin = false, categories = [], isFav
               </Button>
               
               {displayEvent.ticketUrl && (
-                <Button size="lg" variant="outline" className="flex-1" asChild>
+                <Button size="lg" variant="outline" className="w-full sm:flex-1" asChild>
                   <a href={displayEvent.ticketUrl} target="_blank" rel="noopener noreferrer">
                     <ExternalLink className="mr-2 size-4" />
                     Comprar tickets
