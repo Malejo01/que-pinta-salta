@@ -19,11 +19,16 @@
  * circuito de museos (385 filas, un registro por día por museo) como la carga
  * manual que ya existía (la "Semana del Cine", 10 filas, una por día).
  *
- * Lo que hay que saber: N filas VENCE. El circuito de museos son 385 filas
- * cuya última fecha es 2026-08-23 — o sea que se quedó sin futuro hoy mismo, y
- * nadie lo regeneró. Estas peñas van a necesitar lo mismo. El lugar natural
- * para eso es un job del scheduler (Ola 4); mientras tanto, se re-corre este
- * script, que es idempotente.
+ * Lo que hay que saber: N filas VENCE, y hay que regenerarlas.
+ *
+ * (El circuito de museos parece el mismo caso pero NO lo es: sus 385 filas
+ * también terminan hoy, pero porque las genera el scraper de entradauno una
+ * por día, siempre para el mismo día. Ese proceso está vivo y corre todas las
+ * mañanas; no se quedó sin futuro, nunca tuvo futuro. Estas peñas sí dependen
+ * de que alguien re-corra este script.)
+ *
+ * El lugar natural para automatizarlo es un job del scheduler (Ola 4);
+ * mientras tanto se re-corre a mano, que es idempotente.
  */
 
 import { createClient } from '@supabase/supabase-js'
