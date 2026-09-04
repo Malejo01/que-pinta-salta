@@ -90,7 +90,10 @@ export async function getScrapeDashboardData(): Promise<ScrapeDashboardData> {
 
     return {
       ...source,
-      enabled: dbSource?.is_enabled ?? source.enabled,
+      // El config manda: 'enabled' refleja si la fuente tiene scraper implementado
+      // (lo mismo que decide triggerAllScrapes). La fila de scrape_sources se siembra
+      // una sola vez y quedaba desincronizada, mostrando fuentes vivas como pendientes.
+      enabled: source.enabled,
       sourceId: dbSource?.id ?? null,
       lastRun: runs[0] ?? null,
       runs,

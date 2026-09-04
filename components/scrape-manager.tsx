@@ -143,7 +143,7 @@ export function ScrapeManager({ sources, warning }: ScrapeManagerProps) {
                 <div className="flex flex-wrap gap-3 text-sm text-muted-foreground">
                   {allResult.results.map((result) => (
                     <span key={result.sourceKey}>
-                      {result.sourceName}: {result.success ? "ok" : "error"}
+                      {result.sourceName}: {result.pending ? "pendiente" : result.success ? "ok" : "error"}
                     </span>
                   ))}
                 </div>

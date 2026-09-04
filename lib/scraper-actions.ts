@@ -6,6 +6,8 @@ import { revalidatePath } from "next/cache"
 
 export type ScrapeResult = {
   success: boolean
+  /** La fuente no tiene scraper implementado: no se ejecutó, no es un fallo. */
+  pending?: boolean
   sourceKey: ScrapeSourceKey
   sourceName: string
   inserted: number
@@ -19,6 +21,9 @@ export type ScrapeResult = {
 export type TriggerAllScrapesResult = {
   success: boolean
   message: string
+  successful: number
+  failed: number
+  pending: number
   results: ScrapeResult[]
 }
 
@@ -294,6 +299,7 @@ export async function triggerAllScrapes(): Promise<TriggerAllScrapesResult> {
     if (!source.enabled) {
       results.push({
         success: false,
+        pending: true,
         sourceKey: source.key,
         sourceName: source.name,
         inserted: 0,
@@ -311,11 +317,25 @@ export async function triggerAllScrapes(): Promise<TriggerAllScrapesResult> {
   }
 
   const successful = results.filter((result) => result.success).length
-  const failed = results.length - successful
+  const pending = results.filter((result) => result.pending).length
+  const failed = results.length - successful - pending
+
+  // Las fuentes sin implementar no son un fallo: si se contaran como error, una caída
+  // real de un scraper vivo quedaría escondida detrás del mismo mensaje de siempre.
+  const parts = [
+    `${successful} ${successful === 1 ? 'fuente correcta' : 'fuentes correctas'}`,
+    `${failed} con error`,
+  ]
+  if (pending > 0) {
+    parts.push(`${pending} pendientes de implementación`)
+  }
 
   return {
     success: failed === 0,
-    message: `Actualización completa: ${successful} fuentes correctas, ${failed} con error o pendientes.`,
+    message: `Actualización completa: ${parts.join(', ')}.`,
+    successful,
+    failed,
+    pending,
     results,
   }
 }
