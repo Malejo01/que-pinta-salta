@@ -211,6 +211,21 @@ async function executeSourceScrape(sourceKey: ScrapeSourceKey): Promise<Omit<Scr
         message: result.message,
       }
     }
+    case 'cines': {
+      const { runCinemaScrapeAndSync } = await import('@/lib/scraper/cinema-scraper')
+
+      const result = await runCinemaScrapeAndSync()
+
+      return {
+        success: result.processed > 0,
+        sourceKey,
+        sourceName: getScrapeSourceConfig(sourceKey)?.name ?? sourceKey,
+        inserted: result.inserted,
+        skipped: result.updated,
+        errors: result.processed > 0 ? [] : ['No se encontraron funciones para hoy. Si es de noche, Cinemark ya rotó a mañana.'],
+        message: `Cartelera: ${result.processed} películas (${result.inserted} nuevas, ${result.updated} actualizadas, ${result.softDeleted} bajadas).`,
+      }
+    }
     default: {
       return {
         success: false,

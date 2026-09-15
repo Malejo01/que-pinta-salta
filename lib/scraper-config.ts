@@ -10,6 +10,7 @@ export type ScrapeSourceKey =
   | 'alpogo'
   | 'independientes'
   | 'instagram'
+  | 'cines'
 
 export type ScrapeSourceConfig = {
   key: ScrapeSourceKey
@@ -95,6 +96,13 @@ export const SCRAPE_SOURCES: ScrapeSourceConfig[] = [
     name: 'Instagram (Apify)',
     description: 'Flyers de boliches salteños extraídos de Instagram vía Apify.',
     siteUrl: 'https://www.instagram.com',
+    enabled: true,
+  },
+  {
+    key: 'cines',
+    name: 'Cines (Cinemark y Ópera)',
+    description: 'Cartelera del día de Cinemark Alto NOA, Cinemark Paseo Salta y Cine Ópera. Correr de día: de noche Cinemark ya muestra mañana.',
+    siteUrl: 'https://www.cinemark.com.ar',
     enabled: true,
   },
 ]

@@ -502,6 +502,12 @@ export async function runCinemaScrapeAndSync() {
   // Gestión de Historial / Soft Delete
   // Desactivar películas marcadas como activas que no se encontraron en la cartelera de hoy
   let softDeletedCount = 0;
+  // Cero películas es un scrape fallido o nocturno, no una cartelera vacía:
+  // sin este corte, la corrida bajaba todas las activas.
+  if (scrapedSlugs.length === 0) {
+    console.warn('[cinema-scraper] 0 películas scrapeadas: se conserva la cartelera activa.');
+    return { success: false, processed: 0, inserted: 0, updated: 0, softDeleted: 0 };
+  }
   try {
     const { data: activeMovies, error: activeFetchError } = await supabase
       .from('cinema_movies')
