@@ -58,13 +58,17 @@ de Salta, de día como pide el ítem 1). Hobby lo corre una vez por día dentro 
 esa hora. Antes del cambio la última actualización de `cinema_movies` era del
 2026-08-24.
 
-### 2b. Cine Ópera devuelve cero funciones sin error
+### 2b. Cine Ópera con cero funciones — CERRADO el 2026-09-15, no es bug
 
-Corrida del 2026-09-15 a las 14:25 de Salta: 19 películas, con funciones en
-`cinemark_altonoa` (17) y `cinemark_paseosalta` (11) y **ninguna** en Cine
-Ópera. No se logueó `[cinema-scraper] Error en Cine Ópera`, así que
-`scrapeCineOpera` no lanzó: devolvió vacío. Falta ver si ese día no tenía
-funciones o si cambió el HTML de su sitio.
+El scraper no falló: ese martes Ópera no tenía funciones. Su API
+(`apiv2.gaf.adro.studio/movie/84/{pref}`) devolvía para las 7 películas solo
+funciones del miércoles 16 (y una preventa del 05/10), y la web oficial
+`cineopera.com.ar/pelicula/84/...` mostraba lo mismo ("Funciones para el
+Miércoles 16 — 22:30").
+
+La API marca `fechaHora.timezone` como `UTC`, pero la hora es la local de Salta:
+la web muestra 22:30 para `2026-09-16 22:30:00 UTC`. El scraper la toma como
+local, y está bien. No convertirla.
 
 ### 3. `cinema_movies` no guarda fechas — decisión de producto
 
