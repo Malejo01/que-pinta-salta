@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
 import { processFlyerWithAI } from '@/lib/ai/process-flyer-ai'
+import { GEMINI_MODEL } from '@/lib/ai/gemini'
 
 // Configurar tiempo máximo de ejecución en Vercel (Hobby tiene límite de 10s-15s, Pro hasta 60s)
 export const maxDuration = 60
@@ -154,7 +155,7 @@ export async function GET(request: Request) {
 
     return NextResponse.json({
       status: 'active',
-      model: 'gemini-2.5-flash',
+      model: GEMINI_MODEL,
       stats: {
         pending_active_flyers: pendingCount ?? 0,
         processed_flyers: processedCount ?? 0,

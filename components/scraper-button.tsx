@@ -4,6 +4,7 @@ import { useState } from "react"
 import { RefreshCw } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useToast } from "@/hooks/use-toast"
+import { runScrapeJobNow } from "@/lib/scraper-actions"
 
 export function ScraperButton() {
   const [isPending, setIsPending] = useState(false)
@@ -12,14 +13,9 @@ export function ScraperButton() {
   const handleScrape = async () => {
     setIsPending(true)
     try {
-      const res = await fetch("/api/cron/scrape", {
-        method: "GET",
-        headers: { authorization: `Bearer ${process.env.NEXT_PUBLIC_CRON_SECRET ?? ""}` },
-      })
+      const data = await runScrapeJobNow()
 
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
-
-      const data = await res.json()
+      if ("error" in data) throw new Error(data.error)
 
       toast({
         title: "Scraping completado",

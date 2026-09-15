@@ -3,6 +3,7 @@
 import { createClient } from "@/lib/supabase/server"
 import { getScrapeSourceConfig, SCRAPE_SOURCES, type ScrapeSourceKey } from "@/lib/scraper-config"
 import { revalidatePath } from "next/cache"
+import { runScrapeJob } from "@/app/api/cron/scrape/run-scrape-job"
 
 export type ScrapeResult = {
   success: boolean
@@ -342,4 +343,21 @@ export async function triggerAllScrapes(): Promise<TriggerAllScrapesResult> {
 
 export async function triggerScrape(): Promise<ScrapeResult> {
   return triggerSourceScrape('norteticket')
+}
+
+/**
+ * Botón "Ejecutar Scraping Ahora" del header del panel. Corre el mismo job que
+ * el cron diario, pero autorizado por el rol ADMIN de la sesión: CRON_SECRET no
+ * puede viajar al navegador.
+ */
+export async function runScrapeJobNow() {
+  const { error } = await ensureAdmin()
+  if (error) {
+    return { success: false as const, error }
+  }
+
+  const result = await runScrapeJob()
+  revalidatePath('/')
+  revalidatePath('/admin')
+  return result
 }

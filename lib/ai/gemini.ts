@@ -10,6 +10,9 @@ if (!apiKey) {
 // Inicializar el cliente oficial de Google Gen AI
 const ai = new GoogleGenAI({ apiKey })
 
+// Modelo de extracción. 3.5 Flash-Lite reemplaza a 2.5 Flash, que Google retira.
+export const GEMINI_MODEL = 'gemini-3.5-flash-lite'
+
 // Lista de categorías válidas según el catálogo de base de datos
 const VALID_CATEGORIES: GeminiCategorySlug[] = [
   'penas',
@@ -31,7 +34,7 @@ const VALID_CATEGORIES: GeminiCategorySlug[] = [
 ]
 
 /**
- * Llama a la API de Gemini 2.5 Flash para extraer los datos estructurados del flyer.
+ * Llama a la API de Gemini (GEMINI_MODEL) para extraer los datos estructurados del flyer.
  */
 export async function extractEventFromFlyer(
   imageBuffer: Buffer,
@@ -58,7 +61,7 @@ REGLAS CRÍTICAS:
   try {
     // Configurar la llamada forzando el formato JSON estricto
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: GEMINI_MODEL,
       contents: [
         {
           inlineData: {
@@ -81,18 +84,22 @@ REGLAS CRÍTICAS:
             },
             date: {
               type: 'STRING',
+              nullable: true,
               description: 'Fecha del evento en formato YYYY-MM-DD. Si no se puede determinar con absoluta certeza basándose en la imagen, el texto o la fecha actual (Julio 2026), poner null.',
             },
             start_time: {
               type: 'STRING',
+              nullable: true,
               description: 'Hora de inicio del evento en formato HH:MM (ej. 21:00, 00:30, 23:45). Si no está explícito, poner null.',
             },
             price: {
               type: 'INTEGER',
+              nullable: true,
               description: 'Precio numérico de la entrada general. Si se menciona que es gratis, free access, entrada libre, poner 0. Si no se especifica el precio o dice "consultar", poner null.',
             },
             venue_name: {
               type: 'STRING',
+              nullable: true,
               description: 'Nombre del lugar o establecimiento físico donde ocurre el evento (ej. La Metro, Usina Cultural, Balderrama, etc.).',
             },
             category_slug: {

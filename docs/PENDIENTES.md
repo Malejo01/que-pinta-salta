@@ -51,14 +51,12 @@ Antes de esa corrida había 61 funciones, pero eran del **2026-07-27** — un me
 antigüedad mostrándose como si fueran de hoy. No se restauró ese snapshot a
 propósito.
 
-### 2. El scraper de cines no está en ningún cron
+### 2. El scraper de cines no está en ningún cron — CERRADO el 2026-09-15
 
-`vercel.json` tiene dos crons y ninguno lo incluye: `/api/cron/scrape` (08:00
-diario) importa solo `scrapeNorteTicket`, `scrapeEntradaUno` y `scrapeAlpogo`.
-El único disparador es a mano.
-
-Cuando se enganche a un scheduler, **que corra de día** (ver ítem 1). La rama
-`feat/scheduler` unifica el disparo de cines, cola de IA y newsletter.
+`vercel.json` ahora dispara `/api/scrape-cinemas` a las `0 13 * * *` UTC (10:00
+de Salta, de día como pide el ítem 1). Hobby lo corre una vez por día dentro de
+esa hora. Antes del cambio la última actualización de `cinema_movies` era del
+2026-08-24.
 
 ### 3. `cinema_movies` no guarda fechas — decisión de producto
 
@@ -70,6 +68,18 @@ solo la de hoy. Si se quiere semana, hay que cambiar el scraper y el esquema, no
 solo la frecuencia de corrida.
 
 ---
+
+## IA de flyers
+
+### Flyers que cayeron al fallback entre el 2026-09-05 y el 2026-09-15
+
+Con la API key nueva, `gemini-2.5-flash` devuelve 404 ("no longer available to
+new users"). Desde el 2026-09-05 (última extracción real) los flyers quedaron
+`PROCESSED` con `ai_metadata.is_fallback: true` y sin `extracted_data`: título y
+lugar genéricos, sin fecha ni hora. Ya se pasó a `gemini-3.5-flash-lite`, pero
+esos flyers no se reprocesan solos porque `processFlyerWithAI` saltea los
+`PROCESSED`. Reprocesarlos cuesta centavos (~US$0,0006 por flyer), pero toca
+eventos ya creados: decidir antes.
 
 ## Auditoría mobile (390×844 y 360×800)
 

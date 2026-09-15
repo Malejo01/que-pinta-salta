@@ -13,7 +13,7 @@ El resultado para el usuario es que no existe un único lugar donde ver qué hay
 Qué Pinta Salta resuelve eso con un pipeline de ingesta multi-fuente que:
 
 1. **Extrae** eventos de cuatro ticketeras (tres vía API JSON, una vía scraping HTML) y de cuentas de Instagram monitoreadas a través de Apify.
-2. **Estructura** los flyers de Instagram con **Gemini 2.5 Flash** como extractor multimodal: la imagen del flyer más el caption entran, y sale un JSON con título, fecha, hora, precio, lugar, categoría y artistas, validado contra un `responseSchema` estricto.
+2. **Estructura** los flyers de Instagram con **Gemini 3.5 Flash-Lite** como extractor multimodal: la imagen del flyer más el caption entran, y sale un JSON con título, fecha, hora, precio, lugar, categoría y artistas, validado contra un `responseSchema` estricto.
 3. **Deduplica** eventos que aparecen en varias fuentes usando similitud de títulos (Jaccard con normalización y stop words, umbral 0.65) acotada a mismo venue y mismo día calendario. Cuando hay match, no crea un duplicado: fusiona los links de compra en un array `ticket_sources` y se queda con el precio más bajo y la mejor imagen.
 4. **Decide** con un filtro determinista en TypeScript — no con la IA — si un evento se auto-publica o cae a revisión humana en un panel admin.
 
@@ -47,7 +47,7 @@ flowchart TB
         STORE["Descarga de imagen y<br/>re-upload a Supabase Storage<br/>bucket flyers_ig"]
         FLY[("instagram_flyers<br/>ai_status = PENDING")]
         BATCH["POST /api/ai/process-flyers<br/>lote de hasta 10"]
-        GEM["Gemini 2.5 Flash<br/>imagen + caption -> JSON<br/>responseSchema estricto"]
+        GEM["Gemini 3.5 Flash-Lite<br/>imagen + caption -> JSON<br/>responseSchema estricto"]
     end
 
     subgraph NORM["Normalización y decisión"]
@@ -156,7 +156,7 @@ Los cuatro campos son obligatorios y se validan por forma, no por confianza del 
 | Vamos Salta | API REST de EntradaUno Salta (`/v1/api/v2/Cartelera`), JSON estructurado | No | Activo |
 | EntradaUno | JSON estático en CDN S3, filtrado por `idProvincia = 16` | No | Activo |
 | AlPogo | API POST `getEvents2`, JSON estructurado | No | Activo |
-| Instagram (Apify) | Actor `apify~instagram-post-scraper` + Gemini 2.5 Flash | Sí | Activo |
+| Instagram (Apify) | Actor `apify~instagram-post-scraper` + Gemini 3.5 Flash-Lite | Sí | Activo |
 | Cines | Scraping HTML de Cinemark Alto Noa y Cine Ópera | No | Activo |
 | NorteTicket | Scraping HTML con Cheerio | No | Activo |
 
@@ -180,7 +180,7 @@ El provider del cron lanza en vez de devolver un array vacío cuando la fuente n
 | Base de datos | Supabase (PostgreSQL) | RLS activo en todas las tablas de dominio |
 | Auth | Supabase Auth | Email/password y Google OAuth; middleware refresca la sesión en cada request |
 | Storage | Supabase Storage | Bucket `flyers_ig` para re-upload de imágenes de Instagram (máx. 5 MB) |
-| IA | Gemini 2.5 Flash vía `@google/genai` | `temperature: 0.1`, `responseMimeType: application/json`, `responseSchema` con enum de categorías |
+| IA | Gemini 3.5 Flash-Lite vía `@google/genai` | `temperature: 0.1`, `responseMimeType: application/json`, `responseSchema` con enum de categorías |
 | Scraping | Cheerio 1.2, Puppeteer 25 | Cheerio para HTML estático, Puppeteer disponible para carteleras de cine |
 | Scraping externo | Apify | Actor `apify~instagram-post-scraper`, disparado por cron con polling (timeout 3 min) o recibido por webhook |
 | Email | Resend | Newsletter del Radar |
