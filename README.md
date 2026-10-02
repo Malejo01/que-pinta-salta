@@ -191,7 +191,7 @@ El provider del cron lanza en vez de devolver un array vacío cuando la fuente n
 
 ### Modelo de datos
 
-Tablas principales: `events`, `venues`, `categories`, `aliases`, `profiles`, `user_favorites`, `instagram_accounts`, `instagram_flyers`, `cinema_movies`, `scrape_sources`, `scrape_runs`, `event_views`, y las tablas del Radar (`user_radar_settings`, `user_followed_categories`, `user_followed_venues`, `user_followed_instagram_accounts`).
+Tablas principales: `events`, `venues`, `categories`, `aliases`, `profiles`, `user_favorites`, `instagram_accounts`, `instagram_flyers`, `cinema_movies`, `scrape_sources`, `scrape_runs`, y las tablas del Radar (`user_radar_settings`, `user_followed_categories`, `user_followed_venues`, `user_followed_instagram_accounts`).
 
 `data_migrations` es una tabla auxiliar: registra las migraciones que modifican datos (no esquema) para que reaplicarlas sea idempotente.
 
@@ -258,7 +258,7 @@ Todo lo listado acá está implementado y activo en el código.
 ## Roadmap
 
 - **Google AdSense.** El componente `AdSenseBanner` y el gate por `NEXT_PUBLIC_ADSENSE_CLIENT_ID` ya existen, pero la cuenta no está aprobada ni la variable configurada en producción: hoy ese slot siempre renderiza el CTA de contacto directo por WhatsApp. Falta la aprobación y el alta de slots.
-- **Analítica de datos para campañas publicitarias.** La tabla `event_views` ya acumula vistas por evento con user agent e IP. Falta el dashboard: métricas por categoría, por venue y por franja horaria, para vender espacios con números en la mano.
+- **Analítica de datos para campañas publicitarias.** No hay registro de vistas: la tabla `event_views` se borró en el Sprint 0 de seguridad porque estaba sin RLS y ningún código la usaba. Falta definir cómo medir (sin guardar IPs en una tabla pública) y el dashboard: métricas por categoría, por venue y por franja horaria, para vender espacios con números en la mano.
 - **Rol de colaborador / RRPP para boliches.** La base ya está mergeada — `COLLABORATOR` en `UserRole`, `PENDING` en `EventStatus`, campos `contact_type` y `contact_value` en `profiles`, y el circuito `/nuevo-evento` → `/mis-eventos` → `/admin/pendientes`. Falta el onboarding específico para RRPP, los permisos diferenciados por local y las métricas propias de cada colaborador.
 - **Geocodificación de venues.** `venues` tiene columnas `latitude`, `longitude` y `google_maps_url` que ningún scraper completa, y [`lib/scraper/venue-enrichment.ts`](lib/scraper/venue-enrichment.ts) quedó como stub sin usar.
 - **Expansión a otras provincias**: Qué Pinta Mendoza y Qué Pinta Córdoba, reutilizando el pipeline con fuentes y configuración por provincia.
