@@ -403,10 +403,22 @@ export async function triggerApifyInstagramScraper(): Promise<{
     const validPosts = posts.filter(p => p.id && p.ownerUsername && p.displayUrl)
     console.log(`[IG Engine] Posts válidos para procesar: ${validPosts.length} de ${posts.length}`)
 
+    // Apify devuelve un ítem { error: 'no_items', inputUrl } por cada cuenta de
+    // la que no pudo traer nada ("Empty or private data"): cuenta inexistente,
+    // privada, con restricción de edad o sin posts en la ventana. El filtro de
+    // arriba los descarta; se informan para que no fallen en silencio.
+    const emptyAccounts = (posts as Array<ApifyInstagramPost & { error?: string; inputUrl?: string }>)
+      .filter(p => p.error === 'no_items' && p.inputUrl)
+      .map(p => '@' + p.inputUrl!.replace(/\/+$/, '').split('/').pop())
+    if (emptyAccounts.length) {
+      console.warn(`[IG Engine] Apify no trajo posts (vacía o privada) de: ${emptyAccounts.join(', ')}`)
+    }
+
     // 7. Procesar los posts e insertarlos en la DB
     const processResult = await processApifyPayload(validPosts)
 
-    const summary = `Scrape IG completado: ${processResult.inserted} insertados, ${processResult.skipped} omitidos.`
+    const summary = `Scrape IG completado: ${processResult.inserted} insertados, ${processResult.skipped} omitidos.` +
+      (emptyAccounts.length ? ` Sin posts (vacía o privada): ${emptyAccounts.join(', ')}.` : '')
     console.log(`[IG Engine] ${summary}`)
 
     return {
