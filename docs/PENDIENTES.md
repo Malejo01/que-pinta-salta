@@ -195,14 +195,19 @@ cierre del Sprint 0: 7). Quedan `is_admin()` ejecutable por anon/authenticated
 
 **Acciones manuales del Sprint 1:**
 
-1. **GitHub → Settings → Secrets and variables → Actions:** crear el secret
-   `CRON_SECRET` con el mismo valor que en Vercel. Si no lo tenés (en Vercel es
-   *sensitive* y no se puede leer), generá uno nuevo, cargalo en Vercel y en
-   GitHub, y redeployá. Opcional: variable `SITE_URL`.
-2. **Push + deploy** para que rijan 1.3, 1.4, 1.6 y 1.7. Con el deploy, los
-   anuncios y las donaciones se apagan (la variable no existe en Vercel, y sin
-   ella queda en `false`). Opcional: crear `NEXT_PUBLIC_ADS_ENABLED=false` en
-   Vercel para que quede explícito.
+1. ~~**Secret `CRON_SECRET` en GitHub**~~ — cargado el 2026-10-02 desde
+   `.env.local`, que coincide con el de Vercel (verificado: `keep-alive` con ese
+   Bearer da 200 en producción).
+2. ~~**Push + deploy**~~ — hecho el 2026-10-02 (`dpl_3F18tBC6CHvhSdqX1cAhpPg1T2dq`,
+   commit `a702207`), con `NEXT_PUBLIC_ADS_ENABLED=false` creada explícitamente
+   en Vercel (production, preview y development). Verificado en producción: la
+   home no carga `adsbygoogle.js` ni muestra "Apoyar"/"Hacer un aporte", la CSP
+   no tiene dominios de anuncios y `/ads.txt` responde. Workflows corridos a
+   mano: `health.yml` → success (ticketeras 6,4 h, cines 1,8 h, instagram
+   14,6 h, cola vacía) y `ai-queue.yml` → success (cola vacía, autenticó con
+   `CRON_SECRET`). **`radar-newsletter.yml` no se probó a mano:** manda el mail
+   real a los suscriptores; queda para que lo dispares vos desde Actions o para
+   el jueves 21:00 UTC.
 3. **Revisar los 13 borradores futuros** en `/admin/revision` (incluye peñas).
 4. **Instagram:** abrir logueado `instagram.com/laviejaestacionensalta`,
    `brickell_club` y `peppers.gintoneria` y ver si existen, si son privadas o
