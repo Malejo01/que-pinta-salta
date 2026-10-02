@@ -1,6 +1,7 @@
 "use server"
 
 import { createClient } from "@/lib/supabase/server"
+import type { UserRole } from "@/lib/types"
 import { revalidatePath } from "next/cache"
 
 async function assertAdmin() {
@@ -31,7 +32,7 @@ export async function getUsers() {
   return { data: data ?? [], error: dbError?.message ?? null }
 }
 
-export async function updateUserRole(userId: string, newRole: "USER" | "ADMIN" | "COLLABORATOR") {
+export async function updateUserRole(userId: string, newRole: UserRole) {
   const { supabase, error } = await assertAdmin()
   if (error || !supabase) return { error }
 

@@ -22,12 +22,13 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { updateUserRole } from "@/lib/user-actions"
+import type { UserRole } from "@/lib/types"
 
 interface Profile {
   id: string
   email: string
   full_name: string | null
-  role: "USER" | "ADMIN" | "COLLABORATOR"
+  role: UserRole
   created_at: string
 }
 
@@ -50,7 +51,7 @@ export function UsersTable({ initialUsers }: { initialUsers: Profile[] }) {
     )
   }, [deferredSearch, users])
 
-  const handleRoleChange = (user: Profile, newRole: "USER" | "ADMIN" | "COLLABORATOR") => {
+  const handleRoleChange = (user: Profile, newRole: UserRole) => {
     if (user.role === newRole) return
 
     // Optimistic update
@@ -71,10 +72,9 @@ export function UsersTable({ initialUsers }: { initialUsers: Profile[] }) {
           variant: "destructive",
         })
       } else {
-        const roleNames = {
+        const roleNames: Record<UserRole, string> = {
           USER: "Usuario",
           ADMIN: "Administrador",
-          COLLABORATOR: "Colaborador"
         }
         toast({
           title: "Rol actualizado",
@@ -130,31 +130,28 @@ export function UsersTable({ initialUsers }: { initialUsers: Profile[] }) {
                   </TableCell>
                   <TableCell>
                     <Badge
-                      variant={user.role === "ADMIN" ? "default" : user.role === "COLLABORATOR" ? "outline" : "secondary"}
+                      variant={user.role === "ADMIN" ? "default" : "secondary"}
                       className="gap-1"
                     >
                       {user.role === "ADMIN" ? (
                         <ShieldCheck className="size-3" />
-                      ) : user.role === "COLLABORATOR" ? (
-                        <ShieldCheck className="size-3 text-muted-foreground" />
                       ) : (
                         <ShieldOff className="size-3" />
                       )}
-                      {user.role === "ADMIN" ? "Administrador" : user.role === "COLLABORATOR" ? "Colaborador" : "Usuario"}
+                      {user.role === "ADMIN" ? "Administrador" : "Usuario"}
                     </Badge>
                   </TableCell>
                   <TableCell className="text-right">
                     <Select
                       disabled={isPending}
                       value={user.role}
-                      onValueChange={(val: "USER" | "ADMIN" | "COLLABORATOR") => handleRoleChange(user, val)}
+                      onValueChange={(val: UserRole) => handleRoleChange(user, val)}
                     >
                       <SelectTrigger className="w-[140px] ml-auto h-8 text-xs">
                         <SelectValue placeholder="Seleccionar rol" />
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="USER">Usuario</SelectItem>
-                        <SelectItem value="COLLABORATOR">Colaborador</SelectItem>
                         <SelectItem value="ADMIN">Administrador</SelectItem>
                       </SelectContent>
                     </Select>

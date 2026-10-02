@@ -1,28 +1,23 @@
-// Database types matching Supabase schema
-export type UserRole = 'USER' | 'ADMIN' | 'COLLABORATOR'
-export type EventStatus = 'DRAFT' | 'PUBLISHED' | 'CANCELLED' | 'PAST' | 'PENDING'
-export type NotificationType = 'EMAIL' | 'PUSH' | 'WHATSAPP'
+// Tipos de la app. La fuente de verdad del esquema es lib/database.types.ts,
+// generado con `npm run db:types` (supabase gen types) y verificado por el CI.
+//
+// - Enums: salen directo del tipo Database.
+// - Category y Venue: son la fila tal cual (Tables<...>).
+// - Event y Profile siguen escritas a mano: en la base casi todas sus columnas
+//   tienen default pero no NOT NULL, así que la fila generada es `| null` en
+//   todo, y la app asume valores (los inserts siempre los mandan o usan el
+//   default). Para que no se desfasen, SchemaChecks (al final) falla en
+//   compilación si declaran una columna que no existe en la tabla.
+import type { Database, Tables } from './database.types'
 
-export interface Category {
-  id: string
-  name: string
-  slug: string
-  icon: string | null
-  color: string | null
-  created_at: string
-}
+type PublicEnums = Database['public']['Enums']
 
-export interface Venue {
-  id: string
-  name: string
-  address: string
-  latitude: number | null
-  longitude: number | null
-  google_maps_url: string | null
-  phone: string | null
-  capacity: number | null
-  created_at: string
-}
+export type UserRole = PublicEnums['user_role']
+export type EventStatus = PublicEnums['event_status']
+export type NotificationType = PublicEnums['notification_type']
+
+export type Category = Tables<'categories'>
+export type Venue = Tables<'venues'>
 
 export interface Profile {
   id: string
@@ -80,25 +75,14 @@ export interface Event {
   venue?: Venue
 }
 
-export interface Favorite {
-  id: string
-  user_id: string
-  event_id: string
-  created_at: string
-}
+// Slug de una fila de `categories`. No es una unión cerrada: la tabla tiene 16
+// (penas, boliches, teatro, ferias, talleres, cine, recitales, automovilismo,
+// congresos, ballet, humor, infantil, deportes, espectaculos, museos,
+// alternativo) y el admin crea más desde la ficha del evento (createCategory).
+export type EventCategory = Category['slug']
 
-export interface EventView {
-  id: string
-  event_id: string
-  user_id: string | null
-  ip_address: string | null
-  user_agent: string | null
-  viewed_at: string
-}
-
-// Legacy type aliases for backwards compatibility
-export type EventCategory = "penas" | "boliches" | "teatro" | "ferias" | "talleres" | "cine" | "museos" | "alternativo"
-
+// Nombres de las 8 categorías originales. El nombre real de cada categoría está
+// en categories.name; los que usan este mapa caen al slug si no lo encuentran.
 export const categoryLabels: Record<EventCategory, string> = {
   penas: "Peñas",
   boliches: "Boliches",
@@ -134,14 +118,26 @@ export interface MovieShowings {
   [cinemaKey: string]: CinemaShowingsDetails;
 }
 
-export interface CinemaMovie {
-  id: string;
-  slug: string;
-  title: string;
-  poster_url: string | null;
-  is_currently_showing: boolean;
-  showings: MovieShowings;
-  created_at: string;
-  updated_at: string;
+// La fila de cinema_movies con `showings` (jsonb) tipado.
+export type CinemaMovie = Omit<Tables<'cinema_movies'>, 'showings'> & {
+  showings: MovieShowings
 }
+
+// ---------------------------------------------------------------------------
+// Chequeo de esquema en compilación: cada interfaz escrita a mano solo puede
+// declarar columnas que existen en su tabla (más las relaciones que se traen
+// con joins). Si alguien borra o renombra una columna y regenera los tipos,
+// esto deja de compilar.
+// ---------------------------------------------------------------------------
+type PublicTable = keyof Database['public']['Tables']
+type UnknownColumns<I, T extends PublicTable, Joins extends PropertyKey = never> =
+  Exclude<keyof I, keyof Tables<T> | Joins>
+type OnlyKnownColumns<I, T extends PublicTable, Joins extends PropertyKey = never> =
+  [UnknownColumns<I, T, Joins>] extends [never] ? true : { columnasQueNoExisten: UnknownColumns<I, T, Joins>; tabla: T }
+type Expect<T extends true> = T
+
+export type SchemaChecks = [
+  Expect<OnlyKnownColumns<Event, 'events', 'category' | 'venue'>>,
+  Expect<OnlyKnownColumns<Profile, 'profiles'>>,
+]
 

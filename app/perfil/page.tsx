@@ -2,7 +2,6 @@ import { createClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
 import { formatEventDateShort, formatEventTime } from "@/lib/date-format"
 import { ChangePasswordForm } from "@/components/change-password-form"
-import { ContactSettingsForm } from "@/components/contact-settings-form"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -19,12 +18,6 @@ export default async function PerfilPage() {
   if (!user) {
     redirect("/auth/login?next=/perfil")
   }
-
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("role, contact_type, contact_value")
-    .eq("id", user.id)
-    .single()
 
   // Obtener los eventos creados por el usuario
   const { data: events, error } = await supabase
@@ -59,11 +52,6 @@ export default async function PerfilPage() {
               <h1 className="text-2xl font-bold tracking-tight text-foreground md:text-3xl">Mi Perfil</h1>
               <p className="text-sm font-medium text-muted-foreground">{user.email}</p>
               <div className="flex flex-wrap justify-center gap-2 pt-2 md:justify-start">
-                {profile?.role === "COLLABORATOR" && (
-                  <Badge variant="outline" className="bg-background/80 py-1 font-semibold">
-                    Colaborador local
-                  </Badge>
-                )}
                 <Badge variant="secondary" className="font-semibold">
                   {events?.length || 0} {events?.length === 1 ? "evento subido" : "eventos subidos"}
                 </Badge>
@@ -224,7 +212,6 @@ export default async function PerfilPage() {
 
           {/* Columna de cambio de contraseña (1/3 de ancho) */}
           <div className="space-y-6 lg:col-span-1">
-            {profile && <ContactSettingsForm profile={{ id: user.id, ...profile }} />}
             <ChangePasswordForm />
           </div>
 
