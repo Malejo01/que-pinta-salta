@@ -190,6 +190,21 @@ function saltaClock(startDate: string | Date): string {
 }
 
 /**
+ * true si el evento tiene hora real. Las fuentes que no traen hora (flyers sin
+ * horario, algunos portales) guardan 00:00 de Salta: eso es "sin hora".
+ */
+export function hasRealTime(startDate?: string | Date | null): boolean {
+  if (!startDate) return false
+  const clock = saltaClock(startDate)
+  return clock !== '' && clock !== '00:00'
+}
+
+/** Descripción que genera el scraper cuando la fuente no trae ninguna. */
+export function isAutoDescription(text?: string | null): boolean {
+  return !!text && /^\s*evento importado autom[aá]ticamente/i.test(text)
+}
+
+/**
  * Mismo link de compra = mismo evento, aunque los venues difieran: es la señal
  * de identidad más fuerte que hay. Con dos condiciones, porque una ticketera
  * usa UNA landing para todas las funciones de un espectáculo:

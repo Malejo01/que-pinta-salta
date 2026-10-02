@@ -1,5 +1,6 @@
 import type { TicketSource } from '../types'
 import { getSourcePriority, getSourceTier, resolveEventSource } from './source-priority'
+import { hasRealTime, isAutoDescription } from './dedup-key'
 
 /**
  * Fusión de dos registros del mismo evento, sin pérdida de datos.
@@ -103,6 +104,9 @@ function isEmptyValue(value: any): boolean {
 function isEmptyForField(field: string, value: any): boolean {
   if (field === 'age_restriction' && value === 0) return true
   if (field === 'price_max' && value === 0) return true
+  // "Evento importado automáticamente desde..." no es una descripción: la
+  // reemplaza cualquier descripción real, venga de la fuente que venga.
+  if ((field === 'description' || field === 'short_description') && isAutoDescription(value)) return true
   return isEmptyValue(value)
 }
 
@@ -284,6 +288,18 @@ export function mergeEvents(
     }
 
     if (sameValue(field, baseValue, incomingValue)) continue
+
+    // La hora real gana sobre 00:00 ("sin hora") antes que la prioridad: una
+    // ticketera sin horario no puede pisar el horario que trae un flyer.
+    if (field === 'start_date' && hasRealTime(baseValue) !== hasRealTime(incomingValue)) {
+      if (hasRealTime(incomingValue)) {
+        patch[field] = incomingValue
+        recordConflict(field, incomingValue, baseValue, 'hora-real-sobre-sin-hora', true)
+      } else {
+        recordConflict(field, baseValue, incomingValue, 'hora-real-sobre-sin-hora', false)
+      }
+      continue
+    }
 
     if (incomingWins) {
       patch[field] = incomingValue
