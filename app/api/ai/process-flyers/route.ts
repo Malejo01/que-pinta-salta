@@ -128,9 +128,14 @@ export async function POST(request: Request) {
 
 /**
  * GET /api/ai/process-flyers
- * Health check / Información del estado de procesamiento
+ * Health check / Información del estado de procesamiento. Lee con service
+ * role, así que exige el mismo Bearer que el POST.
  */
 export async function GET(request: Request) {
+  if (!hasBearerSecret(request, 'APIFY_WEBHOOK_SECRET')) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
   try {
     const supabase = createAdminClient()
     
