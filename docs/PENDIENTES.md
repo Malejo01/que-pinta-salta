@@ -230,6 +230,96 @@ cierre del Sprint 0: 7). Quedan `is_admin()` ejecutable por anon/authenticated
 5. **AdSense (cuando se prenda):** crear los bloques de anuncios y reemplazar
    los nombres de slot por sus IDs numéricos.
 
+### Sprint 2 (esquema bajo control de versiones) — CERRADO el 2026-10-02
+
+Paso 2 de `docs/AUDITORIA-2026-10.md`. El esquema de producción **no se
+cambió**: la única escritura en prod fue el historial de migraciones.
+
+- **2.1 Supabase CLI.** `supabase init` (Postgres 17) y el CLI como
+  devDependency (`supabase@2.119.0`). Docker Desktop funciona. No se hizo
+  `supabase link` (exige `supabase login` en el navegador): todo lo que toca
+  prod usa `--db-url` con `POSTGRES_URL_NON_POOLING` de `.env.local`.
+- **2.2 Baseline.** `supabase/migrations/20261002160000_baseline.sql` (dump de
+  public + políticas de `storage.objects` + trigger `on_auth_user_created` de
+  `auth.users`) y `20261002160100_storage_buckets.sql` (`flyers`,
+  `flyers_ig`). Las 29 migraciones viejas, en `supabase/migrations_legacy/` con
+  README. Historial remoto, con OK del usuario:
+  `migration repair --status reverted` de `20260525` y de las 6 versiones de
+  los Sprints 0/1, y `--status applied` de las 2 nuevas. `migration list`:
+  local y remoto = `20261002160000`, `20261002160100`.
+- **2.3 Verificación — criterio de aceptación cumplido.** Base vacía + las 2
+  migraciones, contra prod (`scripts/db/check-drift.sh`):
+  ```
+  db diff --schema public: sin diferencias
+  db diff --schema storage: sin diferencias
+  huella del catálogo: 368 líneas, sin diferencias
+  ```
+  Lo que el dump no traía y hubo que corregir: (1) el `REVOKE` de
+  `handle_new_user()` a anon/authenticated — los default privileges de public
+  se lo otorgaban y el baseline reabría el 0.6 del Sprint 0; (2)
+  `aliases_target_type_check` y `events_classification_source_check`, que en
+  la forma de pg_dump se re-parsean a otro árbol; (3) CRLF dentro del cuerpo de
+  `is_admin`, `prevent_role_tampering` y `set_updated_at` en prod — van como
+  `E'...'` con `\r` escapado, y `.gitattributes` fija LF en `supabase/**/*.sql`.
+- **2.4 Tipos.** `lib/database.types.ts` generado (`npm run db:types`).
+  `lib/types.ts` deriva de él los enums, `Category`, `Venue` y `CinemaMovie`;
+  `Event` y `Profile` siguen a mano (la fila generada es `| null` en casi todo)
+  con un chequeo de compilación (`SchemaChecks`) que falla si declaran una
+  columna inexistente. `COLLABORATOR` fuera: el enum de la base es
+  `USER|ADMIN`, así que se borró todo lo que dependía de él (rama `PENDING` de
+  `createEvent`, selector de `/admin/users`, badge y formulario de contacto de
+  `/perfil` con `lib/profile-actions.ts`, bloque "Publicado por" de la ficha).
+  `EventCategory` pasa a ser el slug de `categories` (string): hay 16 y el
+  admin crea más; el tipo tenía 8. Typecheck: 0 errores.
+- **2.5 Base local con datos.** `scripts/db/load-prod-data.sh`: datos de
+  `public` + `auth.users`/`auth.identities`, a `supabase/.data-dumps/`
+  (ignorado; el script no corre si no lo está). Conteos local = prod
+  (26 usuarios, 1290 eventos, 145 venues, 691 flyers, 45 películas). README
+  con cómo levantarla.
+- **2.6 CI.** `.github/workflows/ci.yml` en cada push y PR: typecheck, y
+  `supabase db start` en el runner (aplica las migraciones sobre una base vacía
+  y verifica storage/auth/buckets) + regenera los tipos y falla si difieren.
+  Sin credenciales de prod. Primera corrida (37033221044): verde. Después:
+  `ignoreBuildErrors: false`, build local OK con chequeo de TypeScript.
+
+**Qué cambia para el Sprint 3 (las Olas de las ramas):**
+
+- Las ramas `fix/venue-canonical`, `fix/event-dedup` y `feat/scheduler` traen
+  sus migraciones en `supabase/migrations/` con versiones viejas (`20260821…`).
+  Hay que **rebasearlas sobre `main`** y renombrar esas migraciones a versiones
+  **posteriores a `20261002160100`**; si no, el CLI las ve como anteriores al
+  baseline y `db push` no las aplica en orden.
+- Antes de aplicarlas en prod: `bash scripts/db/load-prod-data.sh`, aplicarlas
+  sobre la base local con datos (`npx supabase migration up`) y correr los
+  scripts de cada rama contra esa base. El CI las va a aplicar sobre una base
+  vacía en cada push de la rama.
+- Si una migración cambia el esquema, regenerar los tipos (`npm run db:types`)
+  en el mismo commit: el CI falla si no coinciden.
+- Para aplicar en prod: `npx supabase db push --db-url …` (o `supabase login`
+  + `supabase link` y `db push`). Después, `scripts/db/check-drift.sh` tiene
+  que dar vacío.
+- Siguen vigentes las notas de la auditoría sobre cada rama (§D paso 3):
+  `security_invoker` en `event_duplicate_groups`, plan de venues regenerado
+  contra los venues de hoy, conflictos en `vercel.json` y
+  `run-scrape-job.ts`.
+
+**Queda abierto, visto en este sprint:**
+
+- `/admin/pendientes` y `approvePendingEvent` muestran eventos `PENDING`, que
+  solo creaba el rol COLLABORATOR: hoy nada los genera. El valor `PENDING` sigue
+  en el enum de la base. Decidir si se borra la página o se reconvierte.
+- `categoryLabels` (`lib/types.ts`) tiene nombre para 8 de las 16 categorías;
+  `hero-carousel` y `event-modal` muestran el slug crudo para las otras 8
+  (p. ej. "espectaculos"). El nombre correcto está en `categories.name`.
+- Hay dos políticas de lectura idénticas en `storage.objects` ("Allow public
+  read of flyers" y "Public read access for flyers"). Consolidarlas es una
+  migración nueva.
+
+**Acciones manuales:** ninguna obligatoria. Opcional: `npx supabase login` y
+`npx supabase link --project-ref splzietmyydqhmdxijcn` para usar `--linked`
+en vez de `--db-url`. Recomendado: en GitHub, *branch protection* de `main`
+exigiendo el check "CI".
+
 ---
 
 ## Cines
