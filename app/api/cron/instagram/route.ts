@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { triggerApifyInstagramScraper } from '@/lib/instagram/process-apify-payload'
 import { hasBearerSecret } from '@/lib/api-auth'
+import { withJobRun, jobTriggerFrom } from '@/lib/job-runs'
 
 export const dynamic = 'force-dynamic'
 
@@ -13,8 +14,13 @@ export async function GET(request: Request) {
 
   console.log('[Cron Instagram] Iniciando ejecución del scraper de Instagram...')
   
-  const result = await triggerApifyInstagramScraper()
-  
+  const result = await withJobRun('instagram', jobTriggerFrom(request), triggerApifyInstagramScraper, (r) => ({
+    status: !r.success ? 'FAILED' : r.errors.length ? 'PARTIAL' : 'SUCCESS',
+    itemsProcessed: r.inserted,
+    errors: r.success ? r.errors : [r.message, ...r.errors],
+    details: { runId: r.runId ?? null, skipped: r.skipped, message: r.message },
+  }))
+
   if (!result.success) {
     return NextResponse.json({
       success: false,

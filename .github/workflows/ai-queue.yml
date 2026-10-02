@@ -30,6 +30,7 @@ jobs:
           for i in $(seq 1 10); do
             body=$(curl -sS --fail-with-body --max-time 90 -X POST \
               -H "Authorization: Bearer $CRON_SECRET" \
+              -H "x-job-trigger: github-actions" \
               "$SITE_URL/api/ai/process-flyers?limit=5")
             n=$(echo "$body" | jq '.processedCount // 0')
             f=$(echo "$body" | jq '[.results[]? | select(.success != true)] | length')

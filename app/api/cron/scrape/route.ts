@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { hasBearerSecret } from '@/lib/api-auth'
+import { withJobRun, jobTriggerFrom } from '@/lib/job-runs'
 import { runScrapeJob } from './run-scrape-job'
 
 export async function GET(request: Request) {
@@ -7,6 +8,16 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const result = await runScrapeJob()
+  const result = await withJobRun('ticketeras', jobTriggerFrom(request), runScrapeJob, (r) => {
+    if ('error' in r) return { status: 'FAILED', errors: [String(r.error)] }
+    const sourceErrors = Object.entries(r.sourceErrors).map(([source, message]) => `${source}: ${message}`)
+    return {
+      status: sourceErrors.length ? 'PARTIAL' : 'SUCCESS',
+      itemsProcessed: r.database.inserted + r.database.updated,
+      itemsFailed: r.database.errors,
+      errors: sourceErrors,
+      details: { scraped: r.scraped, database: r.database, instagramCleanup: r.instagramCleanup },
+    }
+  })
   return NextResponse.json(result, { status: 'error' in result ? 500 : 200 })
 }
