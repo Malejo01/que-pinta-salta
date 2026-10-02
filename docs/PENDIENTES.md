@@ -30,6 +30,86 @@ reabre.
   Mauro. Están pusheadas y trackeando `origin`. Ninguna está mergeada a `main`;
   pushear no mergea ni deploya.
 
+### Sprint 0 de seguridad — CERRADO el 2026-10-02
+
+Los agujeros del Paso 0 de `docs/AUDITORIA-2026-10.md` (más §7). Cada cambio de
+base es una migración en `supabase/migrations/20261002133*`, probada antes con
+un bloque `DO` que termina en `RAISE EXCEPTION` (rollback) y después aplicada
+en prod. **Los cambios de código (0.1, 0.3, 0.5, 0.7, 0.8) están en `main` pero
+no deployados**: rigen recién con el próximo deploy.
+
+- **0.1 Política `Creators can manage own events` (ALL, sin WITH CHECK) —
+  borrada en prod.** También el SELECT duplicado `Anyone can view published
+  events`. Quedan 4 políticas en `events`, una por comando. `updateUserEvent`
+  (`lib/actions.ts`) ahora devuelve a `DRAFT` un evento no-`DRAFT` que edita un
+  dueño no-admin, para que se re-apruebe en `/admin/revision`. **Evidencia:**
+  con rol `authenticated` y un uid real, `INSERT` con `status='PUBLISHED',
+  is_featured=true` → `42501 new row violates row-level security policy`
+  (antes pasaba RLS). Update del dueño a `DRAFT` → OK; a `PUBLISHED` → 42501.
+  Anon sigue leyendo los publicados. *Hasta el deploy*, un usuario no-admin que
+  edite un evento publicado recibe error de RLS (hoy hay 1 solo evento así, y
+  es pasado).
+- **0.2 `event_views` — DROP en prod.** 0 filas, sin FKs, vistas ni triggers
+  que dependieran de ella; `grep` en todo el repo: solo el README y la
+  migración `20260729` (nunca aplicada). Cierra el ERROR
+  `rls_disabled_in_public` del advisor.
+- **0.3 `/admin/instagram` sin guarda — cerrado en código.** Mismo patrón que
+  `/admin/aliases`. **Evidencia (local):** sin sesión → `307` a
+  `/auth/login?redirect=/admin/instagram`. En el build pasa de prerenderizada
+  a dinámica (ya no llama a `createAdminClient()` en build).
+- **0.4 Storage `Authenticated users can upload flyers` — borrada en prod.**
+  Queda `Allow authenticated upload of flyers` (carpeta = uid). **Evidencia:**
+  subir a `flyers/otra-carpeta/…` → 42501; a `flyers/<uid>/…` → OK.
+- **0.5 Open redirect en `/auth/callback` — cerrado en código.** `next` solo se
+  acepta si empieza con `/` y no con `//` ni `/\`. **Evidencia:** con
+  `next=@evil.com` el destino era host `evil.com`; ahora es `/`.
+- **0.6 `is_admin()` y `handle_new_user()` — aplicado en prod.**
+  `is_admin()` con `search_path=''`. `handle_new_user()`: REVOKE EXECUTE de
+  `PUBLIC`, `anon` y `authenticated` (también de `PUBLIC`: si no, lo heredaban),
+  GRANT explícito a `supabase_auth_admin`. **Evidencia:** `is_admin()` da
+  `true` para un admin y `false` para un usuario; el INSERT en `auth.users`
+  sigue creando el profile por trigger.
+- **0.7 Auth fail-open en los 7 handlers de `/api` — cerrado en código.** Todos
+  pasan por `lib/api-auth.ts`: si falta la variable, 401; el secreto solo por
+  header (se sacó `?secret=` de `scrape-cinemas`, `webhooks/apify` y
+  `ai/process-flyers`); comparación en tiempo constante. `CRON_SECRET` y
+  `APIFY_WEBHOOK_SECRET` existen en Vercel (production y preview).
+  **Evidencia (local, sin `CRON_SECRET`):** los 5 crons dan 401 incluso con
+  `Bearer ` vacío (antes `keep-alive` pasaba); `?secret=<real>` sin header da
+  401 en `webhooks/apify` y en `process-flyers`.
+- **0.8 `GET /api/ai/process-flyers` sin auth — cerrado en código.** Exige el
+  mismo Bearer que el POST. **Evidencia (local):** sin auth 401; con Bearer
+  200.
+
+**Advisors de seguridad de Supabase:**
+
+| | Antes | Después |
+|---|---|---|
+| ERROR `rls_disabled_in_public` | 1 (`event_views`) | 0 |
+| WARN `function_search_path_mutable` | 4 | 3 (`prevent_role_tampering`, `set_updated_at`, `update_updated_at`) |
+| WARN `anon_security_definer_function_executable` | 2 | 1 (`is_admin`) |
+| WARN `authenticated_security_definer_function_executable` | 2 | 1 (`is_admin`) |
+| WARN `auth_leaked_password_protection` | 1 | 1 |
+| INFO `rls_enabled_no_policy` | 1 (`data_migrations`) | 1 |
+| **Total** | **11** | **7** |
+
+Lo que queda abierto a propósito: `is_admin()` tiene que seguir siendo
+ejecutable por `anon`/`authenticated` porque la llaman las políticas de RLS
+(sacarla de la API exige moverla a un schema no expuesto, Paso 4); los otros 3
+`search_path` y la protección de contraseñas filtradas (Paso 4.4) no eran del
+Sprint 0.
+
+**Acciones manuales pendientes:**
+
+1. **Push + deploy de `main`** para que rijan 0.1 (código), 0.3, 0.5, 0.7 y 0.8.
+2. **Apify:** si el webhook configurado en la consola de Apify apunta a
+   `/api/webhooks/apify?secret=…`, pasarlo a header `x-apify-webhook-secret`
+   (headersTemplate); con query string ahora da 401. El cron de Instagram no
+   depende del webhook: dispara el actor y espera el resultado.
+3. **Local:** `.env.local` no tiene `CRON_SECRET`, así que los crons llamados a
+   mano en local ahora dan 401 (antes pasaban abiertos). `scrape-cinemas`
+   conserva el bypass de `NODE_ENV=development`.
+
 ---
 
 ## Cines
