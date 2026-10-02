@@ -2,6 +2,7 @@ import { createClient } from '@supabase/supabase-js';
 import type { Event, Venue } from '../types';
 import { upsertEventWithDeduplication } from './deduplicate';
 import { saltaWallClockToUtcISO } from '../date-format';
+import { resolveVenueId } from '../venues/resolve';
 
 // Cliente directo (service role key para uso en scripts, nunca en browser)
 function getAdminClient() {
@@ -12,38 +13,21 @@ function getAdminClient() {
 }
 
 /**
- * Busca o crea un venue por nombre. Retorna el id del venue.
+ * Busca o crea un venue por nombre. Retorna el id del venue CANÓNICO.
+ *
+ * Toda la lógica vive en resolve_venue_id() (Postgres, ver lib/venues/resolve.ts).
+ * Antes esto hacía `ilike('name', name)` + insert, y por eso la tabla terminó con
+ * 145 filas para ~90 lugares: cualquier diferencia de tilde, mayúscula, sufijo
+ * de ciudad o un salto de línea en el nombre creaba una fila nueva.
  */
-export async function upsertVenue(venueName: string): Promise<string | null> {
-  if (!venueName) return null;
-  const supabase = getAdminClient();
-
-  // Extraer solo la parte del nombre del venue (antes de la primera coma)
-  const name = venueName.split(',')[0].trim();
-  const address = venueName.trim();
-
-  // Buscar por nombre exacto
-  const { data: existing } = await supabase
-    .from('venues')
-    .select('id')
-    .ilike('name', name)
-    .limit(1)
-    .single();
-
-  if (existing?.id) return existing.id;
-
-  // Crear nuevo venue
-  const { data: created, error } = await supabase
-    .from('venues')
-    .insert({ name, address })
-    .select('id')
-    .single();
-
-  if (error) {
-    console.warn('Error creando venue:', name, error.message);
-    return null;
-  }
-  return created?.id ?? null;
+export async function upsertVenue(venueName: string, source?: string): Promise<string | null> {
+  return resolveVenueId(getAdminClient(), venueName, {
+    source: source ?? 'scraper',
+    // Un evento sin venue_id no se puede deduplicar (findDuplicateEvent compara
+    // venue_id + fecha), así que se crea el venue y queda encolado en
+    // venue_review_queue antes que perder la deduplicación.
+    autocreate: true,
+  });
 }
 
 /**
@@ -136,7 +120,7 @@ export async function saveEventsToSupabase(
     try {
       // Resolver venue_id
       const venueName = typeof event.venue === 'string' ? event.venue : '';
-      const venue_id = await upsertVenue(venueName);
+      const venue_id = await upsertVenue(venueName, sourceKey || 'scraper');
 
       // Clasificación:
       // 1) Priorizar coincidencia de alias en base de datos (admin overrides)
