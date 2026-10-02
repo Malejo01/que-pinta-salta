@@ -3,7 +3,7 @@
 import Image from "next/image"
 import { createElement } from "react"
 import { Calendar, MapPin, Clock, Users, ExternalLink, Navigation } from "lucide-react"
-import { categoryLabels, vibeLabels, EventCategory } from "@/lib/types"
+import { vibeLabels, EventCategory } from "@/lib/types"
 
 // Display event type (transformed from database)
 interface DisplayEvent {
@@ -13,6 +13,8 @@ interface DisplayEvent {
   date: string
   time: string
   category: string
+  /** Nombre de la categoría (categories.name); si falta se muestra el slug. */
+  categoryName?: string
   price: number | "gratis" | "confirmar"
   image: string
   description: string
@@ -60,7 +62,7 @@ export function EventModal({ event, open, onClose }: EventModalProps) {
           />
           <Badge className="absolute left-4 top-4 bg-primary text-primary-foreground">
             {createElement(iconComponent, { className: "mr-1 size-3" })}
-            {categoryLabels[event.category as keyof typeof categoryLabels] || event.category}
+            {event.categoryName || event.category}
           </Badge>
         </div>
 

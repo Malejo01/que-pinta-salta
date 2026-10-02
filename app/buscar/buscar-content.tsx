@@ -3,7 +3,6 @@
 import { useDeferredValue, useMemo, useState } from "react"
 import Link from "next/link"
 import { ArrowLeft, Search } from "lucide-react"
-import { categoryLabels } from "@/lib/types"
 import type { EventCategory, Category, CinemaMovie } from "@/lib/types"
 import type { FlyerWithAccount } from "@/lib/instagram-config"
 import { Button } from "@/components/ui/button"

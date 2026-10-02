@@ -81,18 +81,8 @@ export interface Event {
 // alternativo) y el admin crea más desde la ficha del evento (createCategory).
 export type EventCategory = Category['slug']
 
-// Nombres de las 8 categorías originales. El nombre real de cada categoría está
-// en categories.name; los que usan este mapa caen al slug si no lo encuentran.
-export const categoryLabels: Record<EventCategory, string> = {
-  penas: "Peñas",
-  boliches: "Boliches",
-  teatro: "Teatro",
-  ferias: "Ferias",
-  talleres: "Talleres",
-  cine: "Cine",
-  museos: "Museos",
-  alternativo: "Alternativo",
-}
+// El nombre a mostrar de una categoría está en categories.name: no hay mapa
+// fijo de slugs a nombres en el código.
 
 export type EventVibe = "familiar" | "adultos" | "exterior"
 

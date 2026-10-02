@@ -5,7 +5,6 @@ import Image from "next/image"
 import Link from "next/link"
 import { motion, AnimatePresence } from "framer-motion"
 import { ChevronLeft, ChevronRight, Calendar, MapPin, Ticket } from "lucide-react"
-import { categoryLabels } from "@/lib/types"
 import { formatEventDate } from "@/lib/date-format"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -120,7 +119,7 @@ export function HeroCarousel({ events }: HeroCarouselProps) {
           className="container mx-auto max-w-4xl"
         >
           <Badge className="mb-2 bg-primary text-[10px] text-primary-foreground sm:mb-3 sm:text-xs">
-            {categoryLabels[currentEvent.category as keyof typeof categoryLabels] || currentEvent.category}
+            {currentEvent.categoryName}
           </Badge>
           
           <h2 className="mb-2 text-lg font-bold leading-tight text-white sm:mb-3 sm:text-3xl lg:text-[2rem] drop-shadow-md">
