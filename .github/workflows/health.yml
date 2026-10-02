@@ -1,0 +1,33 @@
+# Health check diario de la ingesta, 12:00 de Salta (15:00 UTC), después de
+# los crons de ticketeras (08:00 UTC) y cines (13:00 UTC).
+# GET /api/cron/health responde 503 si algún proceso pasó su umbral
+# (ticketeras, cines y cola de IA: 36 h; instagram: 100 h). En ese caso el
+# workflow falla y GitHub manda mail.
+name: Health check de la ingesta
+
+on:
+  schedule:
+    - cron: "0 15 * * *"
+  workflow_dispatch:
+
+jobs:
+  health:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      SITE_URL: ${{ vars.SITE_URL || 'https://www.quepintasalta.com.ar' }}
+      CRON_SECRET: ${{ secrets.CRON_SECRET }}
+    steps:
+      - name: Consultar /api/cron/health
+        run: |
+          set -uo pipefail
+          if [ -z "$CRON_SECRET" ]; then echo "::error::Falta el secret CRON_SECRET"; exit 1; fi
+          status=$(curl -sS --max-time 60 -o body.json -w '%{http_code}' \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            "$SITE_URL/api/cron/health")
+          jq . body.json || cat body.json
+          if [ "$status" != "200" ]; then
+            jq -r '.checks[]? | select(.ok | not) | "::error::\(.name): \(.age_hours // "sin datos") h (máximo \(.max_hours) h)"' body.json || true
+            echo "::error::Health check respondió HTTP $status"
+            exit 1
+          fi

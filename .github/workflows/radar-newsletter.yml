@@ -1,0 +1,35 @@
+# Radar Salteño: newsletter semanal, jueves 18:00 de Salta (21:00 UTC).
+# Llama GET /api/cron/radar-newsletter. Falla (y GitHub manda mail) si la
+# llamada da error HTTP o si algún envío de Resend falló.
+#
+# Ojo con correrlo a mano: no hay registro de envíos, así que cada corrida
+# vuelve a mandar el mail a todos los suscriptores semanales.
+name: Radar Salteño (newsletter)
+
+on:
+  schedule:
+    - cron: "0 21 * * 4"
+  workflow_dispatch:
+
+concurrency:
+  group: radar-newsletter
+  cancel-in-progress: false
+
+jobs:
+  send:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      SITE_URL: ${{ vars.SITE_URL || 'https://www.quepintasalta.com.ar' }}
+      CRON_SECRET: ${{ secrets.CRON_SECRET }}
+    steps:
+      - name: Enviar newsletter
+        run: |
+          set -euo pipefail
+          if [ -z "$CRON_SECRET" ]; then echo "::error::Falta el secret CRON_SECRET"; exit 1; fi
+          body=$(curl -sS --fail-with-body --max-time 300 \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            "$SITE_URL/api/cron/radar-newsletter")
+          echo "$body" | jq .
+          errors=$(echo "$body" | jq '.stats.errors // 0')
+          if [ "$errors" -gt 0 ]; then echo "::error::$errors envíos fallaron"; exit 1; fi

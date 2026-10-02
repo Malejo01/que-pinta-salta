@@ -1,0 +1,41 @@
+# Drena la cola de IA de flyers de Instagram cada 6 horas.
+# Vercel Hobby permite un disparo por cron por día; esto corre en GitHub.
+# Llama POST /api/ai/process-flyers (lotes de 5) hasta vaciar la cola o
+# hasta 10 llamadas. Falla (y GitHub manda mail) si una llamada da error HTTP
+# o si algún flyer falló.
+name: Cola de IA de flyers
+
+on:
+  schedule:
+    - cron: "0 */6 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: ai-queue
+  cancel-in-progress: false
+
+jobs:
+  drain:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      SITE_URL: ${{ vars.SITE_URL || 'https://www.quepintasalta.com.ar' }}
+      CRON_SECRET: ${{ secrets.CRON_SECRET }}
+    steps:
+      - name: Procesar lotes
+        run: |
+          set -euo pipefail
+          if [ -z "$CRON_SECRET" ]; then echo "::error::Falta el secret CRON_SECRET"; exit 1; fi
+          total=0; failed=0
+          for i in $(seq 1 10); do
+            body=$(curl -sS --fail-with-body --max-time 90 -X POST \
+              -H "Authorization: Bearer $CRON_SECRET" \
+              "$SITE_URL/api/ai/process-flyers?limit=5")
+            n=$(echo "$body" | jq '.processedCount // 0')
+            f=$(echo "$body" | jq '[.results[]? | select(.success != true)] | length')
+            echo "Lote $i: procesados=$n fallidos=$f $(echo "$body" | jq -c '[.results[]?.action]')"
+            total=$((total + n)); failed=$((failed + f))
+            if [ "$n" -eq 0 ]; then break; fi
+          done
+          echo "Total procesados: $total, fallidos: $failed"
+          if [ "$failed" -gt 0 ]; then echo "::error::$failed flyers fallaron"; exit 1; fi

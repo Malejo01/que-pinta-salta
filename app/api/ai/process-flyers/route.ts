@@ -19,8 +19,9 @@ export const dynamic = 'force-dynamic'
  */
 export async function POST(request: Request) {
   // 1. Verificar autenticación/secreto para evitar llamadas maliciosas externas.
-  // Solo por header: un ?secret= quedaría en los logs de acceso.
-  if (!hasBearerSecret(request, 'APIFY_WEBHOOK_SECRET')) {
+  // Solo por header: un ?secret= quedaría en los logs de acceso. Acepta
+  // CRON_SECRET (el workflow de GitHub Actions) o APIFY_WEBHOOK_SECRET.
+  if (!hasBearerSecret(request, 'CRON_SECRET') && !hasBearerSecret(request, 'APIFY_WEBHOOK_SECRET')) {
     console.warn('[AI Processing Endpoint] Petición no autorizada')
     return NextResponse.json(
       { error: 'Unauthorized' },

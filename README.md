@@ -208,9 +208,29 @@ RLS está habilitado en todas ellas. El patrón general es lectura pública de c
 | Path | Schedule | Qué hace |
 |---|---|---|
 | `/api/cron/scrape` | `0 8 * * *` | Corre los tres providers de ticketeras en paralelo (`allSettled`), hace upsert con deduplicación y archiva flyers de Instagram vencidos |
-| `/api/cron/instagram` | `0 0 * * 0,1,5,6` | Dispara el actor de Apify sobre las cuentas activas, espera el run y persiste los flyers nuevos |
+| `/api/cron/instagram` | `0 0 * * 0,1,5,6` | Dispara el actor de Apify sobre las cuentas activas, espera el run y persiste los flyers nuevos. Informa las cuentas de las que Apify no trajo nada (`no_items`) |
+| `/api/scrape-cinemas` | `0 13 * * *` | Cartelera de Cinemark y Cine Ópera |
 
-Ambos validan `Authorization: Bearer ${CRON_SECRET}`. `/api/ai/process-flyers` (POST y GET) valida `Authorization: Bearer ${APIFY_WEBHOOK_SECRET}` y `/api/webhooks/apify` el header `x-apify-webhook-secret`. Todos fallan cerrado (`lib/api-auth.ts`): si la variable no está definida responden 401, y ninguno acepta el secreto por `?secret=`.
+Los tres validan `Authorization: Bearer ${CRON_SECRET}`. `/api/ai/process-flyers` (POST y GET) acepta `Bearer ${CRON_SECRET}` o `Bearer ${APIFY_WEBHOOK_SECRET}`, y `/api/webhooks/apify` el header `x-apify-webhook-secret`. Todos fallan cerrado (`lib/api-auth.ts`): si la variable no está definida responden 401, y ninguno acepta el secreto por `?secret=`.
+
+### GitHub Actions (procesos que no entran en Vercel Hobby)
+
+Hobby permite un disparo por cron por día, así que lo que necesita más frecuencia, o que no entra en `vercel.json`, corre en `.github/workflows/`. Si un workflow programado falla, GitHub le manda un mail a quien lo creó (o a quien cambió después su `cron`), siempre que tenga activadas las notificaciones de Actions (Settings → Notifications → Actions en la cuenta de GitHub).
+
+| Workflow | Cuándo | Qué hace | Falla si |
+|---|---|---|---|
+| `ai-queue.yml` | cada 6 h | `POST /api/ai/process-flyers?limit=5` en loop hasta vaciar la cola o 10 llamadas | error HTTP o algún flyer con `success: false` |
+| `radar-newsletter.yml` | jueves 21:00 UTC (18:00 Salta) | `GET /api/cron/radar-newsletter` | error HTTP o `stats.errors > 0` |
+| `health.yml` | todos los días 15:00 UTC (12:00 Salta) | `GET /api/cron/health` | algún proceso pasó su umbral (respuesta 503) |
+
+`/api/cron/health` mide cada proceso por el rastro que deja en la base: ticketeras (último `updated_at` de eventos de entradauno/norteticket/alpogo/vamos, máx. 36 h), cines (`cinema_movies.updated_at`, 36 h), Instagram (`instagram_flyers.fetched_at`, **100 h**, porque su cron no corre de martes a jueves) y cola de IA (antigüedad del flyer pendiente más viejo, 36 h; con la cola vacía da OK).
+
+**Secrets que hay que cargar a mano** en GitHub (repo → Settings → Secrets and variables → Actions):
+
+- `CRON_SECRET` (secret, obligatorio): **el mismo valor** que `CRON_SECRET` en Vercel. En Vercel es de tipo *sensitive* y no se puede volver a leer: si no lo tenés guardado, generá uno nuevo (`openssl rand -hex 32`), cargalo en los dos lados y redeployá Vercel.
+- `SITE_URL` (variable, opcional): por defecto `https://www.quepintasalta.com.ar`.
+
+Ojo: `radar-newsletter.yml` se puede correr a mano (`workflow_dispatch`), pero no hay registro de envíos y cada corrida vuelve a mandar el mail a todos.
 
 ---
 
