@@ -1,0 +1,4 @@
+# Las migraciones SQL van siempre con LF, en Windows también: un CR de más
+# dentro del cuerpo de una función cambia la función, y el CI (Linux) compara
+# contra producción byte a byte.
+supabase/**/*.sql text eol=lf
