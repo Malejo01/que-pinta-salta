@@ -119,7 +119,14 @@ export async function processApifyPayload(
   )
 
   for (const post of posts) {
-    const username = post.ownerUsername.toLowerCase()
+    // La cuenta es la que se consultó (inputUrl), no el dueño del post: los
+    // posts en colaboración (p. ej. una productora con el boliche como
+    // coautor) vienen con ownerUsername = la productora y se perdían como
+    // "cuenta no registrada". Si no hay inputUrl, se cae al dueño.
+    const queriedUsername = (post as ApifyInstagramPost & { inputUrl?: string }).inputUrl
+      ?.replace(/\/+$/, '').split('/').pop()?.toLowerCase()
+    const ownerUsername = post.ownerUsername.toLowerCase()
+    const username = queriedUsername && accountMap.has(queriedUsername) ? queriedUsername : ownerUsername
 
     try {
       // Verificar que la cuenta está registrada
@@ -128,6 +135,9 @@ export async function processApifyPayload(
         console.log(`[IG Engine] Cuenta no registrada, skip: @${username}`)
         result.skipped++
         continue
+      }
+      if (username !== ownerUsername) {
+        console.log(`[IG Engine] Post en colaboración de @${ownerUsername} para @${username}: ${post.id}`)
       }
       const accountId = account.id
 
