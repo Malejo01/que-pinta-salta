@@ -2,12 +2,11 @@ import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
 import { processFlyerWithAI } from '@/lib/ai/process-flyer-ai'
 import { GEMINI_MODEL } from '@/lib/ai/gemini'
+import { hasBearerSecret } from '@/lib/api-auth'
 
 // Configurar tiempo máximo de ejecución en Vercel (Hobby tiene límite de 10s-15s, Pro hasta 60s)
 export const maxDuration = 60
 export const dynamic = 'force-dynamic'
-
-const WEBHOOK_SECRET = process.env.APIFY_WEBHOOK_SECRET
 
 /**
  * POST /api/ai/process-flyers
@@ -19,16 +18,9 @@ const WEBHOOK_SECRET = process.env.APIFY_WEBHOOK_SECRET
  * - limit: cantidad máxima de flyers a procesar en esta ejecución (default: 3)
  */
 export async function POST(request: Request) {
-  // 1. Verificar autenticación/secreto para evitar llamadas maliciosas externas
-  const urlSecret = new URL(request.url).searchParams.get('secret')
-  const authHeader = request.headers.get('Authorization')
-  
-  let incomingSecret = urlSecret
-  if (authHeader && authHeader.startsWith('Bearer ')) {
-    incomingSecret = authHeader.substring(7)
-  }
-
-  if (WEBHOOK_SECRET && incomingSecret !== WEBHOOK_SECRET) {
+  // 1. Verificar autenticación/secreto para evitar llamadas maliciosas externas.
+  // Solo por header: un ?secret= quedaría en los logs de acceso.
+  if (!hasBearerSecret(request, 'APIFY_WEBHOOK_SECRET')) {
     console.warn('[AI Processing Endpoint] Petición no autorizada')
     return NextResponse.json(
       { error: 'Unauthorized' },

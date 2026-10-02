@@ -1,14 +1,12 @@
 import { NextResponse } from 'next/server'
 import { triggerApifyInstagramScraper } from '@/lib/instagram/process-apify-payload'
+import { hasBearerSecret } from '@/lib/api-auth'
 
 export const dynamic = 'force-dynamic'
 
-const CRON_SECRET = process.env.CRON_SECRET
-
 export async function GET(request: Request) {
   // 1. Verificar autorización usando el secreto cron de Vercel
-  const authHeader = request.headers.get('authorization')
-  if (CRON_SECRET && authHeader !== `Bearer ${CRON_SECRET}`) {
+  if (!hasBearerSecret(request, 'CRON_SECRET')) {
     console.warn('[Cron Instagram] Intento de acceso no autorizado')
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }

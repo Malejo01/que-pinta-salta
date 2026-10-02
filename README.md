@@ -210,7 +210,7 @@ RLS está habilitado en todas ellas. El patrón general es lectura pública de c
 | `/api/cron/scrape` | `0 8 * * *` | Corre los tres providers de ticketeras en paralelo (`allSettled`), hace upsert con deduplicación y archiva flyers de Instagram vencidos |
 | `/api/cron/instagram` | `0 0 * * 0,1,5,6` | Dispara el actor de Apify sobre las cuentas activas, espera el run y persiste los flyers nuevos |
 
-Ambos validan `Authorization: Bearer ${CRON_SECRET}`. `/api/ai/process-flyers` y `/api/webhooks/apify` validan `APIFY_WEBHOOK_SECRET`.
+Ambos validan `Authorization: Bearer ${CRON_SECRET}`. `/api/ai/process-flyers` (POST y GET) valida `Authorization: Bearer ${APIFY_WEBHOOK_SECRET}` y `/api/webhooks/apify` el header `x-apify-webhook-secret`. Todos fallan cerrado (`lib/api-auth.ts`): si la variable no está definida responden 401, y ninguno acepta el secreto por `?secret=`.
 
 ---
 

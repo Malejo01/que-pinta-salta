@@ -1,8 +1,7 @@
 import { NextResponse } from 'next/server'
 import { processApifyPayload } from '@/lib/instagram/process-apify-payload'
 import type { ApifyInstagramPost, ApifyWebhookPayload } from '@/lib/instagram-config'
-
-const WEBHOOK_SECRET = process.env.APIFY_WEBHOOK_SECRET
+import { hasApifyWebhookSecret } from '@/lib/api-auth'
 
 /**
  * POST /api/webhooks/apify
@@ -15,11 +14,9 @@ const WEBHOOK_SECRET = process.env.APIFY_WEBHOOK_SECRET
  * Para la Fase 1 usaremos el formato de array directo.
  */
 export async function POST(request: Request) {
-  // 1. Verificar autenticación del webhook
-  const secret = request.headers.get('x-apify-webhook-secret')
-    || new URL(request.url).searchParams.get('secret')
-
-  if (WEBHOOK_SECRET && secret !== WEBHOOK_SECRET) {
+  // 1. Verificar autenticación del webhook: solo por header (headersTemplate
+  // del webhook en Apify). Un ?secret= quedaría en los logs de acceso.
+  if (!hasApifyWebhookSecret(request)) {
     console.warn('[Webhook Apify] Petición no autorizada')
     return NextResponse.json(
       { error: 'Unauthorized' },

@@ -2,8 +2,7 @@ import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
 import { Resend } from 'resend'
 import { formatEventDate, formatSaltaClock } from '@/lib/date-format'
-
-const CRON_SECRET = process.env.CRON_SECRET
+import { hasBearerSecret } from '@/lib/api-auth'
 
 function buildRadarEmailHtml(events: any[], emailTarget: string): string {
   const eventRows = events.map(event => {
@@ -69,8 +68,7 @@ function buildRadarEmailHtml(events: any[], emailTarget: string): string {
 
 export async function GET(request: Request) {
   // Verificar autorización
-  const authHeader = request.headers.get('authorization')
-  if (CRON_SECRET && authHeader !== `Bearer ${CRON_SECRET}`) {
+  if (!hasBearerSecret(request, 'CRON_SECRET')) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 

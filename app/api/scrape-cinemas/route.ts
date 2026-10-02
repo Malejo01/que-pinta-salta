@@ -1,19 +1,13 @@
 import { NextResponse } from 'next/server';
 import { runCinemaScrapeAndSync } from '@/lib/scraper/cinema-scraper';
-
-const CRON_SECRET = process.env.CRON_SECRET;
+import { hasBearerSecret } from '@/lib/api-auth';
 
 export async function GET(request: Request) {
-  // Verificar autorización (soporta cabecera Bearer, parámetro de consulta ?secret= y desarrollo local)
-  const authHeader = request.headers.get('authorization');
-  const { searchParams } = new URL(request.url);
-  const secretParam = searchParams.get('secret');
-  
-  const isAuthorized = 
-    !CRON_SECRET || 
-    authHeader === `Bearer ${CRON_SECRET}` || 
-    secretParam === CRON_SECRET ||
-    process.env.NODE_ENV === 'development';
+  // Verificar autorización: cabecera Bearer (el cron de Vercel) o desarrollo local.
+  // No se acepta ?secret=: queda en los logs de acceso.
+  const isAuthorized =
+    process.env.NODE_ENV === 'development' ||
+    hasBearerSecret(request, 'CRON_SECRET');
 
   if (!isAuthorized) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
