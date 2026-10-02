@@ -101,7 +101,13 @@ Sprint 0.
 
 **Acciones manuales pendientes:**
 
-1. **Push + deploy de `main`** para que rijan 0.1 (código), 0.3, 0.5, 0.7 y 0.8.
+1. ~~**Push + deploy de `main`**~~ — hecho el 2026-10-02
+   (`dpl_AWx2iRaWLkUqFsrUmsaF4mLW62nu`, commit `b772c82`). Verificado en
+   producción: `/admin/instagram` 307, `GET /api/ai/process-flyers` 401,
+   `?secret=` 401 en `scrape-cinemas`, `webhooks/apify` y `process-flyers`,
+   `keep-alive` con `Bearer ` vacío 401. El primer push quedó `BLOCKED` en
+   Vercel porque los commits tenían autor `audit@local` (config local del repo,
+   ya borrada): Hobby solo deploya commits de autores con acceso al proyecto.
 2. **Apify:** si el webhook configurado en la consola de Apify apunta a
    `/api/webhooks/apify?secret=…`, pasarlo a header `x-apify-webhook-secret`
    (headersTemplate); con query string ahora da 401. El cron de Instagram no
@@ -109,6 +115,101 @@ Sprint 0.
 3. **Local:** `.env.local` no tiene `CRON_SECRET`, así que los crons llamados a
    mano en local ahora dan 401 (antes pasaban abiertos). `scrape-cinemas`
    conserva el bypass de `NODE_ENV=development`.
+
+### Sprint 1 (contenido, alertas y monetización) — CERRADO el 2026-10-02
+
+Commits en `main` sin pushear. Lo de base ya está aplicado en prod; lo de código
+rige con el próximo deploy.
+
+- **1.1 `search_path` en `set_updated_at`, `update_updated_at` y
+  `prevent_role_tampering` — aplicado en prod**
+  (`20261002150000_fix_trigger_functions_search_path.sql`). **Evidencia** (con
+  rollback): los `updated_at` de `events` y `cinema_movies` siguen avanzando; un
+  USER que intenta subirse a ADMIN sigue rebotando con "No tienes permisos de
+  administrador para modificar roles."; el advisor ya no marca
+  `function_search_path_mutable`.
+- **1.2 Cola de IA drenada — 87 de 87, el 2026-10-02 a las 14:16–14:20 UTC**,
+  contra prod (`POST /api/ai/process-flyers`, 1 lote de 3 de prueba y 17 de 5).
+  0 fallbacks. **29** flyers `SKIPPED` (evento caducado) y **58** `PROCESSED`,
+  que dieron 57 eventos (uno se fusionó con uno existente):
+  **3 publicados solos** (boliches, futuros) y **54 en `DRAFT` para revisión**
+  (13 futuros y 41 pasados; 53 de los 55 borradores no traen hora, que es
+  requisito para auto-publicar). Ojo con la home: solo muestra flyers
+  `ACTIVE/PENDING` (`lib/instagram/data.ts:18-19`), así que los 87 posts crudos
+  (Boliches 59, Peñas 24, Alternativo 4) dejaron de verse. **Los 13 borradores
+  futuros esperan revisión en `/admin/revision`**; hasta entonces Peñas no
+  tiene fila en la home.
+- **1.3 GitHub Actions — en código** (`.github/workflows/`): cola de IA cada
+  6 h, Radar los jueves 21:00 UTC, health check diario 15:00 UTC contra el
+  endpoint nuevo `GET /api/cron/health` (Bearer `CRON_SECRET`, 503 si algo está
+  viejo). **Desvío del pedido:** Instagram tiene umbral de 100 h y no 36 —su
+  cron no corre de martes a jueves (96 h entre lunes y viernes) y con 36 h el
+  check fallaría tres días por semana. `process-flyers` acepta también
+  `CRON_SECRET`, para que los workflows necesiten un solo secret.
+  **Evidencia (build local):** sin auth / Bearer malo → 401; con Bearer →
+  200 con las 4 antigüedades (ticketeras 5,7 h, cines 1 h, instagram 13,9 h,
+  cola vacía).
+- **1.4 Flag vencido de orden — borrado.** `lib/config/category-order.ts` y sus
+  2 llamadas en `components/home-content.tsx`; el orden por volumen queda
+  explícito (favoritos y alfabético desempatan). Typecheck OK.
+- **1.5 Los 56 "Revisar: Flyer de @…" — `CANCELLED` en prod**
+  (`20261002151000_cancel_fallback_flyer_events.sql`; 54 con ese título y 2
+  renombrados a mano: "@bresh", "@treintaypicosalta"). Ninguno era futuro ni
+  estaba en favoritos; anon ya no los ve. **Por qué estaban `PUBLISHED`:** no hay
+  camino automático. Se insertaron en `DRAFT` y **los 56 tienen el slug que
+  genera `publishDraftEvent`** (`${slugify(title)}-${id.slice(0,5)}`,
+  `lib/admin-actions.ts:333-338`), que solo se llama desde el botón "Publicar"
+  de `/admin/revision` (`components/draft-events-manager.tsx:208`): se
+  publicaron a mano el 2026-09-15 entre 13:52 y 13:58 de Salta, a menos de un
+  minuto de crearse cada uno (3 más el 2026-07-09). El editor no impide
+  publicar un fallback sin editarlo (título "Revisar:…", fecha del post).
+- **1.6 @laviejaestacionensalta con 0 flyers — diagnosticado.** Está en el input
+  de cada corrida de Apify, pero el actor devuelve para ella
+  `{ "error": "no_items", "errorDescription": "Empty or private data for
+  provided input" }` (runs del 27/09, 28/09 y 02/10). Lo mismo con
+  `@brickell_club` (0 flyers desde julio), `@peppers.gintoneria` (1 flyer) y,
+  a veces, `@casonadelsur.salta` y `@juandelospalotes.jp`. El filtro de posts
+  válidos descartaba esos ítems sin dejar rastro; ahora el cron los loguea y los
+  incluye en su mensaje (`lib/instagram/process-apify-payload.ts`). No pude
+  confirmar cuál de las causas es (Instagram exige login para ver el perfil):
+  cuenta privada o con restricción de edad, usuario mal escrito (el Facebook es
+  `laviejaestacionsalta`, sin "en") o sin posts en la ventana de 7 días.
+- **1.7 Monetización detrás de `NEXT_PUBLIC_ADS_ENABLED` — en código, apagada**
+  (`lib/config/monetization.ts`). Solo prende con `true`. Apagado: sin script de
+  AdSense, sin slots ni cartel de "Anunciá", sin dominios de anuncios en la CSP
+  y sin donaciones de Mercado Pago (navbar, footer, Radar, favoritos y los
+  "compartir"). Con `true` la CSP es idéntica a la anterior (comparada directiva
+  por directiva). Además: `/ads.txt` con `pub-2887416374800783`; el slot espera
+  a que el `<ins>` tenga ancho antes de `adsbygoogle.push()` ("No slot size for
+  availableWidth=0"). **Evidencia (build local con `false`):** la home no trae
+  `adsbygoogle.js`, "Apoyar" ni "Hacer un aporte" (producción hoy sí los trae);
+  `/ads.txt` responde. **Pendiente para prenderlo:** los slots que pasa el
+  código (`home-middle-banner`, `event-detail-bottom-banner`) son nombres, no
+  IDs numéricos de bloques de AdSense: nunca se iban a llenar. Con un slot no
+  numérico el componente cae al CTA de WhatsApp.
+
+Advisors de seguridad después del Sprint 1: **4** (antes del Sprint 0: 11; al
+cierre del Sprint 0: 7). Quedan `is_admin()` ejecutable por anon/authenticated
+(2 WARN, a propósito), contraseñas filtradas (WARN, Paso 4.4) y
+`data_migrations` sin políticas (INFO).
+
+**Acciones manuales del Sprint 1:**
+
+1. **GitHub → Settings → Secrets and variables → Actions:** crear el secret
+   `CRON_SECRET` con el mismo valor que en Vercel. Si no lo tenés (en Vercel es
+   *sensitive* y no se puede leer), generá uno nuevo, cargalo en Vercel y en
+   GitHub, y redeployá. Opcional: variable `SITE_URL`.
+2. **Push + deploy** para que rijan 1.3, 1.4, 1.6 y 1.7. Con el deploy, los
+   anuncios y las donaciones se apagan (la variable no existe en Vercel, y sin
+   ella queda en `false`). Opcional: crear `NEXT_PUBLIC_ADS_ENABLED=false` en
+   Vercel para que quede explícito.
+3. **Revisar los 13 borradores futuros** en `/admin/revision` (incluye peñas).
+4. **Instagram:** abrir logueado `instagram.com/laviejaestacionensalta`,
+   `brickell_club` y `peppers.gintoneria` y ver si existen, si son privadas o
+   tienen restricción de edad, y cuándo fue el último post. Corregir el usuario o
+   desactivarlas en `/admin/instagram`.
+5. **AdSense (cuando se prenda):** crear los bloques de anuncios y reemplazar
+   los nombres de slot por sus IDs numéricos.
 
 ---
 
@@ -163,7 +264,10 @@ solo la frecuencia de corrida.
 
 ## IA de flyers
 
-### Flyers que cayeron al fallback entre el 2026-09-05 y el 2026-09-15
+### Flyers que cayeron al fallback entre el 2026-09-05 y el 2026-09-15 — CERRADO el 2026-10-02
+
+Los 56 eventos de fallback pasaron a `CANCELLED` (Sprint 1, ítem 1.5). Queda el
+texto original como contexto:
 
 Con la API key nueva, `gemini-2.5-flash` devuelve 404 ("no longer available to
 new users"). Desde el 2026-09-05 (última extracción real) los flyers quedaron
