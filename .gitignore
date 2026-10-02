@@ -20,3 +20,7 @@ tsconfig.tsbuildinfo
 
 # Config local de Claude Code (launch.json de preview, worktrees): no se comparte.
 .claude/
+
+# Datos de producción bajados con scripts/db/load-prod-data.sh: tienen emails
+# de usuarios. Nunca se commitean.
+supabase/.data-dumps/

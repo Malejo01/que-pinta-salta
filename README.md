@@ -319,9 +319,36 @@ NEXT_PUBLIC_ADSENSE_CLIENT_ID=   # solo se usa con NEXT_PUBLIC_ADS_ENABLED=true
 
 `NEXT_PUBLIC_ADS_ENABLED` (`lib/config/monetization.ts`) solo prende con `true`; si falta, queda apagado. Apagado no se carga el script de AdSense, no se renderizan los slots ni el cartel de "Anunciá", la CSP no incluye dominios de anuncios (`next.config.mjs`) y se ocultan las donaciones de Mercado Pago. Se lee en el build: cambiarla en Vercel exige redeployar. `/ads.txt` (`public/ads.txt`) se publica siempre.
 
-Aplicar las migraciones de `supabase/migrations/` en orden cronológico y levantar el servidor.
+### Base de datos y esquema
 
-> [`20260805_fix_event_timezone_offset.sql`](supabase/migrations/20260805_fix_event_timezone_offset.sql) es una migración de **datos**, no de esquema: corrige las filas de `events` que se habían guardado con la hora de Salta etiquetada como UTC. Es idempotente vía la tabla `data_migrations`, así que reaplicarla no hace nada.
+El esquema está versionado en `supabase/migrations/` y arranca con un **baseline** (`20261002160000_baseline.sql`) que es un volcado verificado del esquema de producción. Las migraciones anteriores están en `supabase/migrations_legacy/` solo como historia (ver su README). Las migraciones nuevas van en `supabase/migrations/` con versión posterior al baseline; el CI las aplica sobre una base vacía en cada push.
+
+Base local (requiere Docker):
+
+```bash
+npx supabase start          # levanta Postgres 17 + auth + storage y aplica las migraciones
+npx supabase db reset       # vuelve a aplicar todas las migraciones desde cero
+npx supabase stop
+```
+
+Base local **con los datos de producción**, para probar migraciones contra datos reales:
+
+```bash
+bash scripts/db/load-prod-data.sh           # baja los datos de prod y los carga (resetea la base local)
+bash scripts/db/load-prod-data.sh --reuse   # vuelve a cargar el último dump sin bajarlo
+```
+
+Lee `POSTGRES_URL_NON_POOLING` de `.env.local` y solo lee de prod. Baja el schema `public` completo y, de `auth`, solo `users` e `identities`. **El dump tiene emails de usuarios**: queda en `supabase/.data-dumps/`, que está en `.gitignore`; no lo commitees ni lo compartas. Conexión local: `postgresql://postgres:postgres@127.0.0.1:54322/postgres`.
+
+Otros comandos:
+
+```bash
+npm run db:types                   # regenera lib/database.types.ts desde la base local
+npm run typecheck
+bash scripts/db/check-drift.sh     # compara prod contra lo que reconstruyen las migraciones; falla si difieren
+```
+
+Los tipos de la app (`lib/types.ts`) derivan de `lib/database.types.ts`. Si una migración cambia el esquema, regenerá los tipos y commitealos en el mismo cambio: el CI falla si no coinciden.
 
 ```bash
 npm run dev
