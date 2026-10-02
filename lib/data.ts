@@ -142,12 +142,20 @@ export async function getCategories(): Promise<Category[]> {
   return data as Category[]
 }
 
+/**
+ * Venues canónicos, para selectores y agregación por espacio. Excluye los
+ * duplicados absorbidos (canonical_venue_id no nulo) y los centinelas
+ * ("Lugar no especificado"): si no, los pickers ofrecerían "Amnesia",
+ * "Amnesia Salta" y "Amnesia Pub & Music" como tres lugares.
+ */
 export async function getVenues(): Promise<Venue[]> {
   const supabase = await createClient()
-  
+
   const { data, error } = await supabase
     .from('venues')
     .select('*')
+    .is('canonical_venue_id', null)
+    .eq('is_placeholder', false)
     .order('name')
   
   if (error) {
