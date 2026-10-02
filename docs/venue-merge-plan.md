@@ -1,6 +1,6 @@
 # Plan de fusión de venues (dry-run local con datos de prod, 2026-10-02)
 
-Generado corriendo las migraciones 20261002190000/190100 con ROLLBACK. Decisiones (2026-10-02): renombres aprobados; "Don Emilio" y "Balcarce 980" (→ Live Fresh, inferido) quedan en revisión manual; El Patio de la Roka sigue separado de La Roka. Probado en local con datos de prod: aplicar + rollback deja venues, events.venue_id y los defaults de Instagram con la misma huella que antes.
+Generado corriendo las migraciones 20261002190000/190100 con ROLLBACK. Decisiones (2026-10-02): renombres aprobados; "Don Emilio" y "Balcarce 980" (→ Live Fresh, inferido) quedan en revisión manual; El Patio de la Roka quedó separado de La Roka en esta migración; después se decidió que es parte de La Roka y se fusionó en 20261002200000_venue_patio_roka.sql (3 eventos, rollback en supabase/rollbacks/). Probado en local con datos de prod: aplicar + rollback deja venues, events.venue_id y los defaults de Instagram con la misma huella que antes.
 
 ```
 MERGE | 30 y Pico | <- | 30 y Pico Salta | eventos=1 | address=30 y Pico
