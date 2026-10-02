@@ -223,7 +223,9 @@ Hobby permite un disparo por cron por día, así que lo que necesita más frecue
 | `radar-newsletter.yml` | jueves 21:00 UTC (18:00 Salta) | `GET /api/cron/radar-newsletter` | error HTTP o `stats.errors > 0` |
 | `health.yml` | todos los días 15:00 UTC (12:00 Salta) | `GET /api/cron/health` | algún proceso pasó su umbral (respuesta 503) |
 
-`/api/cron/health` mide cada proceso por el rastro que deja en la base: ticketeras (último `updated_at` de eventos de entradauno/norteticket/alpogo/vamos, máx. 36 h), cines (`cinema_movies.updated_at`, 36 h), Instagram (`instagram_flyers.fetched_at`, **100 h**, porque su cron no corre de martes a jueves) y cola de IA (antigüedad del flyer pendiente más viejo, 36 h; con la cola vacía da OK).
+**Bitácora de corridas.** Cada proceso programado (ticketeras, instagram, cines, cola de IA, newsletter) deja una fila en `job_runs` al empezar y la cierra al terminar, con estado (`SUCCESS`, `PARTIAL`, `FAILED`, `SKIPPED`), origen (`vercel-cron`, `github-actions` o `manual`), duración, ítems y errores (`lib/job-runs.ts`). Se ve en `/admin/scrape`, sección "Procesos automáticos".
+
+`/api/cron/health` mide cada proceso por su última corrida sana en `job_runs` (vista `job_last_runs`) y, si todavía no tiene historial, por el rastro que deja en la base: ticketeras (último `updated_at` de eventos de entradauno/norteticket/alpogo/vamos, máx. 36 h), cines (`cinema_movies.updated_at`, 36 h), Instagram (`instagram_flyers.fetched_at`, **100 h**, porque su cron no corre de martes a jueves) y cola de IA (antigüedad del flyer pendiente más viejo, 36 h; con la cola vacía da OK).
 
 **Secrets que hay que cargar a mano** en GitHub (repo → Settings → Secrets and variables → Actions):
 

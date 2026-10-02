@@ -151,6 +151,19 @@ isOneToOne: false
       referencedColumns: ["id"]
     }
                   ]
+                },"job_runs": {
+                  Row: {
+                    "details": NonNullable<Json>,"duration_ms": number | null,"errors": NonNullable<Json>,"finished_at": string | null,"id": string,"items_failed": number,"items_processed": number,"job_key": string,"started_at": string,"status": string,"trigger_source": string
+                  }
+                  Insert: {
+                    "details"?: NonNullable<Json>,"duration_ms"?: number | null,"errors"?: NonNullable<Json>,"finished_at"?: string | null,"id"?: string,"items_failed"?: number,"items_processed"?: number,"job_key": string,"started_at"?: string,"status": string,"trigger_source"?: string
+                  }
+                  Update: {
+                    "details"?: NonNullable<Json>,"duration_ms"?: number | null,"errors"?: NonNullable<Json>,"finished_at"?: string | null,"id"?: string,"items_failed"?: number,"items_processed"?: number,"job_key"?: string,"started_at"?: string,"status"?: string,"trigger_source"?: string
+                  }
+                  Relationships: [
+                    
+                  ]
                 },"profiles": {
                   Row: {
                     "avatar_url": string | null,"contact_type": string | null,"contact_value": string | null,"created_at": string | null,"email": string,"favorite_categories": (string)[] | null,"full_name": string | null,"id": string,"notification_preferences": (Database["public"]['Enums']["notification_type"])[] | null,"role": Database["public"]['Enums']["user_role"] | null,"updated_at": string | null
@@ -313,7 +326,14 @@ isOneToOne: false
                 }
           }
           Views: {
-            [_ in never]: never
+            "job_last_runs": {
+                  Row: {
+                    "job_key": string | null,"last_duration_ms": number | null,"last_errors": Json | null,"last_finished_at": string | null,"last_items_failed": number | null,"last_items_processed": number | null,"last_ok_started_at": string | null,"last_ok_status": string | null,"last_run_id": string | null,"last_started_at": string | null,"last_status": string | null,"last_trigger_source": string | null
+                  }
+                  Relationships: [
+                    
+                  ]
+                }
           }
           Functions: {
             "is_admin":

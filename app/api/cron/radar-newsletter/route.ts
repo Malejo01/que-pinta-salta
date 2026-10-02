@@ -3,6 +3,7 @@ import { createAdminClient } from '@/lib/supabase/server'
 import { Resend } from 'resend'
 import { formatEventDate, formatSaltaClock } from '@/lib/date-format'
 import { hasBearerSecret } from '@/lib/api-auth'
+import { withJobRun, jobTriggerFrom } from '@/lib/job-runs'
 
 function buildRadarEmailHtml(events: any[], emailTarget: string): string {
   const eventRows = events.map(event => {
@@ -72,10 +73,30 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
+  // La corrida queda registrada en job_runs (radar_newsletter).
+  const { httpStatus, body } = await withJobRun('radar_newsletter', jobTriggerFrom(request), sendNewsletter, (r) => {
+    if (r.httpStatus >= 500) return { status: 'FAILED', errors: [String(r.body.error ?? 'error')] }
+    const stats = r.body.stats as { sent: number; skipped: number; errors: number } | undefined
+    if (!stats) return { status: 'SKIPPED', details: { message: r.body.message } }
+    return {
+      status: stats.errors ? 'PARTIAL' : 'SUCCESS',
+      itemsProcessed: stats.sent,
+      itemsFailed: stats.errors,
+      details: { skipped: stats.skipped },
+    }
+  })
+  return NextResponse.json(body, { status: httpStatus })
+}
+
+type NewsletterReply = { httpStatus: number; body: Record<string, unknown> }
+
+const reply = (httpStatus: number, body: Record<string, unknown>): NewsletterReply => ({ httpStatus, body })
+
+async function sendNewsletter(): Promise<NewsletterReply> {
   const apiKey = process.env.RESEND_API_KEY
   if (!apiKey) {
     console.error("[RadarNewsletterCron] No RESEND_API_KEY configured")
-    return NextResponse.json({ error: 'Resend API key missing' }, { status: 500 })
+    return reply(500, { error: 'Resend API key missing' })
   }
 
   console.log('[RadarNewsletterCron] Iniciando envío semanal de Radar...')
@@ -92,11 +113,11 @@ export async function GET(request: Request) {
 
     if (settingsError) {
       console.error("[RadarNewsletterCron] Error al consultar configuraciones de radar:", settingsError)
-      return NextResponse.json({ error: 'Database settings error' }, { status: 500 })
+      return reply(500, { error: 'Database settings error' })
     }
 
     if (!usersSettings || usersSettings.length === 0) {
-      return NextResponse.json({ success: true, message: 'No hay usuarios suscritos a alertas semanales.' })
+      return reply(200, { success: true, message: 'No hay usuarios suscritos a alertas semanales.' })
     }
 
     const nowIso = new Date().toISOString()
@@ -220,7 +241,7 @@ export async function GET(request: Request) {
       }
     }
 
-    return NextResponse.json({
+    return reply(200, {
       success: true,
       stats: results,
       timestamp: new Date().toISOString()
@@ -228,9 +249,9 @@ export async function GET(request: Request) {
 
   } catch (error: any) {
     console.error('[RadarNewsletterCron] Falló la ejecución del cron del newsletter:', error)
-    return NextResponse.json({
+    return reply(500, {
       success: false,
       error: error?.message || 'Error desconocido'
-    }, { status: 500 })
+    })
   }
 }

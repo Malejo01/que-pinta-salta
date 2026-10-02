@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { runCinemaScrapeAndSync } from '@/lib/scraper/cinema-scraper';
 import { hasBearerSecret } from '@/lib/api-auth';
+import { withJobRun, jobTriggerFrom } from '@/lib/job-runs';
 
 export async function GET(request: Request) {
   // Verificar autorización: cabecera Bearer (el cron de Vercel) o desarrollo local.
@@ -15,7 +16,11 @@ export async function GET(request: Request) {
 
   console.log('[api-scrape-cinemas] Iniciando ejecución del scraper de cines...');
   try {
-    const results = await runCinemaScrapeAndSync();
+    const results = await withJobRun('cines', jobTriggerFrom(request), runCinemaScrapeAndSync, (r) => ({
+      status: r.success ? 'SUCCESS' : 'FAILED',
+      itemsProcessed: r.processed,
+      details: { inserted: r.inserted, updated: r.updated, softDeleted: r.softDeleted },
+    }));
     console.log('[api-scrape-cinemas] Ejecución completada exitosamente:', results);
     return NextResponse.json(results);
   } catch (error) {

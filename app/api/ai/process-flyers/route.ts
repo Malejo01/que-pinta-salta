@@ -3,6 +3,7 @@ import { createAdminClient } from '@/lib/supabase/server'
 import { processFlyerWithAI } from '@/lib/ai/process-flyer-ai'
 import { GEMINI_MODEL } from '@/lib/ai/gemini'
 import { hasBearerSecret } from '@/lib/api-auth'
+import { withJobRun, jobTriggerFrom, type JobOutcome } from '@/lib/job-runs'
 
 // Configurar tiempo máximo de ejecución en Vercel (Hobby tiene límite de 10s-15s, Pro hasta 60s)
 export const maxDuration = 60
@@ -29,6 +30,30 @@ export async function POST(request: Request) {
     )
   }
 
+  // Cada lote queda registrado en job_runs (cola_ia).
+  const { httpStatus, body } = await withJobRun('cola_ia', jobTriggerFrom(request), () => processBatch(request), batchOutcome)
+  return NextResponse.json(body, { status: httpStatus })
+}
+
+type BatchReply = { httpStatus: number; body: Record<string, any> }
+
+const reply = (httpStatus: number, body: Record<string, any>): BatchReply => ({ httpStatus, body })
+
+function batchOutcome({ httpStatus, body }: BatchReply): JobOutcome {
+  if (httpStatus >= 500) return { status: 'FAILED', errors: [String(body.error ?? 'error')] }
+  const results: Array<{ success: boolean; error?: string; action?: string }> = body.results ?? []
+  if (results.length === 0) return { status: 'SKIPPED' }
+  const failed = results.filter((r) => !r.success)
+  return {
+    status: failed.length ? 'PARTIAL' : 'SUCCESS',
+    itemsProcessed: results.length - failed.length,
+    itemsFailed: failed.length,
+    errors: failed.map((r) => r.error ?? 'falló'),
+    details: { acciones: results.map((r) => r.action ?? null) },
+  }
+}
+
+async function processBatch(request: Request): Promise<BatchReply> {
   try {
     const supabase = createAdminClient()
     
@@ -48,14 +73,11 @@ export async function POST(request: Request) {
 
     if (fetchError) {
       console.error('[AI Processing Endpoint] Error obteniendo flyers pendientes:', fetchError)
-      return NextResponse.json(
-        { success: false, error: `Error en base de datos: ${fetchError.message}` },
-        { status: 500 }
-      )
+      return reply(500, { success: false, error: `Error en base de datos: ${fetchError.message}` })
     }
 
     if (!pendingFlyers || pendingFlyers.length === 0) {
-      return NextResponse.json({
+      return reply(200, {
         success: true,
         message: 'No hay flyers activos con procesamiento de IA pendiente.',
         processedCount: 0,
@@ -108,7 +130,7 @@ export async function POST(request: Request) {
 
     console.log(`[AI Processing Endpoint] Lote completado. Éxitos: ${successCount}, Fallidos: ${failCount}`)
 
-    return NextResponse.json({
+    return reply(200, {
       success: true,
       message: `Procesamiento en lote finalizado. Éxitos: ${successCount}, Fallas: ${failCount}`,
       processedCount: processedResults.length,
@@ -117,13 +139,10 @@ export async function POST(request: Request) {
 
   } catch (err: any) {
     console.error('[AI Processing Endpoint] Error general en webhook:', err)
-    return NextResponse.json(
-      {
-        success: false,
-        error: err instanceof Error ? err.message : 'Unknown error',
-      },
-      { status: 500 }
-    )
+    return reply(500, {
+      success: false,
+      error: err instanceof Error ? err.message : 'Unknown error',
+    })
   }
 }
 

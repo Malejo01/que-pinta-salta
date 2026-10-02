@@ -2,6 +2,8 @@ import { redirect } from "next/navigation"
 import { createClient } from "@/lib/supabase/server"
 import { getScrapeDashboardData } from "@/lib/scrape-admin-data"
 import { ScrapeManager } from "@/components/scrape-manager"
+import { JobRunsPanel } from "@/components/job-runs-panel"
+import { getJobRunsDashboard } from "@/lib/job-runs"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
 
@@ -19,7 +21,7 @@ export default async function AdminScrapePage() {
 
   if (profile?.role !== 'ADMIN') redirect('/?error=unauthorized')
 
-  const dashboard = await getScrapeDashboardData()
+  const [dashboard, jobRuns] = await Promise.all([getScrapeDashboardData(), getJobRunsDashboard()])
 
   // Últimos eventos importados (para referencia)
   const { data: recentEvents } = await supabase
@@ -50,6 +52,8 @@ export default async function AdminScrapePage() {
         </div>
 
         <ScrapeManager sources={dashboard.sources} warning={dashboard.warning} />
+
+        <JobRunsPanel {...jobRuns} />
 
         {recentEvents && recentEvents.length > 0 && (
           <div className="mt-8">
