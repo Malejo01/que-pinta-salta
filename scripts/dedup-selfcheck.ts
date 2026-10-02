@@ -16,8 +16,8 @@
  * code: 0 si pasa todo, 1 si algo falla. Sirve en CI tal cual.
  */
 
-import { normalizeTitleForKey, buildDedupKey, venuesCompatible } from '../lib/scraper/dedup-key'
-import { planGroup, formatReport, groupByDedupKey, splitByVenue, type DedupCleanupReport } from '../lib/scraper/dedup-cleanup'
+import { normalizeTitleForKey, buildDedupKey, venuesCompatible, normalizeTicketUrl, sameTicketEvent } from '../lib/scraper/dedup-key'
+import { planGroup, formatReport, groupByDedupKey, splitByVenue, buildDuplicateGroups, type DedupCleanupReport } from '../lib/scraper/dedup-cleanup'
 
 let failures = 0
 
@@ -253,6 +253,47 @@ const caso5 = [
 ]
 const split5 = splitByVenue([...groupByDedupKey(caso5).values()][0])
 check('un venue + uno sin venue: un solo grupo fusionable', split5.groups.map((g) => g.length), [2])
+
+console.log('\n== Link de compra como identidad ==')
+check(
+  'normaliza host, mayúsculas, barra final y tracking',
+  normalizeTicketUrl('https://www.NorteTicket.com/BERSUIT-EN-SALTA-2026/?utm_source=ig&fbclid=x'),
+  'norteticket.com/bersuit-en-salta-2026'
+)
+check('conserva el query que identifica', normalizeTicketUrl('https://entradauno.com/landing/x?idEspectaculoCartel=1'), 'entradauno.com/landing/x?idespectaculocartel=1')
+check('la home de un sitio no identifica', normalizeTicketUrl('https://www.laviejaestacion.com.ar'), '')
+check('un perfil de Instagram no identifica', normalizeTicketUrl('https://instagram.com/p/abc'), '')
+check('basura no rompe', normalizeTicketUrl('no es un link'), '')
+
+// No Te Va Gustar: norteticket en un venue, carga manual en otro, mismo link.
+const caso6 = [
+  event({
+    id: 'nt-6', title: 'NO TE VA GUSTAR EN SALTA 2026', scrape_source_key: 'norteticket', venue_id: 'venue-patio',
+    start_date: '2026-09-26T00:30:00.000Z', ticket_url: 'https://norteticket.com/NO-TE-VA-GUSTAR-EN-SALTA-2026/',
+    created_at: '2026-08-10T00:00:00.000Z',
+  }),
+  event({
+    id: 'man-6', title: 'No Te Va Gustar', scrape_source_key: null, created_by: 'user-uuid', venue_id: 'venue-estadio',
+    start_date: '2026-09-26T00:30:00.000Z',
+    ticket_sources: [{ source: 'manual', url: 'https://norteticket.com/no-te-va-gustar-en-salta-2026' }],
+    created_at: '2026-08-01T00:00:00.000Z',
+  }),
+]
+check('mismo link, misma hora, venues distintos -> mismo evento', sameTicketEvent(caso6[0], caso6[1]), true)
+const built6 = buildDuplicateGroups(caso6)
+check('un solo grupo, marcado por link', built6.groups.map((g) => [g.rows.length, g.byTicketUrl]), [[2, true]])
+const plan6 = planGroup('x', built6.groups[0].rows, true)
+check('sobrevive la ticketera (prioridad de fuente)', plan6.keeper.id, 'nt-6')
+check('el venue que queda es el de la ticketera', finalOf(plan6, caso6[0], 'venue_id'), 'venue-patio')
+
+// Funciones del mismo espectáculo: la ticketera usa un solo link para todas.
+const funcion = (id: string, start: string) =>
+  event({ id, title: 'El Amor de un Pueblo', scrape_source_key: 'entradauno', venue_id: 'venue-teatro', start_date: start, ticket_url: 'https://entradauno.com/landing/el-amor?idEspectaculoCartel=1' })
+check('mismo link, otra hora (16 y 21) -> no', sameTicketEvent(funcion('a', '2026-09-11T19:00:00.000Z'), funcion('b', '2026-09-12T00:00:00.000Z')), false)
+check('mismo link, otro día -> no', sameTicketEvent(funcion('a', '2026-09-11T19:00:00.000Z'), funcion('b', '2026-09-12T19:00:00.000Z')), false)
+check('mismo link, una sin hora (00:00) -> sí', sameTicketEvent(funcion('a', '2026-09-11T03:00:00.000Z'), funcion('b', '2026-09-12T00:00:00.000Z')), true)
+const museo = Array.from({ length: 5 }, (_, d) => funcion(`m${d}`, `2026-09-1${d}T15:00:00.000Z`))
+check('un link con 5 fechas no colapsa nada', buildDuplicateGroups(museo).groups.length, 0)
 
 console.log('\n== Reporte de ejemplo (dry-run) ==')
 const report: DedupCleanupReport = {

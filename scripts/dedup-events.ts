@@ -6,6 +6,8 @@
  *   npm run dedup:events -- --from=2026-09-01     # dry-run acotado
  *   npm run dedup:events -- --json                # reporte en JSON
  *   npm run dedup:events -- --apply               # ejecuta las fusiones
+ *   npm run dedup:events -- --only=<id>,<id>      # sólo los grupos con esos eventos
+ *                                                 # (ids o prefijos de 8+ caracteres)
  *
  * Sin --apply no escribe absolutamente nada: imprime qué fusionaría y cuántas
  * fusiones son. Correrlo primero en dry-run no es una recomendación, es el
@@ -63,6 +65,7 @@ async function main() {
 
   const apply = getFlag('apply')
   const maxGroups = getOption('max-groups')
+  const only = getOption('only')
 
   const report = await runDedupCleanup({
     dryRun: !apply,
@@ -70,6 +73,7 @@ async function main() {
     to: getOption('to'),
     includePast: getFlag('include-past'),
     maxGroups: maxGroups ? Number(maxGroups) : undefined,
+    onlyEventIds: only ? only.split(',') : undefined,
   })
 
   if (getFlag('json')) {

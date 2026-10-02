@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
-import { buildDedupKey, dedupKeyOf } from './dedup-key'
+import { buildDedupKey, dedupKeyOf, sameTicketEvent, ticketUrlsOf } from './dedup-key'
 import { mergeEvents, appendAudit, type DiscardedValue, type MergeAuditEntry } from './merge-events'
 import { getSourcePriority, describeSource, resolveEventSource } from './source-priority'
 import { formatSaltaDayKey } from '../date-format'
@@ -19,7 +19,7 @@ import { formatSaltaDayKey } from '../date-format'
  *   1. UPDATE sobre el registro que se conserva, con el resultado de fusionar
  *      todos los demás encima (links unidos, huecos completados, conflictos
  *      resueltos por prioridad de fuente).
- *   2. Repunta favoritos y vistas de las filas absorbidas hacia el que queda.
+ *   2. Repunta favoritos (y el flyer de Instagram) de las filas absorbidas.
  *   3. DELETE de las filas absorbidas — pero recién después de dejar el
  *      snapshot JSON completo de cada una en `merge_audit` del sobreviviente.
  *      Ese snapshot es lo que permite reconstruir la fila si algo salió mal.
@@ -48,6 +48,13 @@ export interface DedupCleanupOptions {
    * están duplicadas). Por defecto sigue a `!dryRun`.
    */
   backfillKeys?: boolean
+  /**
+   * Restringe el plan (y la aplicación) a los grupos que contengan alguno de
+   * estos ids de evento (completos o prefijo de al menos 8 caracteres). Sirve
+   * para aplicar sólo los grupos aprobados uno por uno. Con este filtro no se
+   * hace backfill de claves.
+   */
+  onlyEventIds?: string[]
   supabase?: any
 }
 
@@ -60,6 +67,7 @@ export interface PlannedEvent {
   venue_id: string | null
   start_date: string
   ticket_sources: number
+  ticket_url: string | null
   view_count: number
   priority: number
 }
@@ -67,6 +75,8 @@ export interface PlannedEvent {
 export interface DuplicateGroupPlan {
   dedupKey: string
   day: string
+  /** true si el grupo existe (o es más grande) por compartir link de compra. */
+  byTicketUrl: boolean
   keeper: PlannedEvent
   absorbed: PlannedEvent[]
   conflicts: DiscardedValue[]
@@ -141,6 +151,7 @@ function toPlannedEvent(row: any): PlannedEvent {
     venue_id: row.venue_id ?? null,
     start_date: row.start_date,
     ticket_sources: Array.isArray(row.ticket_sources) ? row.ticket_sources.length : 0,
+    ticket_url: row.ticket_url ?? null,
     view_count: typeof row.view_count === 'number' ? row.view_count : 0,
     priority: getSourcePriority(resolveEventSource(row)),
   }
@@ -193,8 +204,99 @@ export function groupByDedupKey(rows: any[]): Map<string, any[]> {
   return groups
 }
 
+/**
+ * Arma los grupos de duplicados. Dos filas son el mismo evento si:
+ *
+ *   a) tienen la misma clave (título + día) y venues compatibles
+ *      (ver splitByVenue), o
+ *   b) comparten un link de compra, el mismo día y a la misma hora
+ *      (ver sameTicketEvent), aunque los venues o los títulos difieran.
+ *
+ * Las relaciones se cierran transitivamente (union-find): si A y B comparten
+ * link y B y C comparten clave, los tres son un grupo.
+ *
+ * venueConflicts son los buckets de misma clave que, aun después de aplicar la
+ * regla del link, quedan partidos en más de un grupo.
+ */
+export function buildDuplicateGroups(rows: any[]): {
+  groups: Array<{ rows: any[]; byTicketUrl: boolean }>
+  venueConflicts: Array<{ dedupKey: string; rows: any[] }>
+} {
+  const index = new Map<any, number>(rows.map((row, i) => [row, i]))
+  const parent = rows.map((_, i) => i)
+  // Segundo union-find sólo con la regla de clave: si un grupo final abarca
+  // más de una raíz de éste, existe gracias al link de compra.
+  const keyParent = rows.map((_, i) => i)
+  const find = (p: number[], i: number): number => (p[i] === i ? i : (p[i] = find(p, p[i])))
+  const union = (p: number[], a: number, b: number) => {
+    const ra = find(p, a)
+    const rb = find(p, b)
+    if (ra !== rb) p[rb] = ra
+  }
+
+  const buckets = groupByDedupKey(rows)
+  for (const bucket of buckets.values()) {
+    if (bucket.length < 2) continue
+    for (const group of splitByVenue(bucket).groups) {
+      for (const row of group.slice(1)) {
+        union(parent, index.get(group[0])!, index.get(row)!)
+        union(keyParent, index.get(group[0])!, index.get(row)!)
+      }
+    }
+  }
+
+  // Candidatos por (día, link): sólo se comparan filas que ya comparten algo.
+  const byDayUrl = new Map<string, number[]>()
+  rows.forEach((row, i) => {
+    if (!row.start_date) return
+    const day = formatSaltaDayKey(row.start_date)
+    for (const url of ticketUrlsOf(row)) {
+      const key = `${day}|${url}`
+      const list = byDayUrl.get(key)
+      if (list) list.push(i)
+      else byDayUrl.set(key, [i])
+    }
+  })
+  for (const list of byDayUrl.values()) {
+    for (let x = 0; x < list.length; x++) {
+      for (let y = x + 1; y < list.length; y++) {
+        if (sameTicketEvent(rows[list[x]], rows[list[y]])) union(parent, list[x], list[y])
+      }
+    }
+  }
+
+  const components = new Map<number, number[]>()
+  rows.forEach((_, i) => {
+    const root = find(parent, i)
+    const list = components.get(root)
+    if (list) list.push(i)
+    else components.set(root, [i])
+  })
+
+  const groups: Array<{ rows: any[]; byTicketUrl: boolean }> = []
+  for (const members of components.values()) {
+    if (members.length < 2) continue
+    const keyRoots = new Set(members.map((i) => find(keyParent, i)))
+    groups.push({ rows: members.map((i) => rows[i]), byTicketUrl: keyRoots.size > 1 })
+  }
+
+  const venueConflicts: Array<{ dedupKey: string; rows: any[] }> = []
+  for (const [dedupKey, bucket] of buckets) {
+    if (bucket.length < 2) continue
+    const roots = new Set(bucket.map((row) => find(parent, index.get(row)!)))
+    if (roots.size > 1) venueConflicts.push({ dedupKey, rows: bucket })
+  }
+
+  return { groups, venueConflicts }
+}
+
+/** Un grupo contiene alguno de los ids pedidos (completo o prefijo >= 8). */
+function groupMatchesIds(group: any[], ids: string[]): boolean {
+  return group.some((row) => ids.some((id) => id.length >= 8 && String(row.id).startsWith(id)))
+}
+
 /** Arma el plan de fusión de un grupo, sin tocar la base. */
-export function planGroup(dedupKey: string, group: any[]): DuplicateGroupPlan {
+export function planGroup(dedupKey: string, group: any[], byTicketUrl = false): DuplicateGroupPlan {
   const [keeper, ...absorbed] = pickKeeper(group)
 
   // Copia de trabajo: cada fusión ve el resultado de la anterior, igual que
@@ -236,6 +338,7 @@ export function planGroup(dedupKey: string, group: any[]): DuplicateGroupPlan {
   return {
     dedupKey,
     day: formatSaltaDayKey(keeper.start_date),
+    byTicketUrl,
     keeper: toPlannedEvent(keeper),
     absorbed: absorbed.map(toPlannedEvent),
     conflicts,
@@ -298,7 +401,8 @@ async function repointInstagramFlyers(supabase: any, fromId: string, toId: strin
 export async function runDedupCleanup(options: DedupCleanupOptions = {}): Promise<DedupCleanupReport> {
   const supabase = options.supabase || getAdminClient()
   const dryRun = options.dryRun !== false
-  const backfillKeys = options.backfillKeys ?? !dryRun
+  const onlyIds = (options.onlyEventIds ?? []).map((id) => id.trim()).filter(Boolean)
+  const backfillKeys = onlyIds.length > 0 ? false : (options.backfillKeys ?? !dryRun)
 
   const from = options.from ?? (options.includePast ? null : formatSaltaDayKey(new Date()))
   const to = options.to ?? null
@@ -324,20 +428,20 @@ export async function runDedupCleanup(options: DedupCleanupOptions = {}): Promis
   const rows = await fetchAllEvents(supabase, { ...options, from: from ?? undefined, to: to ?? undefined })
   report.scannedEvents = rows.length
 
-  const groups = groupByDedupKey(rows)
+  const built = buildDuplicateGroups(rows)
 
-  for (const [key, bucket] of groups) {
-    if (bucket.length < 2) continue
-    const split = splitByVenue(bucket)
-    if (split.groups.length > 1 || split.excluded.length > 0) {
-      report.venueConflicts.push({ dedupKey: key, events: bucket.map(toPlannedEvent) })
-    }
-    for (const group of split.groups) {
-      if (group.length < 2) continue
-      if (options.maxGroups && report.groups.length >= options.maxGroups) break
-      report.groups.push(planGroup(key, group))
-    }
+  for (const conflict of built.venueConflicts) {
+    if (onlyIds.length > 0 && !groupMatchesIds(conflict.rows, onlyIds)) continue
+    report.venueConflicts.push({ dedupKey: conflict.dedupKey, events: conflict.rows.map(toPlannedEvent) })
   }
+
+  for (const group of built.groups) {
+    if (onlyIds.length > 0 && !groupMatchesIds(group.rows, onlyIds)) continue
+    if (options.maxGroups && report.groups.length >= options.maxGroups) break
+    const keeper = pickKeeper(group.rows)[0]
+    report.groups.push(planGroup(dedupKeyOf(keeper), group.rows, group.byTicketUrl))
+  }
+  report.groups.sort((a, b) => a.day.localeCompare(b.day) || a.dedupKey.localeCompare(b.dedupKey))
 
   report.duplicateGroups = report.groups.length
   report.totalMerges = report.groups.reduce((sum, plan) => sum + plan.absorbed.length, 0)
@@ -439,13 +543,15 @@ export function formatReport(report: DedupCleanupReport): string {
 
   for (const plan of report.groups) {
     lines.push('-'.repeat(72))
-    lines.push(`[${plan.day}] ${plan.dedupKey}`)
+    lines.push(`[${plan.day}] ${plan.dedupKey}${plan.byTicketUrl ? '   << POR LINK DE COMPRA' : ''}`)
     lines.push(`  QUEDA    ${plan.keeper.id}  ${describeSource(plan.keeper.source)}`)
     lines.push(`           "${plan.keeper.title}"  status=${plan.keeper.status}  inicio=${plan.keeper.start_date}  venue=${plan.keeper.venue_id ?? '-'}`)
+    if (plan.byTicketUrl) lines.push(`           link=${plan.keeper.ticket_url ?? '-'}`)
 
     for (const absorbed of plan.absorbed) {
       lines.push(`  ABSORBE  ${absorbed.id}  ${describeSource(absorbed.source)}`)
       lines.push(`           "${absorbed.title}"  status=${absorbed.status}  inicio=${absorbed.start_date}  venue=${absorbed.venue_id ?? '-'}`)
+      if (plan.byTicketUrl) lines.push(`           link=${absorbed.ticket_url ?? '-'}`)
     }
 
     lines.push(`  links de compra: ${plan.ticketSourcesBefore} -> ${plan.ticketSourcesAfter}`)
@@ -466,12 +572,12 @@ export function formatReport(report: DedupCleanupReport): string {
   if (report.venueConflicts.length > 0) {
     lines.push('')
     lines.push('='.repeat(72))
-    lines.push(`NO SE FUSIONAN (misma clave, venues distintos): ${report.venueConflicts.length} grupos`)
+    lines.push(`NO SE FUSIONAN (misma clave, venues distintos, sin link en común): ${report.venueConflicts.length} grupos`)
     for (const conflict of report.venueConflicts) {
       lines.push('-'.repeat(72))
       lines.push(conflict.dedupKey)
       for (const ev of conflict.events) {
-        lines.push(`  ${ev.id}  ${describeSource(ev.source)}  venue=${ev.venue_id ?? '-'}  "${ev.title}"`)
+        lines.push(`  ${ev.id}  ${describeSource(ev.source)}  inicio=${ev.start_date}  venue=${ev.venue_id ?? '-'}  "${ev.title}"`)
       }
     }
   }

@@ -1,7 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Event, TicketSource } from '../types';
 import { formatSaltaDayKey } from '../date-format';
-import { buildDedupKey, dedupKeyOf, saltaDayRangeUtc, normalizeTitleForKey, venuesCompatible } from './dedup-key';
+import { buildDedupKey, dedupKeyOf, saltaDayRangeUtc, normalizeTitleForKey, venuesCompatible, sameTicketEvent } from './dedup-key';
 import { mergeEvents, appendAudit, mergeTicketSources } from './merge-events';
 import { describeSource } from './source-priority';
 
@@ -117,14 +117,17 @@ const SIMILARITY_THRESHOLD = 0.65;
 
 export type DuplicateMatch = {
   event: Event;
-  matchedBy: 'dedup_key' | 'venue_similarity' | 'slug';
+  matchedBy: 'ticket_url' | 'dedup_key' | 'venue_similarity' | 'slug';
   score: number;
 };
 
 /**
  * Busca el evento equivalente que ya está en la base.
  *
- * Dos pasadas, en este orden:
+ * Tres pasadas, en este orden:
+ *
+ *   0. Mismo link de compra + mismo día + misma hora (ver sameTicketEvent).
+ *      Gana aunque los venues difieran.
  *
  *   1. Clave de dedup exacta (título normalizado + día en hora de Salta).
  *      Es la regla principal y no necesita venue_id: justamente los duplicados
@@ -168,12 +171,33 @@ export async function findDuplicateMatch(
     return null;
   }
 
+  // 0. Mismo link de compra, mismo día y misma hora: es el mismo evento aunque
+  //    el venue o el título difieran. Va primero porque es la señal más fuerte,
+  //    y es lo que impide que un scraper recree la fila que la limpieza fusionó
+  //    (pasó con No Te Va Gustar: norteticket lo volvía a crear en otro venue).
+  for (const candidate of candidates) {
+    if (sameTicketEvent(event, candidate)) {
+      console.log(
+        `[deduplicate] MATCH por link de compra: "${event.title}" == "${candidate.title}" (${candidate.id})`
+      );
+      return { event: candidate as Event, matchedBy: 'ticket_url', score: 1 };
+    }
+  }
+
   // 1. Clave exacta. Se recalcula sobre el candidato en vez de leer la columna
   //    para que un cambio en la normalización aplique sin backfill previo. Solo
   //    si el lugar es compatible: misma clave en dos venues distintos son dos
   //    eventos (dos boliches con "Fiesta de fin de semana" el mismo sábado).
   if (incomingKey) {
-    for (const candidate of candidates) {
+    // Primero el candidato a la misma hora: con dos funciones el mismo día
+    // (16 y 21), la de las 21 tiene que encontrarse a sí misma, no a la otra.
+    const incomingTime = new Date(event.start_date).getTime();
+    const ordered = [...candidates].sort(
+      (a: any, b: any) =>
+        Number(new Date(b.start_date).getTime() === incomingTime) -
+        Number(new Date(a.start_date).getTime() === incomingTime)
+    );
+    for (const candidate of ordered) {
       if (dedupKeyOf(candidate) === incomingKey && venuesCompatible(event.venue_id, candidate.venue_id)) {
         console.log(
           `[deduplicate] MATCH por clave: "${event.title}" == "${candidate.title}" (${incomingKey})`

@@ -124,3 +124,96 @@ export function saltaDayRangeUtc(startDate: string | Date): { from: string; to: 
 export function venuesCompatible(a?: string | null, b?: string | null): boolean {
   return !a || !b || a === b
 }
+
+/**
+ * Hosts cuyos links no identifican un evento: perfiles de redes, agregadores de
+ * links, WhatsApp, mapas. Dos posts de la misma cuenta comparten el link al
+ * perfil y no por eso son el mismo evento.
+ */
+const NON_IDENTITY_HOSTS =
+  /(^|\.)(instagram\.com|facebook\.com|fb\.me|linktr\.ee|wa\.me|whatsapp\.com|tiktok\.com|youtube\.com|youtu\.be|x\.com|twitter\.com|google\.com|goo\.gl|maps\.app\.goo\.gl)$/
+
+/** Parámetros de tracking que no cambian a qué página apunta el link. */
+const TRACKING_PARAM = /^(utm_|fbclid$|gclid$|igshid$|mc_)/
+
+/**
+ * Normaliza un link de compra para compararlo como identidad. Devuelve '' si
+ * el link no sirve para eso: inválido, de una red social, o sin path (la home
+ * de un sitio la comparten todos los eventos de ese sitio).
+ *
+ *   "https://NorteTicket.com/BERSUIT-EN-SALTA-2026/?utm_source=ig"
+ *     -> "norteticket.com/bersuit-en-salta-2026"
+ */
+export function normalizeTicketUrl(raw?: string | null): string {
+  if (!raw) return ''
+  let url: URL
+  try {
+    url = new URL(raw.trim())
+  } catch {
+    return ''
+  }
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') return ''
+
+  const host = url.hostname.toLowerCase().replace(/^www\./, '')
+  if (NON_IDENTITY_HOSTS.test(host)) return ''
+
+  const path = url.pathname.replace(/\/+$/, '')
+  if (!path) return ''
+
+  const params = [...url.searchParams.entries()]
+    .filter(([key]) => !TRACKING_PARAM.test(key.toLowerCase()))
+    .sort(([a], [b]) => a.localeCompare(b))
+  const query = params.length ? `?${new URLSearchParams(params).toString()}` : ''
+
+  return `${host}${path}${query}`.toLowerCase()
+}
+
+/** Todos los links de compra de un evento (ticket_url + ticket_sources), normalizados. */
+export function ticketUrlsOf(event: { ticket_url?: string | null; ticket_sources?: any }): Set<string> {
+  const urls = new Set<string>()
+  const add = (raw?: string | null) => {
+    const normalized = normalizeTicketUrl(raw)
+    if (normalized) urls.add(normalized)
+  }
+  add(event?.ticket_url)
+  if (Array.isArray(event?.ticket_sources)) {
+    for (const source of event.ticket_sources) add(source?.url)
+  }
+  return urls
+}
+
+/** Hora local de Salta "HH:MM" de un instante. Offset fijo -03:00, sin DST. */
+function saltaClock(startDate: string | Date): string {
+  const date = new Date(startDate)
+  if (Number.isNaN(date.getTime())) return ''
+  return new Date(date.getTime() - 3 * 60 * 60 * 1000).toISOString().slice(11, 16)
+}
+
+/**
+ * Mismo link de compra = mismo evento, aunque los venues difieran: es la señal
+ * de identidad más fuerte que hay. Con dos condiciones, porque una ticketera
+ * usa UNA landing para todas las funciones de un espectáculo:
+ *
+ *   - mismo día de Salta (si no, un museo con 81 fechas en entradauno se
+ *     fusionaría en una sola);
+ *   - misma hora, o una de las dos sin hora (00:00 es el placeholder de "sin
+ *     hora"). Si no, la función de las 16 y la de las 21 serían una.
+ */
+export function sameTicketEvent(
+  a: { start_date?: string | null; ticket_url?: string | null; ticket_sources?: any },
+  b: { start_date?: string | null; ticket_url?: string | null; ticket_sources?: any }
+): boolean {
+  if (!a?.start_date || !b?.start_date) return false
+  if (formatSaltaDayKey(a.start_date) !== formatSaltaDayKey(b.start_date)) return false
+
+  const clockA = saltaClock(a.start_date)
+  const clockB = saltaClock(b.start_date)
+  if (clockA !== clockB && clockA !== '00:00' && clockB !== '00:00') return false
+
+  const urlsA = ticketUrlsOf(a)
+  if (urlsA.size === 0) return false
+  for (const url of ticketUrlsOf(b)) {
+    if (urlsA.has(url)) return true
+  }
+  return false
+}
