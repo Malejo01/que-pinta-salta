@@ -1,0 +1,71 @@
+# CI: typecheck y esquema de la base.
+#
+# next.config.mjs dejaba pasar errores de tipos en el build, así que ningún
+# deploy fallaba por tipos; esto lo controla en cada push y PR.
+#
+# No usa credenciales de producción: la base es una Postgres efímera del runner
+# (supabase db start) armada solo con supabase/migrations/.
+name: CI
+
+on:
+  push:
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  typecheck:
+    name: Typecheck
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+
+  database:
+    name: Migraciones y tipos
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      # El CLI de Supabase es devDependency: misma versión que en local.
+      - run: npm ci
+
+      # Levanta Postgres vacío y aplica supabase/migrations/ en orden. Si alguna
+      # migración falla, el comando falla y el job también.
+      - name: Aplicar todas las migraciones sobre una base vacía
+        run: npx supabase db start
+
+      - name: Verificar lo que el baseline crea fuera de public
+        run: |
+          set -euo pipefail
+          out=$(docker exec supabase_db_que-pinta-salta psql -U postgres -At -c "
+            select (select count(*) from pg_policies where schemaname = 'storage')
+              || ' ' || (select count(*) from pg_trigger where tgrelid = 'auth.users'::regclass and tgname = 'on_auth_user_created')
+              || ' ' || (select count(*) from storage.buckets where id in ('flyers', 'flyers_ig'))")
+          echo "políticas de storage, trigger de auth.users, buckets: $out"
+          read -r pols trg buckets <<< "$out"
+          if [ "$pols" -lt 1 ] || [ "$trg" -ne 1 ] || [ "$buckets" -ne 2 ]; then
+            echo "::error::Falta algo del baseline fuera de public"; exit 1
+          fi
+
+      # Los tipos commiteados tienen que ser los que salen de las migraciones.
+      - name: Regenerar tipos y comparar con lib/database.types.ts
+        run: |
+          set -euo pipefail
+          npx supabase gen types typescript --local --schema public > "$RUNNER_TEMP/database.types.ts"
+          if ! diff -u lib/database.types.ts "$RUNNER_TEMP/database.types.ts"; then
+            echo "::error::lib/database.types.ts no coincide con las migraciones. Corré 'npm run db:types' y commitealo."
+            exit 1
+          fi
