@@ -7,6 +7,7 @@ import Image from "next/image"
 import { Moon, Sun, Plus, LogIn, LogOut, User, Settings, SearchCheck, Tags, Heart, Radio, Coffee, Search, Calendar } from "lucide-react"
 import { useTheme } from "@/components/theme-provider"
 import { useDonation } from "@/components/donation-context"
+import { DONATIONS_ENABLED } from "@/lib/config/monetization"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -109,17 +110,19 @@ export function Navbar() {
             </Link>
           </Button>
 
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => openDonationModal()}
-            className="flex items-center justify-center border-[#C12026]/30 text-[#C12026] hover:bg-[#C12026]/10 hover:text-[#C12026] transition-colors p-2 sm:px-3"
-            title="Apoyar a Qué Pinta Salta"
-          >
-            <Coffee className="size-4 sm:mr-2" />
-            <span className="hidden sm:inline">Apoyar</span>
-          </Button>
-          
+          {DONATIONS_ENABLED && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => openDonationModal()}
+              className="flex items-center justify-center border-[#C12026]/30 text-[#C12026] hover:bg-[#C12026]/10 hover:text-[#C12026] transition-colors p-2 sm:px-3"
+              title="Apoyar a Qué Pinta Salta"
+            >
+              <Coffee className="size-4 sm:mr-2" />
+              <span className="hidden sm:inline">Apoyar</span>
+            </Button>
+          )}
+
           <Button
             variant="ghost"
             size="icon"

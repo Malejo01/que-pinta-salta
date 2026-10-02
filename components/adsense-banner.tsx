@@ -2,15 +2,27 @@
 
 import { useEffect, useRef, useState } from "react"
 import { ExternalLink, Sparkles } from "lucide-react"
+import { ADS_ENABLED, ADSENSE_CLIENT_ID } from "@/lib/config/monetization"
 
 interface AdSenseBannerProps {
+  /** ID numérico del bloque de anuncios en AdSense (p. ej. "1234567890"). */
   slot: string
   format?: "auto" | "fluid" | "rectangle" | "vertical" | "horizontal"
   responsive?: boolean
   className?: string
 }
 
-export function AdSenseBanner({
+/**
+ * Con la monetización apagada (NEXT_PUBLIC_ADS_ENABLED != "true") no se
+ * renderiza nada: ni el slot ni el cartel de "Anunciá". Ver
+ * lib/config/monetization.ts.
+ */
+export function AdSenseBanner(props: AdSenseBannerProps) {
+  if (!ADS_ENABLED) return null
+  return <AdSenseSlot {...props} />
+}
+
+function AdSenseSlot({
   slot,
   format = "auto",
   responsive = true,
@@ -20,9 +32,12 @@ export function AdSenseBanner({
   const [adError, setAdError] = useState(false)
   const [isClient, setIsClient] = useState(false)
   const insRef = useRef<HTMLModElement>(null)
-  
-  const adClientId = process.env.NEXT_PUBLIC_ADSENSE_CLIENT_ID
+
+  const adClientId = ADSENSE_CLIENT_ID
   const isDev = process.env.NODE_ENV === "development"
+  // data-ad-slot tiene que ser el ID numérico de un bloque de anuncios; con
+  // un nombre ("home-middle-banner") el slot nunca se llena.
+  const isValidSlot = /^\d+$/.test(slot)
   
   // Si no está definida la variable de WhatsApp, usamos la por defecto para Salta
   const whatsappNumber = process.env.NEXT_PUBLIC_CONTACT_WHATSAPP || "5493875813233"
@@ -33,18 +48,44 @@ export function AdSenseBanner({
   }, [])
 
   useEffect(() => {
-    if (isClient && adClientId && !isDev && insRef.current) {
-      try {
-        // @ts-ignore
-        const ads = window.adsbygoogle || []
-        // @ts-ignore
-        window.adsbygoogle = ads
-        ads.push({})
-        setAdLoaded(true)
-      } catch (err) {
-        console.error("AdSense initialization failed:", err)
-        setAdError(true)
-        return
+    if (isClient && adClientId && !isDev && !isValidSlot) {
+      console.warn(`[AdSense] data-ad-slot inválido ("${slot}"): tiene que ser el ID numérico del bloque`)
+    }
+  }, [isClient, adClientId, isDev, isValidSlot, slot])
+
+  useEffect(() => {
+    if (isClient && adClientId && !isDev && isValidSlot && insRef.current) {
+      const ins = insRef.current
+
+      // adsbygoogle.push() mide el ancho del <ins> en ese instante; si todavía
+      // es 0 (contenedor animándose o sin layout) tira "No slot size for
+      // availableWidth=0" y el slot queda vacío. Se espera a que tenga ancho.
+      const pushAd = () => {
+        try {
+          // @ts-ignore
+          const ads = window.adsbygoogle || []
+          // @ts-ignore
+          window.adsbygoogle = ads
+          ads.push({})
+          setAdLoaded(true)
+        } catch (err) {
+          console.error("AdSense initialization failed:", err)
+          setAdError(true)
+        }
+      }
+
+      let resizeObserver: ResizeObserver | null = null
+      if (ins.offsetWidth > 0) {
+        pushAd()
+      } else {
+        resizeObserver = new ResizeObserver((entries) => {
+          if (entries.some((entry) => entry.contentRect.width > 0)) {
+            resizeObserver?.disconnect()
+            resizeObserver = null
+            pushAd()
+          }
+        })
+        resizeObserver.observe(ins)
       }
 
       // Observador para detectar cambios en los atributos que mete AdSense
@@ -91,17 +132,19 @@ export function AdSenseBanner({
 
       const timer = setTimeout(checkAdStatus, 3000)
       return () => {
+        resizeObserver?.disconnect()
         observer.disconnect()
         clearTimeout(timer)
       }
     }
-  }, [isClient, adClientId, isDev])
+  }, [isClient, adClientId, isDev, isValidSlot])
 
   if (!isClient) return null
 
-  // Si no hay un ID de cliente, estamos en desarrollo, o ocurrió un error/bloqueo de AdSense,
-  // mostramos un banner premium para anunciantes locales
-  if (!adClientId || isDev || adError) {
+  // Si no hay un ID de cliente, estamos en desarrollo, el slot no es un ID
+  // válido u ocurrió un error/bloqueo de AdSense, mostramos un banner premium
+  // para anunciantes locales
+  if (!adClientId || isDev || !isValidSlot || adError) {
     return (
       <div 
         className={`w-full overflow-hidden rounded-xl border border-primary/20 bg-gradient-to-r from-primary/5 via-card to-primary/5 p-6 text-center shadow-sm backdrop-blur-sm transition-all duration-300 hover:border-primary/40 hover:shadow-md ${className}`}

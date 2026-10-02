@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge"
 import { useToast } from "@/hooks/use-toast"
 import { ToastAction } from "@/components/ui/toast"
 import { useDonation } from "@/components/donation-context"
+import { DONATIONS_ENABLED } from "@/lib/config/monetization"
 import {
   Select,
   SelectContent,
@@ -181,16 +182,18 @@ export function RadarForm({ initialSettings, categories, venues, instagramAccoun
 
       toast({
         title: "¡Ya estás en el Radar! 📧",
-        description: "Vas a recibir los mejores eventos. Ayudanos a seguir creciendo y lanzar la App móvil haciendo una donación.",
-        action: (
-          <ToastAction 
+        description: DONATIONS_ENABLED
+          ? "Vas a recibir los mejores eventos. Ayudanos a seguir creciendo y lanzar la App móvil haciendo una donación."
+          : "Vas a recibir los mejores eventos en tu correo.",
+        action: DONATIONS_ENABLED ? (
+          <ToastAction
             altText="Donar ahora" 
             onClick={() => openDonationModal("Vas a recibir los mejores eventos en tu correo. ¡Ayudanos a seguir creciendo y lanzar la App móvil haciendo una donación!")}
             className="bg-[#C12026] text-white hover:bg-[#A0191F] border-none"
           >
             Donar ahora
           </ToastAction>
-        ),
+        ) : undefined,
       })
       router.refresh()
     } catch (err) {

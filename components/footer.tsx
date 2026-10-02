@@ -6,6 +6,7 @@ import { useEffect, useState } from "react"
 import { Github, Linkedin, Globe, MessageCircle, Coffee } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 import { useDonation } from "@/components/donation-context"
+import { DONATIONS_ENABLED } from "@/lib/config/monetization"
 import type { User } from "@supabase/supabase-js"
 
 const socialLinks = [
@@ -147,6 +148,7 @@ export function Footer() {
         </div>
 
         {/* Donation CTA */}
+        {DONATIONS_ENABLED && (
         <div className="mt-12 rounded-2xl border border-[#C12026]/20 bg-[#C12026]/5 p-6 sm:p-8 flex flex-col sm:flex-row items-center justify-between gap-6 text-center sm:text-left">
           <div className="max-w-xl space-y-2">
             <h3 className="text-lg font-bold text-foreground flex items-center justify-center sm:justify-start gap-2">
@@ -164,6 +166,7 @@ export function Footer() {
             Hacer un aporte
           </button>
         </div>
+        )}
 
         {/* Bottom bar */}
         <div className="mt-8 flex flex-col items-center gap-2 border-t border-border/30 pt-6 sm:flex-row sm:justify-between">

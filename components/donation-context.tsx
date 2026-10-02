@@ -1,6 +1,7 @@
 "use client"
 
 import React, { createContext, useContext, useState, ReactNode } from "react"
+import { DONATIONS_ENABLED } from "@/lib/config/monetization"
 
 interface DonationContextProps {
   isOpen: boolean
@@ -16,6 +17,9 @@ export function DonationProvider({ children }: { children: ReactNode }) {
   const [message, setMessage] = useState("Apoyá a Qué Pinta Salta. Ayudanos a juntar fondos para lanzar la aplicación oficial de Android/iOS.")
 
   const openDonationModal = (customMessage?: string) => {
+    // Con la monetización apagada no se abre: los "compartir" y favoritos
+    // que la llaman siguen funcionando sin pedir donación.
+    if (!DONATIONS_ENABLED) return
     if (customMessage) {
       setMessage(customMessage)
     } else {

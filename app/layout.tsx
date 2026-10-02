@@ -8,6 +8,7 @@ import { Toaster } from '@/components/ui/toaster'
 import { AuthModalProvider } from '@/components/auth-modal'
 import { DonationProvider } from '@/components/donation-context'
 import { DonationModal } from '@/components/donation-modal'
+import { ADSENSE_CLIENT_ID } from '@/lib/config/monetization'
 import './globals.css'
 
 const montserrat = Montserrat({
@@ -108,10 +109,10 @@ export default function RootLayout({
   return (
     <html lang="es" className={`${montserrat.variable} ${yellowtail.variable} ${poppins.variable}`} suppressHydrationWarning>
       <head>
-        {process.env.NEXT_PUBLIC_ADSENSE_CLIENT_ID && (
+        {ADSENSE_CLIENT_ID && (
           <script
             async
-            src={`https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${process.env.NEXT_PUBLIC_ADSENSE_CLIENT_ID}`}
+            src={`https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${ADSENSE_CLIENT_ID}`}
             crossOrigin="anonymous"
           />
         )}

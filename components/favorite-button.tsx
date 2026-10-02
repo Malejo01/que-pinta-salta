@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils"
 import { useToast } from "@/hooks/use-toast"
 import { ToastAction } from "@/components/ui/toast"
 import { useDonation } from "@/components/donation-context"
+import { DONATIONS_ENABLED } from "@/lib/config/monetization"
 
 interface FavoriteButtonProps {
   itemId: string
@@ -65,7 +66,7 @@ export function FavoriteButton({
         count++;
         sessionStorage.setItem('favorite_toast_count', count.toString());
         
-        const shouldShowDonation = count % 2 !== 0; // 1, 3, 5, etc.
+        const shouldShowDonation = DONATIONS_ENABLED && count % 2 !== 0; // 1, 3, 5, etc.
 
         toast({
           title: "Favorito guardado",

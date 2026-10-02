@@ -257,7 +257,7 @@ Todo lo listado acá está implementado y activo en el código.
 
 ## Roadmap
 
-- **Google AdSense.** El componente `AdSenseBanner` y el gate por `NEXT_PUBLIC_ADSENSE_CLIENT_ID` ya existen, pero la cuenta no está aprobada ni la variable configurada en producción: hoy ese slot siempre renderiza el CTA de contacto directo por WhatsApp. Falta la aprobación y el alta de slots.
+- **Google AdSense.** El componente `AdSenseBanner`, `/ads.txt` y el interruptor `NEXT_PUBLIC_ADS_ENABLED` ya existen; hoy está apagado. Para prenderlo faltan los bloques de anuncios: los slots que se pasan (`home-middle-banner`, `event-detail-bottom-banner`) son nombres, y `data-ad-slot` tiene que ser el ID numérico de cada bloque creado en AdSense. Con un slot no numérico el componente muestra el CTA de WhatsApp.
 - **Analítica de datos para campañas publicitarias.** No hay registro de vistas: la tabla `event_views` se borró en el Sprint 0 de seguridad porque estaba sin RLS y ningún código la usaba. Falta definir cómo medir (sin guardar IPs en una tabla pública) y el dashboard: métricas por categoría, por venue y por franja horaria, para vender espacios con números en la mano.
 - **Rol de colaborador / RRPP para boliches.** La base ya está mergeada — `COLLABORATOR` en `UserRole`, `PENDING` en `EventStatus`, campos `contact_type` y `contact_value` en `profiles`, y el circuito `/nuevo-evento` → `/mis-eventos` → `/admin/pendientes`. Falta el onboarding específico para RRPP, los permisos diferenciados por local y las métricas propias de cada colaborador.
 - **Geocodificación de venues.** `venues` tiene columnas `latitude`, `longitude` y `google_maps_url` que ningún scraper completa, y [`lib/scraper/venue-enrichment.ts`](lib/scraper/venue-enrichment.ts) quedó como stub sin usar.
@@ -293,8 +293,11 @@ RESEND_FROM_EMAIL=
 
 # Contacto y publicidad
 NEXT_PUBLIC_CONTACT_WHATSAPP=
-NEXT_PUBLIC_ADSENSE_CLIENT_ID=   # opcional, sin esto se renderiza el CTA de WhatsApp
+NEXT_PUBLIC_ADS_ENABLED=false    # interruptor de monetización: anuncios + donaciones
+NEXT_PUBLIC_ADSENSE_CLIENT_ID=   # solo se usa con NEXT_PUBLIC_ADS_ENABLED=true
 ```
+
+`NEXT_PUBLIC_ADS_ENABLED` (`lib/config/monetization.ts`) solo prende con `true`; si falta, queda apagado. Apagado no se carga el script de AdSense, no se renderizan los slots ni el cartel de "Anunciá", la CSP no incluye dominios de anuncios (`next.config.mjs`) y se ocultan las donaciones de Mercado Pago. Se lee en el build: cambiarla en Vercel exige redeployar. `/ads.txt` (`public/ads.txt`) se publica siempre.
 
 Aplicar las migraciones de `supabase/migrations/` en orden cronológico y levantar el servidor.
 
