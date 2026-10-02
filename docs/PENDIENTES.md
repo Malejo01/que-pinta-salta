@@ -320,6 +320,142 @@ cambió**: la única escritura en prod fue el historial de migraciones.
 en vez de `--db-url`. Recomendado: en GitHub, *branch protection* de `main`
 exigiendo el check "CI".
 
+### Sprint 3 (las Olas sobre el baseline) — CERRADO el 2026-10-02, salvo rehacer 3 fusiones (manual, ver abajo)
+
+Paso 3 de `docs/AUDITORIA-2026-10.md`. Cada ola en su rama y PR, CI verde
+antes de mergear, migraciones probadas en local con datos de prod
+(`scripts/db/load-prod-data.sh`) antes de `db push`. Las ramas viejas quedan
+como tags `archive/*` en origin (sus commits no se pierden) y se borraron:
+
+| Ola | PR | Reemplaza a | Tag de la rama vieja |
+|---|---|---|---|
+| 3.1 job_runs | #4 | `feat/scheduler` | `archive/feat-scheduler` |
+| 3.2 venues canónicos | #5, #7 | `fix/venue-canonical` | `archive/fix-venue-canonical` |
+| 3.3 dedup de eventos | #6, #8 | `fix/event-dedup` | `archive/fix-event-dedup` |
+
+Las ramas de reemplazo (`feat/job-runs`, `fix/venues-canonical-v2`,
+`fix/event-dedup-v2`, `fix/venue-patio-roka`, `fix/dedup-keeper-rule`) se
+borraron al mergear.
+
+- **3.1 job_runs** (`20261002175200_job_runs.sql`). Reemplazo recortado de
+  `feat/scheduler`: sólo la bitácora. Cada cron de Vercel y workflow de
+  GitHub Actions abre una fila `RUNNING` y la cierra con estado, origen,
+  duración e ítems (`lib/job-runs.ts`; registrar nunca rompe el proceso).
+  Vista `job_last_runs` con `security_invoker`, RLS de lectura sólo admin,
+  sin política de escritura (escribe el service role). `/admin/scrape` muestra
+  las corridas; `/api/cron/health` lee la última sana. Descartado de la rama:
+  dispatcher, `/api/cron/run/[job]`, lock de concurrencia, cambios en
+  `vercel.json`. **Evidencia en prod:** primera fila registrada,
+  `cola_ia SKIPPED github-actions` (2026-10-02 18:06 UTC); el resto aparece
+  con las próximas corridas programadas.
+- **3.2 Venues canónicos** (`20261002190000_venue_canonical.sql` esquema,
+  `…190100_venue_canonical_data.sql` datos, `…200000_venue_patio_roka.sql`).
+  Un solo árbitro de resolución, `resolve_venue_id()` (alias → nombre →
+  absorbido → clave core; el fuzzy sólo sugiere a `venue_review_queue`), sin
+  EXECUTE para anon. En prod: 57 venues absorbidos (no borrados: quedan con
+  `canonical_venue_id`), 137 eventos repunteados, 87 canónicos; después El
+  Patio de la Roka → La Roka (PR #7: 3 eventos repunteados, alias "El Patio
+  de la Roka", caso de revisión cerrado con nota; **86 canónicos**). Todo
+  cambio queda en `venue_merge_log` (incluido `old_values`); rollbacks exactos
+  en `supabase/rollbacks/2026100219000*_down.sql` y
+  `…200000_venue_patio_roka_down.sql`, probados en local: aplicar + revertir
+  deja la misma huella de datos. `check-drift.sh` contra prod: sin
+  diferencias. Plan par por par en `docs/venue-merge-plan.md`.
+  Causa raíz de los venues-dirección: el `default_venue_name` de las cuentas
+  de Instagram era el domicilio; se corrigió en la misma migración.
+- **3.3 Dedup de eventos** (`20261002193000_event_dedup.sql`: `dedup_key`,
+  `merge_audit`, vista `event_duplicate_groups` con `security_invoker`, sin
+  escritura para anon/authenticated). Reglas, en ingesta
+  (`upsertEventWithDeduplication`, único punto de escritura) y en limpieza
+  (`npm run dedup:events`):
+  1. **Mismo link de compra + mismo día de Salta + misma hora** (o una sin
+     hora) = mismo evento, aunque difieran venue o título. Señal más fuerte.
+     Acotada a día y hora porque las ticketeras usan una landing para todas
+     las funciones (un museo con 81 fechas en entradauno, El Amor de un
+     Pueblo a las 16 y a las 21). Home de un sitio y redes no cuentan.
+  2. Misma clave (título normalizado + día) **con venue compatible** (igual o
+     uno sin venue). Misma clave en venues distintos no se fusiona: dos
+     boliches con "Fiesta de fin de semana" el mismo sábado.
+  3. Respaldo difuso: mismo venue + similitud de título ≥ 0,65.
+  **Qué fila sobrevive** (PR #8, `pickKeeper` en la limpieza y `mergeEvents`
+  en la ingesta): (1) hora real sobre 00:00; (2) prioridad de fuente
+  (ticketera 400 > portal 300 > manual 200 > Instagram 100), que define el
+  venue; (3) descripción más completa, y la autogenerada "Evento importado
+  automáticamente desde..." cuenta como vacía; (4) la fila más vieja. Los
+  `ticket_sources` se unen sin perder links.
+  **Aplicado en prod con `--only`** (6 grupos aprobados, 6 filas borradas, 1
+  favorito repunteado; 1234 → 1228 eventos). Cada sobreviviente guarda el
+  snapshot completo de la fila absorbida en `merge_audit`.
+
+  | Grupo | Quedó | Borrada | Con la regla del PR #8 |
+  |---|---|---|---|
+  | Gabriela Roca 31/07 | `a9bf645b` | `33b1752c` | **debería quedar `33b1752c`** (descripción real) |
+  | Primavera Sunset 20/09 | `fc8ac954` (16:00) | `9a5af5c4` | igual |
+  | Fiesta en Babylon 25/09 | `7f42d94e` | `8a0d8de4` | **debería quedar `8a0d8de4`** (descripción más completa) |
+  | No Te Va Gustar 25/09 (por link) | `bac3644c` norteticket, La Roka | `25998402` manual, Estadio Delmi | igual |
+  | Halloween 30/10 | `43a1d99c` (00:00) | `5087bc3f` (20:00) | **debería quedar `5087bc3f`** (hora real) |
+  | Bersuit 26/11 (por link) | `654a6a8d` | `6441678f` | igual |
+
+  El `--apply` corrió antes de que existiera la regla de supervivencia. Los 3
+  grupos marcados hay que rehacerlos: ver "Rehacer 3 fusiones" abajo.
+  Dry-run contra prod después de todo: 1228 eventos, 1 grupo (El Amor de un
+  Pueblo, excluido); ningún grupo nuevo.
+
+- **GitHub (repo privado desde el 2026-10-02).** Protección de `main`
+  exigiendo el CI: **no disponible** en el plan Free para repos privados (la
+  API responde 403 "Upgrade to GitHub Pro or make this repository public",
+  tanto branch protection como rulesets). Queda la disciplina de PR + CI.
+  **Minutos de Actions:** todos los workflows existen desde el 2026-10-02, así
+  que no hay un mes de historia; medido por job (redondeo al minuto, como
+  factura GitHub): CI 3,5 min/corrida, cola de IA 1 min, health 1 min.
+  Proyección mensual: cola de IA 120 corridas × 1–3 min = 120–360; health
+  30; newsletter ~5–10; CI ~100 corridas × 3,5 = ~350 (un PR dispara dos
+  corridas por push: `push` + `pull_request`). **Total ≈ 500–750 min/mes,
+  25–38 % de los 2.000.** No pasa el 70 %. Si hiciera falta bajar: CI con
+  `push` sólo en `main` (las ramas ya corren por `pull_request`) ahorra ~la
+  mitad del CI; y `paths-ignore: ['docs/**', '**.md']`.
+
+**Queda abierto, visto en este sprint:**
+
+- **Rehacer 3 fusiones (manual).** Gabriela Roca, Fiesta en Babylon y
+  Halloween 30/10 quedaron con el sobreviviente de la regla vieja. El
+  clasificador de permisos de Claude Code bloqueó la escritura en prod, así
+  que queda para hacerlo a mano. `supabase/.data-dumps/rehacer-3-fusiones.sql`
+  (ignorado por git; generado del backup de las 12 filas tomado antes del
+  `--apply`, `dedup-backup-events-2026-10-02.json`) devuelve las 3 filas que
+  quedaron a su estado previo, reinserta las 3 borradas con su id y devuelve
+  los flyers de Instagram a su evento. Se probó contra prod dentro de una
+  transacción con ROLLBACK. Después:
+  `npx tsx scripts/dedup-events.ts --include-past --only=33b1752c,8a0d8de4,5087bc3f`
+  (dry-run: tienen que quedar `33b1752c`, `8a0d8de4` y `5087bc3f`) y lo mismo
+  con `--apply`.
+- La tabla `favorites` (además de `user_favorites`) tiene FK a `events` con
+  `ON DELETE CASCADE` y la dedup no la repuntea. Hoy está vacía (0 filas):
+  decidir si se borra o si `repointFavorites` la cubre.
+- **El Amor de un Pueblo (11/09) — NO se fusionó, a propósito.** Misma clave
+  y mismo venue, 16:00 (entradauno) y 21:00 (vamos): pueden ser dos funciones.
+  La limpieza lo sigue proponiendo; no correr `dedup:events -- --apply` sin
+  `--only` mientras esté. La ingesta ya no lo empeora (entre candidatos de
+  misma clave elige el de la misma hora).
+- **Dos grupos de misma clave en venues distintos, sin link en común**, que el
+  dry-run lista y no fusiona: Primavera Sunset 20/09 en Live Fresh
+  (`3d30b01e`, ver "Posts promocionales" más abajo) y Halloween 31/10 (tres
+  filas: Centro de Convenciones, San Lorenzo Chico, Live Fresh). Halloween
+  31/10 **no se fusiona por decisión**: son fiestas reales en lugares
+  distintos.
+- **No Te Va Gustar quedó en La Roka** (norteticket le ganó por prioridad a
+  una carga manual que decía Estadio Delmi). Si es en el Delmi, corregir el
+  venue a mano; el valor descartado está en `merge_audit`.
+- **16 casos en `venue_review_queue`** (pendientes, no bloquean; la ingesta
+  los resuelve creando o sugiriendo): Amnesia Ibiza, Autódromo M. M. de
+  Güemes, Baby, Balcarce 980 (→ Live Fresh, inferido; en revisión por
+  decisión), Bresh, Centro Comercial, Don Emilio (en revisión por decisión),
+  Elephant / Elephant + One, Estadio Delmi / Microestadio Delmi,
+  Feria de Turismo / Feria Internacional de Turismo / FIT América Latina,
+  Poble Espanyol, Salon. Se resuelven en `/admin` o con un alias manual.
+- El source "manual" sin `created_by` (cargas por SQL) se resuelve como
+  `unknown` (prioridad 100, no 200). Afecta sólo filas viejas.
+
 ---
 
 ## Cines
@@ -385,6 +521,45 @@ lugar genéricos, sin fecha ni hora. Ya se pasó a `gemini-3.5-flash-lite`, pero
 esos flyers no se reprocesan solos porque `processFlyerWithAI` saltea los
 `PROCESSED`. Reprocesarlos cuesta centavos (~US$0,0006 por flyer), pero toca
 eventos ya creados: decidir antes.
+
+### Posts promocionales de productoras quedan en el venue por defecto de la cuenta
+
+Cuando una productora (o un boliche) publica la promo de un evento que se hace
+en otro lugar, la IA no siempre extrae el lugar del flyer y el evento queda
+asignado al `default_venue_name` de la cuenta. Caso: **Primavera Sunset 2026**
+(20/09) quedó una vez en **Live Fresh** (`3d30b01e`) además de las dos filas
+correctas en el Autódromo. La dedup no lo puede arreglar: misma clave, venue
+distinto y sin link de compra en común, así que con razón no fusiona.
+
+Mismo origen que el bug del parser que toma la **fecha del post** en vez de la
+del evento: el modelo usa los datos de la cuenta y del post como relleno cuando
+el flyer no los trae explícitos. El arreglo va en `lib/ai/process-flyer-ai.ts`:
+el venue por defecto de la cuenta sólo debería aplicarse si el flyer no nombra
+ningún lugar, y marcar el evento como `venue_inferred` para revisión.
+
+### El admin no valida los nombres de venue: una dirección entra como lugar
+
+Origen de los venues duplicados del 15/09 ("Balcarce 980", etc.): el campo
+"Lugar del Evento por Defecto" de `/admin/instagram`
+(`app/admin/instagram/instagram-admin-client.tsx`, `default_venue_name`) acepta
+cualquier texto, se cargó el domicilio y la ingesta creó un venue con ese
+nombre. Falta una guarda que rechace (o pida confirmar) un nombre con forma de
+dirección: calle + número (`/\b\d{2,5}\b/` junto a una palabra que no sea un
+número de local conocido), y que sugiera el venue canónico con
+`resolve_venue_id(..., p_autocreate => false)`. Mejor del lado del servidor
+(acción de guardado) que sólo en el formulario.
+
+### `/admin/revision` deja publicar borradores sin título ni fecha reales
+
+`components/draft-events-manager.tsx` (`handlePublish`) y
+`publishDraftEvent` en `lib/admin-actions.ts:312` sólo exigen que haya un día:
+- un título que todavía empieza con "Revisar: ..." (el placeholder de la IA)
+  se publica tal cual;
+- si falta la hora se completa con 20:00 en silencio, y un día que vino del
+  post (no del flyer) pasa como fecha real.
+Hace falta una guarda en `publishDraftEvent` (no sólo en el cliente): rechazar
+títulos `^Revisar:` o vacíos, y exigir que fecha y hora hayan sido confirmadas
+por la persona (o marcar el evento sin hora en vez de inventar las 20:00).
 
 ## Auditoría mobile (390×844 y 360×800)
 
