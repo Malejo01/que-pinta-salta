@@ -303,6 +303,20 @@ export async function updateUserEvent(formData: FormData) {
   // Keep slug unchanged or update it? Typically we keep it to not break links,
   // but if title changes maybe update? Let's just update the fields and leave slug.
 
+  // Si no es admin, cualquier edición de un evento que no esté en DRAFT
+  // (por ejemplo uno ya publicado) lo devuelve a DRAFT para que se vuelva a
+  // aprobar en /admin/revision. RLS lo exige: el WITH CHECK de UPDATE solo
+  // deja al dueño no-admin guardar filas con status = 'DRAFT'.
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", user.id)
+    .single()
+
+  const isAdmin = profile?.role === "ADMIN"
+  const statusUpdate =
+    !isAdmin && existingEvent.status !== "DRAFT" ? { status: "DRAFT" as const } : {}
+
   const { error } = await supabase
     .from("events")
     .update({
@@ -320,6 +334,7 @@ export async function updateUserEvent(formData: FormData) {
       ticket_url: ticketUrl || null,
       age_restriction: ageRestriction,
       image_url: imageUrl || null,
+      ...statusUpdate,
     })
     .eq("id", editId)
 
