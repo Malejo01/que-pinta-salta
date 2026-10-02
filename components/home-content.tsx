@@ -16,7 +16,6 @@ import Link from "next/link"
 import { motion, AnimatePresence } from "framer-motion"
 import { Button } from "@/components/ui/button"
 import { formatEventTime } from "@/lib/date-format"
-import { aplicarOrdenDemo } from "@/lib/config/category-order"
 import { AdSenseBanner } from "@/components/adsense-banner"
 import { Film } from "lucide-react"
 
@@ -49,7 +48,7 @@ function getCategoryPriority(
     }
   }
 
-  const ordenNormal = [...categories].sort((a, b) => {
+  return [...categories].sort((a, b) => {
     const aFavoriteIndex = favoriteIndex.get(a.slug)
     const bFavoriteIndex = favoriteIndex.get(b.slug)
 
@@ -65,10 +64,6 @@ function getCategoryPriority(
 
     return a.name.localeCompare(b.name, "es")
   })
-
-  // Cambio TEMPORAL para la demo institucional. Con el flag apagado esto
-  // devuelve `ordenNormal` sin tocar. Ver lib/config/category-order.ts.
-  return aplicarOrdenDemo(ordenNormal, serverNowISO)
 }
 
 // Tipo unificado para eventos y flyers de Instagram
@@ -468,19 +463,17 @@ export function HomeContent({
       events: filteredEvents.filter(event => event.category === cat.slug)
     }))
 
-    const porVolumen = cats.sort((a, b) => {
+    // Este es el orden que efectivamente se ve en la home: por cantidad de
+    // eventos de cada fila (con los filtros aplicados), de mayor a menor.
+    // `sortedCategories` (favoritos del usuario, después volumen próximo y
+    // alfabético) sólo desempata.
+    return cats.sort((a, b) => {
       const countDiff = b.events.length - a.events.length
       if (countDiff !== 0) return countDiff
 
       return (categoryOrderIndex.get(a.category) ?? 0) - (categoryOrderIndex.get(b.category) ?? 0)
     })
-
-    // Este es el orden que efectivamente se ve: el sort de arriba ordena por
-    // cantidad de eventos y sólo usa `sortedCategories` para desempatar, así
-    // que el flag de la demo tiene que aplicarse acá también o no se nota.
-    // Apagado, `aplicarOrdenDemo` devuelve `porVolumen` sin tocar.
-    return aplicarOrdenDemo(porVolumen, serverNowISO, (c) => c.category)
-  }, [sortedCategories, filteredEvents, serverNowISO])
+  }, [sortedCategories, filteredEvents])
 
   const clearFilters = () => {
     setSearch("")
