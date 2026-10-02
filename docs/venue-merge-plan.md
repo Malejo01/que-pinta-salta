@@ -1,6 +1,6 @@
 # Plan de fusión de venues (dry-run local con datos de prod, 2026-10-02)
 
-Generado corriendo las migraciones 20261002190000/190100 con ROLLBACK. **No aplicado en producción**: requiere OK.
+Generado corriendo las migraciones 20261002190000/190100 con ROLLBACK. Decisiones (2026-10-02): renombres aprobados; "Don Emilio" y "Balcarce 980" (→ Live Fresh, inferido) quedan en revisión manual; El Patio de la Roka sigue separado de La Roka. Probado en local con datos de prod: aplicar + rollback deja venues, events.venue_id y los defaults de Instagram con la misma huella que antes.
 
 ```
 MERGE | 30 y Pico | <- | 30 y Pico Salta | eventos=1 | address=30 y Pico
@@ -52,7 +52,6 @@ MERGE | LA ROKA | <- | La Roka Salta | eventos=1 | address=LA ROKA, salta, Salta
 MERGE | LA ROKA | <- | Roka | eventos=1 | address=LA ROKA, salta, Salta
 MERGE | LA ROKA | <- | Salta Roka | eventos=3 | address=LA ROKA, salta, Salta
 MERGE | LA ROKA | <- | Saltaroka | eventos=5 | address=LA ROKA, salta, Salta
-MERGE | Live Fresh | <- | Balcarce 980 | eventos=1 | address=Balcarce 980
 MERGE | One Club | <- | ONE | eventos=3 | address=One Club
 MERGE | One Club | <- | One Oficial Salta | eventos=3 | address=One Club
 MERGE | One Club | <- | Balcarce 920 | eventos=5 | address=Balcarce 920
@@ -80,5 +79,5 @@ IG    | @treintaypicosalta | Balcarce 865 -> 30 y Pico
 IG    | @bolichebalderrama | Av. San Martín 1126 -> Balderrama
 IG    | @peppers.gintoneria | Peppers Gintonería -> Peppers
 IG    | @laviejaestacionensalta | Balcarce 875 -> La Vieja Estación
-TOTAL | absorbidos=58 | eventos movidos=138 | canónicos=86 | en revisión=16
+TOTAL | absorbidos=57 | eventos movidos=137 | canónicos=87 | en revisión=17
 ```

@@ -92,6 +92,12 @@ isOneToOne: false
 isOneToOne: false
       referencedRelation: "venues"
       referencedColumns: ["id"]
+    },{
+      foreignKeyName: "events_venue_id_fkey"
+      columns: ["venue_id"]
+isOneToOne: false
+      referencedRelation: "venues_canonical"
+      referencedColumns: ["id"]
     }
                   ]
                 },"favorites": {
@@ -295,6 +301,12 @@ isOneToOne: false
 isOneToOne: false
       referencedRelation: "venues"
       referencedColumns: ["id"]
+    },{
+      foreignKeyName: "user_followed_venues_venue_id_fkey"
+      columns: ["venue_id"]
+isOneToOne: false
+      referencedRelation: "venues_canonical"
+      referencedColumns: ["id"]
     }
                   ]
                 },"user_radar_settings": {
@@ -310,18 +322,117 @@ isOneToOne: false
                   Relationships: [
                     
                   ]
-                },"venues": {
+                },"venue_aliases": {
                   Row: {
-                    "address": string,"capacity": number | null,"created_at": string | null,"google_maps_url": string | null,"id": string,"latitude": number | null,"longitude": number | null,"name": string,"phone": string | null
+                    "alias": string,"alias_normalized": string | null,"created_at": string,"created_by": string | null,"id": string,"source": string,"venue_id": string
                   }
                   Insert: {
-                    "address": string,"capacity"?: number | null,"created_at"?: string | null,"google_maps_url"?: string | null,"id"?: string,"latitude"?: number | null,"longitude"?: number | null,"name": string,"phone"?: string | null
+                    "alias": string,"alias_normalized"?: never,"created_at"?: string,"created_by"?: string | null,"id"?: string,"source"?: string,"venue_id": string
                   }
                   Update: {
-                    "address"?: string,"capacity"?: number | null,"created_at"?: string | null,"google_maps_url"?: string | null,"id"?: string,"latitude"?: number | null,"longitude"?: number | null,"name"?: string,"phone"?: string | null
+                    "alias"?: string,"alias_normalized"?: never,"created_at"?: string,"created_by"?: string | null,"id"?: string,"source"?: string,"venue_id"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "venue_aliases_venue_id_fkey"
+      columns: ["venue_id"]
+isOneToOne: false
+      referencedRelation: "venues"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "venue_aliases_venue_id_fkey"
+      columns: ["venue_id"]
+isOneToOne: false
+      referencedRelation: "venues_canonical"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"venue_merge_log": {
+                  Row: {
+                    "created_at": string,"entity": string,"entity_id": string,"from_venue_id": string | null,"id": string,"migration_tag": string,"old_values": Json | null,"to_venue_id": string | null
+                  }
+                  Insert: {
+                    "created_at"?: string,"entity": string,"entity_id": string,"from_venue_id"?: string | null,"id"?: string,"migration_tag": string,"old_values"?: Json | null,"to_venue_id"?: string | null
+                  }
+                  Update: {
+                    "created_at"?: string,"entity"?: string,"entity_id"?: string,"from_venue_id"?: string | null,"id"?: string,"migration_tag"?: string,"old_values"?: Json | null,"to_venue_id"?: string | null
                   }
                   Relationships: [
                     
+                  ]
+                },"venue_review_queue": {
+                  Row: {
+                    "created_at": string,"id": string,"legacy_venue_id": string | null,"normalized": string | null,"notes": string | null,"occurrences": number,"raw_name": string,"resolved_venue_id": string | null,"reviewed_at": string | null,"reviewed_by": string | null,"similarity": number | null,"source": string | null,"status": Database["public"]['Enums']["venue_review_status"],"suggested_venue_id": string | null
+                  }
+                  Insert: {
+                    "created_at"?: string,"id"?: string,"legacy_venue_id"?: string | null,"normalized"?: never,"notes"?: string | null,"occurrences"?: number,"raw_name": string,"resolved_venue_id"?: string | null,"reviewed_at"?: string | null,"reviewed_by"?: string | null,"similarity"?: number | null,"source"?: string | null,"status"?: Database["public"]['Enums']["venue_review_status"],"suggested_venue_id"?: string | null
+                  }
+                  Update: {
+                    "created_at"?: string,"id"?: string,"legacy_venue_id"?: string | null,"normalized"?: never,"notes"?: string | null,"occurrences"?: number,"raw_name"?: string,"resolved_venue_id"?: string | null,"reviewed_at"?: string | null,"reviewed_by"?: string | null,"similarity"?: number | null,"source"?: string | null,"status"?: Database["public"]['Enums']["venue_review_status"],"suggested_venue_id"?: string | null
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "venue_review_queue_legacy_venue_id_fkey"
+      columns: ["legacy_venue_id"]
+isOneToOne: false
+      referencedRelation: "venues"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "venue_review_queue_legacy_venue_id_fkey"
+      columns: ["legacy_venue_id"]
+isOneToOne: false
+      referencedRelation: "venues_canonical"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "venue_review_queue_resolved_venue_id_fkey"
+      columns: ["resolved_venue_id"]
+isOneToOne: false
+      referencedRelation: "venues"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "venue_review_queue_resolved_venue_id_fkey"
+      columns: ["resolved_venue_id"]
+isOneToOne: false
+      referencedRelation: "venues_canonical"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "venue_review_queue_suggested_venue_id_fkey"
+      columns: ["suggested_venue_id"]
+isOneToOne: false
+      referencedRelation: "venues"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "venue_review_queue_suggested_venue_id_fkey"
+      columns: ["suggested_venue_id"]
+isOneToOne: false
+      referencedRelation: "venues_canonical"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"venues": {
+                  Row: {
+                    "address": string,"canonical_venue_id": string | null,"capacity": number | null,"created_at": string | null,"google_maps_url": string | null,"id": string,"is_placeholder": boolean,"latitude": number | null,"longitude": number | null,"merged_at": string | null,"name": string,"phone": string | null,"slug": string | null,"updated_at": string
+                  }
+                  Insert: {
+                    "address": string,"canonical_venue_id"?: string | null,"capacity"?: number | null,"created_at"?: string | null,"google_maps_url"?: string | null,"id"?: string,"is_placeholder"?: boolean,"latitude"?: number | null,"longitude"?: number | null,"merged_at"?: string | null,"name": string,"phone"?: string | null,"slug"?: string | null,"updated_at"?: string
+                  }
+                  Update: {
+                    "address"?: string,"canonical_venue_id"?: string | null,"capacity"?: number | null,"created_at"?: string | null,"google_maps_url"?: string | null,"id"?: string,"is_placeholder"?: boolean,"latitude"?: number | null,"longitude"?: number | null,"merged_at"?: string | null,"name"?: string,"phone"?: string | null,"slug"?: string | null,"updated_at"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "venues_canonical_venue_id_fkey"
+      columns: ["canonical_venue_id"]
+isOneToOne: false
+      referencedRelation: "venues"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "venues_canonical_venue_id_fkey"
+      columns: ["canonical_venue_id"]
+isOneToOne: false
+      referencedRelation: "venues_canonical"
+      referencedColumns: ["id"]
+    }
                   ]
                 }
           }
@@ -333,15 +444,49 @@ isOneToOne: false
                   Relationships: [
                     
                   ]
+                },"venues_canonical": {
+                  Row: {
+                    "address": string | null,"alias_count": number | null,"capacity": number | null,"created_at": string | null,"event_count": number | null,"google_maps_url": string | null,"id": string | null,"latitude": number | null,"longitude": number | null,"name": string | null,"phone": string | null,"slug": string | null
+                  }
+                  Insert: {
+                           "address"?: string | null,"alias_count"?: never,"capacity"?: number | null,"created_at"?: string | null,"event_count"?: never,"google_maps_url"?: string | null,"id"?: string | null,"latitude"?: number | null,"longitude"?: number | null,"name"?: string | null,"phone"?: string | null,"slug"?: string | null
+                         }
+                        Update: {
+                           "address"?: string | null,"alias_count"?: never,"capacity"?: number | null,"created_at"?: string | null,"event_count"?: never,"google_maps_url"?: string | null,"id"?: string | null,"latitude"?: number | null,"longitude"?: number | null,"name"?: string | null,"phone"?: string | null,"slug"?: string | null
+                         }
+                        Relationships: [
+                    
+                  ]
                 }
           }
           Functions: {
             "is_admin":
 { Args: Record<PropertyKey, never>; Returns: boolean
+                           },
+"resolve_venue_id":
+{ Args: { "p_autocreate"?: boolean,"p_raw": string,"p_source"?: string,"p_threshold"?: number }; Returns: string
+                           },
+"venue_canonical_of":
+{ Args: { "p_id": string }; Returns: string
+                           },
+"venue_core_key":
+{ Args: { "raw": string }; Returns: string
+                           },
+"venue_normalize":
+{ Args: { "raw": string }; Returns: string
+                           },
+"venue_sanitize":
+{ Args: { "raw": string }; Returns: string
+                           },
+"venue_slugify":
+{ Args: { "raw": string }; Returns: string
+                           },
+"venue_useful_address":
+{ Args: { "p_address": string,"p_name": string }; Returns: string
                            }
           }
           Enums: {
-            "event_status": "DRAFT"|"PUBLISHED"|"CANCELLED"|"PAST"|"PENDING","notification_type": "EMAIL"|"PUSH"|"WHATSAPP","user_role": "USER"|"ADMIN"
+            "event_status": "DRAFT"|"PUBLISHED"|"CANCELLED"|"PAST"|"PENDING","notification_type": "EMAIL"|"PUSH"|"WHATSAPP","user_role": "USER"|"ADMIN","venue_review_status": "pending"|"resolved"|"rejected"
           }
           CompositeTypes: {
             [_ in never]: never
@@ -457,7 +602,7 @@ export type CompositeTypes<
 export const Constants = {
   "public": {
           Enums: {
-            "event_status": ["DRAFT", "PUBLISHED", "CANCELLED", "PAST", "PENDING"],"notification_type": ["EMAIL", "PUSH", "WHATSAPP"],"user_role": ["USER", "ADMIN"]
+            "event_status": ["DRAFT", "PUBLISHED", "CANCELLED", "PAST", "PENDING"],"notification_type": ["EMAIL", "PUSH", "WHATSAPP"],"user_role": ["USER", "ADMIN"],"venue_review_status": ["pending", "resolved", "rejected"]
           }
         }
 } as const

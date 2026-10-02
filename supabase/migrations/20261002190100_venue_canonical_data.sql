@@ -105,7 +105,6 @@ BEGIN
     ('LA ROKA',                               'Roka',                       false),  -- + 1
     ('LA ROKA',                               'Salta Roka',                 false),  -- + 3
     ('LA ROKA',                               'Saltaroka',                  false),  -- + 5
-    ('Live Fresh',                            'Balcarce 980',               true),   -- 9 + 1 (inferido: el evento es de @livefresh.ok)
     ('One Club',                              'ONE',                        false),  -- 0 + 3
     ('One Club',                              'One Oficial Salta',          false),  -- + 3
     ('One Club',                              'Balcarce 920',               true),   -- + 5  (@oneoficialsalta)
@@ -338,6 +337,7 @@ BEGIN
   SELECT v.name, 'migration', v.id, x.note
     FROM (VALUES
       ('El Patio de la Roka',            'DECISIÓN PENDIENTE: ¿mismo espacio que "La Roka" o uno propio dentro del predio? Sin coordenadas ni domicilio real. El Patio recibe shows nacionales por ticketera; La Roka, fiestas de Instagram. Si es el mismo: alias. Si no: cargar dirección en ambos.'),
+      ('Balcarce 980',                   'Probablemente Live Fresh: su único evento es de @livefresh.ok ("AIRBAG: Rockstar, pero a lo Fresh"). Inferido, no confirmado: si es Live Fresh, fusionar o aliasar.'),
       ('Don Emilio',                     'El default de @saltaroka es "Don Emilio, Av. Paraguay 202": ¿La Roka funciona en Don Emilio? Si es así, fusionar o aliasar.'),
       ('Amnesia Ibiza',                  'Club de Ibiza (España), NO es el Amnesia de Salta. ¿Corresponde a esta agenda?'),
       ('Poble Espanyol',                 'Recinto de Barcelona. Probable ruido de una cuenta internacional.'),
