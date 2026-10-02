@@ -208,11 +208,25 @@ cierre del Sprint 0: 7). Quedan `is_admin()` ejecutable por anon/authenticated
    `CRON_SECRET`). **`radar-newsletter.yml` no se probó a mano:** manda el mail
    real a los suscriptores; queda para que lo dispares vos desde Actions o para
    el jueves 21:00 UTC.
-3. **Revisar los 13 borradores futuros** en `/admin/revision` (incluye peñas).
-4. **Instagram:** abrir logueado `instagram.com/laviejaestacionensalta`,
-   `brickell_club` y `peppers.gintoneria` y ver si existen, si son privadas o
-   tienen restricción de edad, y cuándo fue el último post. Corregir el usuario o
-   desactivarlas en `/admin/instagram`.
+3. ~~**Revisar los borradores**~~ — hecho el 2026-10-02: los 54 borradores de
+   la cola quedaron publicados (13 futuros: 10 boliches, 2 recitales, 1 peña).
+4. ~~**Instagram: confirmar las cuentas sin flyers**~~ — confirmado el
+   2026-10-02 desde el navegador (perfiles públicos; fechas sacadas del ID de
+   cada post). Las tres existen, son públicas y el usuario es correcto:
+   - `laviejaestacionensalta`: publica ~1 vez por mes, casi todo reels; último
+     post propio **2026-08-20**, cuatro días antes del alta. Con la ventana de 7
+     días, Apify nunca encuentra nada. La agenda de la peña no sale de IG.
+   - `brickell_club`: último post propio 2026-05-28. Su agenda sale en **posts
+     en colaboración** de productoras.
+   - `peppers.gintoneria`: último post propio 2026-07-03; también publica en
+     colaboración (crema.fiesta, misionmoradaoficial).
+
+   Eso destapó un bug: los posts en colaboración llegan con `ownerUsername` =
+   el coautor y se descartaban como "cuenta no registrada". Arreglado en
+   `b4e231a` (la cuenta sale de `inputUrl`); contra las 3 últimas corridas
+   recupera 4-5 posts por corrida (~10%). Las notas de las 3 cuentas en
+   `instagram_accounts` quedaron actualizadas con este diagnóstico; siguen
+   activas.
 5. **AdSense (cuando se prenda):** crear los bloques de anuncios y reemplazar
    los nombres de slot por sus IDs numéricos.
 
