@@ -24,3 +24,8 @@ tsconfig.tsbuildinfo
 # Datos de producción bajados con scripts/db/load-prod-data.sh: tienen emails
 # de usuarios. Nunca se commitean.
 supabase/.data-dumps/
+
+# Estado de trabajo del equipo de agentes (rondas, informes, exportaciones de
+# Analytics, material del inversor). Lo que se cierra pasa a docs/PENDIENTES.md.
+ops/
+CLAUDE.local.md
