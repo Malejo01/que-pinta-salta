@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
-import { buildDedupKey, dedupKeyOf, sameTicketEvent, ticketUrlsOf } from './dedup-key'
+import { buildDedupKey, dedupKeyOf, sameTicketEvent, ticketUrlsOf, hasRealTime, isAutoDescription } from './dedup-key'
 import { mergeEvents, appendAudit, type DiscardedValue, type MergeAuditEntry } from './merge-events'
 import { getSourcePriority, describeSource, resolveEventSource } from './source-priority'
 import { formatSaltaDayKey } from '../date-format'
@@ -157,16 +157,31 @@ function toPlannedEvent(row: any): PlannedEvent {
   }
 }
 
+/** Largo de la descripción real; la autogenerada por el scraper vale 0. */
+function descriptionScore(row: any): number {
+  const text = typeof row.description === 'string' ? row.description.trim() : ''
+  return isAutoDescription(text) ? 0 : text.length
+}
+
 /**
- * Quién sobrevive: la fuente de mayor prioridad. A igualdad de prioridad, el
- * registro más viejo — es el que probablemente ya tenga la URL indexada y
- * favoritos encima. El desempate por antigüedad además hace determinista al
- * job: dos corridas sobre los mismos datos eligen el mismo sobreviviente.
+ * Quién sobrevive, en este orden:
+ *   1. la fila con hora real sobre la que tiene 00:00 (sin hora);
+ *   2. la fuente de mayor prioridad (ticketera > portal > manual > Instagram),
+ *      que además define el venue;
+ *   3. la descripción más completa (la autogenerada "Evento importado
+ *      automáticamente desde..." cuenta como vacía);
+ *   4. el registro más viejo — es el que probablemente ya tenga la URL indexada
+ *      y favoritos encima, y hace determinista al job.
+ * Los ticket_sources de todas las filas se unen en la que queda (mergeEvents).
  */
-function pickKeeper(group: any[]): any[] {
+export function pickKeeper(group: any[]): any[] {
   const sorted = [...group].sort((a, b) => {
+    const byTime = Number(hasRealTime(b.start_date)) - Number(hasRealTime(a.start_date))
+    if (byTime !== 0) return byTime
     const byPriority = getSourcePriority(resolveEventSource(b)) - getSourcePriority(resolveEventSource(a))
     if (byPriority !== 0) return byPriority
+    const byDescription = descriptionScore(b) - descriptionScore(a)
+    if (byDescription !== 0) return byDescription
     return new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime()
   })
   return sorted

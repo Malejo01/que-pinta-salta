@@ -292,6 +292,35 @@ const funcion = (id: string, start: string) =>
 check('mismo link, otra hora (16 y 21) -> no', sameTicketEvent(funcion('a', '2026-09-11T19:00:00.000Z'), funcion('b', '2026-09-12T00:00:00.000Z')), false)
 check('mismo link, otro día -> no', sameTicketEvent(funcion('a', '2026-09-11T19:00:00.000Z'), funcion('b', '2026-09-12T19:00:00.000Z')), false)
 check('mismo link, una sin hora (00:00) -> sí', sameTicketEvent(funcion('a', '2026-09-11T03:00:00.000Z'), funcion('b', '2026-09-12T00:00:00.000Z')), true)
+console.log('\n== Quién sobrevive ==')
+// Halloween 30/10: dos flyers, uno sin hora (00:00) y otro a las 20:00.
+const halloween = [
+  event({ id: 'sin-hora', title: 'Halloween 2026', scrape_source_key: 'instagram-ai', venue_id: 'venue-cc', start_date: '2026-10-30T03:00:00.000Z', created_at: '2026-10-01T00:00:00.000Z' }),
+  event({ id: 'con-hora', title: 'Halloween 2026', scrape_source_key: 'instagram-ai', venue_id: 'venue-cc', start_date: '2026-10-30T23:00:00.000Z', description: 'Fiesta de disfraces', created_at: '2026-10-02T00:00:00.000Z' }),
+]
+const planHalloween = planGroup('halloween 2026|2026-10-30', halloween)
+check('la hora real gana sobre 00:00', planHalloween.keeper.id, 'con-hora')
+check('y conserva su hora', finalOf(planHalloween, halloween[1], 'start_date'), '2026-10-30T23:00:00.000Z')
+// La hora real gana aunque la fila sin hora sea de una fuente de mayor prioridad.
+const horaVsPrioridad = [
+  event({ id: 'nt-sin-hora', title: 'Show', scrape_source_key: 'norteticket', start_date: '2026-10-30T03:00:00.000Z' }),
+  event({ id: 'ig-con-hora', title: 'Show', scrape_source_key: 'instagram-ai', start_date: '2026-10-30T23:00:00.000Z' }),
+]
+check('hora real antes que prioridad de fuente', planGroup('show|2026-10-30', horaVsPrioridad).keeper.id, 'ig-con-hora')
+// Misma fuente y hora: gana la descripción real sobre la autogenerada.
+const descripcion = [
+  event({ id: 'auto', title: 'Gabriela Roca', scrape_source_key: 'entradauno', description: 'Evento importado automáticamente desde EntradaUno', created_at: '2026-06-30T00:00:00.000Z' }),
+  event({ id: 'real', title: 'Gabriela Roca', scrape_source_key: 'entradauno', description: 'Stand up de Gabriela Roca', created_at: '2026-07-04T00:00:00.000Z' }),
+]
+const planDescripcion = planGroup('gabriela roca|2026-09-12', descripcion)
+check('la descripción real gana sobre la autogenerada', planDescripcion.keeper.id, 'real')
+// Y en la ingesta (la fila existente siempre queda) la autogenerada se reemplaza.
+const planIngesta = planGroup('gabriela roca|2026-09-12', [
+  event({ id: 'nt', title: 'X', scrape_source_key: 'norteticket', description: 'Evento importado automáticamente desde NorteTicket' }),
+  event({ id: 'ig', title: 'X', scrape_source_key: 'instagram-ai', description: 'Descripción del flyer' }),
+])
+check('la autogenerada nunca pisa ni se conserva frente a una real', planIngesta.patch.description, 'Descripción del flyer')
+
 const museo = Array.from({ length: 5 }, (_, d) => funcion(`m${d}`, `2026-09-1${d}T15:00:00.000Z`))
 check('un link con 5 fechas no colapsa nada', buildDuplicateGroups(museo).groups.length, 0)
 
