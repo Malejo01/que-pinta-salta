@@ -320,7 +320,7 @@ cambió**: la única escritura en prod fue el historial de migraciones.
 en vez de `--db-url`. Recomendado: en GitHub, *branch protection* de `main`
 exigiendo el check "CI".
 
-### Sprint 3 (las Olas sobre el baseline) — CERRADO el 2026-10-02, salvo rehacer 3 fusiones (manual, ver abajo)
+### Sprint 3 (las Olas sobre el baseline) — CERRADO el 2026-10-02
 
 Paso 3 de `docs/AUDITORIA-2026-10.md`. Cada ola en su rama y PR, CI verde
 antes de mergear, migraciones probadas en local con datos de prod
@@ -389,17 +389,30 @@ borraron al mergear.
 
   | Grupo | Quedó | Borrada | Con la regla del PR #8 |
   |---|---|---|---|
-  | Gabriela Roca 31/07 | `a9bf645b` | `33b1752c` | **debería quedar `33b1752c`** (descripción real) |
+  | Gabriela Roca 31/07 | `a9bf645b` | `33b1752c` | hubiera quedado `33b1752c` — **aceptado** (evento pasado) |
   | Primavera Sunset 20/09 | `fc8ac954` (16:00) | `9a5af5c4` | igual |
-  | Fiesta en Babylon 25/09 | `7f42d94e` | `8a0d8de4` | **debería quedar `8a0d8de4`** (descripción más completa) |
+  | Fiesta en Babylon 25/09 | `7f42d94e` | `8a0d8de4` | hubiera quedado `8a0d8de4` — **aceptado** (evento pasado) |
   | No Te Va Gustar 25/09 (por link) | `bac3644c` norteticket, La Roka | `25998402` manual, Estadio Delmi | igual |
-  | Halloween 30/10 | `43a1d99c` (00:00) | `5087bc3f` (20:00) | **debería quedar `5087bc3f`** (hora real) |
+  | Halloween 30/10 | `43a1d99c` | `5087bc3f` (20:00) | **corregido** |
   | Bersuit 26/11 (por link) | `654a6a8d` | `6441678f` | igual |
 
-  El `--apply` corrió antes de que existiera la regla de supervivencia. Los 3
-  grupos marcados hay que rehacerlos: ver "Rehacer 3 fusiones" abajo.
+  El `--apply` corrió antes de que existiera la regla de supervivencia.
+  Halloween 30/10 se corrigió con un UPDATE sobre `43a1d99c`: `start_date`
+  (20:00) y `description` copiados del snapshot de `5087bc3f` en
+  `merge_audit`, con una entrada `manual-fix` en la misma auditoría; la ficha
+  pública muestra 20:00. Gabriela Roca y Fiesta en Babylon son eventos
+  pasados: se aceptan como quedaron, no se tocan.
   Dry-run contra prod después de todo: 1228 eventos, 1 grupo (El Amor de un
   Pueblo, excluido); ningún grupo nuevo.
+
+- **Cargas recurrentes al cierre.** `cargar-penas.mjs --semanas=2`: 24 peñas
+  (Balderrama 10, La Vieja Estación 14). `cargar-museos.mjs --semanas=1`: 30
+  (6 museos × 5 días). El de museos abortaba porque el 3.2 renombró "Museo
+  Antropologico" → "Museo Antropológico"; se corrigió y los dos scripts ahora
+  sólo cargan sobre venues canónicos. Dry-run de dedup después: 0 grupos.
+  Eventos futuros publicados: 139 (Espectáculos 39, Museos 31, Peñas 25,
+  Recitales 19, Boliches 13, Humor 6, Ballet 2, y 1 en Talleres, Teatro,
+  Congresos e Infantil).
 
 - **GitHub (repo privado desde el 2026-10-02).** Protección de `main`
   exigiendo el CI: **no disponible** en el plan Free para repos privados (la
@@ -417,18 +430,26 @@ borraron al mergear.
 
 **Queda abierto, visto en este sprint:**
 
-- **Rehacer 3 fusiones (manual).** Gabriela Roca, Fiesta en Babylon y
-  Halloween 30/10 quedaron con el sobreviviente de la regla vieja. El
-  clasificador de permisos de Claude Code bloqueó la escritura en prod, así
-  que queda para hacerlo a mano. `supabase/.data-dumps/rehacer-3-fusiones.sql`
-  (ignorado por git; generado del backup de las 12 filas tomado antes del
-  `--apply`, `dedup-backup-events-2026-10-02.json`) devuelve las 3 filas que
-  quedaron a su estado previo, reinserta las 3 borradas con su id y devuelve
-  los flyers de Instagram a su evento. Se probó contra prod dentro de una
-  transacción con ROLLBACK. Después:
-  `npx tsx scripts/dedup-events.ts --include-past --only=33b1752c,8a0d8de4,5087bc3f`
-  (dry-run: tienen que quedar `33b1752c`, `8a0d8de4` y `5087bc3f`) y lo mismo
-  con `--apply`.
+- **Automatizar la generación de peñas y museos — PRIORIDAD ALTA.** Hoy
+  `scripts/cargar-penas.mjs` y `scripts/cargar-museos.mjs` se corren a mano y
+  sus filas vencen: al cierre del Sprint 3 Peñas y Museos tenían 1 evento
+  futuro cada uno. Propuesta: un endpoint `app/api/cron/recurrentes/route.ts`
+  protegido con `CRON_SECRET` (mismo `Authorization: Bearer` que los otros
+  crons) que haga la generación del lado del servidor con el cliente admin
+  que ya existe en Vercel, reusando la lógica de los dos scripts movida a
+  `lib/` (idempotente: sólo inserta las fechas que faltan, sólo en venues
+  canónicos), registrando la corrida en `job_runs`. Lo dispara un workflow
+  semanal de GitHub Actions que sólo manda el `CRON_SECRET` (que ya está en
+  los secrets). **La service role key NO va a GitHub**: queda únicamente en
+  Vercel. Horizonte sugerido: peñas 2 semanas, museos 1 semana, corriendo
+  cada lunes. Mientras tanto, re-correr los dos scripts cada semana.
+- **Peñas cargadas por script vs. flyers de @bolichebalderrama.** La cuenta
+  ahora trae flyers por Instagram. Un flyer de un día con peña cargada
+  ("Peña Boliche Balderrama ..." vs. "Peña folklórica en Balderrama") tiene
+  otra clave de título; la dedup los junta sólo si el fuzzy del mismo venue
+  pasa 0,65. Al cierre del sprint no había superposición (los flyers son de
+  fechas pasadas). Revisar después de cada carga o hacer que el endpoint de
+  arriba saltee los días que ya tienen un evento de flyer en ese venue.
 - La tabla `favorites` (además de `user_favorites`) tiene FK a `events` con
   `ON DELETE CASCADE` y la dedup no la repuntea. Hoy está vacía (0 filas):
   decidir si se borra o si `repointFavorites` la cubre.

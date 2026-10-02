@@ -142,8 +142,9 @@ for (const p of PENAS) {
   console.log(`\n### ${p.titulo}`)
 
   // --- venue: reusar si ya existe (match por clave normalizada) ---
-  const { data: todos } = await sb.from('venues').select('id,name,address,phone')
-  let venue = (todos || []).find((v) => norm(v.name) === norm(p.venue.name))
+  const { data: todos } = await sb.from('venues').select('id,name,address,phone,canonical_venue_id')
+  // Sólo canónicos: desde el Sprint 3 los duplicados quedan absorbidos, no borrados.
+  let venue = (todos || []).find((v) => !v.canonical_venue_id && norm(v.name) === norm(p.venue.name))
 
   if (venue) {
     console.log(`  venue EXISTENTE: ${JSON.stringify(venue.name)}  id=${venue.id}`)

@@ -96,16 +96,19 @@ const MUSEOS = [
   { venueId: '8ee81049', nombre: 'Complejo Museológico Explora Salta',   titulo: 'Explora Salta',                        hora: '10:00' },
   { venueId: '81915a94', nombre: 'Museo de Bellas Artes',                titulo: 'Museo de Bellas Artes LOLA MORA - MBA', hora: '10:00' },
   { venueId: '1d472943', nombre: 'Museo de Arte MAC',                    titulo: 'Museo de Arte MAC',                    hora: '10:00' },
-  { venueId: '31a6a4be', nombre: 'Museo Antropologico',                  titulo: 'Museo de Antropologia - MAS',          hora: '10:00' },
+  { venueId: '31a6a4be', nombre: 'Museo Antropológico',                  titulo: 'Museo de Antropologia - MAS',          hora: '10:00' },
 ]
 
 // ---------------------------------------------------------------- resolver venues + plantilla
-const { data: venues } = await sb.from('venues').select('id,name')
+const { data: venues } = await sb.from('venues').select('id,name,canonical_venue_id')
 for (const m of MUSEOS) {
   const v = venues.find((x) => x.id.startsWith(m.venueId))
   if (!v) { console.error(`Venue no encontrado para ${m.nombre} (${m.venueId})`); process.exit(1) }
   m.venueIdFull = v.id
   if (v.name !== m.nombre) { console.error(`Venue ${v.id} se llama ${JSON.stringify(v.name)}, esperaba ${JSON.stringify(m.nombre)}`); process.exit(1) }
+  // Desde el Sprint 3 los venues duplicados quedan absorbidos (canonical_venue_id),
+  // no borrados: cargar sobre uno de ésos lo esconde del canónico.
+  if (v.canonical_venue_id) { console.error(`Venue ${v.id} (${v.name}) está absorbido por ${v.canonical_venue_id}: actualizar MUSEOS`); process.exit(1) }
 }
 
 // Plantilla: la fila más reciente que el scraper generó para cada museo.
