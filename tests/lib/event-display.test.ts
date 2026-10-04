@@ -6,6 +6,8 @@ import {
   cleanDescription,
   formatEventTimeDisplay,
   hasExplicitTime,
+  isRelevantToday,
+  orderUpcomingFirst,
   saltaStartOfDayISO,
   selectTodayEvents,
   sortEventsByTime,
@@ -219,5 +221,98 @@ describe('saltaStartOfDayISO', () => {
   })
   it('sin argumento devuelve un ISO que termina en 03:00:00.000Z', () => {
     expect(saltaStartOfDayISO()).toMatch(/T03:00:00\.000Z$/)
+  })
+})
+
+// Ahora = 23:00 de Salta del 2026-11-07 (02:00Z del 8).
+const AHORA_2300 = new Date('2026-11-08T02:00:00Z').getTime()
+const A_10 = '2026-11-07T13:00:00Z' // 10:00 Salta
+const A_14 = '2026-11-07T17:00:00Z' // 14:00 Salta
+const FIN_2330 = '2026-11-08T02:30:00Z' // 23:30 Salta
+
+describe('isRelevantToday', () => {
+  it('función de las 14:00 de teatro a las 23:00: no es relevante', () => {
+    expect(isRelevantToday({ startDateTime: A_14, category: 'teatro' }, AHORA_2300)).toBe(false)
+  })
+  it('museo de las 10:00 a las 23:00: sí (larga duración)', () => {
+    expect(isRelevantToday({ startDateTime: A_10, category: 'museos' }, AHORA_2300)).toBe(true)
+  })
+  it('evento de las 14:00 con fin 23:30: sí', () => {
+    expect(isRelevantToday({ startDateTime: A_14, endDateTime: FIN_2330, category: 'teatro' }, AHORA_2300)).toBe(true)
+  })
+  it('evento de las 14:00 con fin ya pasado: no', () => {
+    expect(isRelevantToday({ startDateTime: A_14, endDateTime: '2026-11-07T20:00:00Z' }, AHORA_2300)).toBe(false)
+  })
+  it('por empezar (start >= now): sí; justo a la hora: sí', () => {
+    expect(isRelevantToday({ startDateTime: A_2300 }, AHORA_2300)).toBe(true)
+    expect(isRelevantToday({ startDateTime: '2026-11-08T02:00:00Z' }, AHORA_2300)).toBe(true)
+  })
+  it('fin exactamente ahora cuenta como relevante', () => {
+    expect(isRelevantToday({ startDateTime: A_14, endDateTime: '2026-11-08T02:00:00Z' }, AHORA_2300)).toBe(true)
+  })
+  it('fechas inválidas: false; fin inválido o null no rompe', () => {
+    expect(isRelevantToday({ startDateTime: 'basura', category: 'museos' }, AHORA_2300)).toBe(false)
+    expect(isRelevantToday({ startDateTime: A_14, endDateTime: 'basura' }, AHORA_2300)).toBe(false)
+    expect(isRelevantToday({ startDateTime: A_14, endDateTime: null, category: null }, AHORA_2300)).toBe(false)
+  })
+  it('categoría distinta de museos que ya empezó no es de larga duración', () => {
+    expect(isRelevantToday({ startDateTime: A_10, category: 'museo' }, AHORA_2300)).toBe(false)
+  })
+})
+
+describe('orderUpcomingFirst', () => {
+  const ev = (id: string, startDateTime: string) => ({ id, startDateTime })
+  const ids = (xs: { id: string }[]) => xs.map((x) => x.id)
+
+  it('lo por empezar va antes que lo ya empezado, cada grupo en su orden', () => {
+    const out = orderUpcomingFirst(
+      [ev('ya1', A_10), ev('prox1', A_2300), ev('ya2', A_14), ev('prox2', '2026-11-08T03:00:00Z')],
+      AHORA_2300,
+    )
+    expect(ids(out)).toEqual(['prox1', 'prox2', 'ya1', 'ya2'])
+  })
+  it('sin nowMs devuelve una copia sin reordenar', () => {
+    const input = [ev('b', A_2300), ev('a', A_10)]
+    const out = orderUpcomingFirst(input)
+    expect(out).not.toBe(input)
+    expect(ids(out)).toEqual(['b', 'a'])
+  })
+  it('con nowMs no muta la entrada', () => {
+    const input = [ev('ya', A_10), ev('prox', A_2300)]
+    orderUpcomingFirst(input, AHORA_2300)
+    expect(ids(input)).toEqual(['ya', 'prox'])
+  })
+  it('vacío y fecha inválida (cae en "ya empezado") no lanzan', () => {
+    expect(orderUpcomingFirst([], AHORA_2300)).toEqual([])
+    expect(ids(orderUpcomingFirst([ev('x', 'basura'), ev('prox', A_2300)], AHORA_2300))).toEqual(['prox', 'x'])
+  })
+})
+
+describe('selectTodayEvents y arrangeRowsForToday con nowMs', () => {
+  const hoy = '2026-11-07'
+  const e = (id: string, startDateTime: string) => ({ id, date: hoy, startDateTime })
+
+  it('selectTodayEvents con nowMs: lo por empezar primero, luego lo ya empezado (ambos por hora)', () => {
+    const out = selectTodayEvents([e('noche', A_2300), e('manana', A_10), e('tarde', A_14), e('tarde-noche', A_2130)], hoy, AHORA_2300)
+    // 21:30 Salta del 7 es 00:30Z del 8, anterior a 23:00: ya empezó.
+    expect(out.map((x) => x.id)).toEqual(['noche', 'manana', 'tarde', 'tarde-noche'])
+  })
+  it('selectTodayEvents sin nowMs: igual que antes (solo por hora)', () => {
+    const out = selectTodayEvents([e('noche', A_2300), e('manana', A_10), e('tarde', A_14)], hoy)
+    expect(out.map((x) => x.id)).toEqual(['manana', 'tarde', 'noche'])
+  })
+  it('arrangeRowsForToday con nowMs: por empezar primero en cada fila y cine al final', () => {
+    const rows = [
+      { category: 'cine', events: [e('c-ya', A_10), e('c-prox', A_2300)] },
+      { category: 'musica', events: [e('m-ya', A_10), e('m-prox', A_2300), e('m-ya2', A_14)] },
+    ]
+    const out = arrangeRowsForToday(rows, AHORA_2300)
+    expect(out.map((r) => r.category)).toEqual(['musica', 'cine'])
+    expect(out[0].events.map((x) => x.id)).toEqual(['m-prox', 'm-ya', 'm-ya2'])
+    expect(out[1].events.map((x) => x.id)).toEqual(['c-prox', 'c-ya'])
+  })
+  it('arrangeRowsForToday sin nowMs: igual que antes', () => {
+    const rows = [{ category: 'musica', events: [e('b', A_2300), e('a', A_10)] }]
+    expect(arrangeRowsForToday(rows)[0].events.map((x) => x.id)).toEqual(['a', 'b'])
   })
 })
