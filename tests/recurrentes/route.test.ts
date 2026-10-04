@@ -127,7 +127,7 @@ describe('GET /api/cron/recurrentes: con Bearer correcto', () => {
       insertadas: 2,
       conError: 1,
     })
-    const toOutcome = withJobRun.mock.calls[0][3] as (r: unknown) => any
+    const toOutcome = withJobRun.mock.calls[0][3] as (r: unknown) => { status: string; details: Record<string, unknown> }
     const outcome = toOutcome(await generarRecurrentes.mock.results[0].value)
     expect(outcome).toMatchObject({
       status: 'PARTIAL',

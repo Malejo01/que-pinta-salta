@@ -67,23 +67,27 @@ async function generarItem(supabase: SupabaseClient, r: Recurrente, ahora: Date)
       throw new Error(`El venue "${r.venue}" resolvió a ${venueId.slice(0, 8)}, se esperaba ${r.venueIdPrefijo}`)
     }
 
-    // Plantilla: la fila más reciente de ese venue y título.
-    const { data: plantilla, error: errPlantilla } = await supabase
-      .from('events').select('*')
-      .eq('venue_id', venueId).eq('title', r.titulo)
-      .order('start_date', { ascending: false }).limit(1).maybeSingle()
-    if (errPlantilla) throw new Error(`Plantilla: ${errPlantilla.message}`)
-
+    // Solo filas PUBLISHED: una DRAFT/ARCHIVED/CANCELLED no es modelo válido.
     let imagenPena: string | null = null
+    let plantilla: Fila | null = null
     if (r.tipo === 'pena') {
+      // Peñas: de la fila anterior sale solo la imagen (la última no nula).
       const { data: conImagen, error } = await supabase
         .from('events').select('image_url')
-        .eq('venue_id', venueId).eq('title', r.titulo).not('image_url', 'is', null)
+        .eq('venue_id', venueId).eq('title', r.titulo).eq('status', 'PUBLISHED')
+        .not('image_url', 'is', null)
         .order('start_date', { ascending: false }).limit(1).maybeSingle()
       if (error) throw new Error(`Imagen: ${error.message}`)
       imagenPena = (conImagen?.image_url as string | null) ?? null
-    } else if (!plantilla) {
-      throw new Error(`Sin fila previa para "${r.titulo}": no se puede replicar el patrón`)
+    } else {
+      // Museos: plantilla completa, la fila más reciente de ese venue y título.
+      const { data, error } = await supabase
+        .from('events').select('*')
+        .eq('venue_id', venueId).eq('title', r.titulo).eq('status', 'PUBLISHED')
+        .order('start_date', { ascending: false }).limit(1).maybeSingle()
+      if (error) throw new Error(`Plantilla: ${error.message}`)
+      if (!data) throw new Error(`Sin fila previa para "${r.titulo}": no se puede replicar el patrón`)
+      plantilla = data as Fila
     }
 
     // Días que ya existen (futuros) para ese venue y título.
@@ -105,7 +109,7 @@ async function generarItem(supabase: SupabaseClient, r: Recurrente, ahora: Date)
       try {
         const fila = r.tipo === 'pena'
           ? filaPena(r, venueId, f, imagenPena)
-          : filaMuseo(r, venueId, f, plantilla as Fila)
+          : filaMuseo(r, venueId, f, plantilla ?? {})
         const out = await upsertEventWithDeduplication(fila, FUENTE_RECURRENTES, supabase)
         if (out.action === 'insert') res.insertadas++
         else res.yaExistian++ // la dedup lo fusionó con una fila que ya estaba
@@ -145,7 +149,7 @@ function filaPena(r: RecurrentePena, venueId: string, f: FechaPendiente, imagen:
     view_count: 0,
     created_by: null,
     classification_source: null,
-    ticket_sources: r.ticketUrl ? [{ url: r.ticketUrl, source: 'manual', price_min: 0 }] : [],
+    ticket_sources: r.ticketUrl ? [{ url: r.ticketUrl, source: FUENTE_RECURRENTES, price_min: 0 }] : [],
     is_commercial: true,
   }
 }

@@ -16,9 +16,10 @@ import { generarRecurrentes } from '@/lib/recurrentes/generar'
 import { MUSEOS, PENAS } from '@/lib/recurrentes/config'
 
 // --- Cliente de Supabase falso en memoria ----------------------------------
-type Row = Record<string, any>
+type Row = Record<string, unknown>
+type Resultado = { data: Row[] | Row | null; error: null }
 
-class FakeQuery implements PromiseLike<{ data: Row[] | Row | null; error: null }> {
+class FakeQuery implements PromiseLike<Resultado> {
   private filters: Array<(r: Row) => boolean> = []
   private orderKey: string | null = null
   private desc = false
@@ -31,21 +32,24 @@ class FakeQuery implements PromiseLike<{ data: Row[] | Row | null; error: null }
     if (op === 'is' && v === null) this.filters.push((r) => r[k] !== null && r[k] !== undefined)
     return this
   }
-  gte(k: string, v: string) { this.filters.push((r) => r[k] >= v); return this }
+  gte(k: string, v: string) { this.filters.push((r) => (r[k] as string) >= v); return this }
   order(k: string, o?: { ascending?: boolean }) { this.orderKey = k; this.desc = o?.ascending === false; return this }
   limit(n: number) { this.max = n; return this }
   maybeSingle() { this.single = true; return this }
-  private run() {
+  private run(): Resultado {
     let out = this.rows.filter((r) => this.filters.every((f) => f(r)))
     if (this.orderKey) {
       const k = this.orderKey
-      out = [...out].sort((a, b) => (a[k] < b[k] ? -1 : a[k] > b[k] ? 1 : 0))
+      out = [...out].sort((a, b) => ((a[k] as string) < (b[k] as string) ? -1 : (a[k] as string) > (b[k] as string) ? 1 : 0))
       if (this.desc) out.reverse()
     }
     out = out.slice(0, this.max)
     return { data: this.single ? (out[0] ?? null) : out, error: null as null }
   }
-  then<T1, T2>(ok?: any, ko?: any): Promise<T1 | T2> {
+  then<R1 = Resultado, R2 = never>(
+    ok?: ((v: Resultado) => R1 | PromiseLike<R1>) | null,
+    ko?: ((e: unknown) => R2 | PromiseLike<R2>) | null,
+  ): Promise<R1 | R2> {
     return Promise.resolve(this.run()).then(ok, ko)
   }
 }
@@ -71,6 +75,7 @@ function plantillaMuseo(m: (typeof MUSEOS)[number]): Row {
   return {
     venue_id: VENUE_IDS[m.venue],
     title: m.titulo,
+    status: 'PUBLISHED',
     start_date: '2026-10-01T13:00:00.000Z', // pasada: no cuenta como "ya cargada"
     description: 'Descripción de Prueba',
     short_description: 'Resumen de Prueba',
@@ -137,8 +142,8 @@ describe('generarRecurrentes', () => {
   it('no genera ningún lunes de museo', async () => {
     await generarRecurrentes(fakeSupabase, { ahora: AHORA })
     const lunesMuseo = store
-      .filter((r) => MUSEOS.some((m) => m.titulo === r.title) && r.start_date > AHORA.toISOString())
-      .filter((r) => new Date(new Date(r.start_date).getTime() - 3 * 3600_000).getUTCDay() === 1)
+      .filter((r) => MUSEOS.some((m) => m.titulo === r.title) && (r.start_date as string) > AHORA.toISOString())
+      .filter((r) => new Date(new Date(r.start_date as string).getTime() - 3 * 3600_000).getUTCDay() === 1)
     expect(lunesMuseo).toEqual([])
   })
 
@@ -210,6 +215,14 @@ describe('generarRecurrentes', () => {
     expect(item.error).toMatch(/Sin fila previa/)
   })
 
+  it('una plantilla de museo que no está PUBLISHED no sirve de modelo', async () => {
+    for (const r of store) if (r.title === MUSEOS[3].titulo) r.status = 'DRAFT'
+    const res = await generarRecurrentes(fakeSupabase, { ahora: AHORA })
+    const item = porTitulo(res, MUSEOS[3].titulo)
+    expect(item.insertadas).toBe(0)
+    expect(item.error).toMatch(/Sin fila previa/)
+  })
+
   it('si la dedup responde "update", cuenta como yaExistian y no como insertada', async () => {
     upsert.mockImplementation(async () => ({ success: true, action: 'update', eventId: 'x' }))
     const res = await generarRecurrentes(fakeSupabase, { ahora: AHORA })
@@ -240,7 +253,7 @@ describe('generarRecurrentes', () => {
     const res = await generarRecurrentes(fakeSupabase, { ahora })
     // La Vieja Estación (22:00, todos los días): hoy en Salta es domingo 8 y las 22:00 ya pasaron.
     const filas = store.filter((r) => r.title === PENAS[1].titulo)
-    const dias = filas.map((r) => new Date(new Date(r.start_date).getTime() - 3 * 3600_000).toISOString().slice(0, 10))
+    const dias = filas.map((r) => new Date(new Date(r.start_date as string).getTime() - 3 * 3600_000).toISOString().slice(0, 10))
     expect(dias).not.toContain('2026-11-08')
     expect(dias).toContain('2026-11-09')
     expect(res.conError).toBe(0)
