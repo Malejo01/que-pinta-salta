@@ -4,7 +4,8 @@ import { redirect } from "next/navigation"
 import { Navbar } from "@/components/navbar"
 import { MobileNav } from "@/components/mobile-nav"
 import { FavoritosList } from "./favoritos-list"
-import { formatSaltaDayKey, formatSaltaClock } from "@/lib/date-format"
+import { formatSaltaDayKey } from "@/lib/date-format"
+import { ageChip, cleanDescription, formatEventTimeDisplay } from "@/lib/event-display"
 
 export const metadata = {
   title: "Mis Favoritos — Qué Pinta Salta",
@@ -79,16 +80,16 @@ export default async function FavoritosPage() {
       title: event.title,
       venue: event.venue?.name || 'Lugar por confirmar',
       date: formatSaltaDayKey(event.start_date),
-      time: formatSaltaClock(event.start_date),
+      time: formatEventTimeDisplay(event.start_date) ?? '',
       category: categorySlugById.get(event.category_id) || 'uncategorized',
       categoryName: categoryNameById.get(event.category_id) || 'Sin categorizar',
       price: event.is_free ? ("gratis" as const) : (event.price_min === 0 ? ("confirmar" as const) : event.price_min),
       image: event.image_url || '/placeholder.svg?height=600&width=400',
-      description: event.description || event.short_description || '',
+      description: cleanDescription(event.description) ?? cleanDescription(event.short_description) ?? '',
       address: event.venue?.address || '',
       startDateTime: event.start_date,
       ticketUrl: event.ticket_url || undefined,
-      vibe: event.age_restriction >= 18 ? ("adultos" as const) : ("familiar" as const),
+      vibe: ageChip(event.age_restriction),
       isFeatured: event.is_featured,
     }
   })
@@ -135,7 +136,6 @@ export default async function FavoritosPage() {
       description: '',
       address: '',
       startDateTime: movie.created_at,
-      vibe: 'familiar' as const,
       isFeatured: false,
       isCinemaMovie: true,
       showings: movie.showings,

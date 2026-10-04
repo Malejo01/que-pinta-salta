@@ -22,7 +22,8 @@ import {
 } from "@/components/ui/select"
 import { Input } from "@/components/ui/input"
 import { getCategoryIcon } from "@/lib/category-icons"
-import { formatEventDate, formatEventTime, formatSaltaDayKey } from "@/lib/date-format"
+import { formatEventDate, formatSaltaDayKey } from "@/lib/date-format"
+import { ageChip, capitalizeFirst, cleanDescription, formatEventTimeDisplay } from "@/lib/event-display"
 import { createCategory, updateEventCategory } from "@/lib/admin-actions"
 import { deferredRefresh } from "@/lib/deferred-refresh"
 
@@ -57,15 +58,15 @@ export function EventModalWrapper({ event, isAdmin = false, categories = [] }: E
     title: event.title,
     venue: event.venue?.name || 'Lugar por confirmar',
     date: formatSaltaDayKey(startDate),
-    time: formatEventTime(startDate),
+    time: formatEventTimeDisplay(startDate),
     category: currentCategory?.slug || 'uncategorized',
     categoryName: currentCategory?.name || 'Sin categorizar',
     price: event.is_free ? "gratis" as const : (event.price_min === 0 ? "confirmar" as const : event.price_min),
     image: event.image_url || '/placeholder.svg?height=600&width=400',
-    description: event.description || event.short_description || '',
+    description: cleanDescription(event.description) ?? cleanDescription(event.short_description),
     address: event.venue?.address || '',
     ticketUrl: event.ticket_url || undefined,
-    vibe: event.age_restriction >= 18 ? "adultos" as const : "familiar" as const,
+    vibe: ageChip(event.age_restriction),
   }
 
   const formattedDate = formatEventDate(displayEvent.date, true)
@@ -234,13 +235,15 @@ export function EventModalWrapper({ event, isAdmin = false, categories = [] }: E
           <div className="mb-6 space-y-3">
             <div className="flex items-center gap-3 text-muted-foreground">
               <Calendar className="size-5 text-primary" />
-              <span className="capitalize">{formattedDate}</span>
+              <span>{capitalizeFirst(formattedDate)}</span>
             </div>
             
-            <div className="flex items-center gap-3 text-muted-foreground">
-              <Clock className="size-5 text-primary" />
-              <span>{displayEvent.time} hs</span>
-            </div>
+            {displayEvent.time && (
+              <div className="flex items-center gap-3 text-muted-foreground">
+                <Clock className="size-5 text-primary" />
+                <span>{displayEvent.time} hs</span>
+              </div>
+            )}
             
             <div className="flex items-center gap-3 text-muted-foreground">
               <MapPin className="size-5 text-primary" />
@@ -250,13 +253,17 @@ export function EventModalWrapper({ event, isAdmin = false, categories = [] }: E
               </div>
             </div>
 
-            <div className="flex items-center gap-3 text-muted-foreground">
-              <Users className="size-5 text-primary" />
-              <span>{vibeLabels[displayEvent.vibe as keyof typeof vibeLabels] || displayEvent.vibe}</span>
-            </div>
+            {displayEvent.vibe && (
+              <div className="flex items-center gap-3 text-muted-foreground">
+                <Users className="size-5 text-primary" />
+                <span>{vibeLabels[displayEvent.vibe]}</span>
+              </div>
+            )}
           </div>
 
-          <p className="mb-6 text-muted-foreground">{displayEvent.description}</p>
+          {displayEvent.description && (
+            <p className="mb-6 text-muted-foreground">{displayEvent.description}</p>
+          )}
 
           {displayEvent.price !== "confirmar" && (
             <div className="mb-6 rounded-lg bg-muted p-4">

@@ -6,6 +6,7 @@ import Link from "next/link"
 import { motion, AnimatePresence } from "framer-motion"
 import { ChevronLeft, ChevronRight, Calendar, MapPin, Ticket } from "lucide-react"
 import { formatEventDate } from "@/lib/date-format"
+import { capitalizeFirst, cleanDescription } from "@/lib/event-display"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import type { DisplayEvent } from "@/components/home-content"
@@ -57,7 +58,7 @@ export function HeroCarousel({ events }: HeroCarouselProps) {
   const formattedDate = formatEventDate(currentEvent.date)
 
   return (
-    <div className="relative h-[250px] w-full overflow-hidden sm:h-[320px] lg:h-[360px] bg-black">
+    <div className="relative h-[200px] w-full overflow-hidden sm:h-[320px] lg:h-[360px] bg-black">
       <AnimatePresence mode="wait" initial={false} custom={direction}>
         <motion.div
           key={currentIndex}
@@ -129,7 +130,7 @@ export function HeroCarousel({ events }: HeroCarouselProps) {
           <div className="mb-2 flex flex-wrap items-center gap-2 text-xs text-zinc-300 sm:mb-3 sm:gap-3 sm:text-sm drop-shadow-sm">
             <div className="flex items-center gap-2">
               <Calendar className="size-3 text-primary sm:size-4" />
-              <span className="capitalize">{formattedDate} - {currentEvent.time}</span>
+              <span>{capitalizeFirst(formattedDate)}{currentEvent.time ? ` - ${currentEvent.time}` : ""}</span>
             </div>
             <div className="flex items-center gap-2">
               <MapPin className="size-3 text-primary sm:size-4" />
@@ -137,9 +138,11 @@ export function HeroCarousel({ events }: HeroCarouselProps) {
             </div>
           </div>
           
-          <p className="mb-3 line-clamp-1 max-w-2xl text-xs text-zinc-300 sm:mb-4 sm:line-clamp-2 sm:text-sm drop-shadow-sm">
-            {currentEvent.description}
-          </p>
+          {cleanDescription(currentEvent.description) && (
+            <p className="mb-3 line-clamp-1 max-w-2xl text-xs text-zinc-300 sm:mb-4 sm:line-clamp-2 sm:text-sm drop-shadow-sm">
+              {cleanDescription(currentEvent.description)}
+            </p>
+          )}
           
           <div className="flex flex-wrap items-center gap-3">
             <Button 

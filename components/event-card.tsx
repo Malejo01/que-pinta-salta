@@ -23,11 +23,19 @@ interface EventCardProps {
 
 export function EventCard({ event, isFavorite, onToggleFavorite, onOpenMovie, className }: EventCardProps) {
   const [imgSrc, setImgSrc] = useState<string>(event.image || "/placeholder.jpg")
+  const [failedImage, setFailedImage] = useState<string | null>(null)
   const { openDonationModal } = useDonation()
 
   useEffect(() => {
     setImgSrc(event.image || "/placeholder.jpg")
   }, [event.image])
+
+  // Eventos sin flyer (o con imagen rota): fallback de marca en vez del placeholder.
+  // Flyers de Instagram y películas conservan su comportamiento.
+  const showBrandFallback =
+    !event.isInstagramFlyer &&
+    !event.isCinemaMovie &&
+    (failedImage === event.image || !event.image || event.image.startsWith("/placeholder"))
 
   const formattedDate = formatEventDateShort(event.date)
 
@@ -86,15 +94,33 @@ export function EventCard({ event, isFavorite, onToggleFavorite, onOpenMovie, cl
           className
         )}
       >
-        <Image
-          src={imgSrc}
-          alt={event.title}
-          fill
-          className="object-cover transition-transform duration-300 group-hover/card:scale-105"
-          onError={() => {
-            setImgSrc("/placeholder.jpg")
-          }}
-        />
+        {showBrandFallback ? (
+          <div
+            aria-hidden
+            className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-primary px-4 text-center text-primary-foreground"
+          >
+            <span className="text-5xl font-extrabold leading-none opacity-90">
+              {(event.categoryName || "Q").charAt(0).toUpperCase()}
+            </span>
+            <span className="text-xs font-bold uppercase tracking-wider opacity-80">
+              Qué Pinta Salta
+            </span>
+          </div>
+        ) : (
+          <Image
+            src={imgSrc}
+            alt={event.title}
+            fill
+            className="object-cover transition-transform duration-300 group-hover/card:scale-105"
+            onError={() => {
+              if (event.isInstagramFlyer || event.isCinemaMovie) {
+                setImgSrc("/placeholder.jpg")
+              } else {
+                setFailedImage(event.image)
+              }
+            }}
+          />
+        )}
 
         {/* Hover overlay con horarios de cine */}
         {event.isCinemaMovie && event.showings && (
@@ -216,7 +242,7 @@ export function EventCard({ event, isFavorite, onToggleFavorite, onOpenMovie, cl
             <div className="flex items-center gap-1 text-xs text-white/80">
               <Calendar className="size-3" />
               <span>{formattedDate}</span>
-              <span className="ml-1">{event.time}</span>
+              {event.time && <span className="ml-1">{event.time}</span>}
             </div>
           </div>
           

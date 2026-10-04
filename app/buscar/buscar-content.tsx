@@ -141,7 +141,6 @@ export function BuscarContent({
         description: '',
         address: '',
         startDateTime: movie.created_at,
-        vibe: 'familiar' as const,
         isFeatured: false,
         isCinemaMovie: true,
         showings: movie.showings,
