@@ -5,6 +5,8 @@ import { withJobRun, jobTriggerFrom, type JobOutcome } from '@/lib/job-runs'
 import { generarRecurrentes, type ResultadoRecurrentes } from '@/lib/recurrentes/generar'
 
 export const dynamic = 'force-dynamic'
+// Sin esto Vercel puede cortar la función a mitad y dejar la corrida en RUNNING.
+export const maxDuration = 60
 
 /**
  * GET /api/cron/recurrentes
@@ -48,6 +50,11 @@ export async function GET(request: Request) {
     status: toOutcome(result).status,
     insertadas: result.insertadas,
     conError: result.conError,
-    items: result.items,
+    // El detalle del error (puede traer mensajes crudos de Supabase) queda solo
+    // en job_runs.errors; la respuesta, que el workflow imprime en logs, lleva un texto fijo.
+    items: result.items.map((i) => ({
+      ...i,
+      ...(i.error ? { error: 'Falló el ítem (detalle en job_runs)' } : {}),
+    })),
   })
 }

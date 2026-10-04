@@ -11,6 +11,8 @@ on:
     - cron: "0 9 * * 1"
   workflow_dispatch:
 
+permissions: {}
+
 concurrency:
   group: recurrentes
   cancel-in-progress: false
@@ -27,6 +29,11 @@ jobs:
         run: |
           set -euo pipefail
           if [ -z "$CRON_SECRET" ]; then echo "::error::Falta el secret CRON_SECRET"; exit 1; fi
+          # El Bearer solo va a los hosts propios: SITE_URL viene de una variable editable.
+          case "$SITE_URL" in
+            https://www.quepintasalta.com.ar|https://quepintasalta.com.ar) ;;
+            *) echo "::error::SITE_URL no permitido"; exit 1 ;;
+          esac
           body=$(curl -sS --fail-with-body --max-time 300 \
             -H "Authorization: Bearer $CRON_SECRET" \
             -H "x-job-trigger: github-actions" \

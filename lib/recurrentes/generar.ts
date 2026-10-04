@@ -31,6 +31,14 @@ export type ResultadoRecurrentes = {
 type Fila = Record<string, unknown>
 
 /**
+ * Clave de fuente propia. No está en SOURCE_TIERS, así que cae en el tramo más
+ * bajo (100): si la dedup matchea un evento existente, el existente gana el
+ * empate (instagram) o por prioridad (ticketeras, portal, manual); una fila
+ * generada nunca pisa hora, venue ni descripción de algo ya cargado.
+ */
+export const FUENTE_RECURRENTES = 'recurrentes'
+
+/**
  * Genera las fechas futuras que faltan de peñas y museos. Idempotente: solo
  * escribe los días que no existen todavía. No crea venues. El cliente llega
  * por parámetro (service role en la ruta); acá no se lee el entorno.
@@ -98,7 +106,7 @@ async function generarItem(supabase: SupabaseClient, r: Recurrente, ahora: Date)
         const fila = r.tipo === 'pena'
           ? filaPena(r, venueId, f, imagenPena)
           : filaMuseo(r, venueId, f, plantilla as Fila)
-        const out = await upsertEventWithDeduplication(fila, 'manual', supabase)
+        const out = await upsertEventWithDeduplication(fila, FUENTE_RECURRENTES, supabase)
         if (out.action === 'insert') res.insertadas++
         else res.yaExistian++ // la dedup lo fusionó con una fila que ya estaba
       } catch (err) {
