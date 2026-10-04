@@ -56,6 +56,7 @@ export function HeroCarousel({ events }: HeroCarouselProps) {
 
   const currentEvent = events[currentIndex]
   const formattedDate = formatEventDate(currentEvent.date)
+  const description = cleanDescription(currentEvent.description)
 
   return (
     <div className="relative h-[200px] w-full overflow-hidden sm:h-[320px] lg:h-[360px] bg-black">
@@ -138,9 +139,9 @@ export function HeroCarousel({ events }: HeroCarouselProps) {
             </div>
           </div>
           
-          {cleanDescription(currentEvent.description) && (
+          {description && (
             <p className="mb-3 line-clamp-1 max-w-2xl text-xs text-zinc-300 sm:mb-4 sm:line-clamp-2 sm:text-sm drop-shadow-sm">
-              {cleanDescription(currentEvent.description)}
+              {description}
             </p>
           )}
           

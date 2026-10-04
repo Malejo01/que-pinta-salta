@@ -20,6 +20,7 @@ import {
   arrangeRowsForToday,
   cleanDescription,
   formatEventTimeDisplay,
+  isRelevantToday,
   selectTodayEvents,
 } from "@/lib/event-display"
 import { AdSenseBanner } from "@/components/adsense-banner"
@@ -309,7 +310,14 @@ export function HomeContent({
     // Para "Hoy": lo de hoy aunque ya haya empezado (museos 10:00). Si el
     // servidor solo mandó futuros, coincide con la agenda general de hoy.
     const todayEventItems = groupEventItems(
-      events.filter((event) => formatDateInSalta(new Date(event.start_date)) === saltaTodayStr)
+      events.filter(
+        (event) =>
+          formatDateInSalta(new Date(event.start_date)) === saltaTodayStr &&
+          isRelevantToday(
+            { startDateTime: event.start_date, endDateTime: event.end_date, category: event.category?.slug },
+            nowMs
+          )
+      )
     )
 
     // Transformar flyers de Instagram y mezclarlos con los eventos
@@ -506,13 +514,13 @@ export function HomeContent({
     })
 
     // Con "Hoy": Cine al final y cada fila ordenada por hora.
-    return date === "hoy" && !dateExact ? arrangeRowsForToday(byCount) : byCount
-  }, [sortedCategories, filteredEvents, date, dateExact])
+    return date === "hoy" && !dateExact ? arrangeRowsForToday(byCount, new Date(serverNowISO).getTime()) : byCount
+  }, [sortedCategories, filteredEvents, date, dateExact, serverNowISO])
 
   // Fila "Hoy en Salta" (solo home sin filtros): eventos de hoy por hora.
   const todayRowEvents = useMemo(
-    () => selectTodayEvents(todayDisplayEvents, saltaTodayStr),
-    [todayDisplayEvents, saltaTodayStr]
+    () => selectTodayEvents(todayDisplayEvents, saltaTodayStr, new Date(serverNowISO).getTime()),
+    [todayDisplayEvents, saltaTodayStr, serverNowISO]
   )
 
   const clearFilters = () => {

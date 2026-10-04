@@ -68,18 +68,59 @@ export function sortEventsByTime<T extends { startDateTime: string }>(events: T[
  * Fila "Hoy en Salta": eventos reales del día (no flyers ni películas, que
  * se proyectan "hoy" sin ser una función de hoy), ordenados por hora.
  */
-export function selectTodayEvents<T extends HomeEventLike>(events: T[], saltaTodayStr: string): T[] {
-  return sortEventsByTime(
-    events.filter((e) => e.date === saltaTodayStr && !e.isInstagramFlyer && !e.isCinemaMovie),
+export function selectTodayEvents<T extends HomeEventLike>(
+  events: T[],
+  saltaTodayStr: string,
+  nowMs?: number,
+): T[] {
+  return orderUpcomingFirst(
+    sortEventsByTime(
+      events.filter((e) => e.date === saltaTodayStr && !e.isInstagramFlyer && !e.isCinemaMovie),
+    ),
+    nowMs,
   )
+}
+
+/** Categorías cuya "función" dura todo el día (abren y siguen abiertas). */
+const LONG_RUNNING_CATEGORIES = new Set(['museos'])
+
+/**
+ * Para "Hoy": ¿sigue siendo útil mostrar este evento ahora? Sí si todavía no
+ * empezó, o si ya empezó pero es de larga duración (categoría museos) o su
+ * `endDateTime` existe y es >= ahora. Una función de las 14:00 a las 23:00 no.
+ */
+export function isRelevantToday(
+  event: { startDateTime: string; endDateTime?: string | null; category?: string | null },
+  nowMs: number,
+): boolean {
+  const start = new Date(event.startDateTime).getTime()
+  if (Number.isNaN(start)) return false
+  if (start >= nowMs) return true
+  if (event.category && LONG_RUNNING_CATEGORIES.has(event.category)) return true
+  if (event.endDateTime) {
+    const end = new Date(event.endDateTime).getTime()
+    if (!Number.isNaN(end) && end >= nowMs) return true
+  }
+  return false
+}
+
+/** Lo que está por empezar antes que lo ya empezado (cada grupo conserva su orden). Sin nowMs, no cambia nada. */
+export function orderUpcomingFirst<T extends { startDateTime: string }>(events: T[], nowMs?: number): T[] {
+  if (nowMs === undefined) return [...events]
+  const upcoming = events.filter((e) => new Date(e.startDateTime).getTime() >= nowMs)
+  const started = events.filter((e) => !(new Date(e.startDateTime).getTime() >= nowMs))
+  return [...upcoming, ...started]
 }
 
 /** Con el filtro "Hoy": cada fila ordenada por hora y Cine al final (resto en su orden). */
 export function arrangeRowsForToday<
   T extends { startDateTime: string },
   R extends { category: string; events: T[] },
->(rows: R[]): R[] {
-  const arranged = rows.map((row) => ({ ...row, events: sortEventsByTime(row.events) }))
+>(rows: R[], nowMs?: number): R[] {
+  const arranged = rows.map((row) => ({
+    ...row,
+    events: orderUpcomingFirst(sortEventsByTime(row.events), nowMs),
+  }))
   return [
     ...arranged.filter((row) => row.category !== 'cine'),
     ...arranged.filter((row) => row.category === 'cine'),

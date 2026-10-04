@@ -47,6 +47,7 @@ export function EventModal({ event, open, onClose }: EventModalProps) {
   if (!event) return null
 
   const formattedDate = formatEventDate(event.date, true)
+  const description = cleanDescription(event.description)
 
   const googleMapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(event.address || event.venue)}`
   const iconComponent = getCategoryIcon(event.category as EventCategory)
@@ -101,8 +102,8 @@ export function EventModal({ event, open, onClose }: EventModalProps) {
             )}
           </div>
 
-          {cleanDescription(event.description) && (
-            <p className="mb-6 text-muted-foreground">{cleanDescription(event.description)}</p>
+          {description && (
+            <p className="mb-6 text-muted-foreground">{description}</p>
           )}
 
           {event.price !== "confirmar" && (
