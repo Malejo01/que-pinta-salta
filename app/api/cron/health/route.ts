@@ -116,11 +116,28 @@ export async function GET(request: Request) {
         detail: `cola vacía; último procesado ${lastProcessed.data?.ai_processed_at ?? 'nunca'}${lastQueueRun}`,
       }
 
+  // Semanal (lunes 09:00 UTC): 8 días de margen. Solo job_runs. Sin historial
+  // (antes de la primera corrida) no se marca caído: no hay rastro en los datos
+  // que lo mida y alertaría todos los días hasta el primer lunes.
+  const recurrentesRun = runs.get('recurrentes')
+  const recurrentesCheck: Check = recurrentesRun
+    ? jobCheck('recurrentes', recurrentesRun, null, 192, now, 'workflow semanal, lunes 09:00 UTC')
+    : {
+        name: 'recurrentes',
+        last_at: null,
+        age_hours: null,
+        max_hours: 192,
+        ok: true,
+        source: 'job_runs',
+        detail: 'sin corridas registradas todavía',
+      }
+
   const checks: Check[] = [
     jobCheck('ticketeras', runs.get('ticketeras'), ticketeras.data?.updated_at ?? null, 36, now),
     jobCheck('cines', runs.get('cines'), cines.data?.updated_at ?? null, 36, now),
     jobCheck('instagram', runs.get('instagram'), instagram.data?.fetched_at ?? null, 100, now, 'cron vie/sáb/dom/lun 00:00 UTC'),
     queueCheck,
+    recurrentesCheck,
   ]
 
   const ok = checks.every((c) => c.ok)
