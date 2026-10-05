@@ -12,11 +12,27 @@ function invalid() {
 }
 
 /**
+ * GET de compatibilidad: algunos clientes viejos abren la URL de List-Unsubscribe.
+ * No verifica ni escribe nada; redirige a la página fija /radar/baja con los
+ * mismos valores (sin open redirect: el destino no sale de la query).
+ */
+export function GET(request: NextRequest) {
+  const u = request.nextUrl.searchParams.get('u') ?? ''
+  const t = request.nextUrl.searchParams.get('t') ?? ''
+  const target = new URL('/radar/baja', request.url)
+  target.search = `?u=${encodeURIComponent(u)}&t=${encodeURIComponent(t)}`
+  return NextResponse.redirect(target, { status: 303, headers: NO_STORE })
+}
+
+/**
  * Baja del Radar con un clic (QPS-016, RFC 8058). Sin login y sin confirmación.
  * Token válido: 200 { ok: true } exista o no el usuario; repetir no da error.
  * Token inválido o sin secreto: 400 { ok: false } sin detalle.
+ * Falla de base o excepción al escribir: 500 { ok: false }.
  */
 export async function POST(request: NextRequest) {
+  let u = ''
+  let fromPage = false
   try {
     const declared = Number(request.headers.get('content-length'))
     if (Number.isFinite(declared) && declared > MAX_BODY_BYTES) return invalid()
@@ -26,11 +42,16 @@ export async function POST(request: NextRequest) {
 
     const query = request.nextUrl.searchParams
     const form = new URLSearchParams(text)
-    const u = query.get('u') ?? form.get('u') ?? ''
+    u = query.get('u') ?? form.get('u') ?? ''
     const t = query.get('t') ?? form.get('t') ?? ''
+    fromPage = form.get('from') === 'page' || (request.headers.get('accept') ?? '').includes('text/html')
 
     if (!verifyUnsubscribe(u, t)) return invalid()
+  } catch {
+    return invalid()
+  }
 
+  try {
     const { error } = await createAdminClient()
       .from('user_radar_settings')
       .update({ email_frequency: 'disabled' })
@@ -40,13 +61,13 @@ export async function POST(request: NextRequest) {
       console.error('[RadarBaja] Error al dar de baja:', error.message)
       return NextResponse.json({ ok: false }, { status: 500, headers: NO_STORE })
     }
-
-    const fromPage = form.get('from') === 'page' || (request.headers.get('accept') ?? '').includes('text/html')
-    if (fromPage) {
-      return NextResponse.redirect(new URL('/radar/baja?listo=1', request.url), { status: 303, headers: NO_STORE })
-    }
-    return NextResponse.json({ ok: true }, { headers: NO_STORE })
-  } catch {
-    return invalid()
+  } catch (e) {
+    console.error('[RadarBaja] Excepción:', e instanceof Error ? e.message : 'error')
+    return NextResponse.json({ ok: false }, { status: 500, headers: NO_STORE })
   }
+
+  if (fromPage) {
+    return NextResponse.redirect(new URL('/radar/baja?listo=1', request.url), { status: 303, headers: NO_STORE })
+  }
+  return NextResponse.json({ ok: true }, { headers: NO_STORE })
 }
