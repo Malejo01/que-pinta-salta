@@ -8,6 +8,8 @@ export const dynamic = "force-dynamic"
 export const metadata: Metadata = {
   title: "Baja del Radar Salteño | Qué Pinta Salta",
   robots: { index: false },
+  // El token va en la URL: que no se filtre por el Referer a otros sitios.
+  referrer: "no-referrer",
 }
 
 type SearchParams = Promise<{ [key: string]: string | string[] | undefined }>

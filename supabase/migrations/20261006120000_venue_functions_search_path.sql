@@ -10,8 +10,11 @@
 -- Costo conocido: una función SQL con SET en la definición ya no se inlinea en
 -- las consultas. Se usan en 3 índices de `venues` (venues_core_key_idx,
 -- venues_name_trgm_idx, venues_canonical_norm_key; tabla chica) y en
--- resolve_venue_id. Los índices siguen usándose (se verificó con EXPLAIN en
--- local); el costo medido está en el informe de la Ronda 5.
+-- resolve_venue_id. Medido en la base local (145 venues, PG 17):
+--   * funciones sueltas: ~5 -> ~25 microsegundos por llamada;
+--   * resolve_venue_id: ~11 -> ~21 ms sobre los 144 nombres no placeholder;
+--   * los 3 índices siguen usándose (mismo plan en EXPLAIN);
+--   * resultados idénticos (mismo md5 antes y después).
 
 ALTER FUNCTION public.venue_sanitize(text)              SET search_path = '';
 ALTER FUNCTION public.venue_normalize(text)             SET search_path = '';
