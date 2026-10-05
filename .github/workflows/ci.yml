@@ -47,6 +47,11 @@ jobs:
       - name: Aplicar todas las migraciones sobre una base vacía
         run: npx supabase db start
 
+      # Tests de base (pgTAP, supabase/tests/): corren sobre la base efímera,
+      # cada archivo en una transacción con rollback. Sin credenciales.
+      - name: Tests de la base (pgTAP)
+        run: npx supabase test db
+
       - name: Verificar lo que el baseline crea fuera de public
         run: |
           set -euo pipefail
