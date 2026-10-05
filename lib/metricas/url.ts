@@ -8,7 +8,10 @@ export function safeTicketUrl(url: unknown): string | null {
   if (!trimmed) return null
   try {
     const parsed = new URL(trimmed)
-    return parsed.protocol === 'http:' || parsed.protocol === 'https:' ? parsed.toString() : null
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return null
+    // Credenciales embebidas (https://ticketera.com@sitio-malo.com): se rechazan.
+    if (parsed.username || parsed.password) return null
+    return parsed.toString()
   } catch {
     return null
   }

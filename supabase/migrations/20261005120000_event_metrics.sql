@@ -8,8 +8,8 @@ CREATE TABLE public.event_metrics_daily (
   origin   text NOT NULL,
   -- Si el evento era destacado en el momento de contar.
   featured boolean NOT NULL DEFAULT false,
-  views    integer NOT NULL DEFAULT 0,
-  clicks   integer NOT NULL DEFAULT 0,
+  views    bigint NOT NULL DEFAULT 0,
+  clicks   bigint NOT NULL DEFAULT 0,
   PRIMARY KEY (event_id, day, origin, featured),
   CONSTRAINT event_metrics_daily_origin_check CHECK (
     origin IN ('hero','hoy','fila','busqueda','favoritos','ficha','radar','directo')

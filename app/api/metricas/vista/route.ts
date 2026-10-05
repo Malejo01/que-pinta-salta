@@ -20,8 +20,11 @@ export async function POST(request: NextRequest) {
     if (isBotOrPrefetch(request.headers, request.method)) return noContent()
 
     // sendBeacon puede mandar text/plain: se lee como texto y se parsea.
+    const declared = Number(request.headers.get('content-length'))
+    if (Number.isFinite(declared) && declared > MAX_BODY_BYTES) return noContent()
+
     const text = await request.text()
-    if (text.length > MAX_BODY_BYTES) return noContent()
+    if (new TextEncoder().encode(text).length > MAX_BODY_BYTES) return noContent()
 
     const body = JSON.parse(text) as { eventId?: unknown; origin?: unknown }
     if (!isUuid(body?.eventId)) return noContent()
