@@ -68,6 +68,28 @@ describe('POST /api/metricas/vista', () => {
     expect(rpc).not.toHaveBeenCalled()
   })
 
+  it('content-length declarado mayor a 1024: 204 sin leer el body ni contar', async () => {
+    const r = new NextRequest('http://localhost.test/api/metricas/vista', {
+      method: 'POST',
+      body: JSON.stringify({ eventId: ID }),
+      headers: { 'user-agent': UA, 'content-length': '5000' },
+    })
+    const leer = vi.spyOn(r, 'text')
+    const res = await POST(r)
+    expect(res.status).toBe(204)
+    expect(leer).not.toHaveBeenCalled()
+    expect(rpc).not.toHaveBeenCalled()
+  })
+
+  it('400 emojis (más de 1024 bytes, menos de 1024 caracteres): 204 sin contar', async () => {
+    const body = JSON.stringify({ eventId: ID, origin: 'hero', relleno: '😀'.repeat(400) })
+    expect(body.length).toBeLessThanOrEqual(1024)
+    expect(new TextEncoder().encode(body).length).toBeGreaterThan(1024)
+    const res = await post(body)
+    expect(res.status).toBe(204)
+    expect(rpc).not.toHaveBeenCalled()
+  })
+
   it('bot: 204 sin contar', async () => {
     const res = await post(JSON.stringify({ eventId: ID, origin: 'hero' }), { 'user-agent': 'Googlebot/2.1' })
     expect(res.status).toBe(204)

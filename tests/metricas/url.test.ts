@@ -20,6 +20,8 @@ describe('safeTicketUrl', () => {
     ['basura', 'no es una url'],
     ['ftp', 'ftp://example.test/x'],
     ['file', 'file:///etc/passwd'],
+    ['credenciales usuario y clave', 'https://user:pass@entradauno.com/x'],
+    ['credenciales solo usuario', 'https://user@host.com'],
     ['null', null],
     ['undefined', undefined],
     ['número', 42],
