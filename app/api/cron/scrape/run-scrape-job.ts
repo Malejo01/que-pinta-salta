@@ -31,8 +31,13 @@ function generateSlug(title: string): string {
  * como las demás rutas de ingesta, por resolve_venue_id() en Postgres: alias y
  * nombre exacto normalizados primero; el fuzzy solo sugiere a revisión.
  */
-async function resolveVenue(supabase: ReturnType<typeof createAdminClient>, rawVenueName: string, source: string) {
-  return resolveVenueId(supabase, rawVenueName, { source, autocreate: true })
+async function resolveVenue(
+  supabase: ReturnType<typeof createAdminClient>,
+  rawVenueName: string,
+  source: string,
+  onError: (rawName: string, message: string) => void
+) {
+  return resolveVenueId(supabase, rawVenueName, { source, autocreate: true, onError })
 }
 
 
@@ -49,6 +54,12 @@ async function upsertScrapedEvents(events: ScrapedEvent[]) {
     skipped: 0,
     errors: 0
   }
+  // Fallas de resolve_venue_id: el evento se crea igual, sin lugar, pero la
+  // corrida tiene que quedar PARTIAL para que se vea.
+  const venueErrors: string[] = []
+  const onVenueError = (rawName: string, message: string) => {
+    venueErrors.push(`venue: ${rawName}: ${message}`.slice(0, 200))
+  }
   
   // Categorías consideradas comerciales prioritarias
   const commercialCategories = new Set(['recitales', 'teatro', 'boliches', 'penas'])
@@ -56,7 +67,7 @@ async function upsertScrapedEvents(events: ScrapedEvent[]) {
   for (const event of events) {
     try {
       // Resolve venue and category
-      const venueId = await resolveVenue(supabase, event.rawVenueName, event.source)
+      const venueId = await resolveVenue(supabase, event.rawVenueName, event.source, onVenueError)
       const categoryId = await resolveCategoryWithAliases(supabase, event.title, '', event.rawVenueName)
       
       if (!categoryId) {
@@ -112,7 +123,7 @@ async function upsertScrapedEvents(events: ScrapedEvent[]) {
     }
   }
   
-  return results
+  return { results, venueErrors }
 }
 
 /**
@@ -160,7 +171,7 @@ export async function runScrapeJob() {
     console.log(`[v0] Total events scraped: ${allEvents.length}`)
 
     // Upsert all events to database
-    const results = await upsertScrapedEvents(allEvents)
+    const { results, venueErrors } = await upsertScrapedEvents(allEvents)
     
     console.log('[v0] Scrape job completed:', results)
 
@@ -183,6 +194,7 @@ export async function runScrapeJob() {
       },
       sourceErrors,
       database: results,
+      venueErrors,
       instagramCleanup: {
         archivedFlyers: archivedFlyersCount
       },

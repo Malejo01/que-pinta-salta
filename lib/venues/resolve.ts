@@ -34,6 +34,21 @@ export type ResolveVenueOptions = {
   autocreate?: boolean
   /** Umbral de similitud para la SUGERENCIA fuzzy. No afecta la resolución. */
   threshold?: number
+  /**
+   * Se llama cuando la RPC devuelve error (además del log). La función sigue
+   * devolviendo null: el llamador decide cómo hacer visible la falla.
+   */
+  onError?: (rawName: string, message: string) => void
+}
+
+/**
+ * Deduplica por mensaje los errores de venue y, si hay más de 5 distintos,
+ * deja los primeros 5 más un resumen (job_runs.errors guarda 20 como máximo).
+ */
+export function summarizeVenueErrors(errors: string[]): string[] {
+  const unique = [...new Set(errors)]
+  if (unique.length <= 5) return unique
+  return [...unique.slice(0, 5), `venue: ${unique.length} lugares sin resolver en total`]
 }
 
 /** Strings que las fuentes usan como "no sé dónde es". No son lugares. */
@@ -67,6 +82,7 @@ export async function resolveVenueId(
       `[venues:resolveVenueId] fallo resolviendo ${JSON.stringify(rawVenueName)}:`,
       error.message
     )
+    options.onError?.(clean, error.message)
     return null
   }
 

@@ -22,6 +22,10 @@ export const dynamic = 'force-dynamic'
  * Instagram corre vie/sáb/dom/lun a las 00:00 UTC: de lunes a viernes pasan
  * 96 h, así que su umbral es 100 h y no 36.
  *
+ * eventos_sin_lugar: eventos PUBLISHED futuros con venue_id nulo (QPS-044: una
+ * falla de resolve_venue_id los dejaba sin lugar sin avisar). Un evento con
+ * lugar "a confirmar" también cuenta, a propósito: hay que asignarlo a mano.
+ *
  * La cola de IA se mide por la antigüedad del flyer ACTIVE/PENDING más viejo:
  * con la cola vacía está sana aunque no haya procesado nada.
  */
@@ -74,7 +78,7 @@ export async function GET(request: Request) {
   const supabase = createAdminClient()
   const now = Date.now()
 
-  const [ticketeras, cines, instagram, oldestPending, lastProcessed, jobRuns] = await Promise.all([
+  const [ticketeras, cines, instagram, oldestPending, lastProcessed, jobRuns, sinLugar] = await Promise.all([
     supabase.from('events').select('updated_at').in('scrape_source_key', TICKETERAS)
       .order('updated_at', { ascending: false }).limit(1).maybeSingle(),
     supabase.from('cinema_movies').select('updated_at')
@@ -86,9 +90,12 @@ export async function GET(request: Request) {
     supabase.from('instagram_flyers').select('ai_processed_at').not('ai_processed_at', 'is', null)
       .order('ai_processed_at', { ascending: false }).limit(1).maybeSingle(),
     supabase.from('job_last_runs').select('*'),
+    supabase.from('events').select('id', { count: 'exact' })
+      .eq('status', 'PUBLISHED').gte('start_date', new Date(now).toISOString()).is('venue_id', null)
+      .order('start_date', { ascending: true }).limit(5),
   ])
 
-  const dbError = [ticketeras, cines, instagram, oldestPending, lastProcessed].find((r) => r.error)?.error
+  const dbError = [ticketeras, cines, instagram, oldestPending, lastProcessed, sinLugar].find((r) => r.error)?.error
   if (dbError) {
     console.error('[Health] Error consultando la base:', dbError)
     return NextResponse.json({ ok: false, error: dbError.message }, { status: 503 })
@@ -132,12 +139,27 @@ export async function GET(request: Request) {
         detail: 'sin corridas registradas todavía',
       }
 
+  // No es de antigüedad: max_hours y age_hours van en 0 (no aplican).
+  const sinLugarCount = sinLugar.count ?? sinLugar.data?.length ?? 0
+  const sinLugarCheck: Check = {
+    name: 'eventos_sin_lugar',
+    last_at: null,
+    age_hours: 0,
+    max_hours: 0,
+    ok: sinLugarCount === 0,
+    source: 'datos',
+    detail: sinLugarCount === 0
+      ? 'todos los eventos futuros publicados tienen lugar'
+      : `${sinLugarCount} evento(s) futuros publicados sin lugar; ids: ${(sinLugar.data ?? []).map((e) => e.id).join(', ')}`,
+  }
+
   const checks: Check[] = [
     jobCheck('ticketeras', runs.get('ticketeras'), ticketeras.data?.updated_at ?? null, 36, now),
     jobCheck('cines', runs.get('cines'), cines.data?.updated_at ?? null, 36, now),
     jobCheck('instagram', runs.get('instagram'), instagram.data?.fetched_at ?? null, 100, now, 'cron vie/sáb/dom/lun 00:00 UTC'),
     queueCheck,
     recurrentesCheck,
+    sinLugarCheck,
   ]
 
   const ok = checks.every((c) => c.ok)

@@ -20,13 +20,18 @@ function getAdminClient() {
  * 145 filas para ~90 lugares: cualquier diferencia de tilde, mayúscula, sufijo
  * de ciudad o un salto de línea en el nombre creaba una fila nueva.
  */
-export async function upsertVenue(venueName: string, source?: string): Promise<string | null> {
+export async function upsertVenue(
+  venueName: string,
+  source?: string,
+  onError?: (rawName: string, message: string) => void
+): Promise<string | null> {
   return resolveVenueId(getAdminClient(), venueName, {
     source: source ?? 'scraper',
     // Un evento sin venue_id no se puede deduplicar (findDuplicateEvent compara
     // venue_id + fecha), así que se crea el venue y queda encolado en
     // venue_review_queue antes que perder la deduplicación.
     autocreate: true,
+    onError,
   });
 }
 
