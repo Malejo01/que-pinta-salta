@@ -6,7 +6,7 @@ vi.mock('@/lib/supabase/server', () => ({
 }))
 
 import { NextRequest } from 'next/server'
-import { POST } from '@/app/api/radar/baja/route'
+import { GET, POST } from '@/app/api/radar/baja/route'
 import { signUnsubscribe } from '@/lib/radar/baja'
 
 const UID = '11111111-1111-4111-8111-111111111111'
@@ -127,10 +127,69 @@ describe('POST /api/radar/baja', () => {
     expect(await res.json()).toEqual({ ok: false })
     expect(res.headers.get('cache-control')).toBe('no-store')
   })
-  it('la base lanza excepción: nunca responde 200', async () => {
+  it('la consulta lanza excepción: 500, sin detalle y el log no filtra email ni token', async () => {
     setup('throws')
+    const token = signUnsubscribe(UID)!
     const res = await POST(req(q()))
-    expect(res.status).not.toBe(200)
+    expect(res.status).toBe(500)
+    expect(await res.json()).toEqual({ ok: false })
     expect(res.headers.get('cache-control')).toBe('no-store')
+    const logged = JSON.stringify((console.error as unknown as { mock: { calls: unknown[][] } }).mock.calls)
+    expect(logged).not.toContain(token)
+    expect(logged).not.toContain('@')
+  })
+  it('createAdminClient lanza: 500 y el log no filtra el token', async () => {
+    createAdminClient.mockImplementation(() => {
+      throw new Error('sin credenciales')
+    })
+    const token = signUnsubscribe(UID)!
+    const res = await POST(req(q()))
+    expect(res.status).toBe(500)
+    expect(update).not.toHaveBeenCalled()
+    const logged = JSON.stringify((console.error as unknown as { mock: { calls: unknown[][] } }).mock.calls)
+    expect(console.error).toHaveBeenCalled()
+    expect(logged).not.toContain(token)
+  })
+})
+
+describe('GET /api/radar/baja', () => {
+  const get = (qs: string) => GET(new NextRequest(`https://qps.test/api/radar/baja${qs}`, { method: 'GET' }))
+
+  it('303 a /radar/baja con u y t, no-store, sin cliente ni update', async () => {
+    const t = signUnsubscribe(UID)!
+    const res = get(`?u=${UID}&t=${t}`)
+    expect(res.status).toBe(303)
+    expect(res.headers.get('cache-control')).toBe('no-store')
+    const loc = new URL(res.headers.get('location')!)
+    expect(loc.origin).toBe('https://qps.test')
+    expect(loc.pathname).toBe('/radar/baja')
+    expect(loc.searchParams.get('u')).toBe(UID)
+    expect(loc.searchParams.get('t')).toBe(t)
+    expect(createAdminClient).not.toHaveBeenCalled()
+    expect(update).not.toHaveBeenCalled()
+  })
+  it('sin parámetros o con token inválido: igual redirige sin verificar ni escribir', () => {
+    for (const qs of ['', '?u=x&t=y']) {
+      const res = get(qs)
+      expect(res.status).toBe(303)
+      expect(new URL(res.headers.get('location')!).pathname).toBe('/radar/baja')
+    }
+    expect(createAdminClient).not.toHaveBeenCalled()
+  })
+  it('u con caracteres raros queda codificado y el destino no cambia (sin open redirect)', () => {
+    const evil = ['//evil.test/x', 'https://evil.test', '/\\evil.test', 'a&listo=1#frag', '../../admin', 'x\r\nLocation: https://evil.test']
+    for (const u of evil) {
+      const res = get(`?u=${encodeURIComponent(u)}&t=${encodeURIComponent(u)}`)
+      expect(res.status).toBe(303)
+      const raw = res.headers.get('location')!
+      const loc = new URL(raw)
+      expect(loc.origin).toBe('https://qps.test')
+      expect(loc.pathname).toBe('/radar/baja')
+      expect(loc.hash).toBe('')
+      expect([...loc.searchParams.keys()]).toEqual(['u', 't'])
+      expect(loc.searchParams.get('u')).toBe(u)
+      expect(raw).not.toMatch(/[\r\n]/)
+    }
+    expect(createAdminClient).not.toHaveBeenCalled()
   })
 })
