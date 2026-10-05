@@ -3,6 +3,7 @@ import { createAdminClient } from '@/lib/supabase/server'
 import { processFlyerWithAI } from '@/lib/ai/process-flyer-ai'
 import { GEMINI_MODEL } from '@/lib/ai/gemini'
 import { hasBearerSecret } from '@/lib/api-auth'
+import { summarizeVenueErrors } from '@/lib/venues/resolve'
 import { withJobRun, jobTriggerFrom, type JobOutcome } from '@/lib/job-runs'
 
 // Configurar tiempo máximo de ejecución en Vercel (Hobby tiene límite de 10s-15s, Pro hasta 60s)
@@ -47,7 +48,7 @@ function batchOutcome({ httpStatus, body }: BatchReply): JobOutcome {
   // Un flyer con evento creado pero sin lugar (resolve_venue_id falló) no es
   // "fallido", pero la corrida igual queda PARTIAL con el error a la vista.
   const venueErrors = results.flatMap((r) => (r.venueError ? [r.venueError] : []))
-  const errors = [...failed.map((r) => r.error ?? 'falló'), ...venueErrors]
+  const errors = [...failed.map((r) => r.error ?? 'falló'), ...summarizeVenueErrors(venueErrors)]
   return {
     status: errors.length ? 'PARTIAL' : 'SUCCESS',
     itemsProcessed: results.length - failed.length,

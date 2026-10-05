@@ -41,6 +41,16 @@ export type ResolveVenueOptions = {
   onError?: (rawName: string, message: string) => void
 }
 
+/**
+ * Deduplica por mensaje los errores de venue y, si hay más de 5 distintos,
+ * deja los primeros 5 más un resumen (job_runs.errors guarda 20 como máximo).
+ */
+export function summarizeVenueErrors(errors: string[]): string[] {
+  const unique = [...new Set(errors)]
+  if (unique.length <= 5) return unique
+  return [...unique.slice(0, 5), `venue: ${unique.length} lugares sin resolver en total`]
+}
+
 /** Strings que las fuentes usan como "no sé dónde es". No son lugares. */
 const PLACEHOLDERS = new Set(['lugar no especificado', 'sin lugar', 'a confirmar'])
 

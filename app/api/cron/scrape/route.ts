@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { hasBearerSecret } from '@/lib/api-auth'
 import { withJobRun, jobTriggerFrom } from '@/lib/job-runs'
+import { summarizeVenueErrors } from '@/lib/venues/resolve'
 import { runScrapeJob } from './run-scrape-job'
 
 export async function GET(request: Request) {
@@ -11,7 +12,7 @@ export async function GET(request: Request) {
   const result = await withJobRun('ticketeras', jobTriggerFrom(request), runScrapeJob, (r) => {
     if ('error' in r) return { status: 'FAILED', errors: [String(r.error)] }
     const sourceErrors = Object.entries(r.sourceErrors).map(([source, message]) => `${source}: ${message}`)
-    const errors = [...sourceErrors, ...r.venueErrors]
+    const errors = [...sourceErrors, ...summarizeVenueErrors(r.venueErrors)]
     return {
       status: errors.length ? 'PARTIAL' : 'SUCCESS',
       itemsProcessed: r.database.inserted + r.database.updated,

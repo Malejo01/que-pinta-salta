@@ -50,9 +50,6 @@ async function fetchImageBuffer(url: string): Promise<{ buffer: Buffer; mimeType
 }
 
 /**
- * Procesa un flyer individual utilizando Gemini e inserta el evento en Supabase.
- */
-/**
  * Resultado del procesamiento. `venueError` se completa cuando resolve_venue_id
  * falló: el evento se crea igual, sin lugar, pero la corrida tiene que quedar
  * PARTIAL (lo cuenta batchOutcome en app/api/ai/process-flyers/route.ts).
@@ -64,6 +61,16 @@ function venueErrorMessage(rawName: string, message: string): string {
   return `venue: ${rawName}: ${message}`.slice(0, 200)
 }
 
+/**
+ * Texto fijo para ai_metadata: anon puede leerlo (flyers ACTIVE y eventos
+ * PUBLISHED), así que no lleva el nombre ni el mensaje crudo de la base. El
+ * detalle completo va solo al resultado (job_runs.errors, solo admins).
+ */
+const VENUE_ERROR_PUBLIC = 'no se pudo resolver el lugar'
+
+/**
+ * Procesa un flyer individual utilizando Gemini e inserta el evento en Supabase.
+ */
 export async function processFlyerWithAI(flyerId: string): Promise<FlyerProcessingResult> {
   const supabase = createAdminClient()
 
@@ -239,7 +246,7 @@ export async function processFlyerWithAI(flyerId: string): Promise<FlyerProcessi
         flyer_id: flyer.id,
         processed_at: new Date().toISOString(),
         auto_published: qualifiesForAutoPublish,
-        ...(venueError ? { venue_error: venueError } : {}),
+        ...(venueError ? { venue_error: VENUE_ERROR_PUBLIC } : {}),
       },
     }
 
@@ -256,7 +263,7 @@ export async function processFlyerWithAI(flyerId: string): Promise<FlyerProcessi
           event_id: upsertRes.eventId,
           action: upsertRes.action,
           auto_published: qualifiesForAutoPublish,
-          ...(venueError ? { venue_error: venueError } : {}),
+          ...(venueError ? { venue_error: VENUE_ERROR_PUBLIC } : {}),
         },
         ai_processed_at: new Date().toISOString(),
         venue_name: venueName,
@@ -344,7 +351,7 @@ async function handleProcessingFallback(
         flyer_id: flyer.id,
         is_fallback: true,
         processed_at: new Date().toISOString(),
-        ...(venueError ? { venue_error: venueError } : {}),
+        ...(venueError ? { venue_error: VENUE_ERROR_PUBLIC } : {}),
       },
     }
 
@@ -359,7 +366,7 @@ async function handleProcessingFallback(
           error: errorMessage,
           event_id: upsertRes.eventId,
           is_fallback: true,
-          ...(venueError ? { venue_error: venueError } : {}),
+          ...(venueError ? { venue_error: VENUE_ERROR_PUBLIC } : {}),
         },
         ai_processed_at: new Date().toISOString(),
       })
