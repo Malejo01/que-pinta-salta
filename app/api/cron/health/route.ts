@@ -25,6 +25,9 @@ export const dynamic = 'force-dynamic'
  * eventos_sin_lugar: eventos PUBLISHED futuros con venue_id nulo (QPS-044: una
  * falla de resolve_venue_id los dejaba sin lugar sin avisar). Un evento con
  * lugar "a confirmar" también cuenta, a propósito: hay que asignarlo a mano.
+ * Solo pone el chequeo en rojo si alguno es urgente (QPS-049): creado en las
+ * últimas 48 h (una falla nueva de la ingesta) o que empieza en los próximos
+ * 7 días. El resto se lista en el detail sin alertar todos los días.
  *
  * La cola de IA se mide por la antigüedad del flyer ACTIVE/PENDING más viejo:
  * con la cola vacía está sana aunque no haya procesado nada.
@@ -32,11 +35,15 @@ export const dynamic = 'force-dynamic'
 
 const TICKETERAS = ['entradauno', 'norteticket', 'alpogo', 'vamos']
 
+const SIN_LUGAR_RECIENTE_HORAS = 48
+const SIN_LUGAR_PROXIMOS_DIAS = 7
+
 type Check = {
   name: string
   last_at: string | null
   age_hours: number | null
-  max_hours: number
+  /** null en los chequeos que no miden antigüedad. */
+  max_hours: number | null
   ok: boolean
   source: 'job_runs' | 'datos' | 'cola'
   last_status?: string
@@ -78,7 +85,11 @@ export async function GET(request: Request) {
   const supabase = createAdminClient()
   const now = Date.now()
 
-  const [ticketeras, cines, instagram, oldestPending, lastProcessed, jobRuns, sinLugar] = await Promise.all([
+  const nowIso = new Date(now).toISOString()
+  const recienteDesde = new Date(now - SIN_LUGAR_RECIENTE_HORAS * 3_600_000).toISOString()
+  const proximosHasta = new Date(now + SIN_LUGAR_PROXIMOS_DIAS * 86_400_000).toISOString()
+
+  const [ticketeras, cines, instagram, oldestPending, lastProcessed, jobRuns, sinLugar, sinLugarUrgente] = await Promise.all([
     supabase.from('events').select('updated_at').in('scrape_source_key', TICKETERAS)
       .order('updated_at', { ascending: false }).limit(1).maybeSingle(),
     supabase.from('cinema_movies').select('updated_at')
@@ -91,11 +102,16 @@ export async function GET(request: Request) {
       .order('ai_processed_at', { ascending: false }).limit(1).maybeSingle(),
     supabase.from('job_last_runs').select('*'),
     supabase.from('events').select('id', { count: 'exact' })
-      .eq('status', 'PUBLISHED').gte('start_date', new Date(now).toISOString()).is('venue_id', null)
+      .eq('status', 'PUBLISHED').gte('start_date', nowIso).is('venue_id', null)
+      .order('start_date', { ascending: true }).limit(5),
+    supabase.from('events').select('id', { count: 'exact' })
+      .eq('status', 'PUBLISHED').gte('start_date', nowIso).is('venue_id', null)
+      .or(`created_at.gte.${recienteDesde},start_date.lte.${proximosHasta}`)
       .order('start_date', { ascending: true }).limit(5),
   ])
 
-  const dbError = [ticketeras, cines, instagram, oldestPending, lastProcessed, sinLugar].find((r) => r.error)?.error
+  const dbError = [ticketeras, cines, instagram, oldestPending, lastProcessed, sinLugar, sinLugarUrgente]
+    .find((r) => r.error)?.error
   if (dbError) {
     console.error('[Health] Error consultando la base:', dbError)
     return NextResponse.json({ ok: false, error: dbError.message }, { status: 503 })
@@ -139,18 +155,22 @@ export async function GET(request: Request) {
         detail: 'sin corridas registradas todavía',
       }
 
-  // No es de antigüedad: max_hours y age_hours van en 0 (no aplican).
+  // No es de antigüedad: age_hours y max_hours van en null (no aplican).
   const sinLugarCount = sinLugar.count ?? sinLugar.data?.length ?? 0
+  const urgentesCount = sinLugarUrgente.count ?? sinLugarUrgente.data?.length ?? 0
+  const ids = (r: typeof sinLugar) => (r.data ?? []).map((e) => e.id).join(', ')
   const sinLugarCheck: Check = {
     name: 'eventos_sin_lugar',
     last_at: null,
-    age_hours: 0,
-    max_hours: 0,
-    ok: sinLugarCount === 0,
+    age_hours: null,
+    max_hours: null,
+    ok: urgentesCount === 0,
     source: 'datos',
     detail: sinLugarCount === 0
       ? 'todos los eventos futuros publicados tienen lugar'
-      : `${sinLugarCount} evento(s) futuros publicados sin lugar; ids: ${(sinLugar.data ?? []).map((e) => e.id).join(', ')}`,
+      : urgentesCount > 0
+        ? `${urgentesCount} evento(s) sin lugar creados en las últimas ${SIN_LUGAR_RECIENTE_HORAS} h o que empiezan en los próximos ${SIN_LUGAR_PROXIMOS_DIAS} días (hasta 5 ids: ${ids(sinLugarUrgente)}); ${sinLugarCount} futuros sin lugar en total`
+        : `${sinLugarCount} evento(s) futuros publicados sin lugar, ninguno urgente; los más próximos (hasta 5): ${ids(sinLugar)}`,
   }
 
   const checks: Check[] = [
