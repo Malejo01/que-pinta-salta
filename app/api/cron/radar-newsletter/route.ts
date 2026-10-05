@@ -5,8 +5,9 @@ import { formatEventDate, formatSaltaClock } from '@/lib/date-format'
 import { hasBearerSecret } from '@/lib/api-auth'
 import { withJobRun, jobTriggerFrom } from '@/lib/job-runs'
 import { eventHref } from '@/lib/metricas/links'
+import { unsubscribeUrl, unsubscribeHeaders } from '@/lib/radar/baja'
 
-function buildRadarEmailHtml(events: any[], emailTarget: string): string {
+function buildRadarEmailHtml(events: any[], unsubscribeLink: string | null): string {
   const eventRows = events.map(event => {
     const dateObj = new Date(event.start_date)
     const formattedDate = formatEventDate(dateObj)
@@ -60,6 +61,7 @@ function buildRadarEmailHtml(events: any[], emailTarget: string): string {
           <div style="margin-top: 32px; border-top: 1px solid #27272a; padding-top: 24px;">
             <p style="font-size: 11px; color: #71717a; margin: 0 0 8px 0; font-family: Arial, sans-serif; line-height: 1.4;">Recibiste este correo porque configuraste tu radar en quepintasalta.com.ar.</p>
             <a href="https://quepintasalta.com.ar/radar" target="_blank" style="font-size: 11px; color: #AA1B1B; text-decoration: underline; font-weight: 600; font-family: Arial, sans-serif;">Modificar preferencias</a>
+            ${unsubscribeLink ? `<span style="font-size: 11px; color: #71717a;"> &middot; </span><a href="${unsubscribeLink}" target="_blank" style="font-size: 11px; color: #AA1B1B; text-decoration: underline; font-weight: 600; font-family: Arial, sans-serif;">Darme de baja</a>` : ''}
           </div>
         </div>
       </body>
@@ -122,6 +124,10 @@ async function sendNewsletter(): Promise<NewsletterReply> {
 
     const nowIso = new Date().toISOString()
     const results = { sent: 0, skipped: 0, errors: 0 }
+
+    if (!process.env.RADAR_UNSUBSCRIBE_SECRET?.trim()) {
+      console.warn('[RadarNewsletterCron] RADAR_UNSUBSCRIBE_SECRET no configurada: los mails salen sin link ni cabeceras de baja.')
+    }
 
     for (const settings of usersSettings) {
       const userId = settings.user_id
@@ -219,7 +225,7 @@ async function sendNewsletter(): Promise<NewsletterReply> {
 
       // Generar HTML y enviar (en sandbox Resend requiere enviar desde onboarding@resend.dev)
       try {
-        const htmlContent = buildRadarEmailHtml(emailEvents, emailTarget)
+        const htmlContent = buildRadarEmailHtml(emailEvents, unsubscribeUrl(userId))
         const senderEmail = process.env.RESEND_FROM_EMAIL || "onboarding@resend.dev"
 
         const { error: sendError } = await resend.emails.send({
@@ -227,16 +233,17 @@ async function sendNewsletter(): Promise<NewsletterReply> {
           to: emailTarget,
           subject: '📡 ¡Tu Radar Salteño está activo! Agenda del Fin de Semana',
           html: htmlContent,
+          headers: unsubscribeHeaders(userId),
         })
 
         if (sendError) {
-          console.error(`[RadarNewsletterCron] Error de Resend para ${emailTarget}:`, sendError)
+          console.error(`[RadarNewsletterCron] Error de Resend para usuario ${userId}:`, sendError.message)
           results.errors++
         } else {
           results.sent++
         }
       } catch (sendEx) {
-        console.error(`[RadarNewsletterCron] Excepción en envío a ${emailTarget}:`, sendEx)
+        console.error(`[RadarNewsletterCron] Excepción en envío a usuario ${userId}:`, sendEx instanceof Error ? sendEx.message : 'error')
         results.errors++
       }
     }

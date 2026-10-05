@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache"
 import { Resend } from "resend"
 import { formatEventDate, formatSaltaClock } from "@/lib/date-format"
 import { eventHref } from "@/lib/metricas/links"
+import { unsubscribeUrl, unsubscribeHeaders } from "@/lib/radar/baja"
 
 export type EmailFrequency = 'weekly' | 'biweekly' | 'monthly' | 'disabled'
 
@@ -193,7 +194,7 @@ export async function updateRadarSettings(data: {
   return { success: true }
 }
 
-function buildRadarEmailHtml(events: any[], emailTarget: string): string {
+function buildRadarEmailHtml(events: any[], unsubscribeLink: string | null): string {
   const eventRows = events.map(event => {
     const dateObj = new Date(event.start_date)
     const formattedDate = formatEventDate(dateObj)
@@ -248,6 +249,7 @@ function buildRadarEmailHtml(events: any[], emailTarget: string): string {
           <div style="margin-top: 32px; border-top: 1px solid #27272a; padding-top: 24px;">
             <p style="font-size: 11px; color: #71717a; margin: 0 0 8px 0; font-family: Arial, sans-serif; line-height: 1.4;">Recibiste este correo porque configuraste tu radar en quepintasalta.com.ar.</p>
             <a href="https://quepintasalta.com.ar/radar" target="_blank" style="font-size: 11px; color: #AA1B1B; text-decoration: underline; font-weight: 600; font-family: Arial, sans-serif;">Modificar preferencias</a>
+            ${unsubscribeLink ? `<span style="font-size: 11px; color: #71717a;"> &middot; </span><a href="${unsubscribeLink}" target="_blank" style="font-size: 11px; color: #AA1B1B; text-decoration: underline; font-weight: 600; font-family: Arial, sans-serif;">Darme de baja</a>` : ''}
           </div>
         </div>
       </body>
@@ -291,7 +293,7 @@ export async function triggerTestRadarEmail(): Promise<{ success: boolean; messa
     return { success: false, message: "No se encontraron configuraciones de radar para tu usuario." }
   }
 
-  const { categoryIds, venueIds, instagramAccountIds, email_target } = settings
+  const { categoryIds, venueIds, instagramAccountIds } = settings
 
   if (categoryIds.length === 0 && venueIds.length === 0 && instagramAccountIds.length === 0) {
     return { success: false, message: "Debes seguir al menos una categoría, un local o una cuenta de Instagram para recibir novedades." }
@@ -357,9 +359,9 @@ export async function triggerTestRadarEmail(): Promise<{ success: boolean; messa
     return { success: false, message: "No hay eventos ni flyers próximos publicados que coincidan con tu Radar." }
   }
 
-  // 4. Enviar correo (Enviando a email_target, que es el del usuario autenticado)
+  // 4. Enviar correo (solo al email del usuario autenticado)
   try {
-    const htmlContent = buildRadarEmailHtml(events, email_target)
+    const htmlContent = buildRadarEmailHtml(events, unsubscribeUrl(user.id))
 
     const senderEmail = process.env.RESEND_FROM_EMAIL || "onboarding@resend.dev"
     
@@ -368,6 +370,7 @@ export async function triggerTestRadarEmail(): Promise<{ success: boolean; messa
       to: user.email!, // Forzamos enviar únicamente al email del usuario autenticado (sandbox mode)
       subject: '📡 [Prueba] ¡Tu Radar Salteño está activo!',
       html: htmlContent,
+      headers: unsubscribeHeaders(user.id),
     })
 
     if (sendError) {
