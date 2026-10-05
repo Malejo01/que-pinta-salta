@@ -266,6 +266,17 @@ export async function triggerTestRadarEmail(): Promise<{ success: boolean; messa
     return { success: false, message: "Debes iniciar sesión para realizar la prueba." }
   }
 
+  // Solo administradores: verificación en el servidor, antes de leer settings o llamar a Resend.
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", user.id)
+    .single()
+
+  if (profile?.role !== "ADMIN") {
+    return { success: false, message: "Solo administradores." }
+  }
+
   const apiKey = process.env.RESEND_API_KEY
   if (!apiKey) {
     console.error("[triggerTestRadarEmail] RESEND_API_KEY no configurada.")
@@ -360,13 +371,13 @@ export async function triggerTestRadarEmail(): Promise<{ success: boolean; messa
     })
 
     if (sendError) {
-      console.error("[triggerTestRadarEmail] Error en el envío de Resend:", sendError)
+      console.error("[triggerTestRadarEmail] Error en el envío de Resend:", sendError.message)
       return { success: false, message: `Error de Resend: ${sendError.message}` }
     }
 
     return { success: true, message: `Correo de prueba enviado correctamente a ${user.email}`, count: events.length }
   } catch (err: any) {
-    console.error("[triggerTestRadarEmail] Excepción en envío:", err)
+    console.error("[triggerTestRadarEmail] Excepción en envío:", err?.message)
     return { success: false, message: err?.message || "Ocurrió una excepción inesperada al enviar el correo." }
   }
 }
