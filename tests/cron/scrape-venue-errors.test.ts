@@ -157,6 +157,27 @@ describe('GET /api/cron/scrape: estado de la corrida', () => {
     expect(o.errors).toEqual(['alpogo: timeout', 'venue: Lugar Inventado QA: boom'])
   })
 
+  it('runScrapeJob devuelve { error }: FAILED aunque haya errores de venue', async () => {
+    const o = await outcomeDe({ success: false, error: 'se cayo todo', venueErrors: ['venue: X: boom'] })
+    expect(o.status).toBe('FAILED')
+    expect(o.errors).toEqual(['se cayo todo'])
+  })
+
+  it('errores de fuente primero, despues los de venue deduplicados', async () => {
+    const o = await outcomeDe({
+      ...base,
+      sourceErrors: { alpogo: 'timeout' },
+      venueErrors: ['venue: A: x', 'venue: A: x', 'venue: B: x'],
+    })
+    expect(o.errors).toEqual(['alpogo: timeout', 'venue: A: x', 'venue: B: x'])
+  })
+
+  it('mas de 5 lugares distintos: 5 mas el resumen', async () => {
+    const venueErrors = Array.from({ length: 7 }, (_, i) => `venue: L${i}: x`)
+    const o = await outcomeDe({ ...base, sourceErrors: { alpogo: 'timeout' }, venueErrors })
+    expect(o.errors).toEqual(['alpogo: timeout', ...venueErrors.slice(0, 5), 'venue: 7 lugares sin resolver en total'])
+  })
+
   it('solo error de fuente: sigue PARTIAL', async () => {
     const o = await outcomeDe({ ...base, sourceErrors: { alpogo: 'timeout' } })
     expect(o.status).toBe('PARTIAL')

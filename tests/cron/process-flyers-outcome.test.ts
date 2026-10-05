@@ -100,6 +100,14 @@ describe('POST /api/ai/process-flyers: estado de la corrida', () => {
     expect(o.itemsFailed).toBe(1)
   })
 
+  it('fallidos primero; venueError repetidos se deduplican', async () => {
+    processFlyerWithAI
+      .mockResolvedValueOnce({ success: true, action: 'insert', eventId: 'e1', venueError: 'venue: A: x' })
+      .mockResolvedValueOnce({ success: false, error: 'fallo la IA', venueError: 'venue: A: x' })
+    const o = await correr()
+    expect(o.errors).toEqual(['fallo la IA', 'venue: A: x'])
+  })
+
   it('falla y error de venue juntos: ambos en errors', async () => {
     processFlyerWithAI
       .mockResolvedValueOnce({ success: false, error: 'fallo la IA' })
