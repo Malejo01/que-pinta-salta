@@ -108,7 +108,7 @@ export function HeroCarousel({ events }: HeroCarouselProps) {
           </div>
 
           {/* Dark gradients to ensure readability on any background */}
-          <div className="absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-black/95 via-black/50 to-transparent sm:inset-0 sm:h-auto" />
+          <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-black/95 via-black/50 to-transparent sm:inset-0 sm:h-auto" />
           <div className="absolute inset-0 bg-gradient-to-r from-black/40 via-transparent to-black/40" />
         </motion.div>
       </AnimatePresence>
@@ -160,7 +160,7 @@ export function HeroCarousel({ events }: HeroCarouselProps) {
               </Link>
             </Button>
             {currentEvent.price !== "confirmar" && (
-              <span className="truncate text-sm font-bold text-white sm:text-base drop-shadow-sm">
+              <span className="max-sm:truncate text-sm font-bold text-white sm:text-base drop-shadow-sm">
                 {currentEvent.price === "gratis" 
                   ? "Entrada Gratuita" 
                   : `$${currentEvent.price.toLocaleString("es-AR")}`}
