@@ -11,11 +11,12 @@ export async function GET(request: Request) {
   const result = await withJobRun('ticketeras', jobTriggerFrom(request), runScrapeJob, (r) => {
     if ('error' in r) return { status: 'FAILED', errors: [String(r.error)] }
     const sourceErrors = Object.entries(r.sourceErrors).map(([source, message]) => `${source}: ${message}`)
+    const errors = [...sourceErrors, ...r.venueErrors]
     return {
-      status: sourceErrors.length ? 'PARTIAL' : 'SUCCESS',
+      status: errors.length ? 'PARTIAL' : 'SUCCESS',
       itemsProcessed: r.database.inserted + r.database.updated,
       itemsFailed: r.database.errors,
-      errors: sourceErrors,
+      errors,
       details: { scraped: r.scraped, database: r.database, instagramCleanup: r.instagramCleanup },
     }
   })

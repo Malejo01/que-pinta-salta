@@ -34,6 +34,11 @@ export type ResolveVenueOptions = {
   autocreate?: boolean
   /** Umbral de similitud para la SUGERENCIA fuzzy. No afecta la resolución. */
   threshold?: number
+  /**
+   * Se llama cuando la RPC devuelve error (además del log). La función sigue
+   * devolviendo null: el llamador decide cómo hacer visible la falla.
+   */
+  onError?: (rawName: string, message: string) => void
 }
 
 /** Strings que las fuentes usan como "no sé dónde es". No son lugares. */
@@ -67,6 +72,7 @@ export async function resolveVenueId(
       `[venues:resolveVenueId] fallo resolviendo ${JSON.stringify(rawVenueName)}:`,
       error.message
     )
+    options.onError?.(clean, error.message)
     return null
   }
 

@@ -52,7 +52,19 @@ async function fetchImageBuffer(url: string): Promise<{ buffer: Buffer; mimeType
 /**
  * Procesa un flyer individual utilizando Gemini e inserta el evento en Supabase.
  */
-export async function processFlyerWithAI(flyerId: string): Promise<AIProcessingResult> {
+/**
+ * Resultado del procesamiento. `venueError` se completa cuando resolve_venue_id
+ * falló: el evento se crea igual, sin lugar, pero la corrida tiene que quedar
+ * PARTIAL (lo cuenta batchOutcome en app/api/ai/process-flyers/route.ts).
+ */
+export type FlyerProcessingResult = AIProcessingResult & { venueError?: string }
+
+/** Arma el mensaje "venue: <nombre crudo>: <mensaje>" (máx. 200 caracteres). */
+function venueErrorMessage(rawName: string, message: string): string {
+  return `venue: ${rawName}: ${message}`.slice(0, 200)
+}
+
+export async function processFlyerWithAI(flyerId: string): Promise<FlyerProcessingResult> {
   const supabase = createAdminClient()
 
   // 1. Obtener el flyer con la cuenta asociada
@@ -132,7 +144,10 @@ export async function processFlyerWithAI(flyerId: string): Promise<AIProcessingR
     // Resolver Venue
     const rawVenueName = cleanStringField(extractedData.venue_name)
     const venueName = rawVenueName || account?.default_venue_name || 'Lugar no especificado'
-    const venueId = await upsertVenue(venueName, 'instagram-ai')
+    let venueError: string | undefined
+    const venueId = await upsertVenue(venueName, 'instagram-ai', (raw, message) => {
+      venueError = venueErrorMessage(raw, message)
+    })
 
     // Resolver Categoría
     const rawCategorySlug = cleanStringField(extractedData.category_slug)
@@ -224,6 +239,7 @@ export async function processFlyerWithAI(flyerId: string): Promise<AIProcessingR
         flyer_id: flyer.id,
         processed_at: new Date().toISOString(),
         auto_published: qualifiesForAutoPublish,
+        ...(venueError ? { venue_error: venueError } : {}),
       },
     }
 
@@ -240,6 +256,7 @@ export async function processFlyerWithAI(flyerId: string): Promise<AIProcessingR
           event_id: upsertRes.eventId,
           action: upsertRes.action,
           auto_published: qualifiesForAutoPublish,
+          ...(venueError ? { venue_error: venueError } : {}),
         },
         ai_processed_at: new Date().toISOString(),
         venue_name: venueName,
@@ -254,6 +271,7 @@ export async function processFlyerWithAI(flyerId: string): Promise<AIProcessingR
       extractedData,
       eventId: upsertRes.eventId,
       action: upsertRes.action,
+      ...(venueError ? { venueError } : {}),
     }
   } catch (aiError: any) {
     console.error(`[AI Pipeline] Error procesando con Gemini en flyer ${flyerId}:`, aiError)
@@ -276,14 +294,17 @@ async function handleProcessingFallback(
   flyer: any,
   account: any,
   errorMessage: string
-): Promise<AIProcessingResult> {
+): Promise<FlyerProcessingResult> {
   const supabase = createAdminClient()
   const imageUrl = flyer.storage_image_url || flyer.original_image_url
 
   try {
     // Resolver Venue y Categoría por defecto de la cuenta de Instagram
     const venueName = account?.default_venue_name || 'Lugar no especificado'
-    const venueId = await upsertVenue(venueName, 'instagram-ai')
+    let venueError: string | undefined
+    const venueId = await upsertVenue(venueName, 'instagram-ai', (raw, message) => {
+      venueError = venueErrorMessage(raw, message)
+    })
 
     const categorySlug = account?.default_category || 'espectaculos'
     const categoryId = await resolveCategoryId(categorySlug)
@@ -323,6 +344,7 @@ async function handleProcessingFallback(
         flyer_id: flyer.id,
         is_fallback: true,
         processed_at: new Date().toISOString(),
+        ...(venueError ? { venue_error: venueError } : {}),
       },
     }
 
@@ -337,6 +359,7 @@ async function handleProcessingFallback(
           error: errorMessage,
           event_id: upsertRes.eventId,
           is_fallback: true,
+          ...(venueError ? { venue_error: venueError } : {}),
         },
         ai_processed_at: new Date().toISOString(),
       })
@@ -347,6 +370,7 @@ async function handleProcessingFallback(
       error: errorMessage,
       eventId: upsertRes.eventId,
       action: upsertRes.action,
+      ...(venueError ? { venueError } : {}),
     }
   } catch (fallbackError: any) {
     console.error(`[AI Pipeline] Error crítico en el fallback para flyer ${flyer.id}:`, fallbackError)

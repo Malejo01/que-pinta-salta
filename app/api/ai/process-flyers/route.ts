@@ -41,14 +41,18 @@ const reply = (httpStatus: number, body: Record<string, any>): BatchReply => ({ 
 
 function batchOutcome({ httpStatus, body }: BatchReply): JobOutcome {
   if (httpStatus >= 500) return { status: 'FAILED', errors: [String(body.error ?? 'error')] }
-  const results: Array<{ success: boolean; error?: string; action?: string }> = body.results ?? []
+  const results: Array<{ success: boolean; error?: string; action?: string; venueError?: string }> = body.results ?? []
   if (results.length === 0) return { status: 'SKIPPED' }
   const failed = results.filter((r) => !r.success)
+  // Un flyer con evento creado pero sin lugar (resolve_venue_id falló) no es
+  // "fallido", pero la corrida igual queda PARTIAL con el error a la vista.
+  const venueErrors = results.flatMap((r) => (r.venueError ? [r.venueError] : []))
+  const errors = [...failed.map((r) => r.error ?? 'falló'), ...venueErrors]
   return {
-    status: failed.length ? 'PARTIAL' : 'SUCCESS',
+    status: errors.length ? 'PARTIAL' : 'SUCCESS',
     itemsProcessed: results.length - failed.length,
     itemsFailed: failed.length,
-    errors: failed.map((r) => r.error ?? 'falló'),
+    errors,
     details: { acciones: results.map((r) => r.action ?? null) },
   }
 }
@@ -98,6 +102,7 @@ async function processBatch(request: Request): Promise<BatchReply> {
           eventId: result.eventId,
           action: result.action,
           error: result.error,
+          venueError: result.venueError,
         }
       } catch (err: any) {
         return {
