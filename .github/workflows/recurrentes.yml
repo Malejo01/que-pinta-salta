@@ -1,0 +1,43 @@
+# Peñas y museos recurrentes: genera las fechas futuras que falten, lunes
+# 06:00 de Salta (09:00 UTC). Llama GET /api/cron/recurrentes. Falla (y GitHub
+# manda mail) si la llamada da error HTTP o si algún ítem vino con error.
+#
+# Correrlo a mano es seguro: es idempotente, solo escribe los días que todavía
+# no existen (una segunda corrida seguida inserta 0 filas).
+name: Peñas y museos (recurrentes)
+
+on:
+  schedule:
+    - cron: "0 9 * * 1"
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: recurrentes
+  cancel-in-progress: false
+
+jobs:
+  generar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      SITE_URL: ${{ vars.SITE_URL || 'https://www.quepintasalta.com.ar' }}
+      CRON_SECRET: ${{ secrets.CRON_SECRET }}
+    steps:
+      - name: Generar fechas recurrentes
+        run: |
+          set -euo pipefail
+          if [ -z "$CRON_SECRET" ]; then echo "::error::Falta el secret CRON_SECRET"; exit 1; fi
+          # El Bearer solo va a los hosts propios: SITE_URL viene de una variable editable.
+          case "$SITE_URL" in
+            https://www.quepintasalta.com.ar|https://quepintasalta.com.ar) ;;
+            *) echo "::error::SITE_URL no permitido"; exit 1 ;;
+          esac
+          body=$(curl -sS --fail-with-body --max-time 300 \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            -H "x-job-trigger: github-actions" \
+            "$SITE_URL/api/cron/recurrentes")
+          echo "$body" | jq .
+          errors=$(echo "$body" | jq '[.items[] | select(.error != null)] | length')
+          if [ "$errors" -gt 0 ]; then echo "::error::$errors ítems con error"; exit 1; fi

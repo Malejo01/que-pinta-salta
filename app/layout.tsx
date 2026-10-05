@@ -99,6 +99,8 @@ export const viewport: Viewport = {
   initialScale: 1,
 }
 
+const THEME_INIT_SCRIPT = `(function(){try{var t=null;try{t=localStorage.getItem('theme')}catch(e){}if(t!=='light'&&t!=='dark'&&t!=='system')t='dark';var d=t==='dark'||(t==='system'&&window.matchMedia('(prefers-color-scheme: dark)').matches);var r=document.documentElement;r.classList.remove('light','dark');r.classList.add(d?'dark':'light');r.style.colorScheme=d?'dark':'light'}catch(e){}})();`
+
 export default function RootLayout({
   children,
   modal,
@@ -107,8 +109,10 @@ export default function RootLayout({
   modal: React.ReactNode
 }>) {
   return (
-    <html lang="es" className={`${montserrat.variable} ${yellowtail.variable} ${poppins.variable}`} suppressHydrationWarning>
+    <html lang="es" className={`${montserrat.variable} ${yellowtail.variable} ${poppins.variable} bg-background`} suppressHydrationWarning>
       <head>
+        {/* Aplica el tema antes del primer pintado (misma clave y default que ThemeProvider). */}
+        <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
         {ADSENSE_CLIENT_ID && (
           <script
             async

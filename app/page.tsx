@@ -8,7 +8,7 @@ export default async function HomePage() {
   const supabase = await createClient()
 
   const [events, categories, flyers, { data: cinemaMovies }, userFavorites] = await Promise.all([
-    getEvents(),
+    getEvents({ includeStartedToday: true }),
     getCategories(),
     getActiveFlyers(),
     supabase

@@ -15,7 +15,14 @@ import { MovieModal } from "@/components/movie-modal"
 import Link from "next/link"
 import { motion, AnimatePresence } from "framer-motion"
 import { Button } from "@/components/ui/button"
-import { formatEventTime } from "@/lib/date-format"
+import {
+  ageChip,
+  arrangeRowsForToday,
+  cleanDescription,
+  formatEventTimeDisplay,
+  isRelevantToday,
+  selectTodayEvents,
+} from "@/lib/event-display"
 import { AdSenseBanner } from "@/components/adsense-banner"
 import { Film } from "lucide-react"
 
@@ -82,7 +89,8 @@ export interface DisplayEvent {
   address: string
   startDateTime: string
   ticketUrl?: string
-  vibe: "adultos" | "familiar" | "exterior"
+  /** Solo con dato explícito (age_restriction >= 18); null/undefined = sin chip. */
+  vibe?: "adultos" | "familiar" | "exterior" | null
   isFeatured: boolean
   // Campos opcionales para flyers de Instagram
   isInstagramFlyer?: boolean
@@ -120,18 +128,72 @@ export function transformEvent(event: EventWithRelations): DisplayEvent {
     title: event.title,
     venue: event.venue?.name || 'Lugar por confirmar',
     date: formatDateInSalta(startDate),
-    time: formatEventTime(startDate),
+    time: formatEventTimeDisplay(startDate) ?? '',
     category: event.category.slug,
     categoryName: event.category.name,
     price: event.is_free ? "gratis" as const : (event.price_min === 0 ? "confirmar" as const : event.price_min),
     image: event.image_url || '/placeholder.svg?height=600&width=400',
-    description: event.description || event.short_description || '',
+    description: cleanDescription(event.description) ?? cleanDescription(event.short_description) ?? '',
     address: event.venue?.address || '',
     startDateTime: event.start_date,
     ticketUrl: event.ticket_url || undefined,
-    vibe: event.age_restriction >= 18 ? "adultos" as const : "familiar" as const,
+    vibe: ageChip(event.age_restriction),
     isFeatured: event.is_featured,
   }
+}
+
+// Agrupa eventos duplicados por título + lugar y conserva las funciones en `occurrences`.
+function groupEventItems(eventsList: EventWithRelations[]): DisplayEvent[] {
+  const eventItems = eventsList
+    .filter((event) => event.category)
+    .map(transformEvent)
+  
+  // Agrupar eventos duplicados por la clave Título + Lugar
+  const groupedEventItemsMap = new Map<string, DisplayEvent>()
+  
+  eventItems.forEach(item => {
+    const groupKey = `${item.title.toLowerCase().trim()}|${item.venue.toLowerCase().trim()}`
+    
+    if (groupedEventItemsMap.has(groupKey)) {
+      const existing = groupedEventItemsMap.get(groupKey)!
+      const existingDate = new Date(existing.startDateTime).getTime()
+      const currentDate = new Date(item.startDateTime).getTime()
+      
+      if (currentDate < existingDate) {
+        const occurrences = existing.occurrences || [{ id: existing.id, date: existing.date, time: existing.time }]
+        occurrences.push({ id: item.id, date: item.date, time: item.time })
+        
+        existing.id = item.id
+        existing.date = item.date
+        existing.time = item.time
+        existing.startDateTime = item.startDateTime
+        existing.occurrences = occurrences
+      } else {
+        if (!existing.occurrences) {
+          existing.occurrences = [{ id: existing.id, date: existing.date, time: existing.time }]
+        }
+        existing.occurrences.push({ id: item.id, date: item.date, time: item.time })
+      }
+    } else {
+      groupedEventItemsMap.set(groupKey, {
+        ...item,
+        occurrences: [{ id: item.id, date: item.date, time: item.time }]
+      })
+    }
+  })
+  
+  const finalEventItems = Array.from(groupedEventItemsMap.values()).map(item => {
+    if (item.occurrences && item.occurrences.length > 1) {
+      item.occurrences.sort((a, b) => new Date(a.date + 'T00:00:00').getTime() - new Date(b.date + 'T00:00:00').getTime())
+      const first = item.occurrences[0]
+      item.id = first.id
+      item.date = first.date
+      item.time = first.time
+    }
+    return item
+  })
+
+  return finalEventItems
 }
 
 // Transform Instagram flyer to display format
@@ -238,55 +300,25 @@ export function HomeContent({
     return new Map(categories.map((category) => [category.slug, category.name]))
   }, [categories])
 
-  const allDisplayEvents = useMemo(() => {
-    const eventItems = events
-      .filter((event) => event.category)
-      .map(transformEvent)
-    
-    // Agrupar eventos duplicados por la clave Título + Lugar
-    const groupedEventItemsMap = new Map<string, DisplayEvent>()
-    
-    eventItems.forEach(item => {
-      const groupKey = `${item.title.toLowerCase().trim()}|${item.venue.toLowerCase().trim()}`
-      
-      if (groupedEventItemsMap.has(groupKey)) {
-        const existing = groupedEventItemsMap.get(groupKey)!
-        const existingDate = new Date(existing.startDateTime).getTime()
-        const currentDate = new Date(item.startDateTime).getTime()
-        
-        if (currentDate < existingDate) {
-          const occurrences = existing.occurrences || [{ id: existing.id, date: existing.date, time: existing.time }]
-          occurrences.push({ id: item.id, date: item.date, time: item.time })
-          
-          existing.id = item.id
-          existing.date = item.date
-          existing.time = item.time
-          existing.startDateTime = item.startDateTime
-          existing.occurrences = occurrences
-        } else {
-          if (!existing.occurrences) {
-            existing.occurrences = [{ id: existing.id, date: existing.date, time: existing.time }]
-          }
-          existing.occurrences.push({ id: item.id, date: item.date, time: item.time })
-        }
-      } else {
-        groupedEventItemsMap.set(groupKey, {
-          ...item,
-          occurrences: [{ id: item.id, date: item.date, time: item.time }]
-        })
-      }
-    })
-    
-    const finalEventItems = Array.from(groupedEventItemsMap.values()).map(item => {
-      if (item.occurrences && item.occurrences.length > 1) {
-        item.occurrences.sort((a, b) => new Date(a.date + 'T00:00:00').getTime() - new Date(b.date + 'T00:00:00').getTime())
-        const first = item.occurrences[0]
-        item.id = first.id
-        item.date = first.date
-        item.time = first.time
-      }
-      return item
-    })
+  const displayData = useMemo(() => {
+    const nowMs = new Date(serverNowISO).getTime()
+    const saltaTodayStr = formatDateInSalta(new Date(serverNowISO))
+    // Agenda general: solo lo que todavía no empezó (como siempre).
+    const finalEventItems = groupEventItems(
+      events.filter((event) => new Date(event.start_date).getTime() >= nowMs)
+    )
+    // Para "Hoy": lo de hoy aunque ya haya empezado (museos 10:00). Si el
+    // servidor solo mandó futuros, coincide con la agenda general de hoy.
+    const todayEventItems = groupEventItems(
+      events.filter(
+        (event) =>
+          formatDateInSalta(new Date(event.start_date)) === saltaTodayStr &&
+          isRelevantToday(
+            { startDateTime: event.start_date, endDateTime: event.end_date, category: event.category?.slug },
+            nowMs
+          )
+      )
+    )
 
     // Transformar flyers de Instagram y mezclarlos con los eventos
     const flyerItems = flyers.map((flyer) => transformFlyer(flyer, categoryNameBySlug))
@@ -294,7 +326,6 @@ export function HomeContent({
     // Transformar películas de cine y mezclarlas con los eventos
     const movieItems = (cinemaMovies || []).map((movie): DisplayEvent => {
       const showCount = Object.keys(movie.showings || {}).length
-      const saltaTodayStr = formatDateInSalta(new Date(serverNowISO))
 
       return {
         id: `movie-${movie.id}`,
@@ -310,15 +341,22 @@ export function HomeContent({
         description: '',
         address: '',
         startDateTime: movie.created_at, // for ordering
-        vibe: 'familiar' as const,
         isFeatured: false,
         isCinemaMovie: true,
         showings: movie.showings,
       }
     })
     
-    return [...finalEventItems, ...flyerItems, ...movieItems]
+    return {
+      all: [...finalEventItems, ...flyerItems, ...movieItems],
+      today: [...todayEventItems, ...flyerItems, ...movieItems],
+      saltaTodayStr,
+    }
   }, [events, flyers, cinemaMovies, categoryNameBySlug, serverNowISO])
+
+  const allDisplayEvents = displayData.all
+  const todayDisplayEvents = displayData.today
+  const saltaTodayStr = displayData.saltaTodayStr
 
   const sortedCategories = useMemo(() => {
     return getCategoryPriority(categories, allDisplayEvents, serverNowISO, favoriteCategorySlugs)
@@ -371,7 +409,8 @@ export function HomeContent({
   }, [allDisplayEvents, sortedCategories, serverNowISO])
 
   const filteredEvents = useMemo(() => {
-    let filtered = allDisplayEvents
+    // "Hoy" incluye lo que ya empezó hoy; el resto de la agenda, solo lo futuro.
+    let filtered = date === "hoy" && !dateExact ? todayDisplayEvents : allDisplayEvents
 
     if (search) {
       const query = normalizeFilterText(search)
@@ -395,7 +434,6 @@ export function HomeContent({
     if (dateExact) {
       filtered = filtered.filter((event) => event.date === dateExact)
     } else if (date) {
-      const saltaTodayStr = formatDateInSalta(new Date(serverNowISO))
       const today = parseLocalDate(saltaTodayStr)
       
       filtered = filtered.filter(event => {
@@ -442,6 +480,8 @@ export function HomeContent({
     })
   }, [
     allDisplayEvents,
+    todayDisplayEvents,
+    saltaTodayStr,
     search,
     establishment,
     location,
@@ -449,7 +489,6 @@ export function HomeContent({
     date,
     category,
     instagram,
-    serverNowISO,
   ])
 
   const eventsByCategory = useMemo(() => {
@@ -467,13 +506,22 @@ export function HomeContent({
     // eventos de cada fila (con los filtros aplicados), de mayor a menor.
     // `sortedCategories` (favoritos del usuario, después volumen próximo y
     // alfabético) sólo desempata.
-    return cats.sort((a, b) => {
+    const byCount = cats.sort((a, b) => {
       const countDiff = b.events.length - a.events.length
       if (countDiff !== 0) return countDiff
 
       return (categoryOrderIndex.get(a.category) ?? 0) - (categoryOrderIndex.get(b.category) ?? 0)
     })
-  }, [sortedCategories, filteredEvents])
+
+    // Con "Hoy": Cine al final y cada fila ordenada por hora.
+    return date === "hoy" && !dateExact ? arrangeRowsForToday(byCount, new Date(serverNowISO).getTime()) : byCount
+  }, [sortedCategories, filteredEvents, date, dateExact, serverNowISO])
+
+  // Fila "Hoy en Salta" (solo home sin filtros): eventos de hoy por hora.
+  const todayRowEvents = useMemo(
+    () => selectTodayEvents(todayDisplayEvents, saltaTodayStr, new Date(serverNowISO).getTime()),
+    [todayDisplayEvents, saltaTodayStr, serverNowISO]
+  )
 
   const clearFilters = () => {
     setSearch("")
@@ -534,8 +582,39 @@ export function HomeContent({
         />
 
 
+        {!hasFilters && allDisplayEvents.length > 0 && (
+          <div className="pt-4">
+            {todayRowEvents.length > 0 ? (
+              <CategoryRow
+                category="hoy"
+                title="Hoy en Salta"
+                events={todayRowEvents}
+                userFavorites={userFavorites}
+                onOpenMovie={setSelectedMovie}
+                onSeeAll={() => setDate("hoy")}
+              />
+            ) : (
+              <section className="py-4">
+                <div className="container mx-auto px-4">
+                  <div className="flex flex-col items-start gap-3 rounded-2xl border border-border bg-card p-5 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <h2 className="text-xl font-bold text-foreground">Hoy en Salta</h2>
+                      <p className="text-sm text-muted-foreground">
+                        Hoy no hay eventos cargados. Mirá qué viene en los próximos días.
+                      </p>
+                    </div>
+                    <Button onClick={() => setDate("semana")} className="font-bold">
+                      Ver esta semana
+                    </Button>
+                  </div>
+                </div>
+              </section>
+            )}
+          </div>
+        )}
+
         {showCategoryRows && (
-          <div className="py-8 space-y-10">
+          <div className="py-4 space-y-6">
             {eventsByCategory.map(({ category: catSlug, title, events }, index) => (
               <motion.div
                 key={catSlug}

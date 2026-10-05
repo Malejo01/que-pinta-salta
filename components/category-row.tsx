@@ -40,7 +40,7 @@ export function CategoryRow({
   const iconComponent = getCategoryIcon(category)
 
   return (
-    <section className="py-8">
+    <section className="py-4">
       <div className="container mx-auto px-4">
         <div className="mb-5 flex items-center justify-between">
           <div className="flex items-center gap-2">

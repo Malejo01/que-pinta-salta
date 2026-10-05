@@ -174,6 +174,7 @@ export function Navbar() {
             </Button>
           )}
 
+          {loading && <div aria-hidden className="h-9 min-w-[115px]" />}
           {!loading && (
             <>
               {user ? (
@@ -256,7 +257,7 @@ export function Navbar() {
                   </DropdownMenuContent>
                 </DropdownMenu>
               ) : (
-                <Button asChild variant="default">
+                <Button asChild variant="default" className="min-w-[115px]">
                   <Link href="/auth/login">
                     <LogIn className="mr-2 size-4" />
                     Ingresar

@@ -247,6 +247,7 @@ Hobby permite un disparo por cron por día, así que lo que necesita más frecue
 |---|---|---|---|
 | `ai-queue.yml` | cada 6 h | `POST /api/ai/process-flyers?limit=5` en loop hasta vaciar la cola o 10 llamadas | error HTTP o algún flyer con `success: false` |
 | `radar-newsletter.yml` | jueves 21:00 UTC (18:00 Salta) | `GET /api/cron/radar-newsletter` | error HTTP o `stats.errors > 0` |
+| `recurrentes.yml` | lunes 09:00 UTC (06:00 Salta) | `GET /api/cron/recurrentes`: genera las fechas futuras de peñas (14 días) y museos (7 días); idempotente, se puede correr a mano | error HTTP o algún ítem con error |
 | `health.yml` | todos los días 15:00 UTC (12:00 Salta) | `GET /api/cron/health` | algún proceso pasó su umbral (respuesta 503) |
 
 **Bitácora de corridas.** Cada proceso programado (ticketeras, instagram, cines, cola de IA, newsletter) deja una fila en `job_runs` al empezar y la cierra al terminar, con estado (`SUCCESS`, `PARTIAL`, `FAILED`, `SKIPPED`), origen (`vercel-cron`, `github-actions` o `manual`), duración, ítems y errores (`lib/job-runs.ts`). Se ve en `/admin/scrape`, sección "Procesos automáticos".

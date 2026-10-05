@@ -21,7 +21,7 @@ interface DisplayEvent {
   address: string
   ticketUrl?: string
   isFeatured?: boolean
-  vibe?: string
+  vibe?: string | null
 }
 
 type Event = DisplayEvent
@@ -35,6 +35,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { getCategoryIcon } from "@/lib/category-icons"
 import { formatEventDate } from "@/lib/date-format"
+import { capitalizeFirst, cleanDescription } from "@/lib/event-display"
 
 interface EventModalProps {
   event: Event | null
@@ -46,6 +47,7 @@ export function EventModal({ event, open, onClose }: EventModalProps) {
   if (!event) return null
 
   const formattedDate = formatEventDate(event.date, true)
+  const description = cleanDescription(event.description)
 
   const googleMapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(event.address || event.venue)}`
   const iconComponent = getCategoryIcon(event.category as EventCategory)
@@ -74,13 +76,15 @@ export function EventModal({ event, open, onClose }: EventModalProps) {
           <div className="mb-6 space-y-3">
             <div className="flex items-center gap-3 text-muted-foreground">
               <Calendar className="size-5 text-primary" />
-              <span className="capitalize">{formattedDate}</span>
+              <span>{capitalizeFirst(formattedDate)}</span>
             </div>
             
-            <div className="flex items-center gap-3 text-muted-foreground">
-              <Clock className="size-5 text-primary" />
-              <span>{event.time} hs</span>
-            </div>
+            {event.time && (
+              <div className="flex items-center gap-3 text-muted-foreground">
+                <Clock className="size-5 text-primary" />
+                <span>{event.time} hs</span>
+              </div>
+            )}
             
             <div className="flex items-center gap-3 text-muted-foreground">
               <MapPin className="size-5 text-primary" />
@@ -90,13 +94,17 @@ export function EventModal({ event, open, onClose }: EventModalProps) {
               </div>
             </div>
 
-            <div className="flex items-center gap-3 text-muted-foreground">
-              <Users className="size-5 text-primary" />
-              <span>{vibeLabels[event.vibe as keyof typeof vibeLabels] || event.vibe}</span>
-            </div>
+            {event.vibe && vibeLabels[event.vibe as keyof typeof vibeLabels] && (
+              <div className="flex items-center gap-3 text-muted-foreground">
+                <Users className="size-5 text-primary" />
+                <span>{vibeLabels[event.vibe as keyof typeof vibeLabels]}</span>
+              </div>
+            )}
           </div>
 
-          <p className="mb-6 text-muted-foreground">{event.description}</p>
+          {description && (
+            <p className="mb-6 text-muted-foreground">{description}</p>
+          )}
 
           {event.price !== "confirmar" && (
             <div className="mb-6 rounded-lg bg-muted p-4">

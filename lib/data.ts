@@ -1,14 +1,23 @@
 import { createClient } from '@/lib/supabase/server'
 import type { Event, Category, Venue } from '@/lib/types'
+import { saltaStartOfDayISO } from '@/lib/event-display'
 
 export async function getEvents(options?: {
   categorySlug?: string
   featured?: boolean
   limit?: number
   search?: string
+  /**
+   * Solo para la home (filtro "Hoy"): trae desde las 00:00 de Salta en vez de
+   * desde ahora, así lo que ya empezó hoy (museos, 10:00) sigue visible. El
+   * cliente vuelve a descartar lo pasado en el resto de la agenda.
+   */
+  includeStartedToday?: boolean
 }): Promise<(Event & { category: Category; venue: Venue | null })[]> {
   const supabase = await createClient()
-  const nowIso = new Date().toISOString()
+  const nowIso = options?.includeStartedToday
+    ? saltaStartOfDayISO()
+    : new Date().toISOString()
   
   let query = supabase
     .from('events')
