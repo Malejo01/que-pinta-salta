@@ -430,7 +430,7 @@ borraron al mergear.
 
 **Queda abierto, visto en este sprint:**
 
-- **Automatizar la generación de peñas y museos — PRIORIDAD ALTA.** Hoy
+- **Automatizar la generación de peñas y museos — CERRADO el 2026-10-05 (Ronda 2, PR #12).** Hoy
   `scripts/cargar-penas.mjs` y `scripts/cargar-museos.mjs` se corren a mano y
   sus filas vencen: al cierre del Sprint 3 Peñas y Museos tenían 1 evento
   futuro cada uno. Propuesta: un endpoint `app/api/cron/recurrentes/route.ts`
@@ -476,6 +476,29 @@ borraron al mergear.
   Poble Espanyol, Salon. Se resuelven en `/admin` o con un alias manual.
 - El source "manual" sin `created_by` (cargas por SQL) se resuelve como
   `unknown` (prioridad 100, no 200). Afecta sólo filas viejas.
+
+### Ronda 2 (peñas y museos automáticos, higiene de la demo) — CERRADO el 2026-10-05
+
+PR #12 (squash `bbb3389`). Primera corrida manual del workflow en SUCCESS.
+
+- **Peñas y museos se generan solos.** `GET /api/cron/recurrentes` (`CRON_SECRET`,
+  `job_runs` con `job_key = 'recurrentes'`) y `.github/workflows/recurrentes.yml`
+  (lunes 09:00 UTC + manual). Lógica en `lib/recurrentes/`: peñas 14 días, museos
+  7 (martes a domingo), solo venues canónicos (no crea venues), escritura por
+  `upsertEventWithDeduplication` con la fuente `recurrentes` (tramo más bajo:
+  nunca pisa datos de otra fuente), plantillas solo de filas `PUBLISHED`, peñas
+  con la imagen de la última fecha publicada. Idempotente. Los scripts
+  `cargar-*.mjs` quedan como respaldo manual. Cierra "Automatizar la generación
+  de peñas y museos" (arriba) y el #13.
+- **Higiene de la demo.** Sin "Evento importado automáticamente…" en lo
+  público; chip de edad solo con dato explícito; fechas sin "De" capitalizado y
+  horas en 24 h; script de tema en el `<head>` (sin destello blanco); header
+  estable; fallback de marca para eventos sin imagen.
+- **"Hoy en Salta"** como primera fila de la home: lo por empezar, museos o
+  `end_date` vigente, ordenado por hora; con el filtro "Hoy", Cine al final.
+- **Tests:** Vitest (`npm test`), 177 tests sin red ni base.
+- **Abierto, visto en esta ronda:** `buildDedupKey()` lanza con fecha inválida
+  (Ronda 4); los workflows viejos no declaran `permissions:`.
 
 ---
 
@@ -698,7 +721,11 @@ derecha**, artefacto de la captura original.
 Reemplazarlas es un comando:
 `node scripts/imagen-penas.mjs --vieja-estacion=<archivo> --apply`
 
-### 13. Cablear `imagen-penas.mjs` dentro de `cargar-penas.mjs`
+### 13. Cablear `imagen-penas.mjs` dentro de `cargar-penas.mjs` — CERRADO el 2026-10-05
+
+Lo resolvió la generación automática (Ronda 2): las fechas nuevas de peñas toman
+la imagen de la última fecha publicada (`lib/recurrentes/generar.ts`). Texto
+original:
 
 Hoy son dos pasos: `cargar-penas.mjs --apply` inserta las fechas nuevas con
 `image_url` en null, y hay que acordarse de correr `imagen-penas.mjs --apply`
