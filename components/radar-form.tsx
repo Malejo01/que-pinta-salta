@@ -27,9 +27,11 @@ interface RadarFormProps {
   categories: Category[]
   venues: Venue[]
   instagramAccounts: any[]
+  /** Determinado en el servidor; solo habilita la interfaz de prueba (el freno real está en la acción). */
+  isAdmin?: boolean
 }
 
-export function RadarForm({ initialSettings, categories, venues, instagramAccounts }: RadarFormProps) {
+export function RadarForm({ initialSettings, categories, venues, instagramAccounts, isAdmin = false }: RadarFormProps) {
   const router = useRouter()
   const { toast } = useToast()
   const { openDonationModal } = useDonation()
@@ -277,9 +279,11 @@ export function RadarForm({ initialSettings, categories, venues, instagramAccoun
                 className="pl-10 bg-zinc-950 border-zinc-800"
               />
             </div>
-            <p className="text-[11px] text-zinc-500 italic">
-              * (En fase beta, los correos de prueba solo se enviarán a tu casilla asociada).
-            </p>
+            {isAdmin && (
+              <p className="text-[11px] text-zinc-500 italic">
+                * (En fase beta, los correos de prueba solo se enviarán a tu casilla asociada).
+              </p>
+            )}
           </div>
         </div>
       </div>
@@ -432,15 +436,17 @@ export function RadarForm({ initialSettings, categories, venues, instagramAccoun
 
       {/* Botones de Guardado y Prueba */}
       <div className="flex flex-col sm:flex-row justify-end gap-3 pt-4">
-        <Button
-          type="button"
-          onClick={handleSendTestEmail}
-          variant="outline"
-          className="border-zinc-800 hover:bg-zinc-900 font-semibold px-6 py-5 rounded-xl cursor-pointer"
-          disabled={isPending || isSendingTest}
-        >
-          {isSendingTest ? "Enviando prueba..." : "Enviar Correo de Prueba"}
-        </Button>
+        {isAdmin && (
+          <Button
+            type="button"
+            onClick={handleSendTestEmail}
+            variant="outline"
+            className="border-zinc-800 hover:bg-zinc-900 font-semibold px-6 py-5 rounded-xl cursor-pointer"
+            disabled={isPending || isSendingTest}
+          >
+            {isSendingTest ? "Enviando prueba..." : "Enviar Correo de Prueba"}
+          </Button>
+        )}
         <Button
           type="submit"
           className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold px-8 py-5 rounded-xl shadow-lg shadow-primary/10 cursor-pointer"
