@@ -28,6 +28,8 @@ import { AdSenseBanner } from "@/components/adsense-banner"
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
 import { useToast } from "@/hooks/use-toast"
+import { ViewBeacon } from "@/components/view-beacon"
+import { goHref, type MetricOrigin } from "@/lib/metricas/links"
 
 type EventWithRelations = Event & { 
   category: Category | null; 
@@ -39,9 +41,11 @@ interface EventDetailPageProps {
   isAdmin?: boolean
   categories?: Category[]
   isFavorite?: boolean
+  /** Origen de la visita (`?o=`), ya validado en el servidor. */
+  origin?: MetricOrigin
 }
 
-export function EventDetailPage({ event, isAdmin = false, categories = [], isFavorite = false }: EventDetailPageProps) {
+export function EventDetailPage({ event, isAdmin = false, categories = [], isFavorite = false, origin = "directo" }: EventDetailPageProps) {
   const router = useRouter()
   const [localCategories, setLocalCategories] = useState<Category[]>(categories)
   const [isEditingCategory, setIsEditingCategory] = useState(false)
@@ -155,6 +159,7 @@ export function EventDetailPage({ event, isAdmin = false, categories = [], isFav
 
   return (
     <div className="min-h-screen bg-background pb-20 sm:pb-0">
+      <ViewBeacon eventId={event.id} origin={origin} />
       <Navbar />
       
       <main className="container mx-auto px-4 py-8">
@@ -349,7 +354,7 @@ export function EventDetailPage({ event, isAdmin = false, categories = [], isFav
               
               {displayEvent.ticketUrl && (
                 <Button size="lg" variant="outline" className="w-full sm:flex-1" asChild>
-                  <a href={displayEvent.ticketUrl} target="_blank" rel="noopener noreferrer">
+                  <a href={goHref(event.id, "ficha")} target="_blank" rel="nofollow noopener noreferrer">
                     <ExternalLink className="mr-2 size-4" />
                     Comprar tickets
                   </a>

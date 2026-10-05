@@ -8,6 +8,7 @@ import { EventCard } from "@/components/event-card"
 import { Button } from "@/components/ui/button"
 import { getCategoryIcon } from "@/lib/category-icons"
 import type { DisplayEvent } from "@/components/home-content"
+import type { MetricOrigin } from "@/lib/metricas/links"
 
 interface CategoryRowProps {
   category: string
@@ -16,6 +17,8 @@ interface CategoryRowProps {
   userFavorites?: string[]
   onOpenMovie?: (movie: DisplayEvent) => void
   onSeeAll?: (category: string) => void
+  /** Origen de medición de los links a cada evento. */
+  origin?: MetricOrigin
 }
 
 export function CategoryRow({ 
@@ -25,6 +28,7 @@ export function CategoryRow({
   userFavorites = [],
   onOpenMovie,
   onSeeAll,
+  origin,
 }: CategoryRowProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
 
@@ -96,6 +100,7 @@ export function CategoryRow({
                   event={event} 
                   isFavorite={userFavorites.includes(event.id)}
                   onOpenMovie={onOpenMovie} 
+                  origin={origin}
                 />
               </motion.div>
             ))}

@@ -92,9 +92,8 @@ describe('buildDedupKey', () => {
     expect(buildDedupKey('Banda', undefined)).toBe('')
     expect(buildDedupKey('Banda', '')).toBe('')
   })
-  // BUG conocido (lib/scraper/dedup-key.ts:92-93): Intl lanza RangeError antes del guard de NaN.
-  // it.fails: pasa mientras el bug exista; al arreglarlo, cambiar a it.
-  it.fails('fecha inválida: no tira excepción y devuelve vacío', () => {
+  // QPS-033: arreglado, una fecha inválida devuelve vacío.
+  it('fecha inválida: no tira excepción y devuelve vacío', () => {
     expect(() => buildDedupKey('Banda', 'no-es-fecha')).not.toThrow()
     expect(buildDedupKey('Banda', 'no-es-fecha')).toBe('')
   })

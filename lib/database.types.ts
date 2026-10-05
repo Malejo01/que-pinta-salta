@@ -63,6 +63,25 @@ isOneToOne: false
                   Relationships: [
                     
                   ]
+                },"event_metrics_daily": {
+                  Row: {
+                    "clicks": number,"day": string,"event_id": string,"featured": boolean,"origin": string,"views": number
+                  }
+                  Insert: {
+                    "clicks"?: number,"day": string,"event_id": string,"featured"?: boolean,"origin": string,"views"?: number
+                  }
+                  Update: {
+                    "clicks"?: number,"day"?: string,"event_id"?: string,"featured"?: boolean,"origin"?: string,"views"?: number
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "event_metrics_daily_event_id_fkey"
+      columns: ["event_id"]
+isOneToOne: false
+      referencedRelation: "events"
+      referencedColumns: ["id"]
+    }
+                  ]
                 },"events": {
                   Row: {
                     "age_restriction": number | null,"ai_metadata": Json | null,"category_id": string | null,"classification_source": string | null,"created_at": string | null,"created_by": string | null,"dedup_key": string | null,"description": string | null,"end_date": string | null,"gallery_urls": (string)[] | null,"id": string,"image_url": string | null,"is_commercial": boolean | null,"is_featured": boolean | null,"is_free": boolean | null,"is_recurring": boolean | null,"merge_audit": NonNullable<Json>,"price_max": number | null,"price_min": number | null,"recurrence_rule": string | null,"scrape_source_key": string | null,"short_description": string | null,"slug": string,"start_date": string,"status": Database["public"]['Enums']["event_status"] | null,"tags": (string)[] | null,"ticket_sources": Json | null,"ticket_url": string | null,"title": string,"updated_at": string | null,"venue_id": string | null,"view_count": number | null
@@ -469,6 +488,9 @@ isOneToOne: false
           Functions: {
             "is_admin":
 { Args: Record<PropertyKey, never>; Returns: boolean
+                           },
+"record_event_metric":
+{ Args: { "p_event_id": string,"p_kind": string,"p_origin": string }; Returns: undefined
                            },
 "resolve_venue_id":
 { Args: { "p_autocreate"?: boolean,"p_raw": string,"p_source"?: string,"p_threshold"?: number }; Returns: string

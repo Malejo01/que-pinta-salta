@@ -89,8 +89,11 @@ export function buildDedupKey(title?: string | null, startDate?: string | Date |
   const normalizedTitle = normalizeTitleForKey(title)
   if (!normalizedTitle || !startDate) return ''
 
+  // Fecha inválida: clave vacía, sin lanzar (QPS-033).
+  if (Number.isNaN(new Date(startDate).getTime())) return ''
+
   const day = formatSaltaDayKey(startDate)
-  if (!day || day.includes('NaN')) return ''
+  if (!day) return ''
 
   return `${normalizedTitle}|${day}`
 }

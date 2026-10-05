@@ -2,13 +2,17 @@ import { getEventById } from "@/lib/data"
 import { getCategories } from "@/lib/data"
 import { EventModalWrapper } from "@/components/event-modal-wrapper"
 import { createClient } from "@/lib/supabase/server"
+import { parseOrigin } from "@/lib/metricas/links"
 
 interface ModalEventPageProps {
   params: Promise<{ id: string }>
+  searchParams?: Promise<{ o?: string | string[] }>
 }
 
-export default async function ModalEventPage({ params }: ModalEventPageProps) {
+export default async function ModalEventPage({ params, searchParams }: ModalEventPageProps) {
   const { id } = await params
+  const sp = (await searchParams) ?? {}
+  const origin = parseOrigin(Array.isArray(sp.o) ? sp.o[0] : sp.o)
   const supabase = await createClient()
 
   const [event, categories, userResult] = await Promise.all([
@@ -34,5 +38,5 @@ export default async function ModalEventPage({ params }: ModalEventPageProps) {
     return null
   }
 
-  return <EventModalWrapper event={event} isAdmin={isAdmin} categories={categories} />
+  return <EventModalWrapper event={event} isAdmin={isAdmin} categories={categories} origin={origin} />
 }

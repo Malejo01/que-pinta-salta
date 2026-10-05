@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server"
 import { revalidatePath } from "next/cache"
 import { Resend } from "resend"
 import { formatEventDate, formatSaltaClock } from "@/lib/date-format"
+import { eventHref } from "@/lib/metricas/links"
 
 export type EmailFrequency = 'weekly' | 'biweekly' | 'monthly' | 'disabled'
 
@@ -199,7 +200,7 @@ function buildRadarEmailHtml(events: any[], emailTarget: string): string {
     const formattedTime = formatSaltaClock(dateObj)
 
     const priceText = event.is_free ? "Gratis" : (event.price_min > 0 ? `$${event.price_min}` : "A confirmar")
-    const detailUrl = `https://quepintasalta.com.ar/evento/${event.id}`
+    const detailUrl = `https://quepintasalta.com.ar${eventHref(event.id, 'radar')}`
 
     return `
       <div style="margin-bottom: 20px; padding: 18px; border-radius: 12px; background-color: #121214; border: 1px solid #27272a; text-align: left;">

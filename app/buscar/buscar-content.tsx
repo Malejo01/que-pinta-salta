@@ -238,6 +238,7 @@ export function BuscarContent({
                   isFavorite={favorites.includes(event.id)}
                   onToggleFavorite={handleToggleFavorite}
                   onOpenMovie={setSelectedMovie}
+                  origin="busqueda"
                 />
               ))}
             </div>
@@ -257,6 +258,7 @@ export function BuscarContent({
         event={selectedEvent}
         open={!!selectedEvent}
         onClose={() => setSelectedEvent(null)}
+        origin="busqueda"
       />
       
       {selectedMovie && (

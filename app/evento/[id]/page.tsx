@@ -4,10 +4,12 @@ import { getCategories } from "@/lib/data"
 import { EventDetailPage } from "@/components/event-detail-page"
 import { createClient } from "@/lib/supabase/server"
 import { formatSaltaSchemaDate } from "@/lib/date-format"
+import { parseOrigin } from "@/lib/metricas/links"
 import type { Metadata } from "next"
 
 interface EventPageProps {
   params: Promise<{ id: string }>
+  searchParams?: Promise<{ o?: string | string[] }>
 }
 
 export async function generateMetadata({ params }: EventPageProps): Promise<Metadata> {
@@ -48,8 +50,10 @@ export async function generateMetadata({ params }: EventPageProps): Promise<Meta
   }
 }
 
-export default async function EventPage({ params }: EventPageProps) {
+export default async function EventPage({ params, searchParams }: EventPageProps) {
   const { id } = await params
+  const sp = (await searchParams) ?? {}
+  const origin = parseOrigin(Array.isArray(sp.o) ? sp.o[0] : sp.o)
   const supabase = await createClient()
 
   const [event, categories, userResult] = await Promise.all([
@@ -194,6 +198,7 @@ export default async function EventPage({ params }: EventPageProps) {
         isAdmin={isAdmin} 
         categories={categories} 
         isFavorite={isFavorite}
+        origin={origin}
       />
     </>
   )
