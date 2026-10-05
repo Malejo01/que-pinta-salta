@@ -12,6 +12,7 @@ import { formatEventDateShort } from "@/lib/date-format"
 import { FavoriteButton } from "@/components/favorite-button"
 import { useDonation } from "@/components/donation-context"
 import type { DisplayEvent } from "@/components/home-content"
+import { eventHref, type MetricOrigin } from "@/lib/metricas/links"
 
 interface EventCardProps {
   event: DisplayEvent
@@ -19,9 +20,11 @@ interface EventCardProps {
   onToggleFavorite?: (eventId: string) => void
   onOpenMovie?: (movie: DisplayEvent) => void
   className?: string
+  /** Desde dónde se llegó al evento; viaja como `?o=` para medir vistas. */
+  origin?: MetricOrigin
 }
 
-export function EventCard({ event, isFavorite, onToggleFavorite, onOpenMovie, className }: EventCardProps) {
+export function EventCard({ event, isFavorite, onToggleFavorite, onOpenMovie, className, origin }: EventCardProps) {
   const [imgSrc, setImgSrc] = useState<string>(event.image || "/placeholder.jpg")
   const [failedImage, setFailedImage] = useState<string | null>(null)
   const { openDonationModal } = useDonation()
@@ -47,7 +50,7 @@ export function EventCard({ event, isFavorite, onToggleFavorite, onOpenMovie, cl
 
   const linkHref = event.isInstagramFlyer && event.flyerId
     ? `/flyer/${event.flyerId}`
-    : `/evento/${event.id}`
+    : eventHref(event.id, origin)
 
   const handleClick = (e: React.MouseEvent) => {
     if (event.isCinemaMovie && onOpenMovie) {

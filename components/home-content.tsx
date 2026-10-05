@@ -592,6 +592,7 @@ export function HomeContent({
                 userFavorites={userFavorites}
                 onOpenMovie={setSelectedMovie}
                 onSeeAll={() => setDate("hoy")}
+                origin="hoy"
               />
             ) : (
               <section className="py-4">
@@ -631,6 +632,7 @@ export function HomeContent({
                   userFavorites={userFavorites}
                   onOpenMovie={setSelectedMovie}
                   onSeeAll={setCategory}
+                  origin="fila"
                 />
                 
                 {/* 1. Banner de Radar después de la segunda categoría */}
@@ -687,6 +689,7 @@ export function HomeContent({
                       event={event} 
                       isFavorite={userFavorites.includes(event.id)}
                       onOpenMovie={setSelectedMovie}
+                      origin="fila"
                     />
                   </motion.div>
                 ))}

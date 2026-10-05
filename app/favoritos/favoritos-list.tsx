@@ -187,6 +187,7 @@ export function FavoritosList({ initialFavorites }: FavoritosListProps) {
                 event={event} 
                 isFavorite={true}
                 onOpenMovie={setSelectedMovie}
+                origin="favoritos"
               />
             ))}
           </div>
@@ -213,6 +214,7 @@ export function FavoritosList({ initialFavorites }: FavoritosListProps) {
                   event={event} 
                   isFavorite={true}
                   onOpenMovie={setSelectedMovie}
+                  origin="favoritos"
                 />
               ))}
             </div>

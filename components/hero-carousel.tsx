@@ -9,6 +9,7 @@ import { formatEventDate } from "@/lib/date-format"
 import { capitalizeFirst, cleanDescription } from "@/lib/event-display"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { eventHref } from "@/lib/metricas/links"
 import type { DisplayEvent } from "@/components/home-content"
 
 interface HeroCarouselProps {
@@ -107,7 +108,7 @@ export function HeroCarousel({ events }: HeroCarouselProps) {
           </div>
 
           {/* Dark gradients to ensure readability on any background */}
-          <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/50 to-transparent" />
+          <div className="absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-black/95 via-black/50 to-transparent sm:inset-0 sm:h-auto" />
           <div className="absolute inset-0 bg-gradient-to-r from-black/40 via-transparent to-black/40" />
         </motion.div>
       </AnimatePresence>
@@ -120,44 +121,46 @@ export function HeroCarousel({ events }: HeroCarouselProps) {
           transition={{ duration: 0.5, delay: 0.2 }}
           className="container mx-auto max-w-4xl"
         >
-          <Badge className="mb-2 bg-primary text-[10px] text-primary-foreground sm:mb-3 sm:text-xs">
+          <Badge className="mb-1 bg-primary text-[10px] text-primary-foreground sm:mb-3 sm:text-xs">
             {currentEvent.categoryName}
           </Badge>
           
-          <h2 className="mb-2 text-lg font-bold leading-tight text-white sm:mb-3 sm:text-3xl lg:text-[2rem] drop-shadow-md">
+          <h2 className="mb-1 line-clamp-2 text-[15px] font-bold leading-tight text-white sm:mb-3 sm:line-clamp-none sm:text-3xl lg:text-[2rem] drop-shadow-md">
             {currentEvent.title}
           </h2>
           
-          <div className="mb-2 flex flex-wrap items-center gap-2 text-xs text-zinc-300 sm:mb-3 sm:gap-3 sm:text-sm drop-shadow-sm">
-            <div className="flex items-center gap-2">
-              <Calendar className="size-3 text-primary sm:size-4" />
-              <span>{capitalizeFirst(formattedDate)}{currentEvent.time ? ` - ${currentEvent.time}` : ""}</span>
+          <div className="mb-2 flex min-w-0 flex-nowrap items-center gap-2 text-xs text-zinc-300 sm:mb-3 sm:flex-wrap sm:gap-3 sm:text-sm drop-shadow-sm">
+            <div className="flex min-w-0 items-center gap-1 sm:gap-2">
+              <Calendar className="size-3 shrink-0 text-primary sm:size-4" />
+              <span className="truncate sm:overflow-visible sm:whitespace-normal">{capitalizeFirst(formattedDate)}{currentEvent.time ? ` - ${currentEvent.time}` : ""}</span>
             </div>
-            <div className="flex items-center gap-2">
-              <MapPin className="size-3 text-primary sm:size-4" />
-              <span>{currentEvent.venue}</span>
+            <div className="flex min-w-0 items-center gap-1 sm:gap-2">
+              <MapPin className="size-3 shrink-0 text-primary sm:size-4" />
+              <span className="truncate sm:overflow-visible sm:whitespace-normal">{currentEvent.venue}</span>
             </div>
           </div>
           
           {description && (
-            <p className="mb-3 line-clamp-1 max-w-2xl text-xs text-zinc-300 sm:mb-4 sm:line-clamp-2 sm:text-sm drop-shadow-sm">
-              {description}
-            </p>
+            <div className="hidden sm:block">
+              <p className="mb-4 line-clamp-2 max-w-2xl text-sm text-zinc-300 drop-shadow-sm">
+                {description}
+              </p>
+            </div>
           )}
           
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex flex-nowrap items-center gap-2 sm:flex-wrap sm:gap-3">
             <Button 
               size="sm"
               asChild
-              className="bg-primary text-primary-foreground hover:bg-primary/90 sm:h-11 sm:px-8 sm:text-sm"
+              className="h-7 bg-primary px-3 text-xs text-primary-foreground hover:bg-primary/90 sm:h-11 sm:px-8 sm:text-sm"
             >
-              <Link href={`/evento/${currentEvent.id}`}>
-                <Ticket className="mr-2 size-4" />
+              <Link href={eventHref(currentEvent.id, "hero")}>
+                <Ticket className="mr-1 size-3.5 sm:mr-2 sm:size-4" />
                 Ver detalles
               </Link>
             </Button>
             {currentEvent.price !== "confirmar" && (
-              <span className="text-sm font-bold text-white sm:text-base drop-shadow-sm">
+              <span className="truncate text-sm font-bold text-white sm:text-base drop-shadow-sm">
                 {currentEvent.price === "gratis" 
                   ? "Entrada Gratuita" 
                   : `$${currentEvent.price.toLocaleString("es-AR")}`}
@@ -183,7 +186,7 @@ export function HeroCarousel({ events }: HeroCarouselProps) {
         <ChevronRight className="size-4 sm:size-6" />
       </button>
 
-      <div className="absolute bottom-4 left-1/2 z-10 flex -translate-x-1/2 gap-2">
+      <div className="absolute right-3 top-3 z-10 flex gap-1.5 sm:bottom-4 sm:left-1/2 sm:right-auto sm:top-auto sm:-translate-x-1/2 sm:gap-2">
         {events.map((_, index) => (
           <button
             key={index}

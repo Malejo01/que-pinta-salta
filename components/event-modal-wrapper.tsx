@@ -26,6 +26,8 @@ import { formatEventDate, formatSaltaDayKey } from "@/lib/date-format"
 import { ageChip, capitalizeFirst, cleanDescription, formatEventTimeDisplay } from "@/lib/event-display"
 import { createCategory, updateEventCategory } from "@/lib/admin-actions"
 import { deferredRefresh } from "@/lib/deferred-refresh"
+import { ViewBeacon } from "@/components/view-beacon"
+import { goHref, type MetricOrigin } from "@/lib/metricas/links"
 
 type EventWithRelations = Event & { category: Category | null; venue: Venue | null }
 
@@ -33,9 +35,11 @@ interface EventModalWrapperProps {
   event: EventWithRelations
   isAdmin?: boolean
   categories?: Category[]
+  /** Origen de la visita (`?o=`), ya validado en el servidor. */
+  origin?: MetricOrigin
 }
 
-export function EventModalWrapper({ event, isAdmin = false, categories = [] }: EventModalWrapperProps) {
+export function EventModalWrapper({ event, isAdmin = false, categories = [], origin = "directo" }: EventModalWrapperProps) {
   const router = useRouter()
   const [localCategories, setLocalCategories] = useState<Category[]>(categories)
   const [hasCategoryChanges, setHasCategoryChanges] = useState(false)
@@ -137,6 +141,7 @@ export function EventModalWrapper({ event, isAdmin = false, categories = [] }: E
   return (
     <Dialog open onOpenChange={handleClose}>
       <DialogContent className="max-h-[90vh] max-w-lg overflow-y-auto p-0">
+        <ViewBeacon eventId={event.id} origin={origin} />
         <div className="relative aspect-[3/2] w-full">
           <Image
             src={displayEvent.image}
@@ -289,7 +294,7 @@ export function EventModalWrapper({ event, isAdmin = false, categories = [] }: E
             
             {displayEvent.ticketUrl && (
               <Button variant="outline" className="flex-1" asChild>
-                <a href={displayEvent.ticketUrl} target="_blank" rel="noopener noreferrer">
+                <a href={goHref(event.id, "ficha")} target="_blank" rel="nofollow noopener noreferrer">
                   <ExternalLink className="mr-2 size-4" />
                   Comprar tickets
                 </a>

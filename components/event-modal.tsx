@@ -36,14 +36,18 @@ import { Button } from "@/components/ui/button"
 import { getCategoryIcon } from "@/lib/category-icons"
 import { formatEventDate } from "@/lib/date-format"
 import { capitalizeFirst, cleanDescription } from "@/lib/event-display"
+import { ViewBeacon } from "@/components/view-beacon"
+import { goHref, type MetricOrigin } from "@/lib/metricas/links"
 
 interface EventModalProps {
   event: Event | null
   open: boolean
   onClose: () => void
+  /** Desde dónde se abrió el modal, para medir la vista. */
+  origin?: MetricOrigin
 }
 
-export function EventModal({ event, open, onClose }: EventModalProps) {
+export function EventModal({ event, open, onClose, origin = "directo" }: EventModalProps) {
   if (!event) return null
 
   const formattedDate = formatEventDate(event.date, true)
@@ -55,6 +59,7 @@ export function EventModal({ event, open, onClose }: EventModalProps) {
   return (
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="max-h-[90vh] max-w-lg overflow-y-auto p-0">
+        <ViewBeacon eventId={event.id} origin={origin} />
         <div className="relative aspect-[3/2] w-full">
           <Image
             src={event.image}
@@ -130,7 +135,7 @@ export function EventModal({ event, open, onClose }: EventModalProps) {
             
             {event.ticketUrl && (
               <Button variant="outline" className="flex-1" asChild>
-                <a href={event.ticketUrl} target="_blank" rel="noopener noreferrer">
+                <a href={goHref(event.id, "ficha")} target="_blank" rel="nofollow noopener noreferrer">
                   <ExternalLink className="mr-2 size-4" />
                   Comprar tickets
                 </a>
