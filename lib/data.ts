@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import type { Event, Category, Venue } from '@/lib/types'
-import { saltaStartOfDayISO } from '@/lib/event-display'
+import { applyVigenciaPrefilter, isVigente } from '@/lib/events/vigencia'
 
 export async function getEvents(options?: {
   categorySlug?: string
@@ -8,17 +8,16 @@ export async function getEvents(options?: {
   limit?: number
   search?: string
   /**
-   * Solo para la home (filtro "Hoy"): trae desde las 00:00 de Salta en vez de
-   * desde ahora, así lo que ya empezó hoy (museos, 10:00) sigue visible. El
-   * cliente vuelve a descartar lo pasado en el resto de la agenda.
+   * Solo para la home: devuelve todo lo del prefiltro de vigencia (que ya
+   * incluye lo que empezó hoy) sin el filtro exacto, porque la home filtra en
+   * el cliente con dos criterios: la agenda general con isVigente y la fila
+   * "Hoy" con isRelevantToday (los museos siguen todo el día, QPS-011).
    */
   includeStartedToday?: boolean
 }): Promise<(Event & { category: Category; venue: Venue | null })[]> {
   const supabase = await createClient()
-  const nowIso = options?.includeStartedToday
-    ? saltaStartOfDayISO()
-    : new Date().toISOString()
-  
+  const now = new Date()
+
   let query = supabase
     .from('events')
     .select(`
@@ -27,9 +26,8 @@ export async function getEvents(options?: {
       venue:venues(*)
     `)
     .eq('status', 'PUBLISHED')
-    .gte('start_date', nowIso)
-    .order('start_date', { ascending: true })
-  
+  query = applyVigenciaPrefilter(query, now, { includeToday: !!options?.includeStartedToday }).order('start_date', { ascending: true })
+
   if (options?.categorySlug) {
     const { data: category } = await supabase
       .from('categories')
@@ -61,7 +59,8 @@ export async function getEvents(options?: {
     return []
   }
   
-  return data as (Event & { category: Category; venue: Venue | null })[]
+  const rows = data as (Event & { category: Category; venue: Venue | null })[]
+  return options?.includeStartedToday ? rows : rows.filter((e) => isVigente(e, now))
 }
 
 export async function getEventBySlug(slug: string): Promise<(Event & { category: Category; venue: Venue | null }) | null> {
@@ -108,9 +107,9 @@ export async function getEventById(id: string): Promise<(Event & { category: Cat
 
 export async function getFeaturedEvents(): Promise<(Event & { category: Category; venue: Venue | null })[]> {
   const supabase = await createClient()
-  const nowIso = new Date().toISOString()
+  const now = new Date()
 
-  const { data, error } = await supabase
+  const { data, error } = await applyVigenciaPrefilter(supabase
     .from('events')
     .select(`
       *,
@@ -118,17 +117,18 @@ export async function getFeaturedEvents(): Promise<(Event & { category: Category
       venue:venues(*)
     `)
     .eq('status', 'PUBLISHED')
-    .not('category_id', 'is', null)
-    .gte('start_date', nowIso)
+    .not('category_id', 'is', null), now)
     .order('start_date', { ascending: true })
-    .limit(6)
+    .limit(12)
 
   if (error) {
     console.error('Error fetching upcoming carousel events:', error)
     return []
   }
 
-  return data as (Event & { category: Category; venue: Venue | null })[]
+  return (data as (Event & { category: Category; venue: Venue | null })[])
+    .filter((e) => isVigente(e, now))
+    .slice(0, 6)
 }
 
 export async function getEventsByCategory(categorySlug: string): Promise<(Event & { category: Category; venue: Venue | null })[]> {

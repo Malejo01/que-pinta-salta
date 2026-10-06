@@ -37,19 +37,19 @@ export function buildRadarEmailHtml(events: any[], unsubscribeLink: string | nul
     <html>
       <head>
         <meta charset="utf-8">
-        <title>Mi Radar Salteño</title>
+        <title>Tu Radar Salteño</title>
       </head>
       <body style="font-family: Arial, sans-serif; background-color: #09090b; color: #e4e4e7; margin: 0; padding: 20px;">
         <div style="max-width: 550px; margin: 0 auto; background-color: #09090b; border: 1px solid #1f1f23; border-radius: 16px; padding: 24px; text-align: center;">
           <div style="margin-bottom: 24px; border-bottom: 1px solid #27272a; padding-bottom: 16px;">
             <h1 style="color: #AA1B1B; margin: 0 0 6px 0; font-size: 28px; font-weight: 800; font-family: Arial, sans-serif; letter-spacing: -0.5px;">Qué Pinta Salta</h1>
-            <p style="color: #a1a1aa; margin: 0; font-size: 14px; font-weight: 500; font-family: Arial, sans-serif;">📡 Mi Radar Salteño: Tu agenda personalizada</p>
+            <p style="color: #a1a1aa; margin: 0; font-size: 14px; font-weight: 500; font-family: Arial, sans-serif;">📡 Tu Radar Salteño: Tu agenda personalizada</p>
           </div>
           
           <div style="text-align: left; margin-bottom: 24px;">
             <p style="font-size: 16px; line-height: 1.5; color: #e4e4e7; font-family: Arial, sans-serif; margin-top: 0;">¡Hola!</p>
             <p style="font-size: 14px; line-height: 1.5; color: #a1a1aa; font-family: Arial, sans-serif;">
-              Encontramos eventos en Salta Capital que coinciden con los locales o categorías que sigues en tu radar. Lo que se viene en tu agenda personalizada:
+              Encontramos eventos en Salta Capital que coinciden con los locales o categorías que seguís en tu radar. Lo que se viene en tu agenda personalizada:
             </p>
           </div>
           

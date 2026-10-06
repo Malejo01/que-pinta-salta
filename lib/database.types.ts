@@ -330,13 +330,13 @@ isOneToOne: false
                   ]
                 },"user_radar_settings": {
                   Row: {
-                    "created_at": string,"email_frequency": string,"email_target": string | null,"updated_at": string,"user_id": string
+                    "created_at": string,"email_frequency": string,"email_target": string | null,"last_sent_at": string | null,"updated_at": string,"user_id": string
                   }
                   Insert: {
-                    "created_at"?: string,"email_frequency"?: string,"email_target"?: string | null,"updated_at"?: string,"user_id": string
+                    "created_at"?: string,"email_frequency"?: string,"email_target"?: string | null,"last_sent_at"?: string | null,"updated_at"?: string,"user_id": string
                   }
                   Update: {
-                    "created_at"?: string,"email_frequency"?: string,"email_target"?: string | null,"updated_at"?: string,"user_id"?: string
+                    "created_at"?: string,"email_frequency"?: string,"email_target"?: string | null,"last_sent_at"?: string | null,"updated_at"?: string,"user_id"?: string
                   }
                   Relationships: [
                     

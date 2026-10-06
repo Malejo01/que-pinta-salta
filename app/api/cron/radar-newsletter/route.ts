@@ -5,6 +5,7 @@ import { hasBearerSecret } from '@/lib/api-auth'
 import { withJobRun, jobTriggerFrom } from '@/lib/job-runs'
 import { buildRadarEmail } from '@/lib/radar/email'
 import { getRadarEvents } from '@/lib/radar/events'
+import { isDue } from '@/lib/radar/cadence'
 
 export async function GET(request: Request) {
   // Verificar autorización
@@ -15,16 +16,23 @@ export async function GET(request: Request) {
   // La corrida queda registrada en job_runs (radar_newsletter).
   const { httpStatus, body } = await withJobRun('radar_newsletter', jobTriggerFrom(request), sendNewsletter, (r) => {
     if (r.httpStatus >= 500) return { status: 'FAILED', errors: [String(r.body.error ?? 'error')] }
-    const stats = r.body.stats as { sent: number; skipped: number; errors: number } | undefined
+    const stats = r.body.stats as { sent: number; skipped: number; notDue: number; errors: number; markFailed?: number; markFailedUsers?: string[] } | undefined
     if (!stats) return { status: 'SKIPPED', details: { message: r.body.message } }
+    const markFailed = stats.markFailed ?? 0
     return {
-      status: stats.errors ? 'PARTIAL' : 'SUCCESS',
+      status: stats.errors || markFailed ? 'PARTIAL' : 'SUCCESS',
       itemsProcessed: stats.sent,
-      itemsFailed: stats.errors,
-      details: { skipped: stats.skipped },
+      itemsFailed: stats.errors + markFailed,
+      errors: (stats.markFailedUsers ?? []).map((id) => `radar: no se pudo guardar last_sent_at de ${id}`),
+      details: { skipped: stats.skipped, notDue: stats.notDue, markFailed },
     }
   })
-  return NextResponse.json(body, { status: httpStatus })
+  // Los user_id de markFailedUsers van solo a job_runs (admins); la respuesta
+  // puede terminar en logs de GitHub Actions, así que sale solo el conteo.
+  const publicStats = { ...((body.stats ?? {}) as Record<string, unknown>) }
+  delete publicStats.markFailedUsers
+  const publicBody = body.stats ? { ...body, stats: publicStats } : body
+  return NextResponse.json(publicBody, { status: httpStatus })
 }
 
 type NewsletterReply = { httpStatus: number; body: Record<string, unknown> }
@@ -38,17 +46,17 @@ async function sendNewsletter(): Promise<NewsletterReply> {
     return reply(500, { error: 'Resend API key missing' })
   }
 
-  console.log('[RadarNewsletterCron] Iniciando envío semanal de Radar...')
+  console.log('[RadarNewsletterCron] Iniciando envío del Radar...')
   
   const supabase = createAdminClient()
   const resend = new Resend(apiKey)
 
   try {
-    // 1. Obtener configuraciones activas (weekly)
+    // 1. Obtener configuraciones activas (weekly, biweekly, monthly); isDue decide a quién le toca hoy
     const { data: usersSettings, error: settingsError } = await supabase
       .from("user_radar_settings")
-      .select("user_id, email_target")
-      .eq("email_frequency", "weekly")
+      .select("user_id, email_target, email_frequency, last_sent_at")
+      .in("email_frequency", ["weekly", "biweekly", "monthly"])
 
     if (settingsError) {
       console.error("[RadarNewsletterCron] Error al consultar configuraciones de radar:", settingsError)
@@ -56,16 +64,22 @@ async function sendNewsletter(): Promise<NewsletterReply> {
     }
 
     if (!usersSettings || usersSettings.length === 0) {
-      return reply(200, { success: true, message: 'No hay usuarios suscritos a alertas semanales.' })
+      return reply(200, { success: true, message: 'No hay usuarios suscritos al Radar.' })
     }
 
-    const results = { sent: 0, skipped: 0, errors: 0 }
+    const results = { sent: 0, skipped: 0, notDue: 0, errors: 0, markFailed: 0, markFailedUsers: [] as string[] }
 
     if (!process.env.RADAR_UNSUBSCRIBE_SECRET?.trim()) {
       console.warn('[RadarNewsletterCron] RADAR_UNSUBSCRIBE_SECRET no configurada: los mails salen sin link ni cabeceras de baja.')
     }
 
+    const now = new Date()
+
     for (const settings of usersSettings) {
+      if (!isDue(settings.email_frequency, settings.last_sent_at, now)) {
+        results.notDue++
+        continue
+      }
       const userId = settings.user_id
       const emailTarget = settings.email_target
 
@@ -121,6 +135,16 @@ async function sendNewsletter(): Promise<NewsletterReply> {
           results.errors++
         } else {
           results.sent++
+          // Solo con envío aceptado: skipped y errores no cuentan como envío.
+          const { error: markError } = await supabase
+            .from("user_radar_settings")
+            .update({ last_sent_at: new Date().toISOString() })
+            .eq("user_id", userId)
+          if (markError) {
+            results.markFailed++
+            results.markFailedUsers.push(userId)
+            console.error(`[RadarNewsletterCron] No se pudo registrar last_sent_at de ${userId}:`, markError.message)
+          }
         }
       } catch (sendEx) {
         console.error(`[RadarNewsletterCron] Excepción en envío a usuario ${userId}:`, sendEx instanceof Error ? sendEx.message : 'error')

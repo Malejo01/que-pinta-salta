@@ -7,8 +7,13 @@ vi.mock('resend', () => ({
     emails = { send }
   },
 }))
+const jobOutcomes = vi.hoisted(() => [] as unknown[])
 vi.mock('@/lib/job-runs', () => ({
-  withJobRun: async (_k: string, _t: string, work: () => Promise<unknown>) => work(),
+  withJobRun: async (_k: string, _t: string, work: () => Promise<unknown>, outcome?: (r: unknown) => unknown) => {
+    const r = await work()
+    if (outcome) jobOutcomes.push(outcome(r))
+    return r
+  },
   jobTriggerFrom: () => 'test',
 }))
 
@@ -56,10 +61,35 @@ function chain(result: { data: unknown; error: unknown }) {
   return c
 }
 
-function mockDb(opts: { events?: Row[]; flyers?: Row[]; igIds?: string[] } = {}) {
+type Update = { payload: Row; filters: Array<[string, unknown]> }
+const updates: Update[] = []
+
+// Builder de update(...).eq(...) para user_radar_settings: registra la escritura.
+function updateChain(update: Update, error: unknown) {
+  const c: Record<string, unknown> = {}
+  c.eq = (col: string, val: unknown) => {
+    update.filters.push([col, val])
+    return c
+  }
+  c.then = (res: (v: unknown) => unknown, rej: (e: unknown) => unknown) => Promise.resolve({ error }).then(res, rej)
+  return c
+}
+
+const SETTINGS_SEMANAL: Row = {
+  user_id: UID,
+  email_target: 'usuario@ejemplo.test',
+  email_frequency: 'weekly',
+  last_sent_at: null,
+}
+
+function mockDb(
+  opts: { events?: Row[]; flyers?: Row[]; igIds?: string[]; settings?: Row[]; updateError?: unknown; catIds?: string[] } = {},
+) {
+  updates.length = 0
+  jobOutcomes.length = 0
   const userTables: Record<string, { data: unknown; error: unknown }> = {
-    user_radar_settings: { data: [{ user_id: UID, email_target: 'usuario@ejemplo.test' }], error: null },
-    user_followed_categories: { data: [{ category_id: CAT_ID }], error: null },
+    user_radar_settings: { data: opts.settings ?? [SETTINGS_SEMANAL], error: null },
+    user_followed_categories: { data: (opts.catIds ?? [CAT_ID]).map((id) => ({ category_id: id })), error: null },
     user_followed_venues: { data: [], error: null },
     user_followed_instagram_accounts: { data: (opts.igIds ?? []).map((id) => ({ instagram_account_id: id })), error: null },
   }
@@ -71,7 +101,15 @@ function mockDb(opts: { events?: Row[]; flyers?: Row[]; igIds?: string[] } = {})
     from: (t: string) => {
       if (t === 'events' || t === 'instagram_flyers') return fake.client.from(t)
       if (!(t in userTables)) throw new Error('tabla inesperada: ' + t)
-      return chain(userTables[t])
+      const c = chain(userTables[t])
+      if (t === 'user_radar_settings') {
+        c.update = (payload: Row) => {
+          const u: Update = { payload, filters: [] }
+          updates.push(u)
+          return updateChain(u, opts.updateError ?? null)
+        }
+      }
+      return c
     },
   })
 }
@@ -197,5 +235,131 @@ describe('cron radar-newsletter: contenido de la lista', () => {
     mockDb({ igIds: [ACC_ID], flyers: [FLYER] })
     await call()
     expect((send.mock.calls[0][0].html as string).split('Ver detalles').length - 1).toBe(1)
+  })
+})
+
+const dias = (n: number) => new Date(AHORA.getTime() - n * 86_400_000).toISOString()
+const OTRO_UID = '55555555-5555-4555-8555-555555555555'
+const conUsuario = (extra: Row): Row => ({ ...SETTINGS_SEMANAL, ...extra })
+
+describe('cron radar-newsletter: cadencias y last_sent_at (QPS-045)', () => {
+  it('envío aceptado: actualiza last_sent_at del usuario, una sola vez y con la hora actual', async () => {
+    const res = await call()
+    expect((await res.json()).stats).toMatchObject({ sent: 1, skipped: 0, notDue: 0, errors: 0 })
+    expect(updates).toHaveLength(1)
+    expect(updates[0].payload).toEqual({ last_sent_at: AHORA.toISOString() })
+    expect(updates[0].filters).toEqual([['user_id', UID]])
+  })
+
+  it('skipped (sin eventos): no actualiza last_sent_at', async () => {
+    mockDb({ events: [] })
+    const res = await call()
+    expect((await res.json()).stats).toMatchObject({ sent: 0, skipped: 1, errors: 0 })
+    expect(updates).toHaveLength(0)
+  })
+
+  it('skipped (sin intereses): no actualiza last_sent_at', async () => {
+    mockDb({ catIds: [] })
+    const res = await call()
+    expect((await res.json()).stats).toMatchObject({ sent: 0, skipped: 1 })
+    expect(updates).toHaveLength(0)
+  })
+
+  it('error de Resend (sendError): no actualiza last_sent_at', async () => {
+    send.mockResolvedValue({ error: { message: 'rechazado de prueba' } })
+    const res = await call()
+    expect((await res.json()).stats).toMatchObject({ sent: 0, errors: 1 })
+    expect(updates).toHaveLength(0)
+  })
+
+  it('excepción al enviar: no actualiza last_sent_at', async () => {
+    send.mockRejectedValue(new Error('red caída de prueba'))
+    const res = await call()
+    expect((await res.json()).stats).toMatchObject({ sent: 0, errors: 1 })
+    expect(updates).toHaveLength(0)
+  })
+
+  it('si falla guardar last_sent_at: cuenta sent, suma markFailed, 200 y la corrida queda PARTIAL', async () => {
+    mockDb({ updateError: { message: 'update caído de prueba' } })
+    const res = await call()
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    expect(body.stats).toMatchObject({ sent: 1, errors: 0, markFailed: 1 })
+    // Los ids de usuario no salen en la respuesta JSON: solo en job_runs.errors.
+    expect(body.stats).not.toHaveProperty('markFailedUsers')
+    expect(JSON.stringify(body)).not.toContain(UID)
+    expect(jobOutcomes).toHaveLength(1)
+    expect(jobOutcomes[0]).toMatchObject({ status: 'PARTIAL', itemsProcessed: 1, itemsFailed: 1 })
+    expect((jobOutcomes[0] as { errors?: string[] }).errors).toEqual([`radar: no se pudo guardar last_sent_at de ${UID}`])
+  })
+
+  it('sin fallas de guardado ni de envío: la corrida queda SUCCESS', async () => {
+    await call()
+    expect(jobOutcomes[0]).toMatchObject({ status: 'SUCCESS', itemsProcessed: 1, itemsFailed: 0 })
+  })
+
+  it('error de Resend: la corrida queda PARTIAL', async () => {
+    send.mockResolvedValue({ error: { message: 'rechazado de prueba' } })
+    await call()
+    expect(jobOutcomes[0]).toMatchObject({ status: 'PARTIAL', itemsFailed: 1 })
+  })
+
+  it('quincenal con 12 días: no se envía y cuenta notDue; con 13 días sí', async () => {
+    mockDb({ settings: [conUsuario({ email_frequency: 'biweekly', last_sent_at: dias(12) })] })
+    let res = await call()
+    expect((await res.json()).stats).toMatchObject({ sent: 0, skipped: 0, notDue: 1, errors: 0 })
+    expect(send).not.toHaveBeenCalled()
+    expect(updates).toHaveLength(0)
+
+    mockDb({ settings: [conUsuario({ email_frequency: 'biweekly', last_sent_at: dias(13) })] })
+    res = await call()
+    expect((await res.json()).stats).toMatchObject({ sent: 1, notDue: 0 })
+    expect(updates).toHaveLength(1)
+  })
+
+  it('mensual sin envío previo (null): se envía; con 26 días no; con 27 sí', async () => {
+    mockDb({ settings: [conUsuario({ email_frequency: 'monthly', last_sent_at: null })] })
+    expect((await (await call()).json()).stats).toMatchObject({ sent: 1 })
+
+    mockDb({ settings: [conUsuario({ email_frequency: 'monthly', last_sent_at: dias(26) })] })
+    expect((await (await call()).json()).stats).toMatchObject({ sent: 0, notDue: 1 })
+
+    mockDb({ settings: [conUsuario({ email_frequency: 'monthly', last_sent_at: dias(27) })] })
+    expect((await (await call()).json()).stats).toMatchObject({ sent: 1, notDue: 0 })
+  })
+
+  it('mezcla de usuarios: cuenta sent y notDue por separado y actualiza solo al que se envió', async () => {
+    mockDb({
+      settings: [
+        conUsuario({ email_frequency: 'weekly', last_sent_at: dias(7) }),
+        conUsuario({ user_id: OTRO_UID, email_frequency: 'monthly', last_sent_at: dias(10) }),
+      ],
+    })
+    const res = await call()
+    expect((await res.json()).stats).toMatchObject({ sent: 1, skipped: 0, notDue: 1, errors: 0, markFailed: 0 })
+    expect(send).toHaveBeenCalledTimes(1)
+    expect(updates.map((u) => u.filters)).toEqual([[['user_id', UID]]])
+  })
+
+  it('el asunto es "Tu Radar" y no menciona un período, con cualquier cadencia (QPS-057, QPS-063)', async () => {
+    for (const email_frequency of ['weekly', 'biweekly', 'monthly']) {
+      send.mockClear()
+      mockDb({ settings: [conUsuario({ email_frequency, last_sent_at: null })] })
+      await call()
+      const subject = send.mock.calls[0][0].subject as string
+      expect(subject).toContain('Tu Radar')
+      expect(subject).not.toContain('Mi Radar')
+      expect(subject.toLowerCase()).not.toMatch(/semana|quincena|\bmes\b|mensual|semanal/)
+    }
+  })
+
+  it('el texto del correo dice "seguís", "Tu Radar" y no menciona un período', async () => {
+    await call()
+    const html = send.mock.calls[0][0].html as string
+    expect(html).toContain('seguís')
+    expect(html).not.toContain('sigues')
+    expect(html).toContain('Tu Radar')
+    expect(html).not.toContain('Mi Radar')
+    expect(html.toLowerCase()).not.toMatch(/esta semana|quincena|este mes/)
   })
 })

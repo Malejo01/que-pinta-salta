@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any -- filas de Supabase de events con joins, sin tipo común */
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { saltaStartOfDayISO } from '@/lib/event-display'
+import { applyVigenciaPrefilter, isVigente } from '@/lib/events/vigencia'
 
 export type RadarFollows = { categoryIds: string[]; venueIds: string[]; instagramAccountIds: string[] }
 
@@ -10,19 +10,20 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 const SELECT = '*, venue:venues(*), category:categories(*)'
 
 /**
- * Ventana común a toda consulta de events: desde el inicio del día de Salta
- * (coalesce(end_date, start_date) >= desde, para no perder muestras en curso)
- * hasta RADAR_DAYS_AHEAD días.
+ * Ventana común a toda consulta de events: prefiltro de vigencia (lib/events/vigencia.ts,
+ * el mismo criterio que la agenda del sitio) hasta RADAR_DAYS_AHEAD días. El filtro exacto
+ * (isVigente) se aplica después sobre las filas.
  */
 function radarWindow(query: any, now: Date): any {
-  const desde = saltaStartOfDayISO(now)
   const hasta = new Date(now.getTime() + RADAR_DAYS_AHEAD * 86_400_000).toISOString()
-  return query
-    .eq('status', 'PUBLISHED')
-    .or(`end_date.gte.${desde},and(end_date.is.null,start_date.gte.${desde})`)
+  return applyVigenciaPrefilter(query.eq('status', 'PUBLISHED'), now)
     .lte('start_date', hasta)
     .order('start_date', { ascending: true })
 }
+
+const PER_PATH_LIMIT = 30
+export const RADAR_MAX_EVENTS = 12
+export const RADAR_MAX_IN_PROGRESS = 3
 
 /** Lista única del Radar (prueba y cron): eventos futuros publicados de lo que sigue el usuario. */
 export async function getRadarEvents(
@@ -44,13 +45,13 @@ export async function getRadarEvents(
 
   if (categoryIds.length > 0) {
     await collect('eventos por categoría', () =>
-      radarWindow(supabase.from('events').select(SELECT).in('category_id', categoryIds), now).limit(10),
+      radarWindow(supabase.from('events').select(SELECT).in('category_id', categoryIds), now).limit(PER_PATH_LIMIT),
     )
   }
 
   if (venueIds.length > 0) {
     await collect('eventos por lugar', () =>
-      radarWindow(supabase.from('events').select(SELECT).in('venue_id', venueIds), now).limit(10),
+      radarWindow(supabase.from('events').select(SELECT).in('venue_id', venueIds), now).limit(PER_PATH_LIMIT),
     )
   }
 
@@ -72,7 +73,7 @@ export async function getRadarEvents(
         .filter((id: unknown): id is string => typeof id === 'string' && UUID_RE.test(id))
       if (eventIds.length > 0) {
         await collect('eventos de flyers', () =>
-          radarWindow(supabase.from('events').select(SELECT).in('id', eventIds), now).limit(10),
+          radarWindow(supabase.from('events').select(SELECT).in('id', eventIds), now).limit(PER_PATH_LIMIT),
         )
       }
     }
@@ -81,7 +82,26 @@ export async function getRadarEvents(
   const byId = new Map<string, any>()
   for (const ev of found) if (!byId.has(ev.id)) byId.set(ev.id, ev)
 
-  return [...byId.values()]
-    .sort((a, b) => Date.parse(a.start_date) - Date.parse(b.start_date))
-    .slice(0, 12)
+  // Orden por max(inicio, ahora): lo en curso cuenta como "ahora" y se ordena entre sí por inicio.
+  const nowMs = now.getTime()
+  const sorted = [...byId.values()]
+    .filter((ev) => isVigente(ev, now))
+    .sort((a, b) => {
+      const sa = Date.parse(a.start_date)
+      const sb = Date.parse(b.start_date)
+      return Math.max(sa, nowMs) - Math.max(sb, nowMs) || sa - sb
+    })
+
+  // Máximo 3 en curso (ya empezaron: muestras o eventos de hoy) por correo.
+  const result: any[] = []
+  let inProgress = 0
+  for (const ev of sorted) {
+    if (result.length >= RADAR_MAX_EVENTS) break
+    if (Date.parse(ev.start_date) < nowMs) {
+      if (inProgress >= RADAR_MAX_IN_PROGRESS) continue
+      inProgress++
+    }
+    result.push(ev)
+  }
+  return result
 }

@@ -4,6 +4,7 @@ import { AIProcessingResult, GeminiExtractionResult } from './types'
 import { upsertVenue, resolveCategoryId } from '@/lib/scraper/save-to-supabase'
 import { upsertEventWithDeduplication } from '@/lib/scraper/deduplicate'
 import { saltaWallClockToUtcISO } from '@/lib/date-format'
+import { validatePrice, validateStartTime } from './validate-extraction'
 
 // Helper simple de slugify para evitar problemas con importaciones
 function slugify(text: string): string {
@@ -140,14 +141,22 @@ export async function processFlyerWithAI(flyerId: string): Promise<FlyerProcessi
 
   // 3. Invocar a Gemini
   try {
-    const extractedData = await extractEventFromFlyer(
+    const rawExtraction = await extractEventFromFlyer(
       imageBuffer,
       mimeType,
       flyer.caption,
       account?.username || null
     )
+    // flyer_text solo vive en memoria para los controles: no se persiste ni se devuelve.
+    const { flyer_text: flyerText, ...publicData } = rawExtraction
+    const extractedData = publicData
 
     // 4. Resolver datos geográficos y categóricos
+    // Controles deterministas sobre la salida del modelo (QPS-062, QPS-065).
+    // flyer_text es la transcripción del flyer que devuelve el propio modelo.
+    const price = validatePrice(extractedData.price, flyer.caption, flyerText)
+    const timeCheck = validateStartTime(extractedData.start_time, flyer.caption, flyerText)
+
     // Resolver Venue
     const rawVenueName = cleanStringField(extractedData.venue_name)
     const venueName = rawVenueName || account?.default_venue_name || 'Lugar no especificado'
@@ -179,7 +188,7 @@ export async function processFlyerWithAI(flyerId: string): Promise<FlyerProcessi
             ai_status: 'SKIPPED',
             ai_metadata: {
               message: 'Evento caducado',
-              extracted_data: extractedData,
+              extracted_data: publicData,
               processed_at: new Date().toISOString()
             },
             ai_processed_at: new Date().toISOString()
@@ -193,11 +202,8 @@ export async function processFlyerWithAI(flyerId: string): Promise<FlyerProcessi
         }
       }
 
-      const rawTime = cleanStringField(extractedData.start_time)
-      const isValidTime = rawTime && /^\d{2}:\d{2}$/.test(rawTime)
-      const timeStr = isValidTime ? rawTime : '20:00'
-      // Gemini lee la hora del flyer, que es hora de pared de Salta.
-      startDate = saltaWallClockToUtcISO(`${rawDate}T${timeStr}:00`)
+      // Hora de pared de Salta; sin hora escrita en caption/flyer, 00:00 (QPS-065).
+      startDate = saltaWallClockToUtcISO(`${rawDate}T${timeCheck.time}:00`)
     }
 
     // Generar slug del evento
@@ -208,7 +214,7 @@ export async function processFlyerWithAI(flyerId: string): Promise<FlyerProcessi
     // Evaluar si califica para auto-publicación: requiere título, fecha, hora y lugar válidos y detectados
     const hasTitle = !!extractedData.title && extractedData.title.trim().length > 0
     const hasDate = !!extractedData.date && /^\d{4}-\d{2}-\d{2}$/.test(extractedData.date)
-    const hasTime = !!extractedData.start_time && /^\d{2}:\d{2}$/.test(extractedData.start_time)
+    const hasTime = timeCheck.reliable
     const hasVenue = !!venueName && venueName !== 'Lugar no especificado'
     
     const qualifiesForAutoPublish = !!(hasTitle && hasDate && hasTime && hasVenue)
@@ -228,9 +234,9 @@ export async function processFlyerWithAI(flyerId: string): Promise<FlyerProcessi
       end_date: null,
       is_recurring: false,
       recurrence_rule: null,
-      price_min: extractedData.price !== null ? extractedData.price : 0,
+      price_min: price !== null ? price : 0,
       price_max: null,
-      is_free: extractedData.price === 0,
+      is_free: price === 0,
       ticket_url: flyer.ig_post_url,
       is_commercial: false,
       age_restriction: 0,
@@ -241,11 +247,13 @@ export async function processFlyerWithAI(flyerId: string): Promise<FlyerProcessi
       created_by: null,
       classification_source: 'scraper',
       ai_metadata: {
-        extracted_data: extractedData,
+        extracted_data: publicData,
         original_caption: flyer.caption,
         flyer_id: flyer.id,
         processed_at: new Date().toISOString(),
         auto_published: qualifiesForAutoPublish,
+        // Medición de QPS-065: si la hora del modelo se confirmó en el texto.
+        time_reliable: timeCheck.reliable,
         ...(venueError ? { venue_error: VENUE_ERROR_PUBLIC } : {}),
       },
     }
@@ -259,23 +267,24 @@ export async function processFlyerWithAI(flyerId: string): Promise<FlyerProcessi
       .update({
         ai_status: 'PROCESSED',
         ai_metadata: {
-          extracted_data: extractedData,
+          extracted_data: publicData,
           event_id: upsertRes.eventId,
           action: upsertRes.action,
           auto_published: qualifiesForAutoPublish,
+          time_reliable: timeCheck.reliable,
           ...(venueError ? { venue_error: VENUE_ERROR_PUBLIC } : {}),
         },
         ai_processed_at: new Date().toISOString(),
         venue_name: venueName,
         category: categorySlug,
-        price_min: extractedData.price !== null ? extractedData.price : 0,
-        is_free: extractedData.price === 0,
+        price_min: price !== null ? price : 0,
+        is_free: price === 0,
       })
       .eq('id', flyerId)
 
     return {
       success: true,
-      extractedData,
+      extractedData: publicData,
       eventId: upsertRes.eventId,
       action: upsertRes.action,
       ...(venueError ? { venueError } : {}),
