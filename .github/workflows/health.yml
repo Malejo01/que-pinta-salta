@@ -1,8 +1,9 @@
 # Health check diario de la ingesta, 12:00 de Salta (15:00 UTC), después de
 # los crons de ticketeras (08:00 UTC) y cines (13:00 UTC).
 # GET /api/cron/health responde 503 si algún proceso pasó su umbral
-# (ticketeras, cines y cola de IA: 36 h; instagram: 100 h). En ese caso el
-# workflow falla y GitHub manda mail.
+# (ticketeras, cines y cola de IA: 36 h; instagram: 100 h) o si hay eventos
+# sin lugar urgentes (creados en las últimas 48 h o que empiezan en 7 días).
+# En ese caso el workflow falla y GitHub manda mail.
 name: Health check de la ingesta
 
 on:
@@ -27,7 +28,10 @@ jobs:
             "$SITE_URL/api/cron/health")
           jq . body.json || cat body.json
           if [ "$status" != "200" ]; then
-            jq -r '.checks[]? | select(.ok | not) | "::error::\(.name): \(.age_hours // "sin datos") h (máximo \(.max_hours) h)"' body.json || true
+            # Los chequeos que no miden antigüedad (max_hours null) muestran su detail.
+            jq -r '.checks[]? | select(.ok | not) | if .max_hours == null
+              then "::error::\(.name): \(.detail // "sin detalle")"
+              else "::error::\(.name): \(.age_hours // "sin datos") h (máximo \(.max_hours) h)" end' body.json || true
             echo "::error::Health check respondió HTTP $status"
             exit 1
           fi
