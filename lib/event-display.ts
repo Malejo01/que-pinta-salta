@@ -137,3 +137,11 @@ export function saltaStartOfDayISO(now: Date = new Date()): string {
   }).format(now)
   return new Date(`${dayKey}T00:00:00-03:00`).toISOString()
 }
+
+/** Precio como lo muestra el sitio: "Gratis", "$35.000" o "A confirmar". */
+export function formatPriceDisplay(e: { is_free?: boolean | null; price_min?: number | string | null }): string {
+  if (e.is_free) return 'Gratis'
+  const price = Number(e.price_min)
+  if (Number.isFinite(price) && price > 0) return '$' + price.toLocaleString('es-AR')
+  return 'A confirmar'
+}

@@ -27,6 +27,50 @@ describe('buildRadarEmailHtml', () => {
   })
 })
 
+describe('buildRadarEmailHtml: hora, precio, link y copy', () => {
+  const EV_ID = 'e0000000-0000-4000-8000-000000000001'
+  const base = { id: EV_ID, title: 'Evento de Prueba', is_free: false, price_min: 35000, venue: { name: 'Venue de Prueba' } }
+  // 2030-01-02 00:30Z = 21:30 del 1 de enero en Salta; 03:00Z = 00:00 de Salta.
+  const fechaLine = (html: string) => /📅 Fecha: <strong[^>]*>([^<]*)<\/strong>/.exec(html)![1]
+
+  it('con hora (21:30 Salta): "a las 21:30hs"', () => {
+    const html = buildRadarEmailHtml([{ ...base, start_date: '2030-01-02T00:30:00Z' }], null)
+    expect(fechaLine(html)).toContain('a las 21:30hs')
+  })
+  it('a las 00:00 de Salta (03:00 UTC): solo la fecha, sin hora ni "hs"', () => {
+    const html = buildRadarEmailHtml([{ ...base, start_date: '2030-01-02T03:00:00Z' }], null)
+    const line = fechaLine(html)
+    expect(line).toMatch(/enero/)
+    expect(line).not.toContain('00:00')
+    expect(line).not.toContain('a las')
+    expect(line).not.toContain('hs')
+  })
+  it('precio 35000 -> $35.000', () => {
+    const html = buildRadarEmailHtml([{ ...base, start_date: '2030-01-02T00:30:00Z' }], null)
+    expect(html).toContain('$35.000')
+  })
+  it('gratis y sin precio', () => {
+    const html = buildRadarEmailHtml(
+      [
+        { ...base, id: 'g', is_free: true, start_date: '2030-01-02T00:30:00Z' },
+        { ...base, id: 'c', price_min: 0, start_date: '2030-01-02T00:30:00Z' },
+      ],
+      null,
+    )
+    expect(html).toContain('Gratis')
+    expect(html).toContain('A confirmar')
+  })
+  it('link al evento con origen radar', () => {
+    const html = buildRadarEmailHtml([{ ...base, start_date: '2030-01-02T00:30:00Z' }], null)
+    expect(html).toContain(`href="https://quepintasalta.com.ar/evento/${EV_ID}?o=radar"`)
+  })
+  it('copy: "Lo que se viene" y nada de "fin de semana"', () => {
+    const html = buildRadarEmailHtml([{ ...base, start_date: '2030-01-02T00:30:00Z' }], null)
+    expect(html).toContain('Lo que se viene')
+    expect(html.toLowerCase()).not.toContain('fin de semana')
+  })
+})
+
 describe('buildRadarEmail', () => {
   it('con secreto en producción: link, cabeceras y hasUnsubscribe', () => {
     clearVercel()
