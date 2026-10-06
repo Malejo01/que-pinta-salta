@@ -252,6 +252,8 @@ export async function processFlyerWithAI(flyerId: string): Promise<FlyerProcessi
         flyer_id: flyer.id,
         processed_at: new Date().toISOString(),
         auto_published: qualifiesForAutoPublish,
+        // Medición de QPS-065: si la hora del modelo se confirmó en el texto.
+        time_reliable: timeCheck.reliable,
         ...(venueError ? { venue_error: VENUE_ERROR_PUBLIC } : {}),
       },
     }
@@ -269,6 +271,7 @@ export async function processFlyerWithAI(flyerId: string): Promise<FlyerProcessi
           event_id: upsertRes.eventId,
           action: upsertRes.action,
           auto_published: qualifiesForAutoPublish,
+          time_reliable: timeCheck.reliable,
           ...(venueError ? { venue_error: VENUE_ERROR_PUBLIC } : {}),
         },
         ai_processed_at: new Date().toISOString(),

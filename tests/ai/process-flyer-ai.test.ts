@@ -93,6 +93,9 @@ describe('processFlyerWithAI: controles deterministas y ai_metadata', () => {
     expect(ev.is_free).toBe(false)
     expect(ev.start_date).toBe('2030-10-31T03:00:00.000Z')
     expect(ev.status).toBe('DRAFT') // hora no confiable: no se autopublica
+    // Medición de QPS-065: el motivo queda en el evento y en el flyer.
+    expect((ev.ai_metadata as Record<string, unknown>).time_reliable).toBe(false)
+    expect((flyerUpdate().ai_metadata as Record<string, unknown>).time_reliable).toBe(false)
   })
 
   it('"Entrada libre y gratuita" con 21 hs escritas: is_free true y hora respetada, autopublica', async () => {
@@ -103,6 +106,8 @@ describe('processFlyerWithAI: controles deterministas y ai_metadata', () => {
     expect(ev.is_free).toBe(true)
     expect(ev.start_date).toBe('2030-11-01T00:00:00.000Z')
     expect(ev.status).toBe('PUBLISHED')
+    expect((ev.ai_metadata as Record<string, unknown>).time_reliable).toBe(true)
+    expect((flyerUpdate().ai_metadata as Record<string, unknown>).time_reliable).toBe(true)
   })
 
   it('flyer_text no se guarda en ai_metadata del evento ni del flyer, ni se devuelve', async () => {
