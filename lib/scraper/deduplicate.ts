@@ -4,6 +4,7 @@ import { formatSaltaDayKey } from '../date-format';
 import { buildDedupKey, dedupKeyOf, saltaDayRangeUtc, normalizeTitleForKey, venuesCompatible, sameTicketEvent } from './dedup-key';
 import { mergeEvents, appendAudit, mergeTicketSources } from './merge-events';
 import { describeSource } from './source-priority';
+import { resolveMergeTarget, mergedIntoId } from '../events/merged';
 
 // Helper to get admin Supabase client if not passed
 function getAdminClient() {
@@ -145,7 +146,8 @@ export type DuplicateMatch = {
  */
 export async function findDuplicateMatch(
   event: Partial<Event>,
-  supabaseClient?: any
+  supabaseClient?: any,
+  options?: { excludeMerged?: boolean }
 ): Promise<DuplicateMatch | null> {
   const supabase = supabaseClient || getAdminClient();
 
@@ -156,11 +158,16 @@ export async function findDuplicateMatch(
   const incomingKey = buildDedupKey(event.title, event.start_date);
   const { from, to } = saltaDayRangeUtc(event.start_date);
 
-  const { data: candidates, error } = await supabase
+  const { data: rawCandidates, error } = await supabase
     .from('events')
     .select('*')
     .gte('start_date', from)
     .lte('start_date', to);
+  // Con excludeMerged, los eventos fusionados a mano no son candidatos (en
+  // ninguna de las tres vías): se usa cuando su cadena no resuelve.
+  const candidates = options?.excludeMerged && rawCandidates
+    ? rawCandidates.filter((c: { ai_metadata?: unknown }) => mergedIntoId(c) === null)
+    : rawCandidates;
 
   if (error) {
     console.error('[deduplicate] Error buscando candidatos:', error.message);
@@ -238,9 +245,10 @@ export async function findDuplicateMatch(
  */
 export async function findDuplicateEvent(
   event: Partial<Event>,
-  supabaseClient?: any
+  supabaseClient?: any,
+  options?: { excludeMerged?: boolean }
 ): Promise<Event | null> {
-  const match = await findDuplicateMatch(event, supabaseClient);
+  const match = await findDuplicateMatch(event, supabaseClient, options);
   return match?.event ?? null;
 }
 
@@ -290,6 +298,34 @@ export async function upsertEventWithDeduplication(
         const dateStr = formatSaltaDayKey(eventData.start_date || new Date());
         eventData.slug = `${eventData.slug}-${dateStr}`;
         console.log(`[deduplicate] Colisión de slug evitada para "${eventData.title}". Nuevo slug: "${eventData.slug}"`);
+      }
+    }
+  }
+
+  // 2b. Si el candidato es un evento fusionado a mano (DRAFT absorbido), la
+  //     fusión se hace sobre el que quedó. Si la cadena no resuelve (ciclo,
+  //     destino borrado, demasiados saltos) no se toca el fusionado y se crea
+  //     un evento nuevo.
+  if (existingEvent) {
+    const original = existingEvent;
+    const { target, hops } = await resolveMergeTarget(supabase, original);
+    if (hops > 0) {
+      console.log(
+        target
+          ? `[deduplicate] Candidato fusionado: "${original.title}" (${original.id}) -> ${target.id} (${hops} salto/s)`
+          : `[deduplicate] Candidato fusionado sin destino válido: "${original.title}" (${original.id}), se crea evento nuevo`
+      );
+    }
+    existingEvent = target;
+    if (!target) {
+      // Cadena rota: se busca de nuevo ignorando fusionados, para que la
+      // próxima corrida actualice lo que esta inserta en vez de repetir el choque.
+      existingEvent = await findDuplicateEvent(eventData, supabase, { excludeMerged: true });
+      if (existingEvent) {
+        console.log(`[deduplicate] Sin destino para ${original.id}; se fusiona en ${existingEvent.id}`);
+      } else if (eventData.slug && eventData.slug === original.slug) {
+        // El insert nuevo chocaría con el slug único del fusionado.
+        eventData.slug = `${eventData.slug}-${formatSaltaDayKey(eventData.start_date || new Date())}`;
       }
     }
   }

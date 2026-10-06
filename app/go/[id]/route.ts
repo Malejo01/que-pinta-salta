@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
+import { findMergeRedirect } from '@/lib/events/merged'
 import { isBotOrPrefetch, isUuid, parseOrigin, recordMetric, safeTicketUrl } from '@/lib/metricas'
 
 export const dynamic = 'force-dynamic'
@@ -41,6 +42,20 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     ticketUrl = safeTicketUrl(data?.ticket_url)
   } catch (err) {
     console.error('[go] no se pudo leer el evento:', err instanceof Error ? err.message : err)
+  }
+
+  if (!ticketUrl && supabase) {
+    // Evento fusionado: se sigue al que quedó, conservando el origen.
+    try {
+      const to = await findMergeRedirect(supabase, id)
+      if (to) {
+        const rawOrigin = request.nextUrl.searchParams.get('o')
+        const validOrigin = rawOrigin && parseOrigin(rawOrigin) === rawOrigin ? rawOrigin : null
+        return redirectTo(request, `/go/${to}${validOrigin ? `?o=${validOrigin}` : ''}`)
+      }
+    } catch (err) {
+      console.error('[go] no se pudo seguir la fusión:', err instanceof Error ? err.message : err)
+    }
   }
 
   if (!ticketUrl) {

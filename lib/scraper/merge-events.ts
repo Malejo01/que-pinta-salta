@@ -1,6 +1,7 @@
 import type { TicketSource } from '../types'
 import { getSourcePriority, getSourceTier, resolveEventSource } from './source-priority'
 import { hasRealTime, isAutoDescription } from './dedup-key'
+import { mergedIntoId } from '../events/merged'
 
 /**
  * Fusión de dos registros del mismo evento, sin pérdida de datos.
@@ -234,7 +235,10 @@ function resolvePriceMin(basePrice: any, incomingPrice: any): number {
  * moderación humana; promoverlo saltearía la revisión) ni CANCELLED, y nunca se
  * baja un PUBLISHED. Toda diferencia de estado queda igual en la auditoría.
  */
-function resolveStatus(baseStatus: any, incomingStatus: any, incomingSource: string): string | null {
+function resolveStatus(base: { status?: unknown; ai_metadata?: unknown }, incomingStatus: any, incomingSource: string): string | null {
+  // Un evento fusionado a mano queda en DRAFT a propósito: nunca se promueve.
+  if (mergedIntoId(base) !== null) return null
+  const baseStatus = base.status
   if (!incomingStatus || incomingStatus === baseStatus) return null
   if (baseStatus !== 'DRAFT') return null
   if (incomingStatus !== 'PUBLISHED') return null
@@ -411,7 +415,7 @@ export function mergeEvents(
   const finalIsCommercial = Boolean(base.is_commercial || incoming.is_commercial)
   if (finalIsCommercial !== Boolean(base.is_commercial)) patch.is_commercial = finalIsCommercial
 
-  const nextStatus = resolveStatus(base.status, incoming.status, incomingSource)
+  const nextStatus = resolveStatus(base, incoming.status, incomingSource)
   if (nextStatus) {
     patch.status = nextStatus
   } else if (incoming.status && base.status && incoming.status !== base.status) {
