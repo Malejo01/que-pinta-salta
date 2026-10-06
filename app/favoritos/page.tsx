@@ -5,6 +5,7 @@ import { Navbar } from "@/components/navbar"
 import { MobileNav } from "@/components/mobile-nav"
 import { FavoritosList } from "./favoritos-list"
 import { formatSaltaDayKey } from "@/lib/date-format"
+import { applyVigenciaPrefilter, isVigente } from "@/lib/events/vigencia"
 import { ageChip, cleanDescription, formatEventTimeDisplay } from "@/lib/event-display"
 
 export const metadata = {
@@ -39,15 +40,14 @@ export default async function FavoritosPage() {
   const movieIds = favorites?.map(f => f.cinema_movie_id).filter(Boolean) as string[] || []
 
   // 2. Fetch paralelos de los detalles de los elementos guardados (filtrando solo activos y futuros)
-  const nowIso = new Date().toISOString()
+  const now = new Date()
   const [eventsRes, flyersRes, moviesRes, categories] = await Promise.all([
     eventIds.length > 0 
-      ? supabase
+      ? applyVigenciaPrefilter(supabase
           .from("events")
           .select("*, category:categories(*), venue:venues(*)")
           .in("id", eventIds)
-          .eq("status", "PUBLISHED")
-          .gte("start_date", nowIso)
+          .eq("status", "PUBLISHED"), now)
       : Promise.resolve({ data: [] }),
     flyerIds.length > 0
       ? supabase
@@ -72,7 +72,7 @@ export default async function FavoritosPage() {
   const categoryNameById = new Map(categories.map(c => [c.id, c.name]))
 
   // 3. Transformar y normalizar a DisplayEvent compatible con EventCard
-  const displayEvents = (eventsRes.data || []).map(event => {
+  const displayEvents = (eventsRes.data || []).filter(event => isVigente(event, now)).map(event => {
     const startDate = new Date(event.start_date)
     return {
       id: event.id,

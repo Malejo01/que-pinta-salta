@@ -23,6 +23,7 @@ import {
   isRelevantToday,
   selectTodayEvents,
 } from "@/lib/event-display"
+import { isVigente } from "@/lib/events/vigencia"
 import { AdSenseBanner } from "@/components/adsense-banner"
 import { Film } from "lucide-react"
 
@@ -303,9 +304,10 @@ export function HomeContent({
   const displayData = useMemo(() => {
     const nowMs = new Date(serverNowISO).getTime()
     const saltaTodayStr = formatDateInSalta(new Date(serverNowISO))
-    // Agenda general: solo lo que todavía no empezó (como siempre).
+    // Agenda general: vigencia única (fin real o estimado >= ahora), la misma
+    // que usa el Radar. Lo que empezó hace poco y sigue en curso se muestra.
     const finalEventItems = groupEventItems(
-      events.filter((event) => new Date(event.start_date).getTime() >= nowMs)
+      events.filter((event) => isVigente(event, new Date(nowMs)))
     )
     // Para "Hoy": lo de hoy aunque ya haya empezado (museos 10:00). Si el
     // servidor solo mandó futuros, coincide con la agenda general de hoy.
