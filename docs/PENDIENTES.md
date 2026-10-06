@@ -498,7 +498,30 @@ PR #12 (squash `bbb3389`). Primera corrida manual del workflow en SUCCESS.
   `end_date` vigente, ordenado por hora; con el filtro "Hoy", Cine al final.
 - **Tests:** Vitest (`npm test`), 177 tests sin red ni base.
 - **Abierto, visto en esta ronda:** `buildDedupKey()` lanza con fecha inválida
-  (Ronda 4); los workflows viejos no declaran `permissions:`.
+  (cerrado en la Ronda 4); los workflows viejos no declaran `permissions:`.
+
+### Ronda 4 (medir vistas y clics, hero en celular) — CERRADO el 2026-10-05
+
+PR #13 (squash `d95b426`). Migración `20261005120000_event_metrics` aplicada en
+producción y verificada (RLS, privilegios, advisor). Primeros datos el mismo día.
+
+- **Medición (QPS-027).** Tabla `event_metrics_daily` (solo agregados por
+  evento, día de Salta, origen y destacado; lectura solo admins) y función
+  `record_event_metric` (`SECURITY DEFINER`, solo `service_role`). Clics por
+  `/go/[id]` (redirige solo al `ticket_url` guardado, nunca a una URL del
+  request; si contar falla, redirige igual). Vistas por `sendBeacon` desde la
+  ficha y los modales, no en el render del servidor (el prefetch las inflaría).
+  Origen por `?o=` en los links (hero, hoy, fila, busqueda, favoritos, ficha,
+  radar, directo). Sin cookies, IP ni user agent guardado; filtra bots y
+  prefetch. Cómo leerlo y sus límites: `docs/METRICAS.md`.
+- **`buildDedupKey()` con fecha inválida** devuelve `''` (QPS-033).
+- **Hero en celular** sin descripción, título en 2 líneas y puntos fuera del
+  precio (QPS-038).
+- **Tests:** 280.
+- **Abierto, visto en esta ronda:** el contador se puede inflar con un user
+  agent falso (falta límite de pedidos); la política de privacidad tiene que
+  mencionar la medición; `/go` espera la escritura antes de redirigir; 6
+  funciones de venues sin `search_path` fijo (advisor).
 
 ---
 

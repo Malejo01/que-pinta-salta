@@ -21,13 +21,16 @@ export default async function RadarPage() {
     redirect("/auth/login?next=/radar")
   }
 
-  // Carga paralela de configuraciones, locales, categorías e Instagram accounts
-  const [initialSettings, categories, venues, instagramAccounts] = await Promise.all([
+  // Carga paralela de configuraciones, locales, categorías, Instagram accounts y rol
+  // (mismo mecanismo que el resto del sitio: profiles.role === 'ADMIN', leído en el servidor)
+  const [initialSettings, categories, venues, instagramAccounts, profileRes] = await Promise.all([
     getRadarSettings(),
     getCategories(),
     getVenues(),
-    getInstagramAccounts()
+    getInstagramAccounts(),
+    supabase.from("profiles").select("role").eq("id", user.id).single(),
   ])
+  const isAdmin = profileRes.data?.role === "ADMIN"
 
   return (
     <div className="min-h-screen bg-background pb-20 sm:pb-0 relative overflow-hidden">
@@ -57,6 +60,7 @@ export default async function RadarPage() {
           categories={categories} 
           venues={venues} 
           instagramAccounts={instagramAccounts}
+          isAdmin={isAdmin}
         />
       </main>
 
