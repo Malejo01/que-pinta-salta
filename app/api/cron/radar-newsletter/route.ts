@@ -4,6 +4,7 @@ import { Resend } from 'resend'
 import { hasBearerSecret } from '@/lib/api-auth'
 import { withJobRun, jobTriggerFrom } from '@/lib/job-runs'
 import { buildRadarEmail } from '@/lib/radar/email'
+import { getRadarEvents } from '@/lib/radar/events'
 
 export async function GET(request: Request) {
   // Verificar autorización
@@ -58,7 +59,6 @@ async function sendNewsletter(): Promise<NewsletterReply> {
       return reply(200, { success: true, message: 'No hay usuarios suscritos a alertas semanales.' })
     }
 
-    const nowIso = new Date().toISOString()
     const results = { sent: 0, skipped: 0, errors: 0 }
 
     if (!process.env.RADAR_UNSUBSCRIBE_SECRET?.trim()) {
@@ -97,61 +97,7 @@ async function sendNewsletter(): Promise<NewsletterReply> {
         continue
       }
 
-      let emailEvents: any[] = []
-
-      // Buscar eventos coincidentes
-      if (categoryIds.length > 0 || venueIds.length > 0) {
-        let query = supabase
-          .from("events")
-          .select("*, venue:venues(*), category:categories(*)")
-          .eq("status", "PUBLISHED")
-          .gte("start_date", nowIso)
-          .order("start_date", { ascending: true })
-
-        if (categoryIds.length > 0 && venueIds.length > 0) {
-          query = query.or(`category_id.in.(${categoryIds.join(',')}),venue_id.in.(${venueIds.join(',')})`)
-        } else if (categoryIds.length > 0) {
-          query = query.in("category_id", categoryIds)
-        } else {
-          query = query.in("venue_id", venueIds)
-        }
-
-        const { data: events, error: eventsError } = await query.limit(8)
-
-        if (eventsError) {
-          console.error(`[RadarNewsletterCron] Error consultando eventos para usuario ${userId}:`, eventsError)
-        } else if (events) {
-          emailEvents = [...events]
-        }
-      }
-
-      // Buscar flyers coincidentes de Instagram
-      if (instagramAccountIds.length > 0) {
-        const { data: flyers, error: flyersError } = await supabase
-          .from("instagram_flyers")
-          .select("*, account:instagram_accounts(*)")
-          .eq("status", "ACTIVE")
-          .in("account_id", instagramAccountIds)
-          .order("published_at", { ascending: false })
-          .limit(5)
-
-        if (flyersError) {
-          console.error(`[RadarNewsletterCron] Error consultando flyers para usuario ${userId}:`, flyersError)
-        } else if (flyers) {
-          const mappedFlyers = flyers.map(f => ({
-            id: f.ig_post_id,
-            title: f.caption ? (f.caption.length > 55 ? f.caption.substring(0, 55) + "..." : f.caption) : `Flyer de @${f.account?.username}`,
-            start_date: f.published_at,
-            is_free: false,
-            price_min: 0,
-            isInstagramFlyer: true,
-            flyerId: f.id,
-            image_url: f.storage_image_url || f.original_image_url,
-            venue: { name: f.account?.display_name || `@${f.account?.username}` }
-          }))
-          emailEvents = [...emailEvents, ...mappedFlyers]
-        }
-      }
+      const emailEvents = await getRadarEvents(supabase, { categoryIds, venueIds, instagramAccountIds })
 
       // Si no hay novedades, evitamos enviar spam
       if (emailEvents.length === 0) {
@@ -164,7 +110,7 @@ async function sendNewsletter(): Promise<NewsletterReply> {
         const { message } = buildRadarEmail({
           userId,
           to: emailTarget,
-          subject: '📡 ¡Tu Radar Salteño está activo! Agenda del Fin de Semana',
+          subject: '📡 Tu Radar Salteño: lo que se viene',
           events: emailEvents,
         })
 

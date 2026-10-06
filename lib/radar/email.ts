@@ -1,5 +1,6 @@
-/* eslint-disable @typescript-eslint/no-explicit-any -- eventos: filas de Supabase y flyers mapeados, sin tipo común */
-import { formatEventDate, formatSaltaClock } from '@/lib/date-format'
+/* eslint-disable @typescript-eslint/no-explicit-any -- eventos: filas de Supabase, sin tipo común */
+import { formatEventDate } from '@/lib/date-format'
+import { formatEventTimeDisplay, formatPriceDisplay } from '@/lib/event-display'
 import { eventHref } from '@/lib/metricas/links'
 import { unsubscribeUrl, unsubscribeHeaders } from '@/lib/radar/baja'
 
@@ -7,9 +8,10 @@ export function buildRadarEmailHtml(events: any[], unsubscribeLink: string | nul
   const eventRows = events.map(event => {
     const dateObj = new Date(event.start_date)
     const formattedDate = formatEventDate(dateObj)
-    const formattedTime = formatSaltaClock(dateObj)
+    const time = formatEventTimeDisplay(event.start_date)
+    const dateText = time ? `${formattedDate} a las ${time}hs` : formattedDate
 
-    const priceText = event.is_free ? "Gratis" : (event.price_min > 0 ? `$${event.price_min}` : "A confirmar")
+    const priceText = formatPriceDisplay(event)
     const detailUrl = `https://quepintasalta.com.ar${eventHref(event.id, 'radar')}`
 
     return `
@@ -21,7 +23,7 @@ export function buildRadarEmailHtml(events: any[], unsubscribeLink: string | nul
         ` : ''}
         <h3 style="margin: 0 0 8px 0; color: #ffffff; font-size: 18px; font-weight: bold; font-family: Arial, sans-serif; line-height: 1.3;">${event.title}</h3>
         <p style="margin: 0 0 6px 0; color: #a1a1aa; font-size: 14px; font-family: Arial, sans-serif; line-height: 1.4;">📍 Lugar: <strong style="color: #e4e4e7;">${event.venue?.name || 'Por confirmar'}</strong></p>
-        <p style="margin: 0 0 6px 0; color: #a1a1aa; font-size: 14px; font-family: Arial, sans-serif; line-height: 1.4;">📅 Fecha: <strong style="color: #e4e4e7;">${formattedDate} a las ${formattedTime}hs</strong></p>
+        <p style="margin: 0 0 6px 0; color: #a1a1aa; font-size: 14px; font-family: Arial, sans-serif; line-height: 1.4;">📅 Fecha: <strong style="color: #e4e4e7;">${dateText}</strong></p>
         <p style="margin: 0 0 16px 0; color: #a1a1aa; font-size: 14px; font-family: Arial, sans-serif; line-height: 1.4;">💵 Entrada: <strong style="color: #22c55e;">${priceText}</strong></p>
         <div style="margin-top: 14px;">
           <a href="${detailUrl}" target="_blank" style="display: inline-block; background-color: #AA1B1B; color: #ffffff; padding: 10px 20px; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 13px; font-family: Arial, sans-serif; text-align: center;">Ver detalles</a>
@@ -47,7 +49,7 @@ export function buildRadarEmailHtml(events: any[], unsubscribeLink: string | nul
           <div style="text-align: left; margin-bottom: 24px;">
             <p style="font-size: 16px; line-height: 1.5; color: #e4e4e7; font-family: Arial, sans-serif; margin-top: 0;">¡Hola!</p>
             <p style="font-size: 14px; line-height: 1.5; color: #a1a1aa; font-family: Arial, sans-serif;">
-              Encontramos eventos en Salta Capital que coinciden con los locales o categorías que sigues en tu radar. ¡Aquí tienes tu agenda personalizada para este fin de semana!
+              Encontramos eventos en Salta Capital que coinciden con los locales o categorías que sigues en tu radar. Lo que se viene en tu agenda personalizada:
             </p>
           </div>
           

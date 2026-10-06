@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server"
 import { revalidatePath } from "next/cache"
 import { Resend } from "resend"
 import { buildRadarEmail, radarEnvLabel } from "@/lib/radar/email"
+import { getRadarEvents } from "@/lib/radar/events"
 
 export type EmailFrequency = 'weekly' | 'biweekly' | 'monthly' | 'disabled'
 
@@ -234,61 +235,7 @@ export async function triggerTestRadarEmail(): Promise<{ success: boolean; messa
     return { success: false, message: "Debes seguir al menos una categoría, un local o una cuenta de Instagram para recibir novedades." }
   }
 
-  const nowIso = new Date().toISOString()
-  let events: any[] = []
-
-  // 2. Buscar eventos que coincidan (Categorías o Locales)
-  if (categoryIds.length > 0 || venueIds.length > 0) {
-    let query = supabase
-      .from("events")
-      .select("*, venue:venues(*), category:categories(*)")
-      .eq("status", "PUBLISHED")
-      .gte("start_date", nowIso)
-      .order("start_date", { ascending: true })
-
-    if (categoryIds.length > 0 && venueIds.length > 0) {
-      query = query.or(`category_id.in.(${categoryIds.join(',')}),venue_id.in.(${venueIds.join(',')})`)
-    } else if (categoryIds.length > 0) {
-      query = query.in("category_id", categoryIds)
-    } else {
-      query = query.in("venue_id", venueIds)
-    }
-
-    const { data: matchedEvents, error: eventsError } = await query.limit(8)
-    if (eventsError) {
-      console.error("[triggerTestRadarEmail] Error obteniendo eventos:", eventsError)
-    } else if (matchedEvents) {
-      events = [...matchedEvents]
-    }
-  }
-
-  // 3. Buscar flyers de cuentas de Instagram seguidas
-  if (instagramAccountIds.length > 0) {
-    const { data: flyers, error: flyersError } = await supabase
-      .from("instagram_flyers")
-      .select("*, account:instagram_accounts(*)")
-      .eq("status", "ACTIVE")
-      .in("account_id", instagramAccountIds)
-      .order("published_at", { ascending: false })
-      .limit(5)
-
-    if (flyersError) {
-      console.error("[triggerTestRadarEmail] Error obteniendo flyers:", flyersError)
-    } else if (flyers) {
-      const mappedFlyers = flyers.map(f => ({
-        id: f.ig_post_id,
-        title: f.caption ? (f.caption.length > 55 ? f.caption.substring(0, 55) + "..." : f.caption) : `Flyer de @${f.account?.username}`,
-        start_date: f.published_at,
-        is_free: false,
-        price_min: 0,
-        isInstagramFlyer: true,
-        flyerId: f.id,
-        image_url: f.storage_image_url || f.original_image_url,
-        venue: { name: f.account?.display_name || `@${f.account?.username}` }
-      }))
-      events = [...events, ...mappedFlyers]
-    }
-  }
+  const events = await getRadarEvents(supabase, { categoryIds, venueIds, instagramAccountIds })
 
   if (events.length === 0) {
     return { success: false, message: "No hay eventos ni flyers próximos publicados que coincidan con tu Radar." }
