@@ -4,7 +4,10 @@ import { createFakeSupabase, type FakeTable, type Row } from './fake-supabase'
 
 // Jueves 2030-10-10 21:00 UTC = 18:00 en Salta. El día de Salta empieza 03:00 UTC.
 const NOW = new Date('2030-10-10T21:00:00.000Z')
-const DESDE = '2030-10-10T03:00:00.000Z'
+const NOW_ISO = '2030-10-10T21:00:00.000Z'
+// Prefiltro por defecto (casi exacto): end_date >= now, o sin end_date y start >= now - 4 h (17:00Z),
+// o sin end_date y start = inicio del día de Salta (03:00Z, "sin hora" de hoy).
+const OR_EXPR = `end_date.gte.${NOW_ISO},and(end_date.is.null,start_date.gte.2030-10-10T17:00:00.000Z),and(end_date.is.null,start_date.eq.2030-10-10T03:00:00.000Z)`
 const HASTA = '2030-11-09T21:00:00.000Z'
 
 const CAT = 'c0000000-0000-4000-8000-000000000001'
@@ -76,12 +79,12 @@ describe('getRadarEvents: argumentos de la ventana', () => {
     const qs = fake.callsOf('events')
     expect(qs).toHaveLength(1)
     const q = qs[0]
-    expect(fake.args(q, 'or')).toEqual([[`end_date.gte.${DESDE},and(end_date.is.null,start_date.gte.${DESDE})`]])
+    expect(fake.args(q, 'or')).toEqual([[OR_EXPR]])
     expect(fake.args(q, 'lte')).toEqual([['start_date', HASTA]])
     expect(fake.args(q, 'eq')).toContainEqual(['status', 'PUBLISHED'])
     expect(fake.args(q, 'order')).toContainEqual(['start_date', { ascending: true }])
     expect(fake.args(q, 'select')[0][0]).toBe('*, venue:venues(*), category:categories(*)')
-    expect(fake.args(q, 'limit')).toEqual([[10]])
+    expect(fake.args(q, 'limit')).toEqual([[30]])
   })
 
   it('categoría usa in(category_id) y lugar in(venue_id), sin mezclarlos en un .or', async () => {
@@ -97,11 +100,11 @@ describe('getRadarEvents: argumentos de la ventana', () => {
     const { fake, run } = setup({ events: [ev(1)], flyers: [flyer(uid(1))] })
     await run(follow({ instagramAccountIds: [ACC] }))
     const q = fake.callsOf('events')[0]
-    expect(fake.args(q, 'or')).toEqual([[`end_date.gte.${DESDE},and(end_date.is.null,start_date.gte.${DESDE})`]])
+    expect(fake.args(q, 'or')).toEqual([[OR_EXPR]])
     expect(fake.args(q, 'lte')).toEqual([['start_date', HASTA]])
     expect(fake.args(q, 'eq')).toContainEqual(['status', 'PUBLISHED'])
     expect(fake.args(q, 'in')).toEqual([['id', [uid(1)]]])
-    expect(fake.args(q, 'limit')).toEqual([[10]])
+    expect(fake.args(q, 'limit')).toEqual([[30]])
   })
 
   it('sin now explícito usa la hora actual (fake timers)', async () => {
@@ -129,6 +132,16 @@ describe('getRadarEvents: resultado de la ventana (filtros en memoria)', () => {
       events: [ev(1, { start_date: '2030-09-20T15:00:00.000Z', end_date: '2030-10-09T23:00:00.000Z' })],
     })
     expect(await run(follow({ venueIds: [VEN] }))).toEqual([])
+  })
+
+  it('criterio de fin estimado: evento de hoy a las 12:00 (fin 16:00) no entra a las 18:00', async () => {
+    const { run } = setup({ events: [ev(1, { start_date: '2030-10-10T15:00:00.000Z' })] })
+    expect(await run(follow({ venueIds: [VEN] }))).toEqual([])
+  })
+
+  it('criterio de fin estimado: evento de hoy a las 15:00 (fin 19:00) sí entra a las 18:00', async () => {
+    const { run } = setup({ events: [ev(1, { start_date: '2030-10-10T18:00:00.000Z' })] })
+    expect(ids(await run(follow({ venueIds: [VEN] })))).toEqual([uid(1)])
   })
 
   it('evento de ayer sin end_date: no entra', async () => {
@@ -294,7 +307,7 @@ describe('getRadarEvents: orden, recorte y errores', () => {
     const { run } = setup({ events })
     const r = await run(follow({ categoryIds: [CAT], venueIds: [VEN] }))
     expect(r).toHaveLength(12)
-    // Cada camino aporta 10 (limit 10): los 12 primeros de la unión ordenada.
+    // Cada camino aporta hasta 30 (limit 30): los 12 primeros de la unión ordenada.
     expect(ids(r)).toEqual(Array.from({ length: 12 }, (_, i) => uid(i + 1)))
   })
 
@@ -313,3 +326,58 @@ describe('getRadarEvents: orden, recorte y errores', () => {
   })
 })
 
+
+describe('getRadarEvents: muestras en curso (QPS-059)', () => {
+  const muestra = (n: number) =>
+    ev(n, {
+      title: `Muestra de Prueba ${n}`,
+      start_date: `2030-09-${String(10 + n).padStart(2, '0')}T15:00:00.000Z`,
+      end_date: '2030-10-25T23:00:00.000Z',
+    })
+  const proximo = (n: number) =>
+    ev(n, { start_date: `2030-10-${String(n - 88).padStart(2, '0')}T23:00:00.000Z`, title: `Próximo de Prueba ${n}` })
+  const enCursoDe = (r: Array<{ start_date: string }>) => r.filter((e) => Date.parse(e.start_date) < NOW.getTime())
+
+  it('con 10 muestras en curso y 5 próximos: máximo 3 en curso y los 5 próximos no quedan tapados', async () => {
+    const events = [
+      ...Array.from({ length: 10 }, (_, i) => muestra(i + 1)),
+      ...Array.from({ length: 5 }, (_, i) => proximo(i + 101)),
+    ]
+    const { run } = setup({ events })
+    const r = await run(follow({ venueIds: [VEN] }))
+    const proximos = r.filter((e) => Date.parse(e.start_date) >= NOW.getTime())
+    expect(enCursoDe(r)).toHaveLength(3)
+    expect(ids(proximos)).toEqual([101, 102, 103, 104, 105].map(uid))
+  })
+
+  it('la muestra en curso se ordena como "hoy": antes que cualquier próximo, entre sí por start_date', async () => {
+    const { run } = setup({ events: [proximo(101), muestra(3), muestra(1), muestra(2)] })
+    const r = await run(follow({ venueIds: [VEN] }))
+    expect(ids(r)).toEqual([uid(1), uid(2), uid(3), uid(101)])
+  })
+
+  it('con más de 12 candidatos entre en curso y próximos: tope total 12 y 3 en curso', async () => {
+    const events = [
+      ...Array.from({ length: 10 }, (_, i) => muestra(i + 1)),
+      ...Array.from({ length: 12 }, (_, i) =>
+        ev(i + 200, { start_date: new Date(Date.UTC(2030, 9, 12, 23) + i * 3_600_000).toISOString() }),
+      ),
+    ]
+    const { run } = setup({ events })
+    const r = await run(follow({ venueIds: [VEN] }))
+    expect(r).toHaveLength(12)
+    expect(enCursoDe(r)).toHaveLength(3)
+  })
+
+  it('eventos de hoy que ya empezaron y siguen vigentes también cuentan como en curso (tope 3)', async () => {
+    // Empezaron entre 19:00Z y 19:40Z (antes de las 21:00Z) y siguen vigentes (inicio + 4 h).
+    const hoy = (n: number, min: number) => ev(n, { start_date: `2030-10-10T19:${String(min).padStart(2, '0')}:00.000Z` })
+    const { run } = setup({ events: [hoy(1, 0), hoy(2, 10), hoy(3, 20), hoy(4, 30)] })
+    expect(enCursoDe(await run(follow({ venueIds: [VEN] })))).toHaveLength(3)
+  })
+
+  it('muestra con end_date futuro entra aunque empezó hace semanas (caso de Mauro)', async () => {
+    const { run } = setup({ events: [muestra(1)] })
+    expect(ids(await run(follow({ venueIds: [VEN] })))).toEqual([uid(1)])
+  })
+})
