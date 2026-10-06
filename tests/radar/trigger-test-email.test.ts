@@ -80,3 +80,92 @@ describe('triggerTestRadarEmail', () => {
     expect(send).not.toHaveBeenCalled()
   })
 })
+
+// ---- Camino de prueba con link y cabeceras de baja ----
+
+const UID = '22222222-2222-4222-8222-222222222222'
+const SECRET = 'secreto-de-prueba-no-real'
+const EVENTO = {
+  id: 'ev-1',
+  title: 'Evento de Prueba',
+  start_date: '2030-01-01T21:00:00Z',
+  is_free: true,
+  price_min: 0,
+  venue: { name: 'Venue de Prueba' },
+  category: { name: 'Música' },
+}
+
+// Builder encadenable y "await-able": cualquier método devuelve el mismo objeto.
+function chain(result: { data: unknown; error: unknown }) {
+  const c: Record<string, unknown> = {}
+  for (const m of ['select', 'eq', 'gte', 'order', 'in', 'or', 'limit']) c[m] = () => c
+  c.maybeSingle = async () => result
+  c.single = async () => result
+  c.then = (res: (v: unknown) => unknown, rej: (e: unknown) => unknown) => Promise.resolve(result).then(res, rej)
+  return c
+}
+
+function adminWithEvent() {
+  const tables: Record<string, { data: unknown; error: unknown }> = {
+    profiles: { data: { role: 'ADMIN' }, error: null },
+    user_radar_settings: { data: { email_frequency: 'weekly', email_target: 'usuario@ejemplo.test' }, error: null },
+    user_followed_categories: { data: [{ category_id: 'cat-1' }], error: null },
+    user_followed_venues: { data: [], error: null },
+    user_followed_instagram_accounts: { data: [], error: null },
+    events: { data: [EVENTO], error: null },
+  }
+  createClient.mockResolvedValue({
+    auth: { getUser: async () => ({ data: { user: { id: UID, email: 'usuario@ejemplo.test' } }, error: null }) },
+    from: (t: string) => {
+      if (!(t in tables)) throw new Error('tabla inesperada: ' + t)
+      return chain(tables[t])
+    },
+  })
+}
+
+describe('triggerTestRadarEmail: baja en el correo de prueba', () => {
+  beforeEach(() => {
+    vi.stubEnv('VERCEL_ENV', 'preview')
+    vi.stubEnv('VERCEL_BRANCH_URL', 'rama-prueba.vercel.test')
+    vi.stubEnv('VERCEL_GIT_COMMIT_SHA', 'abcdef1234567890')
+    send.mockResolvedValue({ error: null })
+    adminWithEvent()
+  })
+  afterEach(() => {
+    vi.unstubAllEnvs()
+  })
+
+  // En preview, el camino de PRUEBA (solo admins) usa el host de la preview (previewBase: true).
+  it('con secreto en preview: cabeceras, link (host de la preview), asunto de prueba y mensaje', async () => {
+    vi.stubEnv('RADAR_UNSUBSCRIBE_SECRET', SECRET)
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const r = await triggerTestRadarEmail()
+    expect(r.success).toBe(true)
+    expect(r.message).toContain('con link y cabeceras de baja')
+    expect(warn).not.toHaveBeenCalled()
+    expect(send).toHaveBeenCalledTimes(1)
+    const msg = send.mock.calls[0][0]
+    expect(msg.subject).toBe('📡 [Prueba · preview abcdef1] ¡Tu Radar Salteño está activo!')
+    expect(msg.subject).toContain('[Prueba · ')
+    expect(msg.to).toBe('usuario@ejemplo.test')
+    expect(msg.headers['List-Unsubscribe']).toMatch(
+      new RegExp(`^<https://rama-prueba\\.vercel\\.test/api/radar/baja\\?u=${UID}&t=[\\w-]+>$`),
+    )
+    expect(msg.headers['List-Unsubscribe-Post']).toBe('List-Unsubscribe=One-Click')
+    expect(msg.html).toContain('Darme de baja')
+    expect(msg.html).toContain(`href="https://rama-prueba.vercel.test/radar/baja?u=${UID}&t=`)
+  })
+
+  it('sin secreto: sin headers, sin link, console.warn y mensaje SIN link', async () => {
+    vi.stubEnv('RADAR_UNSUBSCRIBE_SECRET', '')
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const r = await triggerTestRadarEmail()
+    expect(r.success).toBe(true)
+    expect(r.message).toContain('SIN link de baja')
+    expect(r.message).toContain('RADAR_UNSUBSCRIBE_SECRET')
+    expect(warn).toHaveBeenCalled()
+    const msg = send.mock.calls[0][0]
+    expect(msg.headers).toBeUndefined()
+    expect(msg.html).not.toContain('Darme de baja')
+  })
+})
