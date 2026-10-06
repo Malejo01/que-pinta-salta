@@ -588,6 +588,60 @@ PR #16 (squash `d9c6f8a`).
 - **El aviso del workflow** muestra el detalle en vez de "0 h (máximo 0 h)".
 - **Abierto:** el 503 del health devuelve el mensaje crudo de la base.
 
+### Ronda 8 (contenido del Radar) — CERRADO el 2026-10-06
+
+PR #17 (squash `ac1de5f`). Correo de prueba en producción verificado por Mauro.
+
+- **Una sola lista de eventos** (`getRadarEvents`, `lib/radar/events.ts`) para
+  el correo de prueba y el cron.
+  - Los flyers de cuentas seguidas se reemplazan por el evento que la IA creó
+    de cada uno (`ai_metadata.event_id`, validado como uuid), con su fecha real
+    y link `/evento/<uuid>`.
+  - Sin eventos pasados, sin links 404 y sin "Flyer de @cuenta" (QPS-052, 053,
+    054).
+  - Dedupe por id.
+- **Hora y precio con el criterio del sitio:** sin "00:00hs" y con separador de
+  miles (QPS-056, 058). "Lo que se viene" en lugar de "este fin de semana".
+- **Abierto, visto en esta ronda:** duplicados entre cuentas, que se resolvieron
+  con fusiones manuales en la Ronda 9.
+
+### Ronda 9 (eventos fusionados, cadencias, vigencia única, IA) — CERRADO el 2026-10-06
+
+PR #18 (squash `c97ce56`) y PR #19 (squash `5f7408d`). Migración
+`20261007120000_radar_last_sent` aplicada en producción antes del merge.
+
+- **Fusiones manuales respetadas (QPS-064).** El absorbido queda en DRAFT con
+  `ai_metadata.merged_into_event_id`.
+  - La ingesta fusiona en el evento que queda, con tope de 5 saltos y sin
+    ciclos. Si la cadena está rota, vuelve a buscar sin fusionados.
+  - `resolveStatus` nunca los vuelve a publicar.
+  - `dedup-cleanup` los excluye.
+  - `/evento/<id>` (308) y `/go/<id>` redirigen al evento que queda.
+  - Fusiones hechas en producción: Coco Club y el Halloween colaborativo.
+- **Cadencias del Radar (QPS-045).** `user_radar_settings.last_sent_at`:
+  quincenal cada 13 días o más, mensual cada 27. Se guarda solo si Resend
+  aceptó el envío; si no se puede guardar, la corrida queda PARTIAL.
+- **Vigencia única (QPS-060).** `fin = coalesce(end_date, inicio + 4 h si tiene
+  hora, fin del día de Salta si no)`; vigente si `fin >= ahora`.
+  - La usan la agenda, favoritos, destacados y el Radar.
+  - La fila "Hoy" mantiene su regla: los museos se ven todo el día, porque no
+    tienen `end_date`.
+- **Radar:** máximo 3 muestras en curso, "seguís" y "Tu Radar" (QPS-059, 063).
+- **IA de flyers (QPS-062, 065).**
+  - Precio 0 solo si todo el evento es gratuito.
+  - La hora vale solo si aparece literal en el caption o en el texto del
+    flyer. Las 20:00 eran un valor por defecto del código; ahora es la fecha
+    sola.
+  - Un evento con hora no confirmada no se autopublica.
+  - El texto del flyer no se guarda.
+  - `time_reliable` queda en `ai_metadata` para medir.
+- **Tests:** 651.
+- **Abierto:**
+  - candidatos a duplicado para revisión (QPS-061);
+  - medición de los DRAFT por hora el 13/10 (QPS-066);
+  - hora de cierre de museos y peñas, porque entradauno no la trae (QPS-067);
+  - QPS-047, 049c, 050 y 051.
+
 ---
 
 ## Cines
