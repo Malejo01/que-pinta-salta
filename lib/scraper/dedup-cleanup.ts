@@ -3,6 +3,7 @@ import { buildDedupKey, dedupKeyOf, sameTicketEvent, ticketUrlsOf, hasRealTime, 
 import { mergeEvents, appendAudit, type DiscardedValue, type MergeAuditEntry } from './merge-events'
 import { getSourcePriority, describeSource, resolveEventSource } from './source-priority'
 import { formatSaltaDayKey } from '../date-format'
+import { mergedIntoId } from '../events/merged'
 
 /**
  * Limpieza retroactiva de eventos duplicados.
@@ -133,7 +134,9 @@ async function fetchAllEvents(supabase: any, options: DedupCleanupOptions): Prom
     if (error) throw new Error(`Error leyendo events: ${error.message}`)
     if (!data || data.length === 0) break
 
-    rows.push(...data)
+    // Un fusionado a mano (DRAFT con merged_into_event_id) nunca es keeper ni
+    // absorbido. La paginación usa data.length, no lo que queda tras filtrar.
+    rows.push(...data.filter((row: { ai_metadata?: unknown }) => mergedIntoId(row) === null))
     if (data.length < PAGE_SIZE) break
     offset += PAGE_SIZE
   }

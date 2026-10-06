@@ -1,8 +1,10 @@
-import { notFound } from "next/navigation"
+import { notFound, permanentRedirect } from "next/navigation"
+import { findMergeRedirect } from "@/lib/events/merged"
+
 import { getEventById } from "@/lib/data"
 import { getCategories } from "@/lib/data"
 import { EventDetailPage } from "@/components/event-detail-page"
-import { createClient } from "@/lib/supabase/server"
+import { createClient, createAdminClient } from "@/lib/supabase/server"
 import { formatSaltaSchemaDate } from "@/lib/date-format"
 import { parseOrigin } from "@/lib/metricas/links"
 import type { Metadata } from "next"
@@ -86,6 +88,18 @@ export default async function EventPage({ params, searchParams }: EventPageProps
   }
 
   if (!event) {
+    // Evento fusionado: 308 al que quedó (solo el id sale del lookup admin).
+    let to: string | null = null
+    try {
+      to = await findMergeRedirect(createAdminClient(), id)
+    } catch (err) {
+      console.error('[evento] no se pudo seguir la fusión:', err instanceof Error ? err.message : err)
+    }
+    if (to) {
+      const rawOrigin = Array.isArray(sp.o) ? sp.o[0] : sp.o
+      const validOrigin = rawOrigin && parseOrigin(rawOrigin) === rawOrigin ? rawOrigin : null
+      permanentRedirect(`/evento/${to}${validOrigin ? `?o=${validOrigin}` : ''}`)
+    }
     notFound()
   }
 
