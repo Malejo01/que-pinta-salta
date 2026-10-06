@@ -521,7 +521,72 @@ producción y verificada (RLS, privilegios, advisor). Primeros datos el mismo d�
 - **Abierto, visto en esta ronda:** el contador se puede inflar con un user
   agent falso (falta límite de pedidos); la política de privacidad tiene que
   mencionar la medición; `/go` espera la escritura antes de redirigir; 6
-  funciones de venues sin `search_path` fijo (advisor).
+  funciones de venues sin `search_path` fijo (advisor, cerrado en la Ronda 5).
+
+### Ronda 5 (baja del Radar con un clic, search_path de venues) — CERRADO el 2026-10-06
+
+PR #14 (squash `365db26`). Migración `20261006120000_venue_functions_search_path`
+aplicada en producción el 2026-10-05 (advisor limpio, resultados iguales).
+
+- **Correo de prueba del Radar solo para admins**, verificado en el servidor.
+  Antes cualquier usuario con sesión podía dispararlo.
+- **Baja con un clic (QPS-016).** Link firmado con HMAC
+  (`RADAR_UNSUBSCRIBE_SECRET`, va en Vercel) que lleva el user_id y nunca el
+  email. Cabeceras `List-Unsubscribe` y `List-Unsubscribe-Post` (RFC 8058).
+  - El POST da de baja sin confirmación y responde igual exista o no el
+    usuario; repetir la baja no da error.
+  - Firma comparada en tiempo constante; 500 con log si falla la base.
+  - El GET muestra la página `/radar/baja` con botón.
+- **Un solo armado del correo** (`lib/radar/email.ts`) para la prueba y el
+  cron.
+  - El asunto de la prueba dice entorno y commit, y avisa si salió sin baja.
+  - Solo el correo de prueba usa el host de la preview en el link de baja; el
+    cron usa siempre producción.
+- **`search_path = ''`** en las 6 funciones de venues (QPS-043).
+- **Logs del Radar sin emails.** Resend entrega (verificado por Mauro).
+- **Tests:** 340.
+- **Abierto, visto en esta ronda:** el Radar solo le llega a quien eligió
+  semanal (QPS-045). Contenido del correo (QPS-052 a 058):
+  - eventos pasados;
+  - links de flyers con el id de Instagram (404);
+  - "00:00hs";
+  - precios sin separador de miles;
+  - "fin de semana" con eventos de todo el mes;
+  - un "Halloween 2026" duplicado.
+
+### Ronda 6 (resolve_venue_id sin min(uuid)) — CERRADO el 2026-10-06
+
+PR #15 (squash `ad4957a`). Migración `20261006130000_resolve_venue_id_min_uuid`
+aplicada en producción el 2026-10-05.
+
+- **La ingesta vuelve a crear lugares (QPS-044).** El paso "core key" usaba
+  `min()` sobre uuid, que no existe en el Postgres de producción. Desde el 02/10 cualquier
+  nombre sin match exacto fallaba, sin crear venue ni caso de revisión. Se
+  cambió por `(array_agg(v.id))[1]`, mismo resultado.
+  - Los 2 eventos de Instagram sin lugar se asignaron con la función ya
+    arreglada.
+  - El de AlPogo lo completó el scraper el 2026-10-06: venue "HOTEL SAMKA
+    SALTA", creado solo.
+- **Las fallas de venue quedan a la vista.**
+  - La corrida de ticketeras o de la cola de IA queda PARTIAL, con el error en
+    `job_runs`, deduplicado y resumido.
+  - En `ai_metadata`, que es público, va solo un aviso fijo.
+- **Test pgTAP del bug** (`supabase/tests/database/`) y paso nuevo en el CI
+  (`npx supabase test db`). Sin el arreglo da rojo (`function min(uuid) does
+  not exist`) y con el arreglo, verde.
+- **Abierto:** formato de errores de venue compartido y `saveEvents` sin
+  aviso (QPS-047); cobertura del pgTAP (QPS-050); `onError` cuando la RPC
+  lanza (QPS-051).
+
+### Ronda 7 (chequeo de eventos sin lugar) — CERRADO el 2026-10-06
+
+PR #16 (squash `d9c6f8a`).
+
+- **`eventos_sin_lugar` en `/api/cron/health`** (QPS-049): rojo solo si hay
+  eventos publicados futuros sin lugar creados en las últimas 48 h o que
+  empiezan en los próximos 7 días. El resto se lista sin alertar.
+- **El aviso del workflow** muestra el detalle en vez de "0 h (máximo 0 h)".
+- **Abierto:** el 503 del health devuelve el mensaje crudo de la base.
 
 ---
 
