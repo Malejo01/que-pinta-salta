@@ -79,11 +79,15 @@ export const PENAS: RecurrentePena[] = [
 /** Martes a domingo: el lunes cierran. Cachi y Cafayate quedan afuera a propósito. */
 const DIAS_MUSEOS = [2, 3, 4, 5, 6, 0] as const
 
+/**
+ * Cierres relevados el 2026-10-07 en las páginas oficiales de cada museo y de
+ * Cultura Salta. El MAAM cierra a las 19:00 (último ingreso 18:30).
+ */
 export const MUSEOS: RecurrenteMuseo[] = [
-  { tipo: 'museo', venue: 'Museo de Arqueología de Alta Montaña', venueIdPrefijo: '48f05894', titulo: 'Museo de Arqueología de Alta Montaña', dias: DIAS_MUSEOS, hora: '11:00' }, // [COMPLETAR: hora de cierre]
-  { tipo: 'museo', venue: 'Museo Güemes', venueIdPrefijo: 'a6368e1a', titulo: 'Museo Güemes', dias: DIAS_MUSEOS, hora: '11:00' }, // [COMPLETAR: hora de cierre]
-  { tipo: 'museo', venue: 'Complejo Museológico Explora Salta', venueIdPrefijo: '8ee81049', titulo: 'Explora Salta', dias: DIAS_MUSEOS, hora: '10:00' }, // [COMPLETAR: hora de cierre]
-  { tipo: 'museo', venue: 'Museo de Bellas Artes', venueIdPrefijo: '81915a94', titulo: 'Museo de Bellas Artes LOLA MORA - MBA', dias: DIAS_MUSEOS, hora: '10:00' }, // [COMPLETAR: hora de cierre]
-  { tipo: 'museo', venue: 'Museo de Arte MAC', venueIdPrefijo: '1d472943', titulo: 'Museo de Arte MAC', dias: DIAS_MUSEOS, hora: '10:00' }, // [COMPLETAR: hora de cierre]
-  { tipo: 'museo', venue: 'Museo Antropológico', venueIdPrefijo: '31a6a4be', titulo: 'Museo de Antropologia - MAS', dias: DIAS_MUSEOS, hora: '10:00' }, // [COMPLETAR: hora de cierre]
+  { tipo: 'museo', venue: 'Museo de Arqueología de Alta Montaña', venueIdPrefijo: '48f05894', titulo: 'Museo de Arqueología de Alta Montaña', dias: DIAS_MUSEOS, hora: '11:00', cierre: '19:00' },
+  { tipo: 'museo', venue: 'Museo Güemes', venueIdPrefijo: 'a6368e1a', titulo: 'Museo Güemes', dias: DIAS_MUSEOS, hora: '11:00', cierre: '19:00' },
+  { tipo: 'museo', venue: 'Complejo Museológico Explora Salta', venueIdPrefijo: '8ee81049', titulo: 'Explora Salta', dias: DIAS_MUSEOS, hora: '10:00', cierre: '20:00' },
+  { tipo: 'museo', venue: 'Museo de Bellas Artes', venueIdPrefijo: '81915a94', titulo: 'Museo de Bellas Artes LOLA MORA - MBA', dias: DIAS_MUSEOS, hora: '10:00', cierre: '20:00' },
+  { tipo: 'museo', venue: 'Museo de Arte MAC', venueIdPrefijo: '1d472943', titulo: 'Museo de Arte MAC', dias: DIAS_MUSEOS, hora: '10:00', cierre: '20:00' },
+  { tipo: 'museo', venue: 'Museo Antropológico', venueIdPrefijo: '31a6a4be', titulo: 'Museo de Antropologia - MAS', dias: DIAS_MUSEOS, hora: '10:00', cierre: '20:00' },
 ]
