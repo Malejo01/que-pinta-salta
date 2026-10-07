@@ -56,6 +56,12 @@ function fakeSessionClient(role: string | null = 'ADMIN') {
         c.eq = () => c
         c.select = () => c
         c.single = async () => ({ data: { id: 'cuenta-de-prueba-id', ...payload }, error: null })
+        // El código de producción pasó a usar .maybeSingle() al leer la cuenta antes del
+        // update (QPS-075). Esta tabla falsa solo modela "una fila" (no filtra realmente por
+        // id), así que .maybeSingle() devuelve lo mismo que .single(): data con la fila, nunca
+        // null. La semántica real de Supabase (data: null, error: null sin fila) no aplica
+        // acá porque este fake nunca representa "cero filas".
+        c.maybeSingle = async () => ({ data: { id: 'cuenta-de-prueba-id', ...payload }, error: null })
         c.then = (res: (v: unknown) => unknown, rej: (e: unknown) => unknown) =>
           Promise.resolve({ error: null }).then(res, rej)
         return c
