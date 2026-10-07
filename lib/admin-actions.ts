@@ -3,7 +3,7 @@
 import { createClient } from "@/lib/supabase/server"
 import { createClient as createSupabaseClient } from "@supabase/supabase-js"
 import { revalidatePath } from "next/cache"
-import { saltaWallClockToUtcISO } from "@/lib/date-format"
+import { saltaWallClockToUtcISO, formatSaltaDayKey } from "@/lib/date-format"
 import { mergedIntoId } from "@/lib/events/merged"
 import { isVigente } from "@/lib/events/vigencia"
 
@@ -311,11 +311,65 @@ export async function toggleEventFeatured(eventId: string, isFeatured: boolean) 
   return { success: true }
 }
 
-/** true si `ai_metadata.is_fallback` del evento es exactamente `true` (QPS-068). */
-function isFallbackMetadata(row: { ai_metadata?: unknown } | null | undefined): boolean {
+/**
+ * true si hay que exigir `confirm_date` antes de publicar (QPS-065/073): la
+ * fecha del borrador salió de la publicación de Instagram, no del flyer.
+ *  - `ai_metadata.is_fallback === true` (QPS-068): el pipeline de IA falló y
+ *    se usó `published_at` como fecha de respaldo.
+ *  - `ai_metadata.date_source === 'published_at'` (QPS-073): la IA no
+ *    extrajo una fecha válida del flyer y se usó `published_at`.
+ *  - Borrador viejo (de antes de QPS-073, sin `date_source` en su
+ *    `ai_metadata`): si viene del pipeline de Instagram
+ *    (`scrape_source_key === 'instagram-ai'`) y su flyer de origen
+ *    (`instagram_flyers` con `ai_metadata->>event_id = id`) tiene
+ *    `published_at` en el mismo día de Salta que `start_date` (o, si el
+ *    pipeline guardó el instante exacto, el mismo instante), asumimos que la
+ *    fecha también salió del posteo.
+ */
+async function needsDateConfirmation(
+  row: { id?: unknown; ai_metadata?: unknown; scrape_source_key?: unknown; start_date?: unknown } | null | undefined,
+  adminClient: ReturnType<typeof getPrivilegedClient>
+): Promise<boolean> {
   const meta = row?.ai_metadata
-  if (!meta || typeof meta !== 'object' || Array.isArray(meta)) return false
-  return (meta as Record<string, unknown>).is_fallback === true
+  const metaObj = meta && typeof meta === 'object' && !Array.isArray(meta)
+    ? (meta as Record<string, unknown>)
+    : null
+
+  if (metaObj?.is_fallback === true) return true
+  if (metaObj?.date_source === 'published_at') return true
+
+  // Ya tiene date_source (y no es 'published_at'): salió del flyer, confirmada.
+  if (metaObj && 'date_source' in metaObj) return false
+
+  // Borrador viejo: solo lo revisamos si viene del pipeline de Instagram-IA.
+  if (row?.scrape_source_key !== 'instagram-ai') return false
+
+  const eventId = typeof row?.id === 'string' ? row.id : null
+  const startDate = typeof row?.start_date === 'string' ? row.start_date : null
+  if (!eventId || !startDate) return false
+
+  // La deduplicación (lib/scraper/dedup-cleanup.ts, repointInstagramFlyers)
+  // puede fusionar varios posteos en el mismo evento: puede haber más de un
+  // flyer con el mismo ai_metadata->>event_id. Revisamos todos, no solo el
+  // primero que devuelva Postgres.
+  const { data: flyers, error: flyersError } = await adminClient
+    .from('instagram_flyers')
+    .select('published_at')
+    .eq('ai_metadata->>event_id', eventId)
+
+  // Falla cerrada: si no pudimos leer el flyer de origen (timeout, RLS,
+  // esquema), no hay otra señal de si la fecha es confiable, así que exigimos
+  // confirmación en vez de dejar publicar.
+  if (flyersError) {
+    console.error('[needsDateConfirmation] fallo leyendo instagram_flyers:', flyersError.message)
+    return true
+  }
+
+  return (flyers ?? []).some((flyer) => {
+    const publishedAt = flyer?.published_at as string | undefined
+    if (!publishedAt) return false
+    return publishedAt === startDate || formatSaltaDayKey(publishedAt) === formatSaltaDayKey(startDate)
+  })
 }
 
 export async function publishDraftEvent(eventId: string, eventData: any) {
@@ -357,9 +411,13 @@ export async function publishDraftEvent(eventId: string, eventData: any) {
     return { error: 'Este evento fue fusionado en otro; no se publica' }
   }
 
-  // Guarda 4 (QPS-065): si la fecha vino del fallback (post sin fecha en el
-  // flyer, se usó published_at), hace falta confirmación explícita del admin.
-  if (isFallbackMetadata(currentEvent) && eventData?.confirm_date !== true) {
+  // Guarda 4 (QPS-065/073): si la fecha vino de la publicación de Instagram
+  // (post sin fecha en el flyer, fallback del pipeline o borrador viejo),
+  // hace falta confirmación explícita del admin.
+  // OJO: este literal está acoplado a DATE_CONFIRM_ERROR en
+  // components/draft-events-manager.tsx (mismo string exacto); si cambia
+  // uno, cambia el otro o el checkbox de confirmación deja de aparecer.
+  if (await needsDateConfirmation(currentEvent, adminClient) && eventData?.confirm_date !== true) {
     return { error: 'Confirmá la fecha: salió de la publicación, no del flyer' }
   }
 
