@@ -66,15 +66,23 @@ export function InstagramAdminClient({ initialAccounts, stats, categories }: Ins
   const [editDefaultCategory, setEditDefaultCategory] = useState("boliches")
 
   const [formError, setFormError] = useState<string | null>(null)
+  const [formSuggestion, setFormSuggestion] = useState<string | null>(null)
+  // true solo cuando el error vino de la guarda de "nombre parece dirección"
+  // (QPS-069): es lo único que habilita "Usar <sugerencia>" / "Guardar igual".
+  const [formAddressLikeError, setFormAddressLikeError] = useState(false)
   const [isPending, startTransition] = useTransition()
 
-  const handleCreate = () => {
+  const handleCreate = (confirmAddressLike = false) => {
     if (!newUsername.trim() || !newDisplayName.trim()) {
       setFormError("Username y nombre son requeridos")
+      setFormSuggestion(null)
+      setFormAddressLikeError(false)
       return
     }
 
     setFormError(null)
+    setFormSuggestion(null)
+    setFormAddressLikeError(false)
     startTransition(async () => {
       const result = await createInstagramAccount(
         newUsername,
@@ -82,15 +90,19 @@ export function InstagramAdminClient({ initialAccounts, stats, categories }: Ins
         newNotes || undefined,
         newDefaultVenueName || undefined,
         newDefaultMapsUrl || undefined,
-        newDefaultCategory || undefined
+        newDefaultCategory || undefined,
+        confirmAddressLike
       )
 
       if (result.error) {
         setFormError(result.error)
+        const isAddressLike = "suggestion" in result
+        setFormAddressLikeError(isAddressLike)
+        setFormSuggestion(isAddressLike ? result.suggestion : null)
         return
       }
 
-      if (result.account) {
+      if ("account" in result && result.account) {
         setAccounts((prev) => [...prev, result.account as InstagramAccount])
       }
 
@@ -100,7 +112,16 @@ export function InstagramAdminClient({ initialAccounts, stats, categories }: Ins
       setNewDefaultVenueName("")
       setNewDefaultMapsUrl("")
       setNewDefaultCategory("boliches")
+      setFormSuggestion(null)
+      setFormAddressLikeError(false)
     })
+  }
+
+  const handleUseSuggestedVenue = (suggestion: string) => {
+    setNewDefaultVenueName(suggestion)
+    setFormError(null)
+    setFormSuggestion(null)
+    setFormAddressLikeError(false)
   }
 
   const handleToggle = (id: string, currentActive: boolean) => {
@@ -131,27 +152,40 @@ export function InstagramAdminClient({ initialAccounts, stats, categories }: Ins
     setEditDefaultMapsUrl(account.default_maps_url || "")
     setEditDefaultCategory(account.default_category || "boliches")
     setFormError(null)
+    setFormSuggestion(null)
+    setFormAddressLikeError(false)
   }
 
-  const handleUpdate = () => {
+  const handleUpdate = (confirmAddressLike = false) => {
     if (!editingAccount) return
     if (!editDisplayName.trim()) {
       setFormError("El nombre es requerido")
+      setFormSuggestion(null)
+      setFormAddressLikeError(false)
       return
     }
 
     setFormError(null)
+    setFormSuggestion(null)
+    setFormAddressLikeError(false)
     startTransition(async () => {
-      const result = await updateInstagramAccount(editingAccount.id, {
-        display_name: editDisplayName.trim(),
-        notes: editNotes.trim() || null,
-        default_venue_name: editDefaultVenueName.trim() || null,
-        default_maps_url: editDefaultMapsUrl.trim() || null,
-        default_category: editDefaultCategory,
-      })
+      const result = await updateInstagramAccount(
+        editingAccount.id,
+        {
+          display_name: editDisplayName.trim(),
+          notes: editNotes.trim() || null,
+          default_venue_name: editDefaultVenueName.trim() || null,
+          default_maps_url: editDefaultMapsUrl.trim() || null,
+          default_category: editDefaultCategory,
+        },
+        confirmAddressLike
+      )
 
       if (result.error) {
         setFormError(result.error)
+        const isAddressLike = "suggestion" in result
+        setFormAddressLikeError(isAddressLike)
+        setFormSuggestion(isAddressLike ? result.suggestion : null)
         return
       }
 
@@ -170,7 +204,16 @@ export function InstagramAdminClient({ initialAccounts, stats, categories }: Ins
         )
       )
       setEditingAccount(null)
+      setFormSuggestion(null)
+      setFormAddressLikeError(false)
     })
+  }
+
+  const handleUseSuggestedVenueInEdit = (suggestion: string) => {
+    setEditDefaultVenueName(suggestion)
+    setFormError(null)
+    setFormSuggestion(null)
+    setFormAddressLikeError(false)
   }
 
   return (
@@ -260,12 +303,36 @@ export function InstagramAdminClient({ initialAccounts, stats, categories }: Ins
           </div>
         </div>
         <div className="mt-4 flex justify-end">
-          <Button onClick={handleCreate} disabled={isPending} className="w-full sm:w-auto">
+          <Button onClick={() => handleCreate()} disabled={isPending} className="w-full sm:w-auto">
             {isPending ? "Guardando..." : "Agregar cuenta"}
           </Button>
         </div>
-        {formError && (
-          <p className="mt-2 text-sm text-destructive font-medium">{formError}</p>
+        {formError && !editingAccount && (
+          <div className="mt-2 space-y-2">
+            <p className="text-sm text-destructive font-medium">{formError}</p>
+            {formAddressLikeError && (
+              <div className="flex flex-wrap gap-2">
+                {formSuggestion && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={isPending}
+                    onClick={() => handleUseSuggestedVenue(formSuggestion)}
+                  >
+                    Usar &quot;{formSuggestion}&quot;
+                  </Button>
+                )}
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={isPending}
+                  onClick={() => handleCreate(true)}
+                >
+                  Guardar igual
+                </Button>
+              </div>
+            )}
+          </div>
         )}
       </div>
 
@@ -465,11 +532,38 @@ export function InstagramAdminClient({ initialAccounts, stats, categories }: Ins
               />
             </div>
           </div>
+          {formError && editingAccount && (
+            <div className="space-y-2">
+              <p className="text-sm text-destructive font-medium">{formError}</p>
+              {formAddressLikeError && (
+                <div className="flex flex-wrap gap-2">
+                  {formSuggestion && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={isPending}
+                      onClick={() => handleUseSuggestedVenueInEdit(formSuggestion)}
+                    >
+                      Usar &quot;{formSuggestion}&quot;
+                    </Button>
+                  )}
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={isPending}
+                    onClick={() => handleUpdate(true)}
+                  >
+                    Guardar igual
+                  </Button>
+                </div>
+              )}
+            </div>
+          )}
           <div className="flex justify-end gap-3">
             <Button variant="outline" onClick={() => setEditingAccount(null)}>
               Cancelar
             </Button>
-            <Button onClick={handleUpdate} disabled={isPending}>
+            <Button onClick={() => handleUpdate()} disabled={isPending}>
               {isPending ? "Guardando..." : "Guardar cambios"}
             </Button>
           </div>
