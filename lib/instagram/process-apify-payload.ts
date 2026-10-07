@@ -3,6 +3,8 @@
 import { createAdminClient } from '@/lib/supabase/server'
 import type { ApifyInstagramPost, InstagramAccount } from '@/lib/instagram-config'
 import { INSTAGRAM_ENGINE_CONFIG } from '@/lib/instagram-config'
+import { VARIANT_WIDTHS, variantPath } from '@/lib/images/variants'
+import { makeVariants } from '@/lib/images/variants-server'
 
 type ProcessResult = {
   inserted: number
@@ -54,6 +56,31 @@ async function downloadAndUploadImage(
     if (uploadError) {
       console.error(`[IG Engine] Error subiendo a Storage: ${uploadError.message}`)
       return null
+    }
+
+    // Variantes WebP de 400 y 800px (QPS-004 §5). Una falla acá no debe
+    // cortar la ingesta ni cambiar la URL del original: la IA sigue
+    // procesando el original, y la UI cae a él si la variante no existe.
+    try {
+      const variants = await makeVariants(buffer)
+      for (const width of VARIANT_WIDTHS) {
+        const path = variantPath(storagePath, width)
+        if (!path) continue
+
+        const { error: variantError } = await supabase.storage
+          .from(INSTAGRAM_ENGINE_CONFIG.STORAGE_BUCKET)
+          .upload(path, variants[width], {
+            contentType: 'image/webp',
+            cacheControl: '31536000',
+            upsert: true,
+          })
+
+        if (variantError) {
+          console.error(`[IG Engine] Error subiendo variante ${width}px (${path}): ${variantError.message}`)
+        }
+      }
+    } catch (variantErr) {
+      console.error(`[IG Engine] Excepción generando variantes de ${storagePath}:`, variantErr)
     }
 
     // Obtener URL pública
