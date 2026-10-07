@@ -116,3 +116,78 @@ export function validateStartTime(
   }
   return { time: t, reliable: true }
 }
+
+// Artículo inicial que no cuenta para comparar nombres de lugares ("El", "La", "Los", "Las").
+const LEADING_ARTICLE = /^(el|la|los|las)\s+/
+
+/** Normaliza un nombre de lugar para comparar: minúsculas, sin tildes, sin artículo inicial. */
+function normalizeVenueName(text: string): string {
+  return normalize(text).trim().replace(LEADING_ARTICLE, '')
+}
+
+// Escapa los metacaracteres de regex de un texto externo (nombre extraído por Gemini) antes
+// de interpolarlo en un patrón: es dato, no instrucción, y no puede romper ni colgar el regex.
+function escapeRegExp(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+/**
+ * True si `name` (normalizado, sin artículo inicial) aparece literal en el caption o en
+ * flyerText, con límites de palabra (no substring crudo): "Flow" no matchea dentro de
+ * "Flower". Un nombre de varias palabras ("la vieja estación" → "vieja estacion") matchea
+ * cuando las palabras aparecen completas y en orden, separadas por cualquier espacio en
+ * blanco. Sin cuantificadores anidados (sin riesgo de backtracking catastrófico con captions
+ * largos) y con el nombre escapado (puede traer `(`, `[`, `*`, `+`, etc. sin que rompa el regex).
+ */
+function venueAppearsLiteral(
+  name: string,
+  caption: string | null | undefined,
+  flyerText: string | null | undefined
+): boolean {
+  const needle = normalizeVenueName(name)
+  if (!needle) return false
+  const words = needle.split(/\s+/).filter(Boolean).map(escapeRegExp)
+  if (words.length === 0) return false
+  const pattern = new RegExp(`(?<![a-z0-9])${words.join('\\s+')}(?![a-z0-9])`, 'i')
+  return [caption, flyerText]
+    .filter((t): t is string => !!t)
+    .some((t) => pattern.test(normalize(t)))
+}
+
+/**
+ * Lugar a usar y si quedó inferido ("el modelo extrae, el código decide", igual que
+ * validateStartTime). `inferred = false` solo si el nombre extraído (normalizado, sin
+ * "el/la/los/las" inicial) aparece literal en el caption o en el texto del flyer.
+ *
+ * Sin nombre extraído, se usa el lugar por defecto de la cuenta, con `inferred = true` y
+ * `source = 'account_default'`. Si el nombre extraído coincide con el lugar por defecto de la
+ * cuenta pero no aparece literal (p. ej. Primavera Sunset en Live Fresh), también queda
+ * `inferred = true`. Sin nombre extraído ni lugar por defecto, el mismo texto de respaldo de
+ * siempre ("Lugar no especificado"), con `inferred = true` y `source = 'none'`.
+ *
+ * Esta función solo clasifica: no cambia qué lugar se elige hoy ni la auto-publicación.
+ */
+export function validateVenue(
+  extractedVenue: string | null | undefined,
+  accountDefaultVenue: string | null | undefined,
+  caption: string | null | undefined,
+  flyerText?: string | null
+): { name: string; inferred: boolean; source: 'flyer' | 'account_default' | 'none' } {
+  const extracted = typeof extractedVenue === 'string' ? extractedVenue.trim() : ''
+  const defaultVenue = typeof accountDefaultVenue === 'string' ? accountDefaultVenue.trim() : ''
+
+  if (!extracted) {
+    if (defaultVenue) return { name: defaultVenue, inferred: true, source: 'account_default' }
+    return { name: 'Lugar no especificado', inferred: true, source: 'none' }
+  }
+
+  if (venueAppearsLiteral(extracted, caption, flyerText)) {
+    return { name: extracted, inferred: false, source: 'flyer' }
+  }
+
+  if (defaultVenue && normalizeVenueName(extracted) === normalizeVenueName(defaultVenue)) {
+    return { name: extracted, inferred: true, source: 'account_default' }
+  }
+
+  return { name: extracted, inferred: true, source: 'flyer' }
+}

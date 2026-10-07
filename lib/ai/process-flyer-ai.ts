@@ -4,7 +4,7 @@ import { AIProcessingResult, GeminiExtractionResult } from './types'
 import { upsertVenue, resolveCategoryId } from '@/lib/scraper/save-to-supabase'
 import { upsertEventWithDeduplication } from '@/lib/scraper/deduplicate'
 import { saltaWallClockToUtcISO } from '@/lib/date-format'
-import { validatePrice, validateStartTime } from './validate-extraction'
+import { validatePrice, validateStartTime, validateVenue } from './validate-extraction'
 
 // Helper simple de slugify para evitar problemas con importaciones
 function slugify(text: string): string {
@@ -157,9 +157,11 @@ export async function processFlyerWithAI(flyerId: string): Promise<FlyerProcessi
     const price = validatePrice(extractedData.price, flyer.caption, flyerText)
     const timeCheck = validateStartTime(extractedData.start_time, flyer.caption, flyerText)
 
-    // Resolver Venue
+    // Resolver Venue. validateVenue solo clasifica (QPS-070): el lugar elegido es
+    // el mismo de siempre, inferred/source no cambian ni qualifiesForAutoPublish ni el estado.
     const rawVenueName = cleanStringField(extractedData.venue_name)
-    const venueName = rawVenueName || account?.default_venue_name || 'Lugar no especificado'
+    const venueCheck = validateVenue(rawVenueName, account?.default_venue_name, flyer.caption, flyerText)
+    const venueName = venueCheck.name
     let venueError: string | undefined
     const venueId = await upsertVenue(venueName, 'instagram-ai', (raw, message) => {
       venueError = venueErrorMessage(raw, message)
@@ -254,6 +256,9 @@ export async function processFlyerWithAI(flyerId: string): Promise<FlyerProcessi
         auto_published: qualifiesForAutoPublish,
         // Medición de QPS-065: si la hora del modelo se confirmó en el texto.
         time_reliable: timeCheck.reliable,
+        // Medición de QPS-070: si el lugar quedó inferido (sin confirmar en el texto) y de dónde salió.
+        venue_inferred: venueCheck.inferred,
+        venue_source: venueCheck.source,
         ...(venueError ? { venue_error: VENUE_ERROR_PUBLIC } : {}),
       },
     }
@@ -272,6 +277,8 @@ export async function processFlyerWithAI(flyerId: string): Promise<FlyerProcessi
           action: upsertRes.action,
           auto_published: qualifiesForAutoPublish,
           time_reliable: timeCheck.reliable,
+          venue_inferred: venueCheck.inferred,
+          venue_source: venueCheck.source,
           ...(venueError ? { venue_error: VENUE_ERROR_PUBLIC } : {}),
         },
         ai_processed_at: new Date().toISOString(),
