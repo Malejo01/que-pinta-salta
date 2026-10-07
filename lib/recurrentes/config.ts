@@ -19,6 +19,12 @@ export type RecurrentePena = {
   resumen: string
   dias: readonly number[]
   hora: string
+  /**
+   * Hora de cierre ("HH:MM", hora de Salta). Si es menor o igual que `hora`,
+   * es del día siguiente (abre 22:00, cierra 02:00). Sin definir, no hay
+   * fecha de cierre (como hoy).
+   */
+  cierre?: string
   ticketUrl: string | null
 }
 
@@ -30,6 +36,11 @@ export type RecurrenteMuseo = {
   titulo: string
   dias: readonly number[]
   hora: string
+  /**
+   * Hora de cierre ("HH:MM", hora de Salta). Si es menor o igual que `hora`,
+   * es del día siguiente. Sin definir, no hay fecha de cierre (como hoy).
+   */
+  cierre?: string
 }
 
 export type Recurrente = RecurrentePena | RecurrenteMuseo
@@ -46,6 +57,7 @@ export const PENAS: RecurrentePena[] = [
     resumen: 'Peña con música folklórica en vivo, de miércoles a domingo desde las 21 hs.',
     dias: [3, 4, 5, 6, 0],
     hora: '21:00',
+    // [COMPLETAR: hora de cierre]
     ticketUrl: null,
   },
   {
@@ -59,6 +71,7 @@ export const PENAS: RecurrentePena[] = [
     resumen: 'Peña con show folklórico en vivo, todos los días a las 22 hs.',
     dias: [0, 1, 2, 3, 4, 5, 6],
     hora: '22:00',
+    // [COMPLETAR: hora de cierre]
     ticketUrl: 'https://www.laviejaestacion.com.ar',
   },
 ]
@@ -67,10 +80,10 @@ export const PENAS: RecurrentePena[] = [
 const DIAS_MUSEOS = [2, 3, 4, 5, 6, 0] as const
 
 export const MUSEOS: RecurrenteMuseo[] = [
-  { tipo: 'museo', venue: 'Museo de Arqueología de Alta Montaña', venueIdPrefijo: '48f05894', titulo: 'Museo de Arqueología de Alta Montaña', dias: DIAS_MUSEOS, hora: '11:00' },
-  { tipo: 'museo', venue: 'Museo Güemes', venueIdPrefijo: 'a6368e1a', titulo: 'Museo Güemes', dias: DIAS_MUSEOS, hora: '11:00' },
-  { tipo: 'museo', venue: 'Complejo Museológico Explora Salta', venueIdPrefijo: '8ee81049', titulo: 'Explora Salta', dias: DIAS_MUSEOS, hora: '10:00' },
-  { tipo: 'museo', venue: 'Museo de Bellas Artes', venueIdPrefijo: '81915a94', titulo: 'Museo de Bellas Artes LOLA MORA - MBA', dias: DIAS_MUSEOS, hora: '10:00' },
-  { tipo: 'museo', venue: 'Museo de Arte MAC', venueIdPrefijo: '1d472943', titulo: 'Museo de Arte MAC', dias: DIAS_MUSEOS, hora: '10:00' },
-  { tipo: 'museo', venue: 'Museo Antropológico', venueIdPrefijo: '31a6a4be', titulo: 'Museo de Antropologia - MAS', dias: DIAS_MUSEOS, hora: '10:00' },
+  { tipo: 'museo', venue: 'Museo de Arqueología de Alta Montaña', venueIdPrefijo: '48f05894', titulo: 'Museo de Arqueología de Alta Montaña', dias: DIAS_MUSEOS, hora: '11:00' }, // [COMPLETAR: hora de cierre]
+  { tipo: 'museo', venue: 'Museo Güemes', venueIdPrefijo: 'a6368e1a', titulo: 'Museo Güemes', dias: DIAS_MUSEOS, hora: '11:00' }, // [COMPLETAR: hora de cierre]
+  { tipo: 'museo', venue: 'Complejo Museológico Explora Salta', venueIdPrefijo: '8ee81049', titulo: 'Explora Salta', dias: DIAS_MUSEOS, hora: '10:00' }, // [COMPLETAR: hora de cierre]
+  { tipo: 'museo', venue: 'Museo de Bellas Artes', venueIdPrefijo: '81915a94', titulo: 'Museo de Bellas Artes LOLA MORA - MBA', dias: DIAS_MUSEOS, hora: '10:00' }, // [COMPLETAR: hora de cierre]
+  { tipo: 'museo', venue: 'Museo de Arte MAC', venueIdPrefijo: '1d472943', titulo: 'Museo de Arte MAC', dias: DIAS_MUSEOS, hora: '10:00' }, // [COMPLETAR: hora de cierre]
+  { tipo: 'museo', venue: 'Museo Antropológico', venueIdPrefijo: '31a6a4be', titulo: 'Museo de Antropologia - MAS', dias: DIAS_MUSEOS, hora: '10:00' }, // [COMPLETAR: hora de cierre]
 ]
