@@ -86,7 +86,10 @@ function toISO(isoString: string): string {
  * Filtra los eventos de Salta, detecta comerciales y los inserta/actualiza en Supabase.
  */
 export async function scrapeEntradaUno(): Promise<SaveResult> {
-  const accumulated: SaveResult = { inserted: 0, skipped: 0, errors: [] };
+  // Variable local (en vez de accumulated.venueErrors directo) para que TS la
+  // vea siempre como string[]: el campo en SaveResult es opcional.
+  const venueErrors: string[] = [];
+  const accumulated: SaveResult = { inserted: 0, skipped: 0, errors: [], venueErrors };
 
   try {
     console.log('[entradauno] Obteniendo cartelera desde CDN S3...');
@@ -221,6 +224,7 @@ export async function scrapeEntradaUno(): Promise<SaveResult> {
     accumulated.inserted += result.inserted;
     accumulated.skipped += result.skipped;
     accumulated.errors.push(...result.errors);
+    venueErrors.push(...(result.venueErrors ?? []));
 
     console.log(
       `[entradauno] Proceso finalizado. Insertados: ${accumulated.inserted}, ` +

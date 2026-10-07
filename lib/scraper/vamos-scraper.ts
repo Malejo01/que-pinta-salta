@@ -14,7 +14,10 @@ import type { Event } from '../types';
  * Salida anticipada: si todos los eventos ya estaban en la BD, no hay nada mas que hacer.
  */
 export async function scrapeVamosGobAr(): Promise<SaveResult> {
-  const accumulated: SaveResult = { inserted: 0, skipped: 0, errors: [] };
+  // Variable local (en vez de accumulated.venueErrors directo) para que TS la
+  // vea siempre como string[]: el campo en SaveResult es opcional.
+  const venueErrors: string[] = [];
+  const accumulated: SaveResult = { inserted: 0, skipped: 0, errors: [], venueErrors };
 
   try {
     // 1. Fetch de la cartelera completa
@@ -66,6 +69,7 @@ export async function scrapeVamosGobAr(): Promise<SaveResult> {
     accumulated.inserted += result.inserted;
     accumulated.skipped  += result.skipped;
     accumulated.errors.push(...result.errors);
+    venueErrors.push(...(result.venueErrors ?? []));
 
     // 4. Log de salida anticipada si todos son duplicados
     if (result.inserted === 0 && result.skipped > 0) {

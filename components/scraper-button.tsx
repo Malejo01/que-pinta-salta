@@ -21,6 +21,15 @@ export function ScraperButton() {
         title: "Scraping completado",
         description: `${data.scraped?.total ?? 0} eventos procesados — ${data.database?.inserted ?? 0} nuevos, ${data.database?.updated ?? 0} actualizados.`,
       })
+
+      const venueErrors = data.venueErrors ?? []
+      if (venueErrors.length > 0) {
+        toast({
+          title: `${venueErrors.length} mensajes de lugar`,
+          description: venueErrors.join(" — "),
+          variant: "destructive",
+        })
+      }
     } catch (err) {
       toast({
         title: "Error al ejecutar scraping",
