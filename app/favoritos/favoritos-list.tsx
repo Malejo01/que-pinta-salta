@@ -180,14 +180,15 @@ export function FavoritosList({ initialFavorites }: FavoritosListProps) {
             <div className="h-px bg-zinc-800 flex-1" />
           </div>
           
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 justify-items-center">
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
             {flexible.map((event) => (
-              <EventCard 
-                key={event.id} 
-                event={event} 
+              <EventCard
+                key={event.id}
+                event={event}
                 isFavorite={true}
                 onOpenMovie={setSelectedMovie}
                 origin="favoritos"
+                className="w-full sm:w-full max-w-[200px] mx-auto"
               />
             ))}
           </div>
@@ -207,14 +208,15 @@ export function FavoritosList({ initialFavorites }: FavoritosListProps) {
               <div className="h-px bg-primary/20 flex-1" />
             </div>
 
-            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 justify-items-center">
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
               {events.map((event) => (
-                <EventCard 
-                  key={event.id} 
-                  event={event} 
+                <EventCard
+                  key={event.id}
+                  event={event}
                   isFavorite={true}
                   onOpenMovie={setSelectedMovie}
                   origin="favoritos"
+                  className="w-full sm:w-full max-w-[200px] mx-auto"
                 />
               ))}
             </div>
