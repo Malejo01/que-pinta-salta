@@ -1,7 +1,6 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import Image from "next/image"
 import Link from "next/link"
 import { motion } from "framer-motion"
 import { Calendar, MapPin, Instagram, Film, Share2 } from "lucide-react"
@@ -10,9 +9,11 @@ import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { formatEventDateShort } from "@/lib/date-format"
 import { FavoriteButton } from "@/components/favorite-button"
+import { FlyerImage } from "@/components/flyer-image"
 import { useDonation } from "@/components/donation-context"
 import type { DisplayEvent } from "@/components/home-content"
 import { eventHref, type MetricOrigin } from "@/lib/metricas/links"
+import { summarizeOccurrences } from "@/lib/events/occurrences-summary"
 
 interface EventCardProps {
   event: DisplayEvent
@@ -51,6 +52,21 @@ export function EventCard({ event, isFavorite, onToggleFavorite, onOpenMovie, cl
   const linkHref = event.isInstagramFlyer && event.flyerId
     ? `/flyer/${event.flyerId}`
     : eventHref(event.id, origin)
+
+  // Pie de card siempre visible para eventos con varias funciones (QPS-024);
+  // el cine tiene su propio overlay de horarios y no usa esta línea.
+  //
+  // `new Date()` en el render da un instante distinto en el servidor (momento
+  // del pedido) y en el cliente (momento de la hidratación), así que el texto
+  // puede diferir si una función queda en el medio. El `<p>` de abajo lleva
+  // `suppressHydrationWarning`: lo único que cambia es su texto, nunca si el
+  // elemento existe o no (`summarizeOccurrences` devuelve null solo cuando hay
+  // una sola ocurrencia, y eso es igual en los dos lados).
+  const hasSeveralOccurrences =
+    !event.isCinemaMovie && !!event.occurrences && event.occurrences.length > 1
+  const occurrencesSummary = hasSeveralOccurrences
+    ? summarizeOccurrences(event.occurrences!, new Date())
+    : null
 
   const handleClick = (e: React.MouseEvent) => {
     if (event.isCinemaMovie && onOpenMovie) {
@@ -110,7 +126,8 @@ export function EventCard({ event, isFavorite, onToggleFavorite, onOpenMovie, cl
             </span>
           </div>
         ) : (
-          <Image
+          <FlyerImage
+            variant={400}
             src={imgSrc}
             alt={event.title}
             fill
@@ -143,7 +160,7 @@ export function EventCard({ event, isFavorite, onToggleFavorite, onOpenMovie, cl
                       {details.formats.flatMap((f: any) => f.times).slice(0, 5).map((time: string, tIdx: number) => (
                         <span 
                           key={tIdx} 
-                          className="bg-zinc-800 text-zinc-200 text-[9px] px-1 py-0.5 rounded border border-zinc-700/30"
+                          className="bg-zinc-800 text-zinc-200 text-[11px] px-1 py-0.5 rounded border border-zinc-700/30"
                         >
                           {time}
                         </span>
@@ -153,7 +170,7 @@ export function EventCard({ event, isFavorite, onToggleFavorite, onOpenMovie, cl
                 ))}
               </div>
             </div>
-            <p className="text-[9px] text-zinc-400 text-center italic mt-2 border-t border-zinc-800/80 pt-1">
+            <p className="text-[11px] text-zinc-400 text-center italic mt-2 border-t border-zinc-800/80 pt-1">
               Click para ver horarios y comprar
             </p>
           </div>
@@ -179,7 +196,7 @@ export function EventCard({ event, isFavorite, onToggleFavorite, onOpenMovie, cl
                       <span className="font-medium text-zinc-200">
                         {formattedOccDate}
                       </span>
-                      <span className="bg-zinc-850 text-zinc-300 border border-zinc-700/20 px-1 py-0.5 rounded text-[9px] font-semibold">
+                      <span className="bg-zinc-850 text-zinc-300 border border-zinc-700/20 px-1 py-0.5 rounded text-[11px] font-semibold">
                         {occ.time || "Sin hora"}
                       </span>
                     </div>
@@ -187,7 +204,7 @@ export function EventCard({ event, isFavorite, onToggleFavorite, onOpenMovie, cl
                 })}
               </div>
             </div>
-            <p className="text-[9px] text-zinc-400 text-center italic mt-2 border-t border-zinc-800/80 pt-1">
+            <p className="text-[11px] text-zinc-400 text-center italic mt-2 border-t border-zinc-800/80 pt-1">
               Click para ver detalles
             </p>
           </div>
@@ -204,7 +221,7 @@ export function EventCard({ event, isFavorite, onToggleFavorite, onOpenMovie, cl
 
         <button
           onClick={handleShareClick}
-          className="absolute right-11 top-2 z-30 flex size-8 items-center justify-center rounded-full bg-black/60 text-white backdrop-blur-md transition-all hover:scale-110 active:scale-95 cursor-pointer sm:opacity-0 sm:group-hover/card:opacity-100 duration-350"
+          className="absolute right-12 top-2 z-30 flex size-8 items-center justify-center rounded-full bg-black/60 text-white backdrop-blur-md transition-all hover:scale-110 active:scale-95 cursor-pointer sm:opacity-0 sm:group-hover/card:opacity-100 duration-350 after:absolute after:-left-2 after:-right-1 after:-top-1.5 after:-bottom-1.5 after:content-['']"
           title="Compartir en WhatsApp"
         >
           <Share2 className="size-4 hover:text-emerald-400 text-zinc-100" />
@@ -248,7 +265,13 @@ export function EventCard({ event, isFavorite, onToggleFavorite, onOpenMovie, cl
               {event.time && <span className="ml-1">{event.time}</span>}
             </div>
           </div>
-          
+
+          {occurrencesSummary && (
+            <p suppressHydrationWarning className="mt-1 text-[11px] text-white/70">
+              {occurrencesSummary}
+            </p>
+          )}
+
           {formattedPrice && (
             <div className="mt-2 flex items-center justify-between">
               <span className={cn(
