@@ -1,12 +1,12 @@
 import { getFlyerById } from "@/lib/instagram/data"
 import { notFound } from "next/navigation"
-import Image from "next/image"
 import { Instagram, ExternalLink, MapPin, Calendar, ArrowLeft } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Navbar } from "@/components/navbar"
 import { MobileNav } from "@/components/mobile-nav"
 import { FavoriteButton } from "@/components/favorite-button"
+import { FlyerImage } from "@/components/flyer-image"
 import { createClient } from "@/lib/supabase/server"
 import Link from "next/link"
 import type { Metadata } from "next"
@@ -97,7 +97,8 @@ export default async function FlyerPage({ params }: FlyerPageProps) {
         <div className="overflow-hidden rounded-2xl bg-card shadow-xl">
           {/* Imagen */}
           <div className="relative aspect-square w-full">
-            <Image
+            <FlyerImage
+              variant={800}
               src={imageUrl}
               alt={`Flyer de ${flyer.account.display_name}`}
               fill

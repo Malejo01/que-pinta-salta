@@ -2,7 +2,6 @@
 
 import { useRouter } from "next/navigation"
 import { createElement, useMemo, useState, useTransition } from "react"
-import Image from "next/image"
 import { Calendar, MapPin, Clock, Users, ExternalLink, Navigation, Pencil, Check, X } from "lucide-react"
 import { vibeLabels, Event, Category, Venue } from "@/lib/types"
 import {
@@ -28,6 +27,7 @@ import { createCategory, updateEventCategory } from "@/lib/admin-actions"
 import { deferredRefresh } from "@/lib/deferred-refresh"
 import { ViewBeacon } from "@/components/view-beacon"
 import { goHref, type MetricOrigin } from "@/lib/metricas/links"
+import { FlyerImage } from "@/components/flyer-image"
 
 type EventWithRelations = Event & { category: Category | null; venue: Venue | null }
 
@@ -143,7 +143,8 @@ export function EventModalWrapper({ event, isAdmin = false, categories = [], ori
       <DialogContent className="max-h-[90vh] max-w-lg overflow-y-auto p-0">
         <ViewBeacon eventId={event.id} origin={origin} />
         <div className="relative aspect-[3/2] w-full">
-          <Image
+          <FlyerImage
+            variant={800}
             src={displayEvent.image}
             alt={displayEvent.title}
             fill
