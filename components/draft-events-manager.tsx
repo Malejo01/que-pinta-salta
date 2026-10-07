@@ -56,7 +56,7 @@ interface DraftEvent {
   end_date: string | null
   is_recurring: boolean
   recurrence_rule: string | null
-  price_min: number
+  price_min: number | null
   price_max: number | null
   is_free: boolean
   ticket_url: string | null
@@ -97,13 +97,18 @@ export function DraftEventsManager({
   const [venueId, setVenueId] = useState('')
   const [startDateDay, setStartDateDay] = useState('')
   const [startDateTime, setStartDateTime] = useState('')
-  const [priceMin, setPriceMin] = useState(0)
+  const [priceMin, setPriceMin] = useState<number | ''>(0)
   const [isFree, setIsFree] = useState(false)
   const [ticketUrl, setTicketUrl] = useState('')
   const [imageUrl, setImageUrl] = useState('')
+  const [confirmDate, setConfirmDate] = useState(false)
 
   // Encontrar el evento seleccionado actual
   const selectedEvent = events.find((e) => e.id === selectedEventId) || null
+
+  // La fecha vino del fallback (post sin fecha en el flyer, se usó la fecha de
+  // publicación): el admin tiene que confirmarla a mano antes de publicar.
+  const isFallbackDate = selectedEvent?.ai_metadata?.is_fallback === true
 
   // Sincronizar estado del formulario cuando cambia el evento seleccionado
   useEffect(() => {
@@ -112,10 +117,11 @@ export function DraftEventsManager({
       setDescription(selectedEvent.description || '')
       setCategoryId(selectedEvent.category_id || '')
       setVenueId(selectedEvent.venue_id || '')
-      setPriceMin(selectedEvent.price_min || 0)
+      setPriceMin(selectedEvent.price_min ?? '')
       setIsFree(selectedEvent.is_free || false)
       setTicketUrl(selectedEvent.ticket_url || '')
       setImageUrl(selectedEvent.image_url || '')
+      setConfirmDate(false)
 
       // start_date se guarda como instante UTC: hay que leerlo en hora de Salta
       // para que el editor muestre la misma hora que ve el usuario en el sitio.
@@ -138,6 +144,7 @@ export function DraftEventsManager({
       setIsFree(false)
       setTicketUrl('')
       setImageUrl('')
+      setConfirmDate(false)
     }
   }, [selectedEventId, events])
 
@@ -186,9 +193,15 @@ export function DraftEventsManager({
       toast.error('La fecha es requerida.')
       return
     }
+    if (isFallbackDate && !confirmDate) {
+      toast.error('Confirmá la fecha: salió de la publicación, no del flyer.')
+      return
+    }
 
     setIsSubmitting(true)
-    const combinedStartDate = `${startDateDay}T${startDateTime || '20:00'}:00`
+    // Sin hora elegida, se manda solo la fecha: el servidor la guarda a las
+    // 00:00 de Salta (convención "sin hora" de QPS-065). Nunca 20:00 por defecto.
+    const combinedStartDate = startDateTime ? `${startDateDay}T${startDateTime}:00` : startDateDay
 
     const eventData = {
       title,
@@ -196,12 +209,13 @@ export function DraftEventsManager({
       category_id: categoryId || null,
       venue_id: venueId || null,
       start_date: combinedStartDate,
-      price_min: isFree ? 0 : priceMin,
+      price_min: isFree ? 0 : (priceMin === '' ? null : priceMin),
       is_free: isFree,
       ticket_url: ticketUrl || null,
       image_url: imageUrl || null,
       ai_metadata: selectedEvent.ai_metadata, // Mantener trazabilidad
-      slug: selectedEvent.slug
+      slug: selectedEvent.slug,
+      confirm_date: confirmDate
     }
 
     try {
@@ -574,6 +588,22 @@ export function DraftEventsManager({
                           </div>
                         </div>
 
+                        {/* Aviso: la fecha salió del fallback (post sin fecha en el flyer) */}
+                        {isFallbackDate && (
+                          <div className="flex items-start gap-2 bg-amber-500/10 border border-amber-500/20 text-amber-600 text-xs p-3 rounded-lg">
+                            <input
+                              id="confirmDate"
+                              type="checkbox"
+                              checked={confirmDate}
+                              onChange={(e) => setConfirmDate(e.target.checked)}
+                              className="mt-0.5 size-3.5 shrink-0 cursor-pointer accent-amber-600"
+                            />
+                            <Label htmlFor="confirmDate" className="text-xs font-medium text-amber-700 cursor-pointer leading-snug">
+                              Esta fecha salió de la publicación de Instagram, no del flyer. Confirmo la fecha.
+                            </Label>
+                          </div>
+                        )}
+
                         {/* Fila: Precio y Ticket */}
                         <div className="grid gap-4 sm:grid-cols-2">
                           <div className="space-y-1.5">
@@ -585,7 +615,15 @@ export function DraftEventsManager({
                                 id="priceMin"
                                 type="number"
                                 value={priceMin}
-                                onChange={(e) => setPriceMin(parseInt(e.target.value, 10) || 0)}
+                                onChange={(e) => {
+                                  const raw = e.target.value
+                                  if (raw === '') {
+                                    setPriceMin('')
+                                    return
+                                  }
+                                  const parsed = parseInt(raw, 10)
+                                  setPriceMin(Number.isNaN(parsed) ? '' : parsed)
+                                }}
                                 disabled={isFree}
                                 className="bg-background/50 flex-1 border-border/80"
                                 min={0}

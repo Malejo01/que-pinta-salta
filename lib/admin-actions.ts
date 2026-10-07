@@ -4,6 +4,8 @@ import { createClient } from "@/lib/supabase/server"
 import { createClient as createSupabaseClient } from "@supabase/supabase-js"
 import { revalidatePath } from "next/cache"
 import { saltaWallClockToUtcISO } from "@/lib/date-format"
+import { mergedIntoId } from "@/lib/events/merged"
+import { isVigente } from "@/lib/events/vigencia"
 
 function slugifyCategoryName(value: string) {
   return value
@@ -309,6 +311,13 @@ export async function toggleEventFeatured(eventId: string, isFeatured: boolean) 
   return { success: true }
 }
 
+/** true si `ai_metadata.is_fallback` del evento es exactamente `true` (QPS-068). */
+function isFallbackMetadata(row: { ai_metadata?: unknown } | null | undefined): boolean {
+  const meta = row?.ai_metadata
+  if (!meta || typeof meta !== 'object' || Array.isArray(meta)) return false
+  return (meta as Record<string, unknown>).is_fallback === true
+}
+
 export async function publishDraftEvent(eventId: string, eventData: any) {
   const supabase = await createClient()
 
@@ -325,10 +334,49 @@ export async function publishDraftEvent(eventId: string, eventData: any) {
 
   const adminClient = getPrivilegedClient()
 
+  // Guarda 1 (QPS-068): título vacío o sin editar ("Revisar: ...") no se publica.
+  const trimmedTitle = (eventData?.title ?? '').toString().trim()
+  if (!trimmedTitle || /^revisar:/i.test(trimmedTitle)) {
+    return { error: 'Cambiá el título antes de publicar' }
+  }
+
+  // Evento tal como está en la base (sin confiar en lo que mande el cliente):
+  // hace falta para detectar fusión (QPS-064) y el fallback de fecha (QPS-065).
+  const { data: currentEvent, error: currentEventError } = await adminClient
+    .from('events')
+    .select('*')
+    .eq('id', eventId)
+    .maybeSingle()
+
+  if (currentEventError || !currentEvent) {
+    return { error: 'No se encontró el borrador a publicar.' }
+  }
+
+  // Guarda 2 (QPS-064): un evento fusionado a mano en otro no se publica.
+  if (mergedIntoId(currentEvent)) {
+    return { error: 'Este evento fue fusionado en otro; no se publica' }
+  }
+
+  // Guarda 4 (QPS-065): si la fecha vino del fallback (post sin fecha en el
+  // flyer, se usó published_at), hace falta confirmación explícita del admin.
+  if (isFallbackMetadata(currentEvent) && eventData?.confirm_date !== true) {
+    return { error: 'Confirmá la fecha: salió de la publicación, no del flyer' }
+  }
+
+  // Guarda 3 (QPS-065): hora de pared de Salta, sin zona. Si el cliente no
+  // manda hora, el valor es la fecha sola y queda en 00:00 de Salta (nunca
+  // 20:00 por defecto): lo resuelve saltaWallClockToUtcISO.
+  const startDateIso = saltaWallClockToUtcISO(eventData.start_date)
+
+  // Guarda 5 (QPS-060): no se publica un evento cuyo fin estimado ya pasó.
+  if (!isVigente({ start_date: startDateIso, end_date: currentEvent.end_date ?? null })) {
+    return { error: 'Este evento ya pasó; no se puede publicar' }
+  }
+
   // Generar slug basado en el título (o usar el existente si no cambió)
   const baseSlug = slugifyCategoryName(eventData.title)
   let slug = eventData.slug || baseSlug
-  
+
   // Si el título cambió, generamos un nuevo slug único
   if (baseSlug && baseSlug !== eventData.slug) {
     slug = baseSlug
@@ -346,8 +394,9 @@ export async function publishDraftEvent(eventId: string, eventData: any) {
       category_id: eventData.category_id || null,
       venue_id: eventData.venue_id || null,
       // El editor de borradores manda hora de pared de Salta, sin zona.
-      start_date: saltaWallClockToUtcISO(eventData.start_date),
-      price_min: eventData.price_min ?? 0,
+      start_date: startDateIso,
+      // Guarda 6 (QPS-062): nunca 0 por defecto; sin precio informado, null.
+      price_min: eventData.is_free ? 0 : (eventData.price_min ?? null),
       is_free: eventData.is_free ?? false,
       ticket_url: eventData.ticket_url || null,
       image_url: eventData.image_url || null,
