@@ -5,6 +5,11 @@ import { usePathname } from "next/navigation"
 import { Home, Search, Radio, Heart } from "lucide-react"
 import { cn } from "@/lib/utils"
 
+// Nota (12-f): se dejó el prefetch por defecto (no se puso `prefetch={false}`)
+// en estos 4 ítems, incluido /buscar, porque son las pestañas fijas de la
+// barra inferior en celular: precargarlas es lo que hace sentir rápida la
+// navegación entre ellas. Lo que sí se desactivó en otros componentes fue
+// /auth/login, que se pedía 7 veces con hashes distintos en la home.
 const navItems = [
   { href: "/", icon: Home, label: "Inicio" },
   { href: "/buscar", icon: Search, label: "Buscar" },
