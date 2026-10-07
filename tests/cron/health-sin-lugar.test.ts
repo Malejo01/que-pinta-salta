@@ -160,7 +160,9 @@ describe('GET /api/cron/health: eventos_sin_lugar', () => {
     const body = await res.json()
     expect(res.status).toBe(503)
     expect(body.ok).toBe(false)
-    expect(body.error).toBe('boom urgente')
+    // QPS-049c: texto fijo, nunca el mensaje crudo de la base.
+    expect(body.error).toBe('Error consultando la base')
+    expect(JSON.stringify(body)).not.toContain('boom urgente')
   })
 
   it('sin Bearer: 401 y no toca la base', async () => {

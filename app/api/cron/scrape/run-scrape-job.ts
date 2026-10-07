@@ -2,7 +2,7 @@ import { createAdminClient } from '@/lib/supabase/server'
 import { scrapeNorteTicket, scrapeEntradaUno, scrapeAlpogo } from './providers'
 import { ScrapedEvent } from './types'
 import { upsertEventWithDeduplication } from '@/lib/scraper/deduplicate'
-import { resolveVenueId } from '@/lib/venues/resolve'
+import { formatVenueError, resolveVenueId } from '@/lib/venues/resolve'
 import { archiveExpiredFlyers } from '@/lib/instagram/process-apify-payload'
 import { resolveCategoryWithAliases } from '@/lib/scraper/categorize'
 import { formatSaltaDayKey } from '@/lib/date-format'
@@ -58,7 +58,7 @@ async function upsertScrapedEvents(events: ScrapedEvent[]) {
   // corrida tiene que quedar PARTIAL para que se vea.
   const venueErrors: string[] = []
   const onVenueError = (rawName: string, message: string) => {
-    venueErrors.push(`venue: ${rawName}: ${message}`.slice(0, 200))
+    venueErrors.push(formatVenueError(rawName, message))
   }
   
   // Categorías consideradas comerciales prioritarias
