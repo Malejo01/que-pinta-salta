@@ -4,7 +4,7 @@ import { AIProcessingResult, GeminiExtractionResult } from './types'
 import { upsertVenue, resolveCategoryId } from '@/lib/scraper/save-to-supabase'
 import { upsertEventWithDeduplication } from '@/lib/scraper/deduplicate'
 import { saltaWallClockToUtcISO } from '@/lib/date-format'
-import { validatePrice, validateStartTime } from './validate-extraction'
+import { validatePrice, validateStartTime, validateVenue } from './validate-extraction'
 
 // Helper simple de slugify para evitar problemas con importaciones
 function slugify(text: string): string {
@@ -157,9 +157,11 @@ export async function processFlyerWithAI(flyerId: string): Promise<FlyerProcessi
     const price = validatePrice(extractedData.price, flyer.caption, flyerText)
     const timeCheck = validateStartTime(extractedData.start_time, flyer.caption, flyerText)
 
-    // Resolver Venue
+    // Resolver Venue. validateVenue solo clasifica (QPS-070): el lugar elegido es
+    // el mismo de siempre, inferred/source no cambian ni qualifiesForAutoPublish ni el estado.
     const rawVenueName = cleanStringField(extractedData.venue_name)
-    const venueName = rawVenueName || account?.default_venue_name || 'Lugar no especificado'
+    const venueCheck = validateVenue(rawVenueName, account?.default_venue_name, flyer.caption, flyerText)
+    const venueName = venueCheck.name
     let venueError: string | undefined
     const venueId = await upsertVenue(venueName, 'instagram-ai', (raw, message) => {
       venueError = venueErrorMessage(raw, message)
@@ -175,6 +177,9 @@ export async function processFlyerWithAI(flyerId: string): Promise<FlyerProcessi
     let startDate = flyer.published_at
     const rawDate = cleanStringField(extractedData.date)
     const isValidDate = rawDate && /^\d{4}-\d{2}-\d{2}$/.test(rawDate)
+    // QPS-073: de dónde salió la fecha final, para exigir confirmación en
+    // publishDraftEvent cuando no vino del flyer sino del posteo.
+    const dateSource = isValidDate ? 'flyer' : 'published_at'
 
     if (isValidDate) {
       // Validar si la fecha extraída es anterior a la fecha actual (local en Argentina/Salta)
@@ -254,6 +259,11 @@ export async function processFlyerWithAI(flyerId: string): Promise<FlyerProcessi
         auto_published: qualifiesForAutoPublish,
         // Medición de QPS-065: si la hora del modelo se confirmó en el texto.
         time_reliable: timeCheck.reliable,
+        // QPS-073: 'flyer' si la fecha vino de la IA, 'published_at' si fue fallback.
+        date_source: dateSource,
+        // Medición de QPS-070: si el lugar quedó inferido (sin confirmar en el texto) y de dónde salió.
+        venue_inferred: venueCheck.inferred,
+        venue_source: venueCheck.source,
         ...(venueError ? { venue_error: VENUE_ERROR_PUBLIC } : {}),
       },
     }
@@ -272,6 +282,9 @@ export async function processFlyerWithAI(flyerId: string): Promise<FlyerProcessi
           action: upsertRes.action,
           auto_published: qualifiesForAutoPublish,
           time_reliable: timeCheck.reliable,
+          date_source: dateSource,
+          venue_inferred: venueCheck.inferred,
+          venue_source: venueCheck.source,
           ...(venueError ? { venue_error: VENUE_ERROR_PUBLIC } : {}),
         },
         ai_processed_at: new Date().toISOString(),
@@ -359,6 +372,8 @@ async function handleProcessingFallback(
         original_caption: flyer.caption,
         flyer_id: flyer.id,
         is_fallback: true,
+        // QPS-073: en la falla no corrió la IA, así que la fecha siempre es published_at.
+        date_source: 'published_at',
         processed_at: new Date().toISOString(),
         ...(venueError ? { venue_error: VENUE_ERROR_PUBLIC } : {}),
       },
@@ -375,6 +390,7 @@ async function handleProcessingFallback(
           error: errorMessage,
           event_id: upsertRes.eventId,
           is_fallback: true,
+          date_source: 'published_at',
           ...(venueError ? { venue_error: VENUE_ERROR_PUBLIC } : {}),
         },
         ai_processed_at: new Date().toISOString(),
