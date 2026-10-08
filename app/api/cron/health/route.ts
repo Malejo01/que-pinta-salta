@@ -114,7 +114,7 @@ export async function GET(request: Request) {
     .find((r) => r.error)?.error
   if (dbError) {
     console.error('[Health] Error consultando la base:', dbError)
-    return NextResponse.json({ ok: false, error: dbError.message }, { status: 503 })
+    return NextResponse.json({ ok: false, error: 'Error consultando la base' }, { status: 503 })
   }
   // Sin job_runs (p. ej. antes de la migración) se cae al rastro en los datos.
   if (jobRuns.error) console.error('[Health] No se pudo leer job_last_runs:', jobRuns.error)

@@ -2,7 +2,7 @@ import { createClient } from '@supabase/supabase-js';
 import type { Event, Venue } from '../types';
 import { upsertEventWithDeduplication } from './deduplicate';
 import { saltaWallClockToUtcISO } from '../date-format';
-import { resolveVenueId } from '../venues/resolve';
+import { formatVenueError, resolveVenueId } from '../venues/resolve';
 
 // Cliente directo (service role key para uso en scripts, nunca en browser)
 function getAdminClient() {
@@ -106,6 +106,13 @@ export type SaveResult = {
   inserted: number;
   skipped: number;
   errors: string[];
+  /**
+   * Fallas de resolve_venue_id: el evento se guarda igual, sin venue_id.
+   * Opcional para no romper a los llamadores que ya armaban un SaveResult
+   * a mano (alpogo-scraper.ts, entradauno-scraper.ts, vamos-scraper.ts):
+   * ninguno de ellos la lee hoy, pero saveEventsToSupabase() siempre la llena.
+   */
+  venueErrors?: string[];
 };
 
 /**
@@ -119,13 +126,19 @@ export async function saveEventsToSupabase(
   sourceKey?: string
 ): Promise<SaveResult> {
   const supabase = getAdminClient();
-  const result: SaveResult = { inserted: 0, skipped: 0, errors: [] };
+  // Variable local (en vez de result.venueErrors directo) para que TS la vea
+  // siempre como string[]: el campo en SaveResult es opcional por los
+  // llamadores que construyen un SaveResult a mano sin esa propiedad.
+  const venueErrors: string[] = [];
+  const result: SaveResult = { inserted: 0, skipped: 0, errors: [], venueErrors };
 
   for (const event of events) {
     try {
       // Resolver venue_id
       const venueName = typeof event.venue === 'string' ? event.venue : '';
-      const venue_id = await upsertVenue(venueName, sourceKey || 'scraper');
+      const venue_id = await upsertVenue(venueName, sourceKey || 'scraper', (rawName, message) => {
+        venueErrors.push(formatVenueError(rawName, message));
+      });
 
       // Clasificación:
       // 1) Priorizar coincidencia de alias en base de datos (admin overrides)

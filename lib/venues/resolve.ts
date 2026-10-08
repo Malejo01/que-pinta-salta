@@ -42,13 +42,34 @@ export type ResolveVenueOptions = {
 }
 
 /**
+ * Colapsa saltos de línea y espacios repetidos a un solo espacio, sin bordes.
+ */
+function collapseWhitespace(value: string): string {
+  return value.replace(/\s+/g, ' ').trim()
+}
+
+/**
+ * Formateador único de errores de venue: `venue: <nombre>: <mensaje>`,
+ * recortado a 200 caracteres (job_runs.errors guarda strings cortos).
+ * Usado por toda ruta de ingesta que resuelve venues (scraper de ticketeras,
+ * flyers de Instagram) para que el error tenga siempre la misma forma.
+ */
+export function formatVenueError(rawName: string, message: string): string {
+  const name = collapseWhitespace(rawName)
+  const msg = collapseWhitespace(message)
+  return `venue: ${name}: ${msg}`.slice(0, 200)
+}
+
+/**
  * Deduplica por mensaje los errores de venue y, si hay más de 5 distintos,
  * deja los primeros 5 más un resumen (job_runs.errors guarda 20 como máximo).
+ * El total cuenta mensajes únicos, no lugares: el mismo venue puede fallar
+ * con mensajes distintos, y un mensaje puede repetirse para varios eventos.
  */
 export function summarizeVenueErrors(errors: string[]): string[] {
   const unique = [...new Set(errors)]
   if (unique.length <= 5) return unique
-  return [...unique.slice(0, 5), `venue: ${unique.length} lugares sin resolver en total`]
+  return [...unique.slice(0, 5), `venue: ${unique.length} mensajes de lugar sin resolver en total`]
 }
 
 /** Strings que las fuentes usan como "no sé dónde es". No son lugares. */
@@ -70,19 +91,30 @@ export async function resolveVenueId(
   // ensuciar el registro canónico ni la cola de revisión.
   if (isPlaceholderVenue(clean)) return null
 
-  const { data, error } = await supabase.rpc('resolve_venue_id', {
-    p_raw: clean,
-    p_source: options.source ?? null,
-    p_autocreate: options.autocreate ?? false,
-    p_threshold: options.threshold ?? 0.62,
-  })
+  // La RPC normalmente devuelve { error }, pero una falla de red (fetch
+  // rechazado) hace que supabase.rpc() rechace la promesa en vez de resolver
+  // con error: se captura acá para que resolveVenueId nunca lance (QPS-051).
+  let data: unknown = null
+  let errorMessage: string | null = null
+  try {
+    const resp = await supabase.rpc('resolve_venue_id', {
+      p_raw: clean,
+      p_source: options.source ?? null,
+      p_autocreate: options.autocreate ?? false,
+      p_threshold: options.threshold ?? 0.62,
+    })
+    data = resp.data
+    errorMessage = resp.error?.message ?? null
+  } catch (err) {
+    errorMessage = err instanceof Error ? err.message : String(err)
+  }
 
-  if (error) {
+  if (errorMessage) {
     console.error(
       `[venues:resolveVenueId] fallo resolviendo ${JSON.stringify(rawVenueName)}:`,
-      error.message
+      errorMessage
     )
-    options.onError?.(clean, error.message)
+    options.onError?.(clean, errorMessage)
     return null
   }
 

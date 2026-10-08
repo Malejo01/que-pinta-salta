@@ -67,7 +67,10 @@ function cleanDescription(html: string): { description: string; short_descriptio
  * Scrapes Alpogo.com events for Salta (provincia_id 16) and saves them to Supabase.
  */
 export async function scrapeAlpogoSalta(): Promise<SaveResult> {
-  const accumulated: SaveResult = { inserted: 0, skipped: 0, errors: [] };
+  // Variable local (en vez de accumulated.venueErrors directo) para que TS la
+  // vea siempre como string[]: el campo en SaveResult es opcional.
+  const venueErrors: string[] = [];
+  const accumulated: SaveResult = { inserted: 0, skipped: 0, errors: [], venueErrors };
 
   try {
     console.log('[alpogo] Obteniendo eventos de Salta desde la API...');
@@ -164,6 +167,7 @@ export async function scrapeAlpogoSalta(): Promise<SaveResult> {
     accumulated.inserted += result.inserted;
     accumulated.skipped += result.skipped;
     accumulated.errors.push(...result.errors);
+    venueErrors.push(...(result.venueErrors ?? []));
 
     console.log(
       `[alpogo] Listo. Insertados: ${accumulated.inserted}, ` +

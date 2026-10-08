@@ -15,12 +15,12 @@ describe('summarizeVenueErrors', () => {
     expect(summarizeVenueErrors(errs(5))).toEqual(errs(5))
   })
   it('mas de 5 distintos: primeros 5 mas el resumen con el total', () => {
-    expect(summarizeVenueErrors(errs(8))).toEqual([...errs(5), 'venue: 8 lugares sin resolver en total'])
+    expect(summarizeVenueErrors(errs(8))).toEqual([...errs(5), 'venue: 8 mensajes de lugar sin resolver en total'])
   })
   it('el total cuenta distintos, no repeticiones', () => {
     const r = summarizeVenueErrors([...errs(6), ...errs(6)])
     expect(r).toHaveLength(6)
-    expect(r[5]).toBe('venue: 6 lugares sin resolver en total')
+    expect(r[5]).toBe('venue: 6 mensajes de lugar sin resolver en total')
   })
   it('no muta la entrada', () => {
     const entrada = errs(8)

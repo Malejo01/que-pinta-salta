@@ -12,7 +12,7 @@ import {
   type RecurrenteMuseo,
   type RecurrentePena,
 } from './config'
-import { diaSalta, fechasPendientes, slugMuseos, slugPenas, type FechaPendiente } from './fechas'
+import { diaSalta, fechasPendientes, saltaAUtc, slugMuseos, slugPenas, type FechaPendiente } from './fechas'
 
 export type ResultadoItem = {
   titulo: string
@@ -124,6 +124,24 @@ async function generarItem(supabase: SupabaseClient, r: Recurrente, ahora: Date)
   return res
 }
 
+/** Próximo día calendario ("YYYY-MM-DD") después de `dia`. */
+function diaSiguiente(dia: string): string {
+  const d = new Date(`${dia}T00:00:00Z`)
+  d.setUTCDate(d.getUTCDate() + 1)
+  return d.toISOString().slice(0, 10)
+}
+
+/**
+ * Hora de cierre en UTC del día de apertura `f`, o null sin `cierre` definido
+ * (como hoy). Si el cierre es menor o igual que la apertura (`hora`), es del
+ * día siguiente: cruza la medianoche (abre 22:00, cierra 02:00).
+ */
+function endDateUtc(f: FechaPendiente, hora: string, cierre: string | undefined): string | null {
+  if (!cierre) return null
+  const diaCierre = cierre <= hora ? diaSiguiente(f.dia) : f.dia
+  return saltaAUtc(diaCierre, cierre)
+}
+
 function filaPena(r: RecurrentePena, venueId: string, f: FechaPendiente, imagen: string | null): Fila {
   return {
     title: r.titulo,
@@ -135,7 +153,7 @@ function filaPena(r: RecurrentePena, venueId: string, f: FechaPendiente, imagen:
     image_url: imagen,
     gallery_urls: [],
     start_date: f.startUtc,
-    end_date: null,
+    end_date: endDateUtc(f, r.hora, r.cierre),
     is_recurring: false,
     recurrence_rule: null,
     price_min: 0, // con is_free=false la UI lo muestra como "confirmar"
@@ -165,7 +183,7 @@ function filaMuseo(r: RecurrenteMuseo, venueId: string, f: FechaPendiente, p: Fi
     image_url: p.image_url,
     gallery_urls: p.gallery_urls ?? [],
     start_date: f.startUtc,
-    end_date: null,
+    end_date: endDateUtc(f, r.hora, r.cierre),
     is_recurring: false,
     recurrence_rule: null,
     price_min: p.price_min,

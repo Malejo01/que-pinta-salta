@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server"
 import { getScrapeSourceConfig, SCRAPE_SOURCES, type ScrapeSourceKey } from "@/lib/scraper-config"
 import { revalidatePath } from "next/cache"
 import { runScrapeJob } from "@/app/api/cron/scrape/run-scrape-job"
+import { summarizeVenueErrors } from "@/lib/venues/resolve"
 
 export type ScrapeResult = {
   success: boolean
@@ -14,6 +15,8 @@ export type ScrapeResult = {
   inserted: number
   skipped: number
   errors: string[]
+  /** Fallas de resolve_venue_id: el evento se guarda igual, sin venue_id. */
+  venueErrors?: string[]
   message: string
   startedAt: string
   finishedAt: string
@@ -148,6 +151,7 @@ async function executeSourceScrape(sourceKey: ScrapeSourceKey): Promise<Omit<Scr
         inserted: result.inserted,
         skipped: result.skipped,
         errors: result.errors,
+        venueErrors: result.venueErrors ?? [],
         message: `Scrape completado: ${result.inserted} eventos nuevos, ${result.skipped} ya existían.`,
       }
     }
@@ -163,6 +167,7 @@ async function executeSourceScrape(sourceKey: ScrapeSourceKey): Promise<Omit<Scr
         inserted: result.inserted,
         skipped: result.skipped,
         errors: result.errors,
+        venueErrors: result.venueErrors ?? [],
         message: `Scrape completado: ${result.inserted} eventos nuevos, ${result.skipped} ya existían.`,
       }
     }
@@ -178,6 +183,7 @@ async function executeSourceScrape(sourceKey: ScrapeSourceKey): Promise<Omit<Scr
         inserted: result.inserted,
         skipped: result.skipped,
         errors: result.errors,
+        venueErrors: result.venueErrors ?? [],
         message: `Scrape completado: ${result.inserted} eventos nuevos, ${result.skipped} ya existían.`,
       }
     }
@@ -193,6 +199,7 @@ async function executeSourceScrape(sourceKey: ScrapeSourceKey): Promise<Omit<Scr
         inserted: result.inserted,
         skipped: result.skipped,
         errors: result.errors,
+        venueErrors: result.venueErrors ?? [],
         message: `Scrape completado: ${result.inserted} eventos nuevos, ${result.skipped} ya existían.`,
       }
     }
@@ -374,5 +381,11 @@ export async function runScrapeJobNow() {
   const result = await runScrapeJob()
   revalidatePath('/')
   revalidatePath('/admin')
-  return result
+
+  // El resultado vuelve al navegador: igual que el cron, se manda el resumen
+  // de venueErrors (summarizeVenueErrors), no la lista completa (QPS-074).
+  if ('error' in result) {
+    return result
+  }
+  return { ...result, venueErrors: summarizeVenueErrors(result.venueErrors) }
 }
