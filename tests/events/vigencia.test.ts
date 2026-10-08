@@ -225,7 +225,9 @@ describe('misma función en la agenda, la home, favoritos y el Radar', () => {
   )
 
   it('la home filtra la agenda con isVigente', () => {
-    const src = read('components/home-content.tsx')
+    // Movido por 16-b: la lógica de `buildDisplayData` (antes en
+    // components/home-content.tsx) vive ahora en lib/home/transform.ts.
+    const src = read('lib/home/transform.ts')
     expect(src).toMatch(/from ['"]@\/lib\/events\/vigencia['"]/)
     expect(src).toContain('isVigente')
   })

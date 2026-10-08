@@ -2,6 +2,7 @@ import type { Metadata } from "next"
 import { ShieldCheck } from "lucide-react"
 import { Navbar } from "@/components/navbar"
 import { MobileNav } from "@/components/mobile-nav"
+import { ADS_ENABLED } from "@/lib/config/monetization"
 
 export const metadata: Metadata = {
   title: "Política de Privacidad | Qué Pinta Salta",
@@ -9,7 +10,7 @@ export const metadata: Metadata = {
   alternates: { canonical: "/privacidad" },
 }
 
-const LAST_UPDATED = "15 de septiembre de 2026"
+const LAST_UPDATED = "8 de octubre de 2026"
 
 const whatsappNumber = process.env.NEXT_PUBLIC_CONTACT_WHATSAPP || "5493875813233"
 const whatsappUrl = `https://wa.me/${whatsappNumber}?text=Hola!%20Tengo%20una%20consulta%20sobre%20mis%20datos%20en%20Que%20Pinta%20Salta.`
@@ -82,32 +83,49 @@ export default function PrivacidadPage() {
 
           <Section title="Cookies y publicidad">
             <p>
-              Usamos cookies propias para mantener tu sesión, el almacenamiento local del navegador para recordar tu
-              tema claro u oscuro, y cookies de terceros de Google AdSense para publicidad. La analítica de Vercel no
-              usa cookies.
+              Usamos cookies propias para mantener tu sesión y el almacenamiento local del navegador para recordar tu
+              tema claro u oscuro. Ninguna de las dos necesita tu consentimiento.
             </p>
             <p>
-              Los proveedores externos, incluido Google, usan cookies para mostrar anuncios basados en tus visitas
-              anteriores a este y otros sitios. Las cookies de publicidad permiten a Google y a sus socios mostrarte
-              anuncios según tu navegación. Podés desactivar la publicidad personalizada en la{" "}
-              <a href="https://adssettings.google.com" target="_blank" rel="noopener noreferrer" className={linkClass}>
-                Configuración de anuncios de Google
-              </a>{" "}
-              o, para otros proveedores, en{" "}
-              <a href="https://www.aboutads.info/choices" target="_blank" rel="noopener noreferrer" className={linkClass}>
-                aboutads.info
-              </a>
-              . Más información sobre{" "}
-              <a
-                href="https://policies.google.com/technologies/partner-sites"
-                target="_blank"
-                rel="noopener noreferrer"
-                className={linkClass}
-              >
-                cómo usa Google los datos de los sitios que usan sus servicios
-              </a>
-              .
+              Para saber qué secciones del sitio se usan, usamos Google Analytics, que se carga a través de Google
+              Tag Manager. Esa carga, y la cookie <code>_ga</code> que trae, <strong className="text-foreground">
+              solo ocurre si lo aceptás</strong> en el aviso que aparece la primera vez que entrás al sitio. Si
+              rechazás, o todavía no elegís, Google Analytics no se carga y esa cookie no se pone. Podés cambiar tu
+              elección cuando quieras con el botón &quot;Cookies&quot; del pie de página, que vuelve a mostrar el
+              aviso.
             </p>
+            <p>
+              La analítica propia de Vercel (páginas vistas, rendimiento del sitio) no usa cookies ni necesita tu
+              consentimiento.
+            </p>
+            {ADS_ENABLED ? (
+              <p>
+                Mostramos publicidad de Google AdSense, que usa cookies de terceros para mostrarte anuncios según tu
+                navegación en este y otros sitios. Podés desactivar la publicidad personalizada en la{" "}
+                <a href="https://adssettings.google.com" target="_blank" rel="noopener noreferrer" className={linkClass}>
+                  Configuración de anuncios de Google
+                </a>{" "}
+                o, para otros proveedores, en{" "}
+                <a href="https://www.aboutads.info/choices" target="_blank" rel="noopener noreferrer" className={linkClass}>
+                  aboutads.info
+                </a>
+                . Más información sobre{" "}
+                <a
+                  href="https://policies.google.com/technologies/partner-sites"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={linkClass}
+                >
+                  cómo usa Google los datos de los sitios que usan sus servicios
+                </a>
+                .
+              </p>
+            ) : (
+              <p>
+                Hoy no mostramos publicidad en el sitio. Si en el futuro mostramos anuncios, vamos a actualizar esta
+                sección antes de activarlos para explicar qué cookies agregan y cómo desactivarlas.
+              </p>
+            )}
             <p>También podés bloquear o borrar cookies desde la configuración de tu navegador; si bloqueás las propias, no vas a poder iniciar sesión.</p>
           </Section>
 
@@ -116,7 +134,11 @@ export default function PrivacidadPage() {
             <ul className="list-disc space-y-2 pl-5">
               <li><strong className="text-foreground">Supabase:</strong> base de datos y autenticación.</li>
               <li><strong className="text-foreground">Vercel:</strong> alojamiento del sitio y analítica anónima.</li>
-              <li><strong className="text-foreground">Google:</strong> inicio de sesión con Google y AdSense.</li>
+              <li>
+                <strong className="text-foreground">Google:</strong> inicio de sesión con Google y, solo si lo
+                aceptás, Google Analytics a través de Google Tag Manager
+                {ADS_ENABLED ? " y AdSense, para mostrar publicidad." : "."}
+              </li>
               <li><strong className="text-foreground">Resend:</strong> envío de los emails de &quot;Mi Radar&quot;.</li>
             </ul>
             <p>

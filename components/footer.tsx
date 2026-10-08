@@ -7,6 +7,7 @@ import { Github, Linkedin, Globe, MessageCircle, Coffee } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 import { useDonation } from "@/components/donation-context"
 import { DONATIONS_ENABLED } from "@/lib/config/monetization"
+import { dispatchConsentEvent, writeConsent } from "@/lib/consent"
 import type { User } from "@supabase/supabase-js"
 
 const socialLinks = [
@@ -115,6 +116,16 @@ export function Footer() {
               >
                 Anunciar / Publicidad 📢
               </a>
+              <button
+                type="button"
+                onClick={() => {
+                  writeConsent(window.localStorage, null)
+                  dispatchConsentEvent()
+                }}
+                className="text-left text-sm text-muted-foreground transition-colors hover:text-foreground"
+              >
+                Preferencias de cookies
+              </button>
             </nav>
           </div>
 

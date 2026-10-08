@@ -1,9 +1,10 @@
 import type { Metadata, Viewport } from 'next'
 import { Montserrat, Yellowtail, Poppins } from 'next/font/google'
-import { GoogleTagManager } from '@next/third-parties/google'
 import { Analytics } from '@vercel/analytics/next'
 import { ThemeProvider } from '@/components/theme-provider'
 import { Footer } from '@/components/footer'
+import { AnalyticsConsent } from '@/components/analytics-consent'
+import { ConsentBanner } from '@/components/consent-banner'
 import { Toaster } from '@/components/ui/toaster'
 import { AuthModalProvider } from '@/components/auth-modal'
 import { DonationProvider } from '@/components/donation-context'
@@ -122,7 +123,7 @@ export default function RootLayout({
           />
         )}
       </head>
-      <GoogleTagManager gtmId="GTM-WZK9W6BJ" />
+      <AnalyticsConsent />
       <body className="font-sans antialiased bg-background">
         <ThemeProvider
           attribute="class"
@@ -137,6 +138,7 @@ export default function RootLayout({
               <Footer />
               <Toaster />
               <DonationModal />
+              <ConsentBanner />
             </DonationProvider>
           </AuthModalProvider>
         </ThemeProvider>
