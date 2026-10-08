@@ -266,14 +266,13 @@ export function EventCard({ event, isFavorite, onToggleFavorite, onOpenMovie, cl
             </div>
           </div>
 
-          {/* A 11 px en una card de 180 px el texto completo ("+3 fechas · próxima:
-              sáb 12 oct 21:00", 37 caracteres) no entra en un renglón y pasa a dos.
-              `line-clamp-2` lo acota ahí: si alguna vez el formato crece, se corta
-              en lugar de empujar el precio fuera de la card. */}
+          {/* "+3 fechas · 12 oct 21:00" (~24 caracteres) entra en un renglón a 11 px
+              en una card de 180 px. `line-clamp-1` lo acota ahí: si alguna vez el
+              formato crece, se corta en lugar de empujar el precio fuera de la card. */}
           {occurrencesSummary && (
             <p
               suppressHydrationWarning
-              className="mt-1 line-clamp-2 text-[11px] leading-snug text-white/70"
+              className="mt-1 line-clamp-1 text-[11px] leading-snug text-white/70"
             >
               {occurrencesSummary}
             </p>

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { summarizeOccurrences } from '@/lib/events/occurrences-summary'
-import { formatEventDateShort, saltaWallClockToDate } from '@/lib/date-format'
+import { formatEventDayMonth, saltaWallClockToDate } from '@/lib/date-format'
 
 // Hora de pared de Salta -> instante real, usando la misma conversión que el
 // código de producción (lib/date-format.ts), para no depender de la TZ de la
@@ -24,12 +24,24 @@ describe('summarizeOccurrences', () => {
       { date: '2030-10-12', time: '21:00' }, // futura y la más cercana
     ]
     const now = salta('2030-10-10T15:00:00')
-    expect(summarizeOccurrences(occs, now)).toBe(
-      `+3 fechas · próxima: ${formatEventDateShort('2030-10-12')} 21:00`
-    )
+    expect(summarizeOccurrences(occs, now)).toBe('+3 fechas · 12 oct 21:00')
   })
 
-  it('todas pasadas: solo "+N fechas", sin "próxima"', () => {
+  it('entra en un renglón: sin día de la semana ni "próxima" (decisión del 08/10)', () => {
+    // Peor caso razonable: dos dígitos de conteo, día de dos dígitos y "sept",
+    // el mes abreviado más largo en es-AR.
+    const occs = [
+      ...Array.from({ length: 11 }, (_, i) => ({ date: `2030-09-${String(i + 1).padStart(2, '0')}`, time: '20:00' })),
+      { date: '2030-09-28', time: '23:30' },
+    ]
+    const label = summarizeOccurrences(occs, salta('2030-09-20T12:00:00'))!
+    expect(label).toBe(`+12 fechas · ${formatEventDayMonth('2030-09-28')} 23:30`)
+    expect(label).not.toContain('próxima')
+    expect(label).not.toMatch(/(lun|mar|mié|jue|vie|sáb|dom)/)
+    expect(label.length).toBeLessThanOrEqual(26)
+  })
+
+  it('todas pasadas: solo "+N fechas", sin fecha', () => {
     const occs = [
       { date: '2030-10-01', time: '20:00' },
       { date: '2030-10-02', time: '20:00' },
@@ -46,7 +58,7 @@ describe('summarizeOccurrences', () => {
     ]
     const now = salta('2030-10-10T15:00:00')
     const label = summarizeOccurrences(occs, now)
-    expect(label).toBe(`+2 fechas · próxima: ${formatEventDateShort('2030-10-15')}`)
+    expect(label).toBe(`+2 fechas · ${formatEventDayMonth('2030-10-15')}`)
     expect(label).not.toContain('00:00')
   })
 
@@ -62,7 +74,7 @@ describe('summarizeOccurrences', () => {
     it('a las 23:25 de Salta del mismo día: todavía es la próxima, y se muestra el día 10', () => {
       const now = salta('2030-10-10T23:25:00')
       expect(summarizeOccurrences(occs, now)).toBe(
-        `+2 fechas · próxima: ${formatEventDateShort('2030-10-10')} 23:30`
+        `+2 fechas · ${formatEventDayMonth('2030-10-10')} 23:30`
       )
     })
 
@@ -74,8 +86,8 @@ describe('summarizeOccurrences', () => {
     it('consultado a mediodía del mismo día: la etiqueta no se corre al día 11', () => {
       const now = salta('2030-10-10T12:00:00')
       const label = summarizeOccurrences(occs, now)
-      expect(label).toContain(formatEventDateShort('2030-10-10'))
-      expect(label).not.toContain(formatEventDateShort('2030-10-11'))
+      expect(label).toContain(formatEventDayMonth('2030-10-10'))
+      expect(label).not.toContain(formatEventDayMonth('2030-10-11'))
     })
   })
 })

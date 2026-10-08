@@ -2,7 +2,7 @@
  * Resumen de "varias fechas" para el pie de la card (QPS-024): sin hover, el
  * usuario tiene que poder ver que un evento tiene más de una función.
  */
-import { formatEventDateShort, formatSaltaDayKey, saltaWallClockToDate } from '@/lib/date-format'
+import { formatEventDayMonth, formatSaltaDayKey, saltaWallClockToDate } from '@/lib/date-format'
 
 /**
  * Una función/fecha de un evento agrupado. Igual de forma a los elementos de
@@ -33,8 +33,11 @@ function isUpcoming(occ: OccurrenceSummaryInput, now: Date): boolean {
 
 /**
  * Línea de pie de card para eventos con varias funciones: "+3 fechas" o,
- * si hay alguna todavía por venir, "+3 fechas · próxima: sáb 12 oct 21:00"
- * (sin hora, "+3 fechas · próxima: sáb 12 oct"). `null` con 0 o 1 ocurrencias.
+ * si hay alguna todavía por venir, "+3 fechas · 12 oct 21:00" (sin hora,
+ * "+3 fechas · 12 oct"). `null` con 0 o 1 ocurrencias.
+ *
+ * Va corta a propósito, sin día de la semana ni "próxima": a 11 px en una
+ * card de 180 px tiene que entrar en un renglón (decisión de Mauro, 08/10).
  *
  * Pura y determinista: nunca lee la hora del sistema, `now` siempre llega
  * por parámetro.
@@ -53,8 +56,8 @@ export function summarizeOccurrences(
   if (upcoming.length === 0) return `+${count} fechas`
 
   const next = upcoming[0]
-  const dayLabel = formatEventDateShort(next.date)
+  const dayLabel = formatEventDayMonth(next.date)
   const label = next.time ? `${dayLabel} ${next.time}` : dayLabel
 
-  return `+${count} fechas · próxima: ${label}`
+  return `+${count} fechas · ${label}`
 }
