@@ -124,7 +124,7 @@ export function Footer() {
                 }}
                 className="text-left text-sm text-muted-foreground transition-colors hover:text-foreground"
               >
-                Cookies
+                Preferencias de cookies
               </button>
             </nav>
           </div>

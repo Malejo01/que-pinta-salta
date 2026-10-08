@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { useSyncExternalStore } from 'react'
 import { motion } from 'framer-motion'
+import { Button } from '@/components/ui/button'
 import { CONSENT_EVENT, dispatchConsentEvent, readConsent, writeConsent, type ConsentValue } from '@/lib/consent'
 
 /** Durante el render del servidor (y la hidratación) nunca leemos `localStorage`: no existe. */
@@ -78,31 +79,32 @@ export function ConsentBanner() {
     dispatchConsentEvent()
   }
 
-  const buttonClass =
-    'min-h-11 min-w-11 flex-1 rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-muted sm:flex-none'
-
   return (
     <motion.div
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
       role="region"
       aria-label="Aviso de cookies"
-      className="fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] z-40 mx-3 sm:inset-x-0 sm:bottom-4 sm:mx-auto sm:max-w-xl"
+      className="fixed inset-x-0 bottom-[calc(4rem+1px+env(safe-area-inset-bottom))] z-40 mx-3 sm:inset-x-0 sm:bottom-4 sm:mx-auto sm:max-w-xl"
     >
-      <div className="flex flex-col gap-3 rounded-2xl border border-border bg-card/95 p-4 shadow-lg backdrop-blur supports-[backdrop-filter]:bg-card/80 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-2 rounded-2xl border border-border bg-card/95 p-3 shadow-lg backdrop-blur supports-[backdrop-filter]:bg-card/80 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-sm text-muted-foreground">
           Usamos Google Analytics para saber qué se usa del sitio. Solo si aceptás.{' '}
-          <Link href="/privacidad" className="text-primary underline underline-offset-4 hover:text-primary/80">
+          <Link
+            href="/privacidad"
+            aria-label="Más información sobre cookies en la Política de Privacidad"
+            className="text-primary underline underline-offset-4 hover:text-primary/80"
+          >
             Más info
           </Link>
         </p>
         <div className="flex shrink-0 gap-2">
-          <button type="button" onClick={reject} className={buttonClass}>
+          <Button type="button" variant="outline" onClick={reject} className="min-h-11 flex-1 sm:flex-none">
             Rechazar
-          </button>
-          <button type="button" onClick={accept} className={buttonClass}>
+          </Button>
+          <Button type="button" variant="outline" onClick={accept} className="min-h-11 flex-1 sm:flex-none">
             Aceptar
-          </button>
+          </Button>
         </div>
       </div>
     </motion.div>
