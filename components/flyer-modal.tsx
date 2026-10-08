@@ -1,6 +1,5 @@
 "use client"
 
-import { useRef } from "react"
 import { useRouter } from "next/navigation"
 import { Instagram, ExternalLink, MapPin, Calendar } from "lucide-react"
 import { FlyerImage } from "@/components/flyer-image"
@@ -13,7 +12,6 @@ import {
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { detectInSiteBack, resolveModalClose, type WindowWithNavigation } from "@/lib/navigation/modal-close"
 
 interface FlyerModalProps {
   flyer: FlyerWithAccount
@@ -21,24 +19,9 @@ interface FlyerModalProps {
 
 export function FlyerModal({ flyer }: FlyerModalProps) {
   const router = useRouter()
-  // `onOpenChange(false)` puede llegar dos veces (Escape y clic afuera): sin
-  // esta guarda, un segundo `back()` después del primero sí saca del sitio.
-  const closedRef = useRef(false)
 
   const handleClose = (open: boolean) => {
-    if (open || closedRef.current) return
-    closedRef.current = true
-
-    // `window` no tiene `navigation` en los tipos del DOM todavía (ver lib/navigation/modal-close.ts).
-    const canGoBackInSite =
-      typeof window !== "undefined" ? detectInSiteBack(window as unknown as WindowWithNavigation) : null
-    const action = resolveModalClose({ canGoBackInSite, fallbackHref: "/" })
-
-    if (action.type === "back") {
-      router.back()
-    } else {
-      router.replace(action.href)
-    }
+    if (!open) router.back()
   }
 
   const imageUrl =
