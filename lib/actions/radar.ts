@@ -84,7 +84,6 @@ export async function getRadarSettings(): Promise<RadarSettingsData | null> {
  */
 export async function updateRadarSettings(data: {
   email_frequency: EmailFrequency
-  email_target: string
   categoryIds: string[]
   venueIds: string[]
   instagramAccountIds: string[]
@@ -96,13 +95,21 @@ export async function updateRadarSettings(data: {
     return { success: false, error: "AUTH_REQUIRED", message: "Debes iniciar sesión para configurar tu radar." }
   }
 
+  // El Radar solo manda al email de la cuenta (verificado al registrarse): nunca se
+  // acepta un destinatario del cliente. La base también lo fuerza con un trigger,
+  // pero no guardamos si acá ya falta.
+  if (!user.email) {
+    console.error("[updateRadarSettings] El usuario no tiene email en la sesión:", user.id)
+    return { success: false, error: "NO_EMAIL", message: "Tu cuenta no tiene un email asociado. No podemos activar el radar." }
+  }
+
   // 1. Guardar configuraciones generales
   const { error: settingsError } = await supabase
     .from("user_radar_settings")
     .upsert({
       user_id: user.id,
       email_frequency: data.email_frequency,
-      email_target: data.email_target,
+      email_target: user.email,
       updated_at: new Date().toISOString()
     })
 
