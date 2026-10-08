@@ -105,7 +105,7 @@ export function Navbar() {
 
         <div className="flex items-center gap-2">
           <Button asChild variant="ghost" size="icon" className="hidden sm:inline-flex text-muted-foreground hover:text-primary transition-colors">
-            <Link href="/buscar" aria-label="Buscar eventos">
+            <Link href="/buscar" aria-label="Buscar eventos" prefetch={false}>
               <Search className="size-5" />
             </Link>
           </Button>
@@ -258,7 +258,7 @@ export function Navbar() {
                 </DropdownMenu>
               ) : (
                 <Button asChild variant="default" className="min-w-[115px]">
-                  <Link href="/auth/login">
+                  <Link href="/auth/login" prefetch={false}>
                     <LogIn className="mr-2 size-4" />
                     Ingresar
                   </Link>

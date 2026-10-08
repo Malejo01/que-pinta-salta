@@ -1,8 +1,8 @@
 "use client"
 
 import { useRouter } from "next/navigation"
-import Image from "next/image"
 import { Instagram, ExternalLink, MapPin, Calendar } from "lucide-react"
+import { FlyerImage } from "@/components/flyer-image"
 import type { FlyerWithAccount } from "@/lib/instagram-config"
 import {
   Dialog,
@@ -34,7 +34,8 @@ export function FlyerModal({ flyer }: FlyerModalProps) {
       <DialogContent className="max-h-[90vh] max-w-lg overflow-y-auto p-0">
         {/* Imagen del flyer */}
         <div className="relative aspect-square w-full">
-          <Image
+          <FlyerImage
+            variant={800}
             src={imageUrl}
             alt={`Flyer de ${flyer.account.display_name}`}
             fill

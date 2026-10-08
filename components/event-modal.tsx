@@ -1,6 +1,5 @@
 "use client"
 
-import Image from "next/image"
 import { createElement } from "react"
 import { Calendar, MapPin, Clock, Users, ExternalLink, Navigation } from "lucide-react"
 import { vibeLabels, EventCategory } from "@/lib/types"
@@ -38,6 +37,7 @@ import { formatEventDate } from "@/lib/date-format"
 import { capitalizeFirst, cleanDescription } from "@/lib/event-display"
 import { ViewBeacon } from "@/components/view-beacon"
 import { goHref, type MetricOrigin } from "@/lib/metricas/links"
+import { FlyerImage } from "@/components/flyer-image"
 
 interface EventModalProps {
   event: Event | null
@@ -61,7 +61,8 @@ export function EventModal({ event, open, onClose, origin = "directo" }: EventMo
       <DialogContent className="max-h-[90vh] max-w-lg overflow-y-auto p-0">
         <ViewBeacon eventId={event.id} origin={origin} />
         <div className="relative aspect-[3/2] w-full">
-          <Image
+          <FlyerImage
+            variant={800}
             src={event.image}
             alt={event.title}
             fill

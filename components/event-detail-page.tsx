@@ -1,6 +1,5 @@
 "use client"
 
-import Image from "next/image"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { createElement, useMemo, useState, useTransition } from "react"
@@ -30,6 +29,7 @@ import { Label } from "@/components/ui/label"
 import { useToast } from "@/hooks/use-toast"
 import { ViewBeacon } from "@/components/view-beacon"
 import { goHref, type MetricOrigin } from "@/lib/metricas/links"
+import { FlyerImage } from "@/components/flyer-image"
 
 type EventWithRelations = Event & { 
   category: Category | null; 
@@ -173,7 +173,8 @@ export function EventDetailPage({ event, isAdmin = false, categories = [], isFav
 
         <div className="grid gap-8 lg:grid-cols-2">
           <div className="relative aspect-[3/4] overflow-hidden rounded-2xl lg:aspect-[4/5]">
-            <Image
+            <FlyerImage
+              variant={800}
               src={displayEvent.image}
               alt={displayEvent.title}
               fill

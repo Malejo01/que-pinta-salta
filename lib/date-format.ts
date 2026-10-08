@@ -132,3 +132,14 @@ export function formatEventDateShort(input: string | Date) {
 
   return normalizeLocaleOutput(formatted)
 }
+
+/** "12 oct": día y mes, sin día de la semana. Para textos que tienen que entrar en un renglón. */
+export function formatEventDayMonth(input: string | Date) {
+  const formatted = new Intl.DateTimeFormat('es-AR', {
+    day: 'numeric',
+    month: 'short',
+    timeZone: DEFAULT_TIME_ZONE,
+  }).format(toDate(input))
+
+  return normalizeLocaleOutput(formatted)
+}

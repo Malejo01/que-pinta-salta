@@ -461,11 +461,21 @@ export function FiltersBar({ categories, filters, onFilterChange }: FiltersBarPr
                 <span className="text-xs font-medium text-muted-foreground select-none">
                   Mostrar flyers de redes
                 </span>
-                <Switch
-                  id="instagram-toggle"
-                  checked={instagramEnabled}
-                  onCheckedChange={handleInstagramChange}
-                />
+                {/* Envoltorio con área de toque ampliada (pseudo-elemento invisible):
+                    el switch visible (32x18) no cambia de tamaño. Horizontal queda
+                    contenido dentro del padding del contenedor (px-3) para no salirse
+                    de esta píldora; vertical queda contenido en su padding (py-2) para
+                    no pisar al botón "Más filtros", que en mobile está arriba en la misma
+                    columna (flex-col gap-2) y a partir de sm: al costado (sm:flex-row).
+                    Resultado: ~56x34, no llega a 44 de alto por ese límite. */}
+                <span className="relative inline-flex after:absolute after:content-[''] after:-left-3 after:-right-3 after:-top-2 after:-bottom-2">
+                  <Switch
+                    id="instagram-toggle"
+                    aria-label="Mostrar flyers de redes"
+                    checked={instagramEnabled}
+                    onCheckedChange={handleInstagramChange}
+                  />
+                </span>
               </div>
             </div>
 
@@ -519,10 +529,18 @@ export function FiltersBar({ categories, filters, onFilterChange }: FiltersBarPr
                     className="inline-flex items-center gap-1.5 rounded-full bg-muted/60 border border-border/80 px-2.5 py-0.5 text-xs text-foreground font-medium transition-colors hover:bg-muted"
                   >
                     {chip.label}
+                    {/* Área de toque ampliada con pseudo-elemento invisible: el botón
+                        visible (16x16) no cambia. A la izquierda se limita a 3px (mitad
+                        del gap-1.5 con la etiqueta) y arriba/abajo a 6px (la píldora mide
+                        ~20px de alto, con gap-2 entre chips) para no pisar los vecinos
+                        cuando los chips se acumulan o pasan a otra línea. A la derecha hay
+                        de sobra (padding de la píldora + gap-2 antes del siguiente chip),
+                        así que se usa para compensar: resultado ~31x28, no llega a 44. */}
                     <button
                       onClick={chip.onClear}
-                      className="rounded-full p-0.5 text-muted-foreground hover:text-foreground hover:bg-muted-foreground/10 transition-colors"
+                      className="relative rounded-full p-0.5 text-muted-foreground hover:text-foreground hover:bg-muted-foreground/10 transition-colors after:absolute after:content-[''] after:-left-[3px] after:-right-3 after:-top-1.5 after:-bottom-1.5"
                       title="Quitar filtro"
+                      aria-label={`Quitar filtro: ${chip.label}`}
                     >
                       <X className="size-3" />
                     </button>
@@ -534,7 +552,12 @@ export function FiltersBar({ categories, filters, onFilterChange }: FiltersBarPr
                 variant="ghost"
                 size="sm"
                 onClick={handleClearAll}
-                className="h-7 text-xs text-destructive hover:text-destructive hover:bg-destructive/10 rounded-full px-3 font-semibold transition-colors ml-auto sm:ml-2"
+                /* Área de toque ampliada con pseudo-elemento invisible: el botón
+                   visible (103x28) no cambia. Con ml-auto queda al final de la fila
+                   (o solo en su propia línea si no entra), así que hay margen de
+                   sobra alrededor: 8px por lado alcanza para llegar a 44 de alto
+                   (28 + 8 + 8) sin pisar nada. */
+                className="relative h-7 text-xs text-destructive hover:text-destructive hover:bg-destructive/10 rounded-full px-3 font-semibold transition-colors ml-auto sm:ml-2 after:absolute after:content-[''] after:-inset-2"
               >
                 Limpiar todo
               </Button>

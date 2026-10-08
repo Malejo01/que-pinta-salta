@@ -1,7 +1,6 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import Image from "next/image"
 import Link from "next/link"
 import { motion, AnimatePresence } from "framer-motion"
 import { ChevronLeft, ChevronRight, Calendar, MapPin, Ticket } from "lucide-react"
@@ -9,6 +8,7 @@ import { formatEventDate } from "@/lib/date-format"
 import { capitalizeFirst, cleanDescription } from "@/lib/event-display"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { FlyerImage } from "@/components/flyer-image"
 import { eventHref } from "@/lib/metricas/links"
 import type { DisplayEvent } from "@/components/home-content"
 
@@ -84,7 +84,8 @@ export function HeroCarousel({ events }: HeroCarouselProps) {
               transition={{ duration: 5, ease: "linear" }}
               className="relative h-full w-full"
             >
-              <Image
+              <FlyerImage
+                variant={800}
                 src={currentEvent.image}
                 alt=""
                 fill
@@ -97,7 +98,8 @@ export function HeroCarousel({ events }: HeroCarouselProps) {
 
           {/* Sharp, unscaled contained event poster */}
           <div className="relative mx-auto flex h-full w-full items-center justify-center p-4">
-            <Image
+            <FlyerImage
+              variant={800}
               src={currentEvent.image}
               alt={currentEvent.title}
               fill
@@ -191,9 +193,16 @@ export function HeroCarousel({ events }: HeroCarouselProps) {
           <button
             key={index}
             onClick={() => setCurrentIndex(index)}
-            className={`h-2 rounded-full transition-all ${
-              index === currentIndex 
-                ? "w-8 bg-primary" 
+            /* Área de toque ampliada con pseudo-elemento invisible; el dot visible no cambia.
+               En mobile los dots están aislados arriba a la derecha (right-3 top-3), así que se
+               estira 18px arriba y abajo para llegar a 44 de alto. A partir de sm: el contenedor
+               pasa a bottom-4 left-1/2, pegado al pie del hero y cerca del bloque de texto y del
+               botón "Ver detalles": ahí la zona se acota a 8px para no taparlos. Horizontal:
+               siempre la mitad del gap entre dots (3px en mobile, 4px en sm:) para que las zonas
+               vecinas no se pisen. */
+            className={`relative h-2 rounded-full transition-all after:absolute after:content-[''] after:-left-[3px] after:-right-[3px] after:-top-[18px] after:-bottom-[18px] sm:after:-left-1 sm:after:-right-1 sm:after:-top-2 sm:after:-bottom-2 ${
+              index === currentIndex
+                ? "w-8 bg-primary"
                 : "w-2 bg-foreground/30 hover:bg-foreground/50"
             }`}
             aria-label={`Ir al evento ${index + 1}`}

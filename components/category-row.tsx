@@ -55,19 +55,22 @@ export function CategoryRow({
             </span>
           </div>
           {onSeeAll ? (
-            <button 
+            <button
               onClick={(e) => {
                 e.preventDefault()
                 onSeeAll(category)
               }}
-              className="text-sm font-medium text-primary hover:underline cursor-pointer bg-transparent border-0 p-0"
+              /* Área de toque de 44px de alto sin mover el texto: padding vertical
+                 compensado con margen negativo igual (técnica "padding con margen
+                 negativo"). El ancho visible (~67px) ya supera los 44px mínimos. */
+              className="text-sm font-medium text-primary hover:underline cursor-pointer bg-transparent border-0 p-0 py-3 -my-3"
             >
               Ver todos
             </button>
           ) : (
-            <Link 
+            <Link
               href={`/?category=${category}`}
-              className="text-sm font-medium text-primary hover:underline"
+              className="text-sm font-medium text-primary hover:underline py-3 -my-3"
             >
               Ver todos
             </Link>
@@ -80,6 +83,7 @@ export function CategoryRow({
             size="icon"
             className="absolute -left-2 top-1/2 z-10 hidden size-10 -translate-y-1/2 rounded-full bg-background/80 shadow-lg backdrop-blur transition-opacity hover:bg-background group-hover:flex"
             onClick={() => scroll("left")}
+            aria-label="Desplazar hacia la izquierda"
           >
             <ChevronLeft className="size-5" />
           </Button>
@@ -111,6 +115,7 @@ export function CategoryRow({
             size="icon"
             className="absolute -right-2 top-1/2 z-10 hidden size-10 -translate-y-1/2 rounded-full bg-background/80 shadow-lg backdrop-blur transition-opacity hover:bg-background group-hover:flex"
             onClick={() => scroll("right")}
+            aria-label="Desplazar hacia la derecha"
           >
             <ChevronRight className="size-5" />
           </Button>

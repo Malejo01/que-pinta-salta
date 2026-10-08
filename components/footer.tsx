@@ -102,6 +102,7 @@ export function Footer() {
               </Link>
               <Link
                 href={user ? "/nuevo-evento" : "/auth/login?next=/nuevo-evento"}
+                prefetch={user ? undefined : false}
                 className="text-sm text-muted-foreground transition-colors hover:text-foreground"
               >
                 Agregar Evento

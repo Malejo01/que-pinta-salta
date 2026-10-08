@@ -105,7 +105,16 @@ export function FavoriteButton({
     <button
       onClick={handleToggle}
       className={cn(
-        "flex size-8 items-center justify-center rounded-full bg-black/60 text-white backdrop-blur-md transition-all hover:scale-110 active:scale-95 cursor-pointer z-10",
+        // Área de toque ampliada con un pseudo-elemento invisible (after:-inset-*):
+        // no cambia el tamaño visible (size-8 = 32x32), solo la zona que recibe el click/tap.
+        // A la izquierda queda capada a 4px (after:-left-1) por el botón de compartir de la
+        // card (event-card.tsx). Medido en px desde el borde derecho de la card: este botón
+        // vive a right-2 con size-8 (32px), así que su zona llega hasta los 44px; el de
+        // compartir vive a right-12 y su zona arranca justo en 44px. Las dos se tocan en el
+        // borde y ninguna pisa a la otra: si se cambia una, hay que recalcular la otra.
+        // Arriba/abajo/derecha no tienen un vecino tan cerca, así que se compensa ahí para
+        // llegar a 44x44 (32 + 4 izq + 8 der = 44 de ancho; 32 + 6 + 6 = 44 de alto).
+        "relative flex size-8 items-center justify-center rounded-full bg-black/60 text-white backdrop-blur-md transition-all hover:scale-110 active:scale-95 cursor-pointer z-10 after:absolute after:content-[''] after:-left-1 after:-right-2 after:-top-1.5 after:-bottom-1.5",
         className
       )}
       aria-label={isFavorite ? "Quitar de favoritos" : "Guardar en favoritos"}
