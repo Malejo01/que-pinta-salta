@@ -102,13 +102,29 @@ export function DraftEventsManager({
   const [ticketUrl, setTicketUrl] = useState('')
   const [imageUrl, setImageUrl] = useState('')
   const [confirmDate, setConfirmDate] = useState(false)
+  // Borrador viejo (sin date_source en ai_metadata): el cliente no puede
+  // saber de antemano si la fecha salió del posteo, así que el servidor lo
+  // rechaza primero y recién ahí mostramos el checkbox de confirmación.
+  const [serverNeedsDateConfirm, setServerNeedsDateConfirm] = useState(false)
 
   // Encontrar el evento seleccionado actual
   const selectedEvent = events.find((e) => e.id === selectedEventId) || null
 
-  // La fecha vino del fallback (post sin fecha en el flyer, se usó la fecha de
-  // publicación): el admin tiene que confirmarla a mano antes de publicar.
-  const isFallbackDate = selectedEvent?.ai_metadata?.is_fallback === true
+  // La fecha vino de la publicación de Instagram, no del flyer (fallback del
+  // pipeline o IA sin fecha, QPS-065/073): el admin tiene que confirmarla a
+  // mano antes de publicar. El servidor es quien manda; para borradores
+  // viejos (sin date_source) no hay forma de saberlo del lado del cliente,
+  // así que el checkbox también aparece si el servidor ya rechazó por esto.
+  const isFallbackDate =
+    selectedEvent?.ai_metadata?.is_fallback === true ||
+    selectedEvent?.ai_metadata?.date_source === 'published_at' ||
+    serverNeedsDateConfirm
+
+  // OJO: este literal está acoplado al mensaje de la guarda 4 en
+  // lib/admin-actions.ts (publishDraftEvent, mismo string exacto); si cambia
+  // uno, cambia el otro o este checkbox deja de aparecer para el caso del
+  // borrador viejo.
+  const DATE_CONFIRM_ERROR = 'Confirmá la fecha: salió de la publicación, no del flyer'
 
   // Sincronizar estado del formulario cuando cambia el evento seleccionado
   useEffect(() => {
@@ -122,6 +138,7 @@ export function DraftEventsManager({
       setTicketUrl(selectedEvent.ticket_url || '')
       setImageUrl(selectedEvent.image_url || '')
       setConfirmDate(false)
+      setServerNeedsDateConfirm(false)
 
       // start_date se guarda como instante UTC: hay que leerlo en hora de Salta
       // para que el editor muestre la misma hora que ve el usuario en el sitio.
@@ -145,6 +162,7 @@ export function DraftEventsManager({
       setTicketUrl('')
       setImageUrl('')
       setConfirmDate(false)
+      setServerNeedsDateConfirm(false)
     }
   }, [selectedEventId, events])
 
@@ -221,6 +239,12 @@ export function DraftEventsManager({
     try {
       const res = await publishDraftEvent(selectedEvent.id, eventData)
       if (res.error) {
+        // Borrador viejo sin date_source: el cliente no lo sabía de antemano,
+        // el servidor lo detectó recién ahora. Mostramos el checkbox para
+        // que el admin confirme y reintente, en vez de solo un error genérico.
+        if (res.error === DATE_CONFIRM_ERROR && !confirmDate) {
+          setServerNeedsDateConfirm(true)
+        }
         toast.error(`Error al publicar: ${res.error}`)
       } else {
         toast.success('¡Evento publicado exitosamente!')
@@ -348,7 +372,9 @@ export function DraftEventsManager({
                 </div>
               ) : (
                 filteredEvents.map((item) => {
-                  const isFallback = item.ai_metadata?.is_fallback === true
+                  const isFallback =
+                    item.ai_metadata?.is_fallback === true ||
+                    item.ai_metadata?.date_source === 'published_at'
                   const hasError = item.ai_metadata?.error !== undefined
 
                   return (

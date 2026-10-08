@@ -177,6 +177,9 @@ export async function processFlyerWithAI(flyerId: string): Promise<FlyerProcessi
     let startDate = flyer.published_at
     const rawDate = cleanStringField(extractedData.date)
     const isValidDate = rawDate && /^\d{4}-\d{2}-\d{2}$/.test(rawDate)
+    // QPS-073: de dónde salió la fecha final, para exigir confirmación en
+    // publishDraftEvent cuando no vino del flyer sino del posteo.
+    const dateSource = isValidDate ? 'flyer' : 'published_at'
 
     if (isValidDate) {
       // Validar si la fecha extraída es anterior a la fecha actual (local en Argentina/Salta)
@@ -256,6 +259,8 @@ export async function processFlyerWithAI(flyerId: string): Promise<FlyerProcessi
         auto_published: qualifiesForAutoPublish,
         // Medición de QPS-065: si la hora del modelo se confirmó en el texto.
         time_reliable: timeCheck.reliable,
+        // QPS-073: 'flyer' si la fecha vino de la IA, 'published_at' si fue fallback.
+        date_source: dateSource,
         // Medición de QPS-070: si el lugar quedó inferido (sin confirmar en el texto) y de dónde salió.
         venue_inferred: venueCheck.inferred,
         venue_source: venueCheck.source,
@@ -277,6 +282,7 @@ export async function processFlyerWithAI(flyerId: string): Promise<FlyerProcessi
           action: upsertRes.action,
           auto_published: qualifiesForAutoPublish,
           time_reliable: timeCheck.reliable,
+          date_source: dateSource,
           venue_inferred: venueCheck.inferred,
           venue_source: venueCheck.source,
           ...(venueError ? { venue_error: VENUE_ERROR_PUBLIC } : {}),
@@ -366,6 +372,8 @@ async function handleProcessingFallback(
         original_caption: flyer.caption,
         flyer_id: flyer.id,
         is_fallback: true,
+        // QPS-073: en la falla no corrió la IA, así que la fecha siempre es published_at.
+        date_source: 'published_at',
         processed_at: new Date().toISOString(),
         ...(venueError ? { venue_error: VENUE_ERROR_PUBLIC } : {}),
       },
@@ -382,6 +390,7 @@ async function handleProcessingFallback(
           error: errorMessage,
           event_id: upsertRes.eventId,
           is_fallback: true,
+          date_source: 'published_at',
           ...(venueError ? { venue_error: VENUE_ERROR_PUBLIC } : {}),
         },
         ai_processed_at: new Date().toISOString(),

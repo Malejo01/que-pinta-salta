@@ -136,8 +136,32 @@ export async function updateInstagramAccount(
   if (error) return { error }
 
   if (data.default_venue_name !== undefined) {
-    const addressCheck = await checkAddressLikeVenue(data.default_venue_name, confirmAddressLike)
-    if (addressCheck) return addressCheck
+    // QPS-075: si el nombre no cambió respecto al que ya está guardado en la
+    // cuenta, no se repite la guarda de dirección (p. ej. al editar solo la
+    // categoría de una cuenta con un nombre "tipo dirección" ya aceptado).
+    const { data: existing, error: existingError } = await supabase
+      .from('instagram_accounts')
+      .select('default_venue_name')
+      .eq('id', id)
+      .maybeSingle()
+
+    if (existingError) {
+      // No bloquea: la guarda corre de más (lado seguro, ver abajo), pero
+      // hay que poder notar que QPS-075 dejó de funcionar.
+      console.error('[updateInstagramAccount] fallo leyendo default_venue_name actual:', existingError.message)
+    }
+
+    const newVenueName = data.default_venue_name?.trim() || null
+    const currentVenueName = existing?.default_venue_name?.trim() || null
+    // Guardamos el mismo valor normalizado que comparamos arriba, así lo que
+    // se compara y lo que se persiste coinciden (si no, el próximo select
+    // seguiría viendo el valor crudo sin trim y la comparación fallaría).
+    data.default_venue_name = newVenueName
+
+    if (newVenueName !== currentVenueName) {
+      const addressCheck = await checkAddressLikeVenue(newVenueName, confirmAddressLike)
+      if (addressCheck) return addressCheck
+    }
   }
 
   const { error: updateError } = await supabase
