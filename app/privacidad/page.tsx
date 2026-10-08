@@ -10,7 +10,7 @@ export const metadata: Metadata = {
   alternates: { canonical: "/privacidad" },
 }
 
-const LAST_UPDATED = "15 de septiembre de 2026"
+const LAST_UPDATED = "8 de octubre de 2026"
 
 const whatsappNumber = process.env.NEXT_PUBLIC_CONTACT_WHATSAPP || "5493875813233"
 const whatsappUrl = `https://wa.me/${whatsappNumber}?text=Hola!%20Tengo%20una%20consulta%20sobre%20mis%20datos%20en%20Que%20Pinta%20Salta.`
