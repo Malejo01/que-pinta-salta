@@ -176,17 +176,29 @@ BEGIN
     RETURN NEW;
   END IF;
 
+  -- Chequeo uniforme ANTES de consultar auth.users. Este trigger corre antes
+  -- del WITH CHECK de RLS, así que si consultara auth.users con un user_id
+  -- ajeno, el error distinguiría "esa cuenta existe" (lo rechaza RLS después)
+  -- de "no existe" (no hay email): un oráculo de existencia de cuentas.
+  -- Con user_id distinto del de la sesión, el error es siempre el mismo, y es
+  -- el mismo que da RLS (SQLSTATE 42501 y su mensaje), exista o no la cuenta.
+  -- service_role (cron del Radar y baja) ya salió arriba: este chequeo no lo
+  -- alcanza (pgTAP, caso 14).
+  IF auth.uid() IS NULL OR NEW.user_id IS DISTINCT FROM auth.uid() THEN
+    RAISE EXCEPTION 'new row violates row-level security policy for table "user_radar_settings"'
+      USING ERRCODE = '42501';
+  END IF;
+
   SELECT u.email INTO NEW.email_target
   FROM auth.users u
-  WHERE u.id = NEW.user_id;
+  WHERE u.id = auth.uid();
 
-  -- Fallar cerrado: dentro de este alcance, NEW.user_id siempre tiene que
-  -- resolver a una cuenta (RLS ata user_id a auth.uid(), y auth.uid() exige
-  -- sesión). Si no resuelve, un Radar con email_target en null no tiene a
-  -- dónde mandar nada: mejor una excepción clara que guardar NULL en
-  -- silencio.
+  -- Fallar cerrado, con el mismo error genérico: la cuenta de la sesión
+  -- siempre tendría que existir; si no (por ejemplo, borrada con un JWT
+  -- todavía vigente), no se guarda un email_target en NULL.
   IF NEW.email_target IS NULL THEN
-    RAISE EXCEPTION 'no se pudo resolver el email de la cuenta para user_id %', NEW.user_id;
+    RAISE EXCEPTION 'new row violates row-level security policy for table "user_radar_settings"'
+      USING ERRCODE = '42501';
   END IF;
 
   IF TG_OP = 'INSERT' THEN
@@ -200,7 +212,7 @@ END;
 $$;
 
 COMMENT ON FUNCTION public.enforce_radar_email_target() IS
-  'Auditoría 4.3: email_target queda limitado al email de la cuenta (auth.users.email de NEW.user_id) para authenticated/anon no admin; last_sent_at conserva OLD en el UPDATE y es null en el INSERT. Alcance resuelto por auth.role() (JWT), con current_user como respaldo, porque dentro de esta función SECURITY DEFINER current_user es el dueño (postgres), no el invocador. Lanza excepción si no puede resolver el email (falla cerrado, nunca guarda NULL). EXECUTE revocado a public/anon/authenticated.';
+  'Auditoría 4.3: email_target queda limitado al email de la cuenta (auth.users.email de NEW.user_id) para authenticated/anon no admin; last_sent_at conserva OLD en el UPDATE y es null en el INSERT. Alcance resuelto por auth.role() (JWT), con current_user como respaldo, porque dentro de esta función SECURITY DEFINER current_user es el dueño (postgres), no el invocador. Con user_id distinto de auth.uid(), o sin email resoluble, lanza el mismo error que RLS (42501), exista o no la cuenta: no revela si un user_id existe. service_role y postgres quedan fuera del alcance antes de ese chequeo. EXECUTE revocado a public/anon/authenticated.';
 
 REVOKE EXECUTE ON FUNCTION public.enforce_radar_email_target() FROM public, anon, authenticated;
 

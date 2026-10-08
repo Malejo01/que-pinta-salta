@@ -32,7 +32,7 @@
 -- alcanzada por el trigger igual que si la hiciera ese usuario.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(18);
+select plan(20);
 
 -- ---------------------------------------------------------------------------
 -- Preparación (como postgres).
@@ -375,6 +375,36 @@ select is(
    where user_id = 'a0000000-0000-4000-8000-000000000001'),
   '2026-02-02T00:00:00+00'::timestamptz,
   '14. service_role: el cron del Radar puede escribir last_sent_at'
+);
+
+reset role;
+reset request.jwt.claims;
+
+-- ---------------------------------------------------------------------------
+-- 15. Usuario, upsert en user_radar_settings con el user_id de OTRO: el error
+--     es el mismo exista o no esa cuenta (decisión de Mauro del 08/10, para
+--     que el trigger no sirva de oráculo de existencia de cuentas). Antes del
+--     arreglo, una cuenta existente llegaba al WITH CHECK de RLS y una
+--     inexistente fallaba con "no se pudo resolver el email…": dos errores
+--     distintos. U3 existe en auth.users; el uuid ...0ff no existe.
+-- ---------------------------------------------------------------------------
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"a0000000-0000-4000-8000-000000000001","role":"authenticated"}';
+
+select throws_ok(
+  $$insert into public.user_radar_settings (user_id, email_target)
+    values ('a0000000-0000-4000-8000-000000000003', 'qa-usuario-tres@example.com')$$,
+  '42501',
+  'new row violates row-level security policy for table "user_radar_settings"',
+  '15a. usuario: con el user_id de otra cuenta que existe, error genérico de RLS'
+);
+
+select throws_ok(
+  $$insert into public.user_radar_settings (user_id, email_target)
+    values ('a0000000-0000-4000-8000-0000000000ff', 'nadie@example.com')$$,
+  '42501',
+  'new row violates row-level security policy for table "user_radar_settings"',
+  '15b. usuario: con un user_id que no existe, el mismo error que 15a'
 );
 
 reset role;
