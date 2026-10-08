@@ -40,7 +40,7 @@ export function RadarForm({ initialSettings, categories, venues, instagramAccoun
   const [frequency, setFrequency] = useState<EmailFrequency>(
     initialSettings?.email_frequency || "weekly"
   )
-  const [email, setEmail] = useState(initialSettings?.email_target || "")
+  const email = initialSettings?.email_target || ""
   const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>(
     initialSettings?.categoryIds || []
   )
@@ -154,20 +154,11 @@ export function RadarForm({ initialSettings, categories, venues, instagramAccoun
   // Guardar configuración
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!email.trim() || !email.includes("@")) {
-      toast({
-        title: "Correo no válido",
-        description: "Por favor introduce una dirección de correo válida.",
-        variant: "destructive",
-      })
-      return
-    }
 
     setIsPending(true)
     try {
       const result = await updateRadarSettings({
         email_frequency: frequency,
-        email_target: email,
         categoryIds: selectedCategoryIds,
         venueIds: selectedVenueIds,
         instagramAccountIds: selectedInstagramIds,
@@ -269,16 +260,16 @@ export function RadarForm({ initialSettings, categories, venues, instagramAccoun
             <Label htmlFor="radar-email">Dirección de correo electrónico</Label>
             <div className="relative">
               <Mail className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-zinc-500" />
-              <Input
+              <div
                 id="radar-email"
-                type="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="tu@email.com"
-                className="pl-10 bg-zinc-950 border-zinc-800"
-              />
+                className="pl-10 flex h-10 w-full items-center rounded-md border border-zinc-800 bg-zinc-950 text-sm text-zinc-300"
+              >
+                {email}
+              </div>
             </div>
+            <p className="text-[11px] text-zinc-500">
+              Te lo mandamos al email de tu cuenta.
+            </p>
             {isAdmin && (
               <p className="text-[11px] text-zinc-500 italic">
                 * (En fase beta, los correos de prueba solo se enviarán a tu casilla asociada).
