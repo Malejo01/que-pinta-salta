@@ -1,7 +1,7 @@
 "use client"
 
 import { useRouter } from "next/navigation"
-import { createElement, useMemo, useState, useTransition } from "react"
+import { createElement, useMemo, useRef, useState, useTransition } from "react"
 import { Calendar, MapPin, Clock, Users, ExternalLink, Navigation, Pencil, Check, X } from "lucide-react"
 import { vibeLabels, Event, Category, Venue } from "@/lib/types"
 import {
@@ -28,6 +28,7 @@ import { deferredRefresh } from "@/lib/deferred-refresh"
 import { ViewBeacon } from "@/components/view-beacon"
 import { goHref, type MetricOrigin } from "@/lib/metricas/links"
 import { FlyerImage } from "@/components/flyer-image"
+import { detectInSiteBack, resolveModalClose, type WindowWithNavigation } from "@/lib/navigation/modal-close"
 
 type EventWithRelations = Event & { category: Category | null; venue: Venue | null }
 
@@ -50,6 +51,9 @@ export function EventModalWrapper({ event, isAdmin = false, categories = [], ori
   const [currentCategoryId, setCurrentCategoryId] = useState<string>(event.category_id ?? "")
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>(event.category_id ?? "")
   const [newCategoryName, setNewCategoryName] = useState("")
+  // `onOpenChange(false)` puede llegar dos veces (Escape y clic afuera): sin
+  // esta guarda, un segundo `back()` después del primero sí saca del sitio.
+  const closedRef = useRef(false)
 
   const currentCategory = useMemo(() => {
     if (!currentCategoryId) return null
@@ -129,8 +133,19 @@ export function EventModalWrapper({ event, isAdmin = false, categories = [], ori
   }
 
   const handleClose = (open: boolean) => {
-    if (open) return
-    router.back()
+    if (open || closedRef.current) return
+    closedRef.current = true
+
+    // `window` no tiene `navigation` en los tipos del DOM todavía (ver lib/navigation/modal-close.ts).
+    const canGoBackInSite =
+      typeof window !== "undefined" ? detectInSiteBack(window as unknown as WindowWithNavigation) : null
+    const action = resolveModalClose({ canGoBackInSite, fallbackHref: "/" })
+
+    if (action.type === "back") {
+      router.back()
+    } else {
+      router.replace(action.href)
+    }
 
     if (hasCategoryChanges) {
       setHasCategoryChanges(false)
