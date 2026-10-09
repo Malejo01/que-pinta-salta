@@ -641,13 +641,14 @@ export function DraftEventsManager({
                               {selectedEvent.dateCheck?.text || DATE_CONFIRMATION_MESSAGE}
                               {formDateTimeLabel ? ` Fecha y hora actuales del formulario: ${formDateTimeLabel}.` : ''}
                             </p>
-                            <label htmlFor="confirmDate" className="flex items-start gap-2 cursor-pointer">
+                            {/* El área táctil llega a 44 px: es el control que habilita "Publicar". */}
+                            <label htmlFor="confirmDate" className="-my-1 flex min-h-11 items-center gap-2 py-1 cursor-pointer">
                               <input
                                 id="confirmDate"
                                 type="checkbox"
                                 checked={confirmDate}
                                 onChange={(e) => dispatchConfirm({ type: 'check', checked: e.target.checked })}
-                                className="mt-0.5 size-3.5 shrink-0 cursor-pointer accent-amber-600"
+                                className="size-5 shrink-0 cursor-pointer accent-amber-600"
                               />
                               <span className="font-medium leading-snug">La fecha es correcta</span>
                             </label>

@@ -119,11 +119,18 @@ export function DuplicatePairActions({
             onClick={handleMerge}
             disabled={isSubmitting || !canMerge.ok}
             title={!canMerge.ok ? canMerge.reason : undefined}
+            // El motivo se ve como texto; `aria-describedby` lo ata al botón,
+            // porque en un celular el `title` no se lee ni se puede tocar.
+            aria-describedby={!canMerge.ok ? `merge-reason-${eventA.id}-${eventB.id}` : undefined}
             className="h-11 min-h-11 bg-emerald-600 px-4 text-white hover:bg-emerald-700"
           >
             Fusionar
           </Button>
-          {!canMerge.ok && <p className="max-w-[220px] text-xs text-amber-600">{canMerge.reason}</p>}
+          {!canMerge.ok && (
+            <p id={`merge-reason-${eventA.id}-${eventB.id}`} className="max-w-[220px] text-xs text-amber-600">
+              {canMerge.reason}
+            </p>
+          )}
         </div>
         <Button
           type="button"
