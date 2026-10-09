@@ -63,6 +63,37 @@ isOneToOne: false
                   Relationships: [
                     
                   ]
+                },"duplicate_dismissals": {
+                  Row: {
+                    "decided_at": string,"decided_by": string,"event_a": string,"event_b": string
+                  }
+                  Insert: {
+                    "decided_at"?: string,"decided_by"?: string,"event_a": string,"event_b": string
+                  }
+                  Update: {
+                    "decided_at"?: string,"decided_by"?: string,"event_a"?: string,"event_b"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "duplicate_dismissals_decided_by_fkey"
+      columns: ["decided_by"]
+isOneToOne: false
+      referencedRelation: "profiles"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "duplicate_dismissals_event_a_fkey"
+      columns: ["event_a"]
+isOneToOne: false
+      referencedRelation: "events"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "duplicate_dismissals_event_b_fkey"
+      columns: ["event_b"]
+isOneToOne: false
+      referencedRelation: "events"
+      referencedColumns: ["id"]
+    }
+                  ]
                 },"event_metrics_daily": {
                   Row: {
                     "clicks": number,"day": string,"event_id": string,"featured": boolean,"origin": string,"views": number
@@ -488,6 +519,9 @@ isOneToOne: false
           Functions: {
             "is_admin":
 { Args: Record<PropertyKey, never>; Returns: boolean
+                           },
+"merge_events":
+{ Args: { "drop_id": string,"keep_id": string }; Returns: Json
                            },
 "record_event_metric":
 { Args: { "p_event_id": string,"p_kind": string,"p_origin": string }; Returns: undefined
