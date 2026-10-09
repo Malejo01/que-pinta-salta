@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import {
+  canMerge,
+  defaultKeeper,
   findDuplicateCandidates,
   getDuplicateCandidates,
+  pairKey,
   type DuplicateCandidateEvent,
 } from '@/lib/events/duplicate-candidates'
 import { createFakeSupabase } from '../radar/fake-supabase'
@@ -192,5 +195,172 @@ describe('getDuplicateCandidates', () => {
       events: { rows: [], error: { message: 'boom' } },
     })
     await expect(getDuplicateCandidates(client as never, now)).resolves.toEqual([])
+  })
+})
+
+describe('findDuplicateCandidates con dismissed', () => {
+  it('el par descartado no aparece en ningún orden (a|b ni b|a); los otros pares del mismo venue sí', () => {
+    const a = ev('a', '2026-12-01T16:00:00Z', VENUE_A)
+    const b = ev('b', '2026-12-01T17:00:00Z', VENUE_A)
+    const c = ev('c', '2026-12-01T18:00:00Z', VENUE_A)
+    // pairKey se construye con el orden invertido (b, a) a propósito: tiene que dar
+    // la misma clave que (a, b), porque orderPair/pairKey normalizan por valor, no por
+    // el orden en que llegan los argumentos.
+    const dismissed = new Set([pairKey(b.id, a.id)])
+    const pares = findDuplicateCandidates([a, b, c], { dismissed })
+    const claves = pares.map((p) => [p.a.id, p.b.id].sort().join('-')).sort()
+    expect(claves).toEqual(['a-c', 'b-c'])
+  })
+
+  it('sin dismissed: el mismo trío da los tres pares (control)', () => {
+    const a = ev('a', '2026-12-01T16:00:00Z', VENUE_A)
+    const b = ev('b', '2026-12-01T17:00:00Z', VENUE_A)
+    const c = ev('c', '2026-12-01T18:00:00Z', VENUE_A)
+    expect(findDuplicateCandidates([a, b, c])).toHaveLength(3)
+  })
+
+  it('dismissed con un par que no aparece en la lista: no afecta a los demás', () => {
+    const a = ev('a', '2026-12-01T16:00:00Z', VENUE_A)
+    const b = ev('b', '2026-12-01T17:00:00Z', VENUE_A)
+    const dismissed = new Set([pairKey('x', 'y')])
+    const pares = findDuplicateCandidates([a, b], { dismissed })
+    expect(pares).toHaveLength(1)
+  })
+})
+
+describe('defaultKeeper', () => {
+  type KeeperFixture = Parameters<typeof defaultKeeper>[0]
+
+  function keeperEv(id: string, overrides: Partial<KeeperFixture> = {}): KeeperFixture {
+    return {
+      id,
+      status: 'DRAFT',
+      venue_id: null,
+      start_date: '2026-12-01T18:00:00.000Z', // 15:00 en Salta: hora real, no es el placeholder 00:00
+      image_url: null,
+      ticket_url: null,
+      ticket_sources: null,
+      description: null,
+      price_min: null,
+      created_at: null,
+      ...overrides,
+    }
+  }
+
+  it('publicado contra borrador: gana el publicado, aunque el borrador tenga más datos', () => {
+    const publicado = keeperEv('a', { status: 'PUBLISHED' })
+    const borrador = keeperEv('b', {
+      image_url: 'https://cdn.example.test/flyer.jpg',
+      ticket_url: 'https://entradas.example.test/show',
+      description: 'Descripción de prueba',
+      price_min: 1000,
+      venue_id: VENUE_A,
+    })
+    expect(defaultKeeper(publicado, borrador)).toBe('a')
+    expect(defaultKeeper(borrador, publicado)).toBe('a')
+  })
+
+  it('dos borradores: gana el de más datos', () => {
+    const pobre = keeperEv('a')
+    const rico = keeperEv('b', {
+      image_url: 'https://cdn.example.test/flyer.jpg',
+      ticket_url: 'https://entradas.example.test/show',
+      description: 'Descripción de prueba',
+      price_min: 1000,
+      venue_id: VENUE_A,
+    })
+    expect(defaultKeeper(pobre, rico)).toBe('b')
+    expect(defaultKeeper(rico, pobre)).toBe('b')
+  })
+
+  it('empate en datos: gana el created_at más viejo, no el de menor id', () => {
+    // Ids a propósito al revés de lo esperado: si el empate se resolviera por id
+    // en vez de por created_at, este test lo detecta.
+    const viejoConIdMayor = keeperEv('zzzz-id-mas-viejo', { created_at: '2026-01-01T00:00:00.000Z' })
+    const nuevoConIdMenor = keeperEv('aaaa-id-mas-nuevo', { created_at: '2026-01-02T00:00:00.000Z' })
+    expect(defaultKeeper(viejoConIdMayor, nuevoConIdMenor)).toBe('zzzz-id-mas-viejo')
+    expect(defaultKeeper(nuevoConIdMenor, viejoConIdMayor)).toBe('zzzz-id-mas-viejo')
+  })
+
+  it('empate en datos y en created_at (o sin created_at): gana el id menor', () => {
+    const mismaFecha = '2026-01-01T00:00:00.000Z'
+    const b = keeperEv('b-id', { created_at: mismaFecha })
+    const a = keeperEv('a-id', { created_at: mismaFecha })
+    expect(defaultKeeper(b, a)).toBe('a-id')
+    expect(defaultKeeper(a, b)).toBe('a-id')
+
+    const bSinFecha = keeperEv('b-id')
+    const aSinFecha = keeperEv('a-id')
+    expect(defaultKeeper(bSinFecha, aSinFecha)).toBe('a-id')
+  })
+
+  it('hora 00:00 en Salta no cuenta como dato: gana el que tiene hora real aunque su id sea mayor', () => {
+    const sinHora = keeperEv('aaa-sin-hora', { start_date: '2026-12-01T03:00:00.000Z' }) // 00:00 Salta
+    const conHora = keeperEv('bbb-con-hora', { start_date: '2026-12-01T18:00:00.000Z' }) // 15:00 Salta
+    expect(defaultKeeper(sinHora, conHora)).toBe('bbb-con-hora')
+    expect(defaultKeeper(conHora, sinHora)).toBe('bbb-con-hora')
+  })
+})
+
+describe('canMerge', () => {
+  const uid = (n: number) => `cccccccc-cccc-4ccc-8ccc-${String(n).padStart(12, '0')}`
+  const A_ID = uid(1)
+  const B_ID = uid(2)
+  const OTHER_ID = uid(3)
+
+  type MergeFixture = Parameters<typeof canMerge>[0]
+  function mergeEv(id: string, overrides: Partial<MergeFixture> = {}): MergeFixture {
+    return { id, status: 'PUBLISHED', ai_metadata: null, ...overrides }
+  }
+
+  it('el mismo evento consigo mismo: rechazado', () => {
+    const e = mergeEv(A_ID)
+    expect(canMerge(e, e)).toEqual({ ok: false, reason: 'No se puede fusionar un evento consigo mismo' })
+  })
+
+  it('ciclo (el que queda ya está fusionado hacia el que se descarta): rechazado', () => {
+    const keep = mergeEv(A_ID, { ai_metadata: { merged_into_event_id: B_ID } })
+    const drop = mergeEv(B_ID)
+    expect(canMerge(keep, drop)).toEqual({
+      ok: false,
+      reason: 'El evento que queda ya está fusionado hacia el que se quiere descartar',
+    })
+  })
+
+  it('el que queda ya fue fusionado hacia otro evento: rechazado', () => {
+    const keep = mergeEv(A_ID, { ai_metadata: { merged_into_event_id: OTHER_ID } })
+    const drop = mergeEv(B_ID)
+    expect(canMerge(keep, drop)).toEqual({ ok: false, reason: 'El evento que queda ya fue fusionado hacia otro evento' })
+  })
+
+  it('el que se descarta ya fue fusionado hacia otro evento: rechazado', () => {
+    const keep = mergeEv(A_ID)
+    const drop = mergeEv(B_ID, { ai_metadata: { merged_into_event_id: OTHER_ID } })
+    expect(canMerge(keep, drop)).toEqual({
+      ok: false,
+      reason: 'El evento que se descarta ya fue fusionado hacia otro evento',
+    })
+  })
+
+  it('cualquiera de los dos CANCELLED: rechazado, y es simétrico', () => {
+    const cancelado = mergeEv(A_ID, { status: 'CANCELLED' })
+    const normal = mergeEv(B_ID)
+    const esperado = { ok: false, reason: 'No se puede fusionar un evento cancelado' }
+    expect(canMerge(cancelado, normal)).toEqual(esperado)
+    expect(canMerge(normal, cancelado)).toEqual(esperado)
+  })
+
+  it('el que se descarta publicado y el que queda no: rechazado (no es simétrico: con los roles al revés es válido)', () => {
+    const keep = mergeEv(A_ID, { status: 'DRAFT' })
+    const drop = mergeEv(B_ID, { status: 'PUBLISHED' })
+    expect(canMerge(keep, drop)).toEqual({
+      ok: false,
+      reason: 'El evento que se descarta está publicado y el que queda no: publicá primero el que queda',
+    })
+    expect(canMerge(drop, keep)).toEqual({ ok: true })
+  })
+
+  it('caso válido: ok', () => {
+    expect(canMerge(mergeEv(A_ID), mergeEv(B_ID))).toEqual({ ok: true })
   })
 })
