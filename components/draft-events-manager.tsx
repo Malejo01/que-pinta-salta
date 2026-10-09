@@ -256,7 +256,7 @@ export function DraftEventsManager({
     // (ver el `disabled` de "Aprobar y Publicar" más abajo), pero lo dejamos
     // por si igual se llega a llamar a esta función.
     if (!dateConfirmed) {
-      toast.error('Confirmá la fecha: salió de la publicación, no del flyer.')
+      toast.error(DATE_CONFIRMATION_MESSAGE)
       return
     }
 
