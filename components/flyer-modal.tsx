@@ -1,6 +1,7 @@
 "use client"
 
 import { useRouter } from "next/navigation"
+import { useState } from "react"
 import { Instagram, ExternalLink, MapPin, Calendar } from "lucide-react"
 import { FlyerImage } from "@/components/flyer-image"
 import type { FlyerWithAccount } from "@/lib/instagram-config"
@@ -19,9 +20,14 @@ interface FlyerModalProps {
 
 export function FlyerModal({ flyer }: FlyerModalProps) {
   const router = useRouter()
+  // Estado local: el Dialog se cierra al instante (como `movie-modal.tsx`) y
+  // recién después se navega hacia atrás. Ver tarea 18-f.
+  const [open, setOpen] = useState(true)
 
-  const handleClose = (open: boolean) => {
-    if (!open) router.back()
+  const handleClose = (nextOpen: boolean) => {
+    if (nextOpen) return
+    setOpen(false)
+    router.back()
   }
 
   const imageUrl =
@@ -30,7 +36,7 @@ export function FlyerModal({ flyer }: FlyerModalProps) {
     "/placeholder.svg?height=600&width=600"
 
   return (
-    <Dialog open onOpenChange={handleClose}>
+    <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="max-h-[90vh] max-w-lg overflow-y-auto p-0">
         {/* Imagen del flyer */}
         <div className="relative aspect-square w-full">

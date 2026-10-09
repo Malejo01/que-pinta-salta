@@ -21,6 +21,7 @@ import type { DisplayEvent, EventWithRelations } from "@/lib/home/types"
 import { buildDisplayData } from "@/lib/home/transform"
 import { sortCategories, selectCarouselEvents } from "@/lib/home/carousel"
 import { filterEvents, groupByCategory, selectTodayRow } from "@/lib/home/filters"
+import { nextHomeUrl, shouldReplaceUrl } from "@/lib/home/url-sync"
 
 export type { DisplayEvent } from "@/lib/home/types"
 export { transformEvent } from "@/lib/home/transform"
@@ -61,20 +62,20 @@ export function HomeContent({
 
   // Efecto para sincronizar silenciosamente el estado de los filtros con la URL del navegador
   useEffect(() => {
-    const params = new URLSearchParams()
-    if (search) params.set("search", search)
-    if (date) params.set("date", date)
-    if (category) params.set("category", category)
-    if (establishment) params.set("establishment", establishment)
-    if (location) params.set("location", location)
-    if (dateExact) params.set("dateExact", dateExact)
-    if (!instagram) params.set("instagram", "false")
+    const nextUrl = nextHomeUrl({ search, date, category, establishment, location, dateExact, instagram })
+    const currentUrl = window.location.pathname + window.location.search
 
-    const nextQuery = params.toString()
-    const nextUrl = nextQuery ? `/?${nextQuery}` : "/"
+    // Si la URL actual ya es la que corresponde (pasa en el primer montaje), no tocar el
+    // historial: `replaceState(null, ...)` pisaría el `state` que Next.js le puso a esta
+    // entrada antes de que su propio parche de `history.replaceState` esté activo (los
+    // efectos del hijo corren antes que los del padre `AppRouter`). Eso dejaba la entrada
+    // `/` con `state = null` y rompía el `popstate` al volver atrás desde un modal.
+    // Ver ops/rondas/18-imagenes-rendimiento/repro-18f.md (tarea 18-f).
+    if (!shouldReplaceUrl(currentUrl, nextUrl)) return
 
-    // Actualizar la URL de forma shallow (silenciosa), sin recargar componentes del servidor ni relanzar peticiones
-    window.history.replaceState(null, "", nextUrl)
+    // Actualizar la URL de forma shallow (silenciosa), sin recargar componentes del servidor
+    // ni relanzar peticiones, conservando el estado que Next.js ya le haya puesto.
+    window.history.replaceState(window.history.state, "", nextUrl)
   }, [search, date, category, establishment, location, dateExact, instagram])
 
   // Sincronizar el estado local cuando cambian los query parameters en la URL (por ejemplo, al hacer click en el logo o navegar atrás/adelante)

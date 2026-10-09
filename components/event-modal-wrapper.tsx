@@ -41,6 +41,9 @@ interface EventModalWrapperProps {
 
 export function EventModalWrapper({ event, isAdmin = false, categories = [], origin = "directo" }: EventModalWrapperProps) {
   const router = useRouter()
+  // Estado local: el Dialog se cierra al instante (como `movie-modal.tsx`) y
+  // recién después se navega hacia atrás. Ver tarea 18-f.
+  const [open, setOpen] = useState(true)
   const [localCategories, setLocalCategories] = useState<Category[]>(categories)
   const [hasCategoryChanges, setHasCategoryChanges] = useState(false)
   const [isEditingCategory, setIsEditingCategory] = useState(false)
@@ -128,8 +131,9 @@ export function EventModalWrapper({ event, isAdmin = false, categories = [], ori
     })
   }
 
-  const handleClose = (open: boolean) => {
-    if (open) return
+  const handleClose = (nextOpen: boolean) => {
+    if (nextOpen) return
+    setOpen(false)
     router.back()
 
     if (hasCategoryChanges) {
@@ -139,7 +143,7 @@ export function EventModalWrapper({ event, isAdmin = false, categories = [], ori
   }
 
   return (
-    <Dialog open onOpenChange={handleClose}>
+    <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="max-h-[90vh] max-w-lg overflow-y-auto p-0">
         <ViewBeacon eventId={event.id} origin={origin} />
         <div className="relative aspect-[3/2] w-full">
