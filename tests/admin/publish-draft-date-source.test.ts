@@ -1,9 +1,11 @@
 // Ronda 14 / tarea 14-b (QPS-073): la guarda de needsDateConfirmation() dentro de
 // publishDraftEvent (lib/admin-actions.ts). Mismo patrón de mocks que
 // tests/admin/publish-draft-guards.test.ts (Ronda 11), pero con un fake de cliente admin propio
-// que además sabe responder `instagram_flyers.select(...).eq(...)` (necesario para los
-// borradores viejos sin date_source y para la falla-cerrada). Se prefirió no tocar el fake de la
-// Ronda 11 para no arriesgar esos tests ya en verde.
+// que además sabe responder `instagram_flyers.select(...).in(...)` (necesario para los
+// borradores viejos sin date_source y para la falla-cerrada; desde la ronda 19,
+// `loadFlyersByEvent` consulta con `.in('ai_metadata->>event_id', ids)` en vez de `.eq(...)`,
+// una sola consulta para varios eventos). Se prefirió no tocar el fake de la Ronda 11 para no
+// arriesgar esos tests ya en verde.
 // Sin red ni base. Fechas y hora via las funciones puras reales (saltaWallClockToUtcISO):
 // no hace falta mockearlas.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -21,6 +23,7 @@ vi.mock('@supabase/supabase-js', () => ({
 }))
 
 import { publishDraftEvent } from '@/lib/admin-actions'
+import { DATE_CONFIRMATION_CODE } from '@/lib/admin/date-confirmation'
 
 type Row = Record<string, unknown>
 
@@ -59,8 +62,9 @@ function sessionClient() {
 
 /**
  * Cliente de service role falso: `events` en memoria + `instagram_flyers`, que soporta tanto
- * `select('published_at').eq('ai_metadata->>event_id', eventId)` (lectura de los flyers de
- * origen) como `update(...).eq('id', flyerId)` (marcar PROCESSED al publicar).
+ * `select('published_at, ai_metadata').in('ai_metadata->>event_id', eventIds)` (lectura de los
+ * flyers de origen, una sola consulta para varios eventos) como `update(...).eq('id', flyerId)`
+ * (marcar PROCESSED al publicar).
  *
  * `flyersByEventId` mapea eventId -> array de filas `{ published_at }` (o más de una, para el
  * caso de un evento nacido de la fusión de varios posteos). `flyersError` simula que el select
@@ -104,26 +108,33 @@ function fakeAdminClient(
         return c
       }
       if (table === 'instagram_flyers') {
-        let mode: 'select' | 'update' = 'select'
         let payload: Row = {}
         const c: Record<string, unknown> = {}
-        c.select = () => {
-          mode = 'select'
-          return c
-        }
+        c.select = () => c
         c.update = (p: Row) => {
-          mode = 'update'
           payload = p
           return c
         }
+        // loadFlyersByEvent (lib/admin/date-confirmation.ts) consulta con `.in(...)` una sola
+        // vez para varios eventIds, y agrupa el resultado filtrando por `ai_metadata.event_id`
+        // (igual que el cliente real de supabase-js, que filtra server-side por
+        // `ai_metadata->>event_id`). `flyersByEventId` ya viene indexado por eventId: lo
+        // "desindexamos" acá, como si fuera la fila cruda que devolvería Postgres.
+        c.in = (_col: string, ids: string[]) => {
+          flyersSelectCalls++
+          if (flyersError) return Promise.resolve({ data: null, error: flyersError })
+          const rows = ids.flatMap((id) =>
+            (flyersByEventId[id] ?? []).map((f) => ({
+              published_at: f.published_at,
+              ai_metadata: { event_id: id },
+            })),
+          )
+          return Promise.resolve({ data: rows, error: null })
+        }
         // El código de producción hace `await ....eq(...)` directo (sin .select() final ni
-        // .single()): el builder real de supabase-js es awaitable ("thenable") en ese punto.
+        // .single()) para marcar un flyer PROCESSED al publicar: el builder real de
+        // supabase-js es awaitable ("thenable") en ese punto.
         c.eq = (_col: string, val: string) => {
-          if (mode === 'select') {
-            flyersSelectCalls++
-            if (flyersError) return Promise.resolve({ data: null, error: flyersError })
-            return Promise.resolve({ data: flyersByEventId[val] ?? [], error: null })
-          }
           flyerUpdates.push({ id: val, payload })
           return Promise.resolve({ error: null })
         }
@@ -167,9 +178,21 @@ const TITULO = 'Título Nuevo de Prueba'
 describe('publishDraftEvent: needsDateConfirmation / QPS-073', () => {
   it('date_source "published_at" sin confirm_date: no publica', async () => {
     const db = setup([baseEvent({ ai_metadata: { date_source: 'published_at' } })])
-    const res = await publishDraftEvent(EVENT_ID, { title: TITULO, start_date: '2030-06-15' })
-    expect(res).toEqual({ error: 'Confirmá la fecha: salió de la publicación, no del flyer' })
+    // Ronda 19: cambiar la fecha/hora del formulario respecto de la guardada también cuenta
+    // como confirmación, así que para probar que la guarda frena sin `confirm_date` hay que
+    // mandar la MISMA fecha que ya tiene el borrador (el default de baseEvent()).
+    const res = await publishDraftEvent(EVENT_ID, { title: TITULO, start_date: '2029-01-01T00:00:00.000Z' })
+    // Antes se comparaba el objeto completo con toEqual (solo `error`). Ahora la guarda
+    // también manda `code`: comparamos el código, no el texto.
+    expect(res).toMatchObject({ code: DATE_CONFIRMATION_CODE })
     expect(db.eventUpdates).toHaveLength(0)
+  })
+
+  it('date_source "published_at" sin confirm_date pero con otra fecha en el formulario: publica (cambiar la fecha ya cuenta como confirmarla)', async () => {
+    const db = setup([baseEvent({ ai_metadata: { date_source: 'published_at' } })])
+    const res = await publishDraftEvent(EVENT_ID, { title: TITULO, start_date: '2030-06-15' })
+    expect(res).toEqual({ success: true })
+    expect(db.eventUpdates).toHaveLength(1)
   })
 
   it('date_source "published_at" con confirm_date true: publica', async () => {
@@ -192,13 +215,16 @@ describe('publishDraftEvent: needsDateConfirmation / QPS-073', () => {
 
   it('is_fallback true (con o sin date_source): sigue exigiendo confirm_date', async () => {
     const db = setup([baseEvent({ ai_metadata: { is_fallback: true, date_source: 'published_at' } })])
-    const sinConfirmar = await publishDraftEvent(EVENT_ID, { title: TITULO, start_date: '2030-06-15' })
-    expect(sinConfirmar).toEqual({ error: 'Confirmá la fecha: salió de la publicación, no del flyer' })
+    // Misma fecha que el default de baseEvent(): el punto de este caso es que is_fallback
+    // exige confirm_date aunque también haya date_source, no que cambiar la fecha baste (eso
+    // ya lo cubre el caso de arriba para date_source "published_at" solo).
+    const sinConfirmar = await publishDraftEvent(EVENT_ID, { title: TITULO, start_date: '2029-01-01T00:00:00.000Z' })
+    expect(sinConfirmar).toMatchObject({ code: DATE_CONFIRMATION_CODE })
     expect(db.eventUpdates).toHaveLength(0)
 
     const conConfirmar = await publishDraftEvent(EVENT_ID, {
       title: TITULO,
-      start_date: '2030-06-15',
+      start_date: '2029-01-01T00:00:00.000Z',
       confirm_date: true,
     })
     expect(conConfirmar).toEqual({ success: true })
@@ -210,8 +236,11 @@ describe('publishDraftEvent: needsDateConfirmation / QPS-073', () => {
       [baseEvent({ scrape_source_key: 'instagram-ai', ai_metadata: null, start_date: '2029-05-10T03:00:00.000Z' })],
       { [EVENT_ID]: [{ published_at: '2029-05-10T03:00:00.000Z' }] },
     )
-    const res = await publishDraftEvent(EVENT_ID, { title: TITULO, start_date: '2030-06-15' })
-    expect(res).toEqual({ error: 'Confirmá la fecha: salió de la publicación, no del flyer' })
+    // Ronda 19: mandamos la MISMA fecha/hora que el borrador ya tiene guardada, para probar
+    // que la guarda frena sin `confirm_date` (si mandáramos otra fecha, ahora publicaría: eso
+    // se prueba aparte, más abajo).
+    const res = await publishDraftEvent(EVENT_ID, { title: TITULO, start_date: '2029-05-10T03:00:00.000Z' })
+    expect(res).toMatchObject({ code: DATE_CONFIRMATION_CODE })
     expect(db.eventUpdates).toHaveLength(0)
   })
 
@@ -223,9 +252,21 @@ describe('publishDraftEvent: needsDateConfirmation / QPS-073', () => {
       [baseEvent({ scrape_source_key: 'instagram-ai', ai_metadata: null, start_date: '2029-05-10T03:00:00.000Z' })],
       { [EVENT_ID]: [{ published_at: '2029-05-10T23:30:00.000Z' }] },
     )
-    const res = await publishDraftEvent(EVENT_ID, { title: TITULO, start_date: '2030-06-15' })
-    expect(res).toEqual({ error: 'Confirmá la fecha: salió de la publicación, no del flyer' })
+    // De nuevo, la misma fecha/hora guardada en el payload: lo que hace que la guarda frene
+    // acá es el flyer de origen (reason 'legacy'), no un cambio de fecha en el formulario.
+    const res = await publishDraftEvent(EVENT_ID, { title: TITULO, start_date: '2029-05-10T03:00:00.000Z' })
+    expect(res).toMatchObject({ code: DATE_CONFIRMATION_CODE })
     expect(db.eventUpdates).toHaveLength(0)
+  })
+
+  it('borrador viejo (legacy) con un flyer coincidente, pero el admin cambió la hora en el formulario (mismo día): publica igual, sin tildar nada (cambiar la fecha/hora ya cuenta como confirmarla)', async () => {
+    const db = setup(
+      [baseEvent({ scrape_source_key: 'instagram-ai', ai_metadata: null, start_date: '2029-05-10T03:00:00.000Z' })],
+      { [EVENT_ID]: [{ published_at: '2029-05-10T03:00:00.000Z' }] },
+    )
+    const res = await publishDraftEvent(EVENT_ID, { title: TITULO, start_date: '2029-05-10T23:00:00.000Z' }) // 20:00 Salta: mismo día, otra hora
+    expect(res).toEqual({ success: true })
+    expect(db.eventUpdates).toHaveLength(1)
   })
 
   it('borrador viejo del pipeline instagram-ai, con un flyer de otro día: no pide confirmación', async () => {
@@ -259,8 +300,10 @@ describe('publishDraftEvent: needsDateConfirmation / QPS-073', () => {
         {},
         { message: 'timeout de prueba leyendo instagram_flyers' },
       )
-      const res = await publishDraftEvent(EVENT_ID, { title: TITULO, start_date: '2030-06-15' })
-      expect(res).toEqual({ error: 'Confirmá la fecha: salió de la publicación, no del flyer' })
+      // Mismo start_date que el default de baseEvent(): sin esto, cambiar la fecha ya cuenta
+      // como confirmación (ronda 19) y este caso dejaría de probar la falla cerrada.
+      const res = await publishDraftEvent(EVENT_ID, { title: TITULO, start_date: '2029-01-01T00:00:00.000Z' })
+      expect(res).toMatchObject({ code: DATE_CONFIRMATION_CODE })
       expect(db.eventUpdates).toHaveLength(0)
     })
 
@@ -290,8 +333,10 @@ describe('publishDraftEvent: needsDateConfirmation / QPS-073', () => {
         ],
       },
     )
-    const res = await publishDraftEvent(EVENT_ID, { title: TITULO, start_date: '2030-06-15' })
-    expect(res).toEqual({ error: 'Confirmá la fecha: salió de la publicación, no del flyer' })
+    // Misma fecha/hora guardada: lo que frena acá es el flyer coincidente, no un cambio de
+    // fecha en el formulario.
+    const res = await publishDraftEvent(EVENT_ID, { title: TITULO, start_date: '2029-05-10T03:00:00.000Z' })
+    expect(res).toMatchObject({ code: DATE_CONFIRMATION_CODE })
     expect(db.eventUpdates).toHaveLength(0)
   })
 
@@ -299,12 +344,15 @@ describe('publishDraftEvent: needsDateConfirmation / QPS-073', () => {
     'confirm_date truthy pero distinto de `true` (%j) no saltea la guarda de date_source',
     async (confirmDate) => {
       const db = setup([baseEvent({ ai_metadata: { date_source: 'published_at' } })])
+      // Misma fecha/hora guardada (default de baseEvent()): si mandáramos otra, cambiar la
+      // fecha ya alcanzaría para publicar y este caso dejaría de probar que un confirm_date
+      // "truthy pero no true" no sirve.
       const res = await publishDraftEvent(EVENT_ID, {
         title: TITULO,
-        start_date: '2030-06-15',
+        start_date: '2029-01-01T00:00:00.000Z',
         confirm_date: confirmDate as unknown as boolean,
       })
-      expect(res).toEqual({ error: 'Confirmá la fecha: salió de la publicación, no del flyer' })
+      expect(res).toMatchObject({ code: DATE_CONFIRMATION_CODE })
       expect(db.eventUpdates).toHaveLength(0)
     },
   )
@@ -318,10 +366,10 @@ describe('publishDraftEvent: needsDateConfirmation / QPS-073', () => {
       )
       const res = await publishDraftEvent(EVENT_ID, {
         title: TITULO,
-        start_date: '2030-06-15',
+        start_date: '2029-05-10T03:00:00.000Z',
         confirm_date: confirmDate as unknown as boolean,
       })
-      expect(res).toEqual({ error: 'Confirmá la fecha: salió de la publicación, no del flyer' })
+      expect(res).toMatchObject({ code: DATE_CONFIRMATION_CODE })
       expect(db.eventUpdates).toHaveLength(0)
     },
   )

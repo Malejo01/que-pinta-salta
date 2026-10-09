@@ -20,6 +20,7 @@ vi.mock('@supabase/supabase-js', () => ({
 
 import { publishDraftEvent } from '@/lib/admin-actions'
 import { saltaWallClockToUtcISO } from '@/lib/date-format'
+import { DATE_CONFIRMATION_CODE } from '@/lib/admin/date-confirmation'
 
 type Row = Record<string, unknown>
 
@@ -169,7 +170,9 @@ describe('publishDraftEvent: guardas del servidor (QPS-068/064/065/060/062)', ()
   it('is_fallback sin confirm_date: no publica', async () => {
     const db = setup([baseEvent({ ai_metadata: { is_fallback: true } })])
     const res = await publishDraftEvent(EVENT_ID, { title: 'Título Nuevo de Prueba', start_date: '2030-06-15' })
-    expect(res).toEqual({ error: 'Confirmá la fecha: salió de la publicación, no del flyer' })
+    // Antes se comparaba el objeto completo con toEqual (solo `error`). Ahora la guarda
+    // también manda `code` (QPS-065/073/077, ronda 19): comparamos el código, no el texto.
+    expect(res).toMatchObject({ code: DATE_CONFIRMATION_CODE })
     expect(db.eventUpdates).toHaveLength(0)
   })
 
@@ -179,6 +182,28 @@ describe('publishDraftEvent: guardas del servidor (QPS-068/064/065/060/062)', ()
       title: 'Título Nuevo de Prueba',
       start_date: '2030-06-15',
       confirm_date: true,
+    })
+    expect(res).toEqual({ success: true })
+    expect(db.eventUpdates).toHaveLength(1)
+  })
+
+  it('is_fallback sin confirm_date pero con otra fecha en el formulario: publica (cambiar la fecha ya cuenta como confirmarla)', async () => {
+    // Acá sí hace falta un start_date guardado en la base (baseEvent() de este archivo no trae
+    // uno) para poder comparar contra el que manda el formulario.
+    const db = setup([baseEvent({ ai_metadata: { is_fallback: true }, start_date: '2029-01-01T00:00:00.000Z' })])
+    const res = await publishDraftEvent(EVENT_ID, {
+      title: 'Título Nuevo de Prueba',
+      start_date: '2030-06-15', // distinto del guardado: el admin la cambió a mano, sin tildar nada.
+    })
+    expect(res).toEqual({ success: true })
+    expect(db.eventUpdates).toHaveLength(1)
+  })
+
+  it('is_fallback sin confirm_date pero con la misma fecha y otra hora: publica igual', async () => {
+    const db = setup([baseEvent({ ai_metadata: { is_fallback: true }, start_date: '2029-05-10T03:00:00.000Z' })]) // 00:00 Salta 10/05
+    const res = await publishDraftEvent(EVENT_ID, {
+      title: 'Título Nuevo de Prueba',
+      start_date: '2029-05-10T23:00:00.000Z', // 20:00 Salta 10/05: mismo día, otra hora.
     })
     expect(res).toEqual({ success: true })
     expect(db.eventUpdates).toHaveLength(1)
@@ -251,7 +276,9 @@ describe('publishDraftEvent: guardas del servidor (QPS-068/064/065/060/062)', ()
       // Miente: en la base el borrador SÍ es is_fallback, pero el payload dice que no y no manda confirm_date.
       ai_metadata: { is_fallback: false },
     })
-    expect(res).toEqual({ error: 'Confirmá la fecha: salió de la publicación, no del flyer' })
+    // Antes se comparaba el objeto completo con toEqual (solo `error`). Ahora la guarda
+    // también manda `code` (QPS-065/073/077, ronda 19): comparamos el código, no el texto.
+    expect(res).toMatchObject({ code: DATE_CONFIRMATION_CODE })
     expect(db.eventUpdates).toHaveLength(0)
   })
 })
