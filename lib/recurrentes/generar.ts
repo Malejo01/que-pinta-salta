@@ -100,6 +100,18 @@ async function generarItem(supabase: SupabaseClient, r: Recurrente, ahora: Date)
       if (error) throw new Error(`Plantilla: ${error.message}`)
       if (!data) throw new Error(`Sin fila previa para "${r.titulo}": no se puede replicar el patrón`)
       plantilla = data as Fila
+
+      // La imagen de la plantilla se reusa tal cual en cada fecha nueva (ver
+      // filaMuseo): si es externa, se copia a Storage una sola vez acá, no
+      // una vez por fecha (mismo criterio que las peñas, arriba).
+      const imagenPlantilla = plantilla.image_url as string | null
+      if (imagenPlantilla && !isOwnStorageUrl(imagenPlantilla)) {
+        const storageUrl = await copyExternalImage(
+          imagenPlantilla,
+          supabase.storage.from(INSTAGRAM_ENGINE_CONFIG.STORAGE_BUCKET)
+        )
+        if (storageUrl) plantilla.image_url = storageUrl
+      }
     }
 
     // Días que ya existen (futuros) para ese venue y título.
