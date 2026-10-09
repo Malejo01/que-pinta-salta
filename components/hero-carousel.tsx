@@ -19,10 +19,15 @@ interface HeroCarouselProps {
 export function HeroCarousel({ events }: HeroCarouselProps) {
   const [currentIndex, setCurrentIndex] = useState(0)
   const [direction, setDirection] = useState(1) // 1 = next, -1 = prev
+  // Solo la diapositiva con la que arranca el carrusel es candidata a `priority`
+  // (es la que cuenta para el LCP). Una vez que el usuario o el timer avanzan,
+  // deja de aplicar aunque el índice vuelva a 0 en una vuelta completa.
+  const [isInitialSlide, setIsInitialSlide] = useState(true)
 
   useEffect(() => {
     const timer = setInterval(() => {
       setDirection(1)
+      setIsInitialSlide(false)
       setCurrentIndex((prev) => (prev + 1) % events.length)
     }, 5000)
     return () => clearInterval(timer)
@@ -30,11 +35,13 @@ export function HeroCarousel({ events }: HeroCarouselProps) {
 
   const goToPrevious = () => {
     setDirection(-1)
+    setIsInitialSlide(false)
     setCurrentIndex((prev) => (prev - 1 + events.length) % events.length)
   }
 
   const goToNext = () => {
     setDirection(1)
+    setIsInitialSlide(false)
     setCurrentIndex((prev) => (prev + 1) % events.length)
   }
 
@@ -91,7 +98,7 @@ export function HeroCarousel({ events }: HeroCarouselProps) {
                 fill
                 sizes="100vw"
                 className="object-cover blur-2xl"
-                priority
+                loading="lazy"
               />
             </motion.div>
           </div>
@@ -105,7 +112,7 @@ export function HeroCarousel({ events }: HeroCarouselProps) {
               fill
               sizes="(max-width: 640px) 100vw, (max-width: 1024px) 80vw, 1200px"
               className="object-contain"
-              priority
+              {...(isInitialSlide ? { priority: true } : { loading: "lazy" as const })}
             />
           </div>
 
@@ -192,7 +199,10 @@ export function HeroCarousel({ events }: HeroCarouselProps) {
         {events.map((_, index) => (
           <button
             key={index}
-            onClick={() => setCurrentIndex(index)}
+            onClick={() => {
+              setIsInitialSlide(false)
+              setCurrentIndex(index)
+            }}
             /* Área de toque ampliada con pseudo-elemento invisible; el dot visible no cambia.
                En mobile los dots están aislados arriba a la derecha (right-3 top-3), así que se
                estira 18px arriba y abajo para llegar a 44 de alto. A partir de sm: el contenedor

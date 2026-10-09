@@ -23,6 +23,10 @@ const yellowtail = Yellowtail({
   weight: '400',
   display: 'swap',
   variable: '--font-yellowtail',
+  // No se ve en el primer pantallazo de la portada: en navbar.tsx está en un
+  // bloque `hidden sm:block` (oculto en mobile) y en footer.tsx queda debajo
+  // del pliegue. No hace falta precargarlo.
+  preload: false,
 })
 
 const poppins = Poppins({
@@ -30,6 +34,9 @@ const poppins = Poppins({
   weight: ['800'],
   display: 'swap',
   variable: '--font-poppins',
+  // Mismo caso que yellowtail: solo aparece junto a él en navbar.tsx (oculto
+  // en mobile) y footer.tsx (debajo del pliegue).
+  preload: false,
 })
 
 export const metadata: Metadata = {
