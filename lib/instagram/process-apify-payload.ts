@@ -3,7 +3,7 @@
 import { createAdminClient } from '@/lib/supabase/server'
 import type { ApifyInstagramPost, InstagramAccount } from '@/lib/instagram-config'
 import { INSTAGRAM_ENGINE_CONFIG } from '@/lib/instagram-config'
-import { VARIANT_WIDTHS, variantPath } from '@/lib/images/variants'
+import { STORAGE_CACHE_CONTROL, VARIANT_WIDTHS, variantPath } from '@/lib/images/variants'
 import { makeVariants } from '@/lib/images/variants-server'
 
 type ProcessResult = {
@@ -50,6 +50,7 @@ async function downloadAndUploadImage(
       .from(INSTAGRAM_ENGINE_CONFIG.STORAGE_BUCKET)
       .upload(storagePath, buffer, {
         contentType,
+        cacheControl: STORAGE_CACHE_CONTROL,
         upsert: true,
       })
 
@@ -71,7 +72,7 @@ async function downloadAndUploadImage(
           .from(INSTAGRAM_ENGINE_CONFIG.STORAGE_BUCKET)
           .upload(path, variants[width], {
             contentType: 'image/webp',
-            cacheControl: '31536000',
+            cacheControl: STORAGE_CACHE_CONTROL,
             upsert: true,
           })
 
