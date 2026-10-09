@@ -80,7 +80,7 @@ export default async function FlyerPage({ params }: FlyerPageProps) {
     "/placeholder.svg?height=600&width=600"
 
   return (
-    <div className="min-h-screen bg-background pb-20 sm:pb-0">
+    <div className="min-h-screen bg-background pb-page sm:pb-0">
       <Navbar />
 
       <main className="container mx-auto max-w-2xl px-4 py-8">

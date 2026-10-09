@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useSyncExternalStore } from 'react'
+import { useEffect, useRef, useSyncExternalStore } from 'react'
 import { motion } from 'framer-motion'
 import { Button } from '@/components/ui/button'
 import { CONSENT_EVENT, dispatchConsentEvent, readConsent, writeConsent, type ConsentValue } from '@/lib/consent'
@@ -62,11 +62,43 @@ function clearAnalyticsCookies() {
  * Va pegado arriba de la barra de navegación del celular (mismo alto, 4rem,
  * más el área segura que ya respeta `components/mobile-nav.tsx`), para no
  * tapar ni la barra ni el contenido.
+ *
+ * QPS-079: mientras está visible, mide su propio alto con `ResizeObserver` y
+ * lo publica en `--consent-banner-h` (más `data-consent-open`) en `<html>`,
+ * para que `.pb-page` (`app/globals.css`) le haga lugar al contenido de cada
+ * página. Al ocultarse (el usuario elige, o el componente se desmonta) se
+ * desconecta el observer y se sacan el atributo y la variable: no quedan
+ * colgados.
  */
 export function ConsentBanner() {
   const consent = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot)
+  const bannerRef = useRef<HTMLDivElement>(null)
+  const isOpen = consent === null
 
-  if (consent !== null) return null
+  useEffect(() => {
+    if (!isOpen) return
+    const el = bannerRef.current
+    if (!el) return
+
+    const root = document.documentElement
+    root.setAttribute('data-consent-open', '')
+
+    const updateHeight = () => {
+      root.style.setProperty('--consent-banner-h', `${el.offsetHeight}px`)
+    }
+    updateHeight()
+
+    const observer = new ResizeObserver(updateHeight)
+    observer.observe(el)
+
+    return () => {
+      observer.disconnect()
+      root.removeAttribute('data-consent-open')
+      root.style.removeProperty('--consent-banner-h')
+    }
+  }, [isOpen])
+
+  if (!isOpen) return null
 
   function accept() {
     writeConsent(window.localStorage, 'granted')
@@ -81,6 +113,7 @@ export function ConsentBanner() {
 
   return (
     <motion.div
+      ref={bannerRef}
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
       role="region"
