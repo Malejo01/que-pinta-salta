@@ -10,7 +10,7 @@ export function PrintButton() {
       type="button"
       onClick={() => window.print()}
       size="sm"
-      className="gap-2"
+      className="h-11 gap-2"
       data-print-hide
     >
       <Printer className="size-4" />

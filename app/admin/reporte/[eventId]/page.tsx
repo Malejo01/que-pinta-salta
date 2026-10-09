@@ -94,7 +94,7 @@ export default async function ReporteEventoPage({ params }: ReporteEventoPagePro
       </div>
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 print:grid-cols-3">
-        <Card className="print:border-black/30">
+        <Card className="print:border-black/30 print:bg-transparent print:shadow-none">
           <CardHeader className="pb-0">
             <p className="text-sm text-muted-foreground print:text-black">Vistas</p>
           </CardHeader>
@@ -102,7 +102,7 @@ export default async function ReporteEventoPage({ params }: ReporteEventoPagePro
             <p className="text-2xl font-bold text-foreground print:text-black">{report.totales.views}</p>
           </CardContent>
         </Card>
-        <Card className="print:border-black/30">
+        <Card className="print:border-black/30 print:bg-transparent print:shadow-none">
           <CardHeader className="pb-0">
             <p className="text-sm text-muted-foreground print:text-black">Clics a la ticketera</p>
           </CardHeader>
@@ -110,7 +110,7 @@ export default async function ReporteEventoPage({ params }: ReporteEventoPagePro
             <p className="text-2xl font-bold text-foreground print:text-black">{report.totales.clicks}</p>
           </CardContent>
         </Card>
-        <Card className="print:border-black/30">
+        <Card className="print:border-black/30 print:bg-transparent print:shadow-none">
           <CardHeader className="pb-0">
             <p className="text-sm text-muted-foreground print:text-black">CTR</p>
           </CardHeader>
