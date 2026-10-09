@@ -1,8 +1,10 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Event, Venue } from '../types';
-import { upsertEventWithDeduplication } from './deduplicate';
+import { findDuplicateEvent, upsertEventWithDeduplication } from './deduplicate';
 import { saltaWallClockToUtcISO } from '../date-format';
 import { formatVenueError, resolveVenueId } from '../venues/resolve';
+import { INSTAGRAM_ENGINE_CONFIG } from '../instagram-config';
+import { copyExternalImage, isOwnStorageUrl } from '../images/external';
 
 // Cliente directo (service role key para uso en scripts, nunca en browser)
 function getAdminClient() {
@@ -131,6 +133,10 @@ export async function saveEventsToSupabase(
   // llamadores que construyen un SaveResult a mano sin esa propiedad.
   const venueErrors: string[] = [];
   const result: SaveResult = { inserted: 0, skipped: 0, errors: [], venueErrors };
+  // Creado al toque (no acá arriba): algunos llamadores de prueba simulan un
+  // cliente sin `.storage`, y no tiene sentido pedirlo si ningún evento trae
+  // imagen externa.
+  let storageClient: ReturnType<typeof supabase.storage.from> | null = null;
 
   for (const event of events) {
     try {
@@ -189,6 +195,24 @@ export async function saveEventsToSupabase(
         created_by: null,
         classification_source,
       };
+
+      // Copiar el afiche externo a Storage (Ronda 18-b) antes de guardar, para
+      // que image_url nunca apunte a tamaño completo en el sitio del tercero.
+      // Si ya hay un evento existente (misma clave de dedup) con una URL de
+      // Storage, no vale la pena copiar: la fusión va a preferir esa URL por
+      // prioridad de fuente, y la nueva descarga se perdería. Si la copia
+      // falla por cualquier motivo, se guarda la URL original (como hoy).
+      if (eventData.image_url && !isOwnStorageUrl(eventData.image_url)) {
+        const existing = await findDuplicateEvent(eventData as Partial<Event>, supabase);
+        const existingHasStorageImage = Boolean(existing && isOwnStorageUrl(existing.image_url));
+        if (!existingHasStorageImage) {
+          storageClient ??= supabase.storage.from(INSTAGRAM_ENGINE_CONFIG.STORAGE_BUCKET);
+          const storageUrl = await copyExternalImage(eventData.image_url, storageClient);
+          if (storageUrl) {
+            eventData.image_url = storageUrl;
+          }
+        }
+      }
 
       const upsertResult = await upsertEventWithDeduplication(
         eventData,

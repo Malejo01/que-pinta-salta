@@ -12,9 +12,12 @@ type FlyerImageProps = Omit<ImageProps, 'src'> & {
 
 /**
  * Envoltorio de `next/image` para flyers: pide la variante WebP de `variant`
- * px si la imagen es un original del bucket de Instagram, y si no existe
- * (backfill no corrido todavía, falló al generarla, o es otro tipo de
- * imagen) cae una sola vez al original, sin loop.
+ * px si la imagen es un original `.jpg` del bucket de flyers (de Instagram,
+ * o copiado de una fuente externa a `externas/`, Ronda 18-b — ambos casos
+ * los resuelve igual `flyerVariantUrl`, sin distinguir la carpeta), y si no
+ * existe (backfill no corrido todavía, falló al generarla, o es otro tipo de
+ * imagen: `.png`/`.webp`/`.gif`, que no tienen variante) cae una sola vez al
+ * original, sin loop.
  */
 export function FlyerImage({ src, variant, onError, ...props }: FlyerImageProps) {
   const [useOriginal, setUseOriginal] = useState(false)
