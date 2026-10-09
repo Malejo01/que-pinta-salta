@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js"
 import type { MetadataRoute } from "next"
+import { ANUNCIANTES } from "@/lib/config/anunciantes"
 
 const baseUrl = "https://www.quepintasalta.com.ar"
 
@@ -45,6 +46,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       staticRoute("/cines", now, "daily", 0.8),
       staticRoute("/buscar", now, "weekly", 0.5),
     staticRoute("/privacidad", now, "weekly", 0.2),
+      ...(ANUNCIANTES.publicada ? [staticRoute("/anunciantes", now, "weekly", 0.3)] : []),
     ]
   }
 
@@ -123,6 +125,10 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     staticRoute("", homeUpdatedAt, "daily", 1.0),
     staticRoute("/cines", cinemaUpdatedAt, "daily", 0.8),
     staticRoute("/buscar", eventsUpdatedAt, "weekly", 0.5),
+    // /anunciantes solo mientras ANUNCIANTES.publicada sea true (ver
+    // lib/config/anunciantes.ts): mientras haya precios sin completar la
+    // página no se indexa ni se anuncia para rastreo.
+    ...(ANUNCIANTES.publicada ? [staticRoute("/anunciantes", now, "weekly", 0.3)] : []),
   ]
 
   return [...staticRoutes, ...eventRoutes, ...flyerRoutes]
