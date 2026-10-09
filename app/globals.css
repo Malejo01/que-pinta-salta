@@ -137,5 +137,16 @@
    */
   .pb-page {
     padding-bottom: calc(5rem + env(safe-area-inset-bottom) + var(--consent-banner-h, 0px));
+    transition: padding-bottom 300ms ease-out;
+  }
+
+  /*
+   * QPS-094: quien pidió menos movimiento ve el salto de `.pb-page` como
+   * hasta hoy, sin la transición suave de arriba.
+   */
+  @media (prefers-reduced-motion: reduce) {
+    .pb-page {
+      transition: none;
+    }
   }
 }
