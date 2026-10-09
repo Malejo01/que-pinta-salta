@@ -2,11 +2,18 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { Copy, ExternalLink, MapPin, Clock } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
-import { getDuplicateCandidates, type DuplicateCandidateEvent } from '@/lib/events/duplicate-candidates'
-import { formatEventDate, formatEventTime } from '@/lib/date-format'
+import {
+  canMerge,
+  defaultKeeper,
+  getDismissedPairs,
+  getDuplicateCandidates,
+  type DuplicateCandidateEvent,
+} from '@/lib/events/duplicate-candidates'
+import { formatEventDate, formatEventDayMonth, formatEventTime, formatSaltaDayKey } from '@/lib/date-format'
 import { resolveEventSource, describeSource } from '@/lib/scraper/source-priority'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
+import { DuplicatePairActions, RestorePairButton } from '@/components/admin/duplicate-pair-actions'
 
 export const dynamic = 'force-dynamic'
 
@@ -19,6 +26,12 @@ function statusBadgeClass(status: string | null) {
   if (status === 'PUBLISHED') return 'bg-emerald-500/10 text-emerald-600 border-emerald-200'
   if (status === 'DRAFT') return 'bg-amber-500/10 text-amber-600 border-amber-200'
   return 'bg-muted text-muted-foreground border-border'
+}
+
+/** "dd/mm" en hora de Salta, para "marcado el dd/mm". */
+function dayMonthSlash(iso: string): string {
+  const [, month, day] = formatSaltaDayKey(iso).split('-')
+  return `${day}/${month}`
 }
 
 function EventColumn({ event }: { event: DuplicateCandidateEvent }) {
@@ -64,7 +77,10 @@ export default async function AdminDuplicadosPage() {
     redirect('/?error=unauthorized')
   }
 
-  const pairs = await getDuplicateCandidates(supabase)
+  const [pairs, dismissedPairs] = await Promise.all([
+    getDuplicateCandidates(supabase),
+    getDismissedPairs(supabase),
+  ])
 
   return (
     <div className="space-y-6">
@@ -81,14 +97,14 @@ export default async function AdminDuplicadosPage() {
         </div>
       </div>
 
-      {/* Instrucciones de fusión manual */}
+      {/* Explicación de las dos acciones */}
       <div className="rounded-lg border border-dashed border-border bg-muted/30 p-4 text-sm text-muted-foreground">
         <p>
-          Esta lista es solo para revisión: no tiene acciones de fusión. Si dos eventos de acá son el
-          mismo, se fusionan a mano desde la ficha de cada evento: el flyer apunta al evento que queda
-          publicado, y el otro pasa a estado <span className="font-medium text-foreground">DRAFT</span>{' '}
-          con <code className="rounded bg-muted px-1 py-0.5 text-xs">ai_metadata.merged_into_event_id</code>{' '}
-          apuntando al que queda.
+          <span className="font-medium text-foreground">Fusionar:</span> el evento elegido en &quot;Queda&quot;
+          se mantiene; el otro pasa a borrador, sus favoritos y flyers se mueven al que queda, y su link
+          redirige ahí.{' '}
+          <span className="font-medium text-foreground">Son distintos:</span> el par se descarta y no vuelve
+          a aparecer en esta lista (se puede deshacer con &quot;Volver a revisar&quot;, al pie de la página).
         </p>
       </div>
 
@@ -117,13 +133,54 @@ export default async function AdminDuplicadosPage() {
                   </span>
                 </div>
               </CardHeader>
-              <CardContent className="flex flex-col gap-3 sm:flex-row">
-                <EventColumn event={a} />
-                <EventColumn event={b} />
+              <CardContent className="flex flex-col gap-3">
+                <div className="flex flex-col gap-3 sm:flex-row">
+                  <EventColumn event={a} />
+                  <EventColumn event={b} />
+                </div>
+                <DuplicatePairActions
+                  eventA={{ id: a.id, title: a.title }}
+                  eventB={{ id: b.id, title: b.title }}
+                  defaultKeeperId={defaultKeeper(a, b)}
+                  canMergeKeepA={canMerge(a, b)}
+                  canMergeKeepB={canMerge(b, a)}
+                />
               </CardContent>
             </Card>
           ))}
         </div>
+      )}
+
+      {/* Pares marcados como "no son el mismo evento" */}
+      {dismissedPairs.length > 0 && (
+        <details className="rounded-lg border border-border bg-muted/20">
+          <summary className="cursor-pointer select-none p-4 text-sm font-medium text-foreground">
+            Marcados como distintos ({dismissedPairs.length})
+          </summary>
+          <div className="space-y-3 border-t border-border p-4">
+            {dismissedPairs.map((pair, index) => (
+              <div
+                key={`${pair.eventA?.id ?? 'a'}-${pair.eventB?.id ?? 'b'}-${index}`}
+                className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-border/60 bg-background/40 p-3 text-sm"
+              >
+                <div className="min-w-0 flex-1 space-y-1 text-muted-foreground">
+                  <p className="truncate text-foreground">
+                    {pair.eventA ? pair.eventA.title : 'Evento borrado'}
+                    {pair.eventA ? ` (${formatEventDayMonth(pair.eventA.start_date)})` : ''}
+                  </p>
+                  <p className="truncate text-foreground">
+                    {pair.eventB ? pair.eventB.title : 'Evento borrado'}
+                    {pair.eventB ? ` (${formatEventDayMonth(pair.eventB.start_date)})` : ''}
+                  </p>
+                  <p className="text-xs">marcado el {dayMonthSlash(pair.decidedAt)}</p>
+                </div>
+                {pair.eventA && pair.eventB && (
+                  <RestorePairButton aId={pair.eventA.id} bId={pair.eventB.id} />
+                )}
+              </div>
+            ))}
+          </div>
+        </details>
       )}
     </div>
   )
