@@ -3,6 +3,7 @@
 import { useMemo, useState, useEffect } from "react"
 import { useSearchParams, useRouter } from "next/navigation"
 import Image from "next/image"
+import dynamic from "next/dynamic"
 import type { Category, CinemaMovie } from "@/lib/types"
 import type { FlyerWithAccount } from "@/lib/instagram-config"
 import { Navbar } from "@/components/navbar"
@@ -11,7 +12,6 @@ import { HeroCarousel } from "@/components/hero-carousel"
 import { FiltersBar, DateFilter } from "@/components/filters-bar"
 import { CategoryRow } from "@/components/category-row"
 import { EventCard } from "@/components/event-card"
-import { MovieModal } from "@/components/movie-modal"
 import Link from "next/link"
 import { motion, AnimatePresence } from "framer-motion"
 import { Button } from "@/components/ui/button"
@@ -25,6 +25,14 @@ import { nextHomeUrl, shouldReplaceUrl } from "@/lib/home/url-sync"
 
 export type { DisplayEvent } from "@/lib/home/types"
 export { transformEvent } from "@/lib/home/transform"
+
+// El modal de cine (Dialog de Radix) no se ve en la primera carga: solo se
+// monta cuando `selectedMovie` deja de ser `null` (click en una película).
+// `ssr: false` porque nunca hace falta en el primer render del servidor.
+const MovieModal = dynamic(
+  () => import("@/components/movie-modal").then((mod) => mod.MovieModal),
+  { ssr: false }
+)
 
 interface HomeContentProps {
   events: EventWithRelations[]
@@ -184,7 +192,7 @@ export function HomeContent({
     : "Resultados filtrados"
 
   return (
-    <div className="min-h-screen bg-background pb-20 sm:pb-0">
+    <div className="min-h-screen bg-background pb-page sm:pb-0">
       <Navbar />
 
       <main>

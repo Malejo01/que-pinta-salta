@@ -1,12 +1,12 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
+import dynamic from "next/dynamic"
 import { Building2, CalendarDays, ChevronDown, MapPin, Search, SlidersHorizontal, X } from "lucide-react"
 import { motion } from "framer-motion"
 import type { Category } from "@/lib/types"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-import { Calendar } from "@/components/ui/calendar"
 import {
   Collapsible,
   CollapsibleContent,
@@ -20,6 +20,22 @@ import {
 import { cn } from "@/lib/utils"
 import { getCategoryIcon } from "@/lib/category-icons"
 import { Switch } from "@/components/ui/switch"
+
+// El date picker (react-day-picker, vía components/ui/calendar) solo se
+// monta dentro de este Popover cuando el usuario lo abre: nunca hace falta
+// en la carga inicial. `ssr: false` porque el Popover arranca cerrado y
+// Radix ni siquiera llega a montar su contenido en el servidor.
+const Calendar = dynamic(
+  () => import("@/components/ui/calendar").then((mod) => mod.Calendar),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex h-[308px] w-[252px] items-center justify-center p-3 text-sm text-muted-foreground">
+        Cargando calendario…
+      </div>
+    ),
+  }
+)
 
 export type DateFilter = "hoy" | "semana" | "mes" | "tendencias"
 
