@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useReducer } from 'react'
 import {
   Sparkles,
   Clock,
@@ -20,7 +20,14 @@ import {
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { publishDraftEvent, deleteDraftEvent, triggerAIProcessing } from '@/lib/admin-actions'
-import { splitSaltaDateTime, formatSaltaDayKey } from '@/lib/date-format'
+import { splitSaltaDateTime, formatSaltaDayKey, saltaWallClockToUtcISO } from '@/lib/date-format'
+import {
+  DATE_CONFIRMATION_CODE,
+  DATE_CONFIRMATION_MESSAGE,
+  dateConfirmFormReducer,
+  initialDateConfirmFormState,
+  isDateConfirmed,
+} from '@/lib/admin/date-confirmation'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -65,6 +72,12 @@ interface DraftEvent {
   created_at: string
   category?: Category
   venue?: Venue
+  /** Precalculado en app/admin/revision/page.tsx con lib/admin/date-confirmation.ts (QPS-065/073/077). */
+  dateCheck?: {
+    needed: boolean
+    reason: 'fallback' | 'published_at' | 'legacy' | 'unreadable' | null
+    text: string
+  }
 }
 
 interface DraftEventsManagerProps {
@@ -101,49 +114,70 @@ export function DraftEventsManager({
   const [isFree, setIsFree] = useState(false)
   const [ticketUrl, setTicketUrl] = useState('')
   const [imageUrl, setImageUrl] = useState('')
-  const [confirmDate, setConfirmDate] = useState(false)
-  // Borrador viejo (sin date_source en ai_metadata): el cliente no puede
-  // saber de antemano si la fecha salió del posteo, así que el servidor lo
-  // rechaza primero y recién ahí mostramos el checkbox de confirmación.
-  const [serverNeedsDateConfirm, setServerNeedsDateConfirm] = useState(false)
+  // Estado de confirmación de fecha (QPS-065/073/077): reducer puro en
+  // lib/admin/date-confirmation.ts, para poder testearlo sin testing-library.
+  const [confirmState, dispatchConfirm] = useReducer(dateConfirmFormReducer, initialDateConfirmFormState)
+  const confirmDate = confirmState.checked
+  // Defensa: el servidor es quien manda. Si el precálculo de dateCheck
+  // (hecho en el Server Component) quedó desactualizado y el servidor igual
+  // rechaza con DATE_CONFIRMATION_CODE, forzamos el aviso a mano.
+  const [forcedNeedsConfirm, setForcedNeedsConfirm] = useState(false)
 
   // Encontrar el evento seleccionado actual
   const selectedEvent = events.find((e) => e.id === selectedEventId) || null
 
   // La fecha vino de la publicación de Instagram, no del flyer (fallback del
-  // pipeline o IA sin fecha, QPS-065/073): el admin tiene que confirmarla a
-  // mano antes de publicar. El servidor es quien manda; para borradores
-  // viejos (sin date_source) no hay forma de saberlo del lado del cliente,
-  // así que el checkbox también aparece si el servidor ya rechazó por esto.
-  const isFallbackDate =
-    selectedEvent?.ai_metadata?.is_fallback === true ||
-    selectedEvent?.ai_metadata?.date_source === 'published_at' ||
-    serverNeedsDateConfirm
+  // pipeline, IA sin fecha, o borrador viejo sin date_source, QPS-065/073):
+  // el admin tiene que confirmarla a mano antes de publicar. El cálculo real
+  // vive en el servidor (lib/admin/date-confirmation.ts, dateConfirmation),
+  // precalculado por fila en app/admin/revision/page.tsx.
+  const isFallbackDate = selectedEvent?.dateCheck?.needed === true || forcedNeedsConfirm
 
-  // OJO: este literal está acoplado al mensaje de la guarda 4 en
-  // lib/admin-actions.ts (publishDraftEvent, mismo string exacto); si cambia
-  // uno, cambia el otro o este checkbox deja de aparecer para el caso del
-  // borrador viejo.
-  const DATE_CONFIRM_ERROR = 'Confirmá la fecha: salió de la publicación, no del flyer'
+  // Fecha y hora actuales del formulario, como instante UTC: para comparar
+  // contra `selectedEvent.start_date` (isDateConfirmed) y para habilitar
+  // "Publicar".
+  const combinedStartDate = startDateTime ? `${startDateDay}T${startDateTime}:00` : startDateDay
+  const formStartISO = startDateDay ? saltaWallClockToUtcISO(combinedStartDate) : null
+  const dateConfirmed = isDateConfirmed({
+    needed: isFallbackDate,
+    checked: confirmDate,
+    originalStartISO: selectedEvent?.start_date ?? null,
+    formStartISO,
+  })
 
-  // Sincronizar estado del formulario cuando cambia el evento seleccionado
+  // "dd/mm hh:mm" de la fecha y hora actuales del formulario, para mostrar
+  // junto al aviso de confirmación (startDateDay ya viene en "YYYY-MM-DD").
+  const formDateTimeLabel = startDateDay
+    ? `${startDateDay.slice(8, 10)}/${startDateDay.slice(5, 7)}${startDateTime ? ` ${startDateTime}` : ''}`
+    : null
+
+  // Sincroniza el formulario cuando cambia el borrador seleccionado.
+  // Depende solo de `selectedEventId`, no de `events`: `events` cambia de
+  // referencia en cada refresco del servidor (p. ej. "Procesar con IA" hace
+  // router.refresh()), y si estuviera en las dependencias este efecto se
+  // volvería a disparar sin que el admin haya cambiado de borrador, pisando
+  // lo que ya tenía escrito en el formulario. Leemos el evento actual con
+  // `events.find` adentro del efecto, así siempre usa los datos más
+  // frescos sin tener que declarar `events` como dependencia.
   useEffect(() => {
-    if (selectedEvent) {
-      setTitle(selectedEvent.title || '')
-      setDescription(selectedEvent.description || '')
-      setCategoryId(selectedEvent.category_id || '')
-      setVenueId(selectedEvent.venue_id || '')
-      setPriceMin(selectedEvent.price_min ?? '')
-      setIsFree(selectedEvent.is_free || false)
-      setTicketUrl(selectedEvent.ticket_url || '')
-      setImageUrl(selectedEvent.image_url || '')
-      setConfirmDate(false)
-      setServerNeedsDateConfirm(false)
+    const current = events.find((e) => e.id === selectedEventId) || null
+    dispatchConfirm({ type: 'select', id: selectedEventId })
+    setForcedNeedsConfirm(false)
+
+    if (current) {
+      setTitle(current.title || '')
+      setDescription(current.description || '')
+      setCategoryId(current.category_id || '')
+      setVenueId(current.venue_id || '')
+      setPriceMin(current.price_min ?? '')
+      setIsFree(current.is_free || false)
+      setTicketUrl(current.ticket_url || '')
+      setImageUrl(current.image_url || '')
 
       // start_date se guarda como instante UTC: hay que leerlo en hora de Salta
       // para que el editor muestre la misma hora que ve el usuario en el sitio.
-      if (selectedEvent.start_date) {
-        const { day, time } = splitSaltaDateTime(selectedEvent.start_date)
+      if (current.start_date) {
+        const { day, time } = splitSaltaDateTime(current.start_date)
         setStartDateDay(day)
         setStartDateTime(time)
       } else {
@@ -161,17 +195,24 @@ export function DraftEventsManager({
       setIsFree(false)
       setTicketUrl('')
       setImageUrl('')
-      setConfirmDate(false)
-      setServerNeedsDateConfirm(false)
     }
-  }, [selectedEventId, events])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedEventId])
 
-  // Sincronizar eventos cuando cambian las props iniciales (ej: tras procesar con la IA)
+  // Sincronizar eventos cuando cambian las props iniciales (ej: tras procesar con la IA).
+  // Si el borrador seleccionado ya no está en la lista nueva (se publicó o se
+  // borró desde otro lado), elegimos el primero: ese cambio de id sí dispara
+  // el efecto de arriba y reinicia el formulario. Si sigue estando, no se
+  // reinicia nada (solo se avisa al reducer, que no hace nada con esta acción).
   useEffect(() => {
     setEvents(initialEvents)
-    if (initialEvents.length > 0 && !selectedEventId) {
-      setSelectedEventId(initialEvents[0].id)
+    const selectedStillExists = initialEvents.some((e) => e.id === selectedEventId)
+    if (!selectedStillExists) {
+      setSelectedEventId(initialEvents.length > 0 ? initialEvents[0].id : null)
+    } else {
+      dispatchConfirm({ type: 'eventsRefreshed' })
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialEvents])
 
   // Dispara el procesamiento asíncrono de un lote con la IA
@@ -211,15 +252,15 @@ export function DraftEventsManager({
       toast.error('La fecha es requerida.')
       return
     }
-    if (isFallbackDate && !confirmDate) {
+    // Respaldo: el botón ya queda deshabilitado mientras `!dateConfirmed`
+    // (ver el `disabled` de "Aprobar y Publicar" más abajo), pero lo dejamos
+    // por si igual se llega a llamar a esta función.
+    if (!dateConfirmed) {
       toast.error('Confirmá la fecha: salió de la publicación, no del flyer.')
       return
     }
 
     setIsSubmitting(true)
-    // Sin hora elegida, se manda solo la fecha: el servidor la guarda a las
-    // 00:00 de Salta (convención "sin hora" de QPS-065). Nunca 20:00 por defecto.
-    const combinedStartDate = startDateTime ? `${startDateDay}T${startDateTime}:00` : startDateDay
 
     const eventData = {
       title,
@@ -239,11 +280,11 @@ export function DraftEventsManager({
     try {
       const res = await publishDraftEvent(selectedEvent.id, eventData)
       if (res.error) {
-        // Borrador viejo sin date_source: el cliente no lo sabía de antemano,
-        // el servidor lo detectó recién ahora. Mostramos el checkbox para
-        // que el admin confirme y reintente, en vez de solo un error genérico.
-        if (res.error === DATE_CONFIRM_ERROR && !confirmDate) {
-          setServerNeedsDateConfirm(true)
+        // Defensa: el precálculo de dateCheck quedó desactualizado y el
+        // servidor igual rechazó por fecha sin confirmar. Mostramos el aviso
+        // para que el admin confirme y reintente, en vez de solo un error genérico.
+        if ('code' in res && res.code === DATE_CONFIRMATION_CODE && !confirmDate) {
+          setForcedNeedsConfirm(true)
         }
         toast.error(`Error al publicar: ${res.error}`)
       } else {
@@ -372,9 +413,7 @@ export function DraftEventsManager({
                 </div>
               ) : (
                 filteredEvents.map((item) => {
-                  const isFallback =
-                    item.ai_metadata?.is_fallback === true ||
-                    item.ai_metadata?.date_source === 'published_at'
+                  const needsDateConfirm = item.dateCheck?.needed === true
                   const hasError = item.ai_metadata?.error !== undefined
 
                   return (
@@ -409,15 +448,21 @@ export function DraftEventsManager({
                             {item.start_date ? formatSaltaDayKey(item.start_date) : 'Sin fecha'}
                           </p>
                         </div>
-                        <div className="flex gap-1.5 mt-1.5">
+                        <div className="flex gap-1.5 mt-1.5 flex-wrap">
                           <Badge variant="outline" className="text-[10px] py-0 px-1.5 h-4 max-w-[100px] truncate">
                             {item.category?.name || 'Sin Categoría'}
                           </Badge>
-                          {isFallback || hasError ? (
+                          {hasError && (
                             <Badge variant="destructive" className="text-[10px] py-0 px-1.5 h-4 bg-rose-500/20 text-rose-500 hover:bg-rose-500/30 border-rose-500/30">
                               Error / Fallback
                             </Badge>
-                          ) : (
+                          )}
+                          {needsDateConfirm && (
+                            <Badge variant="destructive" className="text-[10px] py-0 px-1.5 h-4 bg-amber-500/20 text-amber-600 hover:bg-amber-500/30 border-amber-500/30">
+                              Confirmar fecha
+                            </Badge>
+                          )}
+                          {!hasError && !needsDateConfirm && (
                             <Badge variant="secondary" className="text-[10px] py-0 px-1.5 h-4 bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/20 border-emerald-500/20">
                               <Sparkles className="size-2.5 mr-0.5 text-emerald-500 shrink-0" />
                               IA Exitosa
@@ -444,28 +489,34 @@ export function DraftEventsManager({
                 <span className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Auditar Borrador</span>
                 <h2 className="text-xl font-bold text-foreground mt-0.5">{selectedEvent.title}</h2>
               </div>
-              <div className="flex gap-2">
-                <Button
-                  variant="destructive"
-                  onClick={handleDelete}
-                  disabled={isSubmitting}
-                  className="bg-rose-600 hover:bg-rose-700 text-white"
-                >
-                  <Trash2 className="size-4 mr-2" />
-                  Rechazar
-                </Button>
-                <Button
-                  onClick={handlePublish}
-                  disabled={isSubmitting}
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold"
-                >
-                  {isSubmitting ? (
-                    <Clock className="size-4 mr-2 animate-spin" />
-                  ) : (
-                    <Check className="size-4 mr-2" />
-                  )}
-                  Aprobar y Publicar
-                </Button>
+              <div className="flex flex-col items-end gap-1.5">
+                <div className="flex gap-2">
+                  <Button
+                    variant="destructive"
+                    onClick={handleDelete}
+                    disabled={isSubmitting}
+                    className="bg-rose-600 hover:bg-rose-700 text-white"
+                  >
+                    <Trash2 className="size-4 mr-2" />
+                    Rechazar
+                  </Button>
+                  <Button
+                    onClick={handlePublish}
+                    disabled={isSubmitting || !dateConfirmed}
+                    title={!dateConfirmed ? 'Confirmá la fecha para publicar' : undefined}
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold"
+                  >
+                    {isSubmitting ? (
+                      <Clock className="size-4 mr-2 animate-spin" />
+                    ) : (
+                      <Check className="size-4 mr-2" />
+                    )}
+                    Aprobar y Publicar
+                  </Button>
+                </div>
+                {!dateConfirmed && (
+                  <p className="text-xs font-medium text-amber-600">Confirmá la fecha para publicar</p>
+                )}
               </div>
             </div>
 
@@ -583,6 +634,27 @@ export function DraftEventsManager({
                           </div>
                         </div>
 
+                        {/* Aviso: la fecha necesita confirmación (QPS-065/073/077), arriba de los campos de fecha/hora */}
+                        {isFallbackDate && (
+                          <div className="space-y-2 bg-amber-500/10 border border-amber-500/20 text-amber-700 text-xs p-3 rounded-lg">
+                            <p className="font-medium leading-snug">
+                              {selectedEvent.dateCheck?.text || DATE_CONFIRMATION_MESSAGE}
+                              {formDateTimeLabel ? ` Fecha y hora actuales del formulario: ${formDateTimeLabel}.` : ''}
+                            </p>
+                            <label htmlFor="confirmDate" className="flex items-start gap-2 cursor-pointer">
+                              <input
+                                id="confirmDate"
+                                type="checkbox"
+                                checked={confirmDate}
+                                onChange={(e) => dispatchConfirm({ type: 'check', checked: e.target.checked })}
+                                className="mt-0.5 size-3.5 shrink-0 cursor-pointer accent-amber-600"
+                              />
+                              <span className="font-medium leading-snug">La fecha es correcta</span>
+                            </label>
+                            <p className="text-amber-600/80 leading-snug">O cambiá la fecha o la hora.</p>
+                          </div>
+                        )}
+
                         {/* Fila: Fecha y Hora */}
                         <div className="grid gap-4 sm:grid-cols-2">
                           <div className="space-y-1.5">
@@ -613,22 +685,6 @@ export function DraftEventsManager({
                             />
                           </div>
                         </div>
-
-                        {/* Aviso: la fecha salió del fallback (post sin fecha en el flyer) */}
-                        {isFallbackDate && (
-                          <div className="flex items-start gap-2 bg-amber-500/10 border border-amber-500/20 text-amber-600 text-xs p-3 rounded-lg">
-                            <input
-                              id="confirmDate"
-                              type="checkbox"
-                              checked={confirmDate}
-                              onChange={(e) => setConfirmDate(e.target.checked)}
-                              className="mt-0.5 size-3.5 shrink-0 cursor-pointer accent-amber-600"
-                            />
-                            <Label htmlFor="confirmDate" className="text-xs font-medium text-amber-700 cursor-pointer leading-snug">
-                              Esta fecha salió de la publicación de Instagram, no del flyer. Confirmo la fecha.
-                            </Label>
-                          </div>
-                        )}
 
                         {/* Fila: Precio y Ticket */}
                         <div className="grid gap-4 sm:grid-cols-2">
