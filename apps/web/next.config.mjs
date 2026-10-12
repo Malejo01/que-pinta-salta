@@ -64,6 +64,8 @@ const csp = {
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // Paquetes del monorepo que se importan como TypeScript fuente (R22).
+  transpilePackages: ['@qps/core', '@qps/db'],
   typescript: {
     ignoreBuildErrors: false,
   },

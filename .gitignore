@@ -14,6 +14,8 @@ next.user-config.*
 # Common ignores
 node_modules
 .next/
+# Caché local de Turborepo (R22).
+.turbo/
 .DS_Store
 # Build artifacts de TypeScript: se regenera en cada build y ensucia todos los diffs.
 tsconfig.tsbuildinfo

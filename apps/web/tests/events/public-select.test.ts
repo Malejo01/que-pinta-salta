@@ -7,7 +7,7 @@
 // estilo que tests/events/get-featured.test.ts (mockea '@/lib/supabase/server'
 // con un query builder que registra cada llamada).
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { Database } from '@/lib/database.types'
+import type { Database } from '@qps/db'
 
 const state = vi.hoisted(() => ({
   // Fila devuelta por `.single()`/al resolver la promesa: una sola, no importa

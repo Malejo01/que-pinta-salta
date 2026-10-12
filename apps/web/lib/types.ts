@@ -1,4 +1,4 @@
-// Tipos de la app. La fuente de verdad del esquema es lib/database.types.ts,
+// Tipos de la app. La fuente de verdad del esquema es packages/db/src/database.types.ts (@qps/db),
 // generado con `npm run db:types` (supabase gen types) y verificado por el CI.
 //
 // - Enums: salen directo del tipo Database.
@@ -8,7 +8,7 @@
 //   todo, y la app asume valores (los inserts siempre los mandan o usan el
 //   default). Para que no se desfasen, SchemaChecks (al final) falla en
 //   compilación si declaran una columna que no existe en la tabla.
-import type { Database, Tables } from './database.types'
+import type { Database, Tables } from '@qps/db'
 
 type PublicEnums = Database['public']['Enums']
 

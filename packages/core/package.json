@@ -1,0 +1,17 @@
+{
+  "name": "@qps/core",
+  "version": "0.0.0",
+  "private": true,
+  "exports": {
+    "./*": "./src/*.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@qps/db": "*"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.3"
+  }
+}

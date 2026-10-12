@@ -1,5 +1,5 @@
 {
-  "name": "my-project",
+  "name": "web",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -9,7 +9,6 @@
     "lint": "eslint .",
     "scrape": "tsx lib/scraper/norteticket-scraper.ts",
     "typecheck": "tsc --noEmit",
-    "db:types": "supabase gen types typescript --local --schema public > lib/database.types.ts",
     "dedup:events": "tsx scripts/dedup-events.ts",
     "dedup:check": "tsx scripts/dedup-selfcheck.ts",
     "test": "vitest run",
@@ -20,6 +19,8 @@
     "@google/genai": "^2.10.0",
     "@hookform/resolvers": "^3.9.1",
     "@next/third-parties": "~16.3.8",
+    "@qps/core": "*",
+    "@qps/db": "*",
     "@radix-ui/react-accordion": "1.2.12",
     "@radix-ui/react-alert-dialog": "1.1.15",
     "@radix-ui/react-aspect-ratio": "1.1.8",
@@ -87,7 +88,6 @@
     "eslint": "^9.39.4",
     "eslint-config-next": "~16.3.8",
     "postcss": "^8.5",
-    "supabase": "^2.119.0",
     "tailwindcss": "^4.2.0",
     "ts-node": "^10.9.2",
     "tsx": "^4.22.3",
