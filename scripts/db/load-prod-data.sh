@@ -11,7 +11,7 @@
 #   que haya en local.
 #
 # Requisitos: Docker corriendo, `npx supabase start` hecho y
-# POSTGRES_URL_NON_POOLING en .env.local.
+# POSTGRES_URL_NON_POOLING en apps/web/.env.local.
 #
 # Uso: bash scripts/db/load-prod-data.sh            # baja y carga
 #      bash scripts/db/load-prod-data.sh --reuse    # carga el último dump bajado
@@ -29,8 +29,8 @@ if ! git check-ignore -q "$DUMP_DIR/x.sql"; then
 fi
 
 if [ "${1:-}" != "--reuse" ]; then
-  PROD_URL=$(grep -E '^\s*POSTGRES_URL_NON_POOLING\s*=' .env.local | head -1 | cut -d= -f2- | tr -d '"\r' | sed 's/^ *//;s/ *$//')
-  if [ -z "$PROD_URL" ]; then echo "Falta POSTGRES_URL_NON_POOLING en .env.local" >&2; exit 2; fi
+  PROD_URL=$(grep -E '^\s*POSTGRES_URL_NON_POOLING\s*=' apps/web/.env.local | head -1 | cut -d= -f2- | tr -d '"\r' | sed 's/^ *//;s/ *$//')
+  if [ -z "$PROD_URL" ]; then echo "Falta POSTGRES_URL_NON_POOLING en apps/web/.env.local" >&2; exit 2; fi
 
   echo "Bajando datos de public..."
   MSYS_NO_PATHCONV=1 docker run --rm "$PG_IMAGE" pg_dump "$PROD_URL" \

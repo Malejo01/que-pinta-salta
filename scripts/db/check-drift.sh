@@ -4,15 +4,15 @@
 #
 # Requisitos: Docker corriendo, `supabase start` hecho (la base local tiene que
 # estar al día: `npx supabase db reset` si cambiaron las migraciones) y
-# POSTGRES_URL_NON_POOLING en .env.local (connection string de prod, pooler en
+# POSTGRES_URL_NON_POOLING en apps/web/.env.local (connection string de prod, pooler en
 # modo sesión). Solo lee de prod.
 #
 # Uso: bash scripts/db/check-drift.sh
 set -uo pipefail
 cd "$(dirname "$0")/../.."
 
-PROD_URL=$(grep -E '^\s*POSTGRES_URL_NON_POOLING\s*=' .env.local | head -1 | cut -d= -f2- | tr -d '"\r' | sed 's/^ *//;s/ *$//')
-if [ -z "$PROD_URL" ]; then echo "Falta POSTGRES_URL_NON_POOLING en .env.local" >&2; exit 2; fi
+PROD_URL=$(grep -E '^\s*POSTGRES_URL_NON_POOLING\s*=' apps/web/.env.local | head -1 | cut -d= -f2- | tr -d '"\r' | sed 's/^ *//;s/ *$//')
+if [ -z "$PROD_URL" ]; then echo "Falta POSTGRES_URL_NON_POOLING en apps/web/.env.local" >&2; exit 2; fi
 
 PG_IMAGE=${PG_IMAGE:-public.ecr.aws/supabase/postgres:17.11.0.002}
 LOCAL_DB_CONTAINER=${LOCAL_DB_CONTAINER:-supabase_db_que-pinta-salta}
