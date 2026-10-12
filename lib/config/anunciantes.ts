@@ -4,7 +4,8 @@
  * `publicada` es el interruptor de indexación: mientras haya precios sin
  * completar (`precio: null` abajo, a propósito, por "no inventar datos") la
  * página sigue existiendo y respondiendo 200, pero no se indexa ni entra al
- * sitemap (ver app/anunciantes/page.tsx y app/sitemap.ts). Cuando Mauro fije
+ * sitemap, y el link "Anunciantes" del footer no se muestra (ver
+ * app/anunciantes/page.tsx, app/sitemap.ts y components/footer.tsx). Cuando Mauro fije
  * los precios reales, pasar esto a `true`.
  */
 export interface PaqueteAnunciante {

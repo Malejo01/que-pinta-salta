@@ -7,6 +7,7 @@ import { Github, Linkedin, Globe, MessageCircle, Coffee } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 import { useDonation } from "@/components/donation-context"
 import { DONATIONS_ENABLED } from "@/lib/config/monetization"
+import { ANUNCIANTES } from "@/lib/config/anunciantes"
 import { dispatchConsentEvent, writeConsent } from "@/lib/consent"
 import type { User } from "@supabase/supabase-js"
 
@@ -101,12 +102,15 @@ export function Footer() {
               >
                 Política de Privacidad
               </Link>
-              <Link
-                href="/anunciantes"
-                className="text-sm text-muted-foreground transition-colors hover:text-foreground"
-              >
-                Anunciantes
-              </Link>
+              {/* Oculto mientras haya precios sin completar (decisión de Mauro, 12/10) */}
+              {ANUNCIANTES.publicada && (
+                <Link
+                  href="/anunciantes"
+                  className="text-sm text-muted-foreground transition-colors hover:text-foreground"
+                >
+                  Anunciantes
+                </Link>
+              )}
               <Link
                 href={user ? "/nuevo-evento" : "/auth/login?next=/nuevo-evento"}
                 prefetch={user ? undefined : false}
