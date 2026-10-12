@@ -108,7 +108,7 @@ describe('sumViewsPaged', () => {
     expect(resultado).toEqual({ total: 0, truncated: false })
   })
 
-  it('con maxPages alcanzado: truncated true y no pide más páginas de las permitidas', async () => {
+  it('con maxPages alcanzado y la última página llena: pide la consulta de prueba (4 llamadas) y da truncated true', async () => {
     let llamadas = 0
     const fetchPage = async (_from: number, to: number): Promise<FetchPageResult> => {
       llamadas++
@@ -118,13 +118,83 @@ describe('sumViewsPaged', () => {
     }
     const resultado = await sumViewsPaged(fetchPage, { pageSize: 10, maxPages: 3 })
     expect(resultado).toEqual({ total: 30, truncated: true })
-    expect(llamadas).toBe(3)
+    // 3 páginas (0-9, 10-19, 20-29) + la consulta de prueba (30, 30): no se
+    // pasa de las páginas permitidas al sumar, esa 4.ª llamada solo decide
+    // "truncated" y no suma a total.
+    expect(llamadas).toBe(4)
   })
 
   it('un error en una página propaga el error (throw)', async () => {
     const errorDeLaPagina = { message: 'fallo de prueba en la página' }
     const fetchPage = async (): Promise<FetchPageResult> => ({ data: null, error: errorDeLaPagina })
     await expect(sumViewsPaged(fetchPage)).rejects.toBe(errorDeLaPagina)
+  })
+
+  // Casos nuevos (tarea 21-c / ronda 21, QPS-101): al llegar a maxPages con la
+  // última página llena, sumViewsPaged pide UNA fila más
+  // (fetchPage(maxPages * pageSize, maxPages * pageSize)) para decidir si de
+  // verdad hay más datos o si el total cayó justo en el límite.
+
+  it('total múltiplo exacto de pageSize × maxPages (30 filas, pageSize 10, maxPages 3): no queda truncado y pide (30, 30) de prueba', async () => {
+    const totalFilas = 30
+    const llamadas: Array<[number, number]> = []
+    const fetchPage = async (from: number, to: number): Promise<FetchPageResult> => {
+      llamadas.push([from, to])
+      const fin = Math.min(to, totalFilas - 1)
+      if (from > fin) return { data: [], error: null }
+      return { data: Array.from({ length: fin - from + 1 }, () => ({ views: 1 })), error: null }
+    }
+    const resultado = await sumViewsPaged(fetchPage, { pageSize: 10, maxPages: 3 })
+    expect(resultado).toEqual({ total: 30, truncated: false })
+    // 3 páginas (0-9, 10-19, 20-29) + la consulta de prueba (30, 30), vacía.
+    expect(llamadas).toEqual([
+      [0, 9],
+      [10, 19],
+      [20, 29],
+      [30, 30],
+    ])
+  })
+
+  it('una fila más que el total exacto (31 filas, pageSize 10, maxPages 3): queda truncado y esa fila no se suma', async () => {
+    const totalFilas = 31
+    const fetchPage = async (from: number, to: number): Promise<FetchPageResult> => {
+      const fin = Math.min(to, totalFilas - 1)
+      if (from > fin) return { data: [], error: null }
+      return { data: Array.from({ length: fin - from + 1 }, () => ({ views: 1 })), error: null }
+    }
+    const resultado = await sumViewsPaged(fetchPage, { pageSize: 10, maxPages: 3 })
+    // El total son las 30 filas de las 3 páginas: la fila 31 (detectada por la
+    // consulta de prueba) cuenta para decidir "truncated" pero no se suma.
+    expect(resultado).toEqual({ total: 30, truncated: true })
+  })
+
+  it('si la consulta de prueba (la fila de más) da error, se propaga', async () => {
+    const errorDeLaPrueba = { message: 'fallo de prueba en la fila de más' }
+    const fetchPage = async (from: number, to: number): Promise<FetchPageResult> => {
+      if (from === 30 && to === 30) return { data: null, error: errorDeLaPrueba }
+      // Las 3 páginas normales (pageSize 10) siempre vienen llenas.
+      return { data: Array.from({ length: to - from + 1 }, () => ({ views: 1 })), error: null }
+    }
+    await expect(sumViewsPaged(fetchPage, { pageSize: 10, maxPages: 3 })).rejects.toBe(errorDeLaPrueba)
+  })
+
+  it('el caso común (la última página viene incompleta) no hace la consulta de prueba', async () => {
+    const llamadas: Array<[number, number]> = []
+    const filas = Array.from({ length: 2500 }, () => ({ views: 1 }))
+    const fetchPage = async (from: number, to: number): Promise<FetchPageResult> => {
+      llamadas.push([from, to])
+      return { data: filas.slice(from, to + 1), error: null }
+    }
+    const resultado = await sumViewsPaged(fetchPage, { pageSize: 1000, maxPages: 50 })
+    expect(resultado).toEqual({ total: 2500, truncated: false })
+    // Nota: el último `to` pedido es 2999 (from + pageSize - 1), aunque solo
+    // existan filas hasta la 2499: fetchPage recibe el rango completo y es
+    // quien decide cuántas filas realmente devuelve (slice se queda corto).
+    expect(llamadas).toEqual([
+      [0, 999],
+      [1000, 1999],
+      [2000, 2999],
+    ])
   })
 })
 
