@@ -2,6 +2,8 @@
 
 Agenda cultural automatizada de Salta Capital. Sitio en producción: **[quepintasalta.com.ar](https://www.quepintasalta.com.ar)**
 
+**Estructura (monorepo, npm workspaces + Turborepo):** el sitio está en `apps/web/`; `packages/db` tiene los tipos generados de Supabase, `packages/core` la lógica de dominio compartida con la app y `packages/config` el `tsconfig` base. `supabase/`, `.github/`, `docs/` y `scripts/db/` siguen en la raíz. En este README, las rutas de código (`lib/…`, `app/…`, `components/…`) son relativas a `apps/web/`. Los comandos `npm run …` se corren desde la raíz.
+
 ---
 
 ## Descripción y problema que resuelve
@@ -122,7 +124,7 @@ flowchart TB
 
 ### Manejo de horarios
 
-`events.start_date` es `timestamptz` y guarda el **instante UTC real**. Las fuentes, en cambio, publican la hora de pared de Salta sin zona (`2026-08-07T21:00:00`), igual que los `<input type="datetime-local">` de los formularios. La conversión entre ambos mundos vive en [`lib/date-format.ts`](lib/date-format.ts) y es obligatoria en los dos sentidos:
+`events.start_date` es `timestamptz` y guarda el **instante UTC real**. Las fuentes, en cambio, publican la hora de pared de Salta sin zona (`2026-08-07T21:00:00`), igual que los `<input type="datetime-local">` de los formularios. La conversión entre ambos mundos vive en [`lib/date-format.ts`](apps/web/lib/date-format.ts) y es obligatoria en los dos sentidos:
 
 - Al escribir: `saltaWallClockToUtcISO()`. Es idempotente — si el valor ya trae `Z` u offset explícito, lo respeta.
 - Al leer: `formatEventDate` / `formatEventTime` / `formatSaltaDayKey` / `formatSaltaClock`, todas ancladas a `America/Argentina/Salta`.
@@ -133,9 +135,9 @@ Nunca hay que hacer `start_date.split('T')[0]` ni `toISOString().split('T')[0]` 
 
 ### Deduplicación de eventos
 
-El mismo evento entra por varias fuentes a la vez y sin dedup queda como N filas con datos contradictorios. La clave de agrupación es **título normalizado + día calendario de Salta** ([`lib/scraper/dedup-key.ts`](lib/scraper/dedup-key.ts)): sin diacríticos, en minúsculas, sin sufijo de ciudad (`"EN SALTA"`, `"Salta 2026"`, `"Salta Capital"`) y con los espacios colapsados. El venue no entra en la clave, pero sí en la decisión: dos filas con la misma clave se fusionan solo si el venue es compatible (el mismo venue canónico, o a una le falta). Así, dos boliches con "Fiesta de fin de semana" el mismo sábado siguen siendo dos eventos. Los grupos de misma clave con venues distintos aparecen en el dry-run como "NO SE FUSIONAN" para revisarlos a mano.
+El mismo evento entra por varias fuentes a la vez y sin dedup queda como N filas con datos contradictorios. La clave de agrupación es **título normalizado + día calendario de Salta** ([`lib/scraper/dedup-key.ts`](apps/web/lib/scraper/dedup-key.ts)): sin diacríticos, en minúsculas, sin sufijo de ciudad (`"EN SALTA"`, `"Salta 2026"`, `"Salta Capital"`) y con los espacios colapsados. El venue no entra en la clave, pero sí en la decisión: dos filas con la misma clave se fusionan solo si el venue es compatible (el mismo venue canónico, o a una le falta). Así, dos boliches con "Fiesta de fin de semana" el mismo sábado siguen siendo dos eventos. Los grupos de misma clave con venues distintos aparecen en el dry-run como "NO SE FUSIONAN" para revisarlos a mano.
 
-Cuando dos registros coinciden pero difieren en un campo, gana la fuente de mayor prioridad ([`lib/scraper/source-priority.ts`](lib/scraper/source-priority.ts)):
+Cuando dos registros coinciden pero difieren en un campo, gana la fuente de mayor prioridad ([`lib/scraper/source-priority.ts`](apps/web/lib/scraper/source-priority.ts)):
 
 | Tramo | Peso | Fuentes | Por qué |
 |---|---|---|---|
@@ -188,7 +190,7 @@ Los cuatro campos son obligatorios y se validan por forma, no por confianza del 
 
 ### Nota sobre el parseo de NorteTicket
 
-Los selectores del DOM de NorteTicket viven en un solo lugar, `parseAllEventsFromHtml` en [`lib/scraper/parsers.ts`](lib/scraper/parsers.ts), y tanto el cron como la ruta manual del panel admin los consumen desde ahí. Si NorteTicket cambia su HTML, se toca un archivo y no dos.
+Los selectores del DOM de NorteTicket viven en un solo lugar, `parseAllEventsFromHtml` en [`lib/scraper/parsers.ts`](apps/web/lib/scraper/parsers.ts), y tanto el cron como la ruta manual del panel admin los consumen desde ahí. Si NorteTicket cambia su HTML, se toca un archivo y no dos.
 
 El provider del cron lanza en vez de devolver un array vacío cuando la fuente no responde o cuando el HTML deja de matchear el selector `div#boxEvent`. El job usa `Promise.allSettled`, así que una fuente caída no frena a las otras, pero el error queda en el campo `sourceErrors` de la respuesta y `success` pasa a `false`. Ese comportamiento es deliberado: la falla anterior de esta fuente fue invisible durante meses justamente porque el `catch` se tragaba el error y el cron reportaba `success: true` con cero eventos.
 
@@ -212,7 +214,7 @@ El provider del cron lanza en vez de devolver un array vacío cuando la fuente n
 | Email | Resend | Newsletter del Radar |
 | Validación | Zod 3 + React Hook Form | |
 | Analítica | Vercel Analytics + Google Tag Manager | |
-| Hosting y cron | Vercel | `vercel.json` define los dos cron jobs |
+| Hosting y cron | Vercel | `apps/web/vercel.json` define los cron jobs (Root Directory de Vercel: `apps/web`) |
 | Lenguaje | TypeScript 5.7 | |
 
 ### Modelo de datos
@@ -309,7 +311,7 @@ Todo lo listado acá está implementado y activo en el código.
 - **Google AdSense.** El componente `AdSenseBanner`, `/ads.txt` y el interruptor `NEXT_PUBLIC_ADS_ENABLED` ya existen; hoy está apagado. Para prenderlo faltan los bloques de anuncios: los slots que se pasan (`home-middle-banner`, `event-detail-bottom-banner`) son nombres, y `data-ad-slot` tiene que ser el ID numérico de cada bloque creado en AdSense. Con un slot no numérico el componente muestra el CTA de WhatsApp.
 - **Analítica de datos para campañas publicitarias.** No hay registro de vistas: la tabla `event_views` se borró en el Sprint 0 de seguridad porque estaba sin RLS y ningún código la usaba. Falta definir cómo medir (sin guardar IPs en una tabla pública) y el dashboard: métricas por categoría, por venue y por franja horaria, para vender espacios con números en la mano.
 - **Rol de colaborador / RRPP para boliches.** La base ya está mergeada — `COLLABORATOR` en `UserRole`, `PENDING` en `EventStatus`, campos `contact_type` y `contact_value` en `profiles`, y el circuito `/nuevo-evento` → `/mis-eventos` → `/admin/pendientes`. Falta el onboarding específico para RRPP, los permisos diferenciados por local y las métricas propias de cada colaborador.
-- **Geocodificación de venues.** `venues` tiene columnas `latitude`, `longitude` y `google_maps_url` que ningún scraper completa, y [`lib/scraper/venue-enrichment.ts`](lib/scraper/venue-enrichment.ts) quedó como stub sin usar.
+- **Geocodificación de venues.** `venues` tiene columnas `latitude`, `longitude` y `google_maps_url` que ningún scraper completa, y [`lib/scraper/venue-enrichment.ts`](apps/web/lib/scraper/venue-enrichment.ts) quedó como stub sin usar.
 - **Expansión a otras provincias**: Qué Pinta Mendoza y Qué Pinta Córdoba, reutilizando el pipeline con fuentes y configuración por provincia.
 
 ---
@@ -320,7 +322,7 @@ Todo lo listado acá está implementado y activo en el código.
 npm install
 ```
 
-Variables de entorno en `.env.local`:
+Variables de entorno en `apps/web/.env.local`:
 
 ```env
 # Supabase
@@ -367,17 +369,17 @@ bash scripts/db/load-prod-data.sh           # baja los datos de prod y los carga
 bash scripts/db/load-prod-data.sh --reuse   # vuelve a cargar el último dump sin bajarlo
 ```
 
-Lee `POSTGRES_URL_NON_POOLING` de `.env.local` y solo lee de prod. Baja el schema `public` completo y, de `auth`, solo `users` e `identities`. **El dump tiene emails de usuarios**: queda en `supabase/.data-dumps/`, que está en `.gitignore`; no lo commitees ni lo compartas. Conexión local: `postgresql://postgres:postgres@127.0.0.1:54322/postgres`.
+Lee `POSTGRES_URL_NON_POOLING` de `apps/web/.env.local` y solo lee de prod. Baja el schema `public` completo y, de `auth`, solo `users` e `identities`. **El dump tiene emails de usuarios**: queda en `supabase/.data-dumps/`, que está en `.gitignore`; no lo commitees ni lo compartas. Conexión local: `postgresql://postgres:postgres@127.0.0.1:54322/postgres`.
 
 Otros comandos:
 
 ```bash
-npm run db:types                   # regenera lib/database.types.ts desde la base local
+npm run db:types                   # regenera packages/db/src/database.types.ts desde la base local
 npm run typecheck
 bash scripts/db/check-drift.sh     # compara prod contra lo que reconstruyen las migraciones; falla si difieren
 ```
 
-Los tipos de la app (`lib/types.ts`) derivan de `lib/database.types.ts`. Si una migración cambia el esquema, regenerá los tipos y commitealos en el mismo cambio: el CI falla si no coinciden.
+Los tipos de la app (`lib/types.ts`) derivan de `packages/db/src/database.types.ts` (`@qps/db`). Si una migración cambia el esquema, regenerá los tipos y commitealos en el mismo cambio: el CI falla si no coinciden.
 
 ```bash
 npm run dev
@@ -386,7 +388,7 @@ npm run dev
 Ejecución manual de scrapers:
 
 ```bash
-npx tsx lib/scraper/vamos-scraper.ts
+npx tsx apps/web/lib/scraper/vamos-scraper.ts
 ```
 
 Los scrapers también se pueden disparar desde `/admin/scrape` con una cuenta `ADMIN`, que es la vía recomendada porque registra la corrida en `scrape_runs`.
