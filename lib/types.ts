@@ -66,7 +66,7 @@ export interface Event {
   status: EventStatus
   is_featured: boolean
   view_count: number
-  created_by: string | null
+  created_by?: string | null
   created_at: string
   updated_at: string
   ai_metadata?: any | null

@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import type { Event, Category, Venue } from '@/lib/types'
 import { applyVigenciaPrefilter, isVigente } from '@/lib/events/vigencia'
+import { PUBLIC_EVENT_SELECT } from '@/lib/events/public-select'
 
 export async function getEvents(options?: {
   categorySlug?: string
@@ -20,11 +21,7 @@ export async function getEvents(options?: {
 
   let query = supabase
     .from('events')
-    .select(`
-      *,
-      category:categories(*),
-      venue:venues(*)
-    `)
+    .select(PUBLIC_EVENT_SELECT)
     .eq('status', 'PUBLISHED')
   query = applyVigenciaPrefilter(query, now, { includeToday: !!options?.includeStartedToday }).order('start_date', { ascending: true })
 
@@ -59,7 +56,10 @@ export async function getEvents(options?: {
     return []
   }
   
-  const rows = data as (Event & { category: Category; venue: Venue | null })[]
+  // PUBLIC_EVENT_SELECT es un string armado en runtime (no un literal), así
+  // que supabase-js no puede inferir con él el tipo de la fila: "as unknown
+  // as" en vez de "as" (ver el comentario en lib/events/public-select.ts).
+  const rows = data as unknown as (Event & { category: Category; venue: Venue | null })[]
   return options?.includeStartedToday ? rows : rows.filter((e) => isVigente(e, now))
 }
 
@@ -68,11 +68,7 @@ export async function getEventBySlug(slug: string): Promise<(Event & { category:
   
   const { data, error } = await supabase
     .from('events')
-    .select(`
-      *,
-      category:categories(*),
-      venue:venues(*)
-    `)
+    .select(PUBLIC_EVENT_SELECT)
     .eq('slug', slug)
     .single()
   
@@ -81,28 +77,24 @@ export async function getEventBySlug(slug: string): Promise<(Event & { category:
     return null
   }
   
-  return data as Event & { category: Category; venue: Venue | null }
+  return data as unknown as Event & { category: Category; venue: Venue | null }
 }
 
 export async function getEventById(id: string): Promise<(Event & { category: Category; venue: Venue | null }) | null> {
   const supabase = await createClient()
-  
+
   const { data, error } = await supabase
     .from('events')
-    .select(`
-      *,
-      category:categories(*),
-      venue:venues(*)
-    `)
+    .select(PUBLIC_EVENT_SELECT)
     .eq('id', id)
     .single()
-  
+
   if (error) {
     console.error('Error fetching event by id:', error)
     return null
   }
   
-  return data as Event & { category: Category; venue: Venue | null }
+  return data as unknown as Event & { category: Category; venue: Venue | null }
 }
 
 export async function getFeaturedEvents(): Promise<(Event & { category: Category; venue: Venue | null })[]> {
@@ -111,11 +103,7 @@ export async function getFeaturedEvents(): Promise<(Event & { category: Category
 
   const { data, error } = await applyVigenciaPrefilter(supabase
     .from('events')
-    .select(`
-      *,
-      category:categories(*),
-      venue:venues(*)
-    `)
+    .select(PUBLIC_EVENT_SELECT)
     .eq('status', 'PUBLISHED')
     .not('category_id', 'is', null), now)
     .order('start_date', { ascending: true })
@@ -126,7 +114,7 @@ export async function getFeaturedEvents(): Promise<(Event & { category: Category
     return []
   }
 
-  return (data as (Event & { category: Category; venue: Venue | null })[])
+  return (data as unknown as (Event & { category: Category; venue: Venue | null })[])
     .filter((e) => isVigente(e, now))
     .slice(0, 6)
 }
