@@ -5,6 +5,13 @@ import { createClient } from '@/lib/supabase/server'
 import { getCategories, getVenues } from '@/lib/data'
 import { DraftEventsManager } from '@/components/draft-events-manager'
 import { dateConfirmation, dateConfirmationText, loadFlyersByEvent } from '@/lib/admin/date-confirmation'
+import { ADMIN_REVIEW_EVENT_ROW_SELECT } from '@/lib/events/public-select'
+import type { ComponentProps } from 'react'
+
+// La fila que espera DraftEventsManager, sin el dateCheck que se calcula abajo.
+type DraftEventWithRelations = Omit<ComponentProps<typeof DraftEventsManager>['initialEvents'][number], 'dateCheck'> & {
+  scrape_source_key: string | null
+}
 
 export const dynamic = 'force-dynamic'
 
@@ -50,11 +57,8 @@ export default async function AdminRevisionPage() {
     getVenues(),
     supabase
       .from('events')
-      .select(`
-        *,
-        category:categories(id, name, slug),
-        venue:venues(id, name, address)
-      `)
+      // Columnas explícitas (QPS-108): las públicas más ai_metadata.
+      .select(`${ADMIN_REVIEW_EVENT_ROW_SELECT}, category:categories(id, name, slug), venue:venues(id, name, address)`)
       .eq('status', 'DRAFT')
       .order('created_at', { ascending: false }),
     supabase
@@ -72,7 +76,9 @@ export default async function AdminRevisionPage() {
   // instagram_flyers para todos los borradores del pipeline de Instagram-IA,
   // con el cliente privilegiado (ya validamos el rol admin arriba, como en
   // la guarda del servidor de lib/admin-actions.ts).
-  const draftEventsList = draftEvents || []
+  // El select con columnas explícitas es un string armado, así que supabase-js
+  // no infiere el tipo de fila (ver lib/events/public-select.ts).
+  const draftEventsList = (draftEvents || []) as unknown as DraftEventWithRelations[]
   const instagramAiIds = draftEventsList
     .filter((event) => event.scrape_source_key === 'instagram-ai')
     .map((event) => event.id)

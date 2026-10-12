@@ -46,6 +46,9 @@ export const PUBLIC_EVENT_COLUMNS = [
   'updated_at',
 ] as const
 
+/** Solo las columnas de `events`, sin joins: para consultas con su propio join. */
+export const PUBLIC_EVENT_ROW_SELECT = PUBLIC_EVENT_COLUMNS.join(', ')
+
 // El string que arma `Array.join` en runtime tipa como `string` a secas (no
 // como un literal), así que supabase-js no puede inferir con él las columnas
 // del `.select()`: el resultado de la consulta queda como `GenericStringError`
@@ -53,4 +56,12 @@ export const PUBLIC_EVENT_COLUMNS = [
 // Los sitios que llaman `.select(PUBLIC_EVENT_SELECT)` resuelven esto
 // convirtiendo el resultado con `as unknown as …` en vez de `as …` (ver
 // lib/data.ts y app/favoritos/page.tsx).
-export const PUBLIC_EVENT_SELECT = `${PUBLIC_EVENT_COLUMNS.join(', ')}, category:categories(*), venue:venues(*)`
+export const PUBLIC_EVENT_SELECT = `${PUBLIC_EVENT_ROW_SELECT}, category:categories(*), venue:venues(*)`
+
+/**
+ * Columnas para las pantallas de revisión del admin (`/admin/revision`,
+ * `/admin/pendientes`, QPS-108): las públicas más `ai_metadata`, que usa
+ * `components/draft-events-manager.tsx`. `merge_audit`, `dedup_key` y
+ * `created_by` siguen afuera: ninguna pantalla de admin las lee.
+ */
+export const ADMIN_REVIEW_EVENT_ROW_SELECT = [...PUBLIC_EVENT_COLUMNS, 'ai_metadata'].join(', ')
