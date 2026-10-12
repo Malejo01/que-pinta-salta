@@ -5,6 +5,9 @@ import dynamic from "next/dynamic"
 import { Building2, CalendarDays, ChevronDown, MapPin, Search, SlidersHorizontal, X } from "lucide-react"
 import { motion } from "framer-motion"
 import type { Category } from "@/lib/types"
+// QPS-083: vive en packages/core/src/home/types.ts; se reexporta con el mismo
+// nombre para no cambiar a los importadores de este módulo.
+import type { DateFilter } from "@qps/core/home/types"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import {
@@ -37,7 +40,7 @@ const Calendar = dynamic(
   }
 )
 
-export type DateFilter = "hoy" | "semana" | "mes" | "tendencias"
+export type { DateFilter }
 
 const dateFilters: { value: DateFilter; label: string }[] = [
   { value: "hoy", label: "Hoy" },

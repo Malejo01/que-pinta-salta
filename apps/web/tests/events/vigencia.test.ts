@@ -226,9 +226,15 @@ describe('misma función en la agenda, la home, favoritos y el Radar', () => {
 
   it('la home filtra la agenda con isVigente', () => {
     // Movido por 16-b: la lógica de `buildDisplayData` (antes en
-    // components/home-content.tsx) vive ahora en lib/home/transform.ts.
-    const src = read('lib/home/transform.ts')
-    expect(src).toMatch(/from ['"]@\/lib\/events\/vigencia['"]/)
+    // components/home-content.tsx) vive en home/transform.ts. Desde la tarea
+    // 22-a (R22, monorepo) ese módulo vive en packages/core/src/home/transform.ts
+    // y lib/home/transform.ts es sólo un reexport, así que el test lee la fuente
+    // real en core con un import relativo a events/vigencia.
+    const src = readFileSync(
+      new URL('../../../../packages/core/src/home/transform.ts', import.meta.url),
+      'utf8',
+    )
+    expect(src).toMatch(/from ['"]\.\.\/events\/vigencia['"]/)
     expect(src).toContain('isVigente')
   })
 
