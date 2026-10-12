@@ -12,6 +12,7 @@ export const METRIC_ORIGINS = [
   'ficha',
   'radar',
   'directo',
+  'app',
 ] as const
 
 export type MetricOrigin = (typeof METRIC_ORIGINS)[number]
