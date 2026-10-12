@@ -7,6 +7,7 @@ import { saltaWallClockToUtcISO } from "@/lib/date-format"
 import { mergedIntoId } from "@/lib/events/merged"
 import { isVigente } from "@/lib/events/vigencia"
 import { DATE_CONFIRMATION_CODE, DATE_CONFIRMATION_MESSAGE, dateConfirmation, loadFlyersByEvent } from "@/lib/admin/date-confirmation"
+import { ADMIN_REVIEW_EVENT_ROW_SELECT } from "@/lib/events/public-select"
 
 function slugifyCategoryName(value: string) {
   return value
@@ -610,15 +611,11 @@ export async function getPendingEvents() {
 
   if (profile?.role !== 'ADMIN') return []
 
-  // El left join con profiles se debe hacer a través del created_by
+  // El left join con profiles se hace a través de la FK de created_by; la
+  // columna en sí no hace falta pedirla. Columnas explícitas (QPS-108).
   const { data, error } = await supabase
     .from('events')
-    .select(`
-      *,
-      category:categories(id, name, slug),
-      venue:venues(id, name),
-      profile:profiles!events_created_by_fkey(full_name, email)
-    `)
+    .select(`${ADMIN_REVIEW_EVENT_ROW_SELECT}, category:categories(id, name, slug), venue:venues(id, name), profile:profiles!events_created_by_fkey(full_name, email)`)
     .eq('status', 'PENDING')
     .order('created_at', { ascending: false })
 

@@ -8,6 +8,7 @@ import { createClient } from "@/lib/supabase/client"
 import { useDonation } from "@/components/donation-context"
 import { DONATIONS_ENABLED } from "@/lib/config/monetization"
 import { ANUNCIANTES } from "@/lib/config/anunciantes"
+import { TEXTO_ANUNCIAR, whatsappUrl } from "@/lib/contacto"
 import { dispatchConsentEvent, writeConsent } from "@/lib/consent"
 import type { User } from "@supabase/supabase-js"
 
@@ -35,8 +36,7 @@ export function Footer() {
   const [user, setUser] = useState<User | null>(null)
   const { openDonationModal } = useDonation()
   
-  const whatsappNumber = process.env.NEXT_PUBLIC_CONTACT_WHATSAPP || "5493875813233"
-  const whatsappUrl = `https://wa.me/${whatsappNumber}?text=Hola!%20Me%20interesa%20anunciar%20mi%20negocio%20o%20evento%20en%20Que%20Pinta%20Salta.`
+  const anunciarWhatsappUrl = whatsappUrl(TEXTO_ANUNCIAR)
 
   useEffect(() => {
     const supabase = createClient()
@@ -119,7 +119,7 @@ export function Footer() {
                 Agregar Evento
               </Link>
               <a
-                href={whatsappUrl}
+                href={anunciarWhatsappUrl}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-sm text-muted-foreground transition-colors hover:text-foreground"

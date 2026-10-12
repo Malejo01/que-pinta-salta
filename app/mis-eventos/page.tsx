@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server"
+import { PUBLIC_EVENT_ROW_SELECT } from "@/lib/events/public-select"
 import { redirect } from "next/navigation"
 import MisEventosClient from "./mis-eventos-client"
 import { Navbar } from "@/components/navbar"
@@ -13,14 +14,11 @@ export default async function MisEventosPage() {
     redirect("/auth/login")
   }
 
-  // Get user's events
+  // Eventos del usuario, con columnas explícitas (QPS-107): van a un
+  // componente cliente y no necesitan las columnas internas.
   const { data: events, error } = await supabase
     .from("events")
-    .select(`
-      *,
-      category:categories(name),
-      venue:venues(name)
-    `)
+    .select(`${PUBLIC_EVENT_ROW_SELECT}, category:categories(name), venue:venues(name)`)
     .eq("created_by", user.id)
     .order("start_date", { ascending: false })
 

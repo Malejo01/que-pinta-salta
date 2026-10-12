@@ -6,7 +6,9 @@ import { MobileNav } from "@/components/mobile-nav"
 import { FavoritosList } from "./favoritos-list"
 import { formatSaltaDayKey } from "@/lib/date-format"
 import { applyVigenciaPrefilter, isVigente } from "@/lib/events/vigencia"
+import { PUBLIC_EVENT_SELECT } from "@/lib/events/public-select"
 import { ageChip, cleanDescription, formatEventTimeDisplay } from "@/lib/event-display"
+import type { Event, Category, Venue } from "@/lib/types"
 
 export const metadata = {
   title: "Mis Favoritos — Qué Pinta Salta",
@@ -45,7 +47,7 @@ export default async function FavoritosPage() {
     eventIds.length > 0 
       ? applyVigenciaPrefilter(supabase
           .from("events")
-          .select("*, category:categories(*), venue:venues(*)")
+          .select(PUBLIC_EVENT_SELECT)
           .in("id", eventIds)
           .eq("status", "PUBLISHED"), now)
       : Promise.resolve({ data: [] }),
@@ -72,7 +74,11 @@ export default async function FavoritosPage() {
   const categoryNameById = new Map(categories.map(c => [c.id, c.name]))
 
   // 3. Transformar y normalizar a DisplayEvent compatible con EventCard
-  const displayEvents = (eventsRes.data || []).filter(event => isVigente(event, now)).map(event => {
+  // PUBLIC_EVENT_SELECT es un string armado en runtime (no un literal), así
+  // que supabase-js no puede inferir con él el tipo de la fila: "as unknown
+  // as" en vez de "as" (ver el comentario en lib/events/public-select.ts).
+  const favoriteEvents = (eventsRes.data || []) as unknown as (Event & { category: Category; venue: Venue | null })[]
+  const displayEvents = favoriteEvents.filter(event => isVigente(event, now)).map(event => {
     const startDate = new Date(event.start_date)
     return {
       id: event.id,
@@ -81,8 +87,8 @@ export default async function FavoritosPage() {
       venue: event.venue?.name || 'Lugar por confirmar',
       date: formatSaltaDayKey(event.start_date),
       time: formatEventTimeDisplay(event.start_date) ?? '',
-      category: categorySlugById.get(event.category_id) || 'uncategorized',
-      categoryName: categoryNameById.get(event.category_id) || 'Sin categorizar',
+      category: categorySlugById.get(event.category_id ?? '') || 'uncategorized',
+      categoryName: categoryNameById.get(event.category_id ?? '') || 'Sin categorizar',
       price: event.is_free ? ("gratis" as const) : (event.price_min === 0 ? ("confirmar" as const) : event.price_min),
       image: event.image_url || '/placeholder.svg?height=600&width=400',
       description: cleanDescription(event.description) ?? cleanDescription(event.short_description) ?? '',

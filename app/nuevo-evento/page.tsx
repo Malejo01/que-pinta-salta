@@ -1,6 +1,7 @@
 import { getCategories, getVenues } from "@/lib/data"
 import { EventForm } from "@/components/event-form"
 import { createClient } from "@/lib/supabase/server"
+import { PUBLIC_EVENT_ROW_SELECT } from "@/lib/events/public-select"
 
 export default async function NuevoEventoPage({
   searchParams,
@@ -20,9 +21,12 @@ export default async function NuevoEventoPage({
 
   if (targetId) {
     const supabase = await createClient()
+    // Columnas explícitas (QPS-106): el resultado va como prop a un
+    // componente cliente, así que no viajan merge_audit, dedup_key,
+    // ai_metadata ni created_by. Los permisos no cambian: los pone RLS.
     const { data } = await supabase
       .from("events")
-      .select("*")
+      .select(PUBLIC_EVENT_ROW_SELECT)
       .eq("id", targetId)
       .single()
     if (data) {
