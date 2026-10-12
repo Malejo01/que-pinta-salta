@@ -74,12 +74,16 @@ export interface SumViewsPagedOptions {
 /**
  * Suma `views` pidiendo páginas con `fetchPage(from, to)` (los mismos límites
  * 0-indexados e inclusivos que `.range()` de Supabase) hasta que una página
- * venga incompleta (fin de los datos) o se llegue a `maxPages` sin terminar
- * (`truncated: true`: hay más datos de los que se sumaron).
+ * venga incompleta (fin de los datos). Si se llega a `maxPages` con la última
+ * página llena, no se asume que hay más datos: se pide una fila más
+ * (`fetchPage(maxPages * pageSize, maxPages * pageSize)`) para confirmarlo.
+ * Esa fila nunca se suma (el total siempre es "no más que" el real); si viene
+ * vacía, `truncated: false`, si trae algo, `truncated: true`.
  *
- * Si `fetchPage` devuelve un error, se interrumpe y se propaga (throw) para
- * que el llamador decida: en `getAdvertiserMetrics` cada métrica se calcula
- * por separado y un error acá vuelve esa métrica `null`, sin tocar las demás.
+ * Si `fetchPage` devuelve un error (en cualquiera de las dos llamadas), se
+ * interrumpe y se propaga (throw) para que el llamador decida: en
+ * `getAdvertiserMetrics` cada métrica se calcula por separado y un error acá
+ * vuelve esa métrica `null`, sin tocar las demás.
  */
 export async function sumViewsPaged(
   fetchPage: (from: number, to: number) => Promise<FetchPageResult>,
@@ -101,7 +105,11 @@ export async function sumViewsPaged(
     }
   }
 
-  return { total, truncated: true }
+  const checkFrom = maxPages * pageSize
+  const { data, error } = await fetchPage(checkFrom, checkFrom)
+  if (error) throw error
+
+  return { total, truncated: (data ?? []).length > 0 }
 }
 
 /**

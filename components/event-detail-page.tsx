@@ -291,6 +291,14 @@ export function EventDetailPage({ event, isAdmin = false, categories = [], isFav
                     disabled={isPendingFeatured}
                   />
                 </div>
+
+                <Link
+                  href={`/admin/reporte/${event.id}`}
+                  prefetch={false}
+                  className="mt-2 flex min-h-11 items-center text-xs text-muted-foreground transition-colors hover:text-foreground"
+                >
+                  Reporte para el organizador
+                </Link>
               </div>
             )}
 

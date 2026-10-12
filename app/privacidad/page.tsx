@@ -3,6 +3,7 @@ import { ShieldCheck } from "lucide-react"
 import { Navbar } from "@/components/navbar"
 import { MobileNav } from "@/components/mobile-nav"
 import { ADS_ENABLED } from "@/lib/config/monetization"
+import { whatsappUrl } from "@/lib/contacto"
 
 export const metadata: Metadata = {
   title: "Política de Privacidad | Qué Pinta Salta",
@@ -12,8 +13,7 @@ export const metadata: Metadata = {
 
 const LAST_UPDATED = "8 de octubre de 2026"
 
-const whatsappNumber = process.env.NEXT_PUBLIC_CONTACT_WHATSAPP || "5493875813233"
-const whatsappUrl = `https://wa.me/${whatsappNumber}?text=Hola!%20Tengo%20una%20consulta%20sobre%20mis%20datos%20en%20Que%20Pinta%20Salta.`
+const contactoWhatsappUrl = whatsappUrl("Hola! Tengo una consulta sobre mis datos en Que Pinta Salta.")
 
 const linkClass = "text-primary underline underline-offset-4 hover:text-primary/80"
 
@@ -177,7 +177,7 @@ export default function PrivacidadPage() {
           <Section title="Contacto">
             <p>
               Para ejercer tus derechos o hacer cualquier consulta sobre esta política, escribinos por{" "}
-              <a href={whatsappUrl} target="_blank" rel="noopener noreferrer" className={linkClass}>
+              <a href={contactoWhatsappUrl} target="_blank" rel="noopener noreferrer" className={linkClass}>
                 WhatsApp
               </a>
               .

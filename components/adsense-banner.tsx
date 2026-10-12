@@ -1,8 +1,11 @@
 "use client"
 
+import Link from "next/link"
 import { useEffect, useRef, useState } from "react"
 import { ExternalLink, Sparkles } from "lucide-react"
 import { ADS_ENABLED, ADSENSE_CLIENT_ID } from "@/lib/config/monetization"
+import { ANUNCIANTES } from "@/lib/config/anunciantes"
+import { TEXTO_ANUNCIAR, whatsappUrl } from "@/lib/contacto"
 
 interface AdSenseBannerProps {
   /** ID numérico del bloque de anuncios en AdSense (p. ej. "1234567890"). */
@@ -39,9 +42,7 @@ function AdSenseSlot({
   // un nombre ("home-middle-banner") el slot nunca se llena.
   const isValidSlot = /^\d+$/.test(slot)
   
-  // Si no está definida la variable de WhatsApp, usamos la por defecto para Salta
-  const whatsappNumber = process.env.NEXT_PUBLIC_CONTACT_WHATSAPP || "5493875813233"
-  const whatsappUrl = `https://wa.me/${whatsappNumber}?text=Hola!%20Me%20interesa%20anunciar%20mi%20negocio%20o%20evento%20en%20Que%20Pinta%20Salta.`
+  const anunciarWhatsappUrl = whatsappUrl(TEXTO_ANUNCIAR)
 
   useEffect(() => {
     setIsClient(true)
@@ -160,15 +161,24 @@ function AdSenseSlot({
           <p className="text-sm text-muted-foreground mb-4 max-w-md">
             Llegá directamente al público que está buscando salidas en Salta Capital. ¡Simple, rápido y efectivo!
           </p>
-          <a
-            href={whatsappUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow-sm transition-all hover:bg-primary/90 hover:scale-[1.02] active:scale-[0.98]"
-          >
-            Contactar por WhatsApp
-            <ExternalLink className="size-4" />
-          </a>
+          {ANUNCIANTES.publicada ? (
+            <Link
+              href="/anunciantes"
+              className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow-sm transition-all hover:bg-primary/90 hover:scale-[1.02] active:scale-[0.98]"
+            >
+              Ver paquetes para anunciantes
+            </Link>
+          ) : (
+            <a
+              href={anunciarWhatsappUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow-sm transition-all hover:bg-primary/90 hover:scale-[1.02] active:scale-[0.98]"
+            >
+              Contactar por WhatsApp
+              <ExternalLink className="size-4" />
+            </a>
+          )}
         </div>
       </div>
     )
