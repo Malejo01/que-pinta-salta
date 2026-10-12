@@ -1,10 +1,23 @@
 import { redirect } from 'next/navigation'
+import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 import { Sparkles } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { getCategories, getVenues } from '@/lib/data'
 import { DraftEventsManager } from '@/components/draft-events-manager'
+import { dateConfirmation, dateConfirmationText, loadFlyersByEvent } from '@/lib/admin/date-confirmation'
 
 export const dynamic = 'force-dynamic'
+
+function getPrivilegedClient() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY
+
+  if (!url || !key) {
+    throw new Error('Faltan variables de entorno de Supabase para operaciones admin (NEXT_PUBLIC_SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY)')
+  }
+
+  return createSupabaseClient(url, key)
+}
 
 export default async function AdminRevisionPage() {
   const supabase = await createClient()
@@ -55,6 +68,34 @@ export default async function AdminRevisionPage() {
     console.error('Error fetching draft events:', eventsError)
   }
 
+  // 4. Confirmación de fecha (QPS-065/073/077): una sola consulta a
+  // instagram_flyers para todos los borradores del pipeline de Instagram-IA,
+  // con el cliente privilegiado (ya validamos el rol admin arriba, como en
+  // la guarda del servidor de lib/admin-actions.ts).
+  const draftEventsList = draftEvents || []
+  const instagramAiIds = draftEventsList
+    .filter((event) => event.scrape_source_key === 'instagram-ai')
+    .map((event) => event.id)
+
+  const adminClient = getPrivilegedClient()
+  const flyersResult = await loadFlyersByEvent(adminClient, instagramAiIds)
+  if ('error' in flyersResult) {
+    console.error('Error fetching instagram_flyers for date confirmation:', flyersResult.error)
+  }
+  // Falla cerrada (igual que lib/admin-actions.ts): si no se pudo leer
+  // instagram_flyers, `null` hace que dateConfirmation exija confirmación en
+  // los borradores que de verdad la necesitan.
+  const flyersByEvent = 'map' in flyersResult ? flyersResult.map : null
+
+  const eventsWithDateCheck = draftEventsList.map((event) => {
+    const flyers = flyersByEvent ? (flyersByEvent.get(event.id) ?? []) : null
+    const result = dateConfirmation(event, flyers)
+    return {
+      ...event,
+      dateCheck: { needed: result.needed, reason: result.reason, text: dateConfirmationText(result) },
+    }
+  })
+
   return (
     <div className="space-y-6">
       {/* Encabezado */}
@@ -74,7 +115,7 @@ export default async function AdminRevisionPage() {
 
       {/* Grid del Administrador de Borradores */}
       <DraftEventsManager
-        initialEvents={draftEvents || []}
+        initialEvents={eventsWithDateCheck}
         categories={categories}
         venues={venues}
         pendingCount={pendingCount || 0}

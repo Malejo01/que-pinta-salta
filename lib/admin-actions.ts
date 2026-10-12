@@ -3,9 +3,10 @@
 import { createClient } from "@/lib/supabase/server"
 import { createClient as createSupabaseClient } from "@supabase/supabase-js"
 import { revalidatePath } from "next/cache"
-import { saltaWallClockToUtcISO, formatSaltaDayKey } from "@/lib/date-format"
+import { saltaWallClockToUtcISO } from "@/lib/date-format"
 import { mergedIntoId } from "@/lib/events/merged"
 import { isVigente } from "@/lib/events/vigencia"
+import { DATE_CONFIRMATION_CODE, DATE_CONFIRMATION_MESSAGE, dateConfirmation, loadFlyersByEvent } from "@/lib/admin/date-confirmation"
 
 function slugifyCategoryName(value: string) {
   return value
@@ -312,19 +313,11 @@ export async function toggleEventFeatured(eventId: string, isFeatured: boolean) 
 }
 
 /**
- * true si hay que exigir `confirm_date` antes de publicar (QPS-065/073): la
- * fecha del borrador salió de la publicación de Instagram, no del flyer.
- *  - `ai_metadata.is_fallback === true` (QPS-068): el pipeline de IA falló y
- *    se usó `published_at` como fecha de respaldo.
- *  - `ai_metadata.date_source === 'published_at'` (QPS-073): la IA no
- *    extrajo una fecha válida del flyer y se usó `published_at`.
- *  - Borrador viejo (de antes de QPS-073, sin `date_source` en su
- *    `ai_metadata`): si viene del pipeline de Instagram
- *    (`scrape_source_key === 'instagram-ai'`) y su flyer de origen
- *    (`instagram_flyers` con `ai_metadata->>event_id = id`) tiene
- *    `published_at` en el mismo día de Salta que `start_date` (o, si el
- *    pipeline guardó el instante exacto, el mismo instante), asumimos que la
- *    fecha también salió del posteo.
+ * true si hay que exigir `confirm_date` antes de publicar (QPS-065/073/077):
+ * la fecha del borrador salió de la publicación de Instagram, no del flyer.
+ * La lógica vive en `lib/admin/date-confirmation.ts` (`dateConfirmation`),
+ * compartida con `app/admin/revision/page.tsx`; acá solo se resuelve el
+ * flyer de este evento con `loadFlyersByEvent`.
  */
 async function needsDateConfirmation(
   row: { id?: unknown; ai_metadata?: unknown; scrape_source_key?: unknown; start_date?: unknown } | null | undefined,
@@ -335,41 +328,26 @@ async function needsDateConfirmation(
     ? (meta as Record<string, unknown>)
     : null
 
-  if (metaObj?.is_fallback === true) return true
-  if (metaObj?.date_source === 'published_at') return true
-
-  // Ya tiene date_source (y no es 'published_at'): salió del flyer, confirmada.
-  if (metaObj && 'date_source' in metaObj) return false
-
-  // Borrador viejo: solo lo revisamos si viene del pipeline de Instagram-IA.
-  if (row?.scrape_source_key !== 'instagram-ai') return false
-
-  const eventId = typeof row?.id === 'string' ? row.id : null
-  const startDate = typeof row?.start_date === 'string' ? row.start_date : null
-  if (!eventId || !startDate) return false
-
-  // La deduplicación (lib/scraper/dedup-cleanup.ts, repointInstagramFlyers)
-  // puede fusionar varios posteos en el mismo evento: puede haber más de un
-  // flyer con el mismo ai_metadata->>event_id. Revisamos todos, no solo el
-  // primero que devuelva Postgres.
-  const { data: flyers, error: flyersError } = await adminClient
-    .from('instagram_flyers')
-    .select('published_at')
-    .eq('ai_metadata->>event_id', eventId)
-
-  // Falla cerrada: si no pudimos leer el flyer de origen (timeout, RLS,
-  // esquema), no hay otra señal de si la fecha es confiable, así que exigimos
-  // confirmación en vez de dejar publicar.
-  if (flyersError) {
-    console.error('[needsDateConfirmation] fallo leyendo instagram_flyers:', flyersError.message)
-    return true
+  // Casos en los que `dateConfirmation` no necesita los flyers para decidir
+  // (ya está resuelto por los metadatos, o ni siquiera viene del pipeline de
+  // Instagram-IA): no consultamos la base de más.
+  if (metaObj?.is_fallback === true || 'date_source' in (metaObj ?? {}) || row?.scrape_source_key !== 'instagram-ai') {
+    return dateConfirmation(row, []).needed
   }
 
-  return (flyers ?? []).some((flyer) => {
-    const publishedAt = flyer?.published_at as string | undefined
-    if (!publishedAt) return false
-    return publishedAt === startDate || formatSaltaDayKey(publishedAt) === formatSaltaDayKey(startDate)
-  })
+  const eventId = typeof row?.id === 'string' ? row.id : null
+  if (!eventId) return dateConfirmation(row, []).needed
+
+  const result = await loadFlyersByEvent(adminClient, [eventId])
+  if ('error' in result) {
+    // Falla cerrada: si no pudimos leer los flyers de origen (timeout, RLS,
+    // esquema), no hay otra señal de si la fecha es confiable, así que
+    // exigimos confirmación en vez de dejar publicar.
+    console.error('[needsDateConfirmation] fallo leyendo instagram_flyers:', result.error)
+    return dateConfirmation(row, null).needed
+  }
+
+  return dateConfirmation(row, result.map.get(eventId) ?? []).needed
 }
 
 export async function publishDraftEvent(eventId: string, eventData: any) {
@@ -411,20 +389,30 @@ export async function publishDraftEvent(eventId: string, eventData: any) {
     return { error: 'Este evento fue fusionado en otro; no se publica' }
   }
 
-  // Guarda 4 (QPS-065/073): si la fecha vino de la publicación de Instagram
-  // (post sin fecha en el flyer, fallback del pipeline o borrador viejo),
-  // hace falta confirmación explícita del admin.
-  // OJO: este literal está acoplado a DATE_CONFIRM_ERROR en
-  // components/draft-events-manager.tsx (mismo string exacto); si cambia
-  // uno, cambia el otro o el checkbox de confirmación deja de aparecer.
-  if (await needsDateConfirmation(currentEvent, adminClient) && eventData?.confirm_date !== true) {
-    return { error: 'Confirmá la fecha: salió de la publicación, no del flyer' }
-  }
-
   // Guarda 3 (QPS-065): hora de pared de Salta, sin zona. Si el cliente no
   // manda hora, el valor es la fecha sola y queda en 00:00 de Salta (nunca
-  // 20:00 por defecto): lo resuelve saltaWallClockToUtcISO.
+  // 20:00 por defecto): lo resuelve saltaWallClockToUtcISO. Se calcula antes
+  // de la guarda 4 porque esta también la necesita.
   const startDateIso = saltaWallClockToUtcISO(eventData.start_date)
+
+  // Guarda 4 (QPS-065/073/077): si la fecha vino de la publicación de
+  // Instagram (post sin fecha en el flyer, fallback del pipeline o borrador
+  // viejo), hace falta confirmación explícita del admin: o tildó
+  // `confirm_date`, o directamente cambió la fecha/hora del formulario
+  // respecto de la que tenía el borrador en la base (mismo criterio que
+  // `isDateConfirmed` en components/draft-events-manager.tsx).
+  const currentStartDate = typeof currentEvent.start_date === 'string' ? currentEvent.start_date : null
+  const formInstant = new Date(startDateIso).getTime()
+  const currentInstant = currentStartDate ? new Date(currentStartDate).getTime() : NaN
+  const dateWasChanged = !Number.isNaN(formInstant) && !Number.isNaN(currentInstant) && formInstant !== currentInstant
+
+  if (
+    (await needsDateConfirmation(currentEvent, adminClient)) &&
+    eventData?.confirm_date !== true &&
+    !dateWasChanged
+  ) {
+    return { error: DATE_CONFIRMATION_MESSAGE, code: DATE_CONFIRMATION_CODE }
+  }
 
   // Guarda 5 (QPS-060): no se publica un evento cuyo fin estimado ya pasó.
   if (!isVigente({ start_date: startDateIso, end_date: currentEvent.end_date ?? null })) {
