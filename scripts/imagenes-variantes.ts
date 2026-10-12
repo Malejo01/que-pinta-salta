@@ -1,22 +1,36 @@
 /**
- * Backfill de variantes WebP (400/800px) para los flyers de Instagram que ya
- * están subidos sin ellas (QPS-004 §5). Escribe en el Storage de producción:
- * lo corre Mauro de día. Correrlo antes de mergear la Ronda 12.
+ * Dos modos, ambos escriben en el Storage de producción: los corre Mauro de
+ * día, siempre primero en conteo (sin `--apply`).
  *
- *   npx tsx scripts/imagenes-variantes.ts                    # dry-run, todo el bucket
- *   npx tsx scripts/imagenes-variantes.ts --apply --limit 20 # aplica, sólo 20 originales
- *   npx tsx scripts/imagenes-variantes.ts --apply            # aplica, todo lo que falte
+ * 1. Backfill (por defecto): genera las variantes WebP (400/800px) que le
+ *    faltan a los flyers de Instagram ya subidos (QPS-004 §5).
  *
- * Por defecto es dry-run: no descarga ni sube nada, sólo cuenta. `--apply`
- * escribe; `--limit N` lo acota a N originales; `--cuenta usuario` lo acota
- * a una sola cuenta (carpeta del bucket).
+ *      npx tsx scripts/imagenes-variantes.ts                    # dry-run, todo el bucket
+ *      npx tsx scripts/imagenes-variantes.ts --apply --limit 20 # aplica, sólo 20 originales
+ *      npx tsx scripts/imagenes-variantes.ts --apply            # aplica, todo lo que falte
+ *
+ * 2. `--recache`: no genera nada nuevo. Vuelve a subir (con `upsert`) cada
+ *    original `.jpg` y cada variante `.w400.webp`/`.w800.webp` que ya está
+ *    en el bucket —incluida `externas/`— sólo para fijarle el
+ *    `Cache-Control` de un año (Ronda 18; antes, el original se subía sin
+ *    `cacheControl` y quedaba en 1h). Si el listado de Storage expone el
+ *    `cacheControl` actual, saltea lo que ya tiene el año puesto.
+ *
+ *      npx tsx scripts/imagenes-variantes.ts --recache                    # dry-run, todo el bucket
+ *      npx tsx scripts/imagenes-variantes.ts --recache --apply --limit 20 # aplica, sólo 20 objetos
+ *      npx tsx scripts/imagenes-variantes.ts --recache --apply            # aplica, todo lo pendiente
+ *
+ * En ambos modos: por defecto es dry-run (no descarga ni sube nada, sólo
+ * cuenta); `--apply` escribe; `--limit N` acota la corrida; `--cuenta
+ * usuario` la acota a una sola carpeta del bucket (una cuenta, o
+ * `externas`).
  */
 
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { createClient } from '@supabase/supabase-js'
 import { INSTAGRAM_ENGINE_CONFIG } from '../lib/instagram-config'
-import { runBackfill, type BackfillStorageClient } from '../lib/images/backfill'
+import { runBackfill, runRecache, type BackfillStorageClient } from '../lib/images/backfill'
 
 /**
  * Carga .env.local sin dependencias, igual que scripts/dedup-events.ts. Sólo
@@ -63,6 +77,7 @@ function getOption(name: string): string | undefined {
 async function main() {
   console.log('[imagenes-variantes] DRY-RUN por defecto: sin --apply no se escribe nada en Storage.')
 
+  const recache = getFlag('recache')
   loadEnvLocal()
 
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -96,6 +111,36 @@ async function main() {
       return { data, error }
     },
     upload: (path, body, options) => client.upload(path, body, options),
+  }
+
+  if (recache) {
+    const result = await runRecache({
+      storage,
+      bucket,
+      apply,
+      limit,
+      cuenta,
+      log: (message) => console.log(message),
+    })
+
+    console.log(
+      `[imagenes-variantes] recache: objetos=${result.objetos} ya-cacheados=${result.yaCacheados} ` +
+        `a-recachear=${result.aRecachear} recacheados=${result.recacheados} fallidos=${result.fallidos} ` +
+        `truncados=${result.truncados} bytes=${result.bytes}`
+    )
+
+    if (!result.metadataCacheControlDisponible) {
+      console.log(
+        '[imagenes-variantes] El listado de Storage no devolvió cache-control en la metadata: ' +
+          'no se pudo confirmar cuáles ya estaban al día, se trataron todos como pendientes.'
+      )
+    }
+
+    if (!apply) {
+      console.log('[imagenes-variantes] DRY-RUN: no se escribió nada. Agregá --apply para aplicar.')
+    }
+
+    process.exit(result.fallidos > 0 ? 1 : 0)
   }
 
   const result = await runBackfill({

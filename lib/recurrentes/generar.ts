@@ -1,6 +1,8 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { resolveVenueId } from '../venues/resolve'
 import { upsertEventWithDeduplication } from '../scraper/deduplicate'
+import { INSTAGRAM_ENGINE_CONFIG } from '../instagram-config'
+import { copyExternalImage, isOwnStorageUrl } from '../images/external'
 import {
   CATEGORIA_MUSEOS,
   CATEGORIA_PENAS,
@@ -79,6 +81,16 @@ async function generarItem(supabase: SupabaseClient, r: Recurrente, ahora: Date)
         .order('start_date', { ascending: false }).limit(1).maybeSingle()
       if (error) throw new Error(`Imagen: ${error.message}`)
       imagenPena = (conImagen?.image_url as string | null) ?? null
+
+      // La imagen se reusa tal cual en cada fecha nueva (ver filaPena): si es
+      // externa, se copia a Storage una sola vez acá, no una vez por fecha.
+      if (imagenPena && !isOwnStorageUrl(imagenPena)) {
+        const storageUrl = await copyExternalImage(
+          imagenPena,
+          supabase.storage.from(INSTAGRAM_ENGINE_CONFIG.STORAGE_BUCKET)
+        )
+        if (storageUrl) imagenPena = storageUrl
+      }
     } else {
       // Museos: plantilla completa, la fila más reciente de ese venue y título.
       const { data, error } = await supabase
@@ -88,6 +100,18 @@ async function generarItem(supabase: SupabaseClient, r: Recurrente, ahora: Date)
       if (error) throw new Error(`Plantilla: ${error.message}`)
       if (!data) throw new Error(`Sin fila previa para "${r.titulo}": no se puede replicar el patrón`)
       plantilla = data as Fila
+
+      // La imagen de la plantilla se reusa tal cual en cada fecha nueva (ver
+      // filaMuseo): si es externa, se copia a Storage una sola vez acá, no
+      // una vez por fecha (mismo criterio que las peñas, arriba).
+      const imagenPlantilla = plantilla.image_url as string | null
+      if (imagenPlantilla && !isOwnStorageUrl(imagenPlantilla)) {
+        const storageUrl = await copyExternalImage(
+          imagenPlantilla,
+          supabase.storage.from(INSTAGRAM_ENGINE_CONFIG.STORAGE_BUCKET)
+        )
+        if (storageUrl) plantilla.image_url = storageUrl
+      }
     }
 
     // Días que ya existen (futuros) para ese venue y título.

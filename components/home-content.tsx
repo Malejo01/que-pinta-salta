@@ -3,6 +3,7 @@
 import { useMemo, useState, useEffect } from "react"
 import { useSearchParams, useRouter } from "next/navigation"
 import Image from "next/image"
+import dynamic from "next/dynamic"
 import type { Category, CinemaMovie } from "@/lib/types"
 import type { FlyerWithAccount } from "@/lib/instagram-config"
 import { Navbar } from "@/components/navbar"
@@ -11,7 +12,6 @@ import { HeroCarousel } from "@/components/hero-carousel"
 import { FiltersBar, DateFilter } from "@/components/filters-bar"
 import { CategoryRow } from "@/components/category-row"
 import { EventCard } from "@/components/event-card"
-import { MovieModal } from "@/components/movie-modal"
 import Link from "next/link"
 import { motion, AnimatePresence } from "framer-motion"
 import { Button } from "@/components/ui/button"
@@ -21,9 +21,18 @@ import type { DisplayEvent, EventWithRelations } from "@/lib/home/types"
 import { buildDisplayData } from "@/lib/home/transform"
 import { sortCategories, selectCarouselEvents } from "@/lib/home/carousel"
 import { filterEvents, groupByCategory, selectTodayRow } from "@/lib/home/filters"
+import { nextHomeUrl, shouldReplaceUrl } from "@/lib/home/url-sync"
 
 export type { DisplayEvent } from "@/lib/home/types"
 export { transformEvent } from "@/lib/home/transform"
+
+// El modal de cine (Dialog de Radix) no se ve en la primera carga: solo se
+// monta cuando `selectedMovie` deja de ser `null` (click en una película).
+// `ssr: false` porque nunca hace falta en el primer render del servidor.
+const MovieModal = dynamic(
+  () => import("@/components/movie-modal").then((mod) => mod.MovieModal),
+  { ssr: false }
+)
 
 interface HomeContentProps {
   events: EventWithRelations[]
@@ -61,20 +70,20 @@ export function HomeContent({
 
   // Efecto para sincronizar silenciosamente el estado de los filtros con la URL del navegador
   useEffect(() => {
-    const params = new URLSearchParams()
-    if (search) params.set("search", search)
-    if (date) params.set("date", date)
-    if (category) params.set("category", category)
-    if (establishment) params.set("establishment", establishment)
-    if (location) params.set("location", location)
-    if (dateExact) params.set("dateExact", dateExact)
-    if (!instagram) params.set("instagram", "false")
+    const nextUrl = nextHomeUrl({ search, date, category, establishment, location, dateExact, instagram })
+    const currentUrl = window.location.pathname + window.location.search
 
-    const nextQuery = params.toString()
-    const nextUrl = nextQuery ? `/?${nextQuery}` : "/"
+    // Si la URL actual ya es la que corresponde (pasa en el primer montaje), no tocar el
+    // historial: `replaceState(null, ...)` pisaría el `state` que Next.js le puso a esta
+    // entrada antes de que su propio parche de `history.replaceState` esté activo (los
+    // efectos del hijo corren antes que los del padre `AppRouter`). Eso dejaba la entrada
+    // `/` con `state = null` y rompía el `popstate` al volver atrás desde un modal.
+    // Ver ops/rondas/18-imagenes-rendimiento/repro-18f.md (tarea 18-f).
+    if (!shouldReplaceUrl(currentUrl, nextUrl)) return
 
-    // Actualizar la URL de forma shallow (silenciosa), sin recargar componentes del servidor ni relanzar peticiones
-    window.history.replaceState(null, "", nextUrl)
+    // Actualizar la URL de forma shallow (silenciosa), sin recargar componentes del servidor
+    // ni relanzar peticiones, conservando el estado que Next.js ya le haya puesto.
+    window.history.replaceState(window.history.state, "", nextUrl)
   }, [search, date, category, establishment, location, dateExact, instagram])
 
   // Sincronizar el estado local cuando cambian los query parameters en la URL (por ejemplo, al hacer click en el logo o navegar atrás/adelante)
@@ -183,7 +192,7 @@ export function HomeContent({
     : "Resultados filtrados"
 
   return (
-    <div className="min-h-screen bg-background pb-20 sm:pb-0">
+    <div className="min-h-screen bg-background pb-page sm:pb-0">
       <Navbar />
 
       <main>

@@ -1,6 +1,8 @@
 import { createAdminClient } from '@/lib/supabase/server';
 import { MovieShowings } from '@/lib/types';
 import * as cheerio from 'cheerio';
+import { INSTAGRAM_ENGINE_CONFIG } from '@/lib/instagram-config';
+import { copyExternalImage, isOwnStorageUrl } from '@/lib/images/external';
 
 /**
  * Generates a clean URL-friendly slug from a raw movie title
@@ -310,7 +312,8 @@ async function isPosterUrlValid(url: string): Promise<boolean> {
  */
 export async function runCinemaScrapeAndSync() {
   const supabase = createAdminClient();
-  
+  const storageClient = supabase.storage.from(INSTAGRAM_ENGINE_CONFIG.STORAGE_BUCKET);
+
   // Calcular la fecha de hoy en Salta (UTC-3)
   const now = new Date();
   const saltaTime = new Date(now.toLocaleString("en-US", { timeZone: "America/Argentina/Salta" }));
@@ -434,68 +437,87 @@ export async function runCinemaScrapeAndSync() {
   let updatedCount = 0;
 
   for (const slug of scrapedSlugs) {
-    const movieData = consolidatedMovies[slug];
-    
-    // Verificar existencia previa
-    const { data: existingMovie, error: fetchError } = await supabase
-      .from('cinema_movies')
-      .select('id, poster_url, showings')
-      .eq('slug', slug)
-      .maybeSingle();
+    try {
+      const movieData = consolidatedMovies[slug];
 
-    if (fetchError) {
-      console.error(`[cinema-scraper] Error consultando slug ${slug}:`, fetchError);
-      continue;
-    }
-
-    // Validar poster_url obtenida
-    let finalPosterUrl = movieData.poster_url;
-    const isValidNew = await isPosterUrlValid(finalPosterUrl);
-
-    if (!isValidNew) {
-      // Si la nueva URL da 404 o es inválida, verificar si existía una imagen previa en DB que sea válida
-      if (existingMovie?.poster_url && await isPosterUrlValid(existingMovie.poster_url)) {
-        finalPosterUrl = existingMovie.poster_url;
-      } else {
-        finalPosterUrl = '';
-      }
-    }
-
-    if (existingMovie) {
-      // Actualizar película existente
-      const { error: updateError } = await supabase
+      // Verificar existencia previa
+      const { data: existingMovie, error: fetchError } = await supabase
         .from('cinema_movies')
-        .update({
-          title: movieData.title,
-          poster_url: finalPosterUrl,
-          is_currently_showing: true,
-          showings: movieData.showings,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', existingMovie.id);
+        .select('id, poster_url, showings')
+        .eq('slug', slug)
+        .maybeSingle();
 
-      if (updateError) {
-        console.error(`[cinema-scraper] Error actualizando película ${slug}:`, updateError);
-      } else {
-        updatedCount++;
+      if (fetchError) {
+        console.error(`[cinema-scraper] Error consultando slug ${slug}:`, fetchError);
+        continue;
       }
-    } else {
-      // Insertar nueva película
-      const { error: insertError } = await supabase
-        .from('cinema_movies')
-        .insert({
-          slug,
-          title: movieData.title,
-          poster_url: finalPosterUrl,
-          is_currently_showing: true,
-          showings: movieData.showings
-        });
 
-      if (insertError) {
-        console.error(`[cinema-scraper] Error insertando película ${slug}:`, insertError);
-      } else {
-        insertedCount++;
+      // Validar poster_url obtenida
+      let finalPosterUrl = movieData.poster_url;
+      const isValidNew = await isPosterUrlValid(finalPosterUrl);
+
+      if (!isValidNew) {
+        // Si la nueva URL da 404 o es inválida, verificar si existía una imagen previa en DB que sea válida
+        if (existingMovie?.poster_url && await isPosterUrlValid(existingMovie.poster_url)) {
+          finalPosterUrl = existingMovie.poster_url;
+        } else {
+          finalPosterUrl = '';
+        }
       }
+
+      // Copiar el afiche a Storage (Ronda 18-b): hoy se sirve en tamaño
+      // completo desde el sitio del cine. Si ya es una URL de nuestro Storage
+      // (de una corrida anterior), no se vuelve a copiar. Si la copia falla,
+      // se guarda la URL original (como hoy).
+      if (finalPosterUrl && !isOwnStorageUrl(finalPosterUrl)) {
+        const storageUrl = await copyExternalImage(finalPosterUrl, storageClient);
+        if (storageUrl) {
+          finalPosterUrl = storageUrl;
+        }
+      }
+
+      if (existingMovie) {
+        // Actualizar película existente
+        const { error: updateError } = await supabase
+          .from('cinema_movies')
+          .update({
+            title: movieData.title,
+            poster_url: finalPosterUrl,
+            is_currently_showing: true,
+            showings: movieData.showings,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', existingMovie.id);
+
+        if (updateError) {
+          console.error(`[cinema-scraper] Error actualizando película ${slug}:`, updateError);
+        } else {
+          updatedCount++;
+        }
+      } else {
+        // Insertar nueva película
+        const { error: insertError } = await supabase
+          .from('cinema_movies')
+          .insert({
+            slug,
+            title: movieData.title,
+            poster_url: finalPosterUrl,
+            is_currently_showing: true,
+            showings: movieData.showings
+          });
+
+        if (insertError) {
+          console.error(`[cinema-scraper] Error insertando película ${slug}:`, insertError);
+        } else {
+          insertedCount++;
+        }
+      }
+    } catch (err) {
+      // Simetría con save-to-supabase.ts y lib/recurrentes/generar.ts: una
+      // falla al procesar una película (p. ej. storage.list() tirando dentro
+      // de copyExternalImage) no debe tumbar la corrida entera, sólo esa
+      // película se salta y sigue la siguiente.
+      console.error(`[cinema-scraper] Error procesando película ${slug}:`, err);
     }
   }
 

@@ -158,7 +158,7 @@ export function EventDetailPage({ event, isAdmin = false, categories = [], isFav
   }
 
   return (
-    <div className="min-h-screen bg-background pb-20 sm:pb-0">
+    <div className="min-h-screen bg-background pb-page sm:pb-0">
       <ViewBeacon eventId={event.id} origin={origin} />
       <Navbar />
       

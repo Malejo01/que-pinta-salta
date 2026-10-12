@@ -18,6 +18,16 @@ export const VARIANT_WIDTHS = [400, 800] as const
 
 export type VariantWidth = (typeof VARIANT_WIDTHS)[number]
 
+/**
+ * `Cache-Control` (en segundos, como string: así lo espera `FileOptions` del
+ * cliente de Storage) que se usa en **todo** `upload()` de imágenes de este
+ * motor: originales de Instagram y sus variantes WebP. Un año: los flyers
+ * son inmutables una vez subidos (la ingesta nunca pisa un `ig_post_id` ya
+ * existente, y una variante generada no cambia), así que cachear agresivo no
+ * arriesga servir una versión vieja y ahorra lecturas de Storage/CDN.
+ */
+export const STORAGE_CACHE_CONTROL = '31536000'
+
 const JPG_EXTENSION = /\.jpg$/i
 
 /**

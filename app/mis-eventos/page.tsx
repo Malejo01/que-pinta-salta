@@ -27,7 +27,7 @@ export default async function MisEventosPage() {
   if (error) {
     console.error("Error fetching user events:", error)
     return (
-      <div className="min-h-screen bg-background pb-20 sm:pb-0">
+      <div className="min-h-screen bg-background pb-page sm:pb-0">
         <Navbar />
         <div className="container mx-auto py-10 px-4">
           <h1 className="text-2xl font-bold mb-4">Mis Eventos</h1>
@@ -39,7 +39,7 @@ export default async function MisEventosPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background pb-20 sm:pb-0">
+    <div className="min-h-screen bg-background pb-page sm:pb-0">
       <Navbar />
       <div className="container mx-auto py-10 px-4">
         <div className="flex justify-between items-center mb-6">

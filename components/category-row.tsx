@@ -81,7 +81,9 @@ export function CategoryRow({
           <Button
             variant="ghost"
             size="icon"
-            className="absolute -left-2 top-1/2 z-10 hidden size-10 -translate-y-1/2 rounded-full bg-background/80 shadow-lg backdrop-blur transition-opacity hover:bg-background group-hover:flex"
+            /* Área de toque de 44x44 sin agrandar el círculo de 40px: pseudo-elemento
+               invisible con la técnica de la Ronda 12 (after:absolute after:-inset-…). */
+            className="absolute -left-2 top-1/2 z-10 hidden size-10 -translate-y-1/2 rounded-full bg-background/80 shadow-lg backdrop-blur transition-opacity after:absolute after:-inset-0.5 hover:bg-background group-hover:flex"
             onClick={() => scroll("left")}
             aria-label="Desplazar hacia la izquierda"
           >
@@ -113,7 +115,8 @@ export function CategoryRow({
           <Button
             variant="ghost"
             size="icon"
-            className="absolute -right-2 top-1/2 z-10 hidden size-10 -translate-y-1/2 rounded-full bg-background/80 shadow-lg backdrop-blur transition-opacity hover:bg-background group-hover:flex"
+            /* Misma técnica que la flecha izquierda: área de toque de 44x44 sin tocar el dibujo. */
+            className="absolute -right-2 top-1/2 z-10 hidden size-10 -translate-y-1/2 rounded-full bg-background/80 shadow-lg backdrop-blur transition-opacity after:absolute after:-inset-0.5 hover:bg-background group-hover:flex"
             onClick={() => scroll("right")}
             aria-label="Desplazar hacia la derecha"
           >

@@ -12,6 +12,17 @@ vi.mock('@/lib/scraper/deduplicate', () => ({
   upsertEventWithDeduplication: (...args: unknown[]) => upsert(...args),
 }))
 
+// Mismo patrón que tests/scraper/imagen-storage.test.ts: se mockea el módulo
+// entero y `isOwnStorageUrl` se reimplementa con el mismo prefijo de URL
+// pública de Storage, para poder distinguir "ya es nuestra" de "es del
+// tercero" sin depender de la implementación real (que hace red).
+const copyExternalImage = vi.fn()
+const STORAGE_PREFIX = '/storage/v1/object/public/flyers_ig/'
+vi.mock('@/lib/images/external', () => ({
+  copyExternalImage: (...args: unknown[]) => copyExternalImage(...args),
+  isOwnStorageUrl: (url: string | null | undefined) => Boolean(url && url.includes(STORAGE_PREFIX)),
+}))
+
 import { generarRecurrentes } from '@/lib/recurrentes/generar'
 import { MUSEOS, PENAS } from '@/lib/recurrentes/config'
 
@@ -54,12 +65,18 @@ class FakeQuery implements PromiseLike<Resultado> {
   }
 }
 
+// Objeto marcador cualquiera: lo único que importa es que llegue tal cual
+// como segundo argumento a `copyExternalImage` (mockeado arriba), nunca se
+// usa de verdad (mismo patrón que tests/scraper/imagen-storage.test.ts).
+const FAKE_STORAGE_CLIENT = { marca: 'storage-de-prueba' }
+
 let store: Row[]
 const fakeSupabase = {
   from(table: string) {
     if (table !== 'events') throw new Error(`tabla inesperada: ${table}`)
     return new FakeQuery(store)
   },
+  storage: { from: () => FAKE_STORAGE_CLIENT },
 } as unknown as SupabaseClient
 
 // --- Fixtures ---------------------------------------------------------------
@@ -71,6 +88,13 @@ const VENUE_IDS: Record<string, string> = {
 }
 for (const m of MUSEOS) VENUE_IDS[m.venue] = `${m.venueIdPrefijo}-0000-0000-0000-000000000000`
 
+// URL del tercero en la plantilla, y a la que resuelve la copia por defecto
+// (QPS-088): la mayoría de los tests no mira `image_url`, así que una copia
+// "exitosa" por defecto no les cambia nada; los tests de esta decisión pisan
+// el mock puntualmente.
+const URL_MUSEO_EXTERNA = 'https://imagenes.test/museo.jpg'
+const URL_MUSEO_STORAGE = 'https://proyecto.test/storage/v1/object/public/flyers_ig/externas/museo-copiada.webp'
+
 function plantillaMuseo(m: (typeof MUSEOS)[number]): Row {
   return {
     venue_id: VENUE_IDS[m.venue],
@@ -79,7 +103,7 @@ function plantillaMuseo(m: (typeof MUSEOS)[number]): Row {
     start_date: '2026-10-01T13:00:00.000Z', // pasada: no cuenta como "ya cargada"
     description: 'Descripción de Prueba',
     short_description: 'Resumen de Prueba',
-    image_url: 'https://imagenes.test/museo.jpg',
+    image_url: URL_MUSEO_EXTERNA,
     price_min: 500,
     price_max: null,
     is_free: false,
@@ -95,6 +119,8 @@ function plantillaMuseo(m: (typeof MUSEOS)[number]): Row {
 beforeEach(() => {
   resolveVenueId.mockReset()
   upsert.mockReset()
+  copyExternalImage.mockReset()
+  copyExternalImage.mockResolvedValue(URL_MUSEO_STORAGE)
   resolveVenueId.mockImplementation(async (_s: unknown, name: string) => VENUE_IDS[name] ?? null)
   // Dedup falsa: inserta en el store; si ya hay fila con mismo venue+título+start_date, 'update'.
   upsert.mockImplementation(async (fila: Row) => {
@@ -257,5 +283,56 @@ describe('generarRecurrentes', () => {
     expect(dias).not.toContain('2026-11-08')
     expect(dias).toContain('2026-11-09')
     expect(res.conError).toBe(0)
+  })
+
+  // --- QPS-088: afiches de museos a Storage con el pipeline de externas ---
+
+  it('imagen de museo externa: las filas nuevas llevan la URL de Storage', async () => {
+    copyExternalImage.mockResolvedValue(URL_MUSEO_STORAGE)
+    const res = await generarRecurrentes(fakeSupabase, { ahora: AHORA })
+    expect(res.conError).toBe(0)
+    expect(copyExternalImage).toHaveBeenCalledWith(URL_MUSEO_EXTERNA, FAKE_STORAGE_CLIENT)
+    const filasNuevas = store.filter(
+      (r) => r.title === MUSEOS[0].titulo && (r.start_date as string) > AHORA.toISOString(),
+    )
+    expect(filasNuevas.length).toBeGreaterThan(0)
+    for (const fila of filasNuevas) expect(fila.image_url).toBe(URL_MUSEO_STORAGE)
+  })
+
+  it('imagen de museo ya propia: no se copia', async () => {
+    const urlPropia = `https://proyecto.test${STORAGE_PREFIX}externas/ya-copiada.jpg`
+    for (const r of store) if (r.title === MUSEOS[0].titulo) r.image_url = urlPropia
+    const res = await generarRecurrentes(fakeSupabase, { ahora: AHORA })
+    expect(res.conError).toBe(0)
+    expect(copyExternalImage).not.toHaveBeenCalledWith(urlPropia, expect.anything())
+    const filasNuevas = store.filter(
+      (r) => r.title === MUSEOS[0].titulo && (r.start_date as string) > AHORA.toISOString(),
+    )
+    expect(filasNuevas.length).toBeGreaterThan(0)
+    for (const fila of filasNuevas) expect(fila.image_url).toBe(urlPropia)
+  })
+
+  it('la copia de la imagen de museo falla: queda la URL del tercero y la corrida sigue', async () => {
+    copyExternalImage.mockResolvedValue(null)
+    const res = await generarRecurrentes(fakeSupabase, { ahora: AHORA })
+    expect(res.conError).toBe(0)
+    const item = porTitulo(res, MUSEOS[0].titulo)
+    expect(item.insertadas).toBeGreaterThan(0)
+    const filasNuevas = store.filter(
+      (r) => r.title === MUSEOS[0].titulo && (r.start_date as string) > AHORA.toISOString(),
+    )
+    for (const fila of filasNuevas) expect(fila.image_url).toBe(URL_MUSEO_EXTERNA)
+  })
+
+  it('dos fechas del mismo museo: una sola copia', async () => {
+    const res = await generarRecurrentes(fakeSupabase, { ahora: AHORA })
+    const item = porTitulo(res, MUSEOS[0].titulo)
+    expect(item.insertadas).toBeGreaterThan(1) // más de una fecha nueva para ese museo
+    // Los 6 museos de la fixture comparten la misma URL externa: si la copia
+    // fuera por fecha, habría tantas llamadas como filas nuevas (36); al ser
+    // una por museo y corrida, son exactamente MUSEOS.length.
+    const totalFilasMuseos = MUSEOS.reduce((s, m) => s + porTitulo(res, m.titulo).insertadas, 0)
+    expect(totalFilasMuseos).toBeGreaterThan(MUSEOS.length)
+    expect(copyExternalImage).toHaveBeenCalledTimes(MUSEOS.length)
   })
 })

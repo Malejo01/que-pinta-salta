@@ -124,4 +124,29 @@
   body {
     @apply bg-background text-foreground;
   }
+
+  /*
+   * QPS-079: reemplaza el `pb-20` fijo de los contenedores de página en
+   * celular. Suma al alto de la barra inferior (5rem) el área segura y,
+   * cuando el aviso de cookies está abierto, su alto medido (variable que
+   * pone `components/consent-banner.tsx`; 0px si no está). Va en
+   * `@layer base` a propósito: cualquier utilidad de Tailwind con más
+   * prioridad de capa (por ejemplo el `sm:pb-0` que ya tienen varios
+   * contenedores) sigue pudiendo pisarlo en escritorio sin tocar esta
+   * clase.
+   */
+  .pb-page {
+    padding-bottom: calc(5rem + env(safe-area-inset-bottom) + var(--consent-banner-h, 0px));
+    transition: padding-bottom 300ms ease-out;
+  }
+
+  /*
+   * QPS-094: quien pidió menos movimiento ve el salto de `.pb-page` como
+   * hasta hoy, sin la transición suave de arriba.
+   */
+  @media (prefers-reduced-motion: reduce) {
+    .pb-page {
+      transition: none;
+    }
+  }
 }

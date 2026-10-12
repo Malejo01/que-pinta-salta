@@ -33,7 +33,7 @@ export default async function CinesPage() {
   const activeMovies = movies || []
 
   return (
-    <main className="min-h-screen bg-background text-foreground pb-20 relative overflow-hidden">
+    <main className="min-h-screen bg-background text-foreground pb-page relative overflow-hidden">
       {/* Luces de fondo decorativas (Aesthetics) */}
       <div className="absolute top-[-10%] left-[-20%] w-[600px] h-[600px] rounded-full bg-primary/5 blur-[120px] pointer-events-none" />
       <div className="absolute top-[30%] right-[-25%] w-[500px] h-[500px] rounded-full bg-primary/5 blur-[100px] pointer-events-none" />

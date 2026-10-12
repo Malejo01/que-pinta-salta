@@ -154,9 +154,9 @@ function AdSenseSlot({
             <Sparkles className="size-3" />
             Anunciá en Qué Pinta Salta
           </div>
-          <h4 className="text-lg font-bold text-foreground mb-1">
+          <p className="text-lg font-bold text-foreground mb-1">
             ¿Querés destacar tu evento o promocionar tu marca acá?
-          </h4>
+          </p>
           <p className="text-sm text-muted-foreground mb-4 max-w-md">
             Llegá directamente al público que está buscando salidas en Salta Capital. ¡Simple, rápido y efectivo!
           </p>

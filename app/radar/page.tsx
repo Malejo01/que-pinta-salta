@@ -33,7 +33,7 @@ export default async function RadarPage() {
   const isAdmin = profileRes.data?.role === "ADMIN"
 
   return (
-    <div className="min-h-screen bg-background pb-20 sm:pb-0 relative overflow-hidden">
+    <div className="min-h-screen bg-background pb-page sm:pb-0 relative overflow-hidden">
       {/* Elementos estéticos de fondo (Luces decorativas) */}
       <div className="absolute top-[-5%] left-[-15%] w-[500px] h-[500px] rounded-full bg-primary/5 blur-[120px] pointer-events-none" />
       <div className="absolute bottom-[10%] right-[-15%] w-[450px] h-[450px] rounded-full bg-primary/5 blur-[100px] pointer-events-none" />

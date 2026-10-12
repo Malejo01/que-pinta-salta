@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { INSTAGRAM_ENGINE_CONFIG } from '@/lib/instagram-config'
+import { STORAGE_CACHE_CONTROL } from '@/lib/images/variants'
 import type { BackfillStorageClient, StorageListItem } from '@/lib/images/backfill'
 
 // `makeVariants` (sharp) se mockea: estos tests son sobre la orquestación del
@@ -20,7 +21,7 @@ interface FakeFile {
 interface Upload {
   path: string
   body: Buffer
-  options: { contentType: string; upsert: boolean }
+  options: { contentType: string; upsert: boolean; cacheControl?: string }
 }
 
 /**
@@ -153,7 +154,11 @@ describe('runBackfill: con apply', () => {
       'cuenta_a/p3.w800.webp',
     ])
     for (const u of uploads) {
-      expect(u.options).toEqual({ contentType: 'image/webp', upsert: false })
+      expect(u.options).toEqual({
+        contentType: 'image/webp',
+        cacheControl: STORAGE_CACHE_CONTROL,
+        upsert: false,
+      })
     }
   })
 
