@@ -40,14 +40,16 @@ export async function getFlyerById(id: string): Promise<FlyerWithAccount | null>
       account:instagram_accounts(*)
     `)
     .eq('id', id)
-    .single()
+    // maybeSingle: un flyer archivado (la RLS de anon solo deja ver los ACTIVE)
+    // no es un error, es "no está". Con single() cada visita logueaba un PGRST116.
+    .maybeSingle()
 
   if (error) {
     console.error('[IG Data] Error obteniendo flyer:', error)
     return null
   }
 
-  return data as FlyerWithAccount
+  return (data as FlyerWithAccount | null) ?? null
 }
 
 /**

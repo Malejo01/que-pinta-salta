@@ -27,6 +27,8 @@ vi.mock('@/lib/supabase/server', () => ({
         }
       }
       c.single = async () => ({ data: state.row, error: null })
+      // getEventById usa maybeSingle desde el PR de SEO (13/10).
+      c.maybeSingle = async () => ({ data: state.row, error: null })
       c.then = (res: (v: unknown) => unknown, rej: (e: unknown) => unknown) =>
         Promise.resolve({ data: [state.row], error: null }).then(res, rej)
       return c

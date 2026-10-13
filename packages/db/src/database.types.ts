@@ -529,6 +529,9 @@ isOneToOne: false
 "resolve_venue_id":
 { Args: { "p_autocreate"?: boolean,"p_raw": string,"p_source"?: string,"p_threshold"?: number }; Returns: string
                            },
+"unmerge_event":
+{ Args: { "drop_id": string }; Returns: Json
+                           },
 "venue_canonical_of":
 { Args: { "p_id": string }; Returns: string
                            },

@@ -489,15 +489,52 @@ export async function deleteDraftEvent(eventId: string, flyerId?: string) {
 
   const adminClient = getPrivilegedClient()
 
-  // 1. Si hay un flyerId asociado, cambiar su estado de procesamiento a SKIPPED para no volver a intentar procesarlo
-  if (flyerId) {
-    await adminClient
+  // El evento tal como está en la base (hotfix 13/10): "Rechazar" solo borra
+  // borradores, y nunca uno fusionado en otro (borrarlo rompería el 308 de
+  // /evento/<id> y la posibilidad de deshacer la fusión).
+  const { data: draft, error: draftError } = await adminClient
+    .from('events')
+    .select('id, status, ai_metadata')
+    .eq('id', eventId)
+    .maybeSingle()
+
+  if (draftError || !draft) {
+    return { error: 'No se encontró el borrador a rechazar.' }
+  }
+  if (draft.status !== 'DRAFT') {
+    return { error: 'Solo se pueden rechazar borradores.' }
+  }
+  if (mergedIntoId(draft)) {
+    return { error: 'Este borrador está fusionado en otro evento: deshacé la fusión o dejalo como está.' }
+  }
+
+  // 1. El flyer de origen pasa a SKIPPED para no volver a procesarlo, pero solo
+  //    si apunta a este borrador (o a ninguno). Si una fusión lo dejó apuntando
+  //    al evento que se conserva, no se toca. No se confía en el flyerId del
+  //    cliente: se usa el del borrador si lo tiene.
+  const draftMeta = draft.ai_metadata && typeof draft.ai_metadata === 'object' && !Array.isArray(draft.ai_metadata)
+    ? (draft.ai_metadata as Record<string, unknown>)
+    : null
+  const sourceFlyerId = typeof draftMeta?.flyer_id === 'string' ? draftMeta.flyer_id : flyerId
+  if (sourceFlyerId) {
+    const { data: flyer } = await adminClient
       .from('instagram_flyers')
-      .update({
-        ai_status: 'SKIPPED',
-        ai_processed_at: new Date().toISOString()
-      })
-      .eq('id', flyerId)
+      .select('id, ai_metadata')
+      .eq('id', sourceFlyerId)
+      .maybeSingle()
+    const flyerMeta = flyer?.ai_metadata && typeof flyer.ai_metadata === 'object' && !Array.isArray(flyer.ai_metadata)
+      ? (flyer.ai_metadata as Record<string, unknown>)
+      : null
+    const flyerEventId = typeof flyerMeta?.event_id === 'string' ? flyerMeta.event_id : null
+    if (flyer && (flyerEventId === null || flyerEventId === eventId)) {
+      await adminClient
+        .from('instagram_flyers')
+        .update({
+          ai_status: 'SKIPPED',
+          ai_processed_at: new Date().toISOString()
+        })
+        .eq('id', sourceFlyerId)
+    }
   }
 
   // 2. Eliminar el evento en borrador
@@ -505,6 +542,7 @@ export async function deleteDraftEvent(eventId: string, flyerId?: string) {
     .from('events')
     .delete()
     .eq('id', eventId)
+    .eq('status', 'DRAFT')
 
   if (error) {
     console.error('Error eliminando evento borrador:', error)

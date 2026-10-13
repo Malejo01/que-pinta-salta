@@ -8,7 +8,7 @@
  */
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { toast } from 'sonner'
+import { notify } from '@/hooks/notify'
 import { Button } from '@/components/ui/button'
 import {
   dismissDuplicatePair,
@@ -35,6 +35,8 @@ export interface DuplicatePairActionsProps {
   canMergeKeepA: CanMergeResult
   /** canMerge(B, A): si B queda y A se descarta. */
   canMergeKeepB: CanMergeResult
+  /** pairWarnings(A, B) (hotfix 13/10): lugares o días distintos. Se repiten en la confirmación. */
+  warnings?: string[]
 }
 
 export function DuplicatePairActions({
@@ -43,6 +45,7 @@ export function DuplicatePairActions({
   defaultKeeperId,
   canMergeKeepA,
   canMergeKeepB,
+  warnings = [],
 }: DuplicatePairActionsProps) {
   const router = useRouter()
   const [keeperId, setKeeperId] = useState(defaultKeeperId)
@@ -56,22 +59,27 @@ export function DuplicatePairActions({
   const handleMerge = async () => {
     if (isSubmitting || !canMerge.ok) return
 
+    const resumen = `Queda «${keep.title}». «${drop.title}» pasa a borrador, sus favoritos y flyers pasan a «${keep.title}», y su link redirige a «${keep.title}»`
     const confirmed = window.confirm(
-      `Queda «${keep.title}». «${drop.title}» pasa a borrador, sus favoritos y flyers pasan a «${keep.title}», y su link redirige a «${keep.title}»`
+      warnings.length > 0
+        ? `ATENCIÓN:\n${warnings.map((w) => `- ${w}`).join('\n')}\n\n¿Seguro que son el mismo evento?\n\n${resumen}`
+        : resumen
     )
     if (!confirmed) return
+    // Con avisos, una segunda confirmación explícita: el primer "Aceptar" es el reflejo.
+    if (warnings.length > 0 && !window.confirm('Confirmá otra vez: fusionar aunque los lugares o los días no coinciden.')) return
 
     setIsSubmitting(true)
     try {
       const res = await mergeDuplicatePair(keep.id, drop.id)
       if ('error' in res) {
-        toast.error(`Error al fusionar: ${res.error}`)
+        notify.error(`Error al fusionar: ${res.error}`)
       } else {
-        toast.success('Eventos fusionados.')
+        notify.success('Eventos fusionados.')
         router.refresh()
       }
     } catch (err) {
-      toast.error(`Excepción fusionando eventos: ${errorMessage(err)}`)
+      notify.error(`Excepción fusionando eventos: ${errorMessage(err)}`)
     } finally {
       setIsSubmitting(false)
     }
@@ -83,13 +91,13 @@ export function DuplicatePairActions({
     try {
       const res = await dismissDuplicatePair(eventA.id, eventB.id)
       if ('error' in res) {
-        toast.error(`Error: ${res.error}`)
+        notify.error(`Error: ${res.error}`)
       } else {
-        toast.success('Marcado como distinto: no vuelve a aparecer en esta lista.')
+        notify.success('Marcado como distinto: no vuelve a aparecer en esta lista.')
         router.refresh()
       }
     } catch (err) {
-      toast.error(`Excepción marcando el par: ${errorMessage(err)}`)
+      notify.error(`Excepción marcando el par: ${errorMessage(err)}`)
     } finally {
       setIsSubmitting(false)
     }
@@ -157,13 +165,13 @@ export function RestorePairButton({ aId, bId }: { aId: string; bId: string }) {
     try {
       const res = await restoreDuplicatePair(aId, bId)
       if ('error' in res) {
-        toast.error(`Error: ${res.error}`)
+        notify.error(`Error: ${res.error}`)
       } else {
-        toast.success(res.warning ?? 'El par vuelve a la lista de revisión.')
+        notify.success(res.warning ?? 'El par vuelve a la lista de revisión.')
         router.refresh()
       }
     } catch (err) {
-      toast.error(`Excepción: ${errorMessage(err)}`)
+      notify.error(`Excepción: ${errorMessage(err)}`)
     } finally {
       setIsSubmitting(false)
     }

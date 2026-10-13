@@ -15,11 +15,14 @@ import {
   AlertCircle,
   Inbox,
   Search,
+  Undo2,
   Image as ImageIcon
 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
-import { toast } from 'sonner'
+import { notify } from '@/hooks/notify'
 import { publishDraftEvent, deleteDraftEvent, triggerAIProcessing } from '@/lib/admin-actions'
+import { unmergeEvent } from '@/lib/admin/duplicate-actions'
+import { draftExpiry, expiredReason } from '@/lib/admin/draft-status'
 import { splitSaltaDateTime, formatSaltaDayKey, saltaWallClockToUtcISO } from '@/lib/date-format'
 import {
   DATE_CONFIRMATION_CODE,
@@ -80,8 +83,19 @@ interface DraftEvent {
   }
 }
 
+/** Borrador ya fusionado en otro (ai_metadata.merged_into_event_id): no es pendiente. */
+export interface MergedDraft {
+  id: string
+  title: string
+  start_date: string | null
+  image_url: string | null
+  venueName: string | null
+  mergedInto: { id: string; title: string | null; status: string | null }
+}
+
 interface DraftEventsManagerProps {
   initialEvents: DraftEvent[]
+  mergedEvents?: MergedDraft[]
   categories: Category[]
   venues: Venue[]
   pendingCount: number
@@ -89,6 +103,7 @@ interface DraftEventsManagerProps {
 
 export function DraftEventsManager({
   initialEvents,
+  mergedEvents = [],
   categories,
   venues,
   pendingCount,
@@ -101,6 +116,7 @@ export function DraftEventsManager({
   const [searchQuery, setSearchQuery] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isProcessingAI, setIsProcessingAI] = useState(false)
+  const [unmergingId, setUnmergingId] = useState<string | null>(null)
   const [batchSize, setBatchSize] = useState(3)
 
   // Form State
@@ -144,6 +160,11 @@ export function DraftEventsManager({
     originalStartISO: selectedEvent?.start_date ?? null,
     formStartISO,
   })
+
+  // "Ya pasó" (guarda 5 del servidor, misma regla isVigente): con la fecha y
+  // hora del formulario y el end_date guardado, igual que publishDraftEvent.
+  const formExpiry = draftExpiry({ start_date: formStartISO, end_date: selectedEvent?.end_date ?? null })
+  const canPublish = dateConfirmed && !formExpiry.expired
 
   // "dd/mm hh:mm" de la fecha y hora actuales del formulario, para mostrar
   // junto al aviso de confirmación (startDateDay ya viene en "YYYY-MM-DD").
@@ -219,19 +240,19 @@ export function DraftEventsManager({
   const handleTriggerAI = async () => {
     if (isProcessingAI) return
     setIsProcessingAI(true)
-    const toastId = toast.loading('Procesando lote de flyers con IA...')
+    const toastId = notify.loading('Procesando lote de flyers con IA...')
 
     try {
       const res = await triggerAIProcessing(batchSize)
       if (res.error) {
-        toast.error(`Error: ${res.error}`, { id: toastId })
+        notify.error(`Error: ${res.error}`, { id: toastId })
       } else {
-        toast.success(res.message || 'Lote procesado exitosamente.', { id: toastId })
+        notify.success(res.message || 'Lote procesado exitosamente.', { id: toastId })
         // Forzar a Next.js a actualizar los datos del Server Component
         router.refresh()
       }
     } catch (err: any) {
-      toast.error(`Error de red: ${err.message}`, { id: toastId })
+      notify.error(`Error de red: ${err.message}`, { id: toastId })
     } finally {
       setIsProcessingAI(false)
     }
@@ -245,18 +266,22 @@ export function DraftEventsManager({
   const handlePublish = async () => {
     if (!selectedEvent) return
     if (!title.trim()) {
-      toast.error('El título es requerido.')
+      notify.error('El título es requerido.')
       return
     }
     if (!startDateDay) {
-      toast.error('La fecha es requerida.')
+      notify.error('La fecha es requerida.')
       return
     }
     // Respaldo: el botón ya queda deshabilitado mientras `!dateConfirmed`
     // (ver el `disabled` de "Aprobar y Publicar" más abajo), pero lo dejamos
     // por si igual se llega a llamar a esta función.
     if (!dateConfirmed) {
-      toast.error(DATE_CONFIRMATION_MESSAGE)
+      notify.error(DATE_CONFIRMATION_MESSAGE)
+      return
+    }
+    if (formExpiry.expired) {
+      notify.error(expiredReason(formExpiry))
       return
     }
 
@@ -286,9 +311,9 @@ export function DraftEventsManager({
         if ('code' in res && res.code === DATE_CONFIRMATION_CODE && !confirmDate) {
           setForcedNeedsConfirm(true)
         }
-        toast.error(`Error al publicar: ${res.error}`)
+        notify.error(`Error al publicar: ${res.error}`)
       } else {
-        toast.success('¡Evento publicado exitosamente!')
+        notify.success('¡Evento publicado exitosamente!')
         
         // Quitar el evento publicado de la lista local
         const updatedEvents = events.filter((e) => e.id !== selectedEvent.id)
@@ -298,7 +323,7 @@ export function DraftEventsManager({
         setSelectedEventId(updatedEvents.length > 0 ? updatedEvents[0].id : null)
       }
     } catch (err: any) {
-      toast.error(`Excepción publicando evento: ${err.message}`)
+      notify.error(`Excepción publicando evento: ${err.message}`)
     } finally {
       setIsSubmitting(false)
     }
@@ -316,9 +341,9 @@ export function DraftEventsManager({
     try {
       const res = await deleteDraftEvent(selectedEvent.id, flyerId)
       if (res.error) {
-        toast.error(`Error al eliminar: ${res.error}`)
+        notify.error(`Error al eliminar: ${res.error}`)
       } else {
-        toast.success('Evento en borrador eliminado.')
+        notify.success('Evento en borrador eliminado.')
         
         // Quitar el evento de la lista local
         const updatedEvents = events.filter((e) => e.id !== selectedEvent.id)
@@ -328,9 +353,33 @@ export function DraftEventsManager({
         setSelectedEventId(updatedEvents.length > 0 ? updatedEvents[0].id : null)
       }
     } catch (err: any) {
-      toast.error(`Excepción eliminando evento: ${err.message}`)
+      notify.error(`Excepción eliminando evento: ${err.message}`)
     } finally {
       setIsSubmitting(false)
+    }
+  }
+
+  const handleUnmerge = async (draft: MergedDraft) => {
+    if (unmergingId) return
+    const destino = draft.mergedInto.title ?? 'el evento que quedó'
+    const confirmed = window.confirm(
+      `Deshacer la fusión de «${draft.title}» en «${destino}». «${draft.title}» vuelve a la lista de borradores para revisarlo y publicarlo, y el par no vuelve a aparecer en "Posibles duplicados". Los favoritos que se hayan movido quedan en «${destino}».`
+    )
+    if (!confirmed) return
+
+    setUnmergingId(draft.id)
+    try {
+      const res = await unmergeEvent(draft.id)
+      if ('error' in res) {
+        notify.error(`Error al deshacer la fusión: ${res.error}`)
+      } else {
+        notify.success(res.message)
+        router.refresh()
+      }
+    } catch (err) {
+      notify.error(`Excepción deshaciendo la fusión: ${err instanceof Error ? err.message : String(err)}`)
+    } finally {
+      setUnmergingId(null)
     }
   }
 
@@ -415,6 +464,7 @@ export function DraftEventsManager({
                 filteredEvents.map((item) => {
                   const needsDateConfirm = item.dateCheck?.needed === true
                   const hasError = item.ai_metadata?.error !== undefined
+                  const isPast = draftExpiry(item).expired
 
                   return (
                     <button
@@ -462,7 +512,12 @@ export function DraftEventsManager({
                               Confirmar fecha
                             </Badge>
                           )}
-                          {!hasError && !needsDateConfirm && (
+                          {isPast && (
+                            <Badge variant="destructive" className="text-[10px] py-0 px-1.5 h-4 bg-rose-500/20 text-rose-600 hover:bg-rose-500/30 border-rose-500/30">
+                              Ya pasó
+                            </Badge>
+                          )}
+                          {!hasError && !needsDateConfirm && !isPast && (
                             <Badge variant="secondary" className="text-[10px] py-0 px-1.5 h-4 bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/20 border-emerald-500/20">
                               <Sparkles className="size-2.5 mr-0.5 text-emerald-500 shrink-0" />
                               IA Exitosa
@@ -475,6 +530,54 @@ export function DraftEventsManager({
                 })
               )}
             </div>
+
+            {/* Fusionados en otro evento (hotfix 13/10): no son pendientes. */}
+            {mergedEvents.length > 0 && (
+              <details className="rounded-lg border border-border/80 bg-muted/30">
+                <summary className="cursor-pointer select-none p-3 text-xs font-semibold text-muted-foreground">
+                  Ya fusionados en otro evento ({mergedEvents.length})
+                </summary>
+                <ul className="space-y-2 border-t border-border/80 p-3">
+                  {mergedEvents.map((draft) => (
+                    <li key={draft.id} className="space-y-1.5 rounded-md border border-border/60 bg-background/40 p-2.5 text-xs">
+                      <p className="font-semibold text-foreground">{draft.title}</p>
+                      <p className="text-muted-foreground">
+                        {draft.venueName ?? 'Sin lugar'} · {draft.start_date ? formatSaltaDayKey(draft.start_date) : 'Sin fecha'}
+                      </p>
+                      <p className="text-muted-foreground">
+                        Fusionado en:{' '}
+                        <a
+                          href={`/evento/${draft.mergedInto.id}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="font-medium text-primary hover:underline"
+                        >
+                          {draft.mergedInto.title ?? 'evento que quedó'} →
+                        </a>
+                        {draft.mergedInto.status && draft.mergedInto.status !== 'PUBLISHED' && (
+                          <span> ({draft.mergedInto.status === 'DRAFT' ? 'borrador' : draft.mergedInto.status})</span>
+                        )}
+                      </p>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleUnmerge(draft)}
+                        disabled={unmergingId !== null}
+                        className="h-9 text-xs"
+                      >
+                        {unmergingId === draft.id ? (
+                          <Clock className="size-3.5 mr-1 animate-spin shrink-0" />
+                        ) : (
+                          <Undo2 className="size-3.5 mr-1 shrink-0" />
+                        )}
+                        Deshacer fusión
+                      </Button>
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -487,7 +590,12 @@ export function DraftEventsManager({
             <div className="flex flex-wrap items-center justify-between gap-4 bg-card/40 backdrop-blur-sm border border-border p-4 rounded-xl">
               <div>
                 <span className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Auditar Borrador</span>
-                <h2 className="text-xl font-bold text-foreground mt-0.5">{selectedEvent.title}</h2>
+                <h2 className="text-xl font-bold text-foreground mt-0.5 flex flex-wrap items-center gap-2">
+                  {selectedEvent.title}
+                  {formExpiry.expired && (
+                    <Badge variant="destructive" className="bg-rose-500/20 text-rose-600 border-rose-500/30">Ya pasó</Badge>
+                  )}
+                </h2>
               </div>
               <div className="flex flex-col items-end gap-1.5">
                 <div className="flex gap-2">
@@ -502,8 +610,8 @@ export function DraftEventsManager({
                   </Button>
                   <Button
                     onClick={handlePublish}
-                    disabled={isSubmitting || !dateConfirmed}
-                    title={!dateConfirmed ? 'Confirmá la fecha para publicar' : undefined}
+                    disabled={isSubmitting || !canPublish}
+                    aria-describedby={!canPublish ? 'publish-blocked-reason' : undefined}
                     className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold"
                   >
                     {isSubmitting ? (
@@ -514,9 +622,13 @@ export function DraftEventsManager({
                     Aprobar y Publicar
                   </Button>
                 </div>
-                {!dateConfirmed && (
-                  <p className="text-xs font-medium text-amber-600">Confirmá la fecha para publicar</p>
-                )}
+                {formExpiry.expired ? (
+                  <p id="publish-blocked-reason" className="max-w-xs text-right text-xs font-medium text-rose-600">
+                    {expiredReason(formExpiry)}
+                  </p>
+                ) : !dateConfirmed ? (
+                  <p id="publish-blocked-reason" className="text-xs font-medium text-amber-600">Confirmá la fecha para publicar</p>
+                ) : null}
               </div>
             </div>
 

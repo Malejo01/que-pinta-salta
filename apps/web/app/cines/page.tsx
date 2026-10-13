@@ -7,6 +7,7 @@ import { Film } from 'lucide-react'
 export const metadata: Metadata = {
   title: 'Cartelera de Cines en Salta | Qué Pinta Salta',
   description: 'Consultá los horarios, formatos y películas en cartelera para Cinemark Alto NOA, Cinemark Paseo Salta y Cine Ópera. Comprá tus entradas al instante.',
+  alternates: { canonical: '/cines' },
   openGraph: {
     title: 'Cartelera de Cines en Salta | Qué Pinta Salta',
     description: 'Toda la cartelera de cines de Salta unificada de forma inteligente.',

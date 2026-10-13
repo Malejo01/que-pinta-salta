@@ -1,0 +1,85 @@
+/**
+ * 308 / 410 para fichas que ya no existen (Search Console, 13/10).
+ *
+ * Una página del App Router solo puede devolver 404 (notFound) o redirigir:
+ * no puede responder 410. Por eso la decisión se toma en middleware.ts, con
+ * una consulta mínima y el cliente de service role (la RLS de anon no deja
+ * ver flyers archivados ni eventos sin publicar). Lo único que sale de acá es
+ * un código de estado y, en el 308, el id de un evento PUBLICADO (público).
+ *
+ *   /flyer/<uuid>   ACTIVE                      → sigue (la página lo muestra)
+ *                   archivado y con evento      → 308 /evento/<id> (siguiendo fusiones,
+ *                                                 solo si el destino está publicado)
+ *                   archivado sin evento        → 410
+ *                   inexistente                 → sigue (404 de la página)
+ *   /evento/<uuid>  inexistente (borrado)       → 410
+ *                   CANCELLED, sin sesión       → 410 (con sesión sigue: el admin lo ve)
+ *                   fusionado, publicado, DRAFT → sigue (la página hace su 308 o su 404)
+ *
+ * Cualquier error de la consulta → sigue: falla hacia el comportamiento de antes.
+ */
+import { findMergeRedirect, mergedIntoId } from '@/lib/events/merged'
+
+/* eslint-disable-next-line @typescript-eslint/no-explicit-any -- cliente de supabase-js o un doble de test */
+type SupabaseLike = any
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+export type GoneTarget = { kind: 'flyer' | 'evento'; id: string }
+export type GoneDecision = { kind: 'pass' } | { kind: 'redirect'; location: string } | { kind: 'gone' }
+
+const PASS: GoneDecision = { kind: 'pass' }
+
+/** `/flyer/<uuid>` o `/evento/<uuid>` exactos (sin subrutas). Cualquier otra cosa: null. */
+export function parseGonePath(pathname: string): GoneTarget | null {
+  const m = /^\/(flyer|evento)\/([^/]+)\/?$/.exec(pathname)
+  if (!m || !UUID_RE.test(m[2])) return null
+  return { kind: m[1] as 'flyer' | 'evento', id: m[2].toLowerCase() }
+}
+
+/** Id del evento publicado al que lleva `eventId` (él mismo o el final de su cadena de fusiones). */
+export async function publishedEventFor(client: SupabaseLike, eventId: string): Promise<string | null> {
+  if (!UUID_RE.test(eventId)) return null
+  const { data, error } = await client.from('events').select('id, status, ai_metadata').eq('id', eventId).maybeSingle()
+  if (error || !data) return null
+  if (mergedIntoId(data)) return findMergeRedirect(client, eventId)
+  return data.status === 'PUBLISHED' ? (data.id as string) : null
+}
+
+export async function decideFlyer(client: SupabaseLike, id: string): Promise<GoneDecision> {
+  const { data, error } = await client
+    .from('instagram_flyers')
+    .select('id, status, event_id:ai_metadata->>event_id')
+    .eq('id', id)
+    .maybeSingle()
+  if (error || !data) return PASS
+  if (data.status === 'ACTIVE') return PASS
+
+  const eventId = typeof data.event_id === 'string' ? data.event_id : null
+  const target = eventId ? await publishedEventFor(client, eventId) : null
+  return target ? { kind: 'redirect', location: `/evento/${target}` } : { kind: 'gone' }
+}
+
+export async function decideEvento(client: SupabaseLike, id: string, hasSession: boolean): Promise<GoneDecision> {
+  const { data, error } = await client
+    .from('events')
+    .select('id, status, ai_metadata')
+    .eq('id', id)
+    .maybeSingle()
+  if (error) return PASS
+  if (!data) return { kind: 'gone' }
+  if (mergedIntoId(data)) return PASS
+  if (data.status === 'CANCELLED' && !hasSession) return { kind: 'gone' }
+  return PASS
+}
+
+export async function decideGone(client: SupabaseLike, target: GoneTarget, hasSession: boolean): Promise<GoneDecision> {
+  try {
+    return target.kind === 'flyer' ? await decideFlyer(client, target.id) : await decideEvento(client, target.id, hasSession)
+  } catch {
+    return PASS
+  }
+}
+
+/** Cuerpo del 410: sin datos del evento ni del flyer, y fuera del índice. */
+export const GONE_HTML = `<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="robots" content="noindex"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Ya no está disponible | Qué Pinta Salta</title></head><body style="font-family:system-ui,sans-serif;max-width:32rem;margin:4rem auto;padding:0 1rem;line-height:1.5"><h1>Esto ya no está disponible</h1><p>El evento o el flyer que buscabas se dio de baja.</p><p><a href="/">Ver qué pinta hoy en Salta</a></p></body></html>`
