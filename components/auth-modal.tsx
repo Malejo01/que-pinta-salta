@@ -6,6 +6,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { mensajeErrorAlta } from "@/lib/auth/mensajes"
 import { useRouter } from "next/navigation"
 import { useToast } from "@/hooks/use-toast"
 
@@ -101,7 +102,7 @@ export function AuthModalProvider({ children }: { children: ReactNode }) {
       close()
       router.refresh()
     } catch (error: any) {
-      setError(error?.message || "Ocurrió un error inesperado")
+      setError(mode === "signup" ? mensajeErrorAlta(error) : error?.message || "Ocurrió un error inesperado")
     } finally {
       setIsLoading(false)
     }
