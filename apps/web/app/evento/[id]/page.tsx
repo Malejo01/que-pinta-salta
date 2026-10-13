@@ -31,6 +31,8 @@ export async function generateMetadata({ params }: EventPageProps): Promise<Meta
   return {
     title,
     description,
+    // Canónica sin ?o= (el origen de la métrica): una sola URL por evento.
+    alternates: { canonical: `/evento/${id}` },
     openGraph: {
       title,
       description,

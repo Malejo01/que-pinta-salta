@@ -8,6 +8,7 @@ import { getUserFavorites } from "@/lib/actions/favorites"
 export const metadata: Metadata = {
   title: "Buscar Eventos en Salta Capital",
   description: "Buscá peñas, recitales, boliches, ferias, talleres y teatro en Salta Capital. Encontrá qué hacer hoy en la ciudad.",
+  alternates: { canonical: "/buscar" },
   openGraph: {
     title: "Buscar Eventos en Salta Capital | Qué Pinta Salta",
     description: "Buscá peñas, recitales, boliches, ferias, talleres y teatro en Salta Capital.",

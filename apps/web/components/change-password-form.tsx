@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Loader2, KeyRound, CheckCircle2, AlertCircle } from "lucide-react"
-import { toast } from "sonner"
+import { notify } from '@/hooks/notify'
 
 export function ChangePasswordForm() {
   const [password, setPassword] = useState("")
@@ -46,11 +46,11 @@ export function ChangePasswordForm() {
       setSuccess(true)
       setPassword("")
       setConfirmPassword("")
-      toast.success("Contraseña actualizada con éxito")
+      notify.success("Contraseña actualizada con éxito")
     } catch (err: any) {
       console.error("Error al actualizar la contraseña:", err)
       setError(err.message || "Ocurrió un error al actualizar la contraseña.")
-      toast.error("Error al actualizar la contraseña")
+      notify.error("Error al actualizar la contraseña")
     } finally {
       setIsSubmitting(false)
     }
