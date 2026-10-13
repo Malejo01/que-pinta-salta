@@ -87,14 +87,16 @@ export async function getEventById(id: string): Promise<(Event & { category: Cat
     .from('events')
     .select(PUBLIC_EVENT_SELECT)
     .eq('id', id)
-    .single()
+    // maybeSingle: un evento fusionado, borrado o sin publicar no es un error
+    // (la página hace su 308 o su 404); con single() cada visita logueaba un PGRST116.
+    .maybeSingle()
 
   if (error) {
     console.error('Error fetching event by id:', error)
     return null
   }
-  
-  return data as unknown as Event & { category: Category; venue: Venue | null }
+
+  return (data as unknown as (Event & { category: Category; venue: Venue | null }) | null) ?? null
 }
 
 export async function getFeaturedEvents(): Promise<(Event & { category: Category; venue: Venue | null })[]> {

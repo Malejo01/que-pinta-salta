@@ -31,6 +31,7 @@ export async function generateMetadata({ params }: FlyerPageProps): Promise<Meta
   return {
     title,
     description,
+    alternates: { canonical: `/flyer/${id}` },
     openGraph: {
       title,
       description,
