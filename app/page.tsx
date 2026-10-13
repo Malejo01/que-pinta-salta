@@ -3,6 +3,13 @@ import { getActiveFlyers } from "@/lib/instagram/data"
 import { HomeContent } from "@/components/home-content"
 import { createClient } from "@/lib/supabase/server"
 import { getUserFavorites } from "@/lib/actions/favorites"
+import type { Metadata } from "next"
+
+// Canónica acá y no en el layout: en el layout la heredarían todas las páginas
+// que no declaran la suya, y quedarían todas apuntando a la portada.
+export const metadata: Metadata = {
+  alternates: { canonical: "/" },
+}
 
 export default async function HomePage() {
   const supabase = await createClient()
