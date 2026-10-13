@@ -16,6 +16,7 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { orderPair } from '@/lib/events/duplicate-candidates'
 import { isUuid } from '@/lib/metricas'
+import { unmergeMessage, type UnmergeSummary } from '@/lib/admin/draft-status'
 
 type ActionError = { error: string }
 
@@ -138,4 +139,45 @@ export async function restoreDuplicatePair(aId: string, bId: string): Promise<Re
   }
 
   return { success: true }
+}
+
+export type UnmergeEventResult = { success: true; message: string; result: UnmergeSummary } | ActionError
+
+
+/** Igual que mergeErrorMessage: los P0001 de unmerge_event() ya son texto en español. */
+function unmergeErrorMessage(error: { code?: string; message: string }): string {
+  if (error.code === 'P0001') return error.message
+  if (error.code === '42501') return 'No tenés permisos para deshacer fusiones'
+  if (error.code === 'P0002') return 'El evento ya no existe'
+  return 'No se pudo deshacer la fusión. Intentá de nuevo'
+}
+
+/**
+ * "Deshacer fusión" en /admin/revision (hotfix 13/10): llama a unmerge_event()
+ * con el cliente del usuario, como mergeDuplicatePair, para que is_admin()
+ * evalúe al admin real.
+ */
+export async function unmergeEvent(dropId: string): Promise<UnmergeEventResult> {
+  if (!isUuid(dropId)) {
+    return { error: 'El id del evento no es válido' }
+  }
+
+  const auth = await requireAdminSupabase()
+  if ('error' in auth) return auth
+
+  const { data, error } = await auth.supabase.rpc('unmerge_event', { drop_id: dropId })
+
+  if (error) {
+    return { error: unmergeErrorMessage(error) }
+  }
+
+  const result = (data ?? {}) as UnmergeSummary
+
+  revalidatePath('/')
+  revalidatePath(`/evento/${dropId}`)
+  if (isUuid(result.keep_id)) revalidatePath(`/evento/${result.keep_id}`)
+  revalidatePath('/admin/revision')
+  revalidatePath('/admin/duplicados')
+
+  return { success: true, message: unmergeMessage(result), result }
 }
