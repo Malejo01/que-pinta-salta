@@ -19,11 +19,13 @@
 --                 marca que no tiene que aparecer en la vista)
 --   evento_b    = d5555555-5555-4555-8555-555555555555 (PUBLISHED, donde
 --                 marca solo B, aislado del resto)
+--   evento_seis = d6666666-6666-4666-8666-666666666666 (PUBLISHED, destino
+--                 del UPDATE que cambia event_id y kind a la vez)
 --
 -- Todo dentro de una transacción con rollback; nada de esto queda en la base.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(33);
+select plan(42);
 
 insert into auth.users (
   instance_id, id, aud, role, email, encrypted_password, email_confirmed_at,
@@ -50,7 +52,9 @@ values
   ('d4444444-4444-4444-8444-444444444444', 'QA Voy Evento Draft', 'qa-voy-evento-draft',
    now() + interval '1 day', 'DRAFT', 'd0000000-0000-4000-8000-000000000001'),
   ('d5555555-5555-4555-8555-555555555555', 'QA Voy Evento B', 'qa-voy-evento-b',
-   now() + interval '1 day', 'PUBLISHED', 'd0000000-0000-4000-8000-000000000002');
+   now() + interval '1 day', 'PUBLISHED', 'd0000000-0000-4000-8000-000000000002'),
+  ('d6666666-6666-4666-8666-666666666666', 'QA Voy Evento Seis', 'qa-voy-evento-seis',
+   now() + interval '1 day', 'PUBLISHED', 'd0000000-0000-4000-8000-000000000001');
 
 -- ===========================================================================
 -- INSERT / UNIQUE / UPDATE (kind) / DELETE sobre evento_uno
@@ -163,6 +167,56 @@ select is(
   (select voy from public.event_attendance_totals where event_id = 'd2222222-2222-4222-8222-222222222222'),
   1,
   '13. event_attendance_totals/evento_dos: voy=1 después de mover la marca (se sumó)'
+);
+
+-- ===========================================================================
+-- UPDATE que cambia event_id Y kind a la vez: el trigger entra en la rama de
+-- event_id (resta con old.kind en el evento viejo, suma con new.kind en el
+-- nuevo) sin chequear el kind por separado. Es el camino que de verdad
+-- importa: si alguien "simplifica" esa rama para que solo mire event_id y
+-- siga sumando con old.kind (en vez de new.kind) en el destino, este caso
+-- tiene que fallar.
+-- ===========================================================================
+
+-- 13a. Como postgres: la marca de A (ahora en evento_dos, kind "voy") pasa a
+--      evento_seis Y a "me_interesa" en el mismo UPDATE.
+select lives_ok(
+  $$update public.event_attendance set event_id = 'd6666666-6666-4666-8666-666666666666', kind = 'me_interesa'
+    where user_id = 'd0000000-0000-4000-8000-000000000001'
+      and event_id = 'd2222222-2222-4222-8222-222222222222'$$,
+  '13a. event_attendance: el UPDATE que cambia event_id y kind a la vez no se rechaza'
+);
+
+-- 13b. evento_dos vuelve a voy=0 (se restó 1 de "voy", el kind viejo).
+select is(
+  (select voy from public.event_attendance_totals where event_id = 'd2222222-2222-4222-8222-222222222222'),
+  0,
+  '13b. event_attendance_totals/evento_dos: voy=0 después del UPDATE combinado (se restó con el kind viejo)'
+);
+
+-- 13c. evento_seis queda en voy=0, me_interesa=1 (se sumó 1 a "me_interesa",
+--      el kind NUEVO, no a "voy").
+select ok(
+  (select voy = 0 and me_interesa = 1 from public.event_attendance_totals
+   where event_id = 'd6666666-6666-4666-8666-666666666666'),
+  '13c. event_attendance_totals/evento_seis: voy=0, me_interesa=1 (se sumó con el kind nuevo, no con el viejo)'
+);
+
+-- 13d. Un UPDATE que no cambia ni event_id ni kind (acá, el mismo valor que
+--      ya tenía) no entra en ninguna de las dos ramas del trigger.
+select lives_ok(
+  $$update public.event_attendance set kind = 'me_interesa'
+    where user_id = 'd0000000-0000-4000-8000-000000000001'
+      and event_id = 'd6666666-6666-4666-8666-666666666666'$$,
+  '13d. event_attendance: el UPDATE que no cambia event_id ni kind no se rechaza'
+);
+
+-- 13e. Los totales de evento_seis quedan igual (ninguna rama del trigger se
+--      disparó).
+select ok(
+  (select voy = 0 and me_interesa = 1 from public.event_attendance_totals
+   where event_id = 'd6666666-6666-4666-8666-666666666666'),
+  '13e. event_attendance_totals/evento_seis: sin cambios tras el UPDATE que no toca event_id ni kind'
 );
 
 -- ===========================================================================
@@ -344,6 +398,37 @@ select is(
 );
 
 -- ===========================================================================
+-- Un evento PUBLISHED con marcas que se despublica (camino real, a
+-- diferencia del caso 27/28 que arranca directo en DRAFT): desaparece de la
+-- vista, pero sus totales siguen en event_attendance_totals (la vista filtra
+-- por status, no la tabla de totales).
+-- ===========================================================================
+
+-- 28a. Como postgres: evento_b (PUBLISHED, con el "voy" de B del caso 18)
+--      pasa a DRAFT.
+select lives_ok(
+  $$update public.events set status = 'DRAFT' where id = 'd5555555-5555-4555-8555-555555555555'$$,
+  '28a. events: el UPDATE a DRAFT de un evento con marcas no se rechaza'
+);
+
+-- 28b. evento_b ya no aparece en event_attendance_counts.
+select is(
+  (select count(*)::int from public.event_attendance_counts
+   where event_id = 'd5555555-5555-4555-8555-555555555555'),
+  0,
+  '28b. event_attendance_counts: evento_b desaparece de la vista al despublicarse'
+);
+
+-- 28c. Pero sus totales siguen intactos en event_attendance_totals (el voy=1
+--      de B no se pierde, solo deja de mostrarse en la vista pública).
+select is(
+  (select voy from public.event_attendance_totals
+   where event_id = 'd5555555-5555-4555-8555-555555555555'),
+  1,
+  '28c. event_attendance_totals: evento_b sigue en voy=1 aunque esté en DRAFT'
+);
+
+-- ===========================================================================
 -- Nadie con rol authenticated escribe directo en event_attendance_totals.
 -- ===========================================================================
 
@@ -389,6 +474,13 @@ select ok(
   and has_table_privilege('authenticated', 'public.event_attendance', 'UPDATE')
   and has_table_privilege('authenticated', 'public.event_attendance', 'DELETE'),
   '31b. event_attendance: authenticated sí tiene SELECT, INSERT, UPDATE y DELETE (acotados por RLS a la fila propia)'
+);
+
+-- 31c. event_attendance_totals: mismo REVOKE ALL / GRANT SELECT que
+--      anon, así que TRUNCATE tampoco queda para authenticated.
+select ok(
+  not has_table_privilege('authenticated', 'public.event_attendance_totals', 'TRUNCATE'),
+  '31c. event_attendance_totals: authenticated no tiene privilegio TRUNCATE'
 );
 
 -- ===========================================================================

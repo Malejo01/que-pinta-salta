@@ -13,7 +13,7 @@
 -- Todo dentro de una transacción con rollback; nada de esto queda en la base.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(25);
+select plan(28);
 
 insert into auth.users (
   instance_id, id, aud, role, email, encrypted_password, email_confirmed_at,
@@ -321,6 +321,31 @@ select throws_ok(
 );
 reset role;
 reset request.jwt.claims;
+
+-- ===========================================================================
+-- TRUNCATE revocado para authenticated: RLS no filtra TRUNCATE, así que en
+-- las tres tablas de esta migración hace falta un REVOKE explícito aparte
+-- de las policies (igual que en event_attendance, ver voy_me_interesa.
+-- test.sql). Cada caso falla si algún REVOKE de estos se sacara después.
+-- ===========================================================================
+
+-- 26. push_tokens.
+select ok(
+  not has_table_privilege('authenticated', 'public.push_tokens', 'TRUNCATE'),
+  '26. push_tokens: authenticated no tiene privilegio TRUNCATE'
+);
+
+-- 27. notification_preferences.
+select ok(
+  not has_table_privilege('authenticated', 'public.notification_preferences', 'TRUNCATE'),
+  '27. notification_preferences: authenticated no tiene privilegio TRUNCATE'
+);
+
+-- 28. notification_sends.
+select ok(
+  not has_table_privilege('authenticated', 'public.notification_sends', 'TRUNCATE'),
+  '28. notification_sends: authenticated no tiene privilegio TRUNCATE'
+);
 
 select * from finish();
 rollback;
