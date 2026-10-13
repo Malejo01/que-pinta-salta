@@ -50,7 +50,9 @@ values
   ('d0000000-0000-4000-8000-000000000a01', 'QA Unmerge K1', 'qa-unmerge-k1', now() + interval '3 day', 'PUBLISHED', false, null,
    '[{"source":"entradaweb","url":"https://entradas.example.com/k1","price_min":1000}]'::jsonb, null, null),
   ('d0000000-0000-4000-8000-000000000a02', 'QA Unmerge D1', 'qa-unmerge-d1', now() + interval '3 day', 'DRAFT', true, null,
-   '[{"source":"otra","url":"https://otra.example.com/d1","price_min":300}]'::jsonb,
+   -- El primer link es el mismo que ya tenía K1 (con otra barra final): merge_events no
+   -- lo agrega, así que deshacer no lo tiene que sacar (se sacan los ÚLTIMOS con link de D1).
+   '[{"source":"otra","url":"https://entradas.example.com/k1/","price_min":900},{"source":"otra","url":"https://otra.example.com/d1","price_min":300}]'::jsonb,
    'https://instagram.com/p/qa-unmerge-d1',
    '{"flyer_id":"d0000000-0000-4000-8000-0000000000f1","qa_custom_key":"mantiene"}'::jsonb),
   ('d0000000-0000-4000-8000-000000000a03', 'QA Unmerge D2', 'qa-unmerge-d2', now() + interval '3 day', 'DRAFT', false, null,
