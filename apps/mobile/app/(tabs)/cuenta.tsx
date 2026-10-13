@@ -6,6 +6,7 @@ import { useState } from 'react'
 import { ActivityIndicator, Pressable, Text, TextInput, View } from 'react-native'
 import { useTheme } from 'expo-router'
 import { GoogleSignin } from '@react-native-google-signin/google-signin'
+import { mensajeErrorAlta } from '@qps/core/auth/mensajes'
 import { leerEnv } from '@/lib/env'
 import { supabase } from '@/lib/supabase'
 import { useSession } from '@/lib/session'
@@ -112,12 +113,14 @@ export default function Cuenta() {
     try {
       const { error: errorCrear } = await supabase.auth.signUp({ email, password })
       if (errorCrear) {
-        setError(mensajeDeError(errorCrear))
+        // QPS-124: el error del alta nunca muestra el texto crudo de la API
+        // (confirmaría si el email ya existe); el mismo mensaje que la web.
+        setError(mensajeErrorAlta(errorCrear))
       } else {
         setAvisoConfirmacion(true)
       }
     } catch (excepcion) {
-      setError(mensajeDeError(excepcion))
+      setError(mensajeErrorAlta(excepcion))
     } finally {
       setAccionEnCurso(null)
     }
