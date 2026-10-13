@@ -1,7 +1,9 @@
 /**
- * Los 13 módulos movidos a `packages/core/src` (R22) tienen que seguir
- * siendo accesibles desde `apps/web/lib/...` (el código viejo no se borra,
- * se convierte en un re-export). Este test, por cada módulo:
+ * Los módulos movidos a `packages/core/src` (R22: 13 módulos; R25: 3 más —
+ * `events/public-select`, `images/variants` y `auth/mensajes`, tarea 25-a)
+ * tienen que seguir siendo accesibles desde `apps/web/lib/...` (el código
+ * viejo no se borra, se convierte en un re-export). Este test, por cada
+ * módulo:
  *
  *  1. Importa la ruta vieja (`@/lib/...`) y la nueva (`@qps/core/...`).
  *  2. Compara que expongan exactamente las mismas claves en runtime.
@@ -48,6 +50,10 @@ const MODULE_PATHS = [
   'radar/cadence',
   'scraper/dedup-key',
   'instagram-config',
+  // R25, tarea 25-a: 3 módulos más movidos con el mismo patrón.
+  'events/public-select',
+  'images/variants',
+  'auth/mensajes',
 ] as const
 
 const MODULES: ModuleSpec[] = MODULE_PATHS.map((name) => ({
@@ -71,7 +77,7 @@ async function importModuleOrFail(specifier: string, context: string): Promise<R
   }
 }
 
-describe('equivalencia lib/ viejo vs @qps/core (los 13 módulos movidos en R22)', () => {
+describe('equivalencia lib/ viejo vs @qps/core (los 13 módulos de R22 + los 3 de R25)', () => {
   for (const mod of MODULES) {
     describe(mod.name, () => {
       it('expone las mismas claves en runtime en @/lib y en @qps/core', async () => {
