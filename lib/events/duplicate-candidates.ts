@@ -16,6 +16,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { cleanDescription, saltaStartOfDayISO } from '@/lib/event-display'
 import { mergedIntoId } from '@/lib/events/merged'
 import { hasRealTime, ticketUrlsOf } from '@/lib/scraper/dedup-key'
+import { formatSaltaDayKey } from '@/lib/date-format'
 
 const HOUR_MS = 60 * 60 * 1000
 const DEFAULT_WINDOW_HOURS = 24
@@ -326,4 +327,80 @@ export async function getDismissedPairs(supabase: SupabaseClient): Promise<Dismi
     eventB: byId.get(row.event_b) ?? null,
     decidedAt: row.decided_at,
   }))
+}
+
+// ---------------------------------------------------------------------------
+// Avisos antes de fusionar (hotfix 13/10)
+// ---------------------------------------------------------------------------
+// Los pares ya salen del mismo venue_id (findDuplicateCandidates agrupa por
+// lugar), así que dos lugares distintos conocidos nunca forman un par. El
+// riesgo que queda es que la IA le haya asignado al borrador el mismo lugar
+// que al otro evento cuando el flyer decía otro: por eso se compara también
+// el lugar que leyó la IA (ai_metadata.extracted_data.venue_name).
+
+export type PairWarning = { kind: 'venue' | 'venue_ai' | 'day'; text: string }
+
+function normalizeVenueText(value: string): string {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .replace(/\b(de|del|la|el|los|las|salta)\b/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+/** Lugar tal como lo leyó la IA del flyer, si lo hay. */
+export function aiVenueName(event: Pick<DuplicateCandidateEvent, 'ai_metadata'>): string | null {
+  const meta = event.ai_metadata
+  if (!meta || typeof meta !== 'object' || Array.isArray(meta)) return null
+  const extracted = (meta as Record<string, unknown>).extracted_data
+  if (!extracted || typeof extracted !== 'object' || Array.isArray(extracted)) return null
+  const value = (extracted as Record<string, unknown>).venue_name
+  return typeof value === 'string' && value.trim() !== '' ? value.trim() : null
+}
+
+/** true si los dos textos nombran lugares distintos (uno no contiene al otro). */
+function differentVenueText(x: string, y: string): boolean {
+  const a = normalizeVenueText(x)
+  const b = normalizeVenueText(y)
+  if (!a || !b) return false
+  return !(a.includes(b) || b.includes(a))
+}
+
+function dayMonth(iso: string): string {
+  const [, month, day] = formatSaltaDayKey(iso).split('-')
+  return `${day}/${month}`
+}
+
+/**
+ * Avisos de un par antes de fusionar. Puro.
+ * - `venue`: los dos tienen lugar asignado y es distinto.
+ * - `venue_ai`: el lugar que leyó la IA de cada flyer no coincide.
+ * - `day`: empiezan en días distintos (hora de Salta).
+ */
+export function pairWarnings(a: DuplicateCandidateEvent, b: DuplicateCandidateEvent): PairWarning[] {
+  const warnings: PairWarning[] = []
+
+  if (a.venue_id && b.venue_id && a.venue_id !== b.venue_id) {
+    warnings.push({
+      kind: 'venue',
+      text: `Lugares distintos: ${a.venue?.name ?? 'sin nombre'} vs ${b.venue?.name ?? 'sin nombre'}`,
+    })
+  }
+
+  const aiA = aiVenueName(a)
+  const aiB = aiVenueName(b)
+  if (aiA && aiB && differentVenueText(aiA, aiB)) {
+    warnings.push({ kind: 'venue_ai', text: `Lugares distintos según el flyer: ${aiA} vs ${aiB}` })
+  }
+
+  const dayA = formatSaltaDayKey(a.start_date)
+  const dayB = formatSaltaDayKey(b.start_date)
+  if (dayA !== dayB) {
+    warnings.push({ kind: 'day', text: `Días distintos: ${dayMonth(a.start_date)} vs ${dayMonth(b.start_date)}` })
+  }
+
+  return warnings
 }

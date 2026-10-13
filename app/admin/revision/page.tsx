@@ -6,6 +6,8 @@ import { getCategories, getVenues } from '@/lib/data'
 import { DraftEventsManager } from '@/components/draft-events-manager'
 import { dateConfirmation, dateConfirmationText, loadFlyersByEvent } from '@/lib/admin/date-confirmation'
 import { ADMIN_REVIEW_EVENT_ROW_SELECT } from '@/lib/events/public-select'
+import { mergedIntoId } from '@/lib/events/merged'
+import { isUuid } from '@/lib/metricas'
 import type { ComponentProps } from 'react'
 
 // La fila que espera DraftEventsManager, sin el dateCheck que se calcula abajo.
@@ -78,12 +80,44 @@ export default async function AdminRevisionPage() {
   // la guarda del servidor de lib/admin-actions.ts).
   // El select con columnas explícitas es un string armado, así que supabase-js
   // no infiere el tipo de fila (ver lib/events/public-select.ts).
-  const draftEventsList = (draftEvents || []) as unknown as DraftEventWithRelations[]
+  const allDrafts = (draftEvents || []) as unknown as DraftEventWithRelations[]
+
+  // 4a. Borradores ya fusionados en otro (hotfix 13/10): no son pendientes.
+  // El servidor no los publica (guarda 2 de publishDraftEvent) y "Rechazar"
+  // los rechaza; van aparte, con el evento que quedó y "Deshacer fusión".
+  const draftEventsList = allDrafts.filter((event) => !mergedIntoId(event))
+  const mergedDrafts = allDrafts.filter((event) => mergedIntoId(event))
+  const targetIds = [...new Set(mergedDrafts.map((event) => mergedIntoId(event) as string))].filter(isUuid)
+
+  const adminClient = getPrivilegedClient()
+  const targetsById = new Map<string, { id: string; title: string; status: string }>()
+  if (targetIds.length > 0) {
+    const { data: targets, error: targetsError } = await adminClient
+      .from('events')
+      .select('id, title, status')
+      .in('id', targetIds)
+    if (targetsError) {
+      console.error('Error fetching merge targets:', targetsError)
+    }
+    for (const t of targets ?? []) targetsById.set(t.id, t)
+  }
+
+  const mergedEvents = mergedDrafts.map((event) => {
+    const intoId = mergedIntoId(event) as string
+    return {
+      id: event.id,
+      title: event.title,
+      start_date: event.start_date,
+      image_url: event.image_url,
+      venueName: event.venue?.name ?? null,
+      mergedInto: targetsById.get(intoId) ?? { id: intoId, title: null, status: null },
+    }
+  })
+
   const instagramAiIds = draftEventsList
     .filter((event) => event.scrape_source_key === 'instagram-ai')
     .map((event) => event.id)
 
-  const adminClient = getPrivilegedClient()
   const flyersResult = await loadFlyersByEvent(adminClient, instagramAiIds)
   if ('error' in flyersResult) {
     console.error('Error fetching instagram_flyers for date confirmation:', flyersResult.error)
@@ -122,6 +156,7 @@ export default async function AdminRevisionPage() {
       {/* Grid del Administrador de Borradores */}
       <DraftEventsManager
         initialEvents={eventsWithDateCheck}
+        mergedEvents={mergedEvents}
         categories={categories}
         venues={venues}
         pendingCount={pendingCount || 0}

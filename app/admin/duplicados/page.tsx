@@ -1,10 +1,12 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
-import { Copy, ExternalLink, MapPin, Clock } from 'lucide-react'
+import { AlertTriangle, Copy, ExternalLink, MapPin, Clock } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import {
+  aiVenueName,
   canMerge,
   defaultKeeper,
+  pairWarnings,
   getDismissedPairs,
   getDuplicateCandidates,
   type DuplicateCandidateEvent,
@@ -35,6 +37,12 @@ function dayMonthSlash(iso: string): string {
 }
 
 function EventColumn({ event }: { event: DuplicateCandidateEvent }) {
+  // Hotfix 13/10: el lugar que leyó la IA, cuando no es el asignado. Es la
+  // única pista de que la IA le puso al borrador el lugar del otro evento.
+  const leido = aiVenueName(event)
+  const asignado = event.venue?.name ?? ''
+  const aiFlyerVenue = leido && !asignado.toLowerCase().includes(leido.toLowerCase()) ? leido : null
+  const instagramPost = event.ticket_url && /^https:\/\/(www\.)?instagram\.com\//.test(event.ticket_url) ? event.ticket_url : null
   return (
     <div className="flex-1 space-y-2 rounded-lg border border-border bg-muted/30 p-3">
       <div className="flex items-start justify-between gap-2">
@@ -46,6 +54,23 @@ function EventColumn({ event }: { event: DuplicateCandidateEvent }) {
       <p className="text-xs text-muted-foreground">
         Fuente: {describeSource(resolveEventSource(event))}
       </p>
+      <p className="text-xs text-muted-foreground">
+        {formatEventDate(event.start_date)}, {formatEventTime(event.start_date)} hs · {event.venue?.name ?? 'Sin lugar'}
+      </p>
+      {aiFlyerVenue && (
+        <p className="text-xs font-medium text-amber-600">Lugar leído en el flyer: {aiFlyerVenue}</p>
+      )}
+      {instagramPost && (
+        <a
+          href={instagramPost}
+          target="_blank"
+          rel="noopener noreferrer nofollow"
+          className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:underline"
+        >
+          Ver el posteo
+          <ExternalLink className="size-3" />
+        </a>
+      )}
       <Link
         href={`/evento/${event.id}`}
         className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
@@ -116,7 +141,9 @@ export default async function AdminDuplicadosPage() {
         </div>
       ) : (
         <div className="space-y-4">
-          {pairs.map(({ a, b, hoursApart }) => (
+          {pairs.map(({ a, b, hoursApart }) => {
+            const warnings = pairWarnings(a, b)
+            return (
             <Card key={`${a.id}-${b.id}`}>
               <CardHeader className="pb-2">
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
@@ -134,6 +161,16 @@ export default async function AdminDuplicadosPage() {
                 </div>
               </CardHeader>
               <CardContent className="flex flex-col gap-3">
+                {warnings.length > 0 && (
+                  <div className="space-y-1 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-700">
+                    {warnings.map((w) => (
+                      <p key={w.kind} className="flex items-start gap-2 font-medium">
+                        <AlertTriangle className="mt-0.5 size-4 shrink-0" />
+                        {w.text}
+                      </p>
+                    ))}
+                  </div>
+                )}
                 <div className="flex flex-col gap-3 sm:flex-row">
                   <EventColumn event={a} />
                   <EventColumn event={b} />
@@ -144,10 +181,12 @@ export default async function AdminDuplicadosPage() {
                   defaultKeeperId={defaultKeeper(a, b)}
                   canMergeKeepA={canMerge(a, b)}
                   canMergeKeepB={canMerge(b, a)}
+                  warnings={warnings.map((w) => w.text)}
                 />
               </CardContent>
             </Card>
-          ))}
+            )
+          })}
         </div>
       )}
 
