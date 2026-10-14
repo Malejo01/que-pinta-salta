@@ -14,6 +14,10 @@ on:
   push:
   pull_request:
 
+# Solo hace checkout: no necesita escribir nada en el repo.
+permissions:
+  contents: read
+
 # Turborepo no manda telemetría desde el CI.
 env:
   TURBO_TELEMETRY_DISABLED: 1
