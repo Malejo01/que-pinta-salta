@@ -1,8 +1,9 @@
 /**
  * Después de mover la lógica a `packages/core/src`, los archivos viejos de
  * `apps/web/lib/...` (13 de la R22, más `events/public-select.ts`,
- * `images/variants.ts` y `auth/mensajes.ts` de la R25, tarea 25-a) tienen
- * que quedar como simples re-exports: como
+ * `images/variants.ts` y `auth/mensajes.ts` de la R25, tarea 25-a, y
+ * `metricas/links.ts` de la R26, tarea 26-a) tienen que quedar como
+ * simples re-exports: como
  * mucho 3 líneas de código (sin contar comentarios ni líneas vacías) y cada
  * una de esas líneas tiene que ser un `export ... from '...'` (nada de
  * funciones, constantes ni lógica). Así nadie vuelve a escribir lógica de
@@ -40,6 +41,8 @@ const MODULE_PATHS = [
   'events/public-select.ts',
   'images/variants.ts',
   'auth/mensajes.ts',
+  // R26, tarea 26-a: metricas/links.ts, convertido con el mismo patrón.
+  'metricas/links.ts',
 ] as const
 
 const REEXPORT_LINE =
@@ -108,7 +111,7 @@ describe('analyzeReexportFile (fixtures en memoria)', () => {
   })
 })
 
-describe('apps/web/lib: los módulos movidos quedan como re-export puro (13 de R22 + 3 de R25)', () => {
+describe('apps/web/lib: los módulos movidos quedan como re-export puro (13 de R22 + 3 de R25 + metricas/links de R26)', () => {
   it.each(MODULE_PATHS)('%s tiene a lo sumo 3 líneas de código, todas "export ... from"', (relPath) => {
     const fullPath = `${LIB_DIR}/${relPath}`
     let content: string
