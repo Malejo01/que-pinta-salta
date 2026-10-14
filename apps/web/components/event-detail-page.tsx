@@ -28,7 +28,7 @@ import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
 import { useToast } from "@/hooks/use-toast"
 import { ViewBeacon } from "@/components/view-beacon"
-import { goHref, type MetricOrigin } from "@/lib/metricas/links"
+import { goHref, urlComoLlegar, type MetricOrigin } from "@/lib/metricas/links"
 import { FlyerImage } from "@/components/flyer-image"
 
 type EventWithRelations = Event & { 
@@ -106,7 +106,7 @@ export function EventDetailPage({ event, isAdmin = false, categories = [], isFav
 
   const formattedDate = formatEventDate(displayEvent.date, true)
 
-  const googleMapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(displayEvent.address || displayEvent.venue)}`
+  const googleMapsUrl = urlComoLlegar({ address: displayEvent.address, venue: displayEvent.venue }) ?? '#'
   const iconComponent = getCategoryIcon(displayEvent.category)
 
   const handleSaveCategory = () => {
