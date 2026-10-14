@@ -1,5 +1,8 @@
 # CI: typecheck y esquema de la base.
 #
+# Monorepo (R22): npm workspaces y Turborepo. npm ci corre en la raíz; el
+# typecheck pasa por turbo (apps/web y packages/*); supabase/ sigue en la raíz.
+#
 # next.config.mjs dejaba pasar errores de tipos en el build, así que ningún
 # deploy fallaba por tipos; esto lo controla en cada push y PR.
 #
@@ -10,6 +13,10 @@ name: CI
 on:
   push:
   pull_request:
+
+# Turborepo no manda telemetría desde el CI.
+env:
+  TURBO_TELEMETRY_DISABLED: 1
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -66,11 +73,11 @@ jobs:
           fi
 
       # Los tipos commiteados tienen que ser los que salen de las migraciones.
-      - name: Regenerar tipos y comparar con lib/database.types.ts
+      - name: Regenerar tipos y comparar con packages/db/src/database.types.ts
         run: |
           set -euo pipefail
           npx supabase gen types typescript --local --schema public > "$RUNNER_TEMP/database.types.ts"
-          if ! diff -u lib/database.types.ts "$RUNNER_TEMP/database.types.ts"; then
-            echo "::error::lib/database.types.ts no coincide con las migraciones. Corré 'npm run db:types' y commitealo."
+          if ! diff -u packages/db/src/database.types.ts "$RUNNER_TEMP/database.types.ts"; then
+            echo "::error::packages/db/src/database.types.ts no coincide con las migraciones. Corré 'npm run db:types' y commitealo."
             exit 1
           fi
