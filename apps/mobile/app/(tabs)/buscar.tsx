@@ -131,7 +131,9 @@ export default function Buscar() {
           contentContainerStyle={estilos.lista}
           ListEmptyComponent={
             <View style={estilos.centrado}>
-              <Text style={[estilos.vacio, { color: colors.text }]}>No encontramos eventos con esos filtros.</Text>
+              <Text style={[estilos.vacio, { color: colors.text }]}>
+                {hayFiltros ? 'No encontramos eventos con esos filtros.' : 'No hay eventos por ahora.'}
+              </Text>
               {hayFiltros ? (
                 <Pressable onPress={limpiarFiltros} style={[estilos.boton, { borderColor: colors.border, marginTop: 12 }]}>
                   <Text style={[estilos.textoBoton, { color: colors.text }]}>Limpiar filtros</Text>
