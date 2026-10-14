@@ -94,6 +94,44 @@ isOneToOne: false
       referencedColumns: ["id"]
     }
                   ]
+                },"event_attendance": {
+                  Row: {
+                    "created_at": string,"event_id": string,"id": string,"kind": string,"updated_at": string,"user_id": string
+                  }
+                  Insert: {
+                    "created_at"?: string,"event_id": string,"id"?: string,"kind": string,"updated_at"?: string,"user_id": string
+                  }
+                  Update: {
+                    "created_at"?: string,"event_id"?: string,"id"?: string,"kind"?: string,"updated_at"?: string,"user_id"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "event_attendance_event_id_fkey"
+      columns: ["event_id"]
+isOneToOne: false
+      referencedRelation: "events"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"event_attendance_totals": {
+                  Row: {
+                    "event_id": string,"me_interesa": number,"voy": number
+                  }
+                  Insert: {
+                    "event_id": string,"me_interesa"?: number,"voy"?: number
+                  }
+                  Update: {
+                    "event_id"?: string,"me_interesa"?: number,"voy"?: number
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "event_attendance_totals_event_id_fkey"
+      columns: ["event_id"]
+isOneToOne: true
+      referencedRelation: "events"
+      referencedColumns: ["id"]
+    }
+                  ]
                 },"event_metrics_daily": {
                   Row: {
                     "clicks": number,"day": string,"event_id": string,"featured": boolean,"origin": string,"views": number
@@ -220,6 +258,38 @@ isOneToOne: false
                   Relationships: [
                     
                   ]
+                },"notification_preferences": {
+                  Row: {
+                    "announcements": boolean,"created_at": string,"daily_cap": number,"favorite_reminders": boolean,"follow_news": boolean,"quiet_end": string,"quiet_start": string,"radar_channel": string,"updated_at": string,"user_id": string
+                  }
+                  Insert: {
+                    "announcements"?: boolean,"created_at"?: string,"daily_cap"?: number,"favorite_reminders"?: boolean,"follow_news"?: boolean,"quiet_end"?: string,"quiet_start"?: string,"radar_channel"?: string,"updated_at"?: string,"user_id": string
+                  }
+                  Update: {
+                    "announcements"?: boolean,"created_at"?: string,"daily_cap"?: number,"favorite_reminders"?: boolean,"follow_news"?: boolean,"quiet_end"?: string,"quiet_start"?: string,"radar_channel"?: string,"updated_at"?: string,"user_id"?: string
+                  }
+                  Relationships: [
+                    
+                  ]
+                },"notification_sends": {
+                  Row: {
+                    "channel": string,"dedupe_key": string,"event_id": string | null,"id": string,"kind": string,"sent_at": string,"status": string,"user_id": string
+                  }
+                  Insert: {
+                    "channel": string,"dedupe_key": string,"event_id"?: string | null,"id"?: string,"kind": string,"sent_at"?: string,"status": string,"user_id": string
+                  }
+                  Update: {
+                    "channel"?: string,"dedupe_key"?: string,"event_id"?: string | null,"id"?: string,"kind"?: string,"sent_at"?: string,"status"?: string,"user_id"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "notification_sends_event_id_fkey"
+      columns: ["event_id"]
+isOneToOne: false
+      referencedRelation: "events"
+      referencedColumns: ["id"]
+    }
+                  ]
                 },"profiles": {
                   Row: {
                     "avatar_url": string | null,"contact_type": string | null,"contact_value": string | null,"created_at": string | null,"email": string,"favorite_categories": (string)[] | null,"full_name": string | null,"id": string,"notification_preferences": (Database["public"]['Enums']["notification_type"])[] | null,"role": Database["public"]['Enums']["user_role"] | null,"updated_at": string | null
@@ -229,6 +299,19 @@ isOneToOne: false
                   }
                   Update: {
                     "avatar_url"?: string | null,"contact_type"?: string | null,"contact_value"?: string | null,"created_at"?: string | null,"email"?: string,"favorite_categories"?: (string)[] | null,"full_name"?: string | null,"id"?: string,"notification_preferences"?: (Database["public"]['Enums']["notification_type"])[] | null,"role"?: Database["public"]['Enums']["user_role"] | null,"updated_at"?: string | null
+                  }
+                  Relationships: [
+                    
+                  ]
+                },"push_tokens": {
+                  Row: {
+                    "created_at": string,"id": string,"last_seen_at": string,"platform": string,"token": string,"user_id": string
+                  }
+                  Insert: {
+                    "created_at"?: string,"id"?: string,"last_seen_at"?: string,"platform": string,"token": string,"user_id": string
+                  }
+                  Update: {
+                    "created_at"?: string,"id"?: string,"last_seen_at"?: string,"platform"?: string,"token"?: string,"user_id"?: string
                   }
                   Relationships: [
                     
@@ -487,7 +570,20 @@ isOneToOne: false
                 }
           }
           Views: {
-            "event_duplicate_groups": {
+            "event_attendance_counts": {
+                  Row: {
+                    "event_id": string | null,"me_interesa": number | null,"voy": number | null
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "event_attendance_totals_event_id_fkey"
+      columns: ["event_id"]
+isOneToOne: true
+      referencedRelation: "events"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"event_duplicate_groups": {
                   Row: {
                     "dedup_key": string | null,"event_ids": (string)[] | null,"first_seen": string | null,"sources": (string)[] | null,"total": number | null
                   }
@@ -525,6 +621,9 @@ isOneToOne: false
                            },
 "record_event_metric":
 { Args: { "p_event_id": string,"p_kind": string,"p_origin": string }; Returns: undefined
+                           },
+"register_push_token":
+{ Args: { "p_platform": string,"p_token": string }; Returns: undefined
                            },
 "resolve_venue_id":
 { Args: { "p_autocreate"?: boolean,"p_raw": string,"p_source"?: string,"p_threshold"?: number }; Returns: string

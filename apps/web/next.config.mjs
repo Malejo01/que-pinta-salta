@@ -72,6 +72,13 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
+  // Android busca Digital Asset Links en esta ruta exacta y no sigue
+  // redirecciones: tiene que ser un rewrite (R23, 23-c).
+  async rewrites() {
+    return [
+      { source: '/.well-known/assetlinks.json', destination: '/api/app-links' },
+    ]
+  },
   async headers() {
     return [
       {
