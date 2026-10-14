@@ -1,0 +1,10 @@
+# Generados (Continuous Native Generation y export): nunca se editan ni se versionan.
+android/
+ios/
+dist/
+.expo/
+expo-env.d.ts
+
+# Valores locales: los carga Mauro, el equipo no los lee.
+.env
+.env*.local
