@@ -14,6 +14,7 @@ import { EventModal } from "@/components/event-modal"
 import { MovieModal } from "@/components/movie-modal"
 import { getCategoryIcon } from "@/lib/category-icons"
 import { transformEvent, type DisplayEvent } from "@/components/home-content"
+import { soloGratis } from "@qps/core/home/filtros-extra"
 
 function formatDateInSalta(date: Date): string {
   return new Intl.DateTimeFormat("en-CA", {
@@ -71,6 +72,7 @@ export function BuscarContent({
   const [selectedEvent, setSelectedEvent] = useState<DisplayEvent | null>(null)
   const [selectedMovie, setSelectedMovie] = useState<DisplayEvent | null>(null)
   const [favorites, setFavorites] = useState<string[]>(userFavorites)
+  const [soloGratisActivo, setSoloGratisActivo] = useState(false)
   const deferredSearchQuery = useDeferredValue(searchQuery)
 
   const categoryNameBySlug = useMemo(() => {
@@ -161,6 +163,15 @@ export function BuscarContent({
     )
   }, [deferredSearchQuery, allDisplayEvents])
 
+  // "Solo gratis" (apagado por defecto): con texto, sobre los resultados de
+  // la búsqueda; sin texto, sobre todos los eventos. Apagado, no cambia nada.
+  const mostrarListaResultados = !!searchQuery || soloGratisActivo
+
+  const resultadosMostrados = useMemo(() => {
+    const base = searchQuery ? filteredEvents : allDisplayEvents
+    return soloGratisActivo ? soloGratis(base) : base
+  }, [searchQuery, filteredEvents, allDisplayEvents, soloGratisActivo])
+
   const handleToggleFavorite = (eventId: string) => {
     setFavorites(prev => 
       prev.includes(eventId)
@@ -184,19 +195,33 @@ export function BuscarContent({
           <h1 className="text-3xl font-bold text-foreground">Buscar eventos</h1>
         </div>
 
-        <div className="relative mb-8">
-          <Search className="absolute left-3 top-1/2 size-5 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            type="search"
-            placeholder="Buscar por evento, lugar o descripcion..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="h-12 pl-11 text-lg"
-            autoFocus
-          />
+        <div className="mb-8">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 size-5 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              type="search"
+              placeholder="Buscar por evento, lugar o descripcion..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="h-12 pl-11 text-lg"
+              autoFocus
+            />
+          </div>
+          <button
+            type="button"
+            aria-pressed={soloGratisActivo}
+            onClick={() => setSoloGratisActivo((activo) => !activo)}
+            className={`mt-3 inline-flex h-11 items-center justify-center rounded-full border px-4 text-sm font-medium transition-colors ${
+              soloGratisActivo
+                ? "border-primary bg-primary text-primary-foreground"
+                : "border-border bg-card text-foreground hover:bg-muted"
+            }`}
+          >
+            Solo gratis
+          </button>
         </div>
 
-        {!searchQuery && (
+        {!mostrarListaResultados && (
           <div>
             <h2 className="mb-4 text-lg font-semibold text-foreground">
               Explorar por categoria
@@ -225,13 +250,15 @@ export function BuscarContent({
           </div>
         )}
 
-        {searchQuery && filteredEvents.length > 0 && (
+        {mostrarListaResultados && resultadosMostrados.length > 0 && (
           <div>
             <p className="mb-4 text-muted-foreground">
-              {filteredEvents.length} resultado{filteredEvents.length !== 1 && "s"} para &quot;{searchQuery}&quot;
+              {searchQuery
+                ? `${resultadosMostrados.length} resultado${resultadosMostrados.length !== 1 ? "s" : ""} para "${searchQuery}"`
+                : `${resultadosMostrados.length} evento${resultadosMostrados.length !== 1 ? "s" : ""} gratis`}
             </p>
             <div className="flex flex-wrap gap-4">
-              {filteredEvents.map(event => (
+              {resultadosMostrados.map(event => (
                 <EventCard
                   key={event.id}
                   event={event}
@@ -245,10 +272,12 @@ export function BuscarContent({
           </div>
         )}
 
-        {searchQuery && filteredEvents.length === 0 && (
+        {mostrarListaResultados && resultadosMostrados.length === 0 && (
           <div className="py-16 text-center">
             <p className="text-lg text-muted-foreground">
-              No se encontraron eventos para &quot;{searchQuery}&quot;
+              {searchQuery
+                ? `No se encontraron eventos para "${searchQuery}"`
+                : "No hay eventos gratis por ahora."}
             </p>
           </div>
         )}
