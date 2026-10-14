@@ -11,6 +11,8 @@ on:
     - cron: "0 15 * * *"
   workflow_dispatch:
 
+permissions: {}
+
 jobs:
   health:
     runs-on: ubuntu-latest

@@ -10,6 +10,8 @@ on:
     - cron: "0 */6 * * *"
   workflow_dispatch:
 
+permissions: {}
+
 concurrency:
   group: ai-queue
   cancel-in-progress: false
