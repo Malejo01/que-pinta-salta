@@ -17,6 +17,7 @@ import type { EventWithRelations } from '@/lib/home/types'
 import type { Category, Venue, CinemaMovie } from '@/lib/types'
 import type { FlyerWithAccount, InstagramAccount } from '@/lib/instagram-config'
 import { saltaWallClockToDate } from '@/lib/date-format'
+import { eventoEnAtajo } from '@qps/core/home/atajos'
 
 const salta = (wallClock: string) => saltaWallClockToDate(wallClock)
 
@@ -337,7 +338,12 @@ describe('buildDisplayData', () => {
     expect(ids).not.toContain('evento-vencido')
   })
 
-  it('"today": un museo que ya abrió hoy queda afuera de "all" (venció su estimado de 4 h) pero dentro de "today" (categoría de larga duración)', () => {
+  it('"today": un museo sin end_date también deja de aparecer 4 h después de abrir, igual que en "all" (QPS-128, decisión de Mauro)', () => {
+    // QPS-128: antes, "today" tenía una regla aparte por categoría que dejaba
+    // a los museos (categoría de larga duración) todo el día, aunque ya
+    // hubiera vencido su estimado de 4 h. Mauro decidió una única regla de
+    // vigencia (isVigente) para "all" y "today": sin end_date, el museo
+    // también vence a las 4 h en "Hoy".
     const museo = makeEvent({
       id: 'museo-de-prueba',
       title: 'Museo de Prueba',
@@ -347,7 +353,7 @@ describe('buildDisplayData', () => {
 
     const data = buildDisplayData([museo], [], [], new Map(), now)
     expect(data.all.map((e) => e.id)).not.toContain('museo-de-prueba')
-    expect(data.today.map((e) => e.id)).toContain('museo-de-prueba')
+    expect(data.today.map((e) => e.id)).not.toContain('museo-de-prueba')
   })
 
   it('"today" no trae eventos reales de otro día', () => {
@@ -383,5 +389,176 @@ describe('buildDisplayData', () => {
     // así que aparecen en "today" aunque su fecha no sea la de hoy.
     expect(data.all.map((e) => e.id)).toEqual(['ig-flyer-de-otro-dia', 'movie-pelicula-de-prueba'])
     expect(data.today.map((e) => e.id)).toEqual(['ig-flyer-de-otro-dia', 'movie-pelicula-de-prueba'])
+  })
+
+  // QPS-128: los bordes de vigencia que pidió Mauro, sobre "today".
+  it('evento que empieza a las 20:00 sin hora de fin: aparece en "Hoy" a las 21:00; ya no a las 00:01 del día siguiente (fin estimado 4 h)', () => {
+    const evento = makeEvent({
+      id: 'boliche-sin-fin',
+      start_date: salta('2030-10-10T20:00:00').toISOString(),
+      end_date: null,
+    })
+
+    const alas21 = buildDisplayData([evento], [], [], new Map(), salta('2030-10-10T21:00:00'))
+    expect(alas21.today.map((e) => e.id)).toContain('boliche-sin-fin')
+
+    const alas0001 = buildDisplayData([evento], [], [], new Map(), salta('2030-10-11T00:01:00'))
+    expect(alas0001.today.map((e) => e.id)).not.toContain('boliche-sin-fin')
+  })
+
+  it('evento sin hora (00:00 de Salta) de hoy: aparece en "Hoy" durante todo el día', () => {
+    const evento = makeEvent({
+      id: 'sin-hora-todo-el-dia',
+      start_date: salta('2030-10-10T00:00:00').toISOString(),
+      end_date: null,
+    })
+
+    for (const hora of ['2030-10-10T00:00:00', '2030-10-10T12:00:00', '2030-10-10T23:59:59']) {
+      const data = buildDisplayData([evento], [], [], new Map(), salta(hora))
+      expect(data.today.map((e) => e.id), hora).toContain('sin-hora-todo-el-dia')
+    }
+  })
+
+  it('evento que terminó hace 1 minuto no aparece; uno que termina en 1 minuto, sí', () => {
+    const ahora = salta('2030-10-10T18:00:00')
+    const terminoHaceUnMinuto = makeEvent({
+      id: 'termino-hace-1-min',
+      start_date: salta('2030-10-10T10:00:00').toISOString(),
+      end_date: new Date(ahora.getTime() - 60_000).toISOString(),
+    })
+    const terminaEnUnMinuto = makeEvent({
+      id: 'termina-en-1-min',
+      start_date: salta('2030-10-10T10:00:00').toISOString(),
+      end_date: new Date(ahora.getTime() + 60_000).toISOString(),
+    })
+
+    const data = buildDisplayData([terminoHaceUnMinuto, terminaEnUnMinuto], [], [], new Map(), ahora)
+    const ids = data.today.map((e) => e.id)
+    expect(ids).not.toContain('termino-hace-1-min')
+    expect(ids).toContain('termina-en-1-min')
+  })
+
+  it('museo con end_date (el cierre de recurrentes): aparece hasta el cierre, no después', () => {
+    const museo = makeEvent({
+      id: 'museo-con-cierre',
+      category: makeCategory('museos', 'Museos'),
+      start_date: salta('2030-10-10T10:00:00').toISOString(),
+      end_date: salta('2030-10-10T20:00:00').toISOString(),
+    })
+
+    const antesDelCierre = buildDisplayData([museo], [], [], new Map(), salta('2030-10-10T19:59:00'))
+    expect(antesDelCierre.today.map((e) => e.id)).toContain('museo-con-cierre')
+
+    const despuesDelCierre = buildDisplayData([museo], [], [], new Map(), salta('2030-10-10T20:01:00'))
+    expect(despuesDelCierre.today.map((e) => e.id)).not.toContain('museo-con-cierre')
+  })
+
+  it('un evento de mañana, aunque siga vigente (todavía no empezó), nunca aparece en "Hoy"', () => {
+    const deManana = makeEvent({
+      id: 'de-manana-vigente',
+      start_date: salta('2030-10-11T21:00:00').toISOString(),
+    })
+    // Confirma que el motivo de la exclusión es el día, no la vigencia: a esta
+    // hora el evento de mañana todavía está vigente (no empezó).
+    expect(
+      eventoEnAtajo(
+        { start_date: deManana.start_date, end_date: deManana.end_date, category: deManana.category.slug },
+        'hoy',
+        now,
+      ),
+    ).toBe(false)
+
+    const data = buildDisplayData([deManana], [], [], new Map(), now)
+    expect(data.today.map((e) => e.id)).not.toContain('de-manana-vigente')
+  })
+
+  it('"Hoy" de la portada y el atajo "hoy" de la app (home/atajos) dan el mismo resultado para el mismo conjunto de eventos (razón de QPS-128)', () => {
+    const ahora = salta('2030-10-10T14:30:00')
+
+    const boliche20 = makeEvent({
+      id: 'boliche-20',
+      title: 'Show De Boliche',
+      venue: makeVenue({ name: 'Boliche De Prueba' }),
+      start_date: salta('2030-10-10T20:00:00').toISOString(),
+      end_date: null,
+    })
+    const sinHora = makeEvent({
+      id: 'sin-hora',
+      title: 'Evento Sin Hora',
+      venue: makeVenue({ name: 'Venue Sin Hora' }),
+      start_date: salta('2030-10-10T00:00:00').toISOString(),
+      end_date: null,
+    })
+    const museoConEnd = makeEvent({
+      id: 'museo-con-end',
+      title: 'Museo Con Cierre',
+      venue: makeVenue({ name: 'Venue Museo Con Cierre' }),
+      category: makeCategory('museos', 'Museos'),
+      start_date: salta('2030-10-10T10:00:00').toISOString(),
+      end_date: salta('2030-10-10T20:00:00').toISOString(),
+    })
+    const museoSinEnd = makeEvent({
+      id: 'museo-sin-end',
+      title: 'Museo Sin Cierre',
+      venue: makeVenue({ name: 'Venue Museo Sin Cierre' }),
+      category: makeCategory('museos', 'Museos'),
+      start_date: salta('2030-10-10T10:00:00').toISOString(),
+      end_date: null,
+    })
+    const terminaEn1Min = makeEvent({
+      id: 'termina-en-1-min',
+      title: 'Termina En Un Minuto',
+      venue: makeVenue({ name: 'Venue Termina En Un Minuto' }),
+      start_date: salta('2030-10-10T10:00:00').toISOString(),
+      end_date: new Date(ahora.getTime() + 60_000).toISOString(),
+    })
+    const terminoHace1Min = makeEvent({
+      id: 'termino-hace-1-min',
+      title: 'Termino Hace Un Minuto',
+      venue: makeVenue({ name: 'Venue Termino Hace Un Minuto' }),
+      start_date: salta('2030-10-10T10:00:00').toISOString(),
+      end_date: new Date(ahora.getTime() - 60_000).toISOString(),
+    })
+    const deAyer = makeEvent({
+      id: 'de-ayer',
+      title: 'Evento De Ayer',
+      venue: makeVenue({ name: 'Venue De Ayer' }),
+      start_date: salta('2030-10-09T21:00:00').toISOString(),
+    })
+    const deManana = makeEvent({
+      id: 'de-manana',
+      title: 'Evento De Manana',
+      venue: makeVenue({ name: 'Venue De Manana' }),
+      start_date: salta('2030-10-11T21:00:00').toISOString(),
+    })
+
+    const eventos = [
+      boliche20,
+      sinHora,
+      museoConEnd,
+      museoSinEnd,
+      terminaEn1Min,
+      terminoHace1Min,
+      deAyer,
+      deManana,
+    ]
+
+    const data = buildDisplayData(eventos, [], [], new Map(), ahora)
+    const idsPortada = new Set(data.today.map((e) => e.id))
+
+    const idsAtajo = new Set(
+      eventos
+        .filter((evento) =>
+          eventoEnAtajo(
+            { start_date: evento.start_date, end_date: evento.end_date, category: evento.category.slug },
+            'hoy',
+            ahora,
+          ),
+        )
+        .map((evento) => evento.id),
+    )
+
+    expect(idsPortada).toEqual(idsAtajo)
+    expect(idsPortada).toEqual(new Set(['boliche-20', 'sin-hora', 'museo-con-end', 'termina-en-1-min']))
   })
 })

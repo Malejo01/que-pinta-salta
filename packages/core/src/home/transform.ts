@@ -9,7 +9,6 @@ import {
   ageChip,
   cleanDescription,
   formatEventTimeDisplay,
-  isRelevantToday,
 } from "../event-display"
 import { isVigente } from "../events/vigencia"
 import type { DisplayEvent, EventWithRelations } from "./types"
@@ -155,16 +154,13 @@ export function buildDisplayData(
   const finalEventItems = groupEventItems(
     events.filter((event) => isVigente(event, new Date(nowMs)))
   )
-  // Para "Hoy": lo de hoy aunque ya haya empezado (museos 10:00). Si el
-  // servidor solo mandó futuros, coincide con la agenda general de hoy.
+  // Para "Hoy": lo de hoy que sigue vigente (QPS-128: misma vigencia que la
+  // agenda general y el Radar, en vez de la regla aparte por categoría).
   const todayEventItems = groupEventItems(
     events.filter(
       (event) =>
         formatDateInSalta(new Date(event.start_date)) === saltaTodayStr &&
-        isRelevantToday(
-          { startDateTime: event.start_date, endDateTime: event.end_date, category: event.category?.slug },
-          nowMs
-        )
+        isVigente(event, new Date(nowMs))
     )
   )
 

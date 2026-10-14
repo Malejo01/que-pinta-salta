@@ -13,6 +13,7 @@ import { urlComoLlegar, urlEvento, urlGo } from '@qps/core/metricas/links'
 import { ticketUrlsOf } from '@qps/core/scraper/dedup-key'
 import { Afiche } from '@/components/Afiche'
 import { BotonesAsistencia } from '@/components/BotonesAsistencia'
+import { BotonFavorito } from '@/components/BotonFavorito'
 import { obtenerEventoPorId, type ResultadoEvento } from '@/lib/datos/eventos'
 import { esUuid } from '@/lib/links'
 
@@ -130,6 +131,8 @@ export default function EventoPorId() {
       <BotonesAsistencia eventId={evento.id} />
 
       <View style={estilos.filaBotones}>
+        <BotonFavorito eventId={evento.id} />
+
         <Pressable onPress={compartir} style={[estilos.boton, { borderColor: colors.border }]}>
           <Text style={[estilos.textoBoton, { color: colors.text }]}>Compartir</Text>
         </Pressable>

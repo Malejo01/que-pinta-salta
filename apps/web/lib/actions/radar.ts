@@ -5,8 +5,9 @@ import { revalidatePath } from "next/cache"
 import { Resend } from "resend"
 import { buildRadarEmail, radarEnvLabel } from "@/lib/radar/email"
 import { getRadarEvents } from "@/lib/radar/events"
+import { normalizarPreferenciasRadar, type EmailFrequency } from "@qps/core/radar/preferencias"
 
-export type EmailFrequency = 'weekly' | 'biweekly' | 'monthly' | 'disabled'
+export type { EmailFrequency }
 
 export interface RadarSettingsData {
   email_frequency: EmailFrequency
@@ -103,12 +104,18 @@ export async function updateRadarSettings(data: {
     return { success: false, error: "NO_EMAIL", message: "Tu cuenta no tiene un email asociado. No podemos activar el radar." }
   }
 
+  const normalizado = normalizarPreferenciasRadar(data)
+  if (!normalizado.ok) {
+    return { success: false, error: "INVALID", message: normalizado.error }
+  }
+  const { email_frequency, categoryIds, venueIds, instagramAccountIds } = normalizado.datos
+
   // 1. Guardar configuraciones generales
   const { error: settingsError } = await supabase
     .from("user_radar_settings")
     .upsert({
       user_id: user.id,
-      email_frequency: data.email_frequency,
+      email_frequency: email_frequency,
       email_target: user.email,
       updated_at: new Date().toISOString()
     })
@@ -129,8 +136,8 @@ export async function updateRadarSettings(data: {
     return { success: false, error: "DB_ERROR", message: "Error al limpiar categorías anteriores." }
   }
 
-  if (data.categoryIds.length > 0) {
-    const insertCats = data.categoryIds.map(id => ({
+  if (categoryIds.length > 0) {
+    const insertCats = categoryIds.map(id => ({
       user_id: user.id,
       category_id: id
     }))
@@ -155,8 +162,8 @@ export async function updateRadarSettings(data: {
     return { success: false, error: "DB_ERROR", message: "Error al limpiar locales anteriores." }
   }
 
-  if (data.venueIds.length > 0) {
-    const insertVens = data.venueIds.map(id => ({
+  if (venueIds.length > 0) {
+    const insertVens = venueIds.map(id => ({
       user_id: user.id,
       venue_id: id
     }))
@@ -181,8 +188,8 @@ export async function updateRadarSettings(data: {
     return { success: false, error: "DB_ERROR", message: "Error al limpiar cuentas de Instagram anteriores." }
   }
 
-  if (data.instagramAccountIds.length > 0) {
-    const insertIgs = data.instagramAccountIds.map(id => ({
+  if (instagramAccountIds.length > 0) {
+    const insertIgs = instagramAccountIds.map(id => ({
       user_id: user.id,
       instagram_account_id: id
     }))

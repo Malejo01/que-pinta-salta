@@ -3,9 +3,10 @@
 // tarjeta de la app (id, slug, title, poster_url, showings): nada de
 // `created_at`/`updated_at`/`is_currently_showing`, que no se usan acá.
 import type { MovieShowings } from '@qps/core/types'
+import { MENSAJE_SIN_CONFIGURACION } from '@/lib/mensajes'
 import { supabase } from '@/lib/supabase'
 
-export const MENSAJE_SIN_CONFIGURACION = 'La app no tiene la configuración de datos: avisá al equipo.'
+export { MENSAJE_SIN_CONFIGURACION }
 export const MENSAJE_ERROR_RED = 'No pudimos cargar la cartelera. Revisá tu conexión.'
 
 export interface Pelicula {

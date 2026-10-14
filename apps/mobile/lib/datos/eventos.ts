@@ -9,9 +9,10 @@ import { eventoEnAtajo, type Atajo } from '@qps/core/home/atajos'
 import { transformEvent } from '@qps/core/home/transform'
 import type { DisplayEvent, EventWithRelations } from '@qps/core/home/types'
 import type { Category, Event, Venue } from '@qps/core/types'
+import { MENSAJE_SIN_CONFIGURACION } from '@/lib/mensajes'
 import { supabase } from '@/lib/supabase'
 
-export const MENSAJE_SIN_CONFIGURACION = 'La app no tiene la configuración de datos: avisá al equipo.'
+export { MENSAJE_SIN_CONFIGURACION }
 export const MENSAJE_ERROR_RED = 'No pudimos cargar los eventos. Revisá tu conexión.'
 
 export type ResultadoEventos = { ok: true; eventos: DisplayEvent[] } | { ok: false; error: string }
