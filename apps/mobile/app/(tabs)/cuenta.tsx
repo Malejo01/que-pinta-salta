@@ -1,12 +1,15 @@
 // Pantalla de Cuenta (R24): email y contraseña con las mismas cuentas que la
 // web (decisión 3 de Mauro), Google detrás de EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID
-// (decisión 2) y Salir. El login es opcional: esta es la única pantalla que
-// cambia según haya o no sesión.
+// (decisión 2) y Salir. El login es opcional: esta pantalla cambia según
+// haya o no sesión (R27, 27-b: con sesión también se ven el Radar y las
+// notificaciones, en SeccionRadar y SeccionNotificaciones).
 import { useState } from 'react'
-import { ActivityIndicator, Pressable, Text, TextInput, View } from 'react-native'
+import { ActivityIndicator, Pressable, ScrollView, Text, TextInput, View } from 'react-native'
 import { useTheme } from 'expo-router'
 import { GoogleSignin } from '@react-native-google-signin/google-signin'
 import { mensajeErrorAlta } from '@qps/core/auth/mensajes'
+import { SeccionNotificaciones } from '@/components/SeccionNotificaciones'
+import { SeccionRadar } from '@/components/SeccionRadar'
 import { leerEnv } from '@/lib/env'
 import { supabase } from '@/lib/supabase'
 import { useSession } from '@/lib/session'
@@ -55,6 +58,7 @@ export default function Cuenta() {
 
   const estilos = {
     contenedor: { flex: 1, alignItems: 'center' as const, justifyContent: 'center' as const, padding: 24, gap: 12 },
+    contenedorSesion: { flexGrow: 1, alignItems: 'center' as const, padding: 24, gap: 12 },
     titulo: { color: colors.text, fontSize: 18, fontWeight: '600' as const, marginBottom: 8 },
     texto: { color: colors.text },
     error: { color: '#dc2626' },
@@ -181,7 +185,7 @@ export default function Cuenta() {
 
   if (session) {
     return (
-      <View style={estilos.contenedor}>
+      <ScrollView style={{ flex: 1, backgroundColor: colors.background }} contentContainerStyle={estilos.contenedorSesion}>
         <Text style={estilos.titulo}>Cuenta</Text>
         <Text style={estilos.texto}>{session.user.email}</Text>
         {error ? <Text style={estilos.error}>{error}</Text> : null}
@@ -192,7 +196,10 @@ export default function Cuenta() {
         >
           {accionEnCurso === 'salir' ? <ActivityIndicator color="#fff" /> : <Text style={estilos.textoBoton}>Salir</Text>}
         </Pressable>
-      </View>
+
+        <SeccionRadar />
+        <SeccionNotificaciones />
+      </ScrollView>
     )
   }
 

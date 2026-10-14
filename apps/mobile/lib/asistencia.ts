@@ -9,10 +9,14 @@
 // jueves: hasta entonces, PostgREST devuelve "la tabla/vista no existe"
 // (`PGRST205`, `42P01`) o un `PGRST2xx` con "schema cache" en el mensaje.
 // `clasificarErrorAsistencia` es pura (sin red, sin Supabase) para que 26-c
-// la pruebe sin mockear nada.
+// la pruebe sin mockear nada. QPS-131 (R27, 27-b): la lógica se generalizó a
+// `clasificarErrorTabla` (lib/errores.ts), y este módulo la reexporta con el
+// nombre viejo para no romper esos tests.
+import { clasificarErrorTabla } from './errores'
+import { MENSAJE_SIN_CONFIGURACION } from './mensajes'
 import { supabase } from './supabase'
 
-export const MENSAJE_SIN_CONFIGURACION = 'La app no tiene la configuración de datos: avisá al equipo.'
+export { MENSAJE_SIN_CONFIGURACION }
 export const MENSAJE_ERROR = 'No pudimos cargar esta sección. Probá de nuevo.'
 export const MENSAJE_NO_DISPONIBLE = 'Pronto vas a poder marcar si vas.'
 
@@ -30,28 +34,15 @@ export type EstadoAsistencia =
 
 export type ResultadoMarcar = { tipo: 'ok' } | { tipo: 'no-disponible' } | { tipo: 'error'; error: string }
 
-const PGRST2XX_SCHEMA_CACHE_RE = /^PGRST2\d\d$/
-
 /**
  * Clasifica un error de PostgREST sobre `event_attendance` /
- * `event_attendance_counts`. `'no-disponible'`: la tabla o la vista todavía
- * no existen en este entorno (`PGRST205`, `42P01`, o un `PGRST2xx` con
- * "schema cache" en el mensaje). Cualquier otro error (por ejemplo `42501`,
- * o un error de red sin `code`): `'error'`. Pura: no toca la red ni el
- * estado de la app.
+ * `event_attendance_counts`. Mismo nombre y misma lógica de siempre, ahora
+ * en `clasificarErrorTabla` (lib/errores.ts): `'no-disponible'` si la tabla
+ * o la vista todavía no existen en este entorno (`PGRST205`, `42P01`, o un
+ * `PGRST2xx` con "schema cache" en el mensaje); `'error'` para cualquier
+ * otro caso (por ejemplo `42501`, o un error de red sin `code`).
  */
-export function clasificarErrorAsistencia(error: unknown): 'no-disponible' | 'error' {
-  if (!error || typeof error !== 'object') return 'error'
-
-  const registro = error as Record<string, unknown>
-  const code = typeof registro.code === 'string' ? registro.code : ''
-  const message = typeof registro.message === 'string' ? registro.message : ''
-
-  if (code === 'PGRST205' || code === '42P01') return 'no-disponible'
-  if (PGRST2XX_SCHEMA_CACHE_RE.test(code) && /schema cache/i.test(message)) return 'no-disponible'
-
-  return 'error'
-}
+export const clasificarErrorAsistencia = clasificarErrorTabla
 
 function resultadoDeError(error: unknown): { tipo: 'no-disponible' } | { tipo: 'error'; error: string } {
   return clasificarErrorAsistencia(error) === 'no-disponible'
