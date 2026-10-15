@@ -16,6 +16,7 @@ import { ActivityIndicator, Pressable, StyleSheet, Switch, Text, View } from 're
 import { useTheme } from 'expo-router'
 import { CANALES_RADAR, type CanalRadar } from '@qps/core/notificaciones/preferencias'
 import { CampoTexto } from '@/components/CampoTexto'
+import { Cargando, ErrorCarga } from '@/components/EstadoCarga'
 import { guardarNotificaciones, MENSAJE_NO_DISPONIBLE, obtenerNotificaciones } from '@/lib/notificaciones'
 import { useSession } from '@/lib/session'
 
@@ -78,7 +79,7 @@ export function SeccionNotificaciones() {
   if (!userId) return null
 
   if (estado.tipo === 'cargando') {
-    return <ActivityIndicator style={estilos.espaciado} />
+    return <Cargando />
   }
 
   if (estado.tipo === 'no-disponible') {
@@ -94,10 +95,7 @@ export function SeccionNotificaciones() {
     return (
       <View style={estilos.seccion}>
         <Text style={[estilos.titulo, { color: colors.text }]}>Notificaciones</Text>
-        <Text style={{ color: colors.text }}>{estado.error}</Text>
-        <Pressable onPress={cargar} style={[estilos.boton, { borderColor: colors.border, marginTop: 8 }]}>
-          <Text style={[estilos.textoBoton, { color: colors.text }]}>Reintentar</Text>
-        </Pressable>
+        <ErrorCarga mensaje={estado.error} onReintentar={cargar} />
       </View>
     )
   }
@@ -208,7 +206,6 @@ const estilos = StyleSheet.create({
   seccion: { width: '100%', gap: 8, paddingVertical: 16 },
   titulo: { fontSize: 16, fontWeight: '700' },
   subtitulo: { fontWeight: '600', marginTop: 8 },
-  espaciado: { marginTop: 16 },
   filaInterruptor: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   filaChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: { borderWidth: 1, borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8 },

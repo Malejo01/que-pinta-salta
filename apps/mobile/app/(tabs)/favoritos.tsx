@@ -3,9 +3,10 @@
 // con la misma `TarjetaEvento` que Inicio/Buscar. El `userId` sale de
 // `useSession()`, nunca de un parámetro de pantalla.
 import { useCallback, useEffect, useState } from 'react'
-import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native'
+import { FlatList, RefreshControl, StyleSheet, View } from 'react-native'
 import { useRouter, useTheme } from 'expo-router'
 import type { DisplayEvent } from '@qps/core/home/types'
+import { Cargando, ErrorCarga, Vacio } from '@/components/EstadoCarga'
 import { TarjetaEvento } from '@/components/TarjetaEvento'
 import { obtenerFavoritos } from '@/lib/favoritos'
 import { useSession } from '@/lib/session'
@@ -22,12 +23,23 @@ export default function Favoritos() {
   const userId = session?.user.id ?? null
 
   const [estado, setEstado] = useState<EstadoLista>({ tipo: 'cargando' })
+  // Estado de refresco aparte del de carga (28-c): mientras se refresca, la
+  // grilla sigue a la vista en vez de pasar a `Cargando`.
+  const [refrescando, setRefrescando] = useState(false)
 
   const cargar = useCallback(async () => {
     if (!userId) return
     setEstado({ tipo: 'cargando' })
     const resultado = await obtenerFavoritos(userId)
     setEstado(resultado.ok ? { tipo: 'ok', eventos: resultado.eventos } : { tipo: 'error', error: resultado.error })
+  }, [userId])
+
+  const refrescar = useCallback(async () => {
+    if (!userId) return
+    setRefrescando(true)
+    const resultado = await obtenerFavoritos(userId)
+    setEstado(resultado.ok ? { tipo: 'ok', eventos: resultado.eventos } : { tipo: 'error', error: resultado.error })
+    setRefrescando(false)
   }, [userId])
 
   useEffect(() => {
@@ -38,37 +50,26 @@ export default function Favoritos() {
   if (cargandoSesion) {
     return (
       <View style={[estilos.centrado, { backgroundColor: colors.background, flex: 1 }]}>
-        <ActivityIndicator />
+        <Cargando />
       </View>
     )
   }
 
   if (!userId) {
+    // Sin sesión no hay nada propio que refrescar (28-c): esta pantalla no
+    // lleva RefreshControl.
     return (
       <View style={[estilos.centrado, { backgroundColor: colors.background, flex: 1 }]}>
-        <Text style={{ color: colors.text }}>Entrá para guardar tus favoritos</Text>
-        <Pressable
-          onPress={() => router.push('/cuenta')}
-          style={[estilos.boton, { borderColor: colors.border, marginTop: 12 }]}
-        >
-          <Text style={[estilos.textoBoton, { color: colors.text }]}>Ir a Cuenta</Text>
-        </Pressable>
+        <Vacio mensaje="Entrá para guardar tus favoritos" textoAccion="Ir a Cuenta" onAccion={() => router.push('/cuenta')} />
       </View>
     )
   }
 
   return (
     <View style={[estilos.contenedor, { backgroundColor: colors.background }]}>
-      {estado.tipo === 'cargando' ? <ActivityIndicator style={estilos.espaciado} /> : null}
+      {estado.tipo === 'cargando' ? <Cargando /> : null}
 
-      {estado.tipo === 'error' ? (
-        <View style={estilos.centrado}>
-          <Text style={{ color: colors.text }}>{estado.error}</Text>
-          <Pressable onPress={cargar} style={[estilos.boton, { borderColor: colors.border, marginTop: 12 }]}>
-            <Text style={[estilos.textoBoton, { color: colors.text }]}>Reintentar</Text>
-          </Pressable>
-        </View>
-      ) : null}
+      {estado.tipo === 'error' ? <ErrorCarga mensaje={estado.error} onReintentar={cargar} /> : null}
 
       {estado.tipo === 'ok' ? (
         <FlatList
@@ -77,9 +78,10 @@ export default function Favoritos() {
           numColumns={2}
           columnWrapperStyle={estilos.filaGrilla}
           contentContainerStyle={estilos.lista}
-          ListEmptyComponent={
-            <Text style={[estilos.vacio, { color: colors.text }]}>Todavía no guardaste ningún evento</Text>
+          refreshControl={
+            <RefreshControl refreshing={refrescando} onRefresh={refrescar} tintColor={colors.primary} colors={[colors.primary]} />
           }
+          ListEmptyComponent={<Vacio mensaje="Todavía no guardaste ningún evento" />}
           renderItem={({ item }) => (
             <View style={estilos.celda}>
               <TarjetaEvento evento={item} />
@@ -93,12 +95,8 @@ export default function Favoritos() {
 
 const estilos = StyleSheet.create({
   contenedor: { flex: 1 },
-  centrado: { alignItems: 'center', justifyContent: 'center', marginTop: 24, paddingHorizontal: 24 },
-  espaciado: { marginTop: 24 },
-  boton: { borderWidth: 1, borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8 },
-  textoBoton: { fontWeight: '600' },
+  centrado: { alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24 },
   lista: { paddingHorizontal: 16, paddingBottom: 16, gap: 12 },
-  vacio: { textAlign: 'center', marginTop: 24 },
   filaGrilla: { gap: 12 },
   // Ver el comentario del mismo nombre en app/(tabs)/index.tsx: evita que la
   // última celda de un número impar de eventos se estire a todo el ancho.

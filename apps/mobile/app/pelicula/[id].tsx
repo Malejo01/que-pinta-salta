@@ -8,10 +8,11 @@
 // clasificación: no están en `cinema_movies` (decisión 4 de "Feedback del
 // teléfono" en plan.md) — no se inventan.
 import { useCallback, useEffect, useState } from 'react'
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
 import * as Linking from 'expo-linking'
 import { Stack, useLocalSearchParams, useRouter, useTheme } from 'expo-router'
 import { Afiche } from '@/components/Afiche'
+import { Cargando, ErrorCarga, Vacio } from '@/components/EstadoCarga'
 import {
   funcionesPorCine,
   obtenerPeliculaPorId,
@@ -45,25 +46,19 @@ export default function PeliculaPorId() {
 
       {estado.tipo === 'cargando' ? (
         <View style={estilos.centrado}>
-          <ActivityIndicator />
+          <Cargando />
         </View>
       ) : null}
 
       {estado.tipo === 'error' ? (
         <View style={estilos.centrado}>
-          <Text style={{ color: colors.text }}>{estado.error}</Text>
-          <Pressable onPress={cargar} style={[estilos.boton, { borderColor: colors.border }]}>
-            <Text style={{ color: colors.text, fontWeight: '600' }}>Reintentar</Text>
-          </Pressable>
+          <ErrorCarga mensaje={estado.error} onReintentar={cargar} />
         </View>
       ) : null}
 
       {estado.tipo === 'no-encontrada' ? (
         <View style={estilos.centrado}>
-          <Text style={{ color: colors.text }}>Esta película ya no está en cartelera.</Text>
-          <Pressable onPress={() => router.back()} style={[estilos.boton, { borderColor: colors.border }]}>
-            <Text style={{ color: colors.text, fontWeight: '600' }}>Volver</Text>
-          </Pressable>
+          <Vacio mensaje="Esta película ya no está en cartelera." textoAccion="Volver" onAccion={() => router.back()} />
         </View>
       ) : null}
 
@@ -137,7 +132,6 @@ function BloqueCine({ cine, colores }: { cine: FuncionesDeCine; colores: ReturnT
 const estilos = StyleSheet.create({
   contenedor: { flex: 1 },
   centrado: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24, gap: 12 },
-  boton: { borderWidth: 1, borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8 },
   contenido: { padding: 16, gap: 12 },
   contenedorAfiche: { width: '100%', aspectRatio: 2 / 3, borderRadius: 12, overflow: 'hidden' },
   titulo: { fontSize: 22, fontWeight: '700' },

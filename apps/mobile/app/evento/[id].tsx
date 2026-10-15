@@ -4,7 +4,7 @@
 // `@qps/core/metricas/links`: nunca el `ticket_url` directo — ese link no
 // cuenta el clic ni valida el destino.
 import { useCallback, useEffect, useState } from 'react'
-import { ActivityIndicator, Pressable, ScrollView, Share, StyleSheet, Text, useWindowDimensions, View } from 'react-native'
+import { Pressable, ScrollView, Share, StyleSheet, Text, useWindowDimensions, View } from 'react-native'
 import * as Linking from 'expo-linking'
 import { Redirect, useLocalSearchParams, useRouter, useTheme } from 'expo-router'
 import { formatEventDate } from '@qps/core/date-format'
@@ -14,6 +14,7 @@ import { ticketUrlsOf } from '@qps/core/scraper/dedup-key'
 import { Afiche } from '@/components/Afiche'
 import { BotonesAsistencia } from '@/components/BotonesAsistencia'
 import { BotonFavorito } from '@/components/BotonFavorito'
+import { Cargando, ErrorCarga, Vacio } from '@/components/EstadoCarga'
 import { useColoresQPS } from '@/lib/colores'
 import { obtenerEventoPorId, type ResultadoEvento } from '@/lib/datos/eventos'
 import { esUuid } from '@/lib/links'
@@ -53,7 +54,7 @@ export default function EventoPorId() {
   if (estado.tipo === 'cargando') {
     return (
       <View style={[estilos.centrado, { backgroundColor: colors.background }]}>
-        <ActivityIndicator />
+        <Cargando />
       </View>
     )
   }
@@ -61,13 +62,7 @@ export default function EventoPorId() {
   if (estado.tipo === 'no-encontrado') {
     return (
       <View style={[estilos.centrado, { backgroundColor: colors.background }]}>
-        <Text style={{ color: colors.text }}>Este evento ya no está disponible.</Text>
-        <Pressable
-          onPress={() => router.replace('/')}
-          style={[estilos.boton, { borderColor: colors.border, marginTop: 12 }]}
-        >
-          <Text style={[estilos.textoBoton, { color: colors.text }]}>Volver a Inicio</Text>
-        </Pressable>
+        <Vacio mensaje="Este evento ya no está disponible." textoAccion="Volver a Inicio" onAccion={() => router.replace('/')} />
       </View>
     )
   }
@@ -75,10 +70,7 @@ export default function EventoPorId() {
   if (estado.tipo === 'error') {
     return (
       <View style={[estilos.centrado, { backgroundColor: colors.background }]}>
-        <Text style={{ color: colors.text }}>{estado.error}</Text>
-        <Pressable onPress={cargar} style={[estilos.boton, { borderColor: colors.border, marginTop: 12 }]}>
-          <Text style={[estilos.textoBoton, { color: colors.text }]}>Reintentar</Text>
-        </Pressable>
+        <ErrorCarga mensaje={estado.error} onReintentar={cargar} />
       </View>
     )
   }

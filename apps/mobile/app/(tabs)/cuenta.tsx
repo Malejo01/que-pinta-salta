@@ -6,6 +6,7 @@
 import { useState } from 'react'
 import { ActivityIndicator, Pressable, ScrollView, Text, useColorScheme, View } from 'react-native'
 import { useRouter, useTheme } from 'expo-router'
+import Constants from 'expo-constants'
 import {
   GoogleSignin,
   GoogleSigninButton,
@@ -14,12 +15,15 @@ import {
 } from '@react-native-google-signin/google-signin'
 import { mensajeErrorAlta } from '@qps/core/auth/mensajes'
 import { CampoTexto } from '@/components/CampoTexto'
+import { Cargando } from '@/components/EstadoCarga'
 import { SeccionNotificaciones } from '@/components/SeccionNotificaciones'
 import { SeccionRadar } from '@/components/SeccionRadar'
+import { useColoresQPS } from '@/lib/colores'
 import { codigoErrorGoogle, mensajeErrorGoogle, registrarErrorGoogle } from '@/lib/google'
 import { leerEnv } from '@/lib/env'
 import { supabase } from '@/lib/supabase'
 import { useSession } from '@/lib/session'
+import { textoVersion } from '@/lib/version'
 
 // Mapeo corto de códigos conocidos de @supabase/auth-js a mensajes en
 // español. Nunca se muestra el texto crudo de la API.
@@ -62,10 +66,18 @@ function mensajeDeError(error: unknown): string {
 
 export default function Cuenta() {
   const { colors } = useTheme()
+  const colores = useColoresQPS()
   const esquema = useColorScheme()
   const router = useRouter()
   const { session, cargando } = useSession()
   const { googleWebClientId } = leerEnv()
+  // 28-c: línea chica al pie, con y sin sesión. `textoVersion` es pura y
+  // nunca devuelve algo fuera de `\d+\.\d+\.\d+` / la lista de entornos, así
+  // que una clave puesta por error en `extra` no podría llegar a mostrarse.
+  const version = textoVersion({
+    version: Constants.expoConfig?.version,
+    entorno: Constants.expoConfig?.extra?.entorno,
+  })
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -89,12 +101,13 @@ export default function Cuenta() {
     textoBoton: { color: '#fff', fontWeight: '600' as const },
     linkBienvenida: { marginTop: 8, padding: 8 },
     textoLinkBienvenida: { fontSize: 13, fontWeight: '600' as const, textDecorationLine: 'underline' as const },
+    version: { fontSize: 11, color: colores.mutedForeground, marginTop: 4 },
   }
 
   if (cargando) {
     return (
       <View style={estilos.contenedor}>
-        <ActivityIndicator />
+        <Cargando />
       </View>
     )
   }
@@ -223,6 +236,7 @@ export default function Cuenta() {
         <Pressable onPress={() => router.push('/bienvenida')} style={estilos.linkBienvenida}>
           <Text style={[estilos.textoLinkBienvenida, { color: colors.text }]}>Ver la bienvenida</Text>
         </Pressable>
+        <Text style={estilos.version}>{version}</Text>
       </ScrollView>
     )
   }
@@ -275,6 +289,7 @@ export default function Cuenta() {
       <Pressable onPress={() => router.push('/bienvenida')} style={estilos.linkBienvenida}>
         <Text style={[estilos.textoLinkBienvenida, { color: colors.text }]}>Ver la bienvenida</Text>
       </Pressable>
+      <Text style={estilos.version}>{version}</Text>
     </View>
   )
 }

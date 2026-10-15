@@ -6,6 +6,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native'
 import { useTheme } from 'expo-router'
 import { FRECUENCIAS_RADAR, type EmailFrequency } from '@qps/core/radar/preferencias'
+import { Cargando, ErrorCarga } from '@/components/EstadoCarga'
 import { useColoresQPS } from '@/lib/colores'
 import {
   ETIQUETAS_FRECUENCIA,
@@ -69,16 +70,13 @@ export function SeccionRadar() {
   if (!userId) return null
 
   if (estado.tipo === 'cargando') {
-    return <ActivityIndicator style={estilos.espaciado} />
+    return <Cargando />
   }
 
   if (estado.tipo === 'error') {
     return (
       <View style={estilos.seccion}>
-        <Text style={{ color: colors.text }}>{estado.error}</Text>
-        <Pressable onPress={cargar} style={[estilos.boton, { borderColor: colors.border, marginTop: 8 }]}>
-          <Text style={[estilos.textoBoton, { color: colors.text }]}>Reintentar</Text>
-        </Pressable>
+        <ErrorCarga mensaje={estado.error} onReintentar={cargar} />
       </View>
     )
   }
@@ -216,7 +214,6 @@ const estilos = StyleSheet.create({
   seccion: { width: '100%', gap: 8, paddingVertical: 16 },
   titulo: { fontSize: 16, fontWeight: '700' },
   subtitulo: { fontWeight: '600', marginTop: 8 },
-  espaciado: { marginTop: 16 },
   filaChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: { borderWidth: 1, borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8 },
   textoChip: { fontWeight: '600' },

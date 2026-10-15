@@ -3,10 +3,11 @@
 // muestra antes de esto, una sola vez (lib/bienvenida.ts): mientras no se
 // sepa si ya se vio, no se dibuja nada, y si no se vio, se redirige.
 import { useCallback, useEffect, useState } from 'react'
-import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native'
+import { FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native'
 import { Redirect, useRouter, useTheme } from 'expo-router'
 import type { DisplayEvent } from '@qps/core/home/types'
 import type { Atajo } from '@qps/core/home/atajos'
+import { Cargando, ErrorCarga } from '@/components/EstadoCarga'
 import { Icono } from '@/components/Icono'
 import { TarjetaEvento } from '@/components/TarjetaEvento'
 import { useBienvenidaVista } from '@/lib/bienvenida'
@@ -30,11 +31,21 @@ export default function Inicio() {
   const router = useRouter()
   const [atajo, setAtajo] = useState<Atajo>('hoy')
   const [estado, setEstado] = useState<EstadoLista>({ tipo: 'cargando' })
+  // Estado de refresco aparte del de carga (28-c): mientras se refresca, la
+  // grilla sigue a la vista en vez de pasar a `Cargando`.
+  const [refrescando, setRefrescando] = useState(false)
 
   const cargar = useCallback(async () => {
     setEstado({ tipo: 'cargando' })
     const resultado = await obtenerEventosDeAtajo(atajo)
     setEstado(resultado.ok ? { tipo: 'ok', eventos: resultado.eventos } : { tipo: 'error', error: resultado.error })
+  }, [atajo])
+
+  const refrescar = useCallback(async () => {
+    setRefrescando(true)
+    const resultado = await obtenerEventosDeAtajo(atajo)
+    setEstado(resultado.ok ? { tipo: 'ok', eventos: resultado.eventos } : { tipo: 'error', error: resultado.error })
+    setRefrescando(false)
   }, [atajo])
 
   useEffect(() => {
@@ -68,16 +79,9 @@ export default function Inicio() {
         </Pressable>
       </View>
 
-      {estado.tipo === 'cargando' ? <ActivityIndicator style={estilos.espaciado} /> : null}
+      {estado.tipo === 'cargando' ? <Cargando /> : null}
 
-      {estado.tipo === 'error' ? (
-        <View style={estilos.centrado}>
-          <Text style={{ color: colors.text }}>{estado.error}</Text>
-          <Pressable onPress={cargar} style={[estilos.boton, { borderColor: colors.border, marginTop: 12 }]}>
-            <Text style={[estilos.textoBoton, { color: colors.text }]}>Reintentar</Text>
-          </Pressable>
-        </View>
-      ) : null}
+      {estado.tipo === 'error' ? <ErrorCarga mensaje={estado.error} onReintentar={cargar} /> : null}
 
       {estado.tipo === 'ok' ? (
         <FlatList
@@ -86,6 +90,9 @@ export default function Inicio() {
           numColumns={2}
           columnWrapperStyle={estilos.filaGrilla}
           contentContainerStyle={estilos.lista}
+          refreshControl={
+            <RefreshControl refreshing={refrescando} onRefresh={refrescar} tintColor={colors.primary} colors={[colors.primary]} />
+          }
           ListEmptyComponent={
             <Text style={[estilos.vacio, { color: colors.text }]}>No hay eventos para este momento.</Text>
           }
@@ -113,8 +120,6 @@ const estilos = StyleSheet.create({
     paddingVertical: 8,
   },
   textoBoton: { fontWeight: '600' },
-  espaciado: { marginTop: 24 },
-  centrado: { alignItems: 'center', marginTop: 24, paddingHorizontal: 24 },
   lista: { paddingHorizontal: 16, paddingBottom: 16, gap: 12 },
   vacio: { textAlign: 'center', marginTop: 24 },
   filaGrilla: { gap: 12 },
