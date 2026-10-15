@@ -16,6 +16,11 @@ export function diaSalta(d: Date): string {
   return new Date(d.getTime() - SALTA_OFFSET_MS).toISOString().slice(0, 10)
 }
 
+/** Hora de pared en Salta ("HH:mm") de un instante. */
+export function horaSalta(d: Date): string {
+  return new Date(d.getTime() - SALTA_OFFSET_MS).toISOString().slice(11, 16)
+}
+
 /** Día de la semana en Salta de un "YYYY-MM-DD" (0 = domingo … 6 = sábado). */
 export function diaDeLaSemana(dia: string): number {
   return new Date(`${dia}T12:00:00${SALTA_UTC_OFFSET}`).getUTCDay()
