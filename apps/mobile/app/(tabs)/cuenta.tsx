@@ -86,7 +86,10 @@ export default function Cuenta() {
   const [avisoConfirmacion, setAvisoConfirmacion] = useState(false)
 
   const estilos = {
-    contenedor: { flex: 1, alignItems: 'center' as const, justifyContent: 'center' as const, padding: 24, gap: 12 },
+    // flexGrow (no flex) porque también se usa como contentContainerStyle de
+    // un ScrollView (la rama sin sesión, más abajo): con flex no quedaría
+    // centrado cuando el contenido es más corto que la pantalla.
+    contenedor: { flexGrow: 1, alignItems: 'center' as const, justifyContent: 'center' as const, padding: 24, gap: 12 },
     contenedorSesion: { flexGrow: 1, alignItems: 'center' as const, padding: 24, gap: 12 },
     titulo: { color: colors.text, fontSize: 18, fontWeight: '600' as const, marginBottom: 8 },
     texto: { color: colors.text },
@@ -242,7 +245,11 @@ export default function Cuenta() {
   }
 
   return (
-    <View style={estilos.contenedor}>
+    <ScrollView
+      style={{ flex: 1 }}
+      contentContainerStyle={estilos.contenedor}
+      keyboardShouldPersistTaps="handled"
+    >
       <Text style={estilos.titulo}>Cuenta</Text>
       <CampoTexto
         label="Email"
@@ -290,6 +297,6 @@ export default function Cuenta() {
         <Text style={[estilos.textoLinkBienvenida, { color: colors.text }]}>Ver la bienvenida</Text>
       </Pressable>
       <Text style={estilos.version}>{version}</Text>
-    </View>
+    </ScrollView>
   )
 }
