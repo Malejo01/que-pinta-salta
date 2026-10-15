@@ -6,6 +6,7 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "lint": "eslint .",
     "export:android": "expo export --platform android --output-dir dist",
     "config:public": "expo config --type public --json",
     "check:bundle": "node scripts/revisar-bundle.mjs"
@@ -33,6 +34,8 @@
   },
   "devDependencies": {
     "@types/react": "~19.2.2",
+    "eslint": "^9.39.4",
+    "eslint-config-expo": "~57.0.2",
     "typescript": "~6.0.3",
     "vitest": "^3.2.7"
   }
