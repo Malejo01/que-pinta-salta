@@ -4,7 +4,7 @@
 // de cines donde se puede ver cada película.
 import { useCallback, useEffect, useState } from 'react'
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native'
-import { useTheme } from 'expo-router'
+import { useRouter, useTheme } from 'expo-router'
 import { Afiche } from '@/components/Afiche'
 import { cantidadDeSalas, obtenerCines, type Pelicula } from '@/lib/datos/cines'
 
@@ -12,6 +12,7 @@ type Estado = { tipo: 'cargando' } | { tipo: 'error'; error: string } | { tipo: 
 
 export default function Cines() {
   const { colors } = useTheme()
+  const router = useRouter()
   const [estado, setEstado] = useState<Estado>({ tipo: 'cargando' })
 
   const cargar = useCallback(async () => {
@@ -50,7 +51,12 @@ export default function Cines() {
           renderItem={({ item }) => {
             const salas = cantidadDeSalas(item)
             return (
-              <View style={estilos.fila}>
+              <Pressable
+                onPress={() => router.push(`/pelicula/${item.id}`)}
+                accessibilityRole="button"
+                android_ripple={{ color: colors.border }}
+                style={({ pressed }) => [estilos.fila, { opacity: pressed ? 0.6 : 1 }]}
+              >
                 <Afiche url={item.poster_url} estilo={estilos.afiche} />
                 <View style={estilos.filaTexto}>
                   <Text style={[estilos.tituloPelicula, { color: colors.text }]}>{item.title}</Text>
@@ -58,7 +64,7 @@ export default function Cines() {
                     {salas} {salas === 1 ? 'sala' : 'salas'}
                   </Text>
                 </View>
-              </View>
+              </Pressable>
             )
           }}
         />
