@@ -14,19 +14,22 @@ import {
   type RecurrenteMuseo,
   type RecurrentePena,
 } from './config'
-import { diaSalta, fechasPendientes, saltaAUtc, slugMuseos, slugPenas, type FechaPendiente } from './fechas'
+import { diaSalta, fechasPendientes, horaSalta, saltaAUtc, slugMuseos, slugPenas, type FechaPendiente } from './fechas'
 
 export type ResultadoItem = {
   titulo: string
   tipo: 'pena' | 'museo'
   insertadas: number
   yaExistian: number
+  /** Filas que ya existían sin end_date y se completaron con el `cierre` de la config (QPS-136). */
+  completadas: number
   error?: string
 }
 
 export type ResultadoRecurrentes = {
   items: ResultadoItem[]
   insertadas: number
+  completadas: number
   conError: number
 }
 
@@ -42,8 +45,10 @@ export const FUENTE_RECURRENTES = 'recurrentes'
 
 /**
  * Genera las fechas futuras que faltan de peñas y museos. Idempotente: solo
- * escribe los días que no existen todavía. No crea venues. El cliente llega
- * por parámetro (service role en la ruta); acá no se lee el entorno.
+ * escribe los días que no existen todavía, y a los que ya existen sin end_date
+ * les completa el cierre de la config (QPS-136; nunca pisa un end_date
+ * cargado). No crea venues. El cliente llega por parámetro (service role en la
+ * ruta); acá no se lee el entorno.
  */
 export async function generarRecurrentes(
   supabase: SupabaseClient,
@@ -56,12 +61,13 @@ export async function generarRecurrentes(
   return {
     items,
     insertadas: items.reduce((s, i) => s + i.insertadas, 0),
+    completadas: items.reduce((s, i) => s + i.completadas, 0),
     conError: items.filter((i) => i.error).length,
   }
 }
 
 async function generarItem(supabase: SupabaseClient, r: Recurrente, ahora: Date): Promise<ResultadoItem> {
-  const res: ResultadoItem = { titulo: r.titulo, tipo: r.tipo, insertadas: 0, yaExistian: 0 }
+  const res: ResultadoItem = { titulo: r.titulo, tipo: r.tipo, insertadas: 0, yaExistian: 0, completadas: 0 }
   try {
     const venueId = await resolveVenueId(supabase, r.venue, { source: 'recurrentes', autocreate: false })
     if (!venueId) throw new Error(`El venue "${r.venue}" no resuelve (el job no crea venues)`)
@@ -116,7 +122,7 @@ async function generarItem(supabase: SupabaseClient, r: Recurrente, ahora: Date)
 
     // Días que ya existen (futuros) para ese venue y título.
     const { data: ya, error: errYa } = await supabase
-      .from('events').select('start_date')
+      .from('events').select('id, start_date, end_date, status')
       .eq('venue_id', venueId).eq('title', r.titulo)
       .gte('start_date', ahora.toISOString())
     if (errYa) throw new Error(`Días existentes: ${errYa.message}`)
@@ -129,6 +135,25 @@ async function generarItem(supabase: SupabaseClient, r: Recurrente, ahora: Date)
     res.yaExistian = enVentana.length - nuevas.length
 
     const errores: string[] = []
+
+    // QPS-136: las filas que ya existen sin end_date (las generadas antes de que la config
+    // tuviera `cierre`) se completan con el mismo cálculo que una fila nueva. Solo PUBLISHED y
+    // solo si la fila abre a la hora de la config: si alguien la movió a mano, no se adivina
+    // su cierre. El `.is('end_date', null)` del UPDATE asegura que nunca se pisa uno cargado,
+    // aunque otro proceso lo haya escrito entre la lectura y la escritura.
+    for (const e of ya ?? []) {
+      if (!r.cierre || e.end_date != null || e.status !== 'PUBLISHED') continue
+      const inicio = new Date(e.start_date as string)
+      if (horaSalta(inicio) !== r.hora) continue
+      const f: FechaPendiente = { dia: diaSalta(inicio), startUtc: inicio.toISOString() }
+      const { data: tocadas, error: errFin } = await supabase
+        .from('events').update({ end_date: endDateUtc(f, r.hora, r.cierre) })
+        .eq('id', e.id as string).is('end_date', null)
+        .select('id')
+      if (errFin) errores.push(`${f.dia} (cierre): ${errFin.message}`)
+      else res.completadas += (tocadas ?? []).length
+    }
+
     for (const f of nuevas) {
       try {
         const fila = r.tipo === 'pena'

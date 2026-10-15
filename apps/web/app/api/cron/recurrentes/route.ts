@@ -28,7 +28,12 @@ function toOutcome(r: ResultadoRecurrentes): JobOutcome {
     details: Object.fromEntries(
       r.items.map((i) => [
         i.titulo,
-        { insertadas: i.insertadas, yaExistian: i.yaExistian, ...(i.error ? { error: i.error } : {}) },
+        {
+          insertadas: i.insertadas,
+          yaExistian: i.yaExistian,
+          completadas: i.completadas,
+          ...(i.error ? { error: i.error } : {}),
+        },
       ]),
     ),
   }
@@ -49,6 +54,7 @@ export async function GET(request: Request) {
   return NextResponse.json({
     status: toOutcome(result).status,
     insertadas: result.insertadas,
+    completadas: result.completadas,
     conError: result.conError,
     // El detalle del error (puede traer mensajes crudos de Supabase) queda solo
     // en job_runs.errors; la respuesta, que el workflow imprime en logs, lleva un texto fijo.
