@@ -106,7 +106,8 @@ export function EventDetailPage({ event, isAdmin = false, categories = [], isFav
 
   const formattedDate = formatEventDate(displayEvent.date, true)
 
-  const googleMapsUrl = urlComoLlegar({ address: displayEvent.address, venue: displayEvent.venue }) ?? '#'
+  // null sin dirección ni lugar: entonces no hay botón (QPS-137), en vez de un link a '#'.
+  const googleMapsUrl = urlComoLlegar({ address: displayEvent.address, venue: displayEvent.venue })
   const iconComponent = getCategoryIcon(displayEvent.category)
 
   const handleSaveCategory = () => {
@@ -350,17 +351,19 @@ export function EventDetailPage({ event, isAdmin = false, categories = [], isFav
 
 
             <div className="flex flex-col gap-3 sm:flex-row">
-              <Button 
-                size="lg"
-                className="w-full sm:flex-1 bg-primary text-primary-foreground hover:bg-primary/90"
-                asChild
-              >
-                <a href={googleMapsUrl} target="_blank" rel="noopener noreferrer">
-                  <Navigation className="mr-2 size-4" />
-                  Como llegar
-                </a>
-              </Button>
-              
+              {googleMapsUrl && (
+                <Button
+                  size="lg"
+                  className="w-full sm:flex-1 bg-primary text-primary-foreground hover:bg-primary/90"
+                  asChild
+                >
+                  <a href={googleMapsUrl} target="_blank" rel="noopener noreferrer">
+                    <Navigation className="mr-2 size-4" />
+                    Como llegar
+                  </a>
+                </Button>
+              )}
+
               {displayEvent.ticketUrl && (
                 <Button size="lg" variant="outline" className="w-full sm:flex-1" asChild>
                   <a href={goHref(event.id, "ficha")} target="_blank" rel="nofollow noopener noreferrer">

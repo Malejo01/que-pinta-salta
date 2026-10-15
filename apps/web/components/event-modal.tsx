@@ -36,7 +36,7 @@ import { getCategoryIcon } from "@/lib/category-icons"
 import { formatEventDate } from "@/lib/date-format"
 import { capitalizeFirst, cleanDescription } from "@/lib/event-display"
 import { ViewBeacon } from "@/components/view-beacon"
-import { goHref, type MetricOrigin } from "@/lib/metricas/links"
+import { goHref, urlComoLlegar, type MetricOrigin } from "@/lib/metricas/links"
 import { FlyerImage } from "@/components/flyer-image"
 
 interface EventModalProps {
@@ -53,7 +53,8 @@ export function EventModal({ event, open, onClose, origin = "directo" }: EventMo
   const formattedDate = formatEventDate(event.date, true)
   const description = cleanDescription(event.description)
 
-  const googleMapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(event.address || event.venue)}`
+  // La misma URL que la ficha (QPS-130); null sin dirección ni lugar: no hay botón (QPS-137).
+  const googleMapsUrl = urlComoLlegar({ address: event.address, venue: event.venue })
   const iconComponent = getCategoryIcon(event.category as EventCategory)
 
   return (
@@ -124,16 +125,18 @@ export function EventModal({ event, open, onClose, origin = "directo" }: EventMo
           )}
 
           <div className="flex flex-col gap-3 sm:flex-row">
-            <Button 
-              className="flex-1 bg-primary text-primary-foreground hover:bg-primary/90"
-              asChild
-            >
-              <a href={googleMapsUrl} target="_blank" rel="noopener noreferrer">
-                <Navigation className="mr-2 size-4" />
-                Como llegar
-              </a>
-            </Button>
-            
+            {googleMapsUrl && (
+              <Button
+                className="flex-1 bg-primary text-primary-foreground hover:bg-primary/90"
+                asChild
+              >
+                <a href={googleMapsUrl} target="_blank" rel="noopener noreferrer">
+                  <Navigation className="mr-2 size-4" />
+                  Como llegar
+                </a>
+              </Button>
+            )}
+
             {event.ticketUrl && (
               <Button variant="outline" className="flex-1" asChild>
                 <a href={goHref(event.id, "ficha")} target="_blank" rel="nofollow noopener noreferrer">

@@ -1,0 +1,40 @@
+// QPS-137 (y QPS-130): "Como llegar" solo aparece cuando urlComoLlegar() da una URL.
+// Sin dirección ni lugar devuelve null (tests/core/links.test.ts): entonces no hay botón,
+// en vez de un link a '#' (la ficha) o a una búsqueda vacía de Maps (los dos modales).
+//
+// El entorno de Vitest es node, sin DOM: igual que tests/buscar/solo-gratis-chip.test.ts,
+// se controla el código fuente de los tres componentes que muestran el botón.
+
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
+import { describe, expect, it } from 'vitest'
+
+const ROOT = join(__dirname, '..', '..')
+const COMPONENTES = ['components/event-detail-page.tsx', 'components/event-modal.tsx', 'components/event-modal-wrapper.tsx']
+
+describe.each(COMPONENTES)('%s', (archivo) => {
+  const fuente = readFileSync(join(ROOT, archivo), 'utf8')
+
+  it('arma la URL con urlComoLlegar(), la misma de la ficha y de la app', () => {
+    expect(fuente).toMatch(/import \{[^}]*\burlComoLlegar\b[^}]*\} from "@\/lib\/metricas\/links"/)
+    expect(fuente).toMatch(/const googleMapsUrl = urlComoLlegar\(\{/)
+  })
+
+  it('no arma la URL de Maps a mano ni cae a "#"', () => {
+    expect(fuente).not.toContain('google.com/maps')
+    expect(fuente).not.toMatch(/urlComoLlegar\([^)]*\)\s*\?\?/)
+  })
+
+  it('el botón "Como llegar" está dentro de {googleMapsUrl && (...)}', () => {
+    const condicion = fuente.indexOf('{googleMapsUrl && (')
+    const boton = fuente.indexOf('Como llegar')
+    expect(condicion).toBeGreaterThan(-1)
+    expect(boton).toBeGreaterThan(condicion)
+    // Un solo botón, y el cierre del condicional viene después del texto.
+    expect(fuente.split('Como llegar')).toHaveLength(2)
+    const cierre = fuente.indexOf(')}', boton)
+    expect(cierre).toBeGreaterThan(boton)
+    // Entre la condición y el texto no se cierra otro bloque JSX condicional.
+    expect(fuente.slice(condicion, boton)).not.toContain(')}')
+  })
+})
