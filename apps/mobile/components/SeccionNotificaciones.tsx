@@ -12,9 +12,10 @@
 // de texto "HH:MM" que valida `validarPreferenciasNotificacion` de core al
 // guardar.
 import { useCallback, useEffect, useState } from 'react'
-import { ActivityIndicator, Pressable, StyleSheet, Switch, Text, TextInput, View } from 'react-native'
+import { ActivityIndicator, Pressable, StyleSheet, Switch, Text, View } from 'react-native'
 import { useTheme } from 'expo-router'
 import { CANALES_RADAR, type CanalRadar } from '@qps/core/notificaciones/preferencias'
+import { CampoTexto } from '@/components/CampoTexto'
 import { guardarNotificaciones, MENSAJE_NO_DISPONIBLE, obtenerNotificaciones } from '@/lib/notificaciones'
 import { useSession } from '@/lib/session'
 
@@ -164,21 +165,24 @@ export function SeccionNotificaciones() {
 
       <Text style={[estilos.subtitulo, { color: colors.text }]}>Horario de silencio</Text>
       <View style={estilos.filaHorario}>
-        <TextInput
-          value={quietStart}
-          onChangeText={(valor) => setEstado({ ...estado, quietStart: valor })}
-          placeholder="23:00"
-          placeholderTextColor={colors.border}
-          style={[estilos.inputHora, { borderColor: colors.border, color: colors.text }]}
-        />
-        <Text style={{ color: colors.text }}>a</Text>
-        <TextInput
-          value={quietEnd}
-          onChangeText={(valor) => setEstado({ ...estado, quietEnd: valor })}
-          placeholder="09:00"
-          placeholderTextColor={colors.border}
-          style={[estilos.inputHora, { borderColor: colors.border, color: colors.text }]}
-        />
+        <View style={estilos.campoHorario}>
+          <CampoTexto
+            label="Desde"
+            value={quietStart}
+            onChangeText={(valor) => setEstado({ ...estado, quietStart: valor })}
+            placeholder="23:00"
+            style={estilos.textoHorario}
+          />
+        </View>
+        <View style={estilos.campoHorario}>
+          <CampoTexto
+            label="Hasta"
+            value={quietEnd}
+            onChangeText={(valor) => setEstado({ ...estado, quietEnd: valor })}
+            placeholder="09:00"
+            style={estilos.textoHorario}
+          />
+        </View>
       </View>
 
       {mensaje ? (
@@ -209,8 +213,9 @@ const estilos = StyleSheet.create({
   filaChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: { borderWidth: 1, borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8 },
   textoChip: { fontWeight: '600' },
-  filaHorario: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  inputHora: { borderWidth: 1, borderRadius: 8, padding: 10, width: 80, textAlign: 'center' },
+  filaHorario: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
+  campoHorario: { flex: 1 },
+  textoHorario: { textAlign: 'center' },
   boton: { borderWidth: 1, borderRadius: 8, paddingVertical: 12, alignItems: 'center' },
   textoBoton: { fontWeight: '600' },
 })

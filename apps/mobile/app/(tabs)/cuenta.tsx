@@ -4,12 +4,19 @@
 // haya o no sesión (R27, 27-b: con sesión también se ven el Radar y las
 // notificaciones, en SeccionRadar y SeccionNotificaciones).
 import { useState } from 'react'
-import { ActivityIndicator, Pressable, ScrollView, Text, TextInput, View } from 'react-native'
-import { useTheme } from 'expo-router'
-import { GoogleSignin } from '@react-native-google-signin/google-signin'
+import { ActivityIndicator, Pressable, ScrollView, Text, useColorScheme, View } from 'react-native'
+import { useRouter, useTheme } from 'expo-router'
+import {
+  GoogleSignin,
+  GoogleSigninButton,
+  isCancelledResponse,
+  isSuccessResponse,
+} from '@react-native-google-signin/google-signin'
 import { mensajeErrorAlta } from '@qps/core/auth/mensajes'
+import { CampoTexto } from '@/components/CampoTexto'
 import { SeccionNotificaciones } from '@/components/SeccionNotificaciones'
 import { SeccionRadar } from '@/components/SeccionRadar'
+import { codigoErrorGoogle, mensajeErrorGoogle, registrarErrorGoogle } from '@/lib/google'
 import { leerEnv } from '@/lib/env'
 import { supabase } from '@/lib/supabase'
 import { useSession } from '@/lib/session'
@@ -31,15 +38,23 @@ const MENSAJES_ERROR: Record<string, string> = {
 const MENSAJE_GENERICO = 'No se pudo completar la operación. Probá de nuevo.'
 const MENSAJE_SIN_CONFIG = 'La app no tiene la configuración de cuentas: avisá al equipo.'
 const MENSAJE_SIN_ID_TOKEN = 'Google no devolvió un token válido. Probá de nuevo.'
+// F6 (decisión 5 del plan, QPS-145): credenciales inválidas suma esta
+// segunda línea. La web no tiene "¿Olvidaste tu contraseña?", así que no se
+// agrega: no hay a dónde llevar.
+const SUGERENCIA_GOOGLE = 'Si entraste con Google, usá el botón de Google.'
+// F4: el rojo fijo de R24 no se leía en tema oscuro.
+const ROJO_ERROR_CLARO = '#dc2626'
+const ROJO_ERROR_OSCURO = '#f87171'
 
 function mensajeDeError(error: unknown): string {
   if (error && typeof error === 'object') {
     const registro = error as Record<string, unknown>
     if (typeof registro.code === 'string' && MENSAJES_ERROR[registro.code]) {
-      return MENSAJES_ERROR[registro.code]
+      const mensaje = MENSAJES_ERROR[registro.code]
+      return registro.code === 'invalid_credentials' ? `${mensaje}\n${SUGERENCIA_GOOGLE}` : mensaje
     }
     if (typeof registro.message === 'string' && /invalid login credentials/i.test(registro.message)) {
-      return MENSAJES_ERROR.invalid_credentials
+      return `${MENSAJES_ERROR.invalid_credentials}\n${SUGERENCIA_GOOGLE}`
     }
   }
   return MENSAJE_GENERICO
@@ -47,6 +62,8 @@ function mensajeDeError(error: unknown): string {
 
 export default function Cuenta() {
   const { colors } = useTheme()
+  const esquema = useColorScheme()
+  const router = useRouter()
   const { session, cargando } = useSession()
   const { googleWebClientId } = leerEnv()
 
@@ -61,15 +78,7 @@ export default function Cuenta() {
     contenedorSesion: { flexGrow: 1, alignItems: 'center' as const, padding: 24, gap: 12 },
     titulo: { color: colors.text, fontSize: 18, fontWeight: '600' as const, marginBottom: 8 },
     texto: { color: colors.text },
-    error: { color: '#dc2626' },
-    input: {
-      width: '100%' as const,
-      borderWidth: 1,
-      borderColor: colors.border,
-      borderRadius: 8,
-      padding: 10,
-      color: colors.text,
-    },
+    error: { color: esquema === 'dark' ? ROJO_ERROR_OSCURO : ROJO_ERROR_CLARO },
     boton: (deshabilitado: boolean) => ({
       width: '100%' as const,
       backgroundColor: deshabilitado ? colors.border : colors.primary,
@@ -78,6 +87,8 @@ export default function Cuenta() {
       alignItems: 'center' as const,
     }),
     textoBoton: { color: '#fff', fontWeight: '600' as const },
+    linkBienvenida: { marginTop: 8, padding: 8 },
+    textoLinkBienvenida: { fontSize: 13, fontWeight: '600' as const, textDecorationLine: 'underline' as const },
   }
 
   if (cargando) {
@@ -141,8 +152,12 @@ export default function Cuenta() {
       GoogleSignin.configure({ webClientId: googleWebClientId })
       await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true })
       const respuesta = await GoogleSignin.signIn()
-      if (respuesta.type === 'cancelled') {
-        // El usuario canceló el flujo: no es un error.
+      if (isCancelledResponse(respuesta)) {
+        // El usuario canceló el flujo: no es un error (F8), no se muestra nada.
+        return
+      }
+      if (!isSuccessResponse(respuesta)) {
+        setError(MENSAJE_GENERICO)
         return
       }
       const idToken = respuesta.data.idToken
@@ -156,7 +171,11 @@ export default function Cuenta() {
       })
       if (errorGoogle) setError(mensajeDeError(errorGoogle))
     } catch (excepcion) {
-      setError(mensajeDeError(excepcion))
+      // F8: solo el código del error de Google sale hacia Sentry/console;
+      // el mensaje al usuario sigue siendo genérico salvo que Play Services
+      // no esté disponible.
+      registrarErrorGoogle(excepcion)
+      setError(mensajeErrorGoogle(codigoErrorGoogle(excepcion)))
     } finally {
       setAccionEnCurso(null)
     }
@@ -199,6 +218,11 @@ export default function Cuenta() {
 
         <SeccionRadar />
         <SeccionNotificaciones />
+
+        {/* F9: volver a ver la Bienvenida, al pie de Cuenta. */}
+        <Pressable onPress={() => router.push('/bienvenida')} style={estilos.linkBienvenida}>
+          <Text style={[estilos.textoLinkBienvenida, { color: colors.text }]}>Ver la bienvenida</Text>
+        </Pressable>
       </ScrollView>
     )
   }
@@ -206,24 +230,23 @@ export default function Cuenta() {
   return (
     <View style={estilos.contenedor}>
       <Text style={estilos.titulo}>Cuenta</Text>
-      <TextInput
+      <CampoTexto
+        label="Email"
         value={email}
         onChangeText={setEmail}
         placeholder="Email"
-        placeholderTextColor={colors.border}
         autoCapitalize="none"
         autoComplete="email"
         keyboardType="email-address"
-        style={estilos.input}
       />
-      <TextInput
+      <CampoTexto
+        label="Contraseña"
         value={password}
         onChangeText={setPassword}
         placeholder="Contraseña"
-        placeholderTextColor={colors.border}
         secureTextEntry
+        mostrarOcultar
         autoCapitalize="none"
-        style={estilos.input}
       />
       {error ? <Text style={estilos.error}>{error}</Text> : null}
       {avisoConfirmacion ? (
@@ -240,14 +263,18 @@ export default function Cuenta() {
         )}
       </Pressable>
       {googleWebClientId ? (
-        <Pressable onPress={entrarConGoogle} disabled={accionEnCurso !== null} style={estilos.boton(accionEnCurso !== null)}>
-          {accionEnCurso === 'google' ? (
-            <ActivityIndicator color="#fff" />
-          ) : (
-            <Text style={estilos.textoBoton}>Entrar con Google</Text>
-          )}
-        </Pressable>
+        <GoogleSigninButton
+          size={GoogleSigninButton.Size.Wide}
+          color={esquema === 'dark' ? GoogleSigninButton.Color.Dark : GoogleSigninButton.Color.Light}
+          disabled={accionEnCurso !== null}
+          onPress={entrarConGoogle}
+        />
       ) : null}
+
+      {/* F9: volver a ver la Bienvenida, al pie de Cuenta. */}
+      <Pressable onPress={() => router.push('/bienvenida')} style={estilos.linkBienvenida}>
+        <Text style={[estilos.textoLinkBienvenida, { color: colors.text }]}>Ver la bienvenida</Text>
+      </Pressable>
     </View>
   )
 }
