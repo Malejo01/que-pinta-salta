@@ -1,12 +1,12 @@
-// Favoritos (R27, tarea 27-b). Sin sesión, invita a entrar desde Cuenta; con
-// sesión, la lista de eventos guardados (lib/favoritos.ts), con el mismo
-// `Afiche` y la misma fila que Inicio/Buscar. El `userId` sale de
+// Favoritos (R27, tarea 27-b; grilla R28, 28-f). Sin sesión, invita a entrar
+// desde Cuenta; con sesión, la grilla de eventos guardados (lib/favoritos.ts),
+// con la misma `TarjetaEvento` que Inicio/Buscar. El `userId` sale de
 // `useSession()`, nunca de un parámetro de pantalla.
 import { useCallback, useEffect, useState } from 'react'
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native'
 import { useRouter, useTheme } from 'expo-router'
 import type { DisplayEvent } from '@qps/core/home/types'
-import { Afiche } from '@/components/Afiche'
+import { TarjetaEvento } from '@/components/TarjetaEvento'
 import { obtenerFavoritos } from '@/lib/favoritos'
 import { useSession } from '@/lib/session'
 
@@ -74,19 +74,16 @@ export default function Favoritos() {
         <FlatList
           data={estado.eventos}
           keyExtractor={(item) => item.id}
+          numColumns={2}
+          columnWrapperStyle={estilos.filaGrilla}
           contentContainerStyle={estilos.lista}
           ListEmptyComponent={
             <Text style={[estilos.vacio, { color: colors.text }]}>Todavía no guardaste ningún evento</Text>
           }
           renderItem={({ item }) => (
-            <Pressable onPress={() => router.push(`/evento/${item.id}`)} style={estilos.fila}>
-              <Afiche url={item.image} estilo={estilos.afiche} />
-              <View style={estilos.filaTexto}>
-                <Text style={[estilos.tituloEvento, { color: colors.text }]}>{item.title}</Text>
-                <Text style={{ color: colors.border }}>{item.venue}</Text>
-                {item.time ? <Text style={{ color: colors.border }}>{item.time}</Text> : null}
-              </View>
-            </Pressable>
+            <View style={estilos.celda}>
+              <TarjetaEvento evento={item} />
+            </View>
           )}
         />
       ) : null}
@@ -100,10 +97,10 @@ const estilos = StyleSheet.create({
   espaciado: { marginTop: 24 },
   boton: { borderWidth: 1, borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8 },
   textoBoton: { fontWeight: '600' },
-  lista: { padding: 16, gap: 12 },
+  lista: { paddingHorizontal: 16, paddingBottom: 16, gap: 12 },
   vacio: { textAlign: 'center', marginTop: 24 },
-  fila: { flexDirection: 'row', gap: 12, alignItems: 'center' },
-  filaTexto: { flex: 1, gap: 2 },
-  tituloEvento: { fontWeight: '600', fontSize: 15 },
-  afiche: { width: 64, height: 64 },
+  filaGrilla: { gap: 12 },
+  // Ver el comentario del mismo nombre en app/(tabs)/index.tsx: evita que la
+  // última celda de un número impar de eventos se estire a todo el ancho.
+  celda: { flex: 1, maxWidth: '50%' },
 })

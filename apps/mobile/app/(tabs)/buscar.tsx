@@ -6,12 +6,12 @@
 // cliente sobre lo ya cargado.
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, TextInput, View } from 'react-native'
-import { useRouter, useTheme } from 'expo-router'
+import { useTheme } from 'expo-router'
 import { formatSaltaDayKey } from '@qps/core/date-format'
 import { filterEvents } from '@qps/core/home/filters'
 import { soloGratis } from '@qps/core/home/filtros-extra'
 import type { DisplayEvent } from '@qps/core/home/types'
-import { Afiche } from '@/components/Afiche'
+import { TarjetaEvento } from '@/components/TarjetaEvento'
 import { obtenerCategorias, obtenerEventosVigentes, type CategoriaBasica } from '@/lib/datos/eventos'
 
 type EstadoLista =
@@ -21,7 +21,6 @@ type EstadoLista =
 
 export default function Buscar() {
   const { colors } = useTheme()
-  const router = useRouter()
 
   const [estado, setEstado] = useState<EstadoLista>({ tipo: 'cargando' })
   const [texto, setTexto] = useState('')
@@ -128,6 +127,8 @@ export default function Buscar() {
         <FlatList
           data={eventosFiltrados}
           keyExtractor={(item) => item.id}
+          numColumns={2}
+          columnWrapperStyle={estilos.filaGrilla}
           contentContainerStyle={estilos.lista}
           ListEmptyComponent={
             <View style={estilos.centrado}>
@@ -142,14 +143,9 @@ export default function Buscar() {
             </View>
           }
           renderItem={({ item }) => (
-            <Pressable onPress={() => router.push(`/evento/${item.id}`)} style={estilos.fila}>
-              <Afiche url={item.image} estilo={estilos.afiche} />
-              <View style={estilos.filaTexto}>
-                <Text style={[estilos.tituloEvento, { color: colors.text }]}>{item.title}</Text>
-                <Text style={{ color: colors.border }}>{item.venue}</Text>
-                {item.time ? <Text style={{ color: colors.border }}>{item.time}</Text> : null}
-              </View>
-            </Pressable>
+            <View style={estilos.celda}>
+              <TarjetaEvento evento={item} />
+            </View>
           )}
         />
       ) : null}
@@ -168,10 +164,10 @@ const estilos = StyleSheet.create({
   centrado: { alignItems: 'center', marginTop: 24, paddingHorizontal: 24 },
   boton: { borderWidth: 1, borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8 },
   textoBoton: { fontWeight: '600' },
-  lista: { padding: 16, gap: 12 },
+  lista: { paddingHorizontal: 16, paddingBottom: 16, gap: 12 },
   vacio: { textAlign: 'center' },
-  fila: { flexDirection: 'row', gap: 12, alignItems: 'center' },
-  filaTexto: { flex: 1, gap: 2 },
-  tituloEvento: { fontWeight: '600', fontSize: 15 },
-  afiche: { width: 64, height: 64 },
+  filaGrilla: { gap: 12 },
+  // Ver el comentario del mismo nombre en app/(tabs)/index.tsx: evita que la
+  // última celda de un número impar de eventos se estire a todo el ancho.
+  celda: { flex: 1, maxWidth: '50%' },
 })

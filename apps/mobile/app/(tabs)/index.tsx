@@ -7,8 +7,8 @@ import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from '
 import { Redirect, useRouter, useTheme } from 'expo-router'
 import type { DisplayEvent } from '@qps/core/home/types'
 import type { Atajo } from '@qps/core/home/atajos'
-import { Afiche } from '@/components/Afiche'
 import { Icono } from '@/components/Icono'
+import { TarjetaEvento } from '@/components/TarjetaEvento'
 import { useBienvenidaVista } from '@/lib/bienvenida'
 import { obtenerEventosDeAtajo } from '@/lib/datos/eventos'
 
@@ -83,19 +83,16 @@ export default function Inicio() {
         <FlatList
           data={estado.eventos}
           keyExtractor={(item) => item.id}
+          numColumns={2}
+          columnWrapperStyle={estilos.filaGrilla}
           contentContainerStyle={estilos.lista}
           ListEmptyComponent={
             <Text style={[estilos.vacio, { color: colors.text }]}>No hay eventos para este momento.</Text>
           }
           renderItem={({ item }) => (
-            <Pressable onPress={() => router.push(`/evento/${item.id}`)} style={estilos.fila}>
-              <Afiche url={item.image} estilo={estilos.afiche} />
-              <View style={estilos.filaTexto}>
-                <Text style={[estilos.tituloEvento, { color: colors.text }]}>{item.title}</Text>
-                <Text style={{ color: colors.border }}>{item.venue}</Text>
-                {item.time ? <Text style={{ color: colors.border }}>{item.time}</Text> : null}
-              </View>
-            </Pressable>
+            <View style={estilos.celda}>
+              <TarjetaEvento evento={item} />
+            </View>
           )}
         />
       ) : null}
@@ -118,10 +115,11 @@ const estilos = StyleSheet.create({
   textoBoton: { fontWeight: '600' },
   espaciado: { marginTop: 24 },
   centrado: { alignItems: 'center', marginTop: 24, paddingHorizontal: 24 },
-  lista: { padding: 16, gap: 12 },
+  lista: { paddingHorizontal: 16, paddingBottom: 16, gap: 12 },
   vacio: { textAlign: 'center', marginTop: 24 },
-  fila: { flexDirection: 'row', gap: 12, alignItems: 'center' },
-  filaTexto: { flex: 1, gap: 2 },
-  tituloEvento: { fontWeight: '600', fontSize: 15 },
-  afiche: { width: 64, height: 64 },
+  filaGrilla: { gap: 12 },
+  // Con un número impar de eventos, la última celda queda sola en su fila:
+  // sin `maxWidth`, al ser la única hija `flex: 1` de la fila, se estiraría
+  // al ancho completo en vez de ocupar la mitad.
+  celda: { flex: 1, maxWidth: '50%' },
 })
