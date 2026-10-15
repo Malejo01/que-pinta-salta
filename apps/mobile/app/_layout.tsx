@@ -1,7 +1,8 @@
-import { DarkTheme, DefaultTheme, Stack, ThemeProvider } from 'expo-router'
-import { useColorScheme } from 'react-native'
+import { DarkTheme, DefaultTheme, Stack, ThemeProvider, type ErrorBoundaryProps } from 'expo-router'
+import { Image, Pressable, StyleSheet, Text, View, useColorScheme } from 'react-native'
 import * as Sentry from '@sentry/react-native'
 import { useFonts } from 'expo-font'
+import LOGO_MARCA from '@/assets/logo-circular.png'
 // Por subpath, no por el barrel (`@expo-google-fonts/montserrat`): el barrel
 // hace require() de las 18 variantes (9 pesos × normal/itálica) aunque solo
 // se usen 3, y eso infla el export de Android (~6 MB vs. ~1 MB). Cada
@@ -23,6 +24,52 @@ const TEMA_OSCURO = construirTema(DarkTheme, COLORES_OSCURO)
 // al cargar el módulo. Sin DSN, `sentryActivo` queda en `false` y no se
 // envuelve la app con Sentry.wrap.
 const sentryActivo = inicializarSentry(leerEnv().sentryDsn)
+
+/**
+ * Pantalla de error de todo el árbol de rutas (expo-router la usa en vez de
+ * la pantalla en blanco cuando algo debajo del Stack tira). Nunca muestra
+ * `error.message` (puede traer datos); si Sentry está activo, `Sentry.wrap`
+ * ya capturó el error, así que acá no se llama a `captureException` a mano.
+ * Puede renderizarse fuera del `ThemeProvider` (por eso usa `useColorScheme`
+ * + los tokens de color directamente, no `useTheme`).
+ */
+export function ErrorBoundary({ retry }: ErrorBoundaryProps) {
+  const scheme = useColorScheme()
+  const colores = scheme === 'dark' ? COLORES_OSCURO : COLORES_CLARO
+
+  return (
+    <View style={[estilosError.contenedor, { backgroundColor: colores.background }]}>
+      <Image source={LOGO_MARCA} style={estilosError.logo} resizeMode="contain" />
+      <Text style={[estilosError.titulo, { color: colores.foreground }]}>Qué Pinta Salta</Text>
+      <Text style={[estilosError.mensaje, { color: colores.foreground }]}>Algo salió mal.</Text>
+      <Text style={[estilosError.submensaje, { color: colores.mutedForeground }]}>
+        Volvé a intentar en un momento.
+      </Text>
+      <Pressable
+        onPress={retry}
+        style={[estilosError.boton, { backgroundColor: colores.primary }]}
+      >
+        <Text style={[estilosError.textoBoton, { color: colores.primaryForeground }]}>Reintentar</Text>
+      </Pressable>
+    </View>
+  )
+}
+
+const estilosError = StyleSheet.create({
+  contenedor: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 32,
+    gap: 12,
+  },
+  logo: { width: 96, height: 96, marginBottom: 8 },
+  titulo: { fontSize: 20, fontWeight: '700', textAlign: 'center' },
+  mensaje: { fontSize: 16, fontWeight: '600', textAlign: 'center' },
+  submensaje: { fontSize: 14, textAlign: 'center', marginBottom: 12 },
+  boton: { borderRadius: 8, paddingVertical: 12, paddingHorizontal: 24 },
+  textoBoton: { fontSize: 15, fontWeight: '600' },
+})
 
 function RootLayout() {
   const scheme = useColorScheme()

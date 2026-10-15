@@ -8,15 +8,32 @@ import * as SecureStore from 'expo-secure-store'
 
 export const CLAVE_BIENVENIDA_VISTA = 'qps.bienvenida.vista'
 
-/** `true` si el teléfono ya marcó la Bienvenida como vista. */
+/**
+ * `true` si el teléfono ya marcó la Bienvenida como vista. Si la lectura
+ * falla (SecureStore sin descifrar, por ejemplo), se trata como vista: la
+ * app no se queda trabada mostrando la Bienvenida.
+ */
 export async function bienvenidaFueVista(): Promise<boolean> {
-  const valor = await SecureStore.getItemAsync(CLAVE_BIENVENIDA_VISTA)
-  return valor === '1'
+  try {
+    const valor = await SecureStore.getItemAsync(CLAVE_BIENVENIDA_VISTA)
+    return valor === '1'
+  } catch {
+    return true
+  }
 }
 
-/** Marca la Bienvenida como vista: no se vuelve a mostrar en este teléfono. */
+/**
+ * Marca la Bienvenida como vista: no se vuelve a mostrar en este teléfono.
+ * Si la escritura falla, no se tumba la navegación: en el peor caso se
+ * vuelve a mostrar la Bienvenida la próxima vez.
+ */
 export async function marcarBienvenidaVista(): Promise<void> {
-  await SecureStore.setItemAsync(CLAVE_BIENVENIDA_VISTA, '1')
+  try {
+    await SecureStore.setItemAsync(CLAVE_BIENVENIDA_VISTA, '1')
+  } catch {
+    // Se sigue de largo: quien llama (`empezar`/`entrar` en
+    // app/bienvenida.tsx) navega igual.
+  }
 }
 
 export interface EstadoBienvenida {

@@ -72,30 +72,61 @@ async function leerPedazos(clave: string, cantidad: number): Promise<Array<strin
 /**
  * El adaptador que necesita `supabase-js`: `getItem`/`setItem`/`removeItem`
  * sobre SecureStore, partido en pedazos.
+ *
+ * En Android, `SecureStore` puede tirar una excepción si no logra descifrar
+ * el valor guardado (pasa después de reinstalar la app o de restaurar un
+ * backup): `getItem` se trata como si no hubiera sesión (`null`) en vez de
+ * tumbar la app, y se intenta borrar lo ilegible (con su propio `catch`)
+ * para no repetir el error en la próxima lectura. Nunca se loguea el valor
+ * ni la clave completa.
  */
 export async function getItem(clave: string): Promise<string | null> {
-  const cantidadTexto = await SecureStore.getItemAsync(claveCantidad(clave))
-  if (cantidadTexto === null) return null
-  const cantidad = parsearCantidad(cantidadTexto)
-  if (cantidad === 0) return ''
-  const pedazos = await leerPedazos(clave, cantidad)
-  return unir(pedazos)
+  try {
+    const cantidadTexto = await SecureStore.getItemAsync(claveCantidad(clave))
+    if (cantidadTexto === null) return null
+    const cantidad = parsearCantidad(cantidadTexto)
+    if (cantidad === 0) return ''
+    const pedazos = await leerPedazos(clave, cantidad)
+    return unir(pedazos)
+  } catch {
+    try {
+      await removeItem(clave)
+    } catch {
+      // Si tampoco se puede borrar, se sigue sin sesión: no hay más por
+      // hacer acá, y no se tumba la app.
+    }
+    return null
+  }
 }
 
+/**
+ * Si `SecureStore` falla al escribir, no se deja pasar el error original
+ * (podría traer el valor en el mensaje): se tira un `Error` genérico, sin el
+ * valor ni la clave completa.
+ */
 export async function setItem(clave: string, valor: string): Promise<void> {
-  const cantidadAnterior = parsearCantidad(await SecureStore.getItemAsync(claveCantidad(clave)))
-  const pedazos = partir(valor)
+  try {
+    const cantidadAnterior = parsearCantidad(await SecureStore.getItemAsync(claveCantidad(clave)))
+    const pedazos = partir(valor)
 
-  await SecureStore.setItemAsync(claveCantidad(clave), String(pedazos.length))
-  await Promise.all(pedazos.map((pedazo, indice) => SecureStore.setItemAsync(clavePedazo(clave, indice), pedazo)))
+    await SecureStore.setItemAsync(claveCantidad(clave), String(pedazos.length))
+    await Promise.all(pedazos.map((pedazo, indice) => SecureStore.setItemAsync(clavePedazo(clave, indice), pedazo)))
 
-  const sobrantes = indicesSobrantes(cantidadAnterior, pedazos.length)
-  await Promise.all(sobrantes.map((indice) => SecureStore.deleteItemAsync(clavePedazo(clave, indice))))
+    const sobrantes = indicesSobrantes(cantidadAnterior, pedazos.length)
+    await Promise.all(sobrantes.map((indice) => SecureStore.deleteItemAsync(clavePedazo(clave, indice))))
+  } catch {
+    throw new Error('No se pudo guardar en el almacenamiento seguro.')
+  }
 }
 
+/** Mismo criterio que `setItem`: si falla, un `Error` genérico, sin el valor ni la clave completa. */
 export async function removeItem(clave: string): Promise<void> {
-  const cantidad = parsearCantidad(await SecureStore.getItemAsync(claveCantidad(clave)))
-  await SecureStore.deleteItemAsync(claveCantidad(clave))
-  const indices = Array.from({ length: cantidad }, (_valor, indice) => indice)
-  await Promise.all(indices.map((indice) => SecureStore.deleteItemAsync(clavePedazo(clave, indice))))
+  try {
+    const cantidad = parsearCantidad(await SecureStore.getItemAsync(claveCantidad(clave)))
+    await SecureStore.deleteItemAsync(claveCantidad(clave))
+    const indices = Array.from({ length: cantidad }, (_valor, indice) => indice)
+    await Promise.all(indices.map((indice) => SecureStore.deleteItemAsync(clavePedazo(clave, indice))))
+  } catch {
+    throw new Error('No se pudo borrar del almacenamiento seguro.')
+  }
 }
