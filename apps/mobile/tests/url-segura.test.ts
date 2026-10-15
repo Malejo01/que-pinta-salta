@@ -16,7 +16,11 @@ import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import { fuentesDeImagen, siguienteFuente } from '../lib/imagenes/url-segura'
 import { INSTAGRAM_ENGINE_CONFIG } from '@qps/core/instagram-config'
-import { HOSTS_IMAGENES_TERCEROS } from '@qps/core/images/hosts-imagenes'
+import {
+  HOSTS_CON_APEX,
+  HOSTS_IMAGENES_TERCEROS,
+  HOSTS_SOLO_SUBDOMINIO,
+} from '@qps/core/images/hosts-imagenes'
 
 const MOBILE_ROOT = fileURLToPath(new URL('..', import.meta.url))
 const SUPABASE_URL = 'https://proyecto-de-prueba.supabase.co'
@@ -60,12 +64,35 @@ describe('fuentesDeImagen', () => {
   })
 
   describe('hosts de ticketeras y cines permitidos (el cambio de la R28: antes [], ahora [original])', () => {
-    it.each(HOSTS_IMAGENES_TERCEROS)('%s: [original]', (host) => {
+    // R28, hallazgo de seguridad/revisor: el `img-src` de la web NO es
+    // simétrico (ver hosts-imagenes.ts). `HOSTS_CON_APEX` acepta el dominio
+    // pelado; `HOSTS_SOLO_SUBDOMINIO` (cinemark.com.ar, adro.studio) NO —
+    // antes este describe afirmaba, incorrectamente, que los 8 hosts de
+    // `HOSTS_IMAGENES_TERCEROS` aceptaban el apex.
+    it.each(HOSTS_CON_APEX)('%s (apex, de HOSTS_CON_APEX): [original]', (host) => {
       const url = `https://${host}/media/flyer-de-prueba.jpg`
       expect(fuentesDeImagen(url, SUPABASE_URL)).toEqual([url])
     })
 
-    it('un subdominio de una ticketera de la lista: [original]', () => {
+    it.each(HOSTS_SOLO_SUBDOMINIO)(
+      '%s (apex pelado, de HOSTS_SOLO_SUBDOMINIO): [] — la CSP de la web solo permite *.%s',
+      (host) => {
+        const url = `https://${host}/media/flyer-de-prueba.jpg`
+        expect(fuentesDeImagen(url, SUPABASE_URL)).toEqual([])
+      }
+    )
+
+    it.each(HOSTS_SOLO_SUBDOMINIO)('www.%s (subdominio, de HOSTS_SOLO_SUBDOMINIO): [original]', (host) => {
+      const url = `https://www.${host}/media/flyer-de-prueba.jpg`
+      expect(fuentesDeImagen(url, SUPABASE_URL)).toEqual([url])
+    })
+
+    it('HOSTS_CON_APEX + HOSTS_SOLO_SUBDOMINIO son, juntos y sin repetir, los 8 de HOSTS_IMAGENES_TERCEROS', () => {
+      expect(HOSTS_CON_APEX.length + HOSTS_SOLO_SUBDOMINIO.length).toBe(8)
+      expect([...HOSTS_CON_APEX, ...HOSTS_SOLO_SUBDOMINIO].sort()).toEqual([...HOSTS_IMAGENES_TERCEROS].sort())
+    })
+
+    it('un subdominio de una ticketera con apex (HOSTS_CON_APEX): [original]', () => {
       const url = 'https://contenidos.entradauno.com/media/destacada.jpg'
       expect(fuentesDeImagen(url, SUPABASE_URL)).toEqual([url])
     })
@@ -214,19 +241,37 @@ describe('siguienteFuente', () => {
 })
 
 // ---------------------------------------------------------------------------
-// Prueba de rotura 4 del plan: todo host de HOSTS_IMAGENES_TERCEROS tiene que
-// aparecer en el `img-src` del CSP de la web, para que lo que la app acepta
-// pedirle a un tercero sea un subconjunto de lo que el navegador de la web ya
-// puede pedir. Se parsea `apps/web/next.config.mjs` como texto (no se
-// importa: tiene `process.env` a nivel de módulo y arma el array de forma
-// condicional según `ADS_ENABLED`, así que evaluarlo en el test dependería de
-// variables de entorno; la sección de `img-src` que nos interesa no es
-// condicional, así que un recorte de texto + regex es confiable para esto).
+// Prueba de rotura 4 del plan, y el punto ciego que dejó pasar la asimetría
+// apex/wildcard (hallazgo del revisor y seguridad, R28): el `img-src` real de
+// la web NO es simétrico — 6 hosts están en las dos formas (`'https://host'`
+// y `'https://*.host'`), pero `cinemark.com.ar` y `adro.studio` están SOLO
+// como wildcard. Antes, la regex de esta comparación extraía el mismo nombre
+// de host de una entrada exacta y de una con wildcard (ambas caían en el
+// mismo Set), así que el test no distinguía "el apex está permitido" de
+// "solo los subdominios están permitidos" — habría dejado pasar en silencio
+// que `hosts-imagenes.ts` creyera que el apex de esos dos hosts está
+// permitido cuando la CSP real no lo permite.
+//
+// Ahora se guardan dos Sets separados (hosts en forma EXACTA y hosts con
+// wildcard `*.`) y la comprobación es en los dos sentidos:
+// - cada host de `HOSTS_CON_APEX` tiene que aparecer en forma EXACTA;
+// - cada host de `HOSTS_SOLO_SUBDOMINIO` tiene que aparecer con `*.` pero
+//   **no** en forma exacta.
+// Esto vuelve a cazar la clase de error original: si `hosts-imagenes.ts`
+// clasificara mal un host (por ejemplo, moviera `cinemark.com.ar` a
+// `HOSTS_CON_APEX`), el primer `it.each` fallaría porque ese host no está en
+// forma exacta en el `img-src` real.
+//
+// Se parsea `apps/web/next.config.mjs` como texto (no se importa: tiene
+// `process.env` a nivel de módulo y arma el array de forma condicional según
+// `ADS_ENABLED`, así que evaluarlo en el test dependería de variables de
+// entorno; la sección de `img-src` que nos interesa no es condicional, así
+// que un recorte de texto + regex es confiable para esto).
 //
 // Nota de ruta: la tarea menciona `apps/web/next.config.ts`, pero el archivo
 // real en este worktree es `apps/web/next.config.mjs` (no hay `next.config.ts`).
 // ---------------------------------------------------------------------------
-describe('HOSTS_IMAGENES_TERCEROS contra el img-src de la web', () => {
+describe('HOSTS_CON_APEX / HOSTS_SOLO_SUBDOMINIO contra el img-src real de la web (en los dos sentidos)', () => {
   const NEXT_CONFIG_PATH = fileURLToPath(new URL('../../web/next.config.mjs', import.meta.url))
   const nextConfigSrc = readFileSync(NEXT_CONFIG_PATH, 'utf8')
 
@@ -238,14 +283,38 @@ describe('HOSTS_IMAGENES_TERCEROS contra el img-src de la web', () => {
   })
 
   const imgSrcSection = imgSrcMatch ? imgSrcMatch[1] : ''
-  // Todas las URLs https:// literales dentro de esa sección (exactas y con
-  // wildcard `*.`), como las ve el navegador en el header real.
-  const imgSrcHosts = new Set(
-    Array.from(imgSrcSection.matchAll(/https:\/\/(\*\.)?([a-z0-9.-]+)/gi)).map((m) => m[2].toLowerCase())
+  // Todas las entradas https:// literales dentro de esa sección, separadas
+  // en dos Sets según si son exactas (sin "*.") o con wildcard: la distinción
+  // que la versión anterior de este test perdía.
+  const entradas = Array.from(imgSrcSection.matchAll(/https:\/\/(\*\.)?([a-z0-9.-]+)/gi))
+  const hostsExactos = new Set(entradas.filter((m) => !m[1]).map((m) => m[2].toLowerCase()))
+  const hostsConWildcard = new Set(entradas.filter((m) => m[1]).map((m) => m[2].toLowerCase()))
+
+  it('sanity check: hay al menos un host exacto y uno solo-wildcard en la sección (si no, el recorte está mal)', () => {
+    expect(hostsExactos.size).toBeGreaterThan(0)
+    expect(hostsConWildcard.size).toBeGreaterThan(0)
+  })
+
+  it.each(HOSTS_CON_APEX)(
+    '%s (HOSTS_CON_APEX): aparece en forma EXACTA en el img-src (el apex está permitido)',
+    (host) => {
+      expect(hostsExactos.has(host.toLowerCase())).toBe(true)
+    }
   )
 
-  it.each(HOSTS_IMAGENES_TERCEROS)('%s está en el img-src de la web (exacto o como *.%s)', (host) => {
-    expect(imgSrcHosts.has(host.toLowerCase())).toBe(true)
+  it.each(HOSTS_SOLO_SUBDOMINIO)(
+    '%s (HOSTS_SOLO_SUBDOMINIO): NO aparece en forma exacta — solo *.%s',
+    (host) => {
+      expect(hostsExactos.has(host.toLowerCase())).toBe(false)
+      expect(hostsConWildcard.has(host.toLowerCase())).toBe(true)
+    }
+  )
+
+  it('ningún host de HOSTS_IMAGENES_TERCEROS falta por completo del img-src (ni exacto ni wildcard)', () => {
+    for (const host of HOSTS_IMAGENES_TERCEROS) {
+      const presente = hostsExactos.has(host.toLowerCase()) || hostsConWildcard.has(host.toLowerCase())
+      expect(presente, `${host} no aparece ni exacto ni como *. en el img-src`).toBe(true)
+    }
   })
 })
 
