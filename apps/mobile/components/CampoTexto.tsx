@@ -3,8 +3,8 @@
 // en `primary` y, con `secureTextEntry` + `mostrarOcultar`, el "ojito" para
 // mostrar/ocultar el texto (F5). Lo usan los campos de email y contraseña de
 // Cuenta y los horarios de Notificaciones (`SeccionNotificaciones`).
-import { forwardRef, useState } from 'react'
-import { Pressable, StyleSheet, Text, TextInput, useColorScheme, View, type TextInputProps } from 'react-native'
+import { forwardRef, useEffect, useState } from 'react'
+import { AppState, Pressable, StyleSheet, Text, TextInput, useColorScheme, View, type TextInputProps } from 'react-native'
 import { Icono } from '@/components/Icono'
 import { useColoresQPS } from '@/lib/colores'
 
@@ -32,6 +32,20 @@ export const CampoTexto = forwardRef<TextInput, CampoTextoProps>(function CampoT
 
   const conOjito = Boolean(secureTextEntry) && Boolean(mostrarOcultar)
   const colorError = esquema === 'dark' ? ROJO_ERROR_OSCURO : ROJO_ERROR_CLARO
+
+  // Si el campo tiene el "ojito" (contraseña visible), al pasar a segundo
+  // plano (otra app al frente, o Android capturando el thumbnail de "Apps
+  // recientes") se vuelve a ocultar. Solo se suscribe para los campos de
+  // contraseña: los horarios de Notificaciones no tienen `conOjito`.
+  useEffect(() => {
+    if (!conOjito) return
+    const suscripcion = AppState.addEventListener('change', (estado) => {
+      if (estado === 'background' || estado === 'inactive') {
+        setOculto(true)
+      }
+    })
+    return () => suscripcion.remove()
+  }, [conOjito])
 
   return (
     <View style={estilos.contenedor}>
