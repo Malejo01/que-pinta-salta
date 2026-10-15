@@ -103,30 +103,82 @@ export async function getItem(clave: string): Promise<string | null> {
  * Si `SecureStore` falla al escribir, no se deja pasar el error original
  * (podría traer el valor en el mensaje): se tira un `Error` genérico, sin el
  * valor ni la clave completa.
+ *
+ * La lectura de `cantidadAnterior` (cuántos pedazos había) es best-effort:
+ * si `claveCantidad(clave)` quedó ilegible (el mismo escenario de
+ * descifrado roto que cubre `getItem`), no es un camino sin salida — se
+ * trata como si no hubiera nada antes (0 pedazos) y se sigue escribiendo.
+ * Sin este aislamiento, un valor viejo ilegible dejaba a ese teléfono sin
+ * poder volver a guardar ninguna sesión.
  */
 export async function setItem(clave: string, valor: string): Promise<void> {
+  let cantidadAnterior = 0
   try {
-    const cantidadAnterior = parsearCantidad(await SecureStore.getItemAsync(claveCantidad(clave)))
+    cantidadAnterior = parsearCantidad(await SecureStore.getItemAsync(claveCantidad(clave)))
+  } catch {
+    // No se pudo leer cuánto había antes: se sigue como si no hubiera nada.
+    // Best-effort, antes de escribir lo nuevo: se intenta limpiar lo viejo
+    // ilegible (no es necesario para que la escritura de abajo funcione,
+    // `setItemAsync` sobrescribe sin depender de poder descifrar el valor
+    // anterior).
+    await SecureStore.deleteItemAsync(claveCantidad(clave)).catch(() => {})
+  }
+
+  try {
     const pedazos = partir(valor)
 
     await SecureStore.setItemAsync(claveCantidad(clave), String(pedazos.length))
     await Promise.all(pedazos.map((pedazo, indice) => SecureStore.setItemAsync(clavePedazo(clave, indice), pedazo)))
 
     const sobrantes = indicesSobrantes(cantidadAnterior, pedazos.length)
-    await Promise.all(sobrantes.map((indice) => SecureStore.deleteItemAsync(clavePedazo(clave, indice))))
+    await Promise.all(
+      sobrantes.map((indice) =>
+        SecureStore.deleteItemAsync(clavePedazo(clave, indice)).catch(() => {
+          // Best-effort: un pedazo viejo que no se puede borrar queda
+          // huérfano, pero sigue cifrado e inútil sin la clave del
+          // Keystore. No impide borrar los demás.
+        })
+      )
+    )
   } catch {
     throw new Error('No se pudo guardar en el almacenamiento seguro.')
   }
 }
 
-/** Mismo criterio que `setItem`: si falla, un `Error` genérico, sin el valor ni la clave completa. */
+/**
+ * Mismo criterio que `setItem`: si falla, un `Error` genérico, sin el valor
+ * ni la clave completa.
+ *
+ * `claveCantidad(clave)` se borra de forma incondicional, sin depender de
+ * poder leerla primero: `deleteItemAsync` no necesita descifrar el valor
+ * viejo (a diferencia de `getItemAsync`), así que corre igual aunque esa
+ * lectura hubiera tirado. La lectura solo se usa, best-effort, para saber
+ * cuántos pedazos borrar además; si falla, se asume 0 (ningún pedazo
+ * adicional, pero `claveCantidad` queda borrada igual) y cada pedazo se
+ * borra con su propio `catch` para que uno que falle no impida los demás.
+ * Así, después de un `removeItem`, `claveCantidad` siempre queda en `null`
+ * y el próximo `setItem` puede escribir, aunque todo haya estado ilegible.
+ */
 export async function removeItem(clave: string): Promise<void> {
+  let cantidad = 0
   try {
-    const cantidad = parsearCantidad(await SecureStore.getItemAsync(claveCantidad(clave)))
+    cantidad = parsearCantidad(await SecureStore.getItemAsync(claveCantidad(clave)))
+  } catch {
+    cantidad = 0
+  }
+
+  try {
     await SecureStore.deleteItemAsync(claveCantidad(clave))
-    const indices = Array.from({ length: cantidad }, (_valor, indice) => indice)
-    await Promise.all(indices.map((indice) => SecureStore.deleteItemAsync(clavePedazo(clave, indice))))
   } catch {
     throw new Error('No se pudo borrar del almacenamiento seguro.')
   }
+
+  const indices = Array.from({ length: cantidad }, (_valor, indice) => indice)
+  await Promise.all(
+    indices.map((indice) =>
+      SecureStore.deleteItemAsync(clavePedazo(clave, indice)).catch(() => {
+        // Best-effort: ver el comentario de arriba.
+      })
+    )
+  )
 }
