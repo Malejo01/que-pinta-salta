@@ -1,23 +1,38 @@
-// Pantalla de Cuenta (R24): email y contraseña con las mismas cuentas que la
-// web (decisión 3 de Mauro), Google detrás de EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID
-// (decisión 2) y Salir. El login es opcional: esta pantalla cambia según
-// haya o no sesión (R27, 27-b: con sesión también se ven el Radar y las
-// notificaciones, en SeccionRadar y SeccionNotificaciones).
+// Pantalla de Cuenta (R24; 29-c la rehace para la paridad visual con la web,
+// ops/paridad-web-app.md §3.9 e inventario-web-mobile.md "Auth"): sin
+// sesión, el login con el estilo de /auth/login (logo + wordmark, card,
+// CampoTexto, BotonGoogle, patrón de fondo); con sesión, el avatar con la
+// inicial del email, Notificaciones, los accesos a "Mi Radar Salteño" y
+// "Mis Favoritos" (los textos del dropdown de navbar.tsx) y "Cerrar sesión"
+// chico al final. El Radar ya no vive acá: es su propia pestaña (R29), así
+// que SeccionRadar se va de esta pantalla (no se borra el archivo).
 import { useState } from 'react'
-import { ActivityIndicator, Pressable, ScrollView, Text, useColorScheme, View } from 'react-native'
-import { useRouter, useTheme } from 'expo-router'
+import {
+  ActivityIndicator,
+  Image,
+  ImageBackground,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  View,
+} from 'react-native'
+import { useRouter } from 'expo-router'
 import Constants from 'expo-constants'
 import {
   GoogleSignin,
-  GoogleSigninButton,
   isCancelledResponse,
   isSuccessResponse,
 } from '@react-native-google-signin/google-signin'
 import { mensajeErrorAlta } from '@qps/core/auth/mensajes'
+import LOGO_MARCA from '@/assets/logo-circular.png'
+import WORDMARK from '@/assets/titulo-horizontal.png'
+import PATRON_MARCA from '@/assets/patron-claro.png'
+import { BotonGoogle } from '@/components/BotonGoogle'
 import { CampoTexto } from '@/components/CampoTexto'
 import { Cargando } from '@/components/EstadoCarga'
+import { Icono, type NombreIcono } from '@/components/Icono'
 import { SeccionNotificaciones } from '@/components/SeccionNotificaciones'
-import { SeccionRadar } from '@/components/SeccionRadar'
+import { Texto } from '@/components/Texto'
 import { useColoresQPS } from '@/lib/colores'
 import { codigoErrorGoogle, mensajeErrorGoogle, registrarErrorGoogle } from '@/lib/google'
 import { leerEnv } from '@/lib/env'
@@ -46,9 +61,9 @@ const MENSAJE_SIN_ID_TOKEN = 'Google no devolvió un token válido. Probá de nu
 // segunda línea. La web no tiene "¿Olvidaste tu contraseña?", así que no se
 // agrega: no hay a dónde llevar.
 const SUGERENCIA_GOOGLE = 'Si entraste con Google, usá el botón de Google.'
-// F4: el rojo fijo de R24 no se leía en tema oscuro.
-const ROJO_ERROR_CLARO = '#dc2626'
-const ROJO_ERROR_OSCURO = '#f87171'
+// F4: el rojo fijo de R24 no se leía en tema oscuro. D1 (29-g): la app
+// siempre arranca oscura, así que ya no depende de useColorScheme().
+const COLOR_ERROR = '#f87171'
 
 function mensajeDeError(error: unknown): string {
   if (error && typeof error === 'object') {
@@ -64,10 +79,49 @@ function mensajeDeError(error: unknown): string {
   return MENSAJE_GENERICO
 }
 
-export default function Cuenta() {
-  const { colors } = useTheme()
+// Fila de acceso con chevron ("Mi Radar Salteño" / "Mis Favoritos"): mismos
+// textos que el dropdown de la web (navbar.tsx). `Icono` no tiene un
+// `ChevronRight` en su lista cerrada (QPS-125): se rota `ChevronDown` -90°.
+interface FilaAccesoProps {
+  icono: NombreIcono
+  texto: string
+  onPress: () => void
+}
+
+function FilaAcceso({ icono, texto, onPress }: FilaAccesoProps) {
   const colores = useColoresQPS()
-  const esquema = useColorScheme()
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={texto}
+      style={[estilosFila.fila, { borderBottomColor: colores.border }]}
+    >
+      <View style={estilosFila.izquierda}>
+        <Icono nombre={icono} color={colores.primary} tamanio={20} />
+        <Texto peso="semibold">{texto}</Texto>
+      </View>
+      <View style={{ transform: [{ rotate: '-90deg' }] }}>
+        <Icono nombre="ChevronDown" color={colores.mutedForeground} tamanio={18} />
+      </View>
+    </Pressable>
+  )
+}
+
+const estilosFila = StyleSheet.create({
+  fila: {
+    width: '100%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    paddingVertical: 14,
+  },
+  izquierda: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+})
+
+export default function Cuenta() {
+  const colores = useColoresQPS()
   const router = useRouter()
   const { session, cargando } = useSession()
   const { googleWebClientId } = leerEnv()
@@ -86,30 +140,74 @@ export default function Cuenta() {
   const [avisoConfirmacion, setAvisoConfirmacion] = useState(false)
 
   const estilos = {
-    // flexGrow (no flex) porque también se usa como contentContainerStyle de
-    // un ScrollView (la rama sin sesión, más abajo): con flex no quedaría
-    // centrado cuando el contenido es más corto que la pantalla.
-    contenedor: { flexGrow: 1, alignItems: 'center' as const, justifyContent: 'center' as const, padding: 24, gap: 12 },
-    contenedorSesion: { flexGrow: 1, alignItems: 'center' as const, padding: 24, gap: 12 },
-    titulo: { color: colors.text, fontSize: 18, fontWeight: '600' as const, marginBottom: 8 },
-    texto: { color: colors.text },
-    error: { color: esquema === 'dark' ? ROJO_ERROR_OSCURO : ROJO_ERROR_CLARO },
+    pantalla: { flex: 1, backgroundColor: colores.background },
+    contenedorLogin: {
+      flexGrow: 1,
+      alignItems: 'center' as const,
+      padding: 24,
+      gap: 16,
+    },
+    contenedorSesion: {
+      flexGrow: 1,
+      alignItems: 'center' as const,
+      padding: 24,
+      gap: 8,
+    },
+    aroLogo: {
+      width: 76,
+      height: 76,
+      borderRadius: 38,
+      borderWidth: 2,
+      borderColor: 'rgba(193, 32, 38, 0.7)',
+      padding: 1,
+      alignItems: 'center' as const,
+      justifyContent: 'center' as const,
+    },
+    logo: { width: 72, height: 72, borderRadius: 36 },
+    wordmark: { width: 180, height: 44, resizeMode: 'contain' as const },
+    card: {
+      width: '100%' as const,
+      backgroundColor: colores.card,
+      borderColor: colores.border,
+      borderWidth: 1,
+      borderRadius: 12,
+      padding: 20,
+      gap: 14,
+    },
+    separador: {
+      flexDirection: 'row' as const,
+      alignItems: 'center' as const,
+      gap: 8,
+      marginVertical: 2,
+    },
+    lineaSeparador: { flex: 1, height: StyleSheet.hairlineWidth, backgroundColor: colores.border },
+    error: { color: COLOR_ERROR },
     boton: (deshabilitado: boolean) => ({
       width: '100%' as const,
-      backgroundColor: deshabilitado ? colors.border : colors.primary,
+      backgroundColor: deshabilitado ? colores.border : colores.primary,
       borderRadius: 8,
       padding: 12,
+      minHeight: 48,
       alignItems: 'center' as const,
+      justifyContent: 'center' as const,
     }),
-    textoBoton: { color: '#fff', fontWeight: '600' as const },
+    avatar: {
+      width: 64,
+      height: 64,
+      borderRadius: 32,
+      backgroundColor: colores.primary,
+      alignItems: 'center' as const,
+      justifyContent: 'center' as const,
+      marginBottom: 4,
+    },
     linkBienvenida: { marginTop: 8, padding: 8 },
-    textoLinkBienvenida: { fontSize: 13, fontWeight: '600' as const, textDecorationLine: 'underline' as const },
-    version: { fontSize: 11, color: colores.mutedForeground, marginTop: 4 },
+    version: { fontSize: 11, marginTop: 4 },
+    salir: { marginTop: 20, padding: 8 },
   }
 
   if (cargando) {
     return (
-      <View style={estilos.contenedor}>
+      <View style={[estilos.pantalla, { alignItems: 'center', justifyContent: 'center' }]}>
         <Cargando />
       </View>
     )
@@ -219,84 +317,146 @@ export default function Cuenta() {
   }
 
   if (session) {
+    const inicial = session.user.email ? session.user.email.charAt(0).toUpperCase() : '?'
     return (
-      <ScrollView style={{ flex: 1, backgroundColor: colors.background }} contentContainerStyle={estilos.contenedorSesion}>
-        <Text style={estilos.titulo}>Cuenta</Text>
-        <Text style={estilos.texto}>{session.user.email}</Text>
-        {error ? <Text style={estilos.error}>{error}</Text> : null}
-        <Pressable
-          onPress={salir}
-          disabled={accionEnCurso !== null}
-          style={estilos.boton(accionEnCurso !== null)}
-        >
-          {accionEnCurso === 'salir' ? <ActivityIndicator color="#fff" /> : <Text style={estilos.textoBoton}>Salir</Text>}
-        </Pressable>
+      <ScrollView style={estilos.pantalla} contentContainerStyle={estilos.contenedorSesion}>
+        <View style={estilos.avatar}>
+          <Texto peso="bold" style={{ color: colores.primaryForeground, fontSize: 24 }}>
+            {inicial}
+          </Texto>
+        </View>
+        <Texto peso="semibold">{session.user.email}</Texto>
 
-        <SeccionRadar />
+        {error ? <Texto style={estilos.error}>{error}</Texto> : null}
+
         <SeccionNotificaciones />
+
+        <FilaAcceso icono="Radio" texto="Mi Radar Salteño" onPress={() => router.push('/radar')} />
+        <FilaAcceso icono="Heart" texto="Mis Favoritos" onPress={() => router.push('/favoritos')} />
 
         {/* F9: volver a ver la Bienvenida, al pie de Cuenta. */}
         <Pressable onPress={() => router.push('/bienvenida')} style={estilos.linkBienvenida}>
-          <Text style={[estilos.textoLinkBienvenida, { color: colors.text }]}>Ver la bienvenida</Text>
+          <Texto peso="semibold" tono="primario" style={{ fontSize: 13, textDecorationLine: 'underline' }}>
+            Ver la bienvenida
+          </Texto>
         </Pressable>
-        <Text style={estilos.version}>{version}</Text>
+        <Texto tono="secundario" style={estilos.version}>
+          {version}
+        </Texto>
+
+        {/* "Cerrar sesión" al final, chico: nunca el botón principal. */}
+        <Pressable
+          onPress={salir}
+          disabled={accionEnCurso !== null}
+          accessibilityRole="button"
+          style={estilos.salir}
+        >
+          {accionEnCurso === 'salir' ? (
+            <ActivityIndicator color={colores.mutedForeground} />
+          ) : (
+            <Texto tono="secundario" style={{ fontSize: 13 }}>
+              Cerrar sesión
+            </Texto>
+          )}
+        </Pressable>
       </ScrollView>
     )
   }
 
   return (
-    <ScrollView
-      style={{ flex: 1 }}
-      contentContainerStyle={estilos.contenedor}
-      keyboardShouldPersistTaps="handled"
-    >
-      <Text style={estilos.titulo}>Cuenta</Text>
-      <CampoTexto
-        label="Email"
-        value={email}
-        onChangeText={setEmail}
-        placeholder="Email"
-        autoCapitalize="none"
-        autoComplete="email"
-        keyboardType="email-address"
+    <View style={estilos.pantalla}>
+      {/* Patrón de marca al 4%, como /auth/login en la web. */}
+      <ImageBackground
+        source={PATRON_MARCA}
+        resizeMode="repeat"
+        style={StyleSheet.absoluteFill}
+        imageStyle={{ opacity: 0.04 }}
       />
-      <CampoTexto
-        label="Contraseña"
-        value={password}
-        onChangeText={setPassword}
-        placeholder="Contraseña"
-        secureTextEntry
-        mostrarOcultar
-        autoCapitalize="none"
-      />
-      {error ? <Text style={estilos.error}>{error}</Text> : null}
-      {avisoConfirmacion ? (
-        <Text style={estilos.texto}>Te mandamos un email para confirmar la cuenta.</Text>
-      ) : null}
-      <Pressable onPress={entrar} disabled={accionEnCurso !== null} style={estilos.boton(accionEnCurso !== null)}>
-        {accionEnCurso === 'entrar' ? <ActivityIndicator color="#fff" /> : <Text style={estilos.textoBoton}>Entrar</Text>}
-      </Pressable>
-      <Pressable onPress={crearCuenta} disabled={accionEnCurso !== null} style={estilos.boton(accionEnCurso !== null)}>
-        {accionEnCurso === 'crear' ? (
-          <ActivityIndicator color="#fff" />
-        ) : (
-          <Text style={estilos.textoBoton}>Crear cuenta</Text>
-        )}
-      </Pressable>
-      {googleWebClientId ? (
-        <GoogleSigninButton
-          size={GoogleSigninButton.Size.Wide}
-          color={esquema === 'dark' ? GoogleSigninButton.Color.Dark : GoogleSigninButton.Color.Light}
-          disabled={accionEnCurso !== null}
-          onPress={entrarConGoogle}
-        />
-      ) : null}
+      <ScrollView
+        contentContainerStyle={estilos.contenedorLogin}
+        keyboardShouldPersistTaps="handled"
+      >
+        <View style={estilos.aroLogo}>
+          <Image source={LOGO_MARCA} style={estilos.logo} />
+        </View>
+        <Image source={WORDMARK} style={estilos.wordmark} />
 
-      {/* F9: volver a ver la Bienvenida, al pie de Cuenta. */}
-      <Pressable onPress={() => router.push('/bienvenida')} style={estilos.linkBienvenida}>
-        <Text style={[estilos.textoLinkBienvenida, { color: colors.text }]}>Ver la bienvenida</Text>
-      </Pressable>
-      <Text style={estilos.version}>{version}</Text>
-    </ScrollView>
+        <View style={estilos.card}>
+          <Texto peso="bold" style={{ fontSize: 20 }}>
+            Iniciar Sesion
+          </Texto>
+
+          <CampoTexto
+            label="Email"
+            value={email}
+            onChangeText={setEmail}
+            placeholder="Email"
+            autoCapitalize="none"
+            autoComplete="email"
+            keyboardType="email-address"
+          />
+          <CampoTexto
+            label="Contraseña"
+            value={password}
+            onChangeText={setPassword}
+            placeholder="Contraseña"
+            secureTextEntry
+            mostrarOcultar
+            autoCapitalize="none"
+          />
+
+          {error ? <Texto style={estilos.error}>{error}</Texto> : null}
+          {avisoConfirmacion ? (
+            <Texto tono="secundario">Te mandamos un email para confirmar la cuenta.</Texto>
+          ) : null}
+
+          <Pressable onPress={entrar} disabled={accionEnCurso !== null} style={estilos.boton(accionEnCurso !== null)}>
+            {accionEnCurso === 'entrar' ? (
+              <ActivityIndicator color={colores.primaryForeground} />
+            ) : (
+              <Texto peso="semibold" style={{ color: colores.primaryForeground }}>
+                Entrar
+              </Texto>
+            )}
+          </Pressable>
+
+          <Pressable onPress={crearCuenta} disabled={accionEnCurso !== null} style={estilos.boton(accionEnCurso !== null)}>
+            {accionEnCurso === 'crear' ? (
+              <ActivityIndicator color={colores.primaryForeground} />
+            ) : (
+              <Texto peso="semibold" style={{ color: colores.primaryForeground }}>
+                Crear cuenta
+              </Texto>
+            )}
+          </Pressable>
+
+          {googleWebClientId ? (
+            <View style={estilos.separador}>
+              <View style={estilos.lineaSeparador} />
+              <Texto tono="secundario" style={{ fontSize: 11 }}>
+                O continuar con
+              </Texto>
+              <View style={estilos.lineaSeparador} />
+            </View>
+          ) : null}
+
+          <BotonGoogle
+            onPress={entrarConGoogle}
+            cargando={accionEnCurso === 'google'}
+            disabled={accionEnCurso !== null}
+          />
+        </View>
+
+        {/* F9: volver a ver la Bienvenida, al pie de Cuenta. */}
+        <Pressable onPress={() => router.push('/bienvenida')} style={estilos.linkBienvenida}>
+          <Texto peso="semibold" tono="primario" style={{ fontSize: 13, textDecorationLine: 'underline' }}>
+            Ver la bienvenida
+          </Texto>
+        </Pressable>
+        <Texto tono="secundario" style={estilos.version}>
+          {version}
+        </Texto>
+      </ScrollView>
+    </View>
   )
 }

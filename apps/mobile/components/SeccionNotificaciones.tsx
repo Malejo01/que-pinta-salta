@@ -11,12 +11,17 @@
 // Horario de silencio: sin selector de hora de ninguna librería — un campo
 // de texto "HH:MM" que valida `validarPreferenciasNotificacion` de core al
 // guardar.
+//
+// 29-c: solo el estilo (Texto, tokens de useColoresQPS y CampoTexto) — la
+// lógica de arriba (estado, carga, guardado) no cambia. El texto secundario
+// (antes `colors.border`, casi invisible: F4) pasa a `mutedForeground`.
 import { useCallback, useEffect, useState } from 'react'
-import { ActivityIndicator, Pressable, StyleSheet, Switch, Text, View } from 'react-native'
-import { useTheme } from 'expo-router'
+import { ActivityIndicator, Pressable, StyleSheet, Switch, View } from 'react-native'
 import { CANALES_RADAR, type CanalRadar } from '@qps/core/notificaciones/preferencias'
 import { CampoTexto } from '@/components/CampoTexto'
 import { Cargando, ErrorCarga } from '@/components/EstadoCarga'
+import { Texto } from '@/components/Texto'
+import { useColoresQPS } from '@/lib/colores'
 import { guardarNotificaciones, MENSAJE_NO_DISPONIBLE, obtenerNotificaciones } from '@/lib/notificaciones'
 import { useSession } from '@/lib/session'
 
@@ -41,7 +46,7 @@ type Estado =
     }
 
 export function SeccionNotificaciones() {
-  const { colors } = useTheme()
+  const colores = useColoresQPS()
   const { session } = useSession()
   const userId = session?.user.id ?? null
 
@@ -85,8 +90,8 @@ export function SeccionNotificaciones() {
   if (estado.tipo === 'no-disponible') {
     return (
       <View style={estilos.seccion}>
-        <Text style={[estilos.titulo, { color: colors.text }]}>Notificaciones</Text>
-        <Text style={{ color: colors.border }}>{MENSAJE_NO_DISPONIBLE}</Text>
+        <Texto peso="bold" style={estilos.titulo}>Notificaciones</Texto>
+        <Texto tono="secundario">{MENSAJE_NO_DISPONIBLE}</Texto>
       </View>
     )
   }
@@ -94,7 +99,7 @@ export function SeccionNotificaciones() {
   if (estado.tipo === 'error') {
     return (
       <View style={estilos.seccion}>
-        <Text style={[estilos.titulo, { color: colors.text }]}>Notificaciones</Text>
+        <Texto peso="bold" style={estilos.titulo}>Notificaciones</Texto>
         <ErrorCarga mensaje={estado.error} onReintentar={cargar} />
       </View>
     )
@@ -126,24 +131,24 @@ export function SeccionNotificaciones() {
 
   return (
     <View style={estilos.seccion}>
-      <Text style={[estilos.titulo, { color: colors.text }]}>Notificaciones</Text>
+      <Texto peso="bold" style={estilos.titulo}>Notificaciones</Texto>
 
       <View style={estilos.filaInterruptor}>
-        <Text style={{ color: colors.text }}>Recordatorios de favoritos</Text>
+        <Texto>Recordatorios de favoritos</Texto>
         <Switch value={favoriteReminders} onValueChange={(valor) => setEstado({ ...estado, favoriteReminders: valor })} />
       </View>
 
       <View style={estilos.filaInterruptor}>
-        <Text style={{ color: colors.text }}>Novedades de lo que seguís</Text>
+        <Texto>Novedades de lo que seguís</Texto>
         <Switch value={followNews} onValueChange={(valor) => setEstado({ ...estado, followNews: valor })} />
       </View>
 
       <View style={estilos.filaInterruptor}>
-        <Text style={{ color: colors.text }}>Avisos de Qué Pinta Salta</Text>
+        <Texto>Avisos de Qué Pinta Salta</Texto>
         <Switch value={announcements} onValueChange={(valor) => setEstado({ ...estado, announcements: valor })} />
       </View>
 
-      <Text style={[estilos.subtitulo, { color: colors.text }]}>Canal del Radar</Text>
+      <Texto peso="semibold" style={estilos.subtitulo}>Canal del Radar</Texto>
       <View style={estilos.filaChips}>
         {CANALES_RADAR.map((canal) => {
           const seleccionado = radarChannel === canal
@@ -151,17 +156,17 @@ export function SeccionNotificaciones() {
             <Pressable
               key={canal}
               onPress={() => setEstado({ ...estado, radarChannel: canal })}
-              style={[estilos.chip, { borderColor: colors.border }, seleccionado && { backgroundColor: colors.primary }]}
+              style={[estilos.chip, { borderColor: colores.border }, seleccionado && { backgroundColor: colores.primary }]}
             >
-              <Text style={[estilos.textoChip, { color: seleccionado ? '#fff' : colors.text }]}>
+              <Texto peso="semibold" style={{ color: seleccionado ? colores.primaryForeground : colores.foreground }}>
                 {ETIQUETAS_CANAL[canal]}
-              </Text>
+              </Texto>
             </Pressable>
           )
         })}
       </View>
 
-      <Text style={[estilos.subtitulo, { color: colors.text }]}>Horario de silencio</Text>
+      <Texto peso="semibold" style={estilos.subtitulo}>Horario de silencio</Texto>
       <View style={estilos.filaHorario}>
         <View style={estilos.campoHorario}>
           <CampoTexto
@@ -184,35 +189,35 @@ export function SeccionNotificaciones() {
       </View>
 
       {mensaje ? (
-        <Text style={{ color: mensaje.tipo === 'error' ? '#dc2626' : colors.text }}>{mensaje.texto}</Text>
+        <Texto style={{ color: mensaje.tipo === 'error' ? '#dc2626' : colores.foreground }}>{mensaje.texto}</Texto>
       ) : null}
 
       <Pressable
         onPress={guardar}
         disabled={guardando}
-        style={[estilos.boton, { borderColor: colors.border, backgroundColor: colors.primary, marginTop: 8 }]}
+        style={[estilos.boton, { borderColor: colores.border, backgroundColor: colores.primary, marginTop: 8 }]}
       >
         {guardando ? (
-          <ActivityIndicator color="#fff" />
+          <ActivityIndicator color={colores.primaryForeground} />
         ) : (
-          <Text style={[estilos.textoBoton, { color: '#fff' }]}>Guardar notificaciones</Text>
+          <Texto peso="semibold" style={{ color: colores.primaryForeground }}>Guardar notificaciones</Texto>
         )}
       </Pressable>
     </View>
   )
 }
 
+// El peso (bold/semibold) ya lo da `Texto` (Montserrat); acá solo tamaño y
+// separación — nada de fontWeight, que no pega con una fuente custom.
 const estilos = StyleSheet.create({
   seccion: { width: '100%', gap: 8, paddingVertical: 16 },
-  titulo: { fontSize: 16, fontWeight: '700' },
-  subtitulo: { fontWeight: '600', marginTop: 8 },
+  titulo: { fontSize: 16 },
+  subtitulo: { marginTop: 8 },
   filaInterruptor: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   filaChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: { borderWidth: 1, borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8 },
-  textoChip: { fontWeight: '600' },
   filaHorario: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
   campoHorario: { flex: 1 },
   textoHorario: { textAlign: 'center' },
   boton: { borderWidth: 1, borderRadius: 8, paddingVertical: 12, alignItems: 'center' },
-  textoBoton: { fontWeight: '600' },
 })

@@ -129,6 +129,17 @@ const ARCHIVOS_NUEVOS_RONDA = [
   join('components', 'Icono.tsx'),
   join('components', 'Texto.tsx'),
   join('components', 'Encabezado.tsx'),
+  // 29-b (F14, ficha y tarjeta):
+  join('app', 'evento', '[id].tsx'),
+  join('components', 'BotonFavorito.tsx'),
+  join('components', 'BotonCompartir.tsx'),
+  join('components', 'TarjetaEvento.tsx'),
+  // 29-d: pantalla propia del Radar.
+  join('components', 'PantallaRadar.tsx'),
+  // 29-c: Cuenta y login (BotonGoogle es el único archivo nuevo de esta
+  // tarea; cuenta.tsx y SeccionNotificaciones.tsx ya existían antes de la
+  // ronda 29, así que no entran en esta lista).
+  join('components', 'BotonGoogle.tsx'),
 ] as const
 
 /** Lista de excepciones documentadas. Vacía a propósito (29-g): ningún
