@@ -4,7 +4,7 @@ import { formatEventDateShort, formatEventTime } from "@/lib/date-format"
 import { ChangePasswordForm } from "@/components/change-password-form"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card } from "@/components/ui/card"
 import { Calendar, MapPin, Clock, Plus, User, AlertCircle, FileText, ArrowRight } from "lucide-react"
 import Link from "next/link"
 import Image from "next/image"
@@ -112,7 +112,11 @@ export default async function PerfilPage() {
                   const isDraft = event.status === "DRAFT"
                   const isPublished = event.status === "PUBLISHED"
                   const isCancelled = event.status === "CANCELLED"
-                  
+                  // Supabase tipa este join como array (`{ name }[]`) pero la fila
+                  // real trae un solo venue (relación a uno): se afirma la forma
+                  // real en vez de usar `any` como antes.
+                  const venue = event.venue as unknown as { name: string } | null
+
                   return (
                     <Card key={event.id} className="overflow-hidden border border-border/40 bg-card/60 backdrop-blur-sm shadow-sm hover:shadow-md transition-all flex flex-col justify-between">
                       <div>
@@ -176,10 +180,10 @@ export default async function PerfilPage() {
                               <Clock className="size-4 shrink-0 text-primary" />
                               <span>{formatEventTime(event.start_date)} hs</span>
                             </div>
-                             {(event.venue as any)?.name && (
+                             {venue?.name && (
                                <div className="flex items-center gap-2">
                                  <MapPin className="size-4 shrink-0 text-primary" />
-                                 <span className="line-clamp-1">{(event.venue as any).name}</span>
+                                 <span className="line-clamp-1">{venue.name}</span>
                                </div>
                              )}
                           </div>

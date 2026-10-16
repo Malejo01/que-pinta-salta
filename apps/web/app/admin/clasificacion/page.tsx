@@ -7,6 +7,18 @@ import { getUncategorizedEvents } from "@/lib/admin-actions"
 import { ClasificacionManager } from "@/components/clasificacion-manager"
 import { Button } from "@/components/ui/button"
 
+/** Forma de cada fila que devuelve getUncategorizedEvents(): espeja el prop
+ * `uncategorizedEvents` de ClasificacionManager (no exportado desde ahí). */
+interface UncategorizedEventRow {
+  id: string
+  title: string
+  slug: string
+  start_date: string
+  scrape_source_key: string | null
+  created_at: string
+  venue: { id: string; name: string } | null
+}
+
 export default async function AdminClasificacionPage() {
   const supabase = await createClient()
 
@@ -60,7 +72,7 @@ export default async function AdminClasificacionPage() {
         </div>
 
         <ClasificacionManager
-          uncategorizedEvents={uncategorizedEvents as any}
+          uncategorizedEvents={uncategorizedEvents as unknown as UncategorizedEventRow[]}
           categories={categories}
           venues={venues}
           initialAliases={aliases || []}

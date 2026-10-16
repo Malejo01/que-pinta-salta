@@ -29,8 +29,26 @@ import {
 } from "@/components/ui/alert-dialog"
 import { deleteUserEvent } from "@/lib/actions"
 
-export default function MisEventosClient({ initialEvents }: { initialEvents: any[] }) {
-  const [events, setEvents] = useState(initialEvents)
+/** Fila que llega desde app/mis-eventos/page.tsx (PUBLIC_EVENT_ROW_SELECT +
+ * joins de category/venue por nombre): solo los campos que usa esta tabla. */
+interface MisEventoRow {
+  id: string
+  title: string
+  image_url: string | null
+  start_date: string
+  status: string
+  category: { name: string } | null
+  venue: { name: string } | null
+}
+
+// `initialEvents` llega de app/mis-eventos/page.tsx con un `.select()` que
+// interpola `PUBLIC_EVENT_ROW_SELECT` (string, no literal): supabase-js no
+// puede inferir las columnas ahí y el tipo resultante es un `ParserError`
+// (ver packages/core/src/events/public-select.ts). Por eso el prop se tipa
+// `unknown[]` en el límite y se afirma `MisEventoRow[]` acá, en vez de
+// `any[]` como antes.
+export default function MisEventosClient({ initialEvents }: { initialEvents: unknown[] }) {
+  const [events, setEvents] = useState(initialEvents as MisEventoRow[])
   const [deleteId, setDeleteId] = useState<string | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
 

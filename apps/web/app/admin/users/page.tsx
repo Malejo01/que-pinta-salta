@@ -40,7 +40,7 @@ export default async function AdminUsersPage() {
       {error ? (
         <p className="text-sm text-destructive">Error al cargar usuarios: {error}</p>
       ) : (
-        <UsersTable initialUsers={users as any} />
+        <UsersTable initialUsers={users} />
       )}
     </div>
   )

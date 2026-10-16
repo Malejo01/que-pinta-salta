@@ -61,7 +61,7 @@ export function ScrapeManager({ sources, warning }: ScrapeManagerProps) {
       const result = await triggerSourceScrape(sourceKey)
       setResultsByKey((current) => ({ ...current, [sourceKey]: result }))
       router.refresh()
-    } catch (e: any) {
+    } catch (e) {
       setResultsByKey((current) => ({
         ...current,
         [sourceKey]: {
@@ -70,7 +70,7 @@ export function ScrapeManager({ sources, warning }: ScrapeManagerProps) {
           sourceName: sourceKey,
           inserted: 0,
           skipped: 0,
-          errors: [e?.message ?? "Error inesperado"],
+          errors: [e instanceof Error ? e.message : "Error inesperado"],
           message: "Error inesperado",
           startedAt: new Date().toISOString(),
           finishedAt: new Date().toISOString(),

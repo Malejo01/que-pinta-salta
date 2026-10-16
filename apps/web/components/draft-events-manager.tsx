@@ -10,7 +10,6 @@ import {
   Tag,
   Trash2,
   Check,
-  FileText,
   ExternalLink,
   AlertCircle,
   Inbox,
@@ -52,6 +51,17 @@ interface Venue {
   address: string
 }
 
+/** Forma laxa: la IA guarda lo que pudo extraer, no todos los campos están siempre. */
+interface AiMetadata {
+  error?: string
+  flyer_id?: string
+  original_caption?: string
+  extracted_data?: unknown
+  extracted_json?: unknown
+  merged_into_event_id?: string
+  [key: string]: unknown
+}
+
 interface DraftEvent {
   id: string
   title: string
@@ -71,7 +81,7 @@ interface DraftEvent {
   is_free: boolean
   ticket_url: string | null
   status: string
-  ai_metadata?: any | null
+  ai_metadata?: AiMetadata | null
   created_at: string
   category?: Category
   venue?: Venue
@@ -251,8 +261,8 @@ export function DraftEventsManager({
         // Forzar a Next.js a actualizar los datos del Server Component
         router.refresh()
       }
-    } catch (err: any) {
-      notify.error(`Error de red: ${err.message}`, { id: toastId })
+    } catch (err) {
+      notify.error(`Error de red: ${err instanceof Error ? err.message : String(err)}`, { id: toastId })
     } finally {
       setIsProcessingAI(false)
     }
@@ -322,8 +332,8 @@ export function DraftEventsManager({
         // Seleccionar el siguiente
         setSelectedEventId(updatedEvents.length > 0 ? updatedEvents[0].id : null)
       }
-    } catch (err: any) {
-      notify.error(`Excepción publicando evento: ${err.message}`)
+    } catch (err) {
+      notify.error(`Excepción publicando evento: ${err instanceof Error ? err.message : String(err)}`)
     } finally {
       setIsSubmitting(false)
     }
@@ -352,8 +362,8 @@ export function DraftEventsManager({
         // Seleccionar el siguiente
         setSelectedEventId(updatedEvents.length > 0 ? updatedEvents[0].id : null)
       }
-    } catch (err: any) {
-      notify.error(`Excepción eliminando evento: ${err.message}`)
+    } catch (err) {
+      notify.error(`Excepción eliminando evento: ${err instanceof Error ? err.message : String(err)}`)
     } finally {
       setIsSubmitting(false)
     }
