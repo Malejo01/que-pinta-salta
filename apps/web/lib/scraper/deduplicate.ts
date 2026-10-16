@@ -24,7 +24,13 @@ function getAdminClient() {
  */
 let dedupColumnsAvailable = true;
 
-function isMissingDedupColumn(error: any): boolean {
+/** Forma mínima de un error de Postgrest/Supabase que necesitamos para detectarlo. */
+interface SupabaseErrorLike {
+  message?: string;
+  details?: string;
+}
+
+function isMissingDedupColumn(error: SupabaseErrorLike | null | undefined): boolean {
   const message = `${error?.message || ''} ${error?.details || ''}`.toLowerCase();
   return message.includes('dedup_key') || message.includes('merge_audit');
 }
@@ -38,7 +44,7 @@ function warnMissingColumnsOnce() {
   );
 }
 
-function stripDedupColumns(payload: Record<string, any>): Record<string, any> {
+function stripDedupColumns(payload: Record<string, unknown>): Record<string, unknown> {
   const rest = { ...payload };
   delete rest.dedup_key;
   delete rest.merge_audit;
@@ -146,6 +152,9 @@ export type DuplicateMatch = {
  */
 export async function findDuplicateMatch(
   event: Partial<Event>,
+  // `any` a propósito: tests/scraper/deduplicate-similitud.test.ts y
+  // dedupe-merged.test.ts pasan `db.client` (fake mínimo `{ from }`, ver
+  // tests/events/fake-events-db.ts) sin cast a SupabaseClient.
   supabaseClient?: any,
   options?: { excludeMerged?: boolean }
 ): Promise<DuplicateMatch | null> {
@@ -200,7 +209,7 @@ export async function findDuplicateMatch(
     // (16 y 21), la de las 21 tiene que encontrarse a sí misma, no a la otra.
     const incomingTime = new Date(event.start_date).getTime();
     const ordered = [...candidates].sort(
-      (a: any, b: any) =>
+      (a, b) =>
         Number(new Date(b.start_date).getTime() === incomingTime) -
         Number(new Date(a.start_date).getTime() === incomingTime)
     );
@@ -245,6 +254,7 @@ export async function findDuplicateMatch(
  */
 export async function findDuplicateEvent(
   event: Partial<Event>,
+  // `any` por el mismo motivo que en findDuplicateMatch.
   supabaseClient?: any,
   options?: { excludeMerged?: boolean }
 ): Promise<Event | null> {
@@ -266,8 +276,16 @@ export async function findDuplicateEvent(
  * está en la base.
  */
 export async function upsertEventWithDeduplication(
+  // `eventData: any` a propósito: lo llaman save-to-supabase.ts, run-scrape-job.ts,
+  // process-flyer-ai.ts y recurrentes/generar.ts con formas distintas (status
+  // ancho a `string`, con/sin `venue`, con/sin `ticket_sources`), y los tests
+  // (dedupe-merged.test.ts, deduplicate-similitud.test.ts) pasan esos mismos
+  // literales sin cast. No hay un tipo único que sea a la vez más estricto que
+  // `any` y compatible con todos esos llamadores sin tocar archivos fuera de
+  // los permitidos de esta tarea.
   eventData: any,
   sourceKey: string,
+  // `any` por el mismo motivo que en findDuplicateMatch.
   supabaseClient?: any
 ): Promise<{ success: boolean; action: 'insert' | 'update' | 'skip'; eventId: string }> {
   const supabase = supabaseClient || getAdminClient();
@@ -340,7 +358,7 @@ export async function upsertEventWithDeduplication(
     const finalTitle = merge.patch.title ?? existingEvent.title;
     const finalStart = merge.patch.start_date ?? existingEvent.start_date;
 
-    const update: Record<string, any> = {
+    const update: Record<string, unknown> = {
       ...merge.patch,
       dedup_key: buildDedupKey(finalTitle, finalStart) || null,
       updated_at: new Date().toISOString(),
@@ -349,7 +367,9 @@ export async function upsertEventWithDeduplication(
     // Sólo se anota en auditoría si hubo algo que descartar. Si la corrida no
     // aportó nada nuevo, no tiene sentido engordar el array en cada cron.
     if (merge.audit.discarded.length > 0) {
-      update.merge_audit = appendAudit((existingEvent as any).merge_audit, merge.audit);
+      // Event no declara merge_audit (es un campo interno de auditoría, no del
+      // tipo público): el cast sólo agrega esa propiedad opcional, no cambia nada.
+      update.merge_audit = appendAudit((existingEvent as { merge_audit?: unknown }).merge_audit, merge.audit);
       console.log(
         `[deduplicate] Fusión ${describeSource(sourceKey)} -> ${describeSource(existingEvent.scrape_source_key)}: ` +
         merge.audit.discarded.map(d => `${d.field} (gana ${d.kept_source})`).join(', ')
@@ -379,7 +399,7 @@ export async function upsertEventWithDeduplication(
     eventData.price_min
   );
 
-  const newEvent: Record<string, any> = {
+  const newEvent: Record<string, unknown> = {
     ...eventData,
     ticket_sources: initialSources,
     scrape_source_key: sourceKey,
@@ -412,6 +432,7 @@ export async function upsertEventWithDeduplication(
  */
 export async function deduplicateEvent(
   event: Partial<Event>,
+  // `any` por el mismo motivo que en findDuplicateMatch.
   supabaseClient?: any
 ): Promise<boolean> {
   const duplicate = await findDuplicateEvent(event, supabaseClient);
