@@ -24,6 +24,7 @@ import { ageChip, cleanDescription, formatEventTimeDisplay } from '../event-disp
 import { isVigente } from '../events/vigencia'
 import { formatDateInSalta, transformEvent, transformFlyer } from '../home/transform'
 import type { DisplayEvent, EventWithRelations } from '../home/types'
+import { SITIO } from '../metricas/links'
 
 /** Fila cruda de `user_favorites` (las tres columnas, cualquiera puede ser null). */
 export interface FilaFavorito {
@@ -179,4 +180,62 @@ export function armarFavoritos(
     .map(([dia, items]) => ({ dia, items: [...items].sort(compararEstable) }))
 
   return { flexibles, porDia }
+}
+
+/**
+ * Mensaje para "Compartir agenda por WhatsApp" (29-i, §3.7): el mismo texto,
+ * emoji por emoji, que `handleShareWhatsApp` en `apps/web/app/favoritos/favoritos-list.tsx`,
+ * movido a core porque 29-a ya estaba commiteada cuando se escribió esta
+ * función (si no, habría quedado duplicada en `favoritos.tsx` con una nota
+ * para 29-q). La web sigue armándolo inline con `window.location.origin`
+ * (no tiene ese dato en runtime de servidor, y esta función es la que usa la
+ * app, que no tiene `window`): queda pendiente que la web también importe
+ * esta función en vez de repetirla — no se tocó `favoritos-list.tsx` (de
+ * solo lectura para 29-i).
+ *
+ * `items` es la lista completa de favoritos, en cualquier orden: la función
+ * separa por tipo (evento con fecha / película / flyer) y arma las tres
+ * secciones siempre en el mismo orden, así que el orden de entrada no
+ * cambia el resultado. `sitio` por defecto es `SITIO`
+ * (`https://www.quepintasalta.com.ar`, el mismo dominio que usa `urlEvento`)
+ * en vez de `window.location.origin`, que no existe en React Native.
+ */
+export function armarMensajeWhatsApp(items: DisplayEvent[], sitio: string = SITIO): string {
+  const datedEvents = items.filter((item) => !item.isCinemaMovie && !item.isInstagramFlyer)
+  const movies = items.filter((item) => item.isCinemaMovie)
+  const flyers = items.filter((item) => item.isInstagramFlyer)
+
+  let message = '¡Che! Este es mi plan para el finde en Salta:\n\n'
+
+  if (datedEvents.length > 0) {
+    message += '📅 *Eventos:*\n'
+    for (const item of datedEvents) {
+      const [, m, d] = item.date.split('-')
+      const url = `${sitio}/evento/${item.id}`
+      message += `- *${item.title}* (${d}/${m} en ${item.venue})\n  🔗 ${url}\n`
+    }
+    message += '\n'
+  }
+
+  if (movies.length > 0) {
+    message += '🎬 *Cine:*\n'
+    for (const item of movies) {
+      const url = `${sitio}/cines`
+      message += `- *${item.title}*\n  🔗 ${url}\n`
+    }
+    message += '\n'
+  }
+
+  if (flyers.length > 0) {
+    message += '🍻 *Boliches / Salidas:*\n'
+    for (const item of flyers) {
+      const url = `${sitio}/flyer/${item.flyerId}`
+      message += `- *${item.title}* (en ${item.venue})\n  🔗 ${url}\n`
+    }
+    message += '\n'
+  }
+
+  message += 'Organizá tu salida en quepintasalta.com.ar 🎸'
+
+  return message
 }
