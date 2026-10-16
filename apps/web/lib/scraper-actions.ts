@@ -142,7 +142,7 @@ async function executeSourceScrape(sourceKey: ScrapeSourceKey): Promise<Omit<Scr
       const { saveEventsToSupabase } = await import('@/lib/scraper/save-to-supabase')
 
       const events = await scrapeNorteticketSalta()
-      const result = await saveEventsToSupabase(events as any, 'norteticket')
+      const result = await saveEventsToSupabase(events, 'norteticket')
 
       return {
         success: true,
@@ -296,14 +296,14 @@ export async function triggerSourceScrape(sourceKey: ScrapeSourceKey): Promise<S
     revalidatePath('/admin')
     revalidatePath('/admin/scrape')
     return result
-  } catch (e: any) {
+  } catch (e: unknown) {
     const result: ScrapeResult = {
       success: false,
       sourceKey,
       sourceName: source.name,
       inserted: 0,
       skipped: 0,
-      errors: [e?.message ?? 'Error desconocido'],
+      errors: [(e instanceof Error ? e.message : undefined) ?? 'Error desconocido'],
       message: 'Error durante el scrape',
       startedAt,
       finishedAt: new Date().toISOString(),

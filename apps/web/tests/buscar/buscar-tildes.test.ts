@@ -1,23 +1,23 @@
 /**
- * QPS-021: `/buscar` filtra con `normalizeFilterText` de `@qps/core`
- * (`home/filters`), la misma que usa la portada (`components/home-content.tsx`
- * -> `@/lib/home/filters`), en vez de su propia comparación. Se aplica al
- * texto buscado y a título, lugar y descripción: "pena" encuentra "Peña" y
- * "musica" encuentra "Música". También: "Explorar por categoría" con tilde,
- * sin categorías con 0 eventos.
+ * QPS-021: `/buscar` ignora tildes. Desde la Fase 2 de la R30 (16/10), la
+ * búsqueda es la de core (`buscarEventosPorTexto`, de la R29), que normaliza
+ * con `normalizeFilterText`, la misma de la portada (`home/filters`): "pena"
+ * encuentra "Peña" y "musica" encuentra "Música", en la web y en la app.
+ * También: "Explorar por categoría" con tilde, sin categorías con 0 eventos.
  *
- * Sin testing-library (entorno node, sin DOM): se prueba la función real
- * (`normalizeFilterText`, tal como la usa el componente) con fixtures
- * inventadas, y se lee el código fuente de `buscar-content.tsx` para
- * confirmar el import y que no quedó una copia propia de la normalización.
+ * Sin testing-library (entorno node, sin DOM): se prueba la función real de
+ * core con fixtures inventadas, y se lee el código fuente para confirmar que
+ * la web la usa y que nadie tiene su propia copia de la normalización.
  */
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
-import { normalizeFilterText } from '@/lib/home/filters'
+import { buscarEventosPorTexto } from '@qps/core/home/busqueda'
 import type { DisplayEvent } from '@qps/core/home/types'
 
 const SOURCE_PATH = new URL('../../app/buscar/buscar-content.tsx', import.meta.url)
 const source = readFileSync(SOURCE_PATH, 'utf8')
+const CORE_PATH = new URL('../../../../packages/core/src/home/busqueda.ts', import.meta.url)
+const core = readFileSync(CORE_PATH, 'utf8')
 
 function evento(overrides: Partial<DisplayEvent> = {}): DisplayEvent {
   return {
@@ -39,32 +39,27 @@ function evento(overrides: Partial<DisplayEvent> = {}): DisplayEvent {
   }
 }
 
-// Reproduce exactamente el predicado de `filteredEvents` en buscar-content.tsx:
-// título, lugar o descripción, los tres normalizados con `normalizeFilterText`.
-function filtrarComoBuscar(eventos: DisplayEvent[], query: string): DisplayEvent[] {
-  const q = normalizeFilterText(query)
-  return eventos.filter(
-    (event) =>
-      normalizeFilterText(event.title).includes(q) ||
-      normalizeFilterText(event.venue).includes(q) ||
-      normalizeFilterText(event.description).includes(q)
-  )
-}
+// La búsqueda real de /buscar (y de la app).
+const filtrarComoBuscar = buscarEventosPorTexto
 
-describe('buscar-content.tsx: importa normalizeFilterText de lib/home/filters (la misma de la portada), sin copia propia', () => {
-  it('importa normalizeFilterText de "@/lib/home/filters"', () => {
-    expect(source).toMatch(/import \{[^}]*\bnormalizeFilterText\b[^}]*\}\s*from\s*["']@\/lib\/home\/filters["']/)
+describe('la búsqueda de /buscar es la de core, y core normaliza con normalizeFilterText', () => {
+  it('buscar-content.tsx usa buscarEventosPorTexto de @qps/core/home/busqueda', () => {
+    expect(source).toMatch(/import\s*\{\s*buscarEventosPorTexto\s*\}\s*from\s*["']@qps\/core\/home\/busqueda["']/)
   })
 
-  it('no tiene su propia normalización de tildes (sin normalize("NFD") a mano en el filtro de búsqueda)', () => {
+  it('buscar-content.tsx no tiene su propia normalización ni comparación', () => {
     expect(source).not.toMatch(/normalize\(\s*["']NFD["']\s*\)/)
     expect(source).not.toMatch(/event\.title\.toLowerCase\(\)/)
-    expect(source).not.toMatch(/event\.venue\.toLowerCase\(\)/)
-    expect(source).not.toMatch(/event\.description\.toLowerCase\(\)/)
+    expect(source).not.toMatch(/normalizeFilterText\(event\./)
+  })
+
+  it('core/home/busqueda.ts usa normalizeFilterText de ./filters (la de la portada), sin copia propia', () => {
+    expect(core).toMatch(/import\s*\{\s*normalizeFilterText\s*\}\s*from\s*["']\.\/filters["']/)
+    expect(core).not.toMatch(/normalize\(\s*["']NFD["']\s*\)/)
   })
 })
 
-describe('filtrado real de /buscar (normalizeFilterText + el mismo predicado del componente)', () => {
+describe('filtrado real de /buscar (buscarEventosPorTexto de core)', () => {
   it('"pena" encuentra "Peña" (por título)', () => {
     const pena = evento({ id: 'pena', title: 'Peña Folklórica' })
     const otro = evento({ id: 'otro', title: 'Recital de Rock' })

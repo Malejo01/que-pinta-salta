@@ -9,8 +9,17 @@ import { MovieModal } from "@/components/movie-modal"
 import { useDonation } from "@/components/donation-context"
 import type { DisplayEvent } from "@/components/home-content"
 
+// El agrupado ("Plan flexible" + por día) ya lo calcula `armarFavoritos`
+// (packages/core/src/favoritos/armar.ts, compartida con la app): este
+// componente solo recibe el resultado y lo pinta, sin volver a agrupar nada.
+interface GrupoPorDia {
+  dia: string
+  items: DisplayEvent[]
+}
+
 interface FavoritosListProps {
-  initialFavorites: DisplayEvent[]
+  flexibles: DisplayEvent[]
+  porDia: GrupoPorDia[]
 }
 
 // Formatea fechas locales como "Viernes 10 de Julio" para los encabezados de la agenda
@@ -31,35 +40,19 @@ function formatHeaderDate(dateStr: string): string {
   }
 }
 
-export function FavoritosList({ initialFavorites }: FavoritosListProps) {
+export function FavoritosList({ flexibles, porDia }: FavoritosListProps) {
   const [selectedMovie, setSelectedMovie] = useState<DisplayEvent | null>(null)
   const { openDonationModal } = useDonation()
 
-  // Agrupamiento y ordenamiento de favoritos
-  const { flexible, datedGroups, sortedDates } = useMemo(() => {
-    const flexible: DisplayEvent[] = []
-    const datedGroups: Record<string, DisplayEvent[]> = {}
-
-    initialFavorites.forEach(item => {
-      // Películas y flyers se consideran planes flexibles sin una fecha estricta fija
-      if (item.isCinemaMovie || item.isInstagramFlyer) {
-        flexible.push(item)
-      } else {
-        const dateStr = item.date // YYYY-MM-DD
-        if (!datedGroups[dateStr]) {
-          datedGroups[dateStr] = []
-        }
-        datedGroups[dateStr].push(item)
-      }
-    })
-
-    // Ordenar fechas cronológicamente
-    const sortedDates = Object.keys(datedGroups).sort(
-      (a, b) => new Date(a).getTime() - new Date(b).getTime()
-    )
-
-    return { flexible, datedGroups, sortedDates }
-  }, [initialFavorites])
+  // El total y la lista plana (para compartir) se derivan del resultado ya
+  // armado por `armarFavoritos`: ni el orden ni el agrupado se recalculan acá.
+  const { totalFavoritos, initialFavorites } = useMemo(() => {
+    const datedItems = porDia.flatMap(grupo => grupo.items)
+    return {
+      totalFavoritos: flexibles.length + datedItems.length,
+      initialFavorites: [...datedItems, ...flexibles],
+    }
+  }, [flexibles, porDia])
 
   // Lógica para compilar y compartir la agenda por WhatsApp con enlaces a cada evento
   const handleShareWhatsApp = () => {
@@ -109,7 +102,7 @@ export function FavoritosList({ initialFavorites }: FavoritosListProps) {
     }, 800)
   }
 
-  if (initialFavorites.length === 0) {
+  if (totalFavoritos === 0) {
     return (
       <div className="max-w-2xl mx-auto">
         <div className="mb-6">
@@ -156,7 +149,7 @@ export function FavoritosList({ initialFavorites }: FavoritosListProps) {
           </Button>
           <h1 className="text-3xl font-bold text-foreground tracking-tight">Mi Agenda de Eventos</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Tienes {initialFavorites.length} {initialFavorites.length === 1 ? 'elemento guardado' : 'elementos guardados'} organizados para tu salida.
+            Tienes {totalFavoritos} {totalFavoritos === 1 ? 'elemento guardado' : 'elementos guardados'} organizados para tu salida.
           </p>
         </div>
 
@@ -170,18 +163,18 @@ export function FavoritosList({ initialFavorites }: FavoritosListProps) {
       </div>
 
       {/* 1. Planes Flexibles / Sin fecha definida */}
-      {flexible.length > 0 && (
+      {flexibles.length > 0 && (
         <div className="space-y-4">
           <div className="flex items-center gap-3">
             <div className="h-px bg-zinc-800 flex-1" />
             <h3 className="text-xs font-bold text-zinc-500 uppercase tracking-widest px-2">
-              Plan flexible / Sin fecha definida ({flexible.length})
+              Plan flexible / Sin fecha definida ({flexibles.length})
             </h3>
             <div className="h-px bg-zinc-800 flex-1" />
           </div>
-          
+
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
-            {flexible.map((event) => (
+            {flexibles.map((event) => (
               <EventCard
                 key={event.id}
                 event={event}
@@ -196,20 +189,19 @@ export function FavoritosList({ initialFavorites }: FavoritosListProps) {
       )}
 
       {/* 2. Agenda Cronológica */}
-      {sortedDates.map((dateStr) => {
-        const events = datedGroups[dateStr]
+      {porDia.map(({ dia, items }) => {
         return (
-          <div key={dateStr} className="space-y-4">
+          <div key={dia} className="space-y-4">
             <div className="flex items-center gap-3">
               <div className="h-px bg-primary/20 flex-1" />
               <h3 className="text-xs font-extrabold text-primary uppercase tracking-widest px-2 bg-primary/5 py-1 rounded-md border border-primary/10">
-                {formatHeaderDate(dateStr)} ({events.length})
+                {formatHeaderDate(dia)} ({items.length})
               </h3>
               <div className="h-px bg-primary/20 flex-1" />
             </div>
 
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
-              {events.map((event) => (
+              {items.map((event) => (
                 <EventCard
                   key={event.id}
                   event={event}

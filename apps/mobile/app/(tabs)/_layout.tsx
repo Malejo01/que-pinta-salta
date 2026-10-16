@@ -1,37 +1,75 @@
+import { StyleSheet, type ColorValue } from 'react-native'
 import { Tabs } from 'expo-router'
-import type { ColorValue } from 'react-native'
+import { Encabezado } from '@/components/Encabezado'
 import { Icono, type NombreIcono } from '@/components/Icono'
+import { useColoresQPS } from '@/lib/colores'
 
-// Las 4 pestañas (decisión 1 de Mauro, 13/10): Inicio · Buscar · Favoritos · Cuenta.
-// Íconos (QPS-125, decisión 4): siempre el nombre por plataforma, nunca un
-// string suelto (con un string suelto Android no dibuja nada, según la doc
-// de expo-symbols del SDK 57).
-const ICONOS: Record<'inicio' | 'buscar' | 'favoritos' | 'cuenta', NombreIcono> = {
-  inicio: { ios: 'house.fill', android: 'home' },
-  buscar: { ios: 'magnifyingglass', android: 'search' },
-  favoritos: { ios: 'heart.fill', android: 'favorite' },
-  cuenta: { ios: 'person.circle.fill', android: 'account_circle' },
+// Las 4 pestañas de la barra de abajo de la web (ops/paridad-web-app.md §2
+// punto 8 y §3.1; inventario-web-mobile.md "Navegación"): Inicio · Buscar ·
+// Radar · Favoritos, mismos íconos lucide que `mobile-nav.tsx`. Cuenta sigue
+// existiendo como ruta (`/cuenta`, con `href: null` más abajo) pero ya no es
+// una pestaña: entra desde el header (`components/Encabezado.tsx`).
+const ICONOS: Record<'inicio' | 'buscar' | 'radar' | 'favoritos', NombreIcono> = {
+  inicio: 'Home',
+  buscar: 'Search',
+  radar: 'Radio',
+  favoritos: 'Heart',
 }
 
 // Componente con nombre (no una flecha anónima): evita el warning de
-// `react/display-name` (QPS-140, ítem 1). No cambia nada visible.
-function crearTabBarIcon(nombre: NombreIcono) {
-  function TabBarIcon({ color }: { color: ColorValue }) {
-    return <Icono nombre={nombre} color={color} />
+// `react/display-name` (QPS-140, ítem 1). El ícono activo va en `primary`
+// con el relleno al 20% (`fill-primary/20` en la web, acá `${hexPrimary}33`);
+// inactivo, sin relleno. `colorHexActivo` es el hex de `colores.primary`
+// (fijo, de `useColoresQPS`), no el `color` que manda react-navigation
+// (puede ser un `ColorValue` opaco, no siempre un string con el que armar
+// un sufijo de opacidad).
+function crearTabBarIcon(nombre: NombreIcono, colorHexActivo: string) {
+  function TabBarIcon({ color, focused }: { color: ColorValue; focused: boolean }) {
+    return <Icono nombre={nombre} color={color} fill={focused ? `${colorHexActivo}33` : 'none'} tamanio={20} />
   }
   return TabBarIcon
 }
 
 export default function TabsLayout() {
+  const colores = useColoresQPS()
+
   return (
-    <Tabs>
-      <Tabs.Screen name="index" options={{ title: 'Inicio', tabBarIcon: crearTabBarIcon(ICONOS.inicio) }} />
-      <Tabs.Screen name="buscar" options={{ title: 'Buscar', tabBarIcon: crearTabBarIcon(ICONOS.buscar) }} />
+    <Tabs
+      screenOptions={{
+        header: () => <Encabezado />,
+        tabBarActiveTintColor: colores.primary,
+        tabBarInactiveTintColor: colores.mutedForeground,
+        tabBarLabelStyle: estilos.etiqueta,
+        tabBarStyle: {
+          backgroundColor: `${colores.background}E6`,
+          borderTopColor: colores.border,
+          borderTopWidth: StyleSheet.hairlineWidth,
+        },
+      }}
+    >
+      <Tabs.Screen
+        name="index"
+        options={{ title: 'Inicio', tabBarIcon: crearTabBarIcon(ICONOS.inicio, colores.primary) }}
+      />
+      <Tabs.Screen
+        name="buscar"
+        options={{ title: 'Buscar', tabBarIcon: crearTabBarIcon(ICONOS.buscar, colores.primary) }}
+      />
+      <Tabs.Screen
+        name="radar"
+        options={{ title: 'Radar', tabBarIcon: crearTabBarIcon(ICONOS.radar, colores.primary) }}
+      />
       <Tabs.Screen
         name="favoritos"
-        options={{ title: 'Favoritos', tabBarIcon: crearTabBarIcon(ICONOS.favoritos) }}
+        options={{ title: 'Favoritos', tabBarIcon: crearTabBarIcon(ICONOS.favoritos, colores.primary) }}
       />
-      <Tabs.Screen name="cuenta" options={{ title: 'Cuenta', tabBarIcon: crearTabBarIcon(ICONOS.cuenta) }} />
+      {/* Cuenta sale de la barra (decisión A de Mauro) pero conserva su ruta: se
+          llega desde el header, nunca desde acá. */}
+      <Tabs.Screen name="cuenta" options={{ title: 'Cuenta', href: null }} />
     </Tabs>
   )
 }
+
+const estilos = StyleSheet.create({
+  etiqueta: { fontSize: 12, fontFamily: 'Montserrat_600SemiBold' },
+})

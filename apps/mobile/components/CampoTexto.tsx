@@ -82,15 +82,7 @@ export const CampoTexto = forwardRef<TextInput, CampoTextoProps>(function CampoT
             accessibilityLabel={oculto ? 'Mostrar contraseña' : 'Ocultar contraseña'}
             style={estilos.ojito}
           >
-            <Icono
-              nombre={
-                oculto
-                  ? { ios: 'eye', android: 'visibility' }
-                  : { ios: 'eye.slash', android: 'visibility_off' }
-              }
-              tamanio={20}
-              color={colores.mutedForeground}
-            />
+            <Icono nombre={oculto ? 'Eye' : 'EyeOff'} tamanio={20} color={colores.mutedForeground} />
           </Pressable>
         ) : null}
       </View>

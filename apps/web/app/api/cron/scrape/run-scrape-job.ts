@@ -6,6 +6,9 @@ import { formatVenueError, resolveVenueId } from '@/lib/venues/resolve'
 import { archiveExpiredFlyers } from '@/lib/instagram/process-apify-payload'
 import { resolveCategoryWithAliases } from '@/lib/scraper/categorize'
 import { formatSaltaDayKey } from '@/lib/date-format'
+import { copyExternalImage, isOwnStorageUrl } from '@/lib/images/external'
+import { INSTAGRAM_ENGINE_CONFIG } from '@/lib/instagram-config'
+import { isThumbnail } from '@/lib/scraper/merge-events'
 
 /**
  * Generates a URL-friendly slug from a title
@@ -60,9 +63,13 @@ async function upsertScrapedEvents(events: ScrapedEvent[]) {
   const onVenueError = (rawName: string, message: string) => {
     venueErrors.push(formatVenueError(rawName, message))
   }
-  
+
   // Categorías consideradas comerciales prioritarias
   const commercialCategories = new Set(['recitales', 'teatro', 'boliches', 'penas'])
+
+  // Creado al toque, no acá arriba: si ningún evento trae imagen externa no
+  // tiene sentido pedirlo. Mismo patrón que lib/scraper/save-to-supabase.ts.
+  let storageClient: ReturnType<typeof supabase.storage.from> | null = null
 
   for (const event of events) {
     try {
@@ -107,7 +114,39 @@ async function upsertScrapedEvents(events: ScrapedEvent[]) {
         is_commercial: isCommercial,
         tags: [event.source, 'scraped']
       }
-      
+
+      // Copiar el afiche externo a Storage (QPS-144): antes, este cron
+      // guardaba `event.flyerUrl` crudo y sólo los botones del admin
+      // (lib/scraper/save-to-supabase.ts) copiaban la imagen a nuestro
+      // Storage. Mismo bloque, mismas funciones: si la copia falla
+      // (devuelve null) o lanza, queda la URL original y el evento se guarda
+      // igual, como hoy — el try/catch es local a la copia, no al evento
+      // entero, para no contarlo como error de procesamiento ni saltearlo.
+      // El `try` cubre también crear `storageClient`, no sólo
+      // `copyExternalImage`: un cron que no puede copiar imágenes (acá,
+      // porque `supabase.storage.from` lanzó) tiene que seguir ingestando el
+      // evento con la URL cruda, no perder la corrida (vuelta 2, 31-a).
+      //
+      // Una miniatura NO se copia (vuelta 1, 31-a, bloqueante del revisor):
+      // una vez copiada, la URL pasa a ser `externas/<sha1 hex>.<ext>`, y un
+      // digest hexadecimal nunca puede contener el texto que `isThumbnail`
+      // busca ("150x150", "thumb") — quedaría atascada para siempre, sin que
+      // ninguna corrida futura con la imagen grande pueda reemplazarla (ver
+      // el comentario de `isThumbnail` en merge-events.ts). Dejando la
+      // miniatura cruda sin copiar, el merge la sigue viendo como miniatura y
+      // la excepción de calidad la reemplaza en cuanto llegue la grande.
+      if (eventData.image_url && !isOwnStorageUrl(eventData.image_url) && !isThumbnail(eventData.image_url)) {
+        try {
+          storageClient ??= supabase.storage.from(INSTAGRAM_ENGINE_CONFIG.STORAGE_BUCKET)
+          const storageUrl = await copyExternalImage(eventData.image_url, storageClient)
+          if (storageUrl) {
+            eventData.image_url = storageUrl
+          }
+        } catch (copyError) {
+          console.error(`[v0] Error copiando imagen a Storage para ${event.title}:`, copyError)
+        }
+      }
+
       const upsertResult = await upsertEventWithDeduplication(eventData, event.source, supabase)
       
       if (upsertResult.action === 'insert') {

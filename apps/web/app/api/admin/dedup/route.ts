@@ -62,9 +62,10 @@ export async function GET(request: Request) {
     }
 
     return NextResponse.json(report)
-  } catch (error: any) {
+  } catch (error) {
     console.error('[admin/dedup] Dry-run falló:', error)
-    return NextResponse.json({ error: error?.message || 'Error desconocido' }, { status: 500 })
+    const message = (error instanceof Error && error.message) || 'Error desconocido'
+    return NextResponse.json({ error: message }, { status: 500 })
   }
 }
 
@@ -73,14 +74,14 @@ export async function POST(request: Request) {
   if (denied) return NextResponse.json({ error: denied }, { status: 401 })
 
   const url = new URL(request.url)
-  let body: any = {}
+  let body: unknown = {}
   try {
     body = await request.json()
   } catch {
     // Cuerpo vacío: se trata como dry-run.
   }
 
-  const apply = body?.apply === true
+  const apply = typeof body === 'object' && body !== null && (body as { apply?: unknown }).apply === true
 
   try {
     const report = await runDedupCleanup({ ...parseOptions(url), dryRun: !apply })
@@ -91,8 +92,9 @@ export async function POST(request: Request) {
     )
 
     return NextResponse.json(report, { status: report.errors.length > 0 ? 207 : 200 })
-  } catch (error: any) {
+  } catch (error) {
     console.error('[admin/dedup] Falló:', error)
-    return NextResponse.json({ error: error?.message || 'Error desconocido' }, { status: 500 })
+    const message = (error instanceof Error && error.message) || 'Error desconocido'
+    return NextResponse.json({ error: message }, { status: 500 })
   }
 }

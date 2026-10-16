@@ -15,7 +15,7 @@ import { MovieModal } from "@/components/movie-modal"
 import { getCategoryIcon } from "@/lib/category-icons"
 import { transformEvent, type DisplayEvent } from "@/components/home-content"
 import { soloGratis } from "@qps/core/home/filtros-extra"
-import { normalizeFilterText } from "@/lib/home/filters"
+import { buscarEventosPorTexto } from "@qps/core/home/busqueda"
 
 function formatDateInSalta(date: Date): string {
   return new Intl.DateTimeFormat("en-CA", {
@@ -153,16 +153,13 @@ export function BuscarContent({
     return [...finalEventItems, ...flyerItems, ...movieItems]
   }, [events, flyers, cinemaMovies, categoryNameBySlug, serverNowISO])
 
-  const filteredEvents = useMemo(() => {
-    if (!deferredSearchQuery) return []
-    const query = normalizeFilterText(deferredSearchQuery)
-    return allDisplayEvents.filter(
-      event =>
-        normalizeFilterText(event.title).includes(query) ||
-        normalizeFilterText(event.venue).includes(query) ||
-        normalizeFilterText(event.description).includes(query)
-    )
-  }, [deferredSearchQuery, allDisplayEvents])
+  // Filtro de texto (título, lugar, descripción) movido a
+  // @qps/core/home/busqueda (R29, cierre de ronda): antes era un useMemo
+  // inline con la misma lógica, duplicada entre la web y la app.
+  const filteredEvents = useMemo(
+    () => buscarEventosPorTexto(allDisplayEvents, deferredSearchQuery),
+    [deferredSearchQuery, allDisplayEvents]
+  )
 
   // "Solo gratis" (apagado por defecto): con texto, sobre los resultados de
   // la búsqueda; sin texto, sobre todos los eventos. Apagado, no cambia nada.

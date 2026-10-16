@@ -1,7 +1,7 @@
 "use client"
 
 import { useMemo, useState, useEffect } from "react"
-import { useSearchParams, useRouter } from "next/navigation"
+import { useSearchParams } from "next/navigation"
 import Image from "next/image"
 import dynamic from "next/dynamic"
 import type { Category, CinemaMovie } from "@/lib/types"
@@ -16,7 +16,6 @@ import Link from "next/link"
 import { motion, AnimatePresence } from "framer-motion"
 import { Button } from "@/components/ui/button"
 import { AdSenseBanner } from "@/components/adsense-banner"
-import { Film } from "lucide-react"
 import type { DisplayEvent, EventWithRelations } from "@/lib/home/types"
 import { buildDisplayData } from "@/lib/home/transform"
 import { sortCategories, selectCarouselEvents } from "@/lib/home/carousel"
@@ -54,7 +53,6 @@ export function HomeContent({
   userFavorites = [],
 }: HomeContentProps) {
   const searchParams = useSearchParams()
-  const router = useRouter()
 
   // Estado para la película seleccionada que se mostrará en el modal
   const [selectedMovie, setSelectedMovie] = useState<DisplayEvent | null>(null)
@@ -103,7 +101,6 @@ export function HomeContent({
     setLocation(urlLocation)
     setDateExact(urlDateExact)
     setInstagram(urlInstagram)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams])
 
   const categoryNameBySlug = useMemo(() => {

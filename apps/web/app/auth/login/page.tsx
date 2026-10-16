@@ -142,6 +142,12 @@ export default function LoginPage() {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                   />
+                  <Link
+                    href="/auth/recuperar"
+                    className="text-sm text-muted-foreground underline underline-offset-4 hover:text-foreground"
+                  >
+                    ¿Olvidaste tu contraseña?
+                  </Link>
                 </div>
                 {error && (
                   <p className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">

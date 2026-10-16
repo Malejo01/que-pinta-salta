@@ -351,7 +351,22 @@ async function needsDateConfirmation(
   return dateConfirmation(row, result.map.get(eventId) ?? []).needed
 }
 
-export async function publishDraftEvent(eventId: string, eventData: any) {
+type DraftEventPayload = {
+  title: string
+  slug?: string
+  description?: string | null
+  category_id?: string | null
+  venue_id?: string | null
+  start_date: string
+  price_min?: number | null
+  is_free?: boolean
+  ticket_url?: string | null
+  image_url?: string | null
+  confirm_date?: boolean
+  ai_metadata?: Record<string, unknown> | null
+}
+
+export async function publishDraftEvent(eventId: string, eventData: DraftEventPayload) {
   const supabase = await createClient()
 
   const { data: { user } } = await supabase.auth.getUser()
@@ -601,12 +616,12 @@ export async function triggerAIProcessing(limit: number = 3) {
         eventId: result.eventId,
         error: result.error,
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       return {
         flyerId: flyer.id,
         igPostId: flyer.ig_post_id,
         success: false,
-        error: err.message || String(err),
+        error: (err instanceof Error && err.message) || String(err),
       }
     }
   })

@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import type { Event, Category, Venue } from '@/lib/types'
 import { applyVigenciaPrefilter, isVigente } from '@/lib/events/vigencia'
 import { PUBLIC_EVENT_SELECT } from '@/lib/events/public-select'
+import type { Tables } from '@qps/db'
 
 export async function getEvents(options?: {
   categorySlug?: string
@@ -165,7 +166,7 @@ export async function getVenues(): Promise<Venue[]> {
   return data as Venue[]
 }
 
-export async function getInstagramAccounts(): Promise<any[]> {
+export async function getInstagramAccounts(): Promise<Tables<'instagram_accounts'>[]> {
   const supabase = await createClient()
   
   const { data, error } = await supabase

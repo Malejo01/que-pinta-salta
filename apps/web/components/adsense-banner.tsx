@@ -31,7 +31,6 @@ function AdSenseSlot({
   responsive = true,
   className = "",
 }: AdSenseBannerProps) {
-  const [adLoaded, setAdLoaded] = useState(false)
   const [adError, setAdError] = useState(false)
   const [isClient, setIsClient] = useState(false)
   const insRef = useRef<HTMLModElement>(null)
@@ -63,12 +62,12 @@ function AdSenseSlot({
       // availableWidth=0" y el slot queda vacío. Se espera a que tenga ancho.
       const pushAd = () => {
         try {
-          // @ts-ignore
+          // @ts-ignore -- adsbygoogle no está tipado en Window; @ts-expect-error
+          // tira "Unused directive" porque esta línea no da error de tipos acá.
           const ads = window.adsbygoogle || []
-          // @ts-ignore
+          // @ts-ignore -- ídem arriba
           window.adsbygoogle = ads
           ads.push({})
-          setAdLoaded(true)
         } catch (err) {
           console.error("AdSense initialization failed:", err)
           setAdError(true)
@@ -109,7 +108,8 @@ function AdSenseSlot({
       // Verificación de respaldo pasados unos segundos
       const checkAdStatus = () => {
         try {
-          // @ts-ignore
+          // @ts-ignore -- adsbygoogle no está tipado en Window; @ts-expect-error
+          // tira "Unused directive" porque esta línea no da error de tipos acá.
           const isScriptLoaded = window.adsbygoogle && (window.adsbygoogle.loaded === true || typeof window.adsbygoogle === "object")
           
           if (!isScriptLoaded) {
@@ -126,7 +126,7 @@ function AdSenseSlot({
               setAdError(true)
             }
           }
-        } catch (e) {
+        } catch {
           setAdError(true)
         }
       }

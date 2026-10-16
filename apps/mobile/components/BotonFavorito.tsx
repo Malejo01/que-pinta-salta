@@ -1,23 +1,36 @@
-// Botón de favorito de la ficha (R27, 27-b), junto a "Compartir". Sin
-// sesión, lleva a Cuenta; con sesión, marca/desmarca con lib/favoritos.ts.
-// Mismo patrón que BotonesAsistencia: el `userId` sale de `useSession()`
-// adentro del componente, nunca de una prop.
+// Botón de favorito, ícono redondo (R29, 29-b: F14, ops/paridad-web-app.md
+// §3.3 y §3.4). Antes era un botón con borde y el texto "Guardar"/"Guardado";
+// ahora es un círculo con el corazón solo (vacío, o lleno en rojo cuando
+// está marcado), con dos usos: 32 y fondo oscuro (`bg-black/60`) en la
+// tarjeta, 40 y fondo `muted` junto al título de la ficha.
+//
+// El comportamiento no cambia (R27, 27-b): sin sesión lleva a Cuenta; el
+// `userId` sale siempre de `useSession()` acá adentro, nunca de una prop
+// (mismo patrón que `BotonesAsistencia`); un `23505` en `lib/favoritos.ts`
+// ya cuenta como éxito, no como error.
 import { useCallback, useEffect, useState } from 'react'
-import { ActivityIndicator, Pressable, StyleSheet, Text } from 'react-native'
-import { useRouter, useTheme } from 'expo-router'
+import { ActivityIndicator, Pressable, StyleSheet } from 'react-native'
+import { useRouter } from 'expo-router'
 import { desmarcarFavorito, marcarFavorito, obtenerEsFavorito } from '@/lib/favoritos'
 import { Icono } from '@/components/Icono'
+import { useColoresQPS } from '@/lib/colores'
 import { useSession } from '@/lib/session'
 
 export interface BotonFavoritoProps {
   eventId: string
+  /** 40 por defecto (junto al título de la ficha); la tarjeta pasa 32. */
+  tamanio?: number
+  /** `'muted'` por defecto (ficha); la tarjeta pasa `'oscuro'` (`bg-black/60`). */
+  fondo?: 'muted' | 'oscuro'
 }
 
 type Estado = { tipo: 'cargando' } | { tipo: 'ok'; marcado: boolean } | { tipo: 'error'; error: string }
 
-export function BotonFavorito({ eventId }: BotonFavoritoProps) {
-  const { colors } = useTheme()
+const ROJO_FAVORITO = '#ef4444'
+
+export function BotonFavorito({ eventId, tamanio = 40, fondo = 'muted' }: BotonFavoritoProps) {
   const router = useRouter()
+  const colores = useColoresQPS()
   const { session, cargando: cargandoSesion } = useSession()
   const userId = session?.user.id ?? null
 
@@ -56,39 +69,30 @@ export function BotonFavorito({ eventId }: BotonFavoritoProps) {
   const marcado = estado.tipo === 'ok' && estado.marcado
   const cargando = cargandoSesion || estado.tipo === 'cargando' || guardando
 
+  const fondoColor = fondo === 'oscuro' ? 'rgba(0,0,0,0.6)' : colores.muted
+  const colorBase = fondo === 'oscuro' ? '#fff' : colores.foreground
+  const colorIcono = marcado ? ROJO_FAVORITO : colorBase
+
   return (
     <Pressable
       onPress={alternar}
       disabled={cargando}
-      style={[estilos.boton, { borderColor: colors.border }, marcado && { backgroundColor: colors.primary }]}
+      accessibilityRole="button"
+      accessibilityLabel={marcado ? 'Quitar de favoritos' : 'Agregar a favoritos'}
+      style={[
+        estilos.boton,
+        { width: tamanio, height: tamanio, borderRadius: tamanio / 2, backgroundColor: fondoColor },
+      ]}
     >
       {cargando ? (
-        <ActivityIndicator color={marcado ? '#fff' : colors.text} />
+        <ActivityIndicator color={colorBase} size="small" />
       ) : (
-        <>
-          <Icono
-            nombre={{ ios: marcado ? 'heart.fill' : 'heart', android: 'favorite' }}
-            tamanio={16}
-            color={marcado ? '#fff' : colors.text}
-          />
-          <Text style={[estilos.textoBoton, { color: marcado ? '#fff' : colors.text }]}>
-            {marcado ? 'Guardado' : 'Guardar'}
-          </Text>
-        </>
+        <Icono nombre="Heart" tamanio={Math.round(tamanio * 0.45)} color={colorIcono} fill={marcado ? ROJO_FAVORITO : 'none'} />
       )}
     </Pressable>
   )
 }
 
 const estilos = StyleSheet.create({
-  boton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    borderWidth: 1,
-    borderRadius: 20,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-  },
-  textoBoton: { fontWeight: '600' },
+  boton: { alignItems: 'center', justifyContent: 'center' },
 })

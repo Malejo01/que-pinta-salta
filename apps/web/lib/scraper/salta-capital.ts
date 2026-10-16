@@ -74,6 +74,19 @@ export function distanciaKm(
 }
 
 /**
+ * Forma mínima que necesita un establecimiento para poder filtrarse por
+ * ubicación: los accessors default de abajo leen exactamente estos campos,
+ * ni más ni menos. `T` puede traer más campos (lo hacen EntradaUnoRawVenue,
+ * ApiEstablecimiento, etc.), esto es solo el piso que exige esta función.
+ */
+interface VenueConUbicacion {
+  cNombre?: string
+  idEstablecimiento: number | string
+  cGoogleMapTag?: string | null
+  cDomicilio?: string | null
+}
+
+/**
  * Separa los establecimientos de Capital de los del interior.
  *
  * Un establecimiento SIN coordenadas se conserva, y se reporta aparte. Es
@@ -81,7 +94,7 @@ export function distanciaKm(
  * perdería lugares reales de Capital en silencio. Que aparezca en el log
  * alcanza para detectarlo si alguna vez pasa.
  */
-export function filtrarSaltaCapital<T extends Record<string, any>>(
+export function filtrarSaltaCapital<T extends VenueConUbicacion>(
   venues: T[],
   opciones: {
     radioKm?: number

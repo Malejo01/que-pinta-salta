@@ -11,9 +11,12 @@ import {
   COLORES_CLARO,
   COLORES_OSCURO,
   construirTema,
+  coloresSegunEsquema,
+  FUENTES_QPS,
   TOKENS_CLARO,
   TOKENS_OSCURO,
   type ColoresQPS,
+  type FuentesQPS,
 } from '../lib/theme'
 
 const RUTA_GLOBALS_CSS = fileURLToPath(new URL('../../web/app/globals.css', import.meta.url))
@@ -53,6 +56,7 @@ const MAPA_VARIABLES: Record<keyof ColoresQPS, string> = {
   muted: 'muted',
   mutedForeground: 'muted-foreground',
   border: 'border',
+  input: 'input',
 }
 
 describe('lib/theme.ts == apps/web/app/globals.css', () => {
@@ -75,8 +79,10 @@ describe('lib/theme.ts == apps/web/app/globals.css', () => {
 describe('construirTema', () => {
   // Doble mínimo de un tema de navegación (DarkTheme/DefaultTheme de
   // expo-router): construirTema es genérica y no importa react-native, así
-  // que no hace falta ningún mock para probarla.
-  const temaBase = {
+  // que no hace falta ningún mock para probarla. `fonts` tipado (no
+  // provisto): así TypeScript sabe que `resultado.fonts` existe, sin
+  // necesidad de un cast en cada test.
+  const temaBase: { dark: boolean; colors: Record<string, string>; fonts?: FuentesQPS } = {
     dark: false,
     colors: {
       primary: '#000000',
@@ -107,5 +113,41 @@ describe('construirTema', () => {
     const copiaOriginal = JSON.parse(JSON.stringify(temaBase))
     construirTema(temaBase, COLORES_OSCURO)
     expect(temaBase).toEqual(copiaOriginal)
+  })
+
+  it('suma `fonts` en Montserrat (FUENTES_QPS por defecto), 29-g', () => {
+    const resultado = construirTema(temaBase, COLORES_CLARO)
+    expect(resultado.fonts).toEqual(FUENTES_QPS)
+    expect(resultado.fonts?.regular.fontFamily).toBe('Montserrat_400Regular')
+    expect(resultado.fonts?.bold.fontFamily).toBe('Montserrat_700Bold')
+  })
+
+  it('acepta una `fuentes` propia, sin usar FUENTES_QPS', () => {
+    const fuentesPropias = {
+      regular: { fontFamily: 'X', fontWeight: '400' },
+      medium: { fontFamily: 'X', fontWeight: '400' },
+      bold: { fontFamily: 'X', fontWeight: '700' },
+      heavy: { fontFamily: 'X', fontWeight: '700' },
+    }
+    const resultado = construirTema(temaBase, COLORES_CLARO, fuentesPropias)
+    expect(resultado.fonts).toEqual(fuentesPropias)
+  })
+})
+
+// D1 (29-g, decisión de Mauro): la app arranca siempre en oscuro. El hook
+// `useColoresQPS` (lib/colores.ts) llama a esta función pura con 'dark' a
+// secas; acá se prueba que ese resultado trae el token que causaba F4
+// (texto secundario casi invisible, por estar en `border` en vez de
+// `mutedForeground`).
+describe("coloresSegunEsquema('dark') (D1)", () => {
+  it('tiene mutedForeground, distinto de border', () => {
+    const colores = coloresSegunEsquema('dark')
+    expect(colores.mutedForeground).toBe(COLORES_OSCURO.mutedForeground)
+    expect(typeof colores.mutedForeground).toBe('string')
+    expect(colores.mutedForeground).not.toBe(colores.border)
+  })
+
+  it('tiene `input`', () => {
+    expect(coloresSegunEsquema('dark').input).toBe(COLORES_OSCURO.input)
   })
 })
