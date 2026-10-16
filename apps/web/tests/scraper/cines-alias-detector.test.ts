@@ -22,13 +22,37 @@ import { describe, expect, it } from 'vitest'
 const CINEMA_SCRAPER_PATH = fileURLToPath(new URL('../../lib/scraper/cinema-scraper.ts', import.meta.url))
 
 /**
+ * Vuelta 1 de 31-q: los regex de más abajo matchean sobre texto crudo, así
+ * que una línea comentada ("// const slug = MOVIE_SLUG_ALIASES[s] ?? s;" al
+ * lado de la línea mala real) los engañaba — el patrón bueno "existía" en el
+ * archivo, aunque fuera dentro de un comentario, nunca ejecutado. Se pelan
+ * los comentarios de línea (`//`) y de bloque (`/* ... *\/`) antes de correr
+ * cualquier regex, en los dos detectores de este archivo (`extractFunctionBody`
+ * y `checkAliasAppliedBeforeConsolidation`): así una llave o un patrón dentro
+ * de un comentario no cuenta ni para el balance de llaves ni para las
+ * búsquedas de alias.
+ *
+ * No neutraliza llaves dentro de strings (ej. `"{"`) — caso que no aparece en
+ * `addMovieShowing` hoy y que, de aparecer, requeriría un parser de verdad en
+ * vez de un detector de test; queda anotado y no se persigue.
+ */
+function stripComments(content: string): string {
+  return content.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:"'])\/\/.*$/gm, '$1')
+}
+
+/**
  * Extrae el cuerpo (entre llaves balanceadas) de una función declarada con
  * `function <nombre>(...) { ... }` dentro de `source`. Falla ruidosamente
  * (en vez de devolver una cadena vacía) si no encuentra la firma o si las
  * llaves no cierran: un detector que no encuentra su objetivo y pasa en
  * verde es peor que no tenerlo (lección R29/R30).
+ *
+ * Pela los comentarios de `source` antes de buscar la firma y de contar
+ * llaves: una llave dentro de un comentario ya no puede desbalancear el
+ * conteo ni correr el cierre de la función.
  */
-function extractFunctionBody(source: string, fnName: string): string {
+function extractFunctionBody(rawSource: string, fnName: string): string {
+  const source = stripComments(rawSource)
   const sigRe = new RegExp(`function\\s+${fnName}\\s*\\([^)]*\\)\\s*\\{`)
   const sigMatch = sigRe.exec(source)
   if (!sigMatch) {
@@ -67,8 +91,13 @@ function extractFunctionBody(source: string, fnName: string): string {
  * Devuelve la lista de problemas encontrados (vacía = todo bien). No tira
  * `undefined` en silencio: cada rama que no encuentra lo que busca agrega un
  * mensaje explicando qué faltó.
+ *
+ * Pela los comentarios del cuerpo antes de buscar: la línea buena comentada
+ * al lado de una línea mala real ("const slug = s; // const slug =
+ * MOVIE_SLUG_ALIASES[s] ?? s;") ya no cuenta como si el alias se aplicara.
  */
-function checkAliasAppliedBeforeConsolidation(body: string): string[] {
+function checkAliasAppliedBeforeConsolidation(rawBody: string): string[] {
+  const body = stripComments(rawBody)
   const problems: string[] = []
 
   const normalizeMatch = /\bconst\s+(\w+)\s*=\s*normalizeMovieTitle\(\s*rawTitle\s*\)/.exec(body)
@@ -135,6 +164,35 @@ describe('extractFunctionBody (fixtures en memoria)', () => {
     const src = `function foo(a) {\n  if (a) {\n    return a;\n`
     expect(() => extractFunctionBody(src, 'foo')).toThrow(/desbalanceadas/)
   })
+
+  it('[rotura] una llave dentro de un comentario de línea no rompe el conteo de llaves', () => {
+    const src = `function foo(a) {\n  // if (a) { return null; }\n  return a;\n}\n`
+    const body = extractFunctionBody(src, 'foo')
+    expect(body.trim()).toBe('return a;')
+  })
+
+  it('[rotura] una llave dentro de un comentario de bloque no rompe el conteo de llaves', () => {
+    const src = `function foo(a) {\n  /* nota: si hiciera falta { todo esto } quedaría acá */\n  return a;\n}\n`
+    const body = extractFunctionBody(src, 'foo')
+    expect(body.trim()).toBe('return a;')
+  })
+})
+
+describe('stripComments (fixtures en memoria)', () => {
+  it('saca un comentario de línea sin tocar el código de antes', () => {
+    expect(stripComments('const x = 1; // nota\n')).toBe('const x = 1; \n')
+  })
+
+  it('saca un comentario de bloque, incluso multilínea', () => {
+    expect(stripComments('const x = 1;\n/* nota\nmultilínea */\nconst y = 2;\n')).toBe(
+      'const x = 1;\n\nconst y = 2;\n'
+    )
+  })
+
+  it('no toca una URL con "//" dentro de un string (precedida por ":")', () => {
+    const src = `const u = 'https://example.com/path';\n`
+    expect(stripComments(src)).toBe(src)
+  })
 })
 
 describe('checkAliasAppliedBeforeConsolidation (fixtures en memoria)', () => {
@@ -193,6 +251,24 @@ describe('checkAliasAppliedBeforeConsolidation (fixtures en memoria)', () => {
     const problems = checkAliasAppliedBeforeConsolidation(malo)
     expect(problems.length).toBeGreaterThan(0)
     expect(problems[0]).toMatch(/consolidatedMovies/)
+  })
+
+  it('[rotura caso 4] la línea buena queda comentada al lado de la mala: el regex no la puede confundir con código real', () => {
+    // Variante del refactor descuidado que encontró el revisor: la línea que
+    // aplica el alias no se borra, se comenta — y queda al lado de la línea
+    // real que ya no lo aplica. Sin pelar comentarios, el regex encontraba
+    // "MOVIE_SLUG_ALIASES[s] ?? s" DENTRO del comentario y daba verde.
+    const malo = `
+      const s = normalizeMovieTitle(rawTitle);
+      const slug = s; // const slug = MOVIE_SLUG_ALIASES[s] ?? s;
+      if (!slug) return;
+      if (!consolidatedMovies[slug]) {
+        consolidatedMovies[slug] = { title: rawTitle, poster_url: posterUrl, showings: {} };
+      }
+    `
+    const problems = checkAliasAppliedBeforeConsolidation(malo)
+    expect(problems.length).toBeGreaterThan(0)
+    expect(problems[0]).toMatch(/MOVIE_SLUG_ALIASES/)
   })
 })
 

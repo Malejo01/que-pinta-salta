@@ -66,6 +66,59 @@ const ROUTES = [
   ['save-to-supabase.ts (botones del admin)', SAVE_TO_SUPABASE_PATH],
 ] as const
 
+/**
+ * Vuelta 1 de 31-q: `content.includes('/storage/v1/object/public/')` se
+ * evade partiendo el literal en una concatenación ('/a/' + '/b/') o
+ * separándolo con espacios/backticks. Para no perder esa evasión, se
+ * normaliza el texto antes de buscar: se sacan comillas (simples, dobles y
+ * backticks), espacios en blanco y el operador `+` de concatenación. Si el
+ * literal estaba partido solo por esos elementos, la búsqueda lo encuentra
+ * igual.
+ *
+ * No cubre una plantilla armada con interpolación letra por letra
+ * (`${...}` character por character) — caso mucho más exótico que no se
+ * persigue para no terminar escribiendo un parser (instrucción explícita de
+ * no retorcer el detector).
+ */
+function normalizeForLiteralSearch(content: string): string {
+  return content.replace(/['"`]/g, '').replace(/\s+/g, '').replace(/\+/g, '')
+}
+
+function assertNoHandRolledStorageDetection(path: string, content: string): void {
+  const normalized = normalizeForLiteralSearch(content)
+  if (normalized.includes('/storage/v1/object/public/')) {
+    throw new Error(
+      `${path}: aparece el literal del prefijo público de Storage ("/storage/v1/object/public/"), ` +
+        'tal cual o partido en una concatenación de strings — señal de una detección reimplementada a mano ' +
+        'en vez de importar isOwnStorageUrl de lib/images/external.'
+    )
+  }
+}
+
+describe('normalizeForLiteralSearch / assertNoHandRolledStorageDetection (fixtures en memoria)', () => {
+  it('no se queja de código limpio que solo llama a isOwnStorageUrl', () => {
+    expect(() =>
+      assertNoHandRolledStorageDetection('fixture.ts', `if (!isOwnStorageUrl(url)) { copy(url) }`)
+    ).not.toThrow()
+  })
+
+  it('[rotura] detecta el literal completo, tal cual (el caso que ya cubría la vuelta anterior)', () => {
+    expect(() =>
+      assertNoHandRolledStorageDetection('fixture.ts', `const esPropia = url.includes('/storage/v1/object/public/')`)
+    ).toThrow(/reimplementada a mano/)
+  })
+
+  it('[rotura] detecta el literal partido en una concatenación de dos strings', () => {
+    const src = `const esPropia = url.includes('/storage/v1/object/' + 'public/')`
+    expect(() => assertNoHandRolledStorageDetection('fixture.ts', src)).toThrow(/reimplementada a mano/)
+  })
+
+  it('[rotura] detecta el literal partido con un backtick y espacios/saltos de línea alrededor del "+"', () => {
+    const src = "const esPropia = url.includes(\n  `/storage/v1/object/`\n    + 'public/'\n)"
+    expect(() => assertNoHandRolledStorageDetection('fixture.ts', src)).toThrow(/reimplementada a mano/)
+  })
+})
+
 describe('las dos rutas de ingesta usan el mismo módulo de imágenes externas', () => {
   it.each(ROUTES)('%s importa copyExternalImage e isOwnStorageUrl del módulo compartido', (_label, path) => {
     const content = readSource(path)
@@ -73,13 +126,14 @@ describe('las dos rutas de ingesta usan el mismo módulo de imágenes externas',
   })
 
   it.each(ROUTES)(
-    '%s no reimplementa la detección de "es una URL de nuestro Storage" (sin el literal del prefijo público)',
+    '%s no reimplementa la detección de "es una URL de nuestro Storage" (ni directo ni partido en concatenación)',
     (_label, path) => {
       const content = readSource(path)
       // isOwnStorageUrl ya conoce este prefijo (lib/images/external.ts). Que
-      // aparezca de nuevo, suelto, en una de estas dos rutas es la señal de
-      // una copia a mano de la detección en vez de importar la función real.
-      expect(content).not.toContain('/storage/v1/object/public/')
+      // aparezca de nuevo, suelto o partido, en una de estas dos rutas es la
+      // señal de una copia a mano de la detección en vez de importar la
+      // función real.
+      assertNoHandRolledStorageDetection(path, content)
     }
   )
 })
