@@ -183,7 +183,7 @@ export default function SignUpPage() {
             </Button>
 
             <div className="mt-4 text-center text-sm">
-              ¿Ya tienes cuenta?{' '}
+              ¿Ya tenés cuenta?{' '}
               <Link
                 href="/auth/login"
                 className="text-primary underline underline-offset-4"

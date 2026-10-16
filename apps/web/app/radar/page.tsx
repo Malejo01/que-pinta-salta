@@ -9,7 +9,7 @@ import { Radio } from "lucide-react"
 
 export const metadata = {
   title: "Mi Radar Salteño 📡 | Qué Pinta Salta",
-  description: "Personaliza tu suscripción de novedades para recibir la agenda cultural de Salta en tu email.",
+  description: "Personalizá tu suscripción de novedades para recibir la agenda cultural de Salta en tu email.",
 }
 
 export default async function RadarPage() {
@@ -50,7 +50,7 @@ export default async function RadarPage() {
             Mi Radar Salteño
           </h1>
           <p className="text-sm text-muted-foreground max-w-md leading-relaxed">
-            Tú decides qué eventos ver y recibir. Suscríbete a tus categorías, locales u organizadores favoritos de Instagram y recibe alertas a tu correo sin spam.
+            Vos decidís qué eventos ver y recibir. Suscribite a tus categorías, locales u organizadores favoritos de Instagram y recibí alertas a tu correo sin spam.
           </p>
         </div>
 

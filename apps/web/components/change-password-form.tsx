@@ -64,7 +64,7 @@ export function ChangePasswordForm() {
           Seguridad de la Cuenta
         </CardTitle>
         <CardDescription>
-          Cambia tu contraseña actual por una nueva para asegurar tu cuenta.
+          Cambiá tu contraseña actual por una nueva para asegurar tu cuenta.
         </CardDescription>
       </CardHeader>
       <CardContent>

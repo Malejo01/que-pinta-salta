@@ -143,7 +143,7 @@ export function EventModal({ event, open, onClose, origin = "directo", isFavorit
               >
                 <a href={googleMapsUrl} target="_blank" rel="noopener noreferrer">
                   <Navigation className="mr-2 size-4" />
-                  Como llegar
+                  Cómo llegar
                 </a>
               </Button>
             )}

@@ -314,7 +314,7 @@ export function EventModalWrapper({ event, isAdmin = false, categories = [], ori
               >
                 <a href={googleMapsUrl} target="_blank" rel="noopener noreferrer">
                   <Navigation className="mr-2 size-4" />
-                  Como llegar
+                  Cómo llegar
                 </a>
               </Button>
             )}

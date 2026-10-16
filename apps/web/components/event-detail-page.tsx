@@ -367,7 +367,7 @@ export function EventDetailPage({ event, isAdmin = false, categories = [], isFav
                 >
                   <a href={googleMapsUrl} target="_blank" rel="noopener noreferrer">
                     <Navigation className="mr-2 size-4" />
-                    Como llegar
+                    Cómo llegar
                   </a>
                 </Button>
               )}

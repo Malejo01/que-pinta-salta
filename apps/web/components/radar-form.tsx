@@ -241,13 +241,13 @@ export function RadarForm({ initialSettings, categories, venues, instagramAccoun
 
         <div className="grid gap-6 md:grid-cols-2">
           <div className="space-y-2">
-            <Label htmlFor="radar-frequency">¿Cada cuánto quieres recibir novedades?</Label>
-            <Select 
-              value={frequency} 
+            <Label htmlFor="radar-frequency">¿Cada cuánto querés recibir novedades?</Label>
+            <Select
+              value={frequency}
               onValueChange={(val) => setFrequency(val as EmailFrequency)}
             >
               <SelectTrigger id="radar-frequency" className="w-full">
-                <SelectValue placeholder="Selecciona frecuencia" />
+                <SelectValue placeholder="Seleccioná la frecuencia" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="weekly">Semanalmente (Todos los Jueves 18:00hs)</SelectItem>
@@ -324,7 +324,7 @@ export function RadarForm({ initialSettings, categories, venues, instagramAccoun
             Lugares y Organizadores Preferidos
           </h2>
           <p className="text-xs text-muted-foreground">
-            Sigue locales físicos o directamente a organizadores/boliches de Instagram (ej: La Metro, Sex Us Machina) para enterarte de sus novedades.
+            Seguí locales físicos o directamente a organizadores/boliches de Instagram (ej: La Metro, Sex Us Machina) para enterarte de sus novedades.
           </p>
         </div>
 
@@ -334,7 +334,7 @@ export function RadarForm({ initialSettings, categories, venues, instagramAccoun
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4.5 text-muted-foreground" />
             <Input
               type="text"
-              placeholder="Busca locales físicos o cuentas de Instagram (ej: Usina, Metro, Sex Us...)"
+              placeholder="Buscá locales físicos o cuentas de Instagram (ej: Usina, Metro, Sex Us...)"
               value={searchQuery}
               onChange={(e) => {
                 setSearchQuery(e.target.value)
@@ -422,7 +422,7 @@ export function RadarForm({ initialSettings, categories, venues, instagramAccoun
           </div>
         ) : (
           <p className="text-xs text-muted-foreground italic pt-2">
-            No estás siguiendo ningún local ni cuenta de Instagram aún. Escribe arriba para buscarlos y agregarlos.
+            No estás siguiendo ningún local ni cuenta de Instagram aún. Escribí arriba para buscarlos y agregarlos.
           </p>
         )}
       </div>

@@ -15,6 +15,7 @@ import { MovieModal } from "@/components/movie-modal"
 import { getCategoryIcon } from "@/lib/category-icons"
 import { transformEvent, type DisplayEvent } from "@/components/home-content"
 import { soloGratis } from "@qps/core/home/filtros-extra"
+import { normalizeFilterText } from "@/lib/home/filters"
 
 function formatDateInSalta(date: Date): string {
   return new Intl.DateTimeFormat("en-CA", {
@@ -154,12 +155,12 @@ export function BuscarContent({
 
   const filteredEvents = useMemo(() => {
     if (!deferredSearchQuery) return []
-    const query = deferredSearchQuery.toLowerCase()
+    const query = normalizeFilterText(deferredSearchQuery)
     return allDisplayEvents.filter(
-      event => 
-        event.title.toLowerCase().includes(query) ||
-        event.venue.toLowerCase().includes(query) ||
-        event.description.toLowerCase().includes(query)
+      event =>
+        normalizeFilterText(event.title).includes(query) ||
+        normalizeFilterText(event.venue).includes(query) ||
+        normalizeFilterText(event.description).includes(query)
     )
   }, [deferredSearchQuery, allDisplayEvents])
 
@@ -200,7 +201,7 @@ export function BuscarContent({
             <Search className="absolute left-3 top-1/2 size-5 -translate-y-1/2 text-muted-foreground" />
             <Input
               type="search"
-              placeholder="Buscar por evento, lugar o descripcion..."
+              placeholder="Buscar por evento, lugar o descripción..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="h-12 pl-11 text-lg"
@@ -224,28 +225,33 @@ export function BuscarContent({
         {!mostrarListaResultados && (
           <div>
             <h2 className="mb-4 text-lg font-semibold text-foreground">
-              Explorar por categoria
+              Explorar por categoría
             </h2>
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-              {categories.map((category) => {
-                const Icon = getCategoryIcon(category.slug as any)
-                const count = allDisplayEvents.filter(e => e.category === category.slug).length
-                return (
-                  <Link
-                    key={category.slug}
-                    href={`/?category=${category.slug}`}
-                    className="flex items-center gap-3 rounded-lg border border-border bg-card p-4 transition-colors hover:bg-muted"
-                  >
-                    <div className="flex size-10 items-center justify-center rounded-lg bg-primary/10">
-                      <Icon className="size-5 text-primary" />
-                    </div>
-                    <div>
-                      <p className="font-medium text-foreground">{category.name}</p>
-                      <p className="text-sm text-muted-foreground">{count} eventos</p>
-                    </div>
-                  </Link>
-                )
-              })}
+              {categories
+                .map((category) => ({
+                  category,
+                  count: allDisplayEvents.filter(e => e.category === category.slug).length,
+                }))
+                .filter(({ count }) => count > 0)
+                .map(({ category, count }) => {
+                  const Icon = getCategoryIcon(category.slug as any)
+                  return (
+                    <Link
+                      key={category.slug}
+                      href={`/?category=${category.slug}`}
+                      className="flex items-center gap-3 rounded-lg border border-border bg-card p-4 transition-colors hover:bg-muted"
+                    >
+                      <div className="flex size-10 items-center justify-center rounded-lg bg-primary/10">
+                        <Icon className="size-5 text-primary" />
+                      </div>
+                      <div>
+                        <p className="font-medium text-foreground">{category.name}</p>
+                        <p className="text-sm text-muted-foreground">{count} eventos</p>
+                      </div>
+                    </Link>
+                  )
+                })}
             </div>
           </div>
         )}
