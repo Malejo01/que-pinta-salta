@@ -9,6 +9,15 @@ import { Skeleton } from '@/components/ui/skeleton'
  * real, para que el contenido no "salte" cuando termina de cargar. Todo con
  * tokens del tema (`bg-muted`, `bg-card`, `border-border`, `bg-background`…)
  * — nada de `zinc`/`black`/`white` fijos — así anda igual en claro y oscuro.
+ *
+ * Fase 2 de la R30 (revisión del #54): solo `/buscar` y `/cines` tienen
+ * `loading.tsx`. Un `loading.tsx` hace que la ruta responda en streaming, y
+ * entonces `notFound()`, `redirect()` y `permanentRedirect()` dejan de ser un
+ * 404/307/308 de verdad: pasan a ser un 200 con el error adentro del stream.
+ * Por eso no lo tienen la raíz (se aplicaría a todo el sitio), la ficha
+ * (`notFound()` y el 308 de los eventos fusionados), `/favoritos` ni `/radar`
+ * (los dos redirigen al login sin sesión). Lo fija
+ * `tests/components/skeletons.test.ts`.
  */
 
 /** Región marcada como ocupada para lectores de pantalla; envuelve cada esqueleto de página. */
@@ -63,9 +72,9 @@ function EventCardGrid({
 }
 
 /**
- * Portada (`app/page.tsx`) y `/buscar` (`app/buscar/page.tsx`): mismo
- * `container mx-auto px-4 py-8` y la misma grilla de tarjetas
- * (`grid-cols-2 ... lg:grid-cols-5`) que usan `HomeContent`/`BuscarContent`.
+ * `/buscar` (`app/buscar/page.tsx`): mismo `container mx-auto px-4 py-8` y la
+ * misma grilla de tarjetas (`grid-cols-2 ... lg:grid-cols-5`) que usa
+ * `BuscarContent`.
  */
 export function EventsPageSkeleton() {
   return (
@@ -76,30 +85,6 @@ export function EventsPageSkeleton() {
         <Skeleton className="h-7 w-40" />
         <EventCardGrid />
       </div>
-    </LoadingRegion>
-  )
-}
-
-/**
- * `/favoritos` (`app/favoritos/page.tsx` + `favoritos-list.tsx`): mismo
- * encabezado (título + botón de compartir) y la misma grilla
- * `grid-cols-2 ... xl:grid-cols-6` que agrupa los favoritos.
- */
-export function FavoritosPageSkeleton() {
-  return (
-    <LoadingRegion className="min-h-screen bg-background pb-page sm:pb-0">
-      <NavbarPlaceholder />
-      <main className="container mx-auto px-4 py-8 space-y-8">
-        <div className="flex flex-col gap-4 border-b border-border pb-6 sm:flex-row sm:items-center sm:justify-between">
-          <div className="space-y-2">
-            <Skeleton className="h-4 w-28" />
-            <Skeleton className="h-8 w-56" />
-            <Skeleton className="h-4 w-72" />
-          </div>
-          <Skeleton className="h-11 w-56 rounded-xl" />
-        </div>
-        <EventCardGrid gridClassName="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6" />
-      </main>
     </LoadingRegion>
   )
 }
@@ -147,79 +132,6 @@ export function CinesPageSkeleton() {
           </div>
         </div>
       </div>
-    </LoadingRegion>
-  )
-}
-
-/** Una sección del formulario del Radar (`rounded-2xl border bg-card p-6 space-y-6`), con filas de campos. */
-function RadarSectionSkeleton({ rows = 2 }: { rows?: number }) {
-  return (
-    <div className="space-y-6 rounded-2xl border border-border bg-card p-6">
-      <Skeleton className="h-6 w-56" />
-      <div className="grid gap-4 sm:grid-cols-2">
-        {Array.from({ length: rows }).map((_, i) => (
-          <Skeleton key={i} className="h-10 w-full rounded-md" />
-        ))}
-      </div>
-    </div>
-  )
-}
-
-/**
- * `/radar` (`app/radar/page.tsx` + `components/radar-form.tsx`): mismo
- * `container mx-auto px-4 py-12 max-w-4xl`, encabezado centrado y las 3
- * secciones del formulario (`max-w-3xl mx-auto space-y-8`).
- */
-export function RadarPageSkeleton() {
-  return (
-    <LoadingRegion className="min-h-screen bg-background pb-page sm:pb-0">
-      <NavbarPlaceholder />
-      <main className="container mx-auto max-w-4xl px-4 py-12">
-        <div className="mb-10 flex flex-col items-center space-y-3 text-center">
-          <Skeleton className="size-14 rounded-2xl" />
-          <Skeleton className="h-9 w-64" />
-          <Skeleton className="h-5 w-full max-w-md" />
-        </div>
-        <div className="mx-auto max-w-3xl space-y-8">
-          <RadarSectionSkeleton rows={2} />
-          <RadarSectionSkeleton rows={3} />
-          <RadarSectionSkeleton rows={1} />
-        </div>
-      </main>
-    </LoadingRegion>
-  )
-}
-
-/**
- * Ficha de evento (`app/evento/[id]/page.tsx` + `components/event-detail-page.tsx`):
- * mismo `container mx-auto px-4 py-8`, `grid gap-8 lg:grid-cols-2` con el
- * afiche (`aspect-[3/4] lg:aspect-[4/5]`) a la izquierda y los bloques de
- * info (título, fecha/lugar, precio, botones) a la derecha.
- */
-export function EventDetailPageSkeleton() {
-  return (
-    <LoadingRegion className="min-h-screen bg-background pb-page sm:pb-0">
-      <NavbarPlaceholder />
-      <main className="container mx-auto px-4 py-8">
-        <Skeleton className="mb-6 h-5 w-40" />
-        <div className="grid gap-8 lg:grid-cols-2">
-          <Skeleton className="aspect-[3/4] w-full rounded-2xl lg:aspect-[4/5]" />
-          <div className="flex flex-col gap-4">
-            <Skeleton className="h-9 w-full" />
-            <Skeleton className="h-9 w-2/3" />
-            <div className="space-y-4">
-              <Skeleton className="h-5 w-48" />
-              <Skeleton className="h-5 w-40" />
-              <Skeleton className="h-5 w-56" />
-            </div>
-            <Skeleton className="h-24 w-full rounded-xl" />
-            <div className="flex flex-col gap-3 sm:flex-row">
-              <Skeleton className="h-11 w-full rounded-md sm:flex-1" />
-              <Skeleton className="h-11 w-full rounded-md sm:flex-1" />
-            </div>
-          </div>
-        </div>
-      </main>
     </LoadingRegion>
   )
 }

@@ -66,11 +66,9 @@ const RONDA_30_ARCHIVOS_NO_TEST = [
   'app/buscar/loading.tsx',
   'app/cines/loading.tsx',
   'app/cines/page.tsx',
-  'app/evento/[id]/loading.tsx',
   'app/evento/[id]/page.tsx',
-  'app/favoritos/loading.tsx',
-  'app/loading.tsx',
-  'app/radar/loading.tsx',
+  // Fase 2 (revisión del #54): se sacaron app/loading.tsx y los de
+  // evento/[id], favoritos y radar (convertían 404/308/307 en 200).
   'app/radar/page.tsx',
   'components/auth-modal.tsx',
   'components/change-password-form.tsx',
