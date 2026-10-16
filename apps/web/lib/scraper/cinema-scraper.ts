@@ -55,6 +55,39 @@ export function normalizeMovieTitle(title: string): string {
 }
 
 /**
+ * QPS-141: alias a mano entre el slug que llega de un cine y el slug
+ * canónico bajo el que se consolidan las funciones de todas las salas.
+ *
+ * `normalizeMovieTitle()` solo saca formato/acentos/mayúsculas; si dos
+ * cines escriben el título con palabras distintas (ej: "Verity la Sombra
+ * del Engaño" vs. "Verity: la Sombra de un Engaño"), el slug sale distinto
+ * y la película queda duplicada en /cines (una tarjeta por cadena). Este
+ * mapa es el parche manual para esos casos puntuales (ver diagnóstico en
+ * ops/qps-141/diagnostico.md).
+ *
+ * Cómo agregar un caso nuevo (Mauro):
+ * 1. Mirar /cines (o `cinema_movies` en la base) y encontrar el par de
+ *    slugs que son la misma película.
+ * 2. Calcular el slug que llega con `normalizeMovieTitle(tituloCrudo)`
+ *    para cada cine (no a mano: copiar/pegar el título tal como lo
+ *    publica el cine y correr la función, o el test que lo ejercita).
+ * 3. Elegir cuál de los dos slugs queda como canónico (por default, el de
+ *    Cinemark, porque trae el afiche bueno — ver el ajuste de poster_url
+ *    en `addMovieShowing`; a veces Mauro elige el otro a propósito).
+ * 4. Agregar una entrada `'slug-que-llega': 'slug-canonico'`. El slug que
+ *    llega puede ser el de cualquiera de los dos cines, pero nunca el
+ *    mismo valor que el canónico (sería un no-op).
+ */
+export const MOVIE_SLUG_ALIASES: Record<string, string> = {
+  // Cine Ópera escribe "del Engaño", Cinemark escribe "de un Engaño"; la
+  // misma película. Cinemark trae el afiche bueno.
+  'verity-la-sombra-del-engano': 'verity-la-sombra-de-un-engano',
+  // Cinemark re-estrena "Cars" como "Cars 20° Aniversario"; Mauro decidió
+  // (15/10) que es la misma tarjeta, con el slug de Cine Ópera.
+  'cars-20-aniversario': 'cars',
+};
+
+/**
  * Format raw movie titles for cleaner, premium client display
  */
 export function cleanMovieTitleForDisplay(title: string): string {
@@ -340,7 +373,8 @@ export async function runCinemaScrapeAndSync() {
     formatType: string,
     time: string
   ) {
-    const slug = normalizeMovieTitle(rawTitle);
+    const s = normalizeMovieTitle(rawTitle);
+    const slug = MOVIE_SLUG_ALIASES[s] ?? s;
     if (!slug) return;
 
     if (!consolidatedMovies[slug]) {

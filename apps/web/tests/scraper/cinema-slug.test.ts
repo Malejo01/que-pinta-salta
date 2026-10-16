@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { normalizeMovieTitle } from '@/lib/scraper/cinema-scraper'
+import { MOVIE_SLUG_ALIASES, normalizeMovieTitle } from '@/lib/scraper/cinema-scraper'
 
 // QPS-141 / tarea 31-c: fija el comportamiento de hoy de normalizeMovieTitle
 // (apps/web/lib/scraper/cinema-scraper.ts:10-55) antes de que 31-b la toque.
@@ -89,34 +89,104 @@ describe('normalizeMovieTitle — slug (no alfanumérico a guiones)', () => {
   })
 })
 
-// QPS-141: casos reales del diagnóstico (ops/qps-141/diagnostico.md), hoy
-// dan slugs distintos porque normalizeMovieTitle solo compara igualdad
-// exacta del slug. 31-b va a hacer que algunos de estos se junten (alias a
-// mano y/o respaldo difuso entre cadenas, según decida Mauro). Cuando eso
-// pase, 31-b debería solo cambiar la expectativa de "son distintos" a "son
-// iguales" (o a lo que decida para cada caso) en este describe, sin tocar
-// el resto del archivo.
-describe('normalizeMovieTitle — QPS-141: hoy quedan separados, 31-b los junta', () => {
-  it('Verity (Ópera) y Verity (Cinemark) dan slugs distintos hoy', () => {
-    const opera = normalizeMovieTitle('Verity la Sombra del Engaño')
-    const cinemark = normalizeMovieTitle('Verity: la Sombra de un Engaño')
-    expect(opera).toBe('verity-la-sombra-del-engano')
+// QPS-141 / 31-b: opción A elegida por Mauro (15/10): alias a mano vía
+// MOVIE_SLUG_ALIASES, exportado desde cinema-scraper.ts y aplicado en
+// addMovieShowing() justo después de calcular el slug:
+//   const s = normalizeMovieTitle(rawTitle)
+//   const slug = MOVIE_SLUG_ALIASES[s] ?? s
+// addMovieShowing() es una función interna de runCinemaScrapeAndSync (no
+// exportada, y esa función scrapea por red), así que estos tests no pueden
+// invocarla directo. En su lugar:
+// - `resolveSlug` reproduce exactamente esa línea de dos pasos para
+//   verificar a qué slug canónico llega cada título crudo.
+// - La igualdad de `resolveSlug` entre dos títulos es lo que hace que,
+//   en el `Record` de `consolidatedMovies` (keyed by slug), las dos
+//   entradas caigan bajo la misma clave y por lo tanto compartan el mismo
+//   objeto `showings` (una entrada por `cinemaKey`): eso es "las funciones
+//   de los dos cines" en una sola tarjeta.
+// - `pickPoster` es un espejo de la regla de prioridad de afiche que ya
+//   existe, sin cambios, en addMovieShowing (líneas ~390-397): prioriza el
+//   CDN de Cinemark o completa si estaba vacía. Sirve para mostrar que,
+//   alias aparte, el afiche que gana sigue siendo el de Cinemark cuando
+//   está disponible.
+function resolveSlug(rawTitle: string): string {
+  const s = normalizeMovieTitle(rawTitle)
+  return MOVIE_SLUG_ALIASES[s] ?? s
+}
+
+function pickPoster(current: string, incoming: string): string {
+  if (!incoming) return current
+  if (!current || current.includes('no-image')) return incoming
+  if (incoming.includes('cinemark.com.ar') && !current.includes('cinemark.com.ar')) return incoming
+  return current
+}
+
+describe('MOVIE_SLUG_ALIASES — QPS-141: una película, una tarjeta (31-b)', () => {
+  it('Verity (Ópera) y Verity (Cinemark) resuelven al mismo slug canónico, el de Cinemark', () => {
+    const opera = resolveSlug('Verity la Sombra del Engaño')
+    const cinemark = resolveSlug('Verity: la Sombra de un Engaño')
+    expect(opera).toBe('verity-la-sombra-de-un-engano')
     expect(cinemark).toBe('verity-la-sombra-de-un-engano')
-    // Hoy son distintos. 31-b decide si se juntan (ver diagnóstico: Jaccard
-    // de tokens da 1,0 sacando palabras vacías) y, si es así, este `expect`
-    // pasa a `.toBe(true)`.
-    expect(opera).not.toBe(cinemark)
+    expect(opera).toBe(cinemark)
   })
 
-  it('Cars (Ópera) y Cars 20° Aniversario (Cinemark) dan slugs distintos hoy', () => {
-    const opera = normalizeMovieTitle('Cars')
-    const cinemark = normalizeMovieTitle('Cars 20° Aniversario')
+  it('Verity: al compartir slug, las dos entradas se consolidan bajo la misma clave (funciones de los dos cines)', () => {
+    const showings: Record<string, true> = {}
+    showings[resolveSlug('Verity la Sombra del Engaño')] = true // cine_opera, usa el mismo slug como clave
+    const slugCinemark = resolveSlug('Verity: la Sombra de un Engaño')
+    const cinemasPorSlug: Record<string, string[]> = {}
+    for (const [raw, cinemaKey] of [
+      ['Verity la Sombra del Engaño', 'cine_opera'],
+      ['Verity: la Sombra de un Engaño', 'cinemark_altonoa'],
+      ['Verity: la Sombra de un Engaño', 'cinemark_paseosalta'],
+    ] as const) {
+      const slug = resolveSlug(raw)
+      cinemasPorSlug[slug] = [...(cinemasPorSlug[slug] ?? []), cinemaKey]
+    }
+    expect(Object.keys(cinemasPorSlug)).toEqual(['verity-la-sombra-de-un-engano'])
+    expect(cinemasPorSlug[slugCinemark]).toEqual(['cine_opera', 'cinemark_altonoa', 'cinemark_paseosalta'])
+  })
+
+  it('Verity: el afiche final es el de Cinemark (regla de prioridad sin cambios)', () => {
+    let poster = ''
+    poster = pickPoster(poster, 'https://opera.example.com/poster.jpg')
+    poster = pickPoster(poster, 'https://images.cinemark.com.ar/poster-verity.jpg')
+    expect(poster).toBe('https://images.cinemark.com.ar/poster-verity.jpg')
+  })
+
+  it('Cars (Ópera) y Cars 20° Aniversario (Cinemark) resuelven al mismo slug canónico, "cars"', () => {
+    const opera = resolveSlug('Cars')
+    const cinemark = resolveSlug('Cars 20° Aniversario')
     expect(opera).toBe('cars')
-    expect(cinemark).toBe('cars-20-aniversario')
-    // Hoy son distintos. El diagnóstico marca este caso como "puede ser a
-    // propósito" (es un reestreno) y lo deja a decisión de Mauro: si 31-b
-    // los junta, este `expect` pasa a `.toBe(true)`; si Mauro decide que
-    // quedan separados, este test queda igual y no hay que tocarlo.
-    expect(opera).not.toBe(cinemark)
+    expect(cinemark).toBe('cars')
+    expect(opera).toBe(cinemark)
+  })
+
+  it('Cars: las dos entradas se consolidan bajo la misma clave (funciones de los dos cines)', () => {
+    const cinemasPorSlug: Record<string, string[]> = {}
+    for (const [raw, cinemaKey] of [
+      ['Cars', 'cine_opera'],
+      ['Cars 20° Aniversario', 'cinemark_altonoa'],
+      ['Cars 20° Aniversario', 'cinemark_paseosalta'],
+    ] as const) {
+      const slug = resolveSlug(raw)
+      cinemasPorSlug[slug] = [...(cinemasPorSlug[slug] ?? []), cinemaKey]
+    }
+    expect(Object.keys(cinemasPorSlug)).toEqual(['cars'])
+    expect(cinemasPorSlug['cars']).toEqual(['cine_opera', 'cinemark_altonoa', 'cinemark_paseosalta'])
+  })
+
+  it('un slug sin alias queda igual (no se toca nada fuera de los casos de la tabla)', () => {
+    const slug = normalizeMovieTitle('Avatar: El Camino del Agua')
+    expect(MOVIE_SLUG_ALIASES[slug]).toBeUndefined()
+    expect(resolveSlug('Avatar: El Camino del Agua')).toBe(slug)
+  })
+
+  // Prueba de rotura a propósito: si alguien borra la entrada de Verity de
+  // MOVIE_SLUG_ALIASES, este test falla (MOVIE_SLUG_ALIASES['verity-la-sombra-del-engano']
+  // pasa a ser undefined). Es la que el lead va a correr para confirmar que
+  // protege el caso.
+  it('[rotura] no se borra el alias de Verity', () => {
+    expect(MOVIE_SLUG_ALIASES['verity-la-sombra-del-engano']).toBe('verity-la-sombra-de-un-engano')
   })
 })
