@@ -35,7 +35,10 @@ const config: ExpoConfig = {
   version: '0.1.0',
   scheme: 'quepintasalta',
   orientation: 'portrait',
-  userInterfaceStyle: 'automatic',
+  // D1 (29-g, decisión de Mauro): la app arranca siempre en oscuro, como la
+  // web (apps/web/app/layout.tsx, defaultTheme="dark"). El selector de tema
+  // va después; por ahora no hay 'automatic' ni modo claro.
+  userInterfaceStyle: 'dark',
   icon: './assets/icon.png',
   android: {
     package: 'ar.com.quepintasalta.app',

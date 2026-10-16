@@ -1,9 +1,10 @@
 // 28-q, punto 8 (F2, 28-e, QPS-126): `coloresSegunEsquema` (lib/theme.ts) es
 // pura (no importa react-native ni expo-*): `'dark'` da los tokens oscuros,
 // cualquier otro valor (`'light'`, `null`, `undefined`) da los claros, con
-// los 8 tokens de ColoresQPS presentes (incluidos `muted` y
+// los 9 tokens de ColoresQPS presentes (incluidos `muted` y
 // `primaryForeground`, que el diagnóstico de la ronda anterior señalaba
-// como los que faltaban en algún lugar del tema).
+// como los que faltaban en algún lugar del tema, y `input`, sumado por
+// 29-g para la paridad con la web).
 import { describe, expect, it } from 'vitest'
 import { coloresSegunEsquema, COLORES_CLARO, COLORES_OSCURO } from '../lib/theme'
 
@@ -16,6 +17,7 @@ const CLAVES_ESPERADAS = [
   'muted',
   'mutedForeground',
   'border',
+  'input',
 ] as const
 
 describe('coloresSegunEsquema', () => {
@@ -35,7 +37,7 @@ describe('coloresSegunEsquema', () => {
     expect(coloresSegunEsquema(undefined)).toEqual(COLORES_CLARO)
   })
 
-  it.each(['light', 'dark'] as const)('%s: están los 8 tokens, incluidos muted y primaryForeground', (esquema) => {
+  it.each(['light', 'dark'] as const)('%s: están los 9 tokens, incluidos muted, primaryForeground e input', (esquema) => {
     const colores = coloresSegunEsquema(esquema)
     for (const clave of CLAVES_ESPERADAS) {
       expect(colores).toHaveProperty(clave)

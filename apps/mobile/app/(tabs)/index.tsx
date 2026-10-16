@@ -74,7 +74,7 @@ export default function Inicio() {
           onPress={() => router.push('/cines')}
           style={[estilos.boton, { borderColor: colors.border }]}
         >
-          <Icono nombre={{ ios: 'film.fill', android: 'theaters' }} tamanio={16} color={colors.text} />
+          <Icono nombre="Film" tamanio={16} color={colors.text} />
           <Text style={[estilos.textoBoton, { color: colors.text }]}>Cines</Text>
         </Pressable>
       </View>

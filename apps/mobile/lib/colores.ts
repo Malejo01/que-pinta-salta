@@ -1,19 +1,20 @@
-// QPS-126: hook de los 8 tokens de color de la web, según el esquema de
-// color del sistema. La parte pura (`coloresSegunEsquema`) vive en
-// `lib/theme.ts`, que no importa `react-native`; este módulo sí, porque
-// `useColorScheme` es de `react-native`. Lo usan 28-f, 28-h y 28-c.
-import { useColorScheme } from 'react-native'
+// QPS-126: hook de los tokens de color de la web. La parte pura
+// (`coloresSegunEsquema`) vive en `lib/theme.ts`, que no importa
+// `react-native`. Lo usan 28-f, 28-h, 28-c y, desde 29-g, casi todos los
+// componentes nuevos de la ronda (`Texto`, `Encabezado`, las pestañas).
 import { coloresSegunEsquema, type ColoresQPS } from '@/lib/theme'
 
 export type { ColoresQPS }
 
-/** Los 8 tokens de color (`background`, `foreground`, `card`, `primary`,
- * `primaryForeground`, `muted`, `mutedForeground`, `border`) según el
- * esquema de color del sistema (claro u oscuro). */
+/**
+ * Los tokens de color (`background`, `foreground`, `card`, `primary`,
+ * `primaryForeground`, `muted`, `mutedForeground`, `border`, `input`).
+ *
+ * D1 (29-g, decisión de Mauro): la app arranca en oscuro, como la web; el
+ * selector de tema va después. Por eso acá no se lee `useColorScheme()`: se
+ * llama directo a `coloresSegunEsquema('dark')`, que queda intacta y sigue
+ * aceptando cualquier esquema (la usa el selector del futuro).
+ */
 export function useColoresQPS(): ColoresQPS {
-  const esquema = useColorScheme()
-  // `useColorScheme()` puede devolver `'unspecified'` (Android, sin
-  // preferencia del sistema) además de `'light'`/`'dark'`/`null`;
-  // `coloresSegunEsquema` solo distingue `'dark'` de "cualquier otra cosa".
-  return coloresSegunEsquema(esquema === 'dark' ? 'dark' : 'light')
+  return coloresSegunEsquema('dark')
 }

@@ -86,7 +86,7 @@ export function TarjetaEvento({ evento }: TarjetaEventoProps) {
         </Text>
 
         <View style={estilos.filaLugar}>
-          <Icono nombre={{ ios: 'mappin', android: 'location_on' }} tamanio={12} color="rgba(255,255,255,0.8)" />
+          <Icono nombre="MapPin" tamanio={12} color="rgba(255,255,255,0.8)" />
           <Text style={estilos.lugar} numberOfLines={1}>
             {evento.venue}
           </Text>

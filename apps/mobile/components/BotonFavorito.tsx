@@ -66,11 +66,7 @@ export function BotonFavorito({ eventId }: BotonFavoritoProps) {
         <ActivityIndicator color={marcado ? '#fff' : colors.text} />
       ) : (
         <>
-          <Icono
-            nombre={{ ios: marcado ? 'heart.fill' : 'heart', android: 'favorite' }}
-            tamanio={16}
-            color={marcado ? '#fff' : colors.text}
-          />
+          <Icono nombre="Heart" tamanio={16} color={marcado ? '#fff' : colors.text} />
           <Text style={[estilos.textoBoton, { color: marcado ? '#fff' : colors.text }]}>
             {marcado ? 'Guardado' : 'Guardar'}
           </Text>
