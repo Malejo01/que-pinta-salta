@@ -4,20 +4,26 @@
 // encontrado"). Solo la imagen, el nombre de la cuenta, la fecha (si la
 // tiene) y "Ver en Instagram" (solo si hay link y es https — la validación
 // vive en `lib/datos/flyers.ts`, junto con la apertura real).
+//
+// 33-d (QPS-154): base visual de la ronda 29 — `Texto` en vez de `Text` de
+// react-native, `useColoresQPS()` en vez de `useTheme()` crudo de
+// expo-router (mismo patrón que `app/pelicula/[id].tsx`). No se agrega
+// ningún ícono: la pantalla no tenía ninguno antes de esta tarea (lo que se
+// ve y lo que hace no cambia, salvo tipografía y tokens de color).
 import { useCallback, useEffect, useState } from 'react'
-import { Pressable, ScrollView, StyleSheet, Text, View, type ColorValue } from 'react-native'
-import { Stack, useLocalSearchParams, useRouter, useTheme } from 'expo-router'
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native'
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router'
 import { formatEventDateShort } from '@qps/core/date-format'
 import { Afiche } from '@/components/Afiche'
 import { Cargando, ErrorCarga, Vacio } from '@/components/EstadoCarga'
-import { useColoresQPS } from '@/lib/colores'
+import { Texto } from '@/components/Texto'
+import { useColoresQPS, type ColoresQPS } from '@/lib/colores'
 import { abrirPostDeInstagram, obtenerFlyerPorId, urlInstagramSegura, type FlyerFicha } from '@/lib/datos/flyers'
 
 type Estado = { tipo: 'cargando' } | { tipo: 'error'; error: string } | { tipo: 'no-encontrado' } | { tipo: 'ok'; flyer: FlyerFicha }
 
 export default function FlyerPorId() {
   const { id } = useLocalSearchParams<{ id: string }>()
-  const { colors } = useTheme()
   const colores = useColoresQPS()
   const router = useRouter()
 
@@ -47,7 +53,7 @@ export default function FlyerPorId() {
   }, [])
 
   return (
-    <View style={[estilos.contenedor, { backgroundColor: colors.background }]}>
+    <View style={[estilos.contenedor, { backgroundColor: colores.background }]}>
       <Stack.Screen options={{ title: 'Flyer' }} />
 
       {estado.tipo === 'cargando' ? (
@@ -68,20 +74,12 @@ export default function FlyerPorId() {
         </View>
       ) : null}
 
-      {estado.tipo === 'ok' ? <Ficha flyer={estado.flyer} colores={colores} textoColor={colors.text} /> : null}
+      {estado.tipo === 'ok' ? <Ficha flyer={estado.flyer} colores={colores} /> : null}
     </View>
   )
 }
 
-function Ficha({
-  flyer,
-  colores,
-  textoColor,
-}: {
-  flyer: FlyerFicha
-  colores: ReturnType<typeof useColoresQPS>
-  textoColor: ColorValue
-}) {
+function Ficha({ flyer, colores }: { flyer: FlyerFicha; colores: ColoresQPS }) {
   const urlSegura = urlInstagramSegura(flyer.ig_post_url)
 
   return (
@@ -90,11 +88,11 @@ function Ficha({
         <Afiche url={flyer.storage_image_url || flyer.original_image_url} llenar />
       </View>
 
-      <Text style={[estilos.titulo, { color: textoColor }]}>{flyer.account.display_name}</Text>
+      <Texto peso="bold" style={estilos.titulo}>
+        {flyer.account.display_name}
+      </Texto>
 
-      {flyer.published_at ? (
-        <Text style={{ color: colores.mutedForeground }}>{formatEventDateShort(flyer.published_at)}</Text>
-      ) : null}
+      {flyer.published_at ? <Texto tono="secundario">{formatEventDateShort(flyer.published_at)}</Texto> : null}
 
       {urlSegura ? (
         <Pressable
@@ -102,7 +100,9 @@ function Ficha({
           onPress={() => abrirPostDeInstagram(flyer.ig_post_url)}
           style={({ pressed }) => [estilos.boton, { borderColor: colores.primary, opacity: pressed ? 0.6 : 1 }]}
         >
-          <Text style={{ color: colores.primary, fontWeight: '600' }}>Ver en Instagram</Text>
+          <Texto tono="primario" peso="semibold">
+            Ver en Instagram
+          </Texto>
         </Pressable>
       ) : null}
     </ScrollView>
@@ -114,6 +114,6 @@ const estilos = StyleSheet.create({
   centrado: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24, gap: 12 },
   contenido: { padding: 16, gap: 12 },
   contenedorAfiche: { width: '100%', aspectRatio: 3 / 4, borderRadius: 12, overflow: 'hidden' },
-  titulo: { fontSize: 22, fontWeight: '700' },
+  titulo: { fontSize: 22 },
   boton: { borderWidth: 1, borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8, alignSelf: 'flex-start', marginTop: 4 },
 })
