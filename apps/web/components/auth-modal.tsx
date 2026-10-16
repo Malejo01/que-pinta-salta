@@ -5,6 +5,7 @@ import { createClient, signInWithGoogle } from "@/lib/supabase/client"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { PasswordInput } from "@/components/ui/password-input"
 import { Label } from "@/components/ui/label"
 import { mensajeErrorAlta } from "@/lib/auth/mensajes"
 import { useRouter } from "next/navigation"
@@ -137,9 +138,8 @@ export function AuthModalProvider({ children }: { children: ReactNode }) {
             </div>
             <div className="space-y-2">
               <Label htmlFor="modal-password">Contraseña</Label>
-              <Input
+              <PasswordInput
                 id="modal-password"
-                type="password"
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}

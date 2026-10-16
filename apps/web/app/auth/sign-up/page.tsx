@@ -10,6 +10,7 @@ import {
   CardTitle,
 } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
+import { PasswordInput } from '@/components/ui/password-input'
 import { Label } from '@/components/ui/label'
 import { mensajeErrorAlta } from '@/lib/auth/mensajes'
 import Link from 'next/link'
@@ -134,9 +135,8 @@ export default function SignUpPage() {
                 </div>
                 <div className="grid gap-2">
                   <Label htmlFor="password">Contraseña *</Label>
-                  <Input
+                  <PasswordInput
                     id="password"
-                    type="password"
                     required
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
@@ -144,9 +144,8 @@ export default function SignUpPage() {
                 </div>
                 <div className="grid gap-2">
                   <Label htmlFor="repeat-password">Repetir Contraseña *</Label>
-                  <Input
+                  <PasswordInput
                     id="repeat-password"
-                    type="password"
                     required
                     value={repeatPassword}
                     onChange={(e) => setRepeatPassword(e.target.value)}
