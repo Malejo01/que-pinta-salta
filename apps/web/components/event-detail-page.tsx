@@ -10,6 +10,7 @@ import { MobileNav } from "@/components/mobile-nav"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { FavoriteButton } from "@/components/favorite-button"
+import { ShareButton } from "@/components/share-button"
 import {
   Select,
   SelectContent,
@@ -193,12 +194,19 @@ export function EventDetailPage({ event, isAdmin = false, categories = [], isFav
               <h1 className="text-3xl font-bold text-foreground lg:text-4xl flex-1 leading-tight">
                 {displayEvent.title}
               </h1>
-              <FavoriteButton 
-                itemId={event.id}
-                type="event"
-                initialIsFavorite={isFavorite}
-                className="size-10 bg-muted/40 hover:bg-muted text-foreground flex-shrink-0"
-              />
+              <div className="flex items-center gap-2 flex-shrink-0">
+                <ShareButton
+                  eventId={event.id}
+                  title={event.title}
+                  className="size-10 bg-muted/40 hover:bg-muted text-foreground"
+                />
+                <FavoriteButton
+                  itemId={event.id}
+                  type="event"
+                  initialIsFavorite={isFavorite}
+                  className="size-10 bg-muted/40 hover:bg-muted text-foreground"
+                />
+              </div>
             </div>
 
             {isAdmin && (
