@@ -16,12 +16,13 @@
  * code: 0 si pasa todo, 1 si algo falla. Sirve en CI tal cual.
  */
 
+import type { Tables } from '@qps/db'
 import { normalizeTitleForKey, buildDedupKey, venuesCompatible, normalizeTicketUrl, sameTicketEvent } from '../lib/scraper/dedup-key'
 import { planGroup, formatReport, groupByDedupKey, splitByVenue, buildDuplicateGroups, type DedupCleanupReport } from '../lib/scraper/dedup-cleanup'
 
 let failures = 0
 
-function check(label: string, actual: any, expected: any) {
+function check(label: string, actual: unknown, expected: unknown) {
   const ok = JSON.stringify(actual) === JSON.stringify(expected)
   if (!ok) {
     failures++
@@ -33,13 +34,15 @@ function check(label: string, actual: any, expected: any) {
   }
 }
 
+type EventFixture = Partial<Tables<'events'>>
+
 /** Valor final de un campo tras la fusión: el del patch si cambió, si no el del que queda. */
-function finalOf(plan: { patch: Record<string, any> }, keeperRow: Record<string, any>, field: string) {
+function finalOf(plan: { patch: Record<string, unknown> }, keeperRow: Record<string, unknown>, field: string) {
   return field in plan.patch ? plan.patch[field] : keeperRow[field]
 }
 
 /** Fixture mínimo de una fila de `events`. */
-function event(overrides: Record<string, any>): Record<string, any> {
+function event(overrides: EventFixture): EventFixture {
   return {
     id: 'x',
     title: 'Evento',
