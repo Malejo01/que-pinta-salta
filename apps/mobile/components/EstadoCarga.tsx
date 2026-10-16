@@ -8,7 +8,7 @@
 // El texto secundario usa `mutedForeground` (QPS-126, `useColoresQPS`), no
 // el token `muted` (ese es el tono de fondo/placeholder, casi invisible
 // como color de texto: lo usa `CampoTexto` para el placeholder). Es el
-// mismo token que ya usan `SeccionRadar`/`SeccionNotificaciones` para sus
+// mismo token que ya usan `PantallaRadar`/`SeccionNotificaciones` para sus
 // mensajes secundarios ("No hay categorías todavía.", etc.).
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native'
 import { useTheme } from 'expo-router'

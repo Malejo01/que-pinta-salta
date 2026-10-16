@@ -5,7 +5,7 @@
 // inicial del email, Notificaciones, los accesos a "Mi Radar Salteño" y
 // "Mis Favoritos" (los textos del dropdown de navbar.tsx) y "Cerrar sesión"
 // chico al final. El Radar ya no vive acá: es su propia pestaña (R29), así
-// que SeccionRadar se va de esta pantalla (no se borra el archivo).
+// que SeccionRadar se va de esta pantalla (el archivo se borró el 16/10).
 import { useState } from 'react'
 import {
   ActivityIndicator,
