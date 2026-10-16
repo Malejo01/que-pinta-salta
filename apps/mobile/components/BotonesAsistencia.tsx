@@ -4,6 +4,12 @@
 // entorno (producción hasta el jueves), se muestra "Pronto vas a poder
 // marcar si vas" y el resto de la ficha sigue andando. Nunca se muestra
 // quién marcó: solo las cantidades.
+//
+// 33-a (QPS-147): el texto secundario usaba `colors.border` (el token de
+// borde de `useTheme()`, casi invisible en tema claro); pasa a
+// `colores.mutedForeground` (`useColoresQPS`, QPS-126) — mismo token que ya
+// usan `EstadoCarga`/`PantallaRadar`/`SeccionNotificaciones` para sus
+// mensajes secundarios. `colors.border` sigue para los bordes (no es texto).
 import { useCallback, useEffect, useState } from 'react'
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native'
 import { useRouter, useTheme } from 'expo-router'
@@ -14,6 +20,7 @@ import {
   type EstadoAsistencia,
   type TipoAsistencia,
 } from '@/lib/asistencia'
+import { useColoresQPS } from '@/lib/colores'
 import { useSession } from '@/lib/session'
 
 export interface BotonesAsistenciaProps {
@@ -29,6 +36,7 @@ const ETIQUETAS: Record<TipoAsistencia, string> = {
 
 export function BotonesAsistencia({ eventId }: BotonesAsistenciaProps) {
   const { colors } = useTheme()
+  const colores = useColoresQPS()
   const router = useRouter()
   const { session, cargando: cargandoSesion } = useSession()
   const userId = session?.user.id ?? null
@@ -52,7 +60,7 @@ export function BotonesAsistencia({ eventId }: BotonesAsistenciaProps) {
   }
 
   if (estado.tipo === 'no-disponible') {
-    return <Text style={{ color: colors.border }}>{MENSAJE_NO_DISPONIBLE}</Text>
+    return <Text style={{ color: colores.mutedForeground }}>{MENSAJE_NO_DISPONIBLE}</Text>
   }
 
   if (estado.tipo === 'error') {
@@ -109,7 +117,7 @@ export function BotonesAsistencia({ eventId }: BotonesAsistenciaProps) {
         {boton('voy', cantidades.voy)}
         {boton('me_interesa', cantidades.meInteresa)}
       </View>
-      {!userId ? <Text style={{ color: colors.border }}>Entrá para marcar si vas.</Text> : null}
+      {!userId ? <Text style={{ color: colores.mutedForeground }}>Entrá para marcar si vas.</Text> : null}
     </View>
   )
 }
