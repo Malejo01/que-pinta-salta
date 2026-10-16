@@ -3,8 +3,12 @@
 // 2 columnas: flyer 2:3 a sangre, degradé negro abajo y texto blanco encima,
 // en vez de la fila con afiche de 64×64 que tenían las tres pantallas.
 //
-// Sin favorito ni compartir acá: esos botones viven en la ficha
-// (`app/evento/[id].tsx`), así la lógica de favoritos no se duplica.
+// R29, 29-b (F14, ops/paridad-web-app.md §3.3): el corazón y Compartir ahora
+// viven también acá, arriba a la derecha, en círculos de 32 con fondo
+// oscuro (`bg-black/60` de la web) — igual que la card real. Son
+// `Pressable` propios, anidados dentro del `Pressable` de toda la tarjeta:
+// en React Native el touch no burbujea de un `Pressable` a otro (gana el
+// más anidado), así que tocarlos no dispara la navegación a la ficha.
 //
 // El degradé no usa `expo-linear-gradient` (no es dependencia aprobada):
 // son 4 `View` absolutos apilados, con negro de opacidad creciente hacia
@@ -14,6 +18,8 @@ import { useRouter } from 'expo-router'
 import { formatEventDateShort } from '@qps/core/date-format'
 import type { DisplayEvent } from '@qps/core/home/types'
 import { Afiche } from '@/components/Afiche'
+import { BotonCompartir } from '@/components/BotonCompartir'
+import { BotonFavorito } from '@/components/BotonFavorito'
 import { Icono } from '@/components/Icono'
 import { useColoresQPS } from '@/lib/colores'
 import { textoPrecio } from '@/lib/formato'
@@ -80,6 +86,11 @@ export function TarjetaEvento({ evento }: TarjetaEventoProps) {
         ) : null}
       </View>
 
+      <View style={estilos.accionesArriba}>
+        <BotonCompartir eventId={evento.id} titulo={evento.title} fecha={fecha} hora={evento.time} lugar={evento.venue} tamanio={32} fondo="oscuro" />
+        <BotonFavorito eventId={evento.id} tamanio={32} fondo="oscuro" />
+      </View>
+
       <View style={estilos.abajo} pointerEvents="none">
         <Text style={estilos.titulo} numberOfLines={2}>
           {evento.title}
@@ -144,6 +155,7 @@ const estilos = StyleSheet.create({
   textoBadge: { fontSize: 11, fontWeight: '700' },
   badgeDestacado: { backgroundColor: '#f59e0b', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 },
   textoBadgeDestacado: { fontSize: 10, fontWeight: '800', color: '#000' },
+  accionesArriba: { position: 'absolute', right: 8, top: 8, flexDirection: 'row', gap: 6, zIndex: 10 },
   abajo: { position: 'absolute', left: 0, right: 0, bottom: 0, padding: 12 },
   titulo: { color: '#fff', fontSize: 14, fontWeight: '600', marginBottom: 4 },
   filaLugar: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 4 },

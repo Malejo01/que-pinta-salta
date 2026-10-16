@@ -1,11 +1,14 @@
-// 26-c, punto 5: el texto de "Compartir" de la ficha lleva el link con
-// `o=app` (`urlEvento(id, 'app')` de `@qps/core/metricas/links`) y nunca
-// datos de la sesión (`session`, `user.email`, `user.id`) en el mensaje.
+// 26-c, punto 5: el texto de "Compartir" lleva el link con `o=app`
+// (`urlEvento(id, 'app')` de `@qps/core/metricas/links`) y nunca datos de
+// la sesión (`session`, `user.email`, `user.id`) en el mensaje.
 //
-// `app/evento/[id].tsx` no exporta una función de armado del mensaje por
-// separado (está inline en `compartir()`), así que esto se verifica leyendo
-// el archivo: mismo estilo de detector con fixtures en memoria que
-// `tests/aperturas-url.test.ts` y `tests/iconos.test.ts`.
+// R29, 29-b (F14): el armado del mensaje se movió de `app/evento/[id].tsx`
+// (donde vivía inline en `compartir()`) a `components/BotonCompartir.tsx`,
+// sin cambiarlo — ahora lo usan la ficha y la tarjeta. `BotonCompartir.tsx`
+// tampoco exporta una función de armado por separado (sigue inline en
+// `compartir()`), así que esto se verifica leyendo el archivo: mismo estilo
+// de detector con fixtures en memoria que `tests/aperturas-url.test.ts` y
+// `tests/iconos.test.ts`.
 import { readFileSync, readdirSync, statSync } from 'node:fs'
 import { join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -14,7 +17,7 @@ import { describe, expect, it } from 'vitest'
 const MOBILE_ROOT = fileURLToPath(new URL('..', import.meta.url))
 const APP_DIR = join(MOBILE_ROOT, 'app')
 const COMPONENTS_DIR = join(MOBILE_ROOT, 'components')
-const FICHA_RELATIVA = join('app', 'evento', '[id].tsx')
+const BOTON_COMPARTIR_RELATIVA = join('components', 'BotonCompartir.tsx')
 
 interface Violation {
   line: number
@@ -215,10 +218,10 @@ describe('encontrarViolacionesDeCompartir (fixtures en memoria: tiene que fallar
   })
 })
 
-describe('app/evento/[id].tsx: el texto de compartir usa urlEvento(id, "app") y no lleva datos de sesión', () => {
-  const content = readFileSync(join(MOBILE_ROOT, FICHA_RELATIVA), 'utf8')
+describe('components/BotonCompartir.tsx: el texto de compartir usa urlEvento(id, "app") y no lleva datos de sesión', () => {
+  const content = readFileSync(join(MOBILE_ROOT, BOTON_COMPARTIR_RELATIVA), 'utf8')
 
-  it('no hay violaciones en la ficha real', () => {
+  it('no hay violaciones en BotonCompartir real', () => {
     expect(encontrarViolacionesDeCompartir(content)).toEqual([])
   })
 })
@@ -228,9 +231,9 @@ describe('app/evento/[id].tsx: el texto de compartir usa urlEvento(id, "app") y 
 describe('app/ y components/: cualquier otro Share.share también cumple las reglas', () => {
   const archivos = [...listarTsxYTs(APP_DIR), ...listarTsxYTs(COMPONENTS_DIR)]
 
-  it('encuentra al menos un archivo para analizar, incluida la ficha', () => {
+  it('encuentra al menos un archivo para analizar, incluido BotonCompartir', () => {
     expect(archivos.length).toBeGreaterThan(0)
-    expect(archivos.some((f) => relative(MOBILE_ROOT, f) === FICHA_RELATIVA)).toBe(true)
+    expect(archivos.some((f) => relative(MOBILE_ROOT, f) === BOTON_COMPARTIR_RELATIVA)).toBe(true)
   })
 
   it.each(archivos.map((file) => [relative(MOBILE_ROOT, file), file] as const))('%s', (label, file) => {

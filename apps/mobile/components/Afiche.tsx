@@ -1,15 +1,17 @@
 // Afiche de un evento, flyer o película de cine (R28, 28-e: F2). Decide con
 // `fuentesDeImagen` (pura, en lib/imagenes/) qué URLs vale la pena pedir —
-// nuestro Storage (`flyers_ig`, con la variante WebP 400 primero, y
-// `flyers`) y los hosts de ticketeras/cines que ya acepta la CSP de la web
-// (R28 revierte la decisión de la R25 de no pedirle nada a un host de
-// tercero) — y va probando una por una con `onError`: si falla la
-// variante, cae al original; si falla también el original, muestra la
-// marca (o el `fallback` que pase quien use `Afiche`). `Image` de React
-// Native en todos los casos (nunca `expo-image`, que no está aprobada).
+// nuestro Storage (`flyers_ig`, con la variante WebP primero — 400 por
+// defecto, 800 en la ficha, R29 §3.4 — y `flyers`) y los hosts de
+// ticketeras/cines que ya acepta la CSP de la web (R28 revierte la decisión
+// de la R25 de no pedirle nada a un host de tercero) — y va probando una
+// por una con `onError`: si falla la variante, cae al original; si falla
+// también el original, muestra la marca (o el `fallback` que pase quien use
+// `Afiche`). `Image` de React Native en todos los casos (nunca
+// `expo-image`, que no está aprobada).
 import { type ReactNode, useState } from 'react'
 import { Image, StyleSheet, View } from 'react-native'
 import { useTheme } from 'expo-router'
+import type { VariantWidth } from '@qps/core/images/variants'
 import { leerEnv } from '@/lib/env'
 import { fuentesDeImagen, siguienteFuente } from '@/lib/imagenes/url-segura'
 import LOGO_MARCA from '@/assets/logo-circular.png'
@@ -39,18 +41,24 @@ export interface AficheProps {
    * marca de hoy (el logo circular).
    */
   fallback?: ReactNode
+  /**
+   * Ancho de la variante WebP a pedir primero para `flyers_ig` (400 u 800,
+   * como en la web, `VariantWidth`). Por defecto 400 (tarjeta y el resto);
+   * la ficha (`app/evento/[id].tsx`) pasa 800.
+   */
+  ancho?: VariantWidth
 }
 
-export function Afiche({ url, estilo, llenar, fallback }: AficheProps) {
+export function Afiche({ url, estilo, llenar, fallback, ancho }: AficheProps) {
   // `key={url}` remonta `AficheInterno` cada vez que cambia la URL, así el
   // índice de la fuente vuelve a 0 sin un efecto ni un setState sincrónico.
-  return <AficheInterno key={url ?? ''} url={url} estilo={estilo} llenar={llenar} fallback={fallback} />
+  return <AficheInterno key={url ?? ''} url={url} estilo={estilo} llenar={llenar} fallback={fallback} ancho={ancho} />
 }
 
-function AficheInterno({ url, estilo, llenar, fallback }: AficheProps) {
+function AficheInterno({ url, estilo, llenar, fallback, ancho }: AficheProps) {
   const { colors } = useTheme()
   const supabaseUrl = leerEnv().supabase?.url ?? null
-  const fuentes = fuentesDeImagen(url, supabaseUrl)
+  const fuentes = fuentesDeImagen(url, supabaseUrl, ancho)
   const [indice, setIndice] = useState(0)
 
   const fuenteActual = fuentes[indice] ?? null
