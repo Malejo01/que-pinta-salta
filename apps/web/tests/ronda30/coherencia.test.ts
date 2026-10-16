@@ -23,7 +23,7 @@
  *    tuteando a propósito, fuera del alcance de 30-e) y, por el mismo
  *    motivo, `app/mis-eventos/mis-eventos-client.tsx` y
  *    `components/draft-events-manager.tsx` (deuda de voseo real pero fuera
- *    del alcance de 30-e, QPS-153).
+ *    del alcance de 30-e, QPS-157).
  * 3. Ningún `type="password"` suelto fuera de `PasswordInput`
  *    (`components/ui/password-input.tsx`), salvo `app/auth/login/page.tsx`
  *    (R29).
@@ -169,7 +169,7 @@ const TUTEO_ARCHIVO_EXACTO_EXCEPTUADO = new Set([
   'app/auth/login/page.tsx',
   'components/favorite-button.tsx',
   'components/event-form.tsx',
-  // Deuda de voseo fuera del alcance de 30-e (QPS-153): pantallas propias y panel de borradores.
+  // Deuda de voseo fuera del alcance de 30-e (QPS-157): pantallas propias y panel de borradores.
   'app/mis-eventos/mis-eventos-client.tsx',
   'components/draft-events-manager.tsx',
 ])
