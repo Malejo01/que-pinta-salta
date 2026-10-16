@@ -47,7 +47,15 @@ export async function shareEvent(data: ShareData, deps: ShareDeps): Promise<void
   }
 
   if (deps.writeText) {
-    await deps.writeText(data.url)
+    // El portapapeles puede negarse (permisos, pestaña sin foco, contexto no
+    // seguro): sin try/catch la promesa rechazada quedaba sin manejar
+    // (revisión del #54).
+    try {
+      await deps.writeText(data.url)
+    } catch {
+      deps.toast({ title: "No se pudo copiar el link", variant: "destructive" })
+      return
+    }
     deps.toast({ title: "Link copiado" })
   }
 }

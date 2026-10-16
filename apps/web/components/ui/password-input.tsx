@@ -32,12 +32,18 @@ function PasswordInputField({
         type={visible ? 'text' : 'password'}
         className={cn('pr-11', className)}
       />
+      {/*
+        Botón de alternar: aria-label fijo + aria-pressed (no las dos cosas
+        cambiando a la vez, revisión del #54). Mide lo mismo que el campo
+        (inset-y-0, sin h-11: antes sobresalía 8 px del h-9 del Input); el
+        ::after (-inset-y-1) lleva la zona de toque a 44 px sin cambiar lo que se ve.
+      */}
       <button
         type="button"
-        aria-label={visible ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+        aria-label="Mostrar contraseña"
         aria-pressed={visible}
         onClick={onToggleVisible}
-        className="absolute inset-y-0 right-0 flex h-11 w-11 items-center justify-center text-muted-foreground transition-colors hover:text-foreground"
+        className="absolute inset-y-0 right-0 flex w-11 items-center justify-center text-muted-foreground transition-colors hover:text-foreground after:absolute after:inset-x-0 after:-inset-y-1 after:content-['']"
       >
         {visible ? (
           <EyeOff className="size-4" aria-hidden="true" />

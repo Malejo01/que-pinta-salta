@@ -15,16 +15,31 @@ interface FavoriteButtonProps {
   type: 'event' | 'cinema' | 'flyer'
   initialIsFavorite: boolean
   className?: string
+  /**
+   * Se llama cuando el servidor confirma el cambio, con el estado nuevo. Lo
+   * usa `/buscar` para que el corazón de la tarjeta y el del modal del mismo
+   * evento muestren lo mismo (QPS-158).
+   */
+  onChange?: (favorited: boolean) => void
 }
 
 export function FavoriteButton({
   itemId,
   type,
   initialIsFavorite,
-  className
+  className,
+  onChange
 }: FavoriteButtonProps) {
   const [isFavorite, setIsFavorite] = useState(initialIsFavorite)
   const [isPending, setIsPending] = useState(false)
+  // Si el padre cambia initialIsFavorite (otro corazón del mismo evento lo
+  // cambió), se sigue al padre. Ajuste durante el render, no en un efecto
+  // (https://react.dev/learn/you-might-not-need-an-effect).
+  const [initialPrevio, setInitialPrevio] = useState(initialIsFavorite)
+  if (initialIsFavorite !== initialPrevio) {
+    setInitialPrevio(initialIsFavorite)
+    setIsFavorite(initialIsFavorite)
+  }
   const { open: openAuthModal } = useAuthModal()
   const { toast } = useToast()
   const { openDonationModal } = useDonation()
@@ -60,6 +75,8 @@ export function FavoriteButton({
         })
         return
       }
+
+      onChange?.(!!result.favorited)
 
       if (result.favorited) {
         let count = parseInt(sessionStorage.getItem('favorite_toast_count') || '0', 10);

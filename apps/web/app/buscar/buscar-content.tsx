@@ -170,12 +170,13 @@ export function BuscarContent({
     return soloGratisActivo ? soloGratis(base) : base
   }, [searchQuery, filteredEvents, allDisplayEvents, soloGratisActivo])
 
-  const handleToggleFavorite = (eventId: string) => {
-    setFavorites(prev => 
-      prev.includes(eventId)
-        ? prev.filter(id => id !== eventId)
-        : [...prev, eventId]
-    )
+  // Una sola lista de favoritos para la tarjeta y el modal del mismo evento
+  // (QPS-158): cada corazón avisa el estado confirmado por el servidor.
+  const handleToggleFavorite = (eventId: string, favorited: boolean) => {
+    setFavorites(prev => {
+      const sinEste = prev.filter(id => id !== eventId)
+      return favorited ? [...sinEste, eventId] : sinEste
+    })
   }
 
   return (
@@ -292,6 +293,7 @@ export function BuscarContent({
         onClose={() => setSelectedEvent(null)}
         origin="busqueda"
         isFavorite={!!selectedEvent && favorites.includes(selectedEvent.id)}
+        onFavoriteChange={handleToggleFavorite}
       />
       
       {selectedMovie && (

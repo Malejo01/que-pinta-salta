@@ -101,4 +101,13 @@ describe('shareEvent', () => {
     await expect(shareEvent(data, { toast })).resolves.toBeUndefined()
     expect(toast).not.toHaveBeenCalled()
   })
+
+  it('si el portapapeles se niega: no revienta y avisa que no se pudo copiar (no dice "Link copiado")', async () => {
+    const writeText = vi.fn().mockRejectedValue(new Error('NotAllowedError'))
+    const toast = vi.fn()
+
+    await expect(shareEvent(data, { writeText, toast })).resolves.toBeUndefined()
+    expect(toast).toHaveBeenCalledTimes(1)
+    expect(toast).toHaveBeenCalledWith({ title: 'No se pudo copiar el link', variant: 'destructive' })
+  })
 })

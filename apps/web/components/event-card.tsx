@@ -18,14 +18,15 @@ import type { MovieShowings } from "@/lib/types"
 interface EventCardProps {
   event: DisplayEvent
   isFavorite?: boolean
-  onToggleFavorite?: (eventId: string) => void
+  /** El corazón confirmó un cambio (QPS-158): el padre sincroniza su lista de favoritos. */
+  onToggleFavorite?: (eventId: string, favorited: boolean) => void
   onOpenMovie?: (movie: DisplayEvent) => void
   className?: string
   /** Desde dónde se llegó al evento; viaja como `?o=` para medir vistas. */
   origin?: MetricOrigin
 }
 
-export function EventCard({ event, isFavorite, onOpenMovie, className, origin }: EventCardProps) {
+export function EventCard({ event, isFavorite, onToggleFavorite, onOpenMovie, className, origin }: EventCardProps) {
   const [imgSrc, setImgSrc] = useState<string>(event.image || "/placeholder.jpg")
   const [failedImage, setFailedImage] = useState<string | null>(null)
   const { openDonationModal } = useDonation()
@@ -216,6 +217,7 @@ export function EventCard({ event, isFavorite, onOpenMovie, className, origin }:
           itemId={event.id}
           type={event.isCinemaMovie ? 'cinema' : (event.isInstagramFlyer ? 'flyer' : 'event')}
           initialIsFavorite={!!isFavorite}
+          onChange={onToggleFavorite ? (favorited) => onToggleFavorite(event.id, favorited) : undefined}
           className="absolute right-2 top-2 z-30 sm:opacity-0 sm:group-hover/card:opacity-100 transition-all duration-350"
         />
 

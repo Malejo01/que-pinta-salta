@@ -48,9 +48,11 @@ interface EventModalProps {
   origin?: MetricOrigin
   /** Si el evento ya es favorito del usuario (lista traída una sola vez por /buscar). */
   isFavorite?: boolean
+  /** El corazón del modal confirmó un cambio (QPS-158): /buscar actualiza la tarjeta de abajo. */
+  onFavoriteChange?: (eventId: string, favorited: boolean) => void
 }
 
-export function EventModal({ event, open, onClose, origin = "directo", isFavorite = false }: EventModalProps) {
+export function EventModal({ event, open, onClose, origin = "directo", isFavorite = false, onFavoriteChange }: EventModalProps) {
   if (!event) return null
 
   const formattedDate = formatEventDate(event.date, true)
@@ -86,6 +88,7 @@ export function EventModal({ event, open, onClose, origin = "directo", isFavorit
                 itemId={event.id}
                 type="event"
                 initialIsFavorite={isFavorite}
+                onChange={onFavoriteChange ? (favorited) => onFavoriteChange(event.id, favorited) : undefined}
                 className="size-10 flex-shrink-0 bg-muted/40 hover:bg-muted text-foreground"
               />
             </div>

@@ -94,7 +94,7 @@ describe('PasswordInputField: arranca oculto (visible=false)', () => {
 })
 
 describe('PasswordInputField: visible=true (después de clickear el ojito)', () => {
-  it('el <input> pasa a type="text" y el botón queda en "Ocultar contraseña"', () => {
+  it('el <input> pasa a type="text" y el botón queda presionado (aria-pressed), con el mismo aria-label', () => {
     const el = PasswordInputField({
       visible: true,
       onToggleVisible: vi.fn(),
@@ -102,8 +102,23 @@ describe('PasswordInputField: visible=true (después de clickear el ojito)', () 
     const { inputEl, buttonEl } = fieldChildren(el)
 
     expect(inputEl.props.type).toBe('text')
-    expect(buttonEl.props['aria-label']).toBe('Ocultar contraseña')
+    // Patrón de botón de alternar (revisión del #54): el aria-label no cambia,
+    // el estado lo dice aria-pressed.
+    expect(buttonEl.props['aria-label']).toBe('Mostrar contraseña')
     expect(buttonEl.props['aria-pressed']).toBe(true)
+  })
+
+  it('el botón mide lo mismo que el campo: inset-y-0 y sin h-11 (antes sobresalía del h-9 del Input)', () => {
+    const el = PasswordInputField({
+      visible: false,
+      onToggleVisible: vi.fn(),
+    }) as unknown as ReactElementLike
+    const { buttonEl } = fieldChildren(el)
+    const clases = String(buttonEl.props.className)
+
+    expect(clases).toContain('inset-y-0')
+    expect(clases).not.toMatch(/(?:^|\s)h-11(?:\s|$)/)
+    expect(clases).toContain('w-11')
   })
 
   it('clickear de nuevo también llama a onToggleVisible (vuelve a ocultar)', () => {
