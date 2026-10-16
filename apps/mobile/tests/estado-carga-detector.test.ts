@@ -36,7 +36,7 @@ const PANTALLAS_CON_ERROR_CARGA = [
   join('app', 'cines.tsx'),
   join('app', 'evento', '[id].tsx'),
   join('app', 'pelicula', '[id].tsx'),
-  join('components', 'SeccionRadar.tsx'),
+  join('components', 'PantallaRadar.tsx'), // reemplazó a SeccionRadar.tsx (29-d), que se borró el 16/10
   join('components', 'SeccionNotificaciones.tsx'),
 ] as const
 
