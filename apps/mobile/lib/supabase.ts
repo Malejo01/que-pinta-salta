@@ -8,6 +8,7 @@ import { AppState, type AppStateStatus } from 'react-native'
 // resuelva @qps/db en el bundle.
 import type { Database } from '@qps/db'
 import { leerEnv } from './env'
+import { fetchConTimeout, TIMEOUT_RED_MS } from './red'
 import { getItem, removeItem, setItem } from './secure-storage'
 
 const { supabase: configuracionSupabase } = leerEnv()
@@ -24,6 +25,10 @@ export const supabase: SupabaseClient<Database> | null = configuracionSupabase
         persistSession: true,
         detectSessionInUrl: false,
       },
+      // Timeout de red (28-a): sin esto, una llamada que nunca responde deja
+      // a la app "cargando" para siempre. El error del corte llega a las
+      // pantallas como cualquier error de red.
+      global: { fetch: fetchConTimeout(fetch, TIMEOUT_RED_MS) },
     })
   : null
 

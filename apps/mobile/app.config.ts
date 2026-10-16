@@ -60,6 +60,11 @@ const config: ExpoConfig = {
     // Fijo y no por variable: en el build remoto la config se evalúa en el
     // servidor de EAS, donde no hay ningún EAS_PROJECT_ID.
     eas: { projectId: EAS_PROJECT_ID },
+    // 28-c: EAS define `EAS_BUILD_PROFILE` en el build con el nombre del
+    // perfil (`preview`/`production`); fuera de un build de EAS, 'local'.
+    // Nada más entra en `extra`: `lib/version.ts` valida esto de nuevo
+    // igual (nunca confía en que esto solo alcance).
+    entorno: process.env.EAS_BUILD_PROFILE?.trim() || 'local',
   },
 }
 

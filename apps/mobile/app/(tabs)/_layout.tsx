@@ -13,8 +13,13 @@ const ICONOS: Record<'inicio' | 'buscar' | 'favoritos' | 'cuenta', NombreIcono> 
   cuenta: { ios: 'person.circle.fill', android: 'account_circle' },
 }
 
+// Componente con nombre (no una flecha anónima): evita el warning de
+// `react/display-name` (QPS-140, ítem 1). No cambia nada visible.
 function crearTabBarIcon(nombre: NombreIcono) {
-  return ({ color }: { color: ColorValue }) => <Icono nombre={nombre} color={color} />
+  function TabBarIcon({ color }: { color: ColorValue }) {
+    return <Icono nombre={nombre} color={color} />
+  }
+  return TabBarIcon
 }
 
 export default function TabsLayout() {

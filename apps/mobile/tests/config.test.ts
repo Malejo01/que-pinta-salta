@@ -2,7 +2,7 @@
 // - El paquete de Android es el mismo que la R23 publica para assetlinks (una sola fuente de verdad).
 // - Ninguna clave escrita en la config: lo que llega a `expo config --type public` no tiene secretos.
 // Sin red ni teléfono.
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import fs from 'node:fs'
 import path from 'node:path'
 import config, { plugins } from '../app.config'
@@ -51,5 +51,54 @@ describe('app.config.ts para EAS (QPS-143)', () => {
     const conToken = plugins({ SENTRY_AUTH_TOKEN: 'token-de-prueba' })
     expect(conToken).toContain('@sentry/react-native/expo')
     expect(JSON.stringify(conToken)).not.toContain('token-de-prueba')
+  })
+})
+
+// 28-q, parte B, punto 18 (28-c): `extra.entorno`. El valor depende de
+// `EAS_BUILD_PROFILE` leído al cargar el módulo, así que para probar los
+// distintos valores hay que resetear el registro de módulos y volver a
+// importar `../app.config` con el env ya cambiado — el `config` importado
+// arriba quedó fijado con el env que había al cargar este archivo de test
+// (sin EAS_BUILD_PROFILE, igual que en EAS fuera de un build).
+describe('app.config.ts: extra.entorno (28-c)', () => {
+  const EAS_BUILD_PROFILE_ORIGINAL = process.env.EAS_BUILD_PROFILE
+
+  afterEach(() => {
+    if (EAS_BUILD_PROFILE_ORIGINAL === undefined) delete process.env.EAS_BUILD_PROFILE
+    else process.env.EAS_BUILD_PROFILE = EAS_BUILD_PROFILE_ORIGINAL
+  })
+
+  it('extra.entorno existe', () => {
+    expect(config.extra?.entorno).toBeDefined()
+  })
+
+  it("sin EAS_BUILD_PROFILE, extra.entorno es 'local'", async () => {
+    delete process.env.EAS_BUILD_PROFILE
+    vi.resetModules()
+    const { default: configSinPerfil } = await import('../app.config')
+    expect(configSinPerfil.extra?.entorno).toBe('local')
+  })
+
+  it('con EAS_BUILD_PROFILE=preview, extra.entorno es preview', async () => {
+    process.env.EAS_BUILD_PROFILE = 'preview'
+    vi.resetModules()
+    const { default: configConPerfil } = await import('../app.config')
+    expect(configConPerfil.extra?.entorno).toBe('preview')
+  })
+
+  it('con EAS_BUILD_PROFILE en blanco (solo espacios), cae a local (mismo trim que leerEnv)', async () => {
+    process.env.EAS_BUILD_PROFILE = '   '
+    vi.resetModules()
+    const { default: configEnBlanco } = await import('../app.config')
+    expect(configEnBlanco.extra?.entorno).toBe('local')
+  })
+
+  // `router` no aparece acá: lo agrega expo-router al resolver la config
+  // (lo que muestra `config:public`), no este módulo. Esta prueba es sobre
+  // lo que programador puede controlar: que `extra` no tenga ninguna otra
+  // clave (ninguna variable de más, ningún secreto) además de `eas` y
+  // `entorno`.
+  it('extra no tiene más claves que eas y entorno', () => {
+    expect(Object.keys(config.extra ?? {}).sort()).toEqual(['eas', 'entorno'])
   })
 })

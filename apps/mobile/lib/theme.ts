@@ -67,6 +67,17 @@ export const COLORES_CLARO: ColoresQPS = convertir(TOKENS_CLARO)
 export const COLORES_OSCURO: ColoresQPS = convertir(TOKENS_OSCURO)
 
 /**
+ * Los tokens de color (ya en hex) según el esquema de color del sistema
+ * (QPS-126): `'dark'` da los oscuros; cualquier otro valor (`'light'`,
+ * `null`, `undefined`) da los claros. Pura: no importa `react-native` ni
+ * `expo-*` — la usa `useColoresQPS` (`lib/colores.ts`), que es la que lee
+ * `useColorScheme()`.
+ */
+export function coloresSegunEsquema(esquema: 'light' | 'dark' | null | undefined): ColoresQPS {
+  return esquema === 'dark' ? COLORES_OSCURO : COLORES_CLARO
+}
+
+/**
  * Forma mínima de un tema de navegación (react-navigation / expo-router):
  * solo lo que se necesita para fusionar colores, sin importar el tipo real
  * (`Theme` de `expo-router`) y así no arrastrar React Native a este módulo.

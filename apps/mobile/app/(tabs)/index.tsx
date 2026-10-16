@@ -3,12 +3,13 @@
 // muestra antes de esto, una sola vez (lib/bienvenida.ts): mientras no se
 // sepa si ya se vio, no se dibuja nada, y si no se vio, se redirige.
 import { useCallback, useEffect, useState } from 'react'
-import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native'
+import { FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native'
 import { Redirect, useRouter, useTheme } from 'expo-router'
 import type { DisplayEvent } from '@qps/core/home/types'
 import type { Atajo } from '@qps/core/home/atajos'
-import { Afiche } from '@/components/Afiche'
+import { Cargando, ErrorCarga } from '@/components/EstadoCarga'
 import { Icono } from '@/components/Icono'
+import { TarjetaEvento } from '@/components/TarjetaEvento'
 import { useBienvenidaVista } from '@/lib/bienvenida'
 import { obtenerEventosDeAtajo } from '@/lib/datos/eventos'
 
@@ -30,11 +31,21 @@ export default function Inicio() {
   const router = useRouter()
   const [atajo, setAtajo] = useState<Atajo>('hoy')
   const [estado, setEstado] = useState<EstadoLista>({ tipo: 'cargando' })
+  // Estado de refresco aparte del de carga (28-c): mientras se refresca, la
+  // grilla sigue a la vista en vez de pasar a `Cargando`.
+  const [refrescando, setRefrescando] = useState(false)
 
   const cargar = useCallback(async () => {
     setEstado({ tipo: 'cargando' })
     const resultado = await obtenerEventosDeAtajo(atajo)
     setEstado(resultado.ok ? { tipo: 'ok', eventos: resultado.eventos } : { tipo: 'error', error: resultado.error })
+  }, [atajo])
+
+  const refrescar = useCallback(async () => {
+    setRefrescando(true)
+    const resultado = await obtenerEventosDeAtajo(atajo)
+    setEstado(resultado.ok ? { tipo: 'ok', eventos: resultado.eventos } : { tipo: 'error', error: resultado.error })
+    setRefrescando(false)
   }, [atajo])
 
   useEffect(() => {
@@ -68,34 +79,27 @@ export default function Inicio() {
         </Pressable>
       </View>
 
-      {estado.tipo === 'cargando' ? <ActivityIndicator style={estilos.espaciado} /> : null}
+      {estado.tipo === 'cargando' ? <Cargando /> : null}
 
-      {estado.tipo === 'error' ? (
-        <View style={estilos.centrado}>
-          <Text style={{ color: colors.text }}>{estado.error}</Text>
-          <Pressable onPress={cargar} style={[estilos.boton, { borderColor: colors.border, marginTop: 12 }]}>
-            <Text style={[estilos.textoBoton, { color: colors.text }]}>Reintentar</Text>
-          </Pressable>
-        </View>
-      ) : null}
+      {estado.tipo === 'error' ? <ErrorCarga mensaje={estado.error} onReintentar={cargar} /> : null}
 
       {estado.tipo === 'ok' ? (
         <FlatList
           data={estado.eventos}
           keyExtractor={(item) => item.id}
+          numColumns={2}
+          columnWrapperStyle={estilos.filaGrilla}
           contentContainerStyle={estilos.lista}
+          refreshControl={
+            <RefreshControl refreshing={refrescando} onRefresh={refrescar} tintColor={colors.primary} colors={[colors.primary]} />
+          }
           ListEmptyComponent={
             <Text style={[estilos.vacio, { color: colors.text }]}>No hay eventos para este momento.</Text>
           }
           renderItem={({ item }) => (
-            <Pressable onPress={() => router.push(`/evento/${item.id}`)} style={estilos.fila}>
-              <Afiche url={item.image} estilo={estilos.afiche} />
-              <View style={estilos.filaTexto}>
-                <Text style={[estilos.tituloEvento, { color: colors.text }]}>{item.title}</Text>
-                <Text style={{ color: colors.border }}>{item.venue}</Text>
-                {item.time ? <Text style={{ color: colors.border }}>{item.time}</Text> : null}
-              </View>
-            </Pressable>
+            <View style={estilos.celda}>
+              <TarjetaEvento evento={item} />
+            </View>
           )}
         />
       ) : null}
@@ -116,12 +120,11 @@ const estilos = StyleSheet.create({
     paddingVertical: 8,
   },
   textoBoton: { fontWeight: '600' },
-  espaciado: { marginTop: 24 },
-  centrado: { alignItems: 'center', marginTop: 24, paddingHorizontal: 24 },
-  lista: { padding: 16, gap: 12 },
+  lista: { paddingHorizontal: 16, paddingBottom: 16, gap: 12 },
   vacio: { textAlign: 'center', marginTop: 24 },
-  fila: { flexDirection: 'row', gap: 12, alignItems: 'center' },
-  filaTexto: { flex: 1, gap: 2 },
-  tituloEvento: { fontWeight: '600', fontSize: 15 },
-  afiche: { width: 64, height: 64 },
+  filaGrilla: { gap: 12 },
+  // Con un número impar de eventos, la última celda queda sola en su fila:
+  // sin `maxWidth`, al ser la única hija `flex: 1` de la fila, se estiraría
+  // al ancho completo en vez de ocupar la mitad.
+  celda: { flex: 1, maxWidth: '50%' },
 })

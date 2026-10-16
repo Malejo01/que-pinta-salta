@@ -21,6 +21,7 @@ vi.mock('expo-secure-store', () => ({
   }),
 }))
 
+import * as SecureStore from 'expo-secure-store'
 import {
   claveCantidad,
   clavePedazo,
@@ -135,5 +136,90 @@ describe('getItem/setItem/removeItem (con el doble en memoria de SecureStore)', 
     expect(almacen.has(clavePedazo('sesion', 1))).toBe(false)
     expect(almacen.has(clavePedazo('sesion', 2))).toBe(false)
     await expect(getItem('sesion')).resolves.toBeNull()
+  })
+})
+
+// ---------------------------------------------------------------------------
+// R28 (28-a): el hallazgo de seguridad. El bug era que si lo ilegible era
+// justo la clave del contador (`clave.n`, no un pedazo), `removeItem` no
+// podía borrarla (necesitaba leerla primero con `getItemAsync`, que tira) y
+// entonces `setItem` tampoco podía volver a escribir nunca más: el teléfono
+// quedaba sin poder guardar ninguna sesión, en silencio.
+//
+// El doble de abajo hace que `getItemAsync` tire **solo** cuando se le pide
+// la clave del contador (`claveCantidad('sesion')`): cualquier otra clave
+// (los pedazos, u otras sesiones) sigue leyendo del `almacen` en memoria
+// como siempre. Se restaura la implementación normal al final de cada test
+// para no afectar a los demás.
+// ---------------------------------------------------------------------------
+describe('getItem/setItem/removeItem: la clave del contador (.n) ilegible no deja al almacenamiento sin salida', () => {
+  function conContadorIlegible(clave: string) {
+    const mockGetItemAsync = vi.mocked(SecureStore.getItemAsync)
+    const implementacionNormal = mockGetItemAsync.getMockImplementation()!
+    mockGetItemAsync.mockImplementation(async (claveLeida: string) => {
+      if (claveLeida === claveCantidad(clave)) {
+        throw new Error('No se pudo descifrar (clave del contador).')
+      }
+      return implementacionNormal(claveLeida)
+    })
+    return () => {
+      mockGetItemAsync.mockImplementation(implementacionNormal)
+    }
+  }
+
+  it('removeItem: con la clave del contador ilegible, borra igual (no relanza) y un setItem posterior vuelve a funcionar', async () => {
+    await setItem('sesion', 'valor-viejo-de-prueba')
+    expect(almacen.has(claveCantidad('sesion'))).toBe(true)
+
+    const restaurar = conContadorIlegible('sesion')
+    await expect(removeItem('sesion')).resolves.toBeUndefined()
+    restaurar()
+
+    // La clave del contador ya no está (removeItem no dependió de poder
+    // leerla: la borra de forma incondicional).
+    expect(almacen.has(claveCantidad('sesion'))).toBe(false)
+
+    // Y ahora el almacenamiento puede volver a guardar: antes del fix, el
+    // próximo setItem también habría tirado al intentar leer la cantidad
+    // anterior (que acá ya no existe, pero el escenario real es el mismo:
+    // una clave .n que no se puede descifrar).
+    await setItem('sesion', 'valor-nuevo-de-prueba')
+    await expect(getItem('sesion')).resolves.toBe('valor-nuevo-de-prueba')
+  })
+
+  it('setItem: con la clave del contador ilegible al leer la cantidad anterior, escribe igual (no rechaza) y el valor se puede releer', async () => {
+    await setItem('sesion', 'valor-viejo-de-prueba')
+
+    const restaurar = conContadorIlegible('sesion')
+    await expect(setItem('sesion', 'valor-nuevo-de-prueba')).resolves.toBeUndefined()
+    restaurar()
+
+    await expect(getItem('sesion')).resolves.toBe('valor-nuevo-de-prueba')
+  })
+
+  // 28-q, punto 2 de la parte A: el caso general (no específico del
+  // contador) de "si getItemAsync tira, getItem devuelve null y no tira".
+  it('getItem: si getItemAsync tira al leer la clave del contador, getItem devuelve null (no rechaza)', async () => {
+    await setItem('sesion', 'valor-de-prueba')
+
+    const restaurar = conContadorIlegible('sesion')
+    await expect(getItem('sesion')).resolves.toBeNull()
+    restaurar()
+  })
+
+  it('getItem: si getItemAsync tira al leer un pedazo (no el contador), también devuelve null y no tira', async () => {
+    await setItem('sesion', 'x'.repeat(TAMANIO_PEDAZO * 2 + 1)) // 3 pedazos
+    const clavePedazo0 = clavePedazo('sesion', 0)
+
+    const mockGetItemAsync = vi.mocked(SecureStore.getItemAsync)
+    const implementacionNormal = mockGetItemAsync.getMockImplementation()!
+    mockGetItemAsync.mockImplementation(async (claveLeida: string) => {
+      if (claveLeida === clavePedazo0) throw new Error('No se pudo descifrar (un pedazo).')
+      return implementacionNormal(claveLeida)
+    })
+
+    await expect(getItem('sesion')).resolves.toBeNull()
+
+    mockGetItemAsync.mockImplementation(implementacionNormal)
   })
 })

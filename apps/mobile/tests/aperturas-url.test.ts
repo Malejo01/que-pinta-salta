@@ -4,6 +4,14 @@
 // porque ese link no cuenta el clic ni valida el destino (ver el comentario
 // de `app/evento/[id].tsx`).
 //
+// R28 (28-g, F3): la ficha de película abre la URL de compra de entradas de
+// un cine, que no tiene `id` de evento ni cuenta clic — no puede pasar por
+// `urlGo`/`urlComoLlegar`. Para esa, y solo esa, el tercer origen válido es
+// `urlCompraCineSegura` (`lib/datos/cines.ts`): una función pura que devuelve
+// la URL solo si su esquema es `https`, y `null` en cualquier otro caso. La
+// intención del detector sigue intacta: ninguna URL externa cruda se abre
+// sin pasar por un helper validado, y este es el helper para cines.
+//
 // Primero el detector, probado con fixtures en memoria (mismo estilo que
 // `encontrarViolacionesDeIconos` en `tests/iconos.test.ts`); después se
 // aplica a los archivos reales de `app/` y `components/` con un `it.each`
@@ -42,10 +50,10 @@ function leerArgumentoBalanceado(content: string, desdeIndex: number): string {
   return content.slice(desdeIndex, j)
 }
 
-/** Variables (`const`/`let`) asignadas directamente desde `urlGo(...)` o `urlComoLlegar(...)`. */
+/** Variables (`const`/`let`) asignadas directamente desde `urlGo(...)`, `urlComoLlegar(...)` o `urlCompraCineSegura(...)`. */
 function variablesSeguras(content: string): Set<string> {
   const vars = new Set<string>()
-  const re = /\b(?:const|let)\s+(\w+)\s*=\s*(?:await\s+)?(?:urlGo|urlComoLlegar)\s*\(/g
+  const re = /\b(?:const|let)\s+(\w+)\s*=\s*(?:await\s+)?(?:urlGo|urlComoLlegar|urlCompraCineSegura)\s*\(/g
   let m: RegExpExecArray | null
   while ((m = re.exec(content))) vars.add(m[1])
   return vars
@@ -53,11 +61,12 @@ function variablesSeguras(content: string): Set<string> {
 
 /**
  * Violaciones de `openURL(...)` (incluye `Linking.openURL(...)`) cuyo
- * argumento no venga de `urlGo`/`urlComoLlegar`: ni una llamada directa
- * (`openURL(urlGo(...))`) ni una variable asignada desde esas funciones
- * (`const urlCompra = urlGo(...); openURL(urlCompra)`). Cualquier otra forma
- * — `openURL(evento.ticket_url)`, una variable que no se pueda rastrear a
- * `urlGo`/`urlComoLlegar`, etc. — es una violación.
+ * argumento no venga de `urlGo`, `urlComoLlegar` o `urlCompraCineSegura`: ni
+ * una llamada directa (`openURL(urlGo(...))`) ni una variable asignada desde
+ * esas funciones (`const urlCompra = urlGo(...); openURL(urlCompra)`).
+ * Cualquier otra forma — `openURL(evento.ticket_url)`, un `booking_url`
+ * crudo, una variable que no se pueda rastrear a ninguno de los tres, etc. —
+ * es una violación.
  */
 export function encontrarAperturasInseguras(content: string): Violation[] {
   const seguras = variablesSeguras(content)
@@ -68,11 +77,11 @@ export function encontrarAperturasInseguras(content: string): Violation[] {
     const inicioArg = m.index + m[0].length
     const arg = leerArgumentoBalanceado(content, inicioArg).trim()
     const esVariableSegura = /^\w+$/.test(arg) && seguras.has(arg)
-    const esLlamadaDirecta = /^(?:urlGo|urlComoLlegar)\s*\(/.test(arg)
+    const esLlamadaDirecta = /^(?:urlGo|urlComoLlegar|urlCompraCineSegura)\s*\(/.test(arg)
     if (!esVariableSegura && !esLlamadaDirecta) {
       violaciones.push({
         line: lineAt(content, m.index),
-        message: `openURL(${arg}): el argumento no viene de urlGo/urlComoLlegar`,
+        message: `openURL(${arg}): el argumento no viene de urlGo/urlComoLlegar/urlCompraCineSegura`,
       })
     }
   }
@@ -114,6 +123,16 @@ describe('encontrarAperturasInseguras (fixtures en memoria: tiene que fallar de 
     expect(encontrarAperturasInseguras(content)).toEqual([])
   })
 
+  it('acepta openURL(variable) cuando la variable viene de urlCompraCineSegura(...) (la URL de compra de cines, R28)', () => {
+    const content = `const urlCompra = urlCompraCineSegura(cine.urlCompra)\nLinking.openURL(urlCompra).catch(() => {})`
+    expect(encontrarAperturasInseguras(content)).toEqual([])
+  })
+
+  it('acepta la llamada directa openURL(urlCompraCineSegura(...))', () => {
+    const content = `Linking.openURL(urlCompraCineSegura(cine.urlCompra)).catch(() => {})`
+    expect(encontrarAperturasInseguras(content)).toEqual([])
+  })
+
   it('detecta openURL(evento.ticket_url): el link crudo, sin contador ni validación', () => {
     const content = `function comprar() {\n  Linking.openURL(evento.ticket_url).catch(() => {})\n}`
     const v = encontrarAperturasInseguras(content)
@@ -132,6 +151,14 @@ describe('encontrarAperturasInseguras (fixtures en memoria: tiene que fallar de 
     // seguir detectándose (no alcanza con el nombre, hace falta el origen).
     const content = `const urlCompra = evento.ticket_url\nLinking.openURL(urlCompra).catch(() => {})`
     expect(encontrarAperturasInseguras(content)).toHaveLength(1)
+  })
+
+  it('detecta openURL(cine.urlCompra): el booking_url crudo de un cine, sin pasar por urlCompraCineSegura', () => {
+    const content = `function comprarEnCine() {\n  Linking.openURL(cine.urlCompra).catch(() => {})\n}`
+    const v = encontrarAperturasInseguras(content)
+    expect(v).toHaveLength(1)
+    expect(v[0].line).toBe(2)
+    expect(v[0].message).toMatch(/cine\.urlCompra/)
   })
 
   it('detecta varias violaciones, cada una con su línea', () => {

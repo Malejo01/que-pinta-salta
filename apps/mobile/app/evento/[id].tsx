@@ -4,7 +4,7 @@
 // `@qps/core/metricas/links`: nunca el `ticket_url` directo — ese link no
 // cuenta el clic ni valida el destino.
 import { useCallback, useEffect, useState } from 'react'
-import { ActivityIndicator, Dimensions, Pressable, ScrollView, Share, StyleSheet, Text, View } from 'react-native'
+import { Pressable, ScrollView, Share, StyleSheet, Text, useWindowDimensions, View } from 'react-native'
 import * as Linking from 'expo-linking'
 import { Redirect, useLocalSearchParams, useRouter, useTheme } from 'expo-router'
 import { formatEventDate } from '@qps/core/date-format'
@@ -14,17 +14,23 @@ import { ticketUrlsOf } from '@qps/core/scraper/dedup-key'
 import { Afiche } from '@/components/Afiche'
 import { BotonesAsistencia } from '@/components/BotonesAsistencia'
 import { BotonFavorito } from '@/components/BotonFavorito'
+import { Cargando, ErrorCarga, Vacio } from '@/components/EstadoCarga'
+import { useColoresQPS } from '@/lib/colores'
 import { obtenerEventoPorId, type ResultadoEvento } from '@/lib/datos/eventos'
 import { esUuid } from '@/lib/links'
 
 type Estado = { tipo: 'cargando' } | ResultadoEvento
 
-const ANCHO_AFICHE = Dimensions.get('window').width - 32
-
 export default function EventoPorId() {
   const { id } = useLocalSearchParams<{ id: string }>()
   const { colors } = useTheme()
+  const colores = useColoresQPS()
   const router = useRouter()
+  // El ancho de la ventana se lee con `useWindowDimensions()`, nunca con
+  // `Dimensions` a nivel de módulo (QPS-132): así reacciona a una rotación o
+  // a un cambio de tamaño sin reiniciar la app.
+  const { width } = useWindowDimensions()
+  const anchoAfiche = width - 32
 
   const valido = esUuid(id)
 
@@ -48,7 +54,7 @@ export default function EventoPorId() {
   if (estado.tipo === 'cargando') {
     return (
       <View style={[estilos.centrado, { backgroundColor: colors.background }]}>
-        <ActivityIndicator />
+        <Cargando />
       </View>
     )
   }
@@ -56,13 +62,7 @@ export default function EventoPorId() {
   if (estado.tipo === 'no-encontrado') {
     return (
       <View style={[estilos.centrado, { backgroundColor: colors.background }]}>
-        <Text style={{ color: colors.text }}>Este evento ya no está disponible.</Text>
-        <Pressable
-          onPress={() => router.replace('/')}
-          style={[estilos.boton, { borderColor: colors.border, marginTop: 12 }]}
-        >
-          <Text style={[estilos.textoBoton, { color: colors.text }]}>Volver a Inicio</Text>
-        </Pressable>
+        <Vacio mensaje="Este evento ya no está disponible." textoAccion="Volver a Inicio" onAccion={() => router.replace('/')} />
       </View>
     )
   }
@@ -70,10 +70,7 @@ export default function EventoPorId() {
   if (estado.tipo === 'error') {
     return (
       <View style={[estilos.centrado, { backgroundColor: colors.background }]}>
-        <Text style={{ color: colors.text }}>{estado.error}</Text>
-        <Pressable onPress={cargar} style={[estilos.boton, { borderColor: colors.border, marginTop: 12 }]}>
-          <Text style={[estilos.textoBoton, { color: colors.text }]}>Reintentar</Text>
-        </Pressable>
+        <ErrorCarga mensaje={estado.error} onReintentar={cargar} />
       </View>
     )
   }
@@ -111,17 +108,17 @@ export default function EventoPorId() {
 
   return (
     <ScrollView style={{ backgroundColor: colors.background }} contentContainerStyle={estilos.contenido}>
-      <Afiche url={evento.image_url} estilo={{ width: ANCHO_AFICHE, height: 320, borderRadius: 12 }} />
+      <Afiche url={evento.image_url} estilo={{ width: anchoAfiche, height: 320, borderRadius: 12 }} />
 
       <Text style={[estilos.titulo, { color: colors.text }]}>{evento.title}</Text>
-      <Text style={{ color: colors.border }}>
+      <Text style={{ color: colores.mutedForeground }}>
         {fecha}
         {hora ? ` · ${hora} hs` : ''}
       </Text>
 
       <View>
         <Text style={[estilos.lugar, { color: colors.text }]}>{lugar}</Text>
-        {direccion ? <Text style={{ color: colors.border }}>{direccion}</Text> : null}
+        {direccion ? <Text style={{ color: colores.mutedForeground }}>{direccion}</Text> : null}
       </View>
 
       <Text style={[estilos.precio, { color: colors.text }]}>{precio}</Text>
@@ -145,7 +142,7 @@ export default function EventoPorId() {
 
         {tieneTicket && urlCompra ? (
           <Pressable onPress={comprar} style={[estilos.boton, { backgroundColor: colors.primary, borderColor: colors.primary }]}>
-            <Text style={[estilos.textoBoton, { color: '#fff' }]}>Comprar entrada</Text>
+            <Text style={[estilos.textoBoton, { color: colores.primaryForeground }]}>Comprar entrada</Text>
           </Pressable>
         ) : null}
       </View>
