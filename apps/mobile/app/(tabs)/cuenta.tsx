@@ -11,6 +11,7 @@ import {
   ActivityIndicator,
   Image,
   ImageBackground,
+  Linking,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -36,6 +37,7 @@ import { Texto } from '@/components/Texto'
 import { useColoresQPS } from '@/lib/colores'
 import { codigoErrorGoogle, mensajeErrorGoogle, registrarErrorGoogle } from '@/lib/google'
 import { leerEnv } from '@/lib/env'
+import { urlSitio } from '@/lib/links'
 import { supabase } from '@/lib/supabase'
 import { useSession } from '@/lib/session'
 import { textoVersion } from '@/lib/version'
@@ -58,8 +60,8 @@ const MENSAJE_GENERICO = 'No se pudo completar la operación. Probá de nuevo.'
 const MENSAJE_SIN_CONFIG = 'La app no tiene la configuración de cuentas: avisá al equipo.'
 const MENSAJE_SIN_ID_TOKEN = 'Google no devolvió un token válido. Probá de nuevo.'
 // F6 (decisión 5 del plan, QPS-145): credenciales inválidas suma esta
-// segunda línea. La web no tiene "¿Olvidaste tu contraseña?", así que no se
-// agrega: no hay a dónde llevar.
+// segunda línea (independiente del link "¿Olvidaste tu contraseña?" de más
+// abajo, que ahora sí existe en la app, R29-h).
 const SUGERENCIA_GOOGLE = 'Si entraste con Google, usá el botón de Google.'
 // F4: el rojo fijo de R24 no se leía en tema oscuro. D1 (29-g): la app
 // siempre arranca oscura, así que ya no depende de useColorScheme().
@@ -295,6 +297,15 @@ export default function Cuenta() {
     }
   }
 
+  // F6 (29-e dejó /auth/recuperar en la web; esto es el link que faltaba en
+  // la app, R29-h): abre la ruta propia validada por `urlSitio`, nunca una
+  // URL armada a mano (ver tests/aperturas-url.test.ts).
+  function abrirRecuperarContrasenia() {
+    const url = urlSitio('/auth/recuperar')
+    if (!url) return
+    Linking.openURL(url).catch(() => {})
+  }
+
   async function salir() {
     if (!supabase) return
     setError(null)
@@ -404,6 +415,14 @@ export default function Cuenta() {
             mostrarOcultar
             autoCapitalize="none"
           />
+
+          {/* F6 (29-e la dejó armada en la web; esto es el link que faltaba
+              en la app, R29-h): abre /auth/recuperar con urlSitio. */}
+          <Pressable onPress={abrirRecuperarContrasenia} accessibilityRole="button" hitSlop={8}>
+            <Texto tono="primario" style={{ fontSize: 13, textDecorationLine: 'underline' }}>
+              ¿Olvidaste tu contraseña?
+            </Texto>
+          </Pressable>
 
           {error ? <Texto style={estilos.error}>{error}</Texto> : null}
           {avisoConfirmacion ? (
