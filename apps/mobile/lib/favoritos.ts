@@ -1,16 +1,21 @@
-// Favoritos de eventos (R27, tarea 27-b). Con sesión: `user_favorites`
-// (columna `event_id`) del usuario, y los eventos por esos ids con el mismo
-// select público y la misma vigencia que el resto de la app
-// (`PUBLIC_EVENT_SELECT`, `status = 'PUBLISHED'`, `isVigente` de
-// `@qps/core`). El `user_id` que recibe cada función es siempre el que la
-// pantalla leyó de `useSession()`, nunca un parámetro de ruta. Marcar es un
-// `insert` con `{ user_id, event_id }`; desmarcar es un `delete` filtrado
-// por `user_id` y `event_id`; un `23505` (ya estaba marcado) cuenta como
-// éxito, no como error.
+// Favoritos de eventos, flyers de Instagram y películas (R27, tarea 27-b;
+// paridad con la web, R29, tarea 29-a: F13). Con sesión: las tres columnas
+// de `user_favorites` (`event_id`, `instagram_flyer_id`, `cinema_movie_id`)
+// del usuario, y los detalles de cada una con el mismo select público que la
+// web, pasados por `armarFavoritos` de `@qps/core/favoritos/armar` — la
+// misma regla que usa `/favoritos` de la web (status, vigencia, agrupado),
+// así que ni acá ni en la web se repite esa lógica. El `user_id` que recibe
+// cada función es siempre el que la pantalla leyó de `useSession()`, nunca
+// un parámetro de ruta. Marcar es un `insert` con `{ user_id, event_id }`;
+// desmarcar es un `delete` filtrado por `user_id` y `event_id`; un `23505`
+// (ya estaba marcado) cuenta como éxito, no como error.
 import { PUBLIC_EVENT_SELECT } from '@qps/core/events/public-select'
-import { isVigente } from '@qps/core/events/vigencia'
-import { transformEvent } from '@qps/core/home/transform'
-import type { DisplayEvent, EventWithRelations } from '@qps/core/home/types'
+import { applyVigenciaPrefilter } from '@qps/core/events/vigencia'
+import { armarFavoritos, idsDeFavoritos, type EventoFavorito } from '@qps/core/favoritos/armar'
+import type { DisplayEvent } from '@qps/core/home/types'
+import type { CinemaMovie } from '@qps/core/types'
+import type { FlyerWithAccount } from '@qps/core/instagram-config'
+import { obtenerCategorias } from '@/lib/datos/eventos'
 import { MENSAJE_SIN_CONFIGURACION } from '@/lib/mensajes'
 import { supabase } from '@/lib/supabase'
 
@@ -22,12 +27,19 @@ export type ResultadoFavoritos = { ok: true; eventos: DisplayEvent[] } | { ok: f
 export type ResultadoFavorito = { ok: true; marcado: boolean } | { ok: false; error: string }
 export type ResultadoMarcarFavorito = { ok: true } | { ok: false; error: string }
 
+/** A dónde navega cada item de favoritos al tocarlo: evento, película (R28) o flyer de Instagram. */
+export function rutaDeFavorito(item: DisplayEvent): string {
+  if (item.isCinemaMovie) return `/pelicula/${item.id.replace(/^movie-/, '')}`
+  if (item.isInstagramFlyer && item.flyerId) return `/flyer/${item.flyerId}`
+  return `/evento/${item.id}`
+}
+
 /**
- * Los eventos favoritos de `userId`: primero los `event_id` propios de
- * `user_favorites`, después esos eventos con el select público, acotados a
- * `status = 'PUBLISHED'` y vigentes (`isVigente`, con categoría — mismo
- * filtro que `obtenerEventosDeAtajo`). Sin favoritos, `eventos: []` sin
- * pedir nada más a la red.
+ * Los favoritos de `userId`: las tres columnas de `user_favorites`, y los
+ * eventos (PUBLISHED + vigentes), flyers (ACTIVE) y películas (en cartel)
+ * correspondientes, armados con `armarFavoritos` (flexibles primero,
+ * después por día — el layout de la web, "Mi Agenda", es 29-i). Sin
+ * favoritos de ningún tipo, `eventos: []` sin pedir nada más a la red.
  */
 export async function obtenerFavoritos(userId: string): Promise<ResultadoFavoritos> {
   if (!supabase) return { ok: false, error: MENSAJE_SIN_CONFIGURACION }
@@ -35,33 +47,59 @@ export async function obtenerFavoritos(userId: string): Promise<ResultadoFavorit
   try {
     const { data: filas, error: errorFavoritos } = await supabase
       .from('user_favorites')
-      .select('event_id')
+      .select('event_id, instagram_flyer_id, cinema_movie_id')
       .eq('user_id', userId)
-      .not('event_id', 'is', null)
 
     if (errorFavoritos) return { ok: false, error: MENSAJE_ERROR_RED }
 
-    const ids = (filas ?? [])
-      .map((fila) => fila.event_id)
-      .filter((id): id is string => typeof id === 'string')
+    const { eventIds, flyerIds, movieIds } = idsDeFavoritos(filas ?? [])
 
-    if (ids.length === 0) return { ok: true, eventos: [] }
+    if (eventIds.length === 0 && flyerIds.length === 0 && movieIds.length === 0) {
+      return { ok: true, eventos: [] }
+    }
 
-    const { data, error } = await supabase
-      .from('events')
-      .select(PUBLIC_EVENT_SELECT)
-      .in('id', ids)
-      .eq('status', 'PUBLISHED')
+    const ahora = new Date()
 
-    if (error) return { ok: false, error: MENSAJE_ERROR_RED }
+    const [eventosRes, flyersRes, moviesRes, categoriasRes] = await Promise.all([
+      eventIds.length > 0
+        ? applyVigenciaPrefilter(
+            supabase.from('events').select(PUBLIC_EVENT_SELECT).in('id', eventIds).eq('status', 'PUBLISHED'),
+            ahora,
+          )
+        : Promise.resolve({ data: [] as unknown[], error: null }),
+      flyerIds.length > 0
+        ? supabase
+            .from('instagram_flyers')
+            .select('*, account:instagram_accounts(*)')
+            .in('id', flyerIds)
+            .eq('status', 'ACTIVE')
+        : Promise.resolve({ data: [] as unknown[], error: null }),
+      movieIds.length > 0
+        ? supabase.from('cinema_movies').select('*').in('id', movieIds).eq('is_currently_showing', true)
+        : Promise.resolve({ data: [] as unknown[], error: null }),
+      obtenerCategorias(),
+    ])
+
+    if (eventosRes.error || flyersRes.error || moviesRes.error) return { ok: false, error: MENSAJE_ERROR_RED }
+    // El texto es siempre el de esta pantalla (no el de `obtenerCategorias`,
+    // pensado para Buscar): nunca se mezclan los mensajes de dos módulos.
+    if (!categoriasRes.ok) return { ok: false, error: MENSAJE_ERROR_RED }
+
+    const categoryNameBySlug = new Map(categoriasRes.categorias.map((c) => [c.slug, c.name]))
 
     // PUBLIC_EVENT_SELECT es un string armado en runtime (no un literal), así
     // que supabase-js no puede inferir con él el tipo de la fila: "as unknown
     // as" en vez de "as" (mismo patrón que lib/datos/eventos.ts).
-    const filasEventos = (data ?? []) as unknown as EventWithRelations[]
-    const vigentes = filasEventos.filter((fila) => Boolean(fila.category) && isVigente(fila, new Date()))
+    const eventos = (eventosRes.data ?? []) as unknown as EventoFavorito[]
+    const flyers = (flyersRes.data ?? []) as unknown as FlyerWithAccount[]
+    const peliculas = (moviesRes.data ?? []) as unknown as CinemaMovie[]
 
-    return { ok: true, eventos: vigentes.map(transformEvent) }
+    const { flexibles, porDia } = armarFavoritos({ eventos, flyers, peliculas, categoryNameBySlug }, ahora)
+
+    // La pantalla de Favoritos de la app (29-i la convierte al layout "Mi
+    // Agenda" de la web) muestra por ahora una lista simple, en el orden de
+    // armarFavoritos: flexibles primero, después por día.
+    return { ok: true, eventos: [...flexibles, ...porDia.flatMap((grupo) => grupo.items)] }
   } catch {
     return { ok: false, error: MENSAJE_ERROR_RED }
   }

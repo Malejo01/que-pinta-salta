@@ -1,14 +1,22 @@
-// Favoritos (R27, tarea 27-b; grilla R28, 28-f). Sin sesión, invita a entrar
-// desde Cuenta; con sesión, la grilla de eventos guardados (lib/favoritos.ts),
-// con la misma `TarjetaEvento` que Inicio/Buscar. El `userId` sale de
-// `useSession()`, nunca de un parámetro de pantalla.
-import { useCallback, useEffect, useState } from 'react'
-import { FlatList, RefreshControl, StyleSheet, View } from 'react-native'
-import { useRouter, useTheme } from 'expo-router'
+// Favoritos (R27, tarea 27-b; grilla R28, 28-f; paridad R29, 29-a: F13). Sin
+// sesión, invita a entrar desde Cuenta; con sesión, la grilla de eventos,
+// películas y flyers guardados (lib/favoritos.ts), con la misma
+// `TarjetaEvento` que Inicio/Buscar. El `userId` sale de `useSession()`,
+// nunca de un parámetro de pantalla.
+//
+// Recarga: `useFocusEffect` (en vez de `useEffect`) vuelve a leer cada vez
+// que la pestaña toma foco (ya no se queda con la lectura vieja al volver de
+// marcar/desmarcar un favorito en otra pantalla — causa de F13, "Sushi
+// Libre" no aparecía hasta recargar la app entera). Como `useFocusEffect` ya
+// corre también al montar (la pestaña está en foco desde el principio), no
+// hace falta un `useEffect` aparte: así no se dispara la carga dos veces.
+import { useCallback, useState } from 'react'
+import { FlatList, Pressable, RefreshControl, StyleSheet, View } from 'react-native'
+import { useFocusEffect, useRouter, useTheme } from 'expo-router'
 import type { DisplayEvent } from '@qps/core/home/types'
 import { Cargando, ErrorCarga, Vacio } from '@/components/EstadoCarga'
 import { TarjetaEvento } from '@/components/TarjetaEvento'
-import { obtenerFavoritos } from '@/lib/favoritos'
+import { obtenerFavoritos, rutaDeFavorito } from '@/lib/favoritos'
 import { useSession } from '@/lib/session'
 
 type EstadoLista =
@@ -42,10 +50,12 @@ export default function Favoritos() {
     setRefrescando(false)
   }, [userId])
 
-  useEffect(() => {
-    if (cargandoSesion) return
-    cargar()
-  }, [cargandoSesion, cargar])
+  useFocusEffect(
+    useCallback(() => {
+      if (cargandoSesion) return
+      cargar()
+    }, [cargandoSesion, cargar]),
+  )
 
   if (cargandoSesion) {
     return (
@@ -84,7 +94,25 @@ export default function Favoritos() {
           ListEmptyComponent={<Vacio mensaje="Todavía no guardaste ningún evento" />}
           renderItem={({ item }) => (
             <View style={estilos.celda}>
-              <TarjetaEvento evento={item} />
+              {item.isCinemaMovie || item.isInstagramFlyer ? (
+                // `TarjetaEvento` siempre navega a `/evento/<id>` (es la
+                // tarjeta de Inicio/Buscar, donde todo es un evento real):
+                // para una película o un flyer, un `Pressable` transparente
+                // por encima intercepta el toque y lleva a la ruta correcta
+                // (`/pelicula/<id>` o `/flyer/<id>`), sin tocar
+                // components/TarjetaEvento.tsx (R29-b, en paralelo).
+                <View style={estilos.celdaConToqueDistinto}>
+                  <TarjetaEvento evento={item} />
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={item.title}
+                    onPress={() => router.push(rutaDeFavorito(item))}
+                    style={StyleSheet.absoluteFill}
+                  />
+                </View>
+              ) : (
+                <TarjetaEvento evento={item} />
+              )}
             </View>
           )}
         />
@@ -101,4 +129,5 @@ const estilos = StyleSheet.create({
   // Ver el comentario del mismo nombre en app/(tabs)/index.tsx: evita que la
   // última celda de un número impar de eventos se estire a todo el ancho.
   celda: { flex: 1, maxWidth: '50%' },
+  celdaConToqueDistinto: { flex: 1, position: 'relative' },
 })
