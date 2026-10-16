@@ -2,6 +2,7 @@ import type { TicketSource } from '../types'
 import { getSourcePriority, getSourceTier, resolveEventSource } from './source-priority'
 import { hasRealTime, isAutoDescription } from './dedup-key'
 import { mergedIntoId } from '../events/merged'
+import { isOwnStorageUrl } from '../images/external'
 
 /**
  * Fusión de dos registros del mismo evento, sin pérdida de datos.
@@ -126,8 +127,21 @@ function sameValue(field: string, a: any, b: any): boolean {
  * en la card. Si la que hay es miniatura y llega una que no lo es, se usa la
  * nueva aunque venga de una fuente de menor prioridad: acá no hay conflicto de
  * verdad sobre cuál es el evento, sólo sobre qué archivo se muestra.
+ *
+ * Exportada (vuelta 1, 31-a) para que `run-scrape-job.ts` detecte la
+ * miniatura ANTES de copiarla a Storage: el orden importa porque esta
+ * función busca texto como "150x150" o "thumb" en la URL, y una vez copiada
+ * la URL queda como `externas/<sha1 hex>.<ext>` — un digest hexadecimal
+ * sólo tiene `0-9a-f`, así que nunca puede contener esas letras
+ * ("t", "u", "m", "x", "q", "i", "y") ni ese patrón. Si se copia primero y
+ * se detecta después sobre la URL de Storage, `isThumbnail` da `false`
+ * siempre y la miniatura queda atascada para siempre: ninguna corrida
+ * futura puede reemplazarla con la excepción de calidad de más abajo. Por
+ * eso `run-scrape-job.ts` no copia una miniatura externa: la deja cruda
+ * para que el merge la siga viendo como lo que es, hasta que llegue la
+ * imagen grande (que esa sí se copia).
  */
-function isThumbnail(url?: string | null): boolean {
+export function isThumbnail(url?: string | null): boolean {
   if (!url) return true
 
   let lower = url.toLowerCase()
@@ -318,8 +332,23 @@ export function mergeEvents(
     if (isEmptyValue(base.image_url)) {
       patch.image_url = incoming.image_url
     } else if (!sameValue('image_url', base.image_url, incoming.image_url)) {
+      // La excepción de calidad (miniatura nuestra reemplazada por una imagen
+      // grande) tiene precedencia sobre la guarda nueva de abajo: una
+      // miniatura sigue siendo una miniatura aunque esté en nuestro Storage,
+      // y por eso este caso raro - sí se reemplaza - se evalúa primero.
       const upgrade = isThumbnail(base.image_url) && !isThumbnail(incoming.image_url)
-      if (upgrade || incomingWins) {
+
+      // Storage propio nunca se pisa por prioridad de fuente: QPS-144 copia
+      // el afiche externo a nuestro Storage en la ingesta, y si una fuente de
+      // mayor prioridad matchea después con su URL cruda, esa URL cruda no
+      // puede volver a pisar la copia ya hecha (ver el comentario de
+      // save-to-supabase.ts sobre por qué se copia siempre). Sólo importa
+      // cuando, sin esta guarda, la prioridad haría ganar a la entrante: si
+      // la entrante ya perdía por prioridad, el motivo sigue siendo ese.
+      const storageGuardAplica =
+        !upgrade && incomingWins && isOwnStorageUrl(base.image_url) && !isOwnStorageUrl(incoming.image_url)
+
+      if (upgrade || (incomingWins && !storageGuardAplica)) {
         patch.image_url = incoming.image_url
         recordConflict(
           'image_url',
@@ -329,7 +358,13 @@ export function mergeEvents(
           true
         )
       } else {
-        recordConflict('image_url', base.image_url, incoming.image_url, priorityRule, false)
+        recordConflict(
+          'image_url',
+          base.image_url,
+          incoming.image_url,
+          storageGuardAplica ? 'storage-propio-sobre-externa' : priorityRule,
+          false
+        )
       }
     }
   }

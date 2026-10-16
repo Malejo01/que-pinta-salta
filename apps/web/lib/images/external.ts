@@ -46,23 +46,74 @@ export interface ExternalImageStorageClient {
 }
 
 /**
- * Prefijo de la URL pública de un objeto del bucket de flyers (Instagram o
- * externas): sirve para reconocer, sin red, si una URL que ya está en la
- * base es una URL de nuestro propio Storage (y por lo tanto no hay que
- * copiarla de nuevo).
+ * Prefijo de ruta (sin host) de un objeto público del bucket de flyers
+ * (Instagram o externas): sirve para reconocer, sin red, si una URL que ya
+ * está en la base es una URL de nuestro propio Storage (y por lo tanto no
+ * hay que copiarla de nuevo). Se compara contra `pathname`, nunca contra la
+ * URL completa como texto — ver `isOwnStorageUrl`.
  */
-const PUBLIC_BUCKET_SEGMENT = `/storage/v1/object/public/${INSTAGRAM_ENGINE_CONFIG.STORAGE_BUCKET}/`
+const PUBLIC_BUCKET_PATH_PREFIX = `/storage/v1/object/public/${INSTAGRAM_ENGINE_CONFIG.STORAGE_BUCKET}/`
+
+/**
+ * Hostname de nuestro proyecto de Supabase, en minúsculas, o `null` si
+ * `NEXT_PUBLIC_SUPABASE_URL` no está definida o no es una URL válida (pasa
+ * en varios tests, y en algún script sin `.env` cargado).
+ */
+function ownSupabaseHost(): string | null {
+  const envUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  if (!envUrl) return null
+  try {
+    return new URL(envUrl).hostname.toLowerCase()
+  } catch {
+    return null
+  }
+}
 
 /**
  * `true` si `url` ya es una URL pública de nuestro bucket de flyers (de
  * Instagram o de `externas/`). Lo usan los llamadores (save-to-supabase,
- * cinema-scraper, generar.ts) para no volver a copiar una imagen que ya está
- * en Storage — típicamente la de un evento existente, o la que se reusa de
- * la fila anterior de una peña/museo.
+ * cinema-scraper, generar.ts, run-scrape-job.ts, merge-events.ts) para no
+ * volver a copiar — o, en el merge, no dejar pisar — una imagen que ya está
+ * en Storage.
+ *
+ * Arreglo de seguridad (vuelta 1, 31-a): antes esto era un `url.includes()`
+ * de texto libre sobre la URL completa, así que
+ * `https://sitio-malo.com/storage/v1/object/public/flyers_ig/x.jpg` (o la
+ * misma subcadena metida en el query string) daba `true`. `image_url` sale
+ * del HTML de la ticketera — es texto de un tercero — y un `true` falso
+ * tenía dos consecuencias: en `run-scrape-job.ts` se guardaba la URL cruda
+ * sin pasar por `copyExternalImage` (sin ninguna de sus defensas), y en
+ * `merge-events.ts` desactivaba la guarda que protege una imagen propia
+ * legítima de ser pisada.
+ *
+ * Ahora se parsea con `new URL()` y se decide sobre `hostname` y `pathname`
+ * exclusivamente, nunca sobre el texto entero: una subcadena en el query
+ * string, el fragmento, o unas credenciales en la autoridad
+ * (`usuario@host`) no alcanzan — sólo cuentan el host real y la ruta real.
+ * `pathname` tiene que empezar con el prefijo del bucket (no `includes`).
+ * `hostname` tiene que ser exactamente el de nuestro proyecto (comparación
+ * estricta: `x.supabase.co.sitio-malo.com` no matchea `x.supabase.co`). Si
+ * no hay `NEXT_PUBLIC_SUPABASE_URL` disponible para comparar, se exige al
+ * menos que el host termine en `.supabase.co` (nunca se vuelve al
+ * `includes()` de texto libre). Una URL que no parsea da `false`.
  */
 export function isOwnStorageUrl(url: string | null | undefined): boolean {
   if (!url) return false
-  return url.includes(PUBLIC_BUCKET_SEGMENT)
+
+  let parsed: URL
+  try {
+    parsed = new URL(url)
+  } catch {
+    return false
+  }
+
+  if (!parsed.pathname.startsWith(PUBLIC_BUCKET_PATH_PREFIX)) return false
+
+  const hostname = parsed.hostname.toLowerCase()
+  const ownHost = ownSupabaseHost()
+  if (ownHost) return hostname === ownHost
+
+  return hostname.endsWith('.supabase.co')
 }
 
 /** Extensiones de imagen soportadas, por `Content-Type` (sin parámetros, ya en minúsculas). */

@@ -195,6 +195,11 @@ describe('validateExternalImageUrl', () => {
 })
 
 describe('isOwnStorageUrl', () => {
+  // Sin NEXT_PUBLIC_SUPABASE_URL definida (no se lee ningún .env en los
+  // tests), isOwnStorageUrl cae al fallback: exige que el host termine en
+  // ".supabase.co". Documentado explícitamente en cada test que depende de
+  // esto, para que no se rompa en silencio si algún día se agrega la
+  // variable al entorno de test.
   it('reconoce una URL del bucket flyers_ig (de Instagram o de externas/)', () => {
     expect(isOwnStorageUrl('https://x.supabase.co/storage/v1/object/public/flyers_ig/cuenta/post.jpg')).toBe(true)
     expect(isOwnStorageUrl('https://x.supabase.co/storage/v1/object/public/flyers_ig/externas/abc123.jpg')).toBe(true)
@@ -205,6 +210,72 @@ describe('isOwnStorageUrl', () => {
     expect(isOwnStorageUrl('https://ticketera.com/flyer.jpg')).toBe(false)
     expect(isOwnStorageUrl(null)).toBe(false)
     expect(isOwnStorageUrl(undefined)).toBe(false)
+  })
+
+  // Arreglo de seguridad (vuelta 1, 31-a): antes era un `url.includes()` de
+  // texto libre sobre la URL completa, así que la subcadena del bucket en
+  // cualquier parte del texto (path de un host ajeno, query string,
+  // fragmento) daba `true`. `image_url` sale del HTML de la ticketera —
+  // texto de un tercero — y un `true` falso desactivaba la copia a Storage
+  // en run-scrape-job.ts y la guarda que protege una imagen propia en
+  // merge-events.ts. Ahora se parsea con `new URL()` y se decide sobre
+  // `hostname` + `pathname`, nunca sobre el texto entero.
+  it('host ajeno con el path del bucket propio: no alcanza con el path, el host no es nuestro', () => {
+    expect(
+      isOwnStorageUrl('https://sitio-malo.com/storage/v1/object/public/flyers_ig/x.jpg')
+    ).toBe(false)
+  })
+
+  it('la subcadena del bucket en el query string o el fragmento no cuenta: sólo importa el pathname real', () => {
+    expect(
+      isOwnStorageUrl('https://sitio-malo.com/x.jpg?u=/storage/v1/object/public/flyers_ig/a.jpg')
+    ).toBe(false)
+    expect(
+      isOwnStorageUrl('https://sitio-malo.com/x.jpg#/storage/v1/object/public/flyers_ig/a.jpg')
+    ).toBe(false)
+  })
+
+  it('credenciales en la autoridad (usuario@host): el host real es el que está después de la @', () => {
+    // `new URL()` interpreta "x.supabase.co" como userinfo, no como host:
+    // el hostname real es "sitio-malo.com".
+    expect(
+      isOwnStorageUrl('https://x.supabase.co@sitio-malo.com/storage/v1/object/public/flyers_ig/a.jpg')
+    ).toBe(false)
+  })
+
+  it('un hostname que sólo termina parecido (subdominio de un tercero) no matchea', () => {
+    expect(
+      isOwnStorageUrl('https://x.supabase.co.sitio-malo.com/storage/v1/object/public/flyers_ig/a.jpg')
+    ).toBe(false)
+  })
+
+  it('una URL que no parsea da false, nunca true', () => {
+    expect(isOwnStorageUrl('no-es-una-url')).toBe(false)
+  })
+
+  describe('con NEXT_PUBLIC_SUPABASE_URL definida: exige el host exacto, no sólo terminar en .supabase.co', () => {
+    const ENV = process.env.NEXT_PUBLIC_SUPABASE_URL
+
+    beforeEach(() => {
+      process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://proyecto-de-prueba.supabase.co'
+    })
+
+    afterEach(() => {
+      if (ENV === undefined) delete process.env.NEXT_PUBLIC_SUPABASE_URL
+      else process.env.NEXT_PUBLIC_SUPABASE_URL = ENV
+    })
+
+    it('el host exacto de nuestro proyecto sigue dando true', () => {
+      expect(
+        isOwnStorageUrl('https://proyecto-de-prueba.supabase.co/storage/v1/object/public/flyers_ig/externas/a.jpg')
+      ).toBe(true)
+    })
+
+    it('otro proyecto de Supabase (termina en .supabase.co, pero no es el nuestro) da false', () => {
+      expect(
+        isOwnStorageUrl('https://otro-proyecto.supabase.co/storage/v1/object/public/flyers_ig/externas/a.jpg')
+      ).toBe(false)
+    })
   })
 })
 
