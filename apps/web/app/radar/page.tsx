@@ -46,7 +46,7 @@ export default async function RadarPage() {
           <div className="flex items-center justify-center size-14 rounded-2xl bg-primary/10 border border-primary/20 text-primary shadow-inner shadow-primary/20 mb-1">
             <Radio className="size-7 animate-pulse text-primary" />
           </div>
-          <h1 className="text-3xl font-extrabold tracking-tight sm:text-4xl bg-gradient-to-r from-zinc-100 via-zinc-200 to-zinc-400 bg-clip-text text-transparent">
+          <h1 className="text-3xl font-extrabold tracking-tight sm:text-4xl text-foreground dark:bg-gradient-to-r dark:from-zinc-100 dark:via-zinc-200 dark:to-zinc-400 dark:bg-clip-text dark:text-transparent">
             Mi Radar Salteño
           </h1>
           <p className="text-sm text-muted-foreground max-w-md leading-relaxed">

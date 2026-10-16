@@ -33,11 +33,11 @@ export function MovieModal({ movie, isFavorite = false, onClose }: MovieModalPro
 
   return (
     <Dialog open onOpenChange={(open) => { if (!open) onClose() }}>
-      <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto p-0 bg-zinc-950 text-zinc-100 border-zinc-800/80">
+      <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto p-0">
         <div className="grid grid-cols-1 md:grid-cols-5 gap-6 p-6">
           {/* Columna del Poster */}
           <div className="md:col-span-2 flex flex-col items-center">
-            <div className="relative aspect-[2/3] w-full max-w-[240px] overflow-hidden rounded-xl border border-zinc-800/80 shadow-2xl bg-zinc-900">
+            <div className="relative aspect-[2/3] w-full max-w-[240px] overflow-hidden rounded-xl border border-border shadow-2xl bg-muted">
               {imgSrc ? (
                 <Image
                   src={imgSrc}
@@ -49,7 +49,7 @@ export function MovieModal({ movie, isFavorite = false, onClose }: MovieModalPro
                   onError={() => setImgSrc("")}
                 />
               ) : (
-                <div className="flex h-full w-full flex-col items-center justify-center bg-zinc-900 text-zinc-600">
+                <div className="flex h-full w-full flex-col items-center justify-center bg-muted text-muted-foreground">
                   <Film className="size-16 stroke-[1.5]" />
                   <span className="mt-2 text-xs">Sin Poster</span>
                 </div>
@@ -66,28 +66,28 @@ export function MovieModal({ movie, isFavorite = false, onClose }: MovieModalPro
                   Cartelera de Cine
                 </span>
                 <DialogHeader className="text-left flex flex-row items-start justify-between gap-4">
-                  <DialogTitle className="text-2xl font-extrabold text-white tracking-tight flex-1">
+                  <DialogTitle className="text-2xl font-extrabold text-foreground tracking-tight flex-1">
                     {movie.title}
                   </DialogTitle>
-                  <FavoriteButton 
+                  <FavoriteButton
                     itemId={movie.id}
                     type="cinema"
                     initialIsFavorite={isFavorite}
-                    className="size-10 bg-zinc-900 border border-zinc-800 hover:bg-zinc-800 text-zinc-100 flex-shrink-0"
+                    className="size-10 bg-muted border border-border hover:bg-muted/70 text-foreground flex-shrink-0"
                   />
                 </DialogHeader>
               </div>
 
               {/* Listado de cines y horarios */}
-              <div className="space-y-4 max-h-[40vh] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-zinc-800 scrollbar-track-transparent">
+              <div className="space-y-4 max-h-[40vh] overflow-y-auto pr-2 scrollbar-thin scrollbar-track-transparent">
                 {movie.showings && cinemasCount > 0 ? (
                   Object.entries(movie.showings as MovieShowings).map(([cinemaKey, details]) => (
-                    <div 
+                    <div
                       key={cinemaKey}
-                      className="rounded-xl border border-zinc-800/60 bg-zinc-900/40 p-4 space-y-3 backdrop-blur-xs"
+                      className="rounded-xl border border-border bg-card/40 p-4 space-y-3 backdrop-blur-xs"
                     >
                       <div className="flex items-center justify-between">
-                        <h4 className="font-bold text-zinc-200 text-sm flex items-center gap-2">
+                        <h4 className="font-bold text-foreground text-sm flex items-center gap-2">
                           <Building2 className="size-4 text-primary" />
                           {details.name}
                         </h4>
@@ -114,18 +114,18 @@ export function MovieModal({ movie, isFavorite = false, onClose }: MovieModalPro
 
                       <div className="space-y-2">
                         {details.formats.map((format, fIdx) => (
-                          <div 
-                            key={fIdx} 
-                            className="flex flex-col gap-1 rounded-lg bg-zinc-950/40 p-2.5 border border-zinc-800/40"
+                          <div
+                            key={fIdx}
+                            className="flex flex-col gap-1 rounded-lg bg-muted/40 p-2.5 border border-border"
                           >
-                            <span className="text-[11px] font-semibold text-zinc-400">
+                            <span className="text-[11px] font-semibold text-muted-foreground">
                               {format.type}
                             </span>
                             <div className="flex flex-wrap gap-1.5">
                               {format.times.map((time, tIdx) => (
-                                <span 
-                                  key={tIdx} 
-                                  className="inline-flex items-center justify-center rounded-md bg-zinc-800 text-zinc-200 font-medium px-2 py-1 text-xs border border-zinc-700/20"
+                                <span
+                                  key={tIdx}
+                                  className="inline-flex items-center justify-center rounded-md bg-muted text-foreground font-medium px-2 py-1 text-xs border border-border"
                                 >
                                   {time}
                                 </span>
@@ -137,12 +137,12 @@ export function MovieModal({ movie, isFavorite = false, onClose }: MovieModalPro
                     </div>
                   ))
                 ) : (
-                  <p className="text-sm text-zinc-500 italic">No hay funciones disponibles para hoy.</p>
+                  <p className="text-sm text-muted-foreground italic">No hay funciones disponibles para hoy.</p>
                 )}
               </div>
             </div>
 
-            <div className="text-center md:text-left text-xs text-zinc-500 border-t border-zinc-800/80 pt-3 flex items-center gap-2">
+            <div className="text-center md:text-left text-xs text-muted-foreground border-t border-border pt-3 flex items-center gap-2">
               <Calendar className="size-4" />
               <span>Horarios actualizados para hoy</span>
             </div>
