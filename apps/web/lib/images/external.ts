@@ -293,6 +293,26 @@ export function validateExternalImageUrl(rawUrl: string): UrlCheck {
 const DOWNLOAD_TIMEOUT_MS = 10_000
 const MAX_REDIRECTS = 5
 
+/**
+ * Content-Types genéricos de "binario" que algunos servidores mandan para una
+ * imagen (alpogo, QPS-162). Con estos, la imagen se acepta solo si los
+ * primeros bytes son de JPEG, PNG o WebP (`sniffImageContentType`).
+ */
+const GENERIC_BINARY_CONTENT_TYPES = new Set(['application/octet-stream', 'binary/octet-stream'])
+
+/**
+ * Tipo de imagen por la firma de los primeros bytes. Solo JPEG, PNG y WebP:
+ * cualquier otra cosa (HTML, GIF, SVG, basura) da `null`.
+ */
+export function sniffImageContentType(bytes: Uint8Array): 'image/jpeg' | 'image/png' | 'image/webp' | null {
+  if (bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) return 'image/jpeg'
+  const PNG = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]
+  if (bytes.length >= PNG.length && PNG.every((b, i) => bytes[i] === b)) return 'image/png'
+  const ascii = (from: number, to: number) => String.fromCharCode(...bytes.subarray(from, to))
+  if (bytes.length >= 12 && ascii(0, 4) === 'RIFF' && ascii(8, 12) === 'WEBP') return 'image/webp'
+  return null
+}
+
 interface DownloadedImage {
   buffer: Buffer
   contentType: string
@@ -405,7 +425,8 @@ async function downloadImageSafely(url: string): Promise<DownloadedImage | null>
 
       const rawContentType = response.headers.get('content-type') || ''
       const contentType = rawContentType.split(';')[0].trim().toLowerCase()
-      if (!contentType.startsWith('image/')) {
+      const genericBinary = GENERIC_BINARY_CONTENT_TYPES.has(contentType)
+      if (!contentType.startsWith('image/') && !genericBinary) {
         console.warn(`[external-images] Content-Type no es imagen (${rawContentType || '(vacío)'}): ${currentUrl}`)
         return null
       }
@@ -430,6 +451,15 @@ async function downloadImageSafely(url: string): Promise<DownloadedImage | null>
           `[external-images] Imagen excede ${INSTAGRAM_ENGINE_CONFIG.MAX_IMAGE_SIZE / 1024 / 1024}MB: ${currentUrl}`
         )
         return null
+      }
+
+      if (genericBinary) {
+        const sniffed = sniffImageContentType(buffer)
+        if (!sniffed) {
+          console.warn(`[external-images] ${contentType} sin firma de JPEG, PNG ni WebP: ${currentUrl}`)
+          return null
+        }
+        return { buffer, contentType: sniffed }
       }
 
       return { buffer, contentType }

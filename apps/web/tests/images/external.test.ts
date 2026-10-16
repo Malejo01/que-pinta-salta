@@ -11,7 +11,7 @@ vi.mock('@/lib/images/variants-server', () => ({
   makeVariants: (...a: unknown[]) => makeVariants(...a),
 }))
 
-import { copyExternalImage, isOwnStorageUrl, validateExternalImageUrl } from '@/lib/images/external'
+import { copyExternalImage, isOwnStorageUrl, sniffImageContentType, validateExternalImageUrl } from '@/lib/images/external'
 import type { ExternalImageStorageClient } from '@/lib/images/external'
 
 interface Upload {
@@ -601,5 +601,83 @@ describe('FlyerImage: flyerVariantUrl arma la variante para externas/…', () =>
     // Mismo comportamiento que ya cubre variants.test.ts para penas/*.webp:
     // sin variante, flyerVariantUrl devuelve la URL sin tocar.
     expect(flyerVariantUrl(url, 400)).toBe(url)
+  })
+})
+
+// QPS-162: alpogo sirve algunas imágenes como application/octet-stream. Se
+// aceptan solo si los primeros bytes son de JPEG, PNG o WebP, y se suben con
+// el tipo detectado (nunca como octet-stream).
+const JPEG = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46, 0x00, 0x01])
+const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d])
+const WEBP = new Uint8Array([0x52, 0x49, 0x46, 0x46, 0x24, 0x00, 0x00, 0x00, 0x57, 0x45, 0x42, 0x50, 0x56, 0x50])
+const HTML = new TextEncoder().encode('<!doctype html><html><body>no es una imagen</body></html>')
+
+describe('sniffImageContentType', () => {
+  it('reconoce JPEG, PNG y WebP por la firma', () => {
+    expect(sniffImageContentType(JPEG)).toBe('image/jpeg')
+    expect(sniffImageContentType(PNG)).toBe('image/png')
+    expect(sniffImageContentType(WEBP)).toBe('image/webp')
+  })
+
+  it('HTML, bytes cortos o vacíos: null', () => {
+    expect(sniffImageContentType(HTML)).toBeNull()
+    expect(sniffImageContentType(new Uint8Array([0xff, 0xd8]))).toBeNull()
+    expect(sniffImageContentType(new Uint8Array([]))).toBeNull()
+  })
+
+  it('un RIFF que no es WebP (por ejemplo WAV): null', () => {
+    const wav = new Uint8Array([0x52, 0x49, 0x46, 0x46, 0x24, 0x00, 0x00, 0x00, 0x57, 0x41, 0x56, 0x45])
+    expect(sniffImageContentType(wav)).toBeNull()
+  })
+})
+
+describe('copyExternalImage: application/octet-stream (QPS-162, alpogo)', () => {
+  it.each([
+    ['JPEG', JPEG, 'image/jpeg', 'jpg'],
+    ['PNG', PNG, 'image/png', 'png'],
+    ['WebP', WEBP, 'image/webp', 'webp'],
+  ] as const)('octet-stream con firma de %s: se sube como %s', async (_nombre, bytes, tipo, ext) => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(fakeResponse({ contentType: 'application/octet-stream', bytes })))
+    const { storage, uploads } = makeFakeStorage()
+
+    const result = await copyExternalImage('https://alpogo.ejemplo.com/flyer', storage)
+
+    expect(result).not.toBeNull()
+    expect(uploads[0].options.contentType).toBe(tipo)
+    expect(uploads[0].path).toMatch(new RegExp(`^externas/[0-9a-f]{40}\\.${ext}$`))
+  })
+
+  it('binary/octet-stream con firma de JPEG también se acepta', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(fakeResponse({ contentType: 'binary/octet-stream', bytes: JPEG })))
+    const { storage, uploads } = makeFakeStorage()
+
+    expect(await copyExternalImage('https://alpogo.ejemplo.com/flyer-2', storage)).not.toBeNull()
+    expect(uploads[0].options.contentType).toBe('image/jpeg')
+  })
+
+  it('octet-stream sin firma de imagen (HTML): devuelve null y no sube nada', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(fakeResponse({ contentType: 'application/octet-stream', bytes: HTML })))
+    const { storage, uploads } = makeFakeStorage()
+
+    expect(await copyExternalImage('https://alpogo.ejemplo.com/no-es-imagen', storage)).toBeNull()
+    expect(uploads).toHaveLength(0)
+  })
+
+  it('otro Content-Type que no es imagen (text/html) sigue rechazado aunque los bytes parezcan JPEG', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(fakeResponse({ contentType: 'text/html', bytes: JPEG })))
+    const { storage, uploads } = makeFakeStorage()
+
+    expect(await copyExternalImage('https://ticketera.ejemplo.com/pagina', storage)).toBeNull()
+    expect(uploads).toHaveLength(0)
+  })
+
+  it('octet-stream por encima del máximo: devuelve null (el límite de tamaño corre igual)', async () => {
+    const grande = new Uint8Array(INSTAGRAM_ENGINE_CONFIG.MAX_IMAGE_SIZE + 1)
+    grande.set(JPEG)
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(fakeResponse({ contentType: 'application/octet-stream', bytes: grande })))
+    const { storage, uploads } = makeFakeStorage()
+
+    expect(await copyExternalImage('https://alpogo.ejemplo.com/enorme', storage)).toBeNull()
+    expect(uploads).toHaveLength(0)
   })
 })
