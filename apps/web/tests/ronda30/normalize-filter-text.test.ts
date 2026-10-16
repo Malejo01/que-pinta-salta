@@ -68,4 +68,21 @@ describe('QPS-021: /buscar, la portada y la app usan la misma normalizeFilterTex
   it('filtrado real: "musica" encuentra "Música" con la normalizeFilterText importada directo de @qps/core', () => {
     expect(normalizeDesdeCore('Noche de Música en vivo')).toContain(normalizeDesdeCore('musica'))
   })
+
+  it('/buscar: el useMemo de filteredEvents llama a normalizeFilterText() en el filtro y no usa .toLowerCase() ahi (un import sin usar no alcanza: si vuelve el filtro viejo con toLowerCase, este caso se rompe aunque el import de normalizeFilterText siga en el archivo)', () => {
+    const source = readWeb('app/buscar/buscar-content.tsx')
+    // Acotado al useMemo de filteredEvents (no al archivo entero: la
+    // agrupacion de eventos repetidos, mas arriba, usa .toLowerCase()
+    // legitimamente para armar la clave titulo+venue y eso no se puede romper).
+    const bloqueMatch = source.match(
+      /const filteredEvents = useMemo\(\(\) => \{([\s\S]*?)\}, \[deferredSearchQuery, allDisplayEvents\]\)/
+    )
+    expect(
+      bloqueMatch,
+      'no se encontro el useMemo de filteredEvents en buscar-content.tsx con la forma esperada (const filteredEvents = useMemo(() => {...}, [deferredSearchQuery, allDisplayEvents])); si cambio de forma, hay que ajustar el regex del test, no aflojarlo'
+    ).not.toBeNull()
+    const cuerpoFiltrado = bloqueMatch![1]
+    expect(cuerpoFiltrado).toMatch(/normalizeFilterText\(/)
+    expect(cuerpoFiltrado).not.toMatch(/\.toLowerCase\(\)/)
+  })
 })
