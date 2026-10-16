@@ -214,7 +214,7 @@ describe('applyVigenciaPrefilter', () => {
 describe('misma función en la agenda, la home, favoritos y el Radar', () => {
   const read = (p: string) => readFileSync(new URL(`../../${p}`, import.meta.url), 'utf8')
 
-  it.each(['lib/data.ts', 'lib/radar/events.ts', 'app/favoritos/page.tsx'])(
+  it.each(['lib/data.ts', 'lib/radar/events.ts'])(
     '%s importa y usa el prefiltro y isVigente de lib/events/vigencia',
     (file) => {
       const src = read(file)
@@ -223,6 +223,31 @@ describe('misma función en la agenda, la home, favoritos y el Radar', () => {
       expect(src).toContain('isVigente')
     },
   )
+
+  // 29-a: el filtro de vigencia de /favoritos se movió de app/favoritos/page.tsx
+  // a `armarFavoritos` (packages/core/src/favoritos/armar.ts), así que
+  // page.tsx ya no importa `isVigente` directamente. El invariante
+  // ("favoritos nunca muestra algo no vigente") sigue protegido en dos
+  // pasos, y este test cubre los dos: 1) page.tsx sigue aplicando el
+  // prefiltro de la base (`applyVigenciaPrefilter`) y delega el armado en
+  // `armarFavoritos`; 2) `armarFavoritos` aplica `isVigente`. Si cualquiera
+  // de los dos pasos desaparece, el test de abajo correspondiente falla.
+  it('app/favoritos/page.tsx sigue aplicando el prefiltro y delega el armado en armarFavoritos', () => {
+    const src = read('app/favoritos/page.tsx')
+    expect(src).toMatch(/from ['"]@\/lib\/events\/vigencia['"]/)
+    expect(src).toContain('applyVigenciaPrefilter')
+    expect(src).toMatch(/from ['"]@qps\/core\/favoritos\/armar['"]/)
+    expect(src).toContain('armarFavoritos')
+  })
+
+  it('armarFavoritos (packages/core/src/favoritos/armar.ts) aplica isVigente', () => {
+    const src = readFileSync(
+      new URL('../../../../packages/core/src/favoritos/armar.ts', import.meta.url),
+      'utf8',
+    )
+    expect(src).toMatch(/from ['"]\.\.\/events\/vigencia['"]/)
+    expect(src).toContain('isVigente')
+  })
 
   it('la home filtra la agenda con isVigente', () => {
     // Movido por 16-b: la lógica de `buildDisplayData` (antes en

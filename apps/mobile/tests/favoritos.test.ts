@@ -18,6 +18,12 @@ const OTRO_EVENT_ID = 'evento-de-prueba-2'
 const estado = vi.hoisted(() => ({
   favoritosFilas: { data: [] as unknown, error: null as unknown } as { data: unknown; error: unknown },
   eventosFilas: { data: [] as unknown, error: null as unknown } as { data: unknown; error: unknown },
+  // 29-a (F13, paridad con la web): además de eventos, Favoritos trae flyers
+  // de Instagram (ACTIVE) y películas en cartel, más las categorías (para el
+  // `categoryName` de los flyers) — las cuatro consultas de `armarFavoritos`.
+  flyersFilas: { data: [] as unknown, error: null as unknown } as { data: unknown; error: unknown },
+  moviesFilas: { data: [] as unknown, error: null as unknown } as { data: unknown; error: unknown },
+  categoriasFilas: { data: [] as unknown, error: null as unknown } as { data: unknown; error: unknown },
   esFavoritoFila: { data: null as unknown, error: null as unknown } as { data: unknown; error: unknown },
   insertResultado: { error: null as unknown } as { error: unknown },
   deleteResultado: { error: null as unknown } as { error: unknown },
@@ -26,12 +32,23 @@ const estado = vi.hoisted(() => ({
   arrojarEsFavorito: null as unknown,
   arrojarInsert: null as unknown,
   arrojarDelete: null as unknown,
-  llamadas: { favoritosSelect: 0, eventosSelect: 0, esFavoritoSelect: 0, insert: 0, delete: 0 },
+  llamadas: {
+    favoritosSelect: 0,
+    eventosSelect: 0,
+    flyersSelect: 0,
+    moviesSelect: 0,
+    categoriasSelect: 0,
+    esFavoritoSelect: 0,
+    insert: 0,
+    delete: 0,
+  },
   ultimoInsert: null as unknown,
   ultimoFavoritosEqs: [] as Array<[string, unknown]>,
   ultimoEsFavoritoEqs: [] as Array<[string, unknown]>,
   ultimoDeleteEqs: [] as Array<[string, unknown]>,
   ultimoEventosIn: null as unknown,
+  ultimoFlyersIn: null as unknown,
+  ultimoMoviesIn: null as unknown,
 }))
 
 // `vi.mock` se eleva por encima de los imports estáticos: `lib/favoritos` ya
@@ -96,10 +113,53 @@ vi.mock('@/lib/supabase', () => ({
           return builder
         }
         builder.eq = () => builder
+        // `applyVigenciaPrefilter` (@qps/core/events/vigencia) agrega un
+        // `.or(...)` a la consulta: el doble solo necesita devolver `builder`
+        // para seguir encadenando, el filtro exacto lo hace `isVigente` en
+        // código (y eso sí lo prueban las fixtures).
+        builder.or = () => builder
         builder.then = (resolve: (v: unknown) => unknown, reject: (e: unknown) => unknown) => {
           estado.llamadas.eventosSelect++
           if (estado.arrojarEventos) return Promise.reject(estado.arrojarEventos).catch(reject)
           return Promise.resolve(estado.eventosFilas).then(resolve, reject)
+        }
+        return builder
+      }
+      if (tabla === 'instagram_flyers') {
+        const builder: Record<string, unknown> = {}
+        builder.select = () => builder
+        builder.in = (_campo: string, ids: unknown) => {
+          estado.ultimoFlyersIn = ids
+          return builder
+        }
+        builder.eq = () => builder
+        builder.then = (resolve: (v: unknown) => unknown, reject: (e: unknown) => unknown) => {
+          estado.llamadas.flyersSelect++
+          return Promise.resolve(estado.flyersFilas).then(resolve, reject)
+        }
+        return builder
+      }
+      if (tabla === 'cinema_movies') {
+        const builder: Record<string, unknown> = {}
+        builder.select = () => builder
+        builder.in = (_campo: string, ids: unknown) => {
+          estado.ultimoMoviesIn = ids
+          return builder
+        }
+        builder.eq = () => builder
+        builder.then = (resolve: (v: unknown) => unknown, reject: (e: unknown) => unknown) => {
+          estado.llamadas.moviesSelect++
+          return Promise.resolve(estado.moviesFilas).then(resolve, reject)
+        }
+        return builder
+      }
+      if (tabla === 'categories') {
+        const builder: Record<string, unknown> = {}
+        builder.select = () => builder
+        builder.order = () => builder
+        builder.then = (resolve: (v: unknown) => unknown, reject: (e: unknown) => unknown) => {
+          estado.llamadas.categoriasSelect++
+          return Promise.resolve(estado.categoriasFilas).then(resolve, reject)
         }
         return builder
       }
@@ -116,6 +176,7 @@ import {
   marcarFavorito,
   obtenerEsFavorito,
   obtenerFavoritos,
+  rutaDeFavorito,
 } from '../lib/favoritos'
 
 function filaDeEventoVigente(id: string) {
@@ -136,6 +197,9 @@ function filaDeEventoVigente(id: string) {
     ticket_url: null,
     age_restriction: 0,
     is_featured: false,
+    // `armarFavoritos` (29-a) filtra `status === 'PUBLISHED'` él mismo (antes
+    // la app confiaba en el filtro de la consulta): la fixture lo necesita.
+    status: 'PUBLISHED',
     category: { slug: 'teatro', name: 'Teatro' },
     venue: { name: 'Teatro de Prueba', address: 'Calle de Prueba 123' },
   }
@@ -144,6 +208,9 @@ function filaDeEventoVigente(id: string) {
 beforeEach(() => {
   estado.favoritosFilas = { data: [], error: null }
   estado.eventosFilas = { data: [], error: null }
+  estado.flyersFilas = { data: [], error: null }
+  estado.moviesFilas = { data: [], error: null }
+  estado.categoriasFilas = { data: [], error: null }
   estado.esFavoritoFila = { data: null, error: null }
   estado.insertResultado = { error: null }
   estado.deleteResultado = { error: null }
@@ -152,12 +219,23 @@ beforeEach(() => {
   estado.arrojarEsFavorito = null
   estado.arrojarInsert = null
   estado.arrojarDelete = null
-  estado.llamadas = { favoritosSelect: 0, eventosSelect: 0, esFavoritoSelect: 0, insert: 0, delete: 0 }
+  estado.llamadas = {
+    favoritosSelect: 0,
+    eventosSelect: 0,
+    flyersSelect: 0,
+    moviesSelect: 0,
+    categoriasSelect: 0,
+    esFavoritoSelect: 0,
+    insert: 0,
+    delete: 0,
+  }
   estado.ultimoInsert = null
   estado.ultimoFavoritosEqs = []
   estado.ultimoEsFavoritoEqs = []
   estado.ultimoDeleteEqs = []
   estado.ultimoEventosIn = null
+  estado.ultimoFlyersIn = null
+  estado.ultimoMoviesIn = null
 })
 
 afterEach(() => {
@@ -378,5 +456,223 @@ describe('sin configuración de Supabase: no se escribe nada', () => {
 
     expect(resultado).toEqual({ ok: false, error: MENSAJE_SIN_CONFIGURACION })
     expect(estado.llamadas.esFavoritoSelect).toBe(0)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// 29-a (F13, paridad con la web): Favoritos también trae flyers de Instagram
+// y películas, pasados por `armarFavoritos` (@qps/core/favoritos/armar).
+// ---------------------------------------------------------------------------
+function filaDeFlyerActivo(id: string) {
+  return {
+    id,
+    account_id: `cuenta-de-${id}`,
+    ig_post_url: `https://instagram.com/p/${id}`,
+    ig_post_type: 'IMAGE',
+    caption: 'Caption de prueba',
+    published_at: '2030-10-01T21:00:00-03:00',
+    original_image_url: null,
+    storage_image_path: null,
+    storage_image_url: null,
+    status: 'ACTIVE',
+    fetched_at: '2030-10-01T21:05:00Z',
+    archived_at: null,
+    created_at: '2030-10-01T21:05:00Z',
+    venue_name: null,
+    maps_url: null,
+    category: 'boliches',
+    price_min: 0,
+    is_free: false,
+    account: {
+      id: `cuenta-de-${id}`,
+      username: `cuenta_${id}`,
+      display_name: `Cuenta de ${id}`,
+      profile_pic_url: null,
+      instagram_url: `https://instagram.com/cuenta_${id}`,
+      is_active: true,
+      notes: null,
+      created_at: '2026-01-01T00:00:00Z',
+      updated_at: '2026-01-01T00:00:00Z',
+      default_venue_name: null,
+      default_maps_url: null,
+      default_category: 'boliches',
+    },
+  }
+}
+
+function filaDePeliculaEnCartel(id: string) {
+  return {
+    id,
+    slug: `pelicula-${id}`,
+    title: `Película ${id}`,
+    poster_url: null,
+    is_currently_showing: true,
+    created_at: '2026-01-01T00:00:00Z',
+    updated_at: '2026-01-01T00:00:00Z',
+    showings: { 'cine-de-prueba': { name: 'Cine de Prueba', booking_url: 'https://cine-de-prueba.test', formats: [] } },
+  }
+}
+
+describe('obtenerFavoritos: flyers de Instagram y películas (F13)', () => {
+  const FLYER_ID = 'flyer-de-prueba-1'
+  const MOVIE_ID = 'pelicula-de-prueba-1'
+
+  it('un flyer ACTIVE entra a "flexibles" (ids_de_favoritos pide instagram_flyers)', async () => {
+    estado.favoritosFilas = { data: [{ instagram_flyer_id: FLYER_ID }], error: null }
+    estado.flyersFilas = { data: [filaDeFlyerActivo(FLYER_ID)], error: null }
+
+    const resultado = await obtenerFavoritos(USER_ID_SESION)
+
+    expect(resultado.ok).toBe(true)
+    if (!resultado.ok) throw new Error('no debería fallar')
+    expect(resultado.eventos.map((e) => e.id)).toEqual([`ig-${FLYER_ID}`])
+    expect(estado.ultimoFlyersIn).toEqual([FLYER_ID])
+    expect(estado.llamadas.eventosSelect).toBe(0)
+  })
+
+  it('una película en cartel entra a "flexibles" (pide cinema_movies)', async () => {
+    estado.favoritosFilas = { data: [{ cinema_movie_id: MOVIE_ID }], error: null }
+    estado.moviesFilas = { data: [filaDePeliculaEnCartel(MOVIE_ID)], error: null }
+
+    const resultado = await obtenerFavoritos(USER_ID_SESION)
+
+    expect(resultado.ok).toBe(true)
+    if (!resultado.ok) throw new Error('no debería fallar')
+    expect(resultado.eventos.map((e) => e.id)).toEqual([`movie-${MOVIE_ID}`])
+    expect(estado.ultimoMoviesIn).toEqual([MOVIE_ID])
+  })
+
+  it('evento, flyer y película juntos: los tres aparecen (nada se descarta por no tener categoría)', async () => {
+    estado.favoritosFilas = {
+      data: [{ event_id: EVENT_ID }, { instagram_flyer_id: FLYER_ID }, { cinema_movie_id: MOVIE_ID }],
+      error: null,
+    }
+    estado.eventosFilas = { data: [filaDeEventoVigente(EVENT_ID)], error: null }
+    estado.flyersFilas = { data: [filaDeFlyerActivo(FLYER_ID)], error: null }
+    estado.moviesFilas = { data: [filaDePeliculaEnCartel(MOVIE_ID)], error: null }
+
+    const resultado = await obtenerFavoritos(USER_ID_SESION)
+
+    expect(resultado.ok).toBe(true)
+    if (!resultado.ok) throw new Error('no debería fallar')
+    expect(new Set(resultado.eventos.map((e) => e.id))).toEqual(new Set([EVENT_ID, `ig-${FLYER_ID}`, `movie-${MOVIE_ID}`]))
+  })
+
+  it('un evento sin categoría no se descarta: aparece como "Sin categorizar" (antes la app lo tiraba — causa de F13)', async () => {
+    const sinCategoria = { ...filaDeEventoVigente(EVENT_ID), category: null }
+    estado.favoritosFilas = { data: [{ event_id: EVENT_ID }], error: null }
+    estado.eventosFilas = { data: [sinCategoria], error: null }
+
+    const resultado = await obtenerFavoritos(USER_ID_SESION)
+
+    expect(resultado.ok).toBe(true)
+    if (!resultado.ok) throw new Error('no debería fallar')
+    expect(resultado.eventos).toHaveLength(1)
+    expect(resultado.eventos[0].categoryName).toBe('Sin categorizar')
+  })
+
+  it('un flyer ARCHIVED (no ACTIVE) no aparece', async () => {
+    estado.favoritosFilas = { data: [{ instagram_flyer_id: FLYER_ID }], error: null }
+    estado.flyersFilas = { data: [{ ...filaDeFlyerActivo(FLYER_ID), status: 'ARCHIVED' }], error: null }
+
+    const resultado = await obtenerFavoritos(USER_ID_SESION)
+
+    expect(resultado).toEqual({ ok: true, eventos: [] })
+  })
+})
+
+// ---------------------------------------------------------------------------
+// rutaDeFavorito: a dónde navega cada item al tocarlo (F13).
+// ---------------------------------------------------------------------------
+type ItemFavorito = Parameters<typeof rutaDeFavorito>[0]
+
+describe('rutaDeFavorito', () => {
+  it('un evento abre /evento/<id>', () => {
+    const evento = { id: 'evento-1', isCinemaMovie: false, isInstagramFlyer: false } as unknown as ItemFavorito
+    expect(rutaDeFavorito(evento)).toBe('/evento/evento-1')
+  })
+
+  it('una película abre /pelicula/<id-sin-el-prefijo-"movie-">', () => {
+    const pelicula = { id: 'movie-pelicula-1', isCinemaMovie: true } as unknown as ItemFavorito
+    expect(rutaDeFavorito(pelicula)).toBe('/pelicula/pelicula-1')
+  })
+
+  it('un flyer abre /flyer/<flyerId> (no el id con el prefijo "ig-")', () => {
+    const flyer = { id: 'ig-flyer-1', isInstagramFlyer: true, flyerId: 'flyer-1' } as unknown as ItemFavorito
+    expect(rutaDeFavorito(flyer)).toBe('/flyer/flyer-1')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// El ciclo guardar → listar, con un doble en memoria propio (no el de arriba,
+// que es sin estado): marcar un evento como favorito y después listarlo
+// tiene que traerlo, sin pasar por ninguna base real.
+// ---------------------------------------------------------------------------
+describe('ciclo guardar → listar (doble en memoria)', () => {
+  it('marcarFavorito y después obtenerFavoritos: el evento recién marcado aparece', async () => {
+    const EVENTO_CICLO = 'evento-de-ciclo-1'
+    const USUARIO_CICLO = 'usuario-de-ciclo-1'
+    const filasFavoritos: { user_id: string; event_id: string }[] = []
+    const eventoFila = filaDeEventoVigente(EVENTO_CICLO)
+
+    vi.resetModules()
+    vi.doMock('@/lib/supabase', () => ({
+      supabase: {
+        from: (tabla: string) => {
+          if (tabla === 'user_favorites') {
+            const eqs: Array<[string, unknown]> = []
+            const builder: Record<string, unknown> = {}
+            builder.select = () => builder
+            builder.eq = (campo: string, valor: unknown) => {
+              eqs.push([campo, valor])
+              return builder
+            }
+            builder.insert = async (valores: { user_id: string; event_id: string }) => {
+              filasFavoritos.push(valores)
+              return { error: null }
+            }
+            builder.then = (resolve: (v: unknown) => unknown) => {
+              const userId = eqs.find(([campo]) => campo === 'user_id')?.[1]
+              const filas = filasFavoritos
+                .filter((f) => f.user_id === userId)
+                .map((f) => ({ event_id: f.event_id, instagram_flyer_id: null, cinema_movie_id: null }))
+              return Promise.resolve({ data: filas, error: null }).then(resolve)
+            }
+            return builder
+          }
+          if (tabla === 'events') {
+            const builder: Record<string, unknown> = {}
+            builder.select = () => builder
+            builder.in = () => builder
+            builder.eq = () => builder
+            builder.or = () => builder
+            builder.then = (resolve: (v: unknown) => unknown) => Promise.resolve({ data: [eventoFila], error: null }).then(resolve)
+            return builder
+          }
+          if (tabla === 'categories') {
+            const builder: Record<string, unknown> = {}
+            builder.select = () => builder
+            builder.order = () => builder
+            builder.then = (resolve: (v: unknown) => unknown) => Promise.resolve({ data: [], error: null }).then(resolve)
+            return builder
+          }
+          throw new Error(`tabla inesperada en el doble del ciclo guardar → listar: ${tabla}`)
+        },
+      },
+    }))
+
+    const { marcarFavorito: marcarCiclo, obtenerFavoritos: obtenerCiclo } = await import('../lib/favoritos')
+
+    expect(await marcarCiclo(EVENTO_CICLO, USUARIO_CICLO)).toEqual({ ok: true })
+
+    const listado = await obtenerCiclo(USUARIO_CICLO)
+    expect(listado.ok).toBe(true)
+    if (!listado.ok) throw new Error('no debería fallar')
+    expect(listado.eventos.map((e) => e.id)).toEqual([EVENTO_CICLO])
+
+    // Otro usuario no ve el favorito recién guardado (el doble también
+    // respeta el filtro por user_id, no solo la función).
+    const listadoOtro = await obtenerCiclo('otro-usuario-de-ciclo')
+    expect(listadoOtro).toEqual({ ok: true, eventos: [] })
   })
 })

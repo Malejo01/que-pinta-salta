@@ -61,8 +61,8 @@ describe('lib/datos/cines.ts', () => {
 describe('lib/datos/: ningún archivo pide "*" a la base', () => {
   const archivos = readdirSync(DATOS_DIR).filter((f) => f.endsWith('.ts'))
 
-  it('encuentra los 2 archivos de datos', () => {
-    expect(archivos.sort()).toEqual(['cines.ts', 'eventos.ts'])
+  it('encuentra los 3 archivos de datos', () => {
+    expect(archivos.sort()).toEqual(['cines.ts', 'eventos.ts', 'flyers.ts'])
   })
 
   it.each(archivos)('%s no usa select("*")', (archivo) => {

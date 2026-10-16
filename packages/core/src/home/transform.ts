@@ -3,7 +3,7 @@
  * formato de la portada (`DisplayEvent`). Movido de `components/home-content.tsx`,
  * sin cambiar comportamiento. Sin React ni next/*.
  */
-import type { CinemaMovie } from "../types"
+import type { CinemaMovie, MovieShowings } from "../types"
 import type { FlyerWithAccount } from "../instagram-config"
 import {
   ageChip,
@@ -133,6 +133,53 @@ export function transformFlyer(flyer: FlyerWithAccount, categoryNameBySlug: Map<
   }
 }
 
+/**
+ * Lo mínimo que necesita `transformMovie`: una variante liviana de
+ * `CinemaMovie` para quien no pide todas sus columnas (por ejemplo la app
+ * móvil, `lib/datos/cines.ts`, que no trae `is_currently_showing` ni
+ * `updated_at`). `created_at` es opcional porque algunos fixtures de prueba
+ * no la tienen: sin ella, se usa el instante en que se llama a la función
+ * (mismo respaldo que el resto del archivo cuando falta un dato).
+ */
+export interface MovieForDisplay {
+  id: string
+  slug: string
+  title: string
+  poster_url: string | null
+  showings: MovieShowings
+  created_at?: string | null
+}
+
+// Transforma una película de cartelera al formato de la portada (R29, 29-h:
+// antes vivía inline en `buildDisplayData`; se saca a una función aparte
+// para que la app móvil arme la misma fila "Cine" sin reimplementar el
+// mapeo). `category: 'cine'` es el mismo slug que ya existe en `categories`
+// (ver el comentario de `EventCategory` en `../types`): por eso
+// `groupByCategory` ubica estas películas en su propia fila sin lógica
+// extra, tanto acá como en la app.
+export function transformMovie(movie: MovieForDisplay, saltaTodayStr: string): DisplayEvent {
+  const showCount = Object.keys(movie.showings || {}).length
+
+  return {
+    id: `movie-${movie.id}`,
+    slug: movie.slug,
+    title: movie.title,
+    venue: `${showCount} ${showCount === 1 ? 'Cine' : 'Cines'} de Salta`,
+    date: saltaTodayStr, // Se proyecta hoy en Salta
+    time: '',
+    category: 'cine',
+    categoryName: 'Cine',
+    price: 'confirmar' as const,
+    image: movie.poster_url || '/placeholder.svg?height=600&width=400',
+    description: '',
+    address: '',
+    startDateTime: movie.created_at ?? new Date().toISOString(), // for ordering
+    isFeatured: false,
+    isCinemaMovie: true,
+    showings: movie.showings,
+  }
+}
+
 export interface DisplayData {
   all: DisplayEvent[]
   today: DisplayEvent[]
@@ -167,29 +214,10 @@ export function buildDisplayData(
   // Transformar flyers de Instagram y mezclarlos con los eventos
   const flyerItems = flyers.map((flyer) => transformFlyer(flyer, categoryNameBySlug))
 
-  // Transformar películas de cine y mezclarlas con los eventos
-  const movieItems = (cinemaMovies || []).map((movie): DisplayEvent => {
-    const showCount = Object.keys(movie.showings || {}).length
-
-    return {
-      id: `movie-${movie.id}`,
-      slug: movie.slug,
-      title: movie.title,
-      venue: `${showCount} ${showCount === 1 ? 'Cine' : 'Cines'} de Salta`,
-      date: saltaTodayStr, // Se proyecta hoy en Salta
-      time: '',
-      category: 'cine',
-      categoryName: 'Cine',
-      price: 'confirmar' as const,
-      image: movie.poster_url || '/placeholder.svg?height=600&width=400',
-      description: '',
-      address: '',
-      startDateTime: movie.created_at, // for ordering
-      isFeatured: false,
-      isCinemaMovie: true,
-      showings: movie.showings,
-    }
-  })
+  // Transformar películas de cine y mezclarlas con los eventos (R29, 29-h:
+  // el mapeo en sí ahora es `transformMovie`, de más arriba en este archivo,
+  // así la app móvil arma la misma fila "Cine" sin reimplementarlo).
+  const movieItems = (cinemaMovies || []).map((movie) => transformMovie(movie, saltaTodayStr))
 
   return {
     all: [...finalEventItems, ...flyerItems, ...movieItems],

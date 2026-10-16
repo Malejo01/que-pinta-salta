@@ -51,6 +51,37 @@ describe('fuentesDeImagen', () => {
     })
   })
 
+  describe('parámetro `ancho` (R29 §3.4: la ficha pide la variante 800, el resto sigue en 400)', () => {
+    it('sin pasar `ancho`: sigue dando la variante 400 (nada que ya existe cambia de comportamiento)', () => {
+      expect(fuentesDeImagen(URL_JPG, SUPABASE_URL)).toEqual([URL_JPG_400, URL_JPG])
+    })
+
+    it('`ancho: 400` explícito: el mismo resultado que sin pasarlo', () => {
+      expect(fuentesDeImagen(URL_JPG, SUPABASE_URL, 400)).toEqual([URL_JPG_400, URL_JPG])
+    })
+
+    it('`ancho: 800`: pide la variante 800, no la 400 (lo que usa la ficha)', () => {
+      const urlJpg800 = `${SUPABASE_URL}/storage/v1/object/public/${BUCKET_IG}/cuenta-de-prueba/post.w800.webp`
+      expect(fuentesDeImagen(URL_JPG, SUPABASE_URL, 800)).toEqual([urlJpg800, URL_JPG])
+    })
+
+    it('`ancho: 800` con query string: conserva la query en la variante y en el original', () => {
+      const conQuery = `${URL_JPG}?v=2`
+      const urlJpg800 = `${SUPABASE_URL}/storage/v1/object/public/${BUCKET_IG}/cuenta-de-prueba/post.w800.webp`
+      expect(fuentesDeImagen(conQuery, SUPABASE_URL, 800)).toEqual([`${urlJpg800}?v=2`, conQuery])
+    })
+
+    it('`ancho` no afecta el bucket `flyers` (siempre [original], no tiene variantes)', () => {
+      const urlPena = `${SUPABASE_URL}/storage/v1/object/public/flyers/penas/balderrama.webp`
+      expect(fuentesDeImagen(urlPena, SUPABASE_URL, 800)).toEqual([urlPena])
+    })
+
+    it('`ancho` no afecta a los hosts de ticketeras (siempre [original])', () => {
+      const url = 'https://entradauno.com/media/destacada.jpg'
+      expect(fuentesDeImagen(url, SUPABASE_URL, 800)).toEqual([url])
+    })
+  })
+
   describe('bucket flyers (nuestro Storage, peñas y admin) — el cambio de la R28: antes null, ahora [original]', () => {
     it('flyers/penas/x.webp: [original]', () => {
       const urlPena = `${SUPABASE_URL}/storage/v1/object/public/flyers/penas/balderrama.webp`
@@ -340,6 +371,35 @@ function listarTsxYTs(root: string): string[] {
   }
   return out
 }
+
+// R29-q (integración de la tanda 3, punto C): `Afiche.tsx` sumó `resizeMode`
+// y `blurRadius` (para el Hero, §3.2 y §2 punto 7) SIN tocar la cadena
+// variante → original → fallback con `onError` ni la validación de hosts.
+// Esto no lo prueba el barrido genérico de más abajo (ese solo mira que
+// nadie FUERA de Afiche.tsx arme un `uri:`) — así que se agrega acá una
+// comprobación de que, DENTRO de Afiche.tsx, las props nuevas no abrieron
+// una segunda forma de construir la fuente de la imagen: sigue habiendo un
+// solo `source={{ uri: ... }}`, siempre con `fuenteActual` (el resultado de
+// `fuentesDeImagen`), y el valor por omisión de `resizeMode` sigue siendo
+// `'cover'` (ningún comportamiento cambia para quien no pasa la prop).
+describe('components/Afiche.tsx: resizeMode y blurRadius no abren una segunda forma de armar la fuente', () => {
+  const content = readFileSync(join(MOBILE_ROOT, ARCHIVO_APROBADO), 'utf8')
+
+  it('sigue habiendo un solo source={{ uri: ... }} (el de fuenteActual, vía fuentesDeImagen)', () => {
+    const ocurrencias = content.match(/\buri\s*:/g) ?? []
+    expect(ocurrencias).toHaveLength(1)
+    expect(content).toMatch(/source=\{\{\s*uri:\s*fuenteActual\s*\}\}/)
+  })
+
+  it('declara resizeMode y blurRadius como props opcionales, sin cambiar AficheEstilo (el tamaño)', () => {
+    expect(content).toMatch(/resizeMode\?:\s*ImageResizeMode/)
+    expect(content).toMatch(/blurRadius\?:\s*number/)
+  })
+
+  it('el valor por omisión de resizeMode sigue siendo "cover" (no cambia el comportamiento de quien no pasa la prop)', () => {
+    expect(content).toMatch(/resizeMode=\{resizeMode\s*\?\?\s*'cover'\}/)
+  })
+})
 
 describe('app/, components/ y lib/: ninguna otra URI de imagen remota sin pasar por fuentesDeImagen', () => {
   const dirs = ['app', 'components', 'lib'].map((d) => join(MOBILE_ROOT, d))

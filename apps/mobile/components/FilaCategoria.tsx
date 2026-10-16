@@ -1,0 +1,113 @@
+// Fila horizontal de una categoría de la portada (R29, 29-h, ops/paridad-web-app.md
+// §3.2 punto 5 y §2 punto 6; paridad con `apps/web/components/category-row.tsx`):
+// `FlatList` horizontal de `TarjetaEvento` 180×270, gap 20 y padding lateral
+// 16; header con el ícono `primary`, el nombre (~20, bold), el contador en
+// una pill y "Ver todos". Devuelve `null` sin eventos, igual que `CategoryRow`.
+//
+// El ícono por categoría (R29-q, integración de la tanda 3, punto D): sale
+// de `iconoPorCategoria`, `components/Icono.tsx` — el mismo mapeo que usa
+// `app/(tabs)/buscar.tsx`, replicando `getCategoryIcon` de la web
+// (`apps/web/lib/category-icons.ts`): "cine" y el resto de las categorías
+// reales tienen su ícono propio; "hoy" (la fila "Hoy en Salta", que no es
+// una categoría real) cae en el mismo fallback que la web, `Calendar`.
+import { useRouter } from 'expo-router'
+import { FlatList, Pressable, StyleSheet, View } from 'react-native'
+import type { DisplayEvent } from '@qps/core/home/types'
+import { Icono, iconoPorCategoria } from '@/components/Icono'
+import { TarjetaEvento } from '@/components/TarjetaEvento'
+import { Texto } from '@/components/Texto'
+import { useColoresQPS } from '@/lib/colores'
+
+const ANCHO_TARJETA = 180
+const ALTO_TARJETA = 270
+
+export interface FilaCategoriaProps {
+  /** Slug de la categoría (o `'hoy'` para la fila "Hoy en Salta": no es una
+   * categoría real, así que cae en el ícono por defecto, `Calendar` — igual
+   * que en la web, `getCategoryIcon('hoy')`). */
+  categoria: string
+  titulo: string
+  eventos: DisplayEvent[]
+  alVerTodos: () => void
+}
+
+export function FilaCategoria({ categoria, titulo, eventos, alVerTodos }: FilaCategoriaProps) {
+  const colores = useColoresQPS()
+
+  if (eventos.length === 0) return null
+
+  return (
+    <View style={estilos.seccion}>
+      <View style={estilos.encabezado}>
+        <View style={estilos.tituloFila}>
+          <Icono nombre={iconoPorCategoria(categoria)} tamanio={20} color={colores.primary} />
+          <Texto peso="bold" style={estilos.titulo}>
+            {titulo}
+          </Texto>
+          <View style={[estilos.pillContador, { backgroundColor: colores.muted }]}>
+            <Texto tono="secundario" style={estilos.textoContador}>
+              {eventos.length}
+            </Texto>
+          </View>
+        </View>
+
+        <Pressable onPress={alVerTodos} accessibilityRole="button" style={estilos.botonVerTodos}>
+          <Texto peso="semibold" tono="primario" style={estilos.textoVerTodos}>
+            Ver todos
+          </Texto>
+        </Pressable>
+      </View>
+
+      <FlatList
+        data={eventos}
+        keyExtractor={(item) => item.id}
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={estilos.lista}
+        renderItem={({ item }) => <CeldaEvento evento={item} />}
+      />
+    </View>
+  )
+}
+
+function CeldaEvento({ evento }: { evento: DisplayEvent }) {
+  const router = useRouter()
+
+  return (
+    <View style={estilos.celda}>
+      <TarjetaEvento evento={evento} />
+      {/* `TarjetaEvento` (no se puede tocar en esta tarea) siempre navega a
+          `/evento/<id>` y da por sentado que el favorito/compartir son de un
+          evento de verdad. Para una película (`id` con el prefijo "movie-")
+          eso rompe: `/evento/movie-xxx` no pasa `esUuid` y redirige a Inicio,
+          y favoritear mandaría ese id a la columna `event_id`. Esta capa
+          transparente, encima de toda la tarjeta, intercepta el toque antes
+          de que llegue al `Pressable` de `TarjetaEvento` y lleva a la ficha
+          de película correcta; como consecuencia, el corazón y "Compartir"
+          de la tarjeta quedan sin usarse para películas (no hacen nada, no
+          rompen) hasta que `TarjetaEvento` sepa distinguir un evento de una
+          película — fuera del alcance de esta tarea. */}
+      {evento.isCinemaMovie ? (
+        <Pressable
+          onPress={() => router.push(`/pelicula/${evento.id.replace(/^movie-/, '')}`)}
+          style={StyleSheet.absoluteFill}
+          accessibilityRole="button"
+          accessibilityLabel={`${evento.title}, en cartel`}
+        />
+      ) : null}
+    </View>
+  )
+}
+
+const estilos = StyleSheet.create({
+  seccion: { paddingTop: 20 },
+  encabezado: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, marginBottom: 12, gap: 8 },
+  tituloFila: { flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 1 },
+  titulo: { fontSize: 20 },
+  pillContador: { borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2 },
+  textoContador: { fontSize: 12 },
+  botonVerTodos: { minHeight: 44, justifyContent: 'center', paddingVertical: 12, marginVertical: -12 },
+  textoVerTodos: { fontSize: 14 },
+  lista: { paddingHorizontal: 16, gap: 20 },
+  celda: { width: ANCHO_TARJETA, height: ALTO_TARJETA },
+})

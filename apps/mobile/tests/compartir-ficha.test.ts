@@ -1,11 +1,27 @@
-// 26-c, punto 5: el texto de "Compartir" de la ficha lleva el link con
-// `o=app` (`urlEvento(id, 'app')` de `@qps/core/metricas/links`) y nunca
-// datos de la sesión (`session`, `user.email`, `user.id`) en el mensaje.
+// 26-c, punto 5: el texto de "Compartir" lleva el link con `o=app`
+// (`urlEvento(id, 'app')` de `@qps/core/metricas/links`) y nunca datos de
+// la sesión (`session`, `user.email`, `user.id`) en el mensaje.
 //
-// `app/evento/[id].tsx` no exporta una función de armado del mensaje por
-// separado (está inline en `compartir()`), así que esto se verifica leyendo
-// el archivo: mismo estilo de detector con fixtures en memoria que
-// `tests/aperturas-url.test.ts` y `tests/iconos.test.ts`.
+// R29, 29-b (F14): el armado del mensaje se movió de `app/evento/[id].tsx`
+// (donde vivía inline en `compartir()`) a `components/BotonCompartir.tsx`,
+// sin cambiarlo — ahora lo usan la ficha y la tarjeta. `BotonCompartir.tsx`
+// tampoco exporta una función de armado por separado (sigue inline en
+// `compartir()`), así que esto se verifica leyendo el archivo: mismo estilo
+// de detector con fixtures en memoria que `tests/aperturas-url.test.ts` y
+// `tests/iconos.test.ts`.
+//
+// R29, 29-i (§3.7, integración 29-q punto A): el detector asumía que TODO
+// `Share.share` comparte un evento puntual. "Compartir agenda por WhatsApp"
+// (`app/(tabs)/favoritos.tsx`) comparte la agenda ENTERA (0 a N eventos,
+// películas y flyers), así que no tiene sentido pedirle `urlEvento(id,
+// 'app')`: el mensaje lo arma `armarMensajeWhatsApp` (`@qps/core/favoritos/armar`),
+// copia literal de `handleShareWhatsApp` de la web, con sus propios links por
+// item (`${sitio}/evento/<id>`, `/cines`, `/flyer/<id>`), ninguno de ellos
+// con el origen "app" porque no son del tipo que `urlEvento` resuelve. La
+// segunda regla válida, entonces, es que el mensaje salga de un llamado a
+// `armarMensajeWhatsApp(...)` — no se afloja la primera regla (si alguien
+// arma a mano la URL de un evento dentro de un `Share.share`, sin pasar por
+// `urlEvento(id, 'app')` NI por `armarMensajeWhatsApp`, sigue fallando).
 import { readFileSync, readdirSync, statSync } from 'node:fs'
 import { join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -14,7 +30,7 @@ import { describe, expect, it } from 'vitest'
 const MOBILE_ROOT = fileURLToPath(new URL('..', import.meta.url))
 const APP_DIR = join(MOBILE_ROOT, 'app')
 const COMPONENTS_DIR = join(MOBILE_ROOT, 'components')
-const FICHA_RELATIVA = join('app', 'evento', '[id].tsx')
+const BOTON_COMPARTIR_RELATIVA = join('components', 'BotonCompartir.tsx')
 
 interface Violation {
   line: number
@@ -46,6 +62,9 @@ function definicionDe(content: string, nombre: string): string | null {
 }
 
 const URL_EVENTO_APP_RE = /urlEvento\([^)]*,\s*['"]app['"]\s*\)/
+// 29-i/29-q: la segunda forma válida de armar `message` — la agenda entera,
+// no un evento puntual (ver el comentario de arriba del archivo).
+const ARMAR_MENSAJE_WHATSAPP_RE = /\barmarMensajeWhatsApp\s*\(/
 const TOKENS_DE_SESION = ['session', 'user.email', 'user.id']
 
 /**
@@ -53,14 +72,19 @@ const TOKENS_DE_SESION = ['session', 'user.email', 'user.id']
  * - el texto armado para `message` tiene que depender, directa o
  *   indirectamente (una variable intermedia como `url` en
  *   `` `${url}` `` con `const url = urlEvento(id, 'app')` ``), de
- *   `urlEvento(id, 'app')` — el link con el origen "app";
+ *   `urlEvento(id, 'app')` — el link con el origen "app" — **o** salir de un
+ *   llamado a `armarMensajeWhatsApp(...)` (el mensaje de "Compartir agenda
+ *   por WhatsApp", que no es de un solo evento y arma sus propios links con
+ *   su propia regla, auditada en `packages/core/src/favoritos/armar.ts`);
  * - el texto armado nunca puede mencionar `session`, `user.email` ni
  *   `user.id` (datos de la sesión, no de la pantalla).
  *
  * No es un parser completo de JS (es una heurística con regex, como el resto
  * de los detectores de esta carpeta): cubre el patrón real del código
- * (`const mensaje = \`...\`; Share.share({ message: mensaje })`), con un
- * nivel de indirección para variables referenciadas dentro del template.
+ * (`const mensaje = \`...\`; Share.share({ message: mensaje })` o
+ * `const mensaje = armarMensajeWhatsApp(...); Share.share({ message: mensaje })`),
+ * con un nivel de indirección para variables referenciadas dentro del
+ * template o pasadas como el valor de `message`.
  */
 export function encontrarViolacionesDeCompartir(content: string): Violation[] {
   const violaciones: Violation[] = []
@@ -101,10 +125,17 @@ export function encontrarViolacionesDeCompartir(content: string): Violation[] {
       }
     }
 
-    if (!usaUrlEventoApp) {
+    // "Compartir agenda" (29-i): `armarMensajeWhatsApp` arma el mensaje de la
+    // agenda entera, con sus propios links — no tiene por qué llevar
+    // `urlEvento(id, 'app')`. Esta regla es específica (el nombre exacto de
+    // la función auditada), no un escape genérico: un link armado a mano
+    // sigue sin colar.
+    const usaArmarMensajeWhatsApp = ARMAR_MENSAJE_WHATSAPP_RE.test(textoArmado)
+
+    if (!usaUrlEventoApp && !usaArmarMensajeWhatsApp) {
       violaciones.push({
         line: lineAt(content, m.index),
-        message: 'Share.share: el mensaje no usa urlEvento(id, "app")',
+        message: 'Share.share: el mensaje no usa urlEvento(id, "app") ni armarMensajeWhatsApp(...)',
       })
     }
 
@@ -151,6 +182,34 @@ describe('encontrarViolacionesDeCompartir (fixtures en memoria: tiene que fallar
       'await Share.share({ message: mensaje })',
     ].join('\n')
     expect(encontrarViolacionesDeCompartir(content)).toEqual([])
+  })
+
+  it('acepta el patrón real de "Compartir agenda": const mensaje = armarMensajeWhatsApp(eventos); Share.share({ message: mensaje })', () => {
+    const content = [
+      'const mensaje = armarMensajeWhatsApp(estado.eventos)',
+      'Share.share({ message: mensaje })',
+    ].join('\n')
+    expect(encontrarViolacionesDeCompartir(content)).toEqual([])
+  })
+
+  it('sigue detectando un link de evento armado a mano, aunque el archivo tenga OTRO Share.share válido con armarMensajeWhatsApp', () => {
+    const content = [
+      'const mensajeAgenda = armarMensajeWhatsApp(estado.eventos)',
+      'Share.share({ message: mensajeAgenda })',
+      "const mensajeSuelto = `${evento.title}\\n${evento.ticket_url}`",
+      'Share.share({ message: mensajeSuelto })',
+    ].join('\n')
+    const v = encontrarViolacionesDeCompartir(content)
+    expect(v.some((x) => x.message.includes('no usa urlEvento'))).toBe(true)
+  })
+
+  it('un nombre de función parecido (no armarMensajeWhatsApp exacto) no cuela', () => {
+    const content = [
+      'const mensaje = armarMensajeDeLoQueSea(estado.eventos)',
+      'Share.share({ message: mensaje })',
+    ].join('\n')
+    const v = encontrarViolacionesDeCompartir(content)
+    expect(v.some((x) => x.message.includes('no usa urlEvento'))).toBe(true)
   })
 
   it('detecta cuando el mensaje no usa urlEvento en absoluto (por ejemplo, un link armado a mano)', () => {
@@ -215,10 +274,20 @@ describe('encontrarViolacionesDeCompartir (fixtures en memoria: tiene que fallar
   })
 })
 
-describe('app/evento/[id].tsx: el texto de compartir usa urlEvento(id, "app") y no lleva datos de sesión', () => {
-  const content = readFileSync(join(MOBILE_ROOT, FICHA_RELATIVA), 'utf8')
+describe('components/BotonCompartir.tsx: el texto de compartir usa urlEvento(id, "app") y no lleva datos de sesión', () => {
+  const content = readFileSync(join(MOBILE_ROOT, BOTON_COMPARTIR_RELATIVA), 'utf8')
 
-  it('no hay violaciones en la ficha real', () => {
+  it('no hay violaciones en BotonCompartir real', () => {
+    expect(encontrarViolacionesDeCompartir(content)).toEqual([])
+  })
+})
+
+// 29-i/29-q: "Compartir agenda por WhatsApp" (app/(tabs)/favoritos.tsx) usa
+// armarMensajeWhatsApp, no urlEvento(id, 'app') — la segunda regla válida.
+describe('app/(tabs)/favoritos.tsx: "Compartir agenda por WhatsApp" usa armarMensajeWhatsApp', () => {
+  const content = readFileSync(join(APP_DIR, '(tabs)', 'favoritos.tsx'), 'utf8')
+
+  it('no hay violaciones en favoritos.tsx real', () => {
     expect(encontrarViolacionesDeCompartir(content)).toEqual([])
   })
 })
@@ -228,9 +297,9 @@ describe('app/evento/[id].tsx: el texto de compartir usa urlEvento(id, "app") y 
 describe('app/ y components/: cualquier otro Share.share también cumple las reglas', () => {
   const archivos = [...listarTsxYTs(APP_DIR), ...listarTsxYTs(COMPONENTS_DIR)]
 
-  it('encuentra al menos un archivo para analizar, incluida la ficha', () => {
+  it('encuentra al menos un archivo para analizar, incluido BotonCompartir', () => {
     expect(archivos.length).toBeGreaterThan(0)
-    expect(archivos.some((f) => relative(MOBILE_ROOT, f) === FICHA_RELATIVA)).toBe(true)
+    expect(archivos.some((f) => relative(MOBILE_ROOT, f) === BOTON_COMPARTIR_RELATIVA)).toBe(true)
   })
 
   it.each(archivos.map((file) => [relative(MOBILE_ROOT, file), file] as const))('%s', (label, file) => {

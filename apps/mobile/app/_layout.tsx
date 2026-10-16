@@ -1,5 +1,6 @@
-import { DarkTheme, DefaultTheme, Stack, ThemeProvider, type ErrorBoundaryProps } from 'expo-router'
-import { Image, Pressable, StyleSheet, Text, View, useColorScheme } from 'react-native'
+import { DarkTheme, Stack, ThemeProvider, type ErrorBoundaryProps } from 'expo-router'
+import { Image, Pressable, StyleSheet, Text, View } from 'react-native'
+import { StatusBar } from 'expo-status-bar'
 import * as Sentry from '@sentry/react-native'
 import { useFonts } from 'expo-font'
 import LOGO_MARCA from '@/assets/logo-circular.png'
@@ -11,13 +12,17 @@ import LOGO_MARCA from '@/assets/logo-circular.png'
 import { Montserrat_400Regular } from '@expo-google-fonts/montserrat/400Regular'
 import { Montserrat_600SemiBold } from '@expo-google-fonts/montserrat/600SemiBold'
 import { Montserrat_700Bold } from '@expo-google-fonts/montserrat/700Bold'
-import { COLORES_CLARO, COLORES_OSCURO, construirTema } from '@/lib/theme'
+import { COLORES_OSCURO, construirTema } from '@/lib/theme'
 import { leerEnv } from '@/lib/env'
 import { inicializarSentry } from '@/lib/sentry'
 import { SessionProvider } from '@/lib/session'
 
-// Tema con los colores de la web (24-a): sigue al sistema (useColorScheme).
-const TEMA_CLARO = construirTema(DefaultTheme, COLORES_CLARO)
+// Tema con los colores de la web (24-a) y, desde 29-g, con `fonts` en
+// Montserrat (ver `construirTema`). D1 (29-g, decisión de Mauro): la app
+// arranca siempre en oscuro, como la web; no hay tema claro acá ni nada que
+// lea el esquema de color del sistema en este archivo (ni acá ni en el
+// `ErrorBoundary`, de abajo, que antes de 29-g sí lo leía). El selector de
+// tema va después.
 const TEMA_OSCURO = construirTema(DarkTheme, COLORES_OSCURO)
 
 // Sentry detrás de EXPO_PUBLIC_SENTRY_DSN (R24): se inicializa una sola vez,
@@ -30,12 +35,13 @@ const sentryActivo = inicializarSentry(leerEnv().sentryDsn)
  * la pantalla en blanco cuando algo debajo del Stack tira). Nunca muestra
  * `error.message` (puede traer datos); si Sentry está activo, `Sentry.wrap`
  * ya capturó el error, así que acá no se llama a `captureException` a mano.
- * Puede renderizarse fuera del `ThemeProvider` (por eso usa `useColorScheme`
- * + los tokens de color directamente, no `useTheme`).
+ * Puede renderizarse fuera del `ThemeProvider` (por eso usa los tokens de
+ * color directamente, no `useTheme`); D1 (29-g): siempre oscuro, como el
+ * resto de la app, así que usa `COLORES_OSCURO` fijo, sin leer el esquema
+ * de color del sistema.
  */
 export function ErrorBoundary({ retry }: ErrorBoundaryProps) {
-  const scheme = useColorScheme()
-  const colores = scheme === 'dark' ? COLORES_OSCURO : COLORES_CLARO
+  const colores = COLORES_OSCURO
 
   return (
     <View style={[estilosError.contenedor, { backgroundColor: colores.background }]}>
@@ -72,7 +78,6 @@ const estilosError = StyleSheet.create({
 })
 
 function RootLayout() {
-  const scheme = useColorScheme()
   // Montserrat (R25, decisión 3 de Mauro): nada de Yellowtail ni Poppins, el
   // logo va como imagen (assets/logo-circular.png). Mientras carga (o si
   // falla), el layout no se rompe: se devuelve `null` y la splash nativa
@@ -89,7 +94,9 @@ function RootLayout() {
 
   return (
     <SessionProvider>
-      <ThemeProvider value={scheme === 'dark' ? TEMA_OSCURO : TEMA_CLARO}>
+      <ThemeProvider value={TEMA_OSCURO}>
+        {/* D1: barra de estado clara (íconos blancos) sobre el fondo oscuro. */}
+        <StatusBar style="light" />
         <Stack>
           <Stack.Screen name="bienvenida" options={{ headerShown: false }} />
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
