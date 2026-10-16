@@ -416,6 +416,148 @@ describe('app/(tabs)/buscar.tsx: el botón de limpiar vuelve con accionDerecha (
 // aditiva — sin ella se comporta exactamente igual que antes: Cuenta y
 // Notificaciones no cambian en nada, y la rama de `conOjito` sigue intacta).
 // ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// 33-a, vuelta 2 (revisor, QPS-146): CampoTexto.tsx era la única de las tres
+// copias del rojo de error que todavía dependía de `useColorScheme()` — el
+// esquema del SISTEMA, no el de `useColoresQPS()` (D1: siempre oscuro). Con
+// el teléfono en claro, elegía `#dc2626` (pensado para fondo claro) sobre
+// `colores.card`, que sigue oscuro: 4,07:1, abajo del 4,5:1 de AA.
+//
+// Mismo criterio que `tests/layout.test.ts` después del paso de qa: no basta
+// con `.toMatch` sobre el texto crudo (se evade comentando el import real y
+// dejando, al lado, la línea buena comentada, o con un alias de import:
+// `useColorScheme as useEsquemaSistema`) — hay que usar `quitarComentarios`
+// y, para el alias, quedarse con el nombre de ANTES del `as` para saber a
+// qué identificador local quedó ligado `useColorScheme`.
+// ---------------------------------------------------------------------------
+
+/** Nombre local al que queda ligado `useColorScheme` de `'react-native'`
+ * (contempla `useColorScheme as otroNombre`), o `null` si el archivo no lo
+ * importa de ahí. Fuera de comentarios. */
+export function nombreLocalDeUseColorScheme(content: string): string | null {
+  const limpio = quitarComentarios(content)
+  const bloque = limpio.match(/import\s*\{([^}]*)\}\s*from\s*['"]react-native['"]/)
+  if (!bloque) return null
+  const m = bloque[1].match(/\buseColorScheme\b(?:\s+as\s+(\w+))?/)
+  if (!m) return null
+  return m[1] ?? 'useColorScheme'
+}
+
+/**
+ * `true` si `content` usa el resultado de `useColorScheme()` (con cualquier
+ * alias de import) para elegir, con una comparación contra `'dark'`, entre
+ * dos valores que resuelven a un hex rojo (literal, o una constante
+ * `const NOMBRE = '#hex'` declarada en el mismo archivo) — el patrón exacto
+ * que causaba QPS-146 en `CampoTexto.tsx`. Fuera de comentarios.
+ */
+export function eligeColorDeErrorSegunEsquema(content: string): boolean {
+  const limpio = quitarComentarios(content)
+  const nombreLocal = nombreLocalDeUseColorScheme(limpio)
+  if (!nombreLocal) return false
+  if (!new RegExp(`\\b${nombreLocal}\\s*\\(\\s*\\)`).test(limpio)) return false
+
+  const constantes = new Map<string, string>()
+  const reConst = /\bconst\s+([A-Z_][A-Z0-9_]*)\s*=\s*['"](#[0-9a-fA-F]{3,8})['"]/g
+  let mConst: RegExpExecArray | null
+  while ((mConst = reConst.exec(limpio))) constantes.set(mConst[1], mConst[2])
+
+  const resolver = (expresion: string): string | null => {
+    const recortado = expresion.trim()
+    const comoHex = recortado.match(/^['"](#[0-9a-fA-F]{3,8})['"]$/)
+    if (comoHex) return comoHex[1]
+    return constantes.get(recortado) ?? null
+  }
+
+  const reTernario = /===\s*['"]dark['"]\s*\?\s*([^:]+):\s*([^;\n,)}]+)/g
+  let mTern: RegExpExecArray | null
+  while ((mTern = reTernario.exec(limpio))) {
+    const a = resolver(mTern[1])
+    const b = resolver(mTern[2])
+    if ((a && esHexRojo(a)) || (b && esHexRojo(b))) return true
+  }
+  return false
+}
+
+describe('nombreLocalDeUseColorScheme / eligeColorDeErrorSegunEsquema (fixtures en memoria: tienen que fallar de verdad)', () => {
+  it('detecta el bug real (antes de la vuelta 2): ROJO_ERROR_CLARO/OSCURO según esquema === "dark"', () => {
+    const fixture = `
+      import { useColorScheme } from 'react-native'
+      const ROJO_ERROR_CLARO = '#dc2626'
+      const ROJO_ERROR_OSCURO = '#f87171'
+      const esquema = useColorScheme()
+      const colorError = esquema === 'dark' ? ROJO_ERROR_OSCURO : ROJO_ERROR_CLARO
+    `
+    expect(nombreLocalDeUseColorScheme(fixture)).toBe('useColorScheme')
+    expect(eligeColorDeErrorSegunEsquema(fixture)).toBe(true)
+  })
+
+  it('no se deja engañar por un alias de import (useColorScheme as useEsquemaSistema)', () => {
+    const fixture = `
+      import { useColorScheme as useEsquemaSistema } from 'react-native'
+      const ROJO_ERROR_CLARO = '#dc2626'
+      const ROJO_ERROR_OSCURO = '#f87171'
+      const esquema = useEsquemaSistema()
+      const colorError = esquema === 'dark' ? ROJO_ERROR_OSCURO : ROJO_ERROR_CLARO
+    `
+    expect(nombreLocalDeUseColorScheme(fixture)).toBe('useEsquemaSistema')
+    expect(eligeColorDeErrorSegunEsquema(fixture)).toBe(true)
+  })
+
+  it('no se deja engañar por el import real comentado y la línea buena (COLOR_ERROR fijo) comentada al lado de la rota', () => {
+    const fixture = `
+      // import { useColorScheme } from 'react-native'
+      // const COLOR_ERROR = '#f87171'
+      import { useColorScheme } from 'react-native'
+      const ROJO_ERROR_CLARO = '#dc2626'
+      const ROJO_ERROR_OSCURO = '#f87171'
+      const esquema = useColorScheme()
+      const colorError = esquema === 'dark' ? ROJO_ERROR_OSCURO : ROJO_ERROR_CLARO
+    `
+    // Sigue en true: el import y el ternario reales (sin comentar) siguen el
+    // patrón viejo — lo único comentado es una copia extra, no alcanza con
+    // comentar "al lado" para que el detector dé un falso negativo.
+    expect(eligeColorDeErrorSegunEsquema(fixture)).toBe(true)
+  })
+
+  it('no detecta nada si todo el bloque viejo está comentado y el real ya es COLOR_ERROR fijo (el arreglo real)', () => {
+    const fixture = `
+      // const esquema = useColorScheme()
+      // const colorError = esquema === 'dark' ? ROJO_ERROR_OSCURO : ROJO_ERROR_CLARO
+      const COLOR_ERROR = '#f87171'
+      const x = { color: COLOR_ERROR }
+    `
+    expect(nombreLocalDeUseColorScheme(fixture)).toBeNull()
+    expect(eligeColorDeErrorSegunEsquema(fixture)).toBe(false)
+  })
+
+  it('no confunde un useColorScheme importado pero usado para otra cosa (sin ternario de rojo)', () => {
+    const fixture = `
+      import { useColorScheme } from 'react-native'
+      const esquema = useColorScheme()
+      console.log(esquema)
+    `
+    expect(eligeColorDeErrorSegunEsquema(fixture)).toBe(false)
+  })
+
+  it('sin ningún import de useColorScheme: null/false', () => {
+    const fixture = `import { View } from 'react-native'\nexport function Foo() { return null }`
+    expect(nombreLocalDeUseColorScheme(fixture)).toBeNull()
+    expect(eligeColorDeErrorSegunEsquema(fixture)).toBe(false)
+  })
+})
+
+describe('CampoTexto.tsx: ya no elige el color de error según useColorScheme() (33-a, vuelta 2, QPS-146)', () => {
+  const SRC_CAMPO_TEXTO = readFileSync(join(COMPONENTS_DIR, 'CampoTexto.tsx'), 'utf8')
+
+  it('no usa useColorScheme (de ningún alias) para elegir el color de error', () => {
+    expect(eligeColorDeErrorSegunEsquema(SRC_CAMPO_TEXTO)).toBe(false)
+  })
+
+  it('fija COLOR_ERROR = \'#f87171\', mismo valor que cuenta.tsx y SeccionNotificaciones.tsx', () => {
+    expect(quitarComentarios(SRC_CAMPO_TEXTO)).toMatch(/\bconst\s+COLOR_ERROR\s*=\s*'#f87171'/)
+  })
+})
+
 describe('CampoTexto.tsx: accionDerecha (33-a, vuelta 1, QPS-151)', () => {
   const SRC_CAMPO_TEXTO = readFileSync(join(COMPONENTS_DIR, 'CampoTexto.tsx'), 'utf8')
 
