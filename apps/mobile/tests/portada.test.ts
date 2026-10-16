@@ -169,6 +169,19 @@ describe('app/(tabs)/index.tsx: lectura estática', () => {
     expect(content).not.toMatch(/\.sort\([^)]*events\.length/)
   })
 
+  // La prueba de rotura 4 del plan de la R29 (reemplazar la llamada a
+  // `groupByCategory` por un `.map()` propio que arma `{ category, events }`)
+  // NO fallaba: importar la función y no reimplementar el `.sort` no alcanza,
+  // porque la agrupación se puede rehacer sin ninguna de las dos cosas. Estos
+  // dos casos cierran esa brecha.
+  it('LLAMA a groupByCategory (no solo la importa)', () => {
+    expect(content).toMatch(/\bgroupByCategory\s*\(/)
+  })
+
+  it('no arma las filas por su cuenta (sin un map que devuelva { category, events })', () => {
+    expect(content).not.toMatch(/\.map\([^)]*\)\s*=>\s*\(?\s*\{[^}]*\bcategory\s*:[^}]*\bevents\s*:/s)
+  })
+
   it('importa selectCarouselEvents de @qps/core/home/carousel y lo pasa a <Hero', () => {
     expect(content).toMatch(/import\s*\{[^}]*\bselectCarouselEvents\b[^}]*\}\s*from\s*['"]@qps\/core\/home\/carousel['"]/)
     expect(content).toMatch(/selectCarouselEvents\(/)
