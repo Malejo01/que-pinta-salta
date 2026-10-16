@@ -141,6 +141,71 @@ describe('cuenta.tsx: texto secundario en mutedForeground, nunca en border', () 
   })
 })
 
+// 33-b (QPS-150): el teclado abierto no tiene que tapar los toques, en las
+// dos ramas de Cuenta (con sesión y sin sesión). Se separan los dos bloques
+// con anclas únicas del archivo ("if (session) {" hasta el arranque de la
+// rama sin sesión, marcado por el <ImageBackground> del fondo de login) para
+// que el test distinga de verdad las dos ramas: si alguien le sacara
+// `keyboardShouldPersistTaps` solo a la rama con sesión, el chequeo de esa
+// rama (y no el de la rama sin sesión, que seguiría en verde) se pondría en
+// rojo. Un `SRC_CUENTA.toContain(...)` suelto sobre todo el archivo (como el
+// de la R28/R29, arriba) no detectaría eso.
+describe('cuenta.tsx: QPS-150, keyboardShouldPersistTaps en las dos ramas', () => {
+  const idxSesion = SRC_CUENTA.indexOf('if (session) {')
+  const idxLogin = SRC_CUENTA.indexOf('<ImageBackground')
+  const bloqueSesion = SRC_CUENTA.slice(idxSesion, idxLogin)
+  const bloqueLogin = SRC_CUENTA.slice(idxLogin)
+
+  it('encuentra las dos anclas que delimitan las ramas', () => {
+    expect(idxSesion).toBeGreaterThan(-1)
+    expect(idxLogin).toBeGreaterThan(idxSesion)
+  })
+
+  it('la rama CON sesión tiene su propio ScrollView', () => {
+    expect(bloqueSesion).toMatch(/<ScrollView\b/)
+  })
+
+  it('la rama CON sesión: keyboardShouldPersistTaps="handled"', () => {
+    expect(bloqueSesion).toContain('keyboardShouldPersistTaps="handled"')
+  })
+
+  it('la rama SIN sesión: keyboardShouldPersistTaps="handled" (ya desde la R28)', () => {
+    expect(bloqueLogin).toContain('keyboardShouldPersistTaps="handled"')
+  })
+})
+
+// 33-b (QPS-149): mientras dura el login con Google, se muestra un
+// indicador. Cuenta ya usa `accionEnCurso` para "entrar"/"crear"/"salir"
+// (mismo mecanismo que esos botones, sin estado nuevo): acá se verifica que
+// 'google' siga ese patrón y que BotonGoogle reciba `cargando` y `disabled`
+// igual que como los demás botones reciben su ActivityIndicator y su
+// `disabled={accionEnCurso !== null}`.
+describe('cuenta.tsx + BotonGoogle.tsx: QPS-149, el indicador durante el login con Google', () => {
+  it('"google" es una de las opciones de accionEnCurso', () => {
+    expect(SRC_CUENTA).toMatch(/useState<'entrar'\s*\|\s*'crear'\s*\|\s*'google'\s*\|\s*'salir'\s*\|\s*null>/)
+  })
+
+  it('entrarConGoogle pone accionEnCurso en \'google\' mientras dura el login', () => {
+    expect(SRC_CUENTA).toMatch(/setAccionEnCurso\('google'\)/)
+  })
+
+  it('le pasa cargando={accionEnCurso === \'google\'} a BotonGoogle', () => {
+    expect(SRC_CUENTA).toMatch(/<BotonGoogle[\s\S]{0,200}cargando=\{accionEnCurso === 'google'\}/)
+  })
+
+  it('BotonGoogle sigue disabled con accionEnCurso !== null, como los demás botones', () => {
+    expect(SRC_CUENTA).toMatch(/<BotonGoogle[\s\S]{0,200}disabled=\{accionEnCurso !== null\}/)
+  })
+
+  it('BotonGoogle.tsx: con cargando=true se muestra el ActivityIndicator (y no el ícono ni el texto)', () => {
+    expect(SRC_BOTON_GOOGLE).toMatch(/cargando\s*\?[\s\S]{0,80}<ActivityIndicator/)
+  })
+
+  it('BotonGoogle.tsx: el Pressable queda disabled mientras cargando es true', () => {
+    expect(SRC_BOTON_GOOGLE).toMatch(/deshabilitado\s*=\s*Boolean\(disabled\)\s*\|\|\s*Boolean\(cargando\)/)
+  })
+})
+
 describe('BotonGoogle.tsx: outline (con borderWidth) y detrás de la condición de la variable', () => {
   it('define borderWidth (es outline, no relleno)', () => {
     expect(SRC_BOTON_GOOGLE).toMatch(/borderWidth\s*:/)
