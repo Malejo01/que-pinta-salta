@@ -150,11 +150,19 @@ describe('cuenta.tsx: texto secundario en mutedForeground, nunca en border', () 
 // rama (y no el de la rama sin sesión, que seguiría en verde) se pondría en
 // rojo. Un `SRC_CUENTA.toContain(...)` suelto sobre todo el archivo (como el
 // de la R28/R29, arriba) no detectaría eso.
+//
+// 33-q (hueco de evasión, revisor): las anclas y el `.toContain` de abajo se
+// calculaban sobre `SRC_CUENTA` crudo, sin sacar comentarios. Eso significa
+// que alguien podía borrar la prop real de una rama y dejar, al lado,
+// `// keyboardShouldPersistTaps="handled"` comentado: el `.toContain` la
+// encuentra igual (es una subcadena del archivo, esté comentada o no) y el
+// test queda en verde con el bug real presente. Ahora los dos bloques se
+// recortan sobre `CODIGO_CUENTA` (ya sin comentarios, definido arriba).
 describe('cuenta.tsx: QPS-150, keyboardShouldPersistTaps en las dos ramas', () => {
-  const idxSesion = SRC_CUENTA.indexOf('if (session) {')
-  const idxLogin = SRC_CUENTA.indexOf('<ImageBackground')
-  const bloqueSesion = SRC_CUENTA.slice(idxSesion, idxLogin)
-  const bloqueLogin = SRC_CUENTA.slice(idxLogin)
+  const idxSesion = CODIGO_CUENTA.indexOf('if (session) {')
+  const idxLogin = CODIGO_CUENTA.indexOf('<ImageBackground')
+  const bloqueSesion = CODIGO_CUENTA.slice(idxSesion, idxLogin)
+  const bloqueLogin = CODIGO_CUENTA.slice(idxLogin)
 
   it('encuentra las dos anclas que delimitan las ramas', () => {
     expect(idxSesion).toBeGreaterThan(-1)
@@ -172,6 +180,40 @@ describe('cuenta.tsx: QPS-150, keyboardShouldPersistTaps en las dos ramas', () =
   it('la rama SIN sesión: keyboardShouldPersistTaps="handled" (ya desde la R28)', () => {
     expect(bloqueLogin).toContain('keyboardShouldPersistTaps="handled"')
   })
+
+  it('fixture de rotura (33-q): un comentario con la línea buena al lado de la prop real sacada no cuenta', () => {
+    const fixtureRoto = [
+      'if (session) {',
+      '  return (',
+      '    <ScrollView',
+      '      // keyboardShouldPersistTaps="handled" (antes estaba acá)',
+      '    >',
+      '    </ScrollView>',
+      '  )',
+      '}',
+      '<ImageBackground>',
+    ].join('\n')
+    const limpio = quitarComentarios(fixtureRoto)
+    const idx = limpio.indexOf('if (session) {')
+    const idxFin = limpio.indexOf('<ImageBackground')
+    expect(limpio.slice(idx, idxFin)).not.toContain('keyboardShouldPersistTaps="handled"')
+  })
+
+  it('fixture sano (33-q): la prop real (no comentada) sí cuenta', () => {
+    const fixtureSano = [
+      'if (session) {',
+      '  return (',
+      '    <ScrollView keyboardShouldPersistTaps="handled">',
+      '    </ScrollView>',
+      '  )',
+      '}',
+      '<ImageBackground>',
+    ].join('\n')
+    const limpio = quitarComentarios(fixtureSano)
+    const idx = limpio.indexOf('if (session) {')
+    const idxFin = limpio.indexOf('<ImageBackground')
+    expect(limpio.slice(idx, idxFin)).toContain('keyboardShouldPersistTaps="handled"')
+  })
 })
 
 // 33-b (QPS-149): mientras dura el login con Google, se muestra un
@@ -180,29 +222,44 @@ describe('cuenta.tsx: QPS-150, keyboardShouldPersistTaps en las dos ramas', () =
 // 'google' siga ese patrón y que BotonGoogle reciba `cargando` y `disabled`
 // igual que como los demás botones reciben su ActivityIndicator y su
 // `disabled={accionEnCurso !== null}`.
+//
+// 33-q (mismo hueco que QPS-150, arriba): las seis aserciones de abajo
+// usaban `SRC_CUENTA`/`SRC_BOTON_GOOGLE` crudos. Un `setAccionEnCurso('google')`
+// comentado al lado del código real (que ya no lo llama) pasaba igual. Ahora
+// usan `CODIGO_CUENTA`/`CODIGO_BOTON_GOOGLE` (sin comentarios).
 describe('cuenta.tsx + BotonGoogle.tsx: QPS-149, el indicador durante el login con Google', () => {
   it('"google" es una de las opciones de accionEnCurso', () => {
-    expect(SRC_CUENTA).toMatch(/useState<'entrar'\s*\|\s*'crear'\s*\|\s*'google'\s*\|\s*'salir'\s*\|\s*null>/)
+    expect(CODIGO_CUENTA).toMatch(/useState<'entrar'\s*\|\s*'crear'\s*\|\s*'google'\s*\|\s*'salir'\s*\|\s*null>/)
   })
 
   it('entrarConGoogle pone accionEnCurso en \'google\' mientras dura el login', () => {
-    expect(SRC_CUENTA).toMatch(/setAccionEnCurso\('google'\)/)
+    expect(CODIGO_CUENTA).toMatch(/setAccionEnCurso\('google'\)/)
   })
 
   it('le pasa cargando={accionEnCurso === \'google\'} a BotonGoogle', () => {
-    expect(SRC_CUENTA).toMatch(/<BotonGoogle[\s\S]{0,200}cargando=\{accionEnCurso === 'google'\}/)
+    expect(CODIGO_CUENTA).toMatch(/<BotonGoogle[\s\S]{0,200}cargando=\{accionEnCurso === 'google'\}/)
   })
 
   it('BotonGoogle sigue disabled con accionEnCurso !== null, como los demás botones', () => {
-    expect(SRC_CUENTA).toMatch(/<BotonGoogle[\s\S]{0,200}disabled=\{accionEnCurso !== null\}/)
+    expect(CODIGO_CUENTA).toMatch(/<BotonGoogle[\s\S]{0,200}disabled=\{accionEnCurso !== null\}/)
   })
 
   it('BotonGoogle.tsx: con cargando=true se muestra el ActivityIndicator (y no el ícono ni el texto)', () => {
-    expect(SRC_BOTON_GOOGLE).toMatch(/cargando\s*\?[\s\S]{0,80}<ActivityIndicator/)
+    expect(CODIGO_BOTON_GOOGLE).toMatch(/cargando\s*\?[\s\S]{0,80}<ActivityIndicator/)
   })
 
   it('BotonGoogle.tsx: el Pressable queda disabled mientras cargando es true', () => {
-    expect(SRC_BOTON_GOOGLE).toMatch(/deshabilitado\s*=\s*Boolean\(disabled\)\s*\|\|\s*Boolean\(cargando\)/)
+    expect(CODIGO_BOTON_GOOGLE).toMatch(/deshabilitado\s*=\s*Boolean\(disabled\)\s*\|\|\s*Boolean\(cargando\)/)
+  })
+
+  it('fixture de rotura (33-q): setAccionEnCurso(\'google\') comentado (código real ya no lo llama) no cuenta', () => {
+    const fixtureRoto = `// setAccionEnCurso('google')\nsetAccionEnCurso('entrar')`
+    expect(quitarComentarios(fixtureRoto)).not.toMatch(/setAccionEnCurso\('google'\)/)
+  })
+
+  it('fixture sano (33-q): la llamada real (no comentada) sí cuenta', () => {
+    const fixtureSano = `setAccionEnCurso('google')`
+    expect(quitarComentarios(fixtureSano)).toMatch(/setAccionEnCurso\('google'\)/)
   })
 })
 

@@ -16,17 +16,18 @@
 // `backgroundColor:`: ese es justo el contraste que marca QPS-146/QPS-147
 // (mensajes y textos secundarios que casi no se ven), no los bordes o
 // fondos, que no tienen ese problema.
-import { readFileSync, readdirSync, statSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { describe, expect, it } from 'vitest'
+import { afterAll, describe, expect, it } from 'vitest'
 
 const MOBILE_ROOT = fileURLToPath(new URL('..', import.meta.url))
 const APP_DIR = join(MOBILE_ROOT, 'app')
 const COMPONENTS_DIR = join(MOBILE_ROOT, 'components')
 const RUTA_BUSCAR = join(APP_DIR, '(tabs)', 'buscar.tsx')
 
-function listarTsxYTs(root: string): string[] {
+export function listarTsxYTs(root: string): string[] {
   const out: string[] = []
   for (const entry of readdirSync(root)) {
     const full = join(root, entry)
@@ -39,6 +40,46 @@ function listarTsxYTs(root: string): string[] {
   }
   return out
 }
+
+// 33-q (pedido del plan: verificar de verdad qué recorre `listarTsxYTs` —
+// ¿entra en subcarpetas anidadas?, ¿cuenta `.tsx` solamente?). Fixture
+// sintética en un directorio temporal (no el repo real: así queda probado
+// aunque hoy no haya ningún `.ts` suelto en `app/`/`components/`), limpiada
+// al final con `rmSync`. Sin red ni base.
+describe('listarTsxYTs: recursión y extensiones (fixture sintética, 33-q)', () => {
+  const dirTemp = mkdtempSync(join(tmpdir(), 'colores-texto-detector-'))
+  mkdirSync(join(dirTemp, 'sub', 'profundo'), { recursive: true })
+  writeFileSync(join(dirTemp, 'raiz.tsx'), '')
+  writeFileSync(join(dirTemp, 'logica.ts'), '')
+  writeFileSync(join(dirTemp, 'sub', 'anidado.tsx'), '')
+  writeFileSync(join(dirTemp, 'sub', 'profundo', 'bien-hondo.tsx'), '')
+  writeFileSync(join(dirTemp, 'no-cuenta.js'), '')
+  writeFileSync(join(dirTemp, 'tampoco.json'), '')
+
+  afterAll(() => {
+    rmSync(dirTemp, { recursive: true, force: true })
+  })
+
+  const encontrados = listarTsxYTs(dirTemp).map((f) => relative(dirTemp, f).replace(/\\/g, '/'))
+
+  it('entra en subcarpetas anidadas (más de un nivel)', () => {
+    expect(encontrados).toContain('sub/anidado.tsx')
+    expect(encontrados).toContain('sub/profundo/bien-hondo.tsx')
+  })
+
+  it('cuenta .ts, no solo .tsx', () => {
+    expect(encontrados).toContain('logica.ts')
+  })
+
+  it('no cuenta .js ni .json', () => {
+    expect(encontrados).not.toContain('no-cuenta.js')
+    expect(encontrados).not.toContain('tampoco.json')
+  })
+
+  it('son exactamente los 4 archivos de la fixture (ni más ni menos)', () => {
+    expect(encontrados.length).toBe(4)
+  })
+})
 
 /** Mismo stripper de comentarios que `tests/base-visual.test.ts` (línea por
  * línea, con comentarios de una línea y de bloque) — evitamos que un
@@ -254,6 +295,43 @@ describe('app/ y components/: ningún texto usa colors.border/colores.border, ni
 
   it('encuentra al menos un archivo para analizar', () => {
     expect(archivos.length).toBeGreaterThan(0)
+  })
+
+  // 33-q (hueco de evasión, pedido del plan): "encuentra al menos un
+  // archivo" es tan débil que alguien podría achicar `listarTsxYTs` (dejar
+  // de recursar en subcarpetas, o filtrar solo `buscar.tsx`/lo que tocó esta
+  // ronda) sin que ningún test se ponga en rojo — simplemente habría menos
+  // casos en el `it.each` de abajo, todos en verde. Estas aserciones fijan
+  // que la lista de verdad cubre pantallas y componentes que esta ronda NO
+  // tocó (app/evento, app/flyer, app/pelicula, app/cines, las demás pestañas,
+  // bienvenida, +not-found, _layout, y componentes como PantallaRadar,
+  // TarjetaEvento, Hero) y que no es sospechosamente chica.
+  describe('cobertura real: no se achica en silencio (33-q)', () => {
+    const relativos = archivos.map((f) => relative(MOBILE_ROOT, f).replace(/\\/g, '/'))
+
+    it.each([
+      'app/evento/[id].tsx',
+      'app/flyer/[id].tsx',
+      'app/pelicula/[id].tsx',
+      'app/cines.tsx',
+      'app/bienvenida.tsx',
+      'app/+not-found.tsx',
+      'app/_layout.tsx',
+      'app/(tabs)/radar.tsx',
+      'app/(tabs)/favoritos.tsx',
+      'app/(tabs)/index.tsx',
+      'app/(tabs)/_layout.tsx',
+      'components/PantallaRadar.tsx',
+      'components/TarjetaEvento.tsx',
+      'components/Hero.tsx',
+      'components/Icono.tsx',
+    ])('incluye %s (pantalla/componente que esta ronda NO tocó)', (esperado) => {
+      expect(relativos).toContain(esperado)
+    })
+
+    it('son al menos 25 archivos (si alguien achica la recursión o el filtro, esto cae)', () => {
+      expect(archivos.length).toBeGreaterThanOrEqual(25)
+    })
   })
 
   it.each(archivos.map((file) => [relative(MOBILE_ROOT, file), file] as const))('%s', (label, file) => {
