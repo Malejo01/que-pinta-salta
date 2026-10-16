@@ -288,6 +288,7 @@ export function BuscarContent({
         open={!!selectedEvent}
         onClose={() => setSelectedEvent(null)}
         origin="busqueda"
+        isFavorite={!!selectedEvent && favorites.includes(selectedEvent.id)}
       />
       
       {selectedMovie && (

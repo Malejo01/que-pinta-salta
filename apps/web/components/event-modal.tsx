@@ -38,6 +38,7 @@ import { capitalizeFirst, cleanDescription } from "@/lib/event-display"
 import { ViewBeacon } from "@/components/view-beacon"
 import { goHref, urlComoLlegar, type MetricOrigin } from "@/lib/metricas/links"
 import { FlyerImage } from "@/components/flyer-image"
+import { FavoriteButton } from "@/components/favorite-button"
 
 interface EventModalProps {
   event: Event | null
@@ -45,9 +46,11 @@ interface EventModalProps {
   onClose: () => void
   /** Desde dónde se abrió el modal, para medir la vista. */
   origin?: MetricOrigin
+  /** Si el evento ya es favorito del usuario (lista traída una sola vez por /buscar). */
+  isFavorite?: boolean
 }
 
-export function EventModal({ event, open, onClose, origin = "directo" }: EventModalProps) {
+export function EventModal({ event, open, onClose, origin = "directo", isFavorite = false }: EventModalProps) {
   if (!event) return null
 
   const formattedDate = formatEventDate(event.date, true)
@@ -77,7 +80,15 @@ export function EventModal({ event, open, onClose, origin = "directo" }: EventMo
 
         <div className="p-6">
           <DialogHeader className="mb-4">
-            <DialogTitle className="text-2xl">{event.title}</DialogTitle>
+            <div className="flex items-start justify-between gap-4">
+              <DialogTitle className="text-2xl flex-1">{event.title}</DialogTitle>
+              <FavoriteButton
+                itemId={event.id}
+                type="event"
+                initialIsFavorite={isFavorite}
+                className="size-10 flex-shrink-0 bg-muted/40 hover:bg-muted text-foreground"
+              />
+            </div>
           </DialogHeader>
 
           <div className="mb-6 space-y-3">

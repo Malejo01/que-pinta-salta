@@ -7,6 +7,7 @@ import { EventDetailPage } from "@/components/event-detail-page"
 import { createClient, createAdminClient } from "@/lib/supabase/server"
 import { formatSaltaSchemaDate } from "@/lib/date-format"
 import { parseOrigin } from "@/lib/metricas/links"
+import { esEventoFavorito } from "@/lib/favoritos/es-favorito"
 import type { Metadata } from "next"
 
 interface EventPageProps {
@@ -71,22 +72,17 @@ export default async function EventPage({ params, searchParams }: EventPageProps
   const user = userResult.data.user
 
   if (user) {
-    const [profileRes, favoriteRes] = await Promise.all([
+    const [profileRes, favoriteResult] = await Promise.all([
       supabase
         .from('profiles')
         .select('role')
         .eq('id', user.id)
         .single(),
-      supabase
-        .from('user_favorites')
-        .select('id')
-        .eq('user_id', user.id)
-        .eq('event_id', id)
-        .maybeSingle()
+      esEventoFavorito(supabase, user.id, id)
     ])
 
     isAdmin = profileRes.data?.role === 'ADMIN'
-    isFavorite = !!favoriteRes.data
+    isFavorite = favoriteResult
   }
 
   if (!event) {
