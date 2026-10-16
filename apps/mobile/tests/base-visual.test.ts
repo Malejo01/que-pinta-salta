@@ -149,6 +149,11 @@ const ARCHIVOS_NUEVOS_RONDA = [
   join('app', '(tabs)', 'index.tsx'),
   join('app', '(tabs)', 'buscar.tsx'),
   join('app', '(tabs)', 'favoritos.tsx'),
+  // Cierre de ronda 29: archivos nuevos/reescritos que faltaban en esta lista.
+  join('app', 'cines.tsx'),
+  join('app', 'pelicula', '[id].tsx'),
+  join('app', 'flyer', '[id].tsx'),
+  join('lib', 'datos', 'flyers.ts'),
 ] as const
 
 /** Lista de excepciones documentadas. Vacía a propósito (29-g): ningún

@@ -34,15 +34,10 @@
 // `urlCompraCineSegura`, y un link armado a mano para WhatsApp no entra en
 // esos tres — ese test no es un archivo permitido de esta tarea.
 //
-// OJO (sin resolver, para el lead): `tests/compartir-ficha.test.ts` tampoco
-// es un archivo permitido de esta tarea, y su detector genérico exige que
-// todo llamado a la función de compartir de react-native con un mensaje, en
-// `app/`/`components/`, use `urlEvento` con el origen "app" en el mismo
-// archivo — pensado para el link de un solo evento (ficha/tarjeta), no para
-// el mensaje de una agenda con varios (o ningún) evento. El llamado de más
-// abajo no lo cumple y ese test queda rojo; no hay forma de cumplirlo sin
-// tocar ese archivo (no permitido) o sin mentirle al detector con un link
-// que no corresponde.
+// `tests/compartir-ficha.test.ts` tiene una segunda regla, además de
+// `urlEvento(id, 'app')`, justamente para este caso (agenda entera, no un
+// evento puntual): acepta que `message` salga de `armarMensajeWhatsApp(...)`,
+// como acá abajo.
 import { useCallback, useMemo, useState } from 'react'
 import { Image, Pressable, RefreshControl, SectionList, Share, StyleSheet, View } from 'react-native'
 import { useFocusEffect, useRouter, useTheme } from 'expo-router'
