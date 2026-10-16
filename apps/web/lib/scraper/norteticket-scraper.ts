@@ -6,6 +6,11 @@ import { saveEventsToSupabase } from './save-to-supabase';
 const NORTE_TICKET_SALTA_URL = 'https://norteticket.com/?subcategoria=Salta';
 const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
 
+// Lo que realmente devuelve este scraper: igual que parseAllEventsFromHtml
+// (parsers.ts), un evento parcial sin venue_id ni id (se resuelven en
+// saveEventsToSupabase/upsertEventWithDeduplication, no acá).
+type NorteticketScrapedEvent = Partial<Omit<Event, 'venue'> & { venue?: string }>;
+
 /**
  * Scrapea todos los eventos de Salta en Norteticket y retorna un array de eventos completos.
  *
@@ -14,7 +19,7 @@ const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36
  * upsertEventWithDeduplication(). Duplicar ese trabajo antes de tener el
  * venue_id resuelto no sirve, porque findDuplicateEvent() necesita el venue.
  */
-export async function scrapeNorteticketSalta(): Promise<Event[]> {
+export async function scrapeNorteticketSalta(): Promise<NorteticketScrapedEvent[]> {
   const response = await fetch(NORTE_TICKET_SALTA_URL, {
     headers: { 'User-Agent': USER_AGENT }
   });
@@ -33,7 +38,7 @@ export async function scrapeNorteticketSalta(): Promise<Event[]> {
     );
   }
 
-  const events: Event[] = [];
+  const events: NorteticketScrapedEvent[] = [];
 
   for (const baseEvent of baseEvents) {
     const venueName = typeof baseEvent.venue === 'string' ? baseEvent.venue : '';
@@ -50,7 +55,7 @@ export async function scrapeNorteticketSalta(): Promise<Event[]> {
     baseEvent.short_description = detail.short_description;
     baseEvent.category_id = detail.category_id;
 
-    events.push(baseEvent as any);
+    events.push(baseEvent);
   }
 
   console.log(`[norteticket] ${events.length} evento(s) parseados.`);
@@ -62,7 +67,7 @@ export async function scrapeNorteticketSalta(): Promise<Event[]> {
 if (require.main === module) {
   scrapeNorteticketSalta().then(async events => {
     console.log(`\nEventos scrapeados: ${events.length}`);
-    const result = await saveEventsToSupabase(events as any);
+    const result = await saveEventsToSupabase(events);
     console.log(`✓ Insertados: ${result.inserted}`);
     console.log(`⊘ Omitidos (duplicados): ${result.skipped}`);
     if (result.errors.length) console.error('Errores:', result.errors);

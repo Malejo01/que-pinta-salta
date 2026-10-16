@@ -1,5 +1,3 @@
-import * as cheerio from 'cheerio';
-import type { Event } from '../types';
 import { inferCategorySlug } from './categorize';
 
 export const VAMOS_BASE_URL = 'https://www.vamos.gob.ar';
@@ -30,14 +28,14 @@ function isTextFree(title: string, description: string): boolean {
 /**
  * Retorna la mejor imagen disponible para el evento (prioriza resoluciones altas sobre miniaturas)
  */
-function getBestImage(rawEvent: any): string {
+function getBestImage(rawEvent: ApiEvento): string {
   const images = rawEvent.listaImagen || [];
-  
+
   // Preferencias de etiquetas de imagen
   const tagsPreference = ['WEB_DESTACADO', 'WEB_CARRUSEL_CHICO', 'WEB_CARRUSEL_GRANDE', 'WEB_TOP', 'MAIL_TOP'];
-  
+
   for (const tag of tagsPreference) {
-    const found = images.find((img: any) => img.listaIdEtiqueta?.includes(tag));
+    const found = images.find((img) => img.listaIdEtiqueta?.includes(tag));
     if (found && found.cUri) {
       return found.cUri;
     }
@@ -61,6 +59,14 @@ type ApiFuncion = {
   dFuncionHasta: string; // ISO datetime end
 };
 
+// listaImagen no está documentado en el payload real que vimos, pero
+// getBestImage ya lo leía (con fallback `|| []`) antes de esta ronda de
+// tipos: se deja opcional, igual que entradauno-scraper.ts para la misma API.
+type ApiImagen = {
+  listaIdEtiqueta?: string[];
+  cUri?: string;
+};
+
 type ApiEvento = {
   idEspectaculoCartel: number;
   idEspectaculoCartelTipo: number;
@@ -71,9 +77,11 @@ type ApiEvento = {
   cSeo: string;
   cHashValidacion: string;
   fPrecioDesde: number;
+  listaImagen?: ApiImagen[];
   cImagenEquityThumb: string;
   cImagenBanner: string;
   cImagenEquityBanner: string;
+  cImagenBannerMovil?: string;
   cWebUri: string;
   oFuncionMenor: { oFuncionFecha: { dFuncion: string } } | null;
   oFuncionLista: ApiFuncion[] | null;

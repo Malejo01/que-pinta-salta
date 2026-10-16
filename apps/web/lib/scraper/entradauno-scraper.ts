@@ -9,6 +9,61 @@ const CARTELERA_JSON_URL = 'https://s3.sa-east-1.amazonaws.com/contenido.general
 // Categorías comerciales prioritarias para monetización/Google Ads
 const COMMERCIAL_CATEGORIES = new Set(['recitales', 'teatro', 'humor', 'deportes', 'espectaculos', 'alternativo']);
 
+// ─── Tipos de la respuesta JSON de EntradaUno (cartelera.json) ─────────────
+// Reflejan solo lo que este archivo lee del JSON, sin asumir más de lo que
+// el código ya maneja (fallbacks con `||`/`??` quedan como campos opcionales).
+
+interface EntradaUnoImagen {
+  listaIdEtiqueta?: string[];
+  cUri?: string;
+}
+
+interface EntradaUnoFuncion {
+  dFuncion: string;
+}
+
+interface EntradaUnoFuncionMenor {
+  oFuncionFecha: EntradaUnoFuncion;
+}
+
+interface EntradaUnoRawEvent {
+  cNombre: string;
+  cDescripcion?: string;
+  cDescripcion_l172?: string;
+  cSeo: string;
+  idEspectaculoCartel: number | string;
+  cHashValidacion: string;
+  listaIdEstablecimiento?: number[];
+  oFuncionLista?: EntradaUnoFuncion[];
+  oFuncionMenor?: EntradaUnoFuncionMenor;
+  listaImagen?: EntradaUnoImagen[];
+  cImagenBanner?: string;
+  cImagenEquityBanner?: string;
+  cImagenBannerMovil?: string;
+  cImagenEquityThumb?: string;
+  fPrecioDesde?: number;
+}
+
+interface EntradaUnoRawVenue {
+  cZona?: string;
+  idProvincia?: number;
+  idEstablecimiento: number;
+  cNombre: string;
+  cGoogleMapTag?: string | null;
+  cDomicilio?: string | null;
+}
+
+interface EntradaUnoCartelera {
+  listaEspectaculoCartel?: EntradaUnoRawEvent[];
+  listaEstablecimiento?: EntradaUnoRawVenue[];
+}
+
+interface EntradaUnoPayload {
+  oData?: {
+    oCartelera?: EntradaUnoCartelera;
+  };
+}
+
 /**
  * Detecta si el evento es realmente gratis analizando título y descripción
  */
@@ -21,14 +76,14 @@ function isTextFree(title: string, description: string): boolean {
 /**
  * Retorna la mejor imagen disponible para el evento (prioriza resoluciones altas sobre miniaturas)
  */
-function getBestImage(rawEvent: any): string {
+function getBestImage(rawEvent: EntradaUnoRawEvent): string {
   const images = rawEvent.listaImagen || [];
-  
+
   // Preferencias de etiquetas de imagen
   const tagsPreference = ['WEB_DESTACADO', 'WEB_CARRUSEL_CHICO', 'WEB_CARRUSEL_GRANDE', 'WEB_TOP', 'MAIL_TOP'];
-  
+
   for (const tag of tagsPreference) {
-    const found = images.find((img: any) => img.listaIdEtiqueta?.includes(tag));
+    const found = images.find((img) => img.listaIdEtiqueta?.includes(tag));
     if (found && found.cUri) {
       return found.cUri;
     }
@@ -48,7 +103,7 @@ function getBestImage(rawEvent: any): string {
 /**
  * Limpia y decodifica el HTML de la descripción
  */
-function cleanDescription(encoded: string): { description: string; short_description: string } {
+function cleanDescription(encoded: string | undefined): { description: string; short_description: string } {
   if (!encoded) return { description: '', short_description: '' };
   try {
     const html = decodeURIComponent(encoded);
@@ -105,7 +160,7 @@ export async function scrapeEntradaUno(): Promise<SaveResult> {
       throw new Error(`Error HTTP ${res.status}: ${res.statusText}`);
     }
 
-    const payload = await res.json();
+    const payload: EntradaUnoPayload = await res.json();
     const oCartelera = payload.oData?.oCartelera;
     if (!oCartelera) {
       throw new Error('Estructura de cartelera no válida en JSON de EntradaUno');
@@ -119,7 +174,7 @@ export async function scrapeEntradaUno(): Promise<SaveResult> {
     // 1. Filtrar establecimientos de Salta
     // - cZona === 'Salta'
     // - idProvincia === 16 (Provincia de Salta en el sistema de EntradaUno)
-    const provinciaVenues = rawVenues.filter((v: any) =>
+    const provinciaVenues = rawVenues.filter((v) =>
       (v.cZona && v.cZona.toLowerCase().trim() === 'salta') ||
       (v.idProvincia === 16)
     );
@@ -133,8 +188,8 @@ export async function scrapeEntradaUno(): Promise<SaveResult> {
     const { dentro: saltaVenues, descartados } = filtrarSaltaCapital(provinciaVenues);
     loguearDescartes('[entradauno]', descartados);
 
-    const saltaVenueIds = new Set(saltaVenues.map((v: any) => v.idEstablecimiento));
-    const venueMap = new Map(saltaVenues.map((v: any) => [v.idEstablecimiento, v]));
+    const saltaVenueIds = new Set(saltaVenues.map((v) => v.idEstablecimiento));
+    const venueMap = new Map(saltaVenues.map((v): [number, EntradaUnoRawVenue] => [v.idEstablecimiento, v]));
 
     console.log(`[entradauno] Quedan ${saltaVenues.length} establecimientos en Salta Capital.`);
 
@@ -147,24 +202,28 @@ export async function scrapeEntradaUno(): Promise<SaveResult> {
 
       if (!belongsToSalta) continue;
 
-      // Obtener el primer venue asociado
+      // Obtener el primer venue asociado. primaryVenueId siempre está definido
+      // acá: usa el mismo predicado que belongsToSalta, que ya confirmó al
+      // menos un match en eventVenueIds.
       const primaryVenueId = eventVenueIds.find((id: number) => saltaVenueIds.has(id));
-      const venueObj: any = venueMap.get(primaryVenueId);
+      const venueObj = venueMap.get(primaryVenueId!);
       const venueName = venueObj ? venueObj.cNombre : 'Salta';
 
       // Fechas y funciones
       const functions = (rawEvent.oFuncionLista ?? [])
-        .filter((f: any) => f.dFuncion)
-        .sort((a: any, b: any) => a.dFuncion.localeCompare(b.dFuncion));
+        .filter((f) => f.dFuncion)
+        .sort((a, b) => a.dFuncion.localeCompare(b.dFuncion));
 
       if (functions.length === 0 && !rawEvent.oFuncionMenor) {
         console.warn(`[entradauno] Saltando "${rawEvent.cNombre}": sin funciones/fecha.`);
         continue;
       }
 
+      // rawEvent.oFuncionMenor está garantizado acá por el guard de arriba:
+      // si functions está vacío y no hubiera oFuncionMenor, ya hizo `continue`.
       const start_date = functions.length > 0
         ? toISO(functions[0].dFuncion)
-        : toISO(rawEvent.oFuncionMenor.oFuncionFecha.dFuncion);
+        : toISO(rawEvent.oFuncionMenor!.oFuncionFecha.dFuncion);
 
       const end_date = functions.length > 1
         ? toISO(functions[functions.length - 1].dFuncion)

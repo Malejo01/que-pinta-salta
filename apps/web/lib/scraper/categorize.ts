@@ -1,3 +1,5 @@
+import type { SupabaseClient } from '@supabase/supabase-js';
+
 /**
  * Infers category slug based on keywords found in the title, description, or venue name
  */
@@ -38,7 +40,7 @@ export function inferCategorySlug(title: string, description: string = '', venue
  * Resolves a category ID using database aliases first, falling back to local keyword inference
  */
 export async function resolveCategoryWithAliases(
-  supabase: any,
+  supabase: SupabaseClient,
   title: string,
   description: string = '',
   venueName: string = ''

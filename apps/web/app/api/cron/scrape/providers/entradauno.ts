@@ -4,6 +4,60 @@ import { ScrapedEvent } from '../types'
 
 const CARTELERA_JSON_URL = 'https://s3.sa-east-1.amazonaws.com/contenido.general.entradauno/cache/12/cartelera.json'
 
+// ─── Tipos de la respuesta JSON de EntradaUno (cartelera.json) ─────────────
+// Reflejan solo lo que este archivo lee, sin asumir más de lo que el código
+// ya maneja (fallbacks con `||`/`??` quedan como campos opcionales).
+
+interface EntradaUnoImagen {
+  listaIdEtiqueta?: string[]
+  cUri?: string
+}
+
+interface EntradaUnoFuncion {
+  dFuncion: string
+}
+
+interface EntradaUnoFuncionMenor {
+  oFuncionFecha: EntradaUnoFuncion
+}
+
+interface EntradaUnoRawEvent {
+  cNombre: string
+  cDescripcion?: string
+  cSeo: string
+  idEspectaculoCartel: number | string
+  cHashValidacion: string
+  listaIdEstablecimiento?: number[]
+  oFuncionLista?: EntradaUnoFuncion[]
+  oFuncionMenor?: EntradaUnoFuncionMenor
+  listaImagen?: EntradaUnoImagen[]
+  cImagenBanner?: string
+  cImagenEquityBanner?: string
+  cImagenBannerMovil?: string
+  cImagenEquityThumb?: string
+  fPrecioDesde?: number
+}
+
+interface EntradaUnoRawVenue {
+  cZona?: string
+  idProvincia?: number
+  idEstablecimiento: number
+  cNombre: string
+  cGoogleMapTag?: string | null
+  cDomicilio?: string | null
+}
+
+interface EntradaUnoCartelera {
+  listaEspectaculoCartel?: EntradaUnoRawEvent[]
+  listaEstablecimiento?: EntradaUnoRawVenue[]
+}
+
+interface EntradaUnoPayload {
+  oData?: {
+    oCartelera?: EntradaUnoCartelera
+  }
+}
+
 /**
  * Normaliza las fechas del formato API de EntradaUno a objeto Date.
  * La API entrega hora de pared de Salta sin zona ("2026-05-27T11:00:00").
@@ -25,14 +79,14 @@ function isTextFree(title: string, description: string = ''): boolean {
 /**
  * Retorna la mejor imagen disponible para el evento (prioriza resoluciones altas sobre miniaturas)
  */
-function getBestImage(rawEvent: any): string {
+function getBestImage(rawEvent: EntradaUnoRawEvent): string {
   const images = rawEvent.listaImagen || [];
-  
+
   // Preferencias de etiquetas de imagen
   const tagsPreference = ['WEB_DESTACADO', 'WEB_CARRUSEL_CHICO', 'WEB_CARRUSEL_GRANDE', 'WEB_TOP', 'MAIL_TOP'];
-  
+
   for (const tag of tagsPreference) {
-    const found = images.find((img: any) => img.listaIdEtiqueta?.includes(tag));
+    const found = images.find((img) => img.listaIdEtiqueta?.includes(tag));
     if (found && found.cUri) {
       return found.cUri;
     }
@@ -67,7 +121,7 @@ export async function scrapeEntradaUno(): Promise<ScrapedEvent[]> {
       throw new Error(`HTTP ${res.status}: ${res.statusText}`)
     }
 
-    const payload = await res.json()
+    const payload: EntradaUnoPayload = await res.json()
     const oCartelera = payload.oData?.oCartelera
     if (!oCartelera) {
       throw new Error('Estructura de cartelera no válida en EntradaUno')
@@ -77,7 +131,7 @@ export async function scrapeEntradaUno(): Promise<ScrapedEvent[]> {
     const rawVenues = oCartelera.listaEstablecimiento || []
 
     // 1. Filtrar establecimientos de la PROVINCIA de Salta
-    const provinciaVenues = rawVenues.filter((v: any) =>
+    const provinciaVenues = rawVenues.filter((v) =>
       (v.cZona && v.cZona.toLowerCase().trim() === 'salta') ||
       (v.idProvincia === 16)
     )
@@ -92,8 +146,8 @@ export async function scrapeEntradaUno(): Promise<ScrapedEvent[]> {
     const { dentro: saltaVenues, descartados } = filtrarSaltaCapital(provinciaVenues)
     loguearDescartes('[cron-entradauno]', descartados)
 
-    const saltaVenueIds = new Set(saltaVenues.map((v: any) => v.idEstablecimiento))
-    const venueMap = new Map(saltaVenues.map((v: any) => [v.idEstablecimiento, v]))
+    const saltaVenueIds = new Set(saltaVenues.map((v) => v.idEstablecimiento))
+    const venueMap = new Map(saltaVenues.map((v): [number, EntradaUnoRawVenue] => [v.idEstablecimiento, v]))
 
     console.log(`[cron-entradauno] Quedan ${saltaVenues.length} establecimientos en Salta Capital.`)
 
@@ -104,22 +158,25 @@ export async function scrapeEntradaUno(): Promise<ScrapedEvent[]> {
 
       if (!belongsToSalta) continue
 
+      // primaryVenueId siempre está definido acá: usa el mismo predicado que
+      // belongsToSalta, que ya confirmó al menos un match en eventVenueIds.
       const primaryVenueId = eventVenueIds.find((id: number) => saltaVenueIds.has(id))
-      const venueObj: any = venueMap.get(primaryVenueId)
+      const venueObj = venueMap.get(primaryVenueId!)
       const venueName = venueObj ? venueObj.cNombre : 'Salta'
 
       // Fechas
       const functions = (rawEvent.oFuncionLista ?? [])
-        .filter((f: any) => f.dFuncion)
-        .sort((a: any, b: any) => a.dFuncion.localeCompare(b.dFuncion))
+        .filter((f) => f.dFuncion)
+        .sort((a, b) => a.dFuncion.localeCompare(b.dFuncion))
 
       if (functions.length === 0 && !rawEvent.oFuncionMenor) {
         continue
       }
 
+      // rawEvent.oFuncionMenor está garantizado acá por el guard de arriba.
       const dateTime = functions.length > 0
         ? toDate(functions[0].dFuncion)
-        : toDate(rawEvent.oFuncionMenor.oFuncionFecha.dFuncion)
+        : toDate(rawEvent.oFuncionMenor!.oFuncionFecha.dFuncion)
 
       // Ticket link
       const ticketLink = `https://entradauno.com/landing/${rawEvent.cSeo}` +
