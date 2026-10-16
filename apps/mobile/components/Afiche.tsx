@@ -8,8 +8,20 @@
 // también el original, muestra la marca (o el `fallback` que pase quien use
 // `Afiche`). `Image` de React Native en todos los casos (nunca
 // `expo-image`, que no está aprobada).
+//
+// R29-q (integración de la tanda 3, punto C): `resizeMode` y `blurRadius`,
+// opcionales, con los valores de hoy por omisión (`'cover'` y sin blur) —
+// las agrega el Hero (ops/paridad-web-app.md §3.2 punto 2 y §2 punto 7) para
+// poner el afiche entero en `contain` sobre su propia versión en `cover` +
+// `blurRadius` de fondo, sin que `Hero.tsx` tenga que reimplementar la
+// cadena variante → original → fallback con `onError` ni la validación de
+// hosts (que sigue siendo, exactamente igual que antes, la que hace
+// `fuentesDeImagen` comparando el host parseado con `URL`, nunca el texto —
+// la regla de la R28, auditada por seguridad). Ninguna de las dos props
+// toca esa cadena: solo cambian cómo se dibuja la `<Image>` una vez que ya
+// se decidió qué URL mostrar.
 import { type ReactNode, useState } from 'react'
-import { Image, StyleSheet, View } from 'react-native'
+import { Image, StyleSheet, View, type ImageResizeMode } from 'react-native'
 import { useTheme } from 'expo-router'
 import type { VariantWidth } from '@qps/core/images/variants'
 import { leerEnv } from '@/lib/env'
@@ -47,15 +59,39 @@ export interface AficheProps {
    * la ficha (`app/evento/[id].tsx`) pasa 800.
    */
   ancho?: VariantWidth
+  /**
+   * Cómo encaja la imagen en su contenedor (`resizeMode` de `<Image>`).
+   * `'cover'` por defecto — el comportamiento de siempre, sin cambios para
+   * quien no pase esta prop. El Hero pasa `'contain'` para el afiche de
+   * arriba (el que se ve entero, sobre su versión en `'cover'` + blur).
+   */
+  resizeMode?: ImageResizeMode
+  /**
+   * Radio de desenfoque de la imagen (prop nativa de `<Image>`, Android/iOS).
+   * `undefined` por defecto — sin blur, el comportamiento de siempre. El
+   * Hero lo usa para la capa de fondo desenfocada.
+   */
+  blurRadius?: number
 }
 
-export function Afiche({ url, estilo, llenar, fallback, ancho }: AficheProps) {
+export function Afiche({ url, estilo, llenar, fallback, ancho, resizeMode, blurRadius }: AficheProps) {
   // `key={url}` remonta `AficheInterno` cada vez que cambia la URL, así el
   // índice de la fuente vuelve a 0 sin un efecto ni un setState sincrónico.
-  return <AficheInterno key={url ?? ''} url={url} estilo={estilo} llenar={llenar} fallback={fallback} ancho={ancho} />
+  return (
+    <AficheInterno
+      key={url ?? ''}
+      url={url}
+      estilo={estilo}
+      llenar={llenar}
+      fallback={fallback}
+      ancho={ancho}
+      resizeMode={resizeMode}
+      blurRadius={blurRadius}
+    />
+  )
 }
 
-function AficheInterno({ url, estilo, llenar, fallback, ancho }: AficheProps) {
+function AficheInterno({ url, estilo, llenar, fallback, ancho, resizeMode, blurRadius }: AficheProps) {
   const { colors } = useTheme()
   const supabaseUrl = leerEnv().supabase?.url ?? null
   const fuentes = fuentesDeImagen(url, supabaseUrl, ancho)
@@ -83,7 +119,8 @@ function AficheInterno({ url, estilo, llenar, fallback, ancho }: AficheProps) {
     <Image
       source={{ uri: fuenteActual }}
       style={llenar ? estilos.imagenLlenar : [estilos.imagen, estilo]}
-      resizeMode="cover"
+      resizeMode={resizeMode ?? 'cover'}
+      blurRadius={blurRadius}
       onError={() => {
         const siguiente = siguienteFuente(fuentes, indice)
         if (siguiente !== null) {

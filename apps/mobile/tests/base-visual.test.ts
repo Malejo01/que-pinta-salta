@@ -140,6 +140,15 @@ const ARCHIVOS_NUEVOS_RONDA = [
   // tarea; cuenta.tsx y SeccionNotificaciones.tsx ya existían antes de la
   // ronda 29, así que no entran en esta lista).
   join('components', 'BotonGoogle.tsx'),
+  // R29-q (integración de la tanda 3, punto E): archivos nuevos o
+  // reescritos de las tandas 2 y 3 que faltaban en esta lista.
+  join('components', 'Hero.tsx'),
+  join('components', 'PillsAtajos.tsx'),
+  join('components', 'FilaCategoria.tsx'),
+  join('components', 'BannerRadar.tsx'),
+  join('app', '(tabs)', 'index.tsx'),
+  join('app', '(tabs)', 'buscar.tsx'),
+  join('app', '(tabs)', 'favoritos.tsx'),
 ] as const
 
 /** Lista de excepciones documentadas. Vacía a propósito (29-g): ningún

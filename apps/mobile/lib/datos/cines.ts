@@ -2,6 +2,10 @@
 // (`apps/web/app/cines/page.tsx`), pero solo las que se muestran en la
 // tarjeta de la app (id, slug, title, poster_url, showings): nada de
 // `created_at`/`updated_at`/`is_currently_showing`, que no se usan acá.
+// `tests/select-publico.test.ts` fija esas 5 columnas exactas: la portada
+// (R29, 29-h) arma la fila "Cine" con `transformMovie`
+// (`@qps/core/home/transform`), que acepta `created_at` como opcional y, sin
+// ella (como acá), usa el instante actual como respaldo.
 import type { MovieShowings } from '@qps/core/types'
 import { esUuid } from '@/lib/links'
 import { MENSAJE_SIN_CONFIGURACION } from '@/lib/mensajes'
@@ -16,6 +20,13 @@ export interface Pelicula {
   title: string
   poster_url: string | null
   showings: MovieShowings
+  /**
+   * No la pide ninguna consulta de este archivo (`tests/select-publico.test.ts`
+   * fija las 5 columnas de arriba): queda declarada, opcional, solo para que
+   * el tipo calce con `MovieForDisplay` de `@qps/core/home/transform` si
+   * algún día se suma. Hoy siempre es `undefined` acá.
+   */
+  created_at?: string
 }
 
 export type ResultadoCines = { ok: true; peliculas: Pelicula[] } | { ok: false; error: string }

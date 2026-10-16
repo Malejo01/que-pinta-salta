@@ -372,6 +372,35 @@ function listarTsxYTs(root: string): string[] {
   return out
 }
 
+// R29-q (integración de la tanda 3, punto C): `Afiche.tsx` sumó `resizeMode`
+// y `blurRadius` (para el Hero, §3.2 y §2 punto 7) SIN tocar la cadena
+// variante → original → fallback con `onError` ni la validación de hosts.
+// Esto no lo prueba el barrido genérico de más abajo (ese solo mira que
+// nadie FUERA de Afiche.tsx arme un `uri:`) — así que se agrega acá una
+// comprobación de que, DENTRO de Afiche.tsx, las props nuevas no abrieron
+// una segunda forma de construir la fuente de la imagen: sigue habiendo un
+// solo `source={{ uri: ... }}`, siempre con `fuenteActual` (el resultado de
+// `fuentesDeImagen`), y el valor por omisión de `resizeMode` sigue siendo
+// `'cover'` (ningún comportamiento cambia para quien no pasa la prop).
+describe('components/Afiche.tsx: resizeMode y blurRadius no abren una segunda forma de armar la fuente', () => {
+  const content = readFileSync(join(MOBILE_ROOT, ARCHIVO_APROBADO), 'utf8')
+
+  it('sigue habiendo un solo source={{ uri: ... }} (el de fuenteActual, vía fuentesDeImagen)', () => {
+    const ocurrencias = content.match(/\buri\s*:/g) ?? []
+    expect(ocurrencias).toHaveLength(1)
+    expect(content).toMatch(/source=\{\{\s*uri:\s*fuenteActual\s*\}\}/)
+  })
+
+  it('declara resizeMode y blurRadius como props opcionales, sin cambiar AficheEstilo (el tamaño)', () => {
+    expect(content).toMatch(/resizeMode\?:\s*ImageResizeMode/)
+    expect(content).toMatch(/blurRadius\?:\s*number/)
+  })
+
+  it('el valor por omisión de resizeMode sigue siendo "cover" (no cambia el comportamiento de quien no pasa la prop)', () => {
+    expect(content).toMatch(/resizeMode=\{resizeMode\s*\?\?\s*'cover'\}/)
+  })
+})
+
 describe('app/, components/ y lib/: ninguna otra URI de imagen remota sin pasar por fuentesDeImagen', () => {
   const dirs = ['app', 'components', 'lib'].map((d) => join(MOBILE_ROOT, d))
   const archivos = dirs.flatMap((d) => listarTsxYTs(d))
