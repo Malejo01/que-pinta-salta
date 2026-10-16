@@ -59,6 +59,17 @@ describe('components/skeletons.tsx: accesibilidad y tema', () => {
   })
 })
 
+describe('components/skeletons.tsx: CinesPageSkeleton reserva la altura del navbar', () => {
+  it('CinesPageSkeleton usa NavbarPlaceholder (30-d agregó <Navbar /> a app/cines/page.tsx; sin esto hay salto de layout al terminar de cargar)', () => {
+    const content = read('components/skeletons.tsx')
+    const inicio = content.indexOf('function CinesPageSkeleton')
+    expect(inicio).toBeGreaterThan(-1)
+    const siguiente = content.indexOf('function ', inicio + 'function CinesPageSkeleton'.length)
+    const cuerpo = siguiente === -1 ? content.slice(inicio) : content.slice(inicio, siguiente)
+    expect(cuerpo).toMatch(/<NavbarPlaceholder\s*\/>/)
+  })
+})
+
 describe('components/skeletons.tsx: misma proporción de tarjeta que la real', () => {
   it('usa el mismo aspect-[...] que components/event-card.tsx', () => {
     const eventCard = read('components/event-card.tsx')

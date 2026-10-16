@@ -31,7 +31,6 @@ function LoadingRegion({
  * Misma altura y borde inferior que `Navbar` (components/navbar.tsx: `h-16`,
  * `border-b`, sticky), para que el contenido de abajo no se mueva cuando el
  * navbar real (un Client Component con su propio estado de sesión) se monta.
- * `/cines` no la usa: esa página no renderiza `<Navbar />`.
  */
 function NavbarPlaceholder() {
   return <div className="h-16 w-full border-b border-border/40 bg-background/95" />
@@ -126,11 +125,13 @@ function MovieCardSkeleton() {
  * `/cines` (`app/cines/page.tsx` + `components/cines-view.tsx`): mismo
  * `container mx-auto px-4 pt-12 md:pt-16 max-w-7xl`, encabezado centrado,
  * buscador y grilla (`grid-cols-1 ... lg:grid-cols-4`) de tarjetas de película.
- * Esta página no renderiza `<Navbar />`, así que el esqueleto tampoco.
+ * Desde 30-d esta página sí renderiza `<Navbar />`, así que el esqueleto
+ * también reserva su altura.
  */
 export function CinesPageSkeleton() {
   return (
     <LoadingRegion className="min-h-screen bg-background pb-page">
+      <NavbarPlaceholder />
       <div className="container mx-auto max-w-7xl px-4 pt-12 md:pt-16">
         <div className="mb-12 flex flex-col items-center space-y-4 text-center">
           <Skeleton className="size-14 rounded-2xl" />
