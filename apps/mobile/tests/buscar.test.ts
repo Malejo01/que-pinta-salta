@@ -141,12 +141,60 @@ describe('iconoDeCategoria: buscar.tsx usa iconoPorCategoria de components/Icono
 })
 
 // ---------------------------------------------------------------------------
-// Lectura estática: un solo TextInput y TarjetaEvento en los resultados.
+// Lectura estática: un solo campo de texto y TarjetaEvento en los resultados.
+//
+// 33-a (QPS-151) migró el campo de texto de buscar.tsx de un `<TextInput>`
+// suelto a `<CampoTexto>` (el componente compartido que, adentro, tiene el
+// `<TextInput>` de verdad — por eso ahora `SRC_BUSCAR` no tiene ningún
+// `<TextInput\b` directo). Lo que el test de la R29 protegía no era "la
+// palabra TextInput": era que en Buscar hay UN SOLO campo de texto, no dos
+// (antes, uno para "evento" y otro para "lugar"; 29-j los unificó). Esa
+// propiedad sigue valiendo igual, solo que ahora se expresa contando
+// `<CampoTexto` en vez de `<TextInput`. `cantidadDeCamposDeTexto` suma las
+// dos formas (`<CampoTexto` + `<TextInput` suelto) para que la rotura real
+// —dos campos, sea con el componente viejo o el nuevo, en cualquier
+// combinación— se siga detectando.
 // ---------------------------------------------------------------------------
+
+/**
+ * Cantidad de campos de texto de entrada en un JSX: `<CampoTexto` (el
+ * componente actual) más cualquier `<TextInput` suelto que quedara sin
+ * migrar. Buscar tiene que tener exactamente uno.
+ */
+function cantidadDeCamposDeTexto(content: string): number {
+  const campoTexto = content.match(/<CampoTexto\b/g) ?? []
+  const textInputSuelto = content.match(/<TextInput\b/g) ?? []
+  return campoTexto.length + textInputSuelto.length
+}
+
+describe('cantidadDeCamposDeTexto (fixtures en memoria: tiene que fallar de verdad)', () => {
+  it('un solo <CampoTexto>: 1 (caso sano)', () => {
+    const content = `<CampoTexto label="Buscar" value={texto} onChangeText={setTexto} />`
+    expect(cantidadDeCamposDeTexto(content)).toBe(1)
+  })
+
+  it('dos <CampoTexto> (ej.: "evento" y "lugar" sin unificar, como antes de 29-j): 2, tiene que fallar', () => {
+    const content = [
+      '<CampoTexto label="Evento" value={evento} onChangeText={setEvento} />',
+      '<CampoTexto label="Lugar" value={lugar} onChangeText={setLugar} />',
+    ].join('\n')
+    expect(cantidadDeCamposDeTexto(content)).toBe(2)
+  })
+
+  it('un <CampoTexto> más un <TextInput> suelto (migración a medias): 2, tiene que fallar', () => {
+    const content = [
+      '<CampoTexto label="Buscar" value={texto} onChangeText={setTexto} />',
+      '<TextInput placeholder="Lugar" value={lugar} onChangeText={setLugar} />',
+    ].join('\n')
+    expect(cantidadDeCamposDeTexto(content)).toBe(2)
+  })
+})
+
 describe('buscar.tsx: lectura estática', () => {
-  it('un solo <TextInput (ya no hay dos: "evento" y "lugar")', () => {
-    const coincidencias = SRC_BUSCAR.match(/<TextInput\b/g) ?? []
-    expect(coincidencias).toHaveLength(1)
+  it('un solo <CampoTexto> y ningún <TextInput> suelto (33-a, QPS-151; antes de 29-j, dos: "evento" y "lugar")', () => {
+    expect(cantidadDeCamposDeTexto(SRC_BUSCAR)).toBe(1)
+    expect(SRC_BUSCAR.match(/<CampoTexto\b/g) ?? []).toHaveLength(1)
+    expect(SRC_BUSCAR.match(/<TextInput\b/g) ?? []).toHaveLength(0)
   })
 
   it('el placeholder es el texto literal de la web', () => {
