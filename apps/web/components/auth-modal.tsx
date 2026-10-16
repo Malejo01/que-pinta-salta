@@ -5,6 +5,7 @@ import { createClient, signInWithGoogle } from "@/lib/supabase/client"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { PasswordInput } from "@/components/ui/password-input"
 import { Label } from "@/components/ui/label"
 import { mensajeErrorAlta } from "@/lib/auth/mensajes"
 import { useRouter } from "next/navigation"
@@ -119,8 +120,8 @@ export function AuthModalProvider({ children }: { children: ReactNode }) {
             </DialogTitle>
             <DialogDescription className="text-center">
               {mode === "login"
-                ? "Guarda tus eventos favoritos para tenerlos siempre a mano."
-                : "Únete para guardar favoritos y personalizar tu agenda."}
+                ? "Guardá tus eventos favoritos para tenerlos siempre a mano."
+                : "Sumate para guardar favoritos y personalizar tu agenda."}
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleAuth} className="space-y-4 pt-4">
@@ -137,9 +138,8 @@ export function AuthModalProvider({ children }: { children: ReactNode }) {
             </div>
             <div className="space-y-2">
               <Label htmlFor="modal-password">Contraseña</Label>
-              <Input
+              <PasswordInput
                 id="modal-password"
-                type="password"
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
@@ -183,7 +183,7 @@ export function AuthModalProvider({ children }: { children: ReactNode }) {
             <div className="text-center text-sm text-muted-foreground mt-4">
               {mode === "login" ? (
                 <>
-                  ¿No tienes cuenta?{" "}
+                  ¿No tenés cuenta?{" "}
                   <button
                     type="button"
                     onClick={() => {
@@ -192,12 +192,12 @@ export function AuthModalProvider({ children }: { children: ReactNode }) {
                     }}
                     className="text-primary hover:underline font-semibold bg-transparent border-none cursor-pointer"
                   >
-                    Regístrate
+                    Registrate
                   </button>
                 </>
               ) : (
                 <>
-                  ¿Ya tienes cuenta?{" "}
+                  ¿Ya tenés cuenta?{" "}
                   <button
                     type="button"
                     onClick={() => {
@@ -206,7 +206,7 @@ export function AuthModalProvider({ children }: { children: ReactNode }) {
                     }}
                     className="text-primary hover:underline font-semibold bg-transparent border-none cursor-pointer"
                   >
-                    Inicia Sesión
+                    Iniciá Sesión
                   </button>
                 </>
               )}

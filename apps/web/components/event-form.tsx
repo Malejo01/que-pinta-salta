@@ -148,7 +148,7 @@ export function EventForm({ categories, venues, initialData, cloneId, editId }: 
                 <Input
                   id="title"
                   name="title"
-                  placeholder="Ej: Peña Folklorica en La Casona"
+                  placeholder="Ej: Peña Folklórica en La Casona"
                   defaultValue={initialData?.title}
                   required
                 />

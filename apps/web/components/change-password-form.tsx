@@ -3,7 +3,7 @@
 import { useState } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
+import { PasswordInput } from "@/components/ui/password-input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Loader2, KeyRound, CheckCircle2, AlertCircle } from "lucide-react"
@@ -64,7 +64,7 @@ export function ChangePasswordForm() {
           Seguridad de la Cuenta
         </CardTitle>
         <CardDescription>
-          Cambia tu contraseña actual por una nueva para asegurar tu cuenta.
+          Cambiá tu contraseña actual por una nueva para asegurar tu cuenta.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -85,9 +85,8 @@ export function ChangePasswordForm() {
 
           <div className="space-y-2">
             <Label htmlFor="new-password">Nueva Contraseña</Label>
-            <Input
+            <PasswordInput
               id="new-password"
-              type="password"
               placeholder="••••••••"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
@@ -99,9 +98,8 @@ export function ChangePasswordForm() {
 
           <div className="space-y-2">
             <Label htmlFor="confirm-password">Confirmar Nueva Contraseña</Label>
-            <Input
+            <PasswordInput
               id="confirm-password"
-              type="password"
               placeholder="••••••••"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}

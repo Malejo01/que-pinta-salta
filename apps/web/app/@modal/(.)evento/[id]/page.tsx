@@ -3,6 +3,7 @@ import { getCategories } from "@/lib/data"
 import { EventModalWrapper } from "@/components/event-modal-wrapper"
 import { createClient } from "@/lib/supabase/server"
 import { parseOrigin } from "@/lib/metricas/links"
+import { esEventoFavorito } from "@/lib/favoritos/es-favorito"
 
 interface ModalEventPageProps {
   params: Promise<{ id: string }>
@@ -22,21 +23,34 @@ export default async function ModalEventPage({ params, searchParams }: ModalEven
   ])
 
   let isAdmin = false
+  let isFavorite = false
   const user = userResult.data.user
 
   if (user) {
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', user.id)
-      .single()
+    const [profileRes, favoriteResult] = await Promise.all([
+      supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', user.id)
+        .single(),
+      esEventoFavorito(supabase, user.id, id)
+    ])
 
-    isAdmin = profile?.role === 'ADMIN'
+    isAdmin = profileRes.data?.role === 'ADMIN'
+    isFavorite = favoriteResult
   }
 
   if (!event) {
     return null
   }
 
-  return <EventModalWrapper event={event} isAdmin={isAdmin} categories={categories} origin={origin} />
+  return (
+    <EventModalWrapper
+      event={event}
+      isAdmin={isAdmin}
+      categories={categories}
+      origin={origin}
+      isFavorite={isFavorite}
+    />
+  )
 }

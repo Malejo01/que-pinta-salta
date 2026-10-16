@@ -80,6 +80,11 @@ describe('buscarEventosPorTexto: encuentra por título, por lugar y por descripc
   it('sin distinguir mayúsculas/minúsculas', () => {
     expect(buscarEventosPorTexto(eventos, 'FOLCLORE').map((e) => e.id)).toEqual(['por-titulo'])
   })
+
+  it('sin distinguir tildes (QPS-021, R30): "salteno" encuentra "Salteño" y "pena" encuentra "peña"', () => {
+    expect(buscarEventosPorTexto(eventos, 'salteno').map((e) => e.id)).toEqual(['por-titulo'])
+    expect(buscarEventosPorTexto(eventos, 'pena').map((e) => e.id)).toEqual(['por-descripcion'])
+  })
 })
 
 // ---------------------------------------------------------------------------

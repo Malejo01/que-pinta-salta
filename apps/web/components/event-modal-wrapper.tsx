@@ -28,6 +28,8 @@ import { deferredRefresh } from "@/lib/deferred-refresh"
 import { ViewBeacon } from "@/components/view-beacon"
 import { goHref, urlComoLlegar, type MetricOrigin } from "@/lib/metricas/links"
 import { FlyerImage } from "@/components/flyer-image"
+import { FavoriteButton } from "@/components/favorite-button"
+import { ShareButton } from "@/components/share-button"
 
 type EventWithRelations = Event & { category: Category | null; venue: Venue | null }
 
@@ -37,9 +39,11 @@ interface EventModalWrapperProps {
   categories?: Category[]
   /** Origen de la visita (`?o=`), ya validado en el servidor. */
   origin?: MetricOrigin
+  /** Si el evento ya es favorito del usuario (sesión del servidor). */
+  isFavorite?: boolean
 }
 
-export function EventModalWrapper({ event, isAdmin = false, categories = [], origin = "directo" }: EventModalWrapperProps) {
+export function EventModalWrapper({ event, isAdmin = false, categories = [], origin = "directo", isFavorite = false }: EventModalWrapperProps) {
   const router = useRouter()
   // Estado local: el Dialog se cierra al instante (como `movie-modal.tsx`) y
   // recién después se navega hacia atrás. Ver tarea 18-f.
@@ -163,7 +167,22 @@ export function EventModalWrapper({ event, isAdmin = false, categories = [], ori
 
         <div className="p-6">
           <DialogHeader className="mb-4">
-            <DialogTitle className="text-2xl">{displayEvent.title}</DialogTitle>
+            <div className="flex items-start justify-between gap-4">
+              <DialogTitle className="text-2xl flex-1">{displayEvent.title}</DialogTitle>
+              <div className="flex flex-shrink-0 items-center gap-2">
+                <ShareButton
+                  eventId={event.id}
+                  title={event.title}
+                  className="size-10 bg-muted/40 hover:bg-muted text-foreground"
+                />
+                <FavoriteButton
+                  itemId={event.id}
+                  type="event"
+                  initialIsFavorite={isFavorite}
+                  className="size-10 bg-muted/40 hover:bg-muted text-foreground"
+                />
+              </div>
+            </div>
           </DialogHeader>
 
           {isAdmin && (
@@ -295,7 +314,7 @@ export function EventModalWrapper({ event, isAdmin = false, categories = [], ori
               >
                 <a href={googleMapsUrl} target="_blank" rel="noopener noreferrer">
                   <Navigation className="mr-2 size-4" />
-                  Como llegar
+                  Cómo llegar
                 </a>
               </Button>
             )}

@@ -93,7 +93,7 @@ export async function updateRadarSettings(data: {
   const { data: { user }, error: authError } = await supabase.auth.getUser()
 
   if (!user || authError) {
-    return { success: false, error: "AUTH_REQUIRED", message: "Debes iniciar sesión para configurar tu radar." }
+    return { success: false, error: "AUTH_REQUIRED", message: "Tenés que iniciar sesión para configurar tu radar." }
   }
 
   // El Radar solo manda al email de la cuenta (verificado al registrarse): nunca se
@@ -215,7 +215,7 @@ export async function triggerTestRadarEmail(): Promise<{ success: boolean; messa
   const { data: { user }, error: authError } = await supabase.auth.getUser()
 
   if (!user || authError) {
-    return { success: false, message: "Debes iniciar sesión para realizar la prueba." }
+    return { success: false, message: "Tenés que iniciar sesión para realizar la prueba." }
   }
 
   // Solo administradores: verificación en el servidor, antes de leer settings o llamar a Resend.
@@ -246,7 +246,7 @@ export async function triggerTestRadarEmail(): Promise<{ success: boolean; messa
   const { categoryIds, venueIds, instagramAccountIds } = settings
 
   if (categoryIds.length === 0 && venueIds.length === 0 && instagramAccountIds.length === 0) {
-    return { success: false, message: "Debes seguir al menos una categoría, un local o una cuenta de Instagram para recibir novedades." }
+    return { success: false, message: "Tenés que seguir al menos una categoría, un local o una cuenta de Instagram para recibir novedades." }
   }
 
   const events = await getRadarEvents(supabase, { categoryIds, venueIds, instagramAccountIds })

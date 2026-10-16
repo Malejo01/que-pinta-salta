@@ -11,7 +11,9 @@
  * web *usa* `buscarEventosPorTexto` (lectura estática del archivo fuente,
  * sin levantar React) y, por otro, que `buscarEventosPorTexto` filtra por
  * título, lugar y descripción sin distinguir mayúsculas — que es, en los
- * hechos, todo lo que la web necesita de esta función.
+ * hechos, todo lo que la web necesita de esta función. Desde la R30 (QPS-021,
+ * Fase 2) también ignora tildes, con la normalización de los filtros de la
+ * portada.
  */
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
@@ -61,7 +63,7 @@ describe('buscar-content.tsx (fuente, solo lectura): usa buscarEventosPorTexto d
   })
 })
 
-describe('buscarEventosPorTexto: título, lugar y descripción, sin distinguir mayúsculas', () => {
+describe('buscarEventosPorTexto: título, lugar y descripción, sin distinguir mayúsculas ni tildes', () => {
   const eventos = [
     evento({ id: 'por-titulo', title: 'Festival de Jazz en el Parque' }),
     evento({ id: 'por-lugar', title: 'Show sorpresa', venue: 'Anfiteatro Parque San Martín' }),
@@ -94,9 +96,15 @@ describe('buscarEventosPorTexto: título, lugar y descripción, sin distinguir m
     expect(buscarEventosPorTexto(eventos, 'inexistente-xyz')).toEqual([])
   })
 
-  it('no normaliza acentos (a diferencia de home/filters.ts): "cafe" no encuentra "café"', () => {
+  it('ignora tildes (QPS-021, R30): "cafe" encuentra "Café" y "peña" encuentra "Pena"', () => {
     const conAcento = [evento({ id: 'con-acento', title: 'Café literario' })]
-    expect(buscarEventosPorTexto(conAcento, 'cafe')).toEqual([])
+    expect(buscarEventosPorTexto(conAcento, 'cafe').map((e) => e.id)).toEqual(['con-acento'])
+    const sinAcento = [evento({ id: 'sin-acento', venue: 'La Pena de Salta' })]
+    expect(buscarEventosPorTexto(sinAcento, 'peña').map((e) => e.id)).toEqual(['sin-acento'])
+  })
+
+  it('solo espacios: lista vacía (no devuelve todo)', () => {
+    expect(buscarEventosPorTexto(eventos, '   ')).toEqual([])
   })
 
   it('no muta la lista de entrada', () => {

@@ -180,8 +180,10 @@ export function RadarForm({ initialSettings, categories, venues, instagramAccoun
           : "Vas a recibir los mejores eventos en tu correo.",
         action: DONATIONS_ENABLED ? (
           <ToastAction
-            altText="Donar ahora" 
+            altText="Donar ahora"
             onClick={() => openDonationModal("Vas a recibir los mejores eventos en tu correo. ¡Ayudanos a seguir creciendo y lanzar la App móvil haciendo una donación!")}
+            // Botón con el rojo de marca fijo (#C12026) en ambos temas: el texto
+            // queda blanco a propósito, no depende de claro/oscuro.
             className="bg-[#C12026] text-white hover:bg-[#A0191F] border-none"
           >
             Donar ahora
@@ -231,23 +233,23 @@ export function RadarForm({ initialSettings, categories, venues, instagramAccoun
   return (
     <form onSubmit={handleSubmit} className="space-y-8 max-w-3xl mx-auto">
       {/* Sección 1: Frecuencia y Correo */}
-      <div className="rounded-2xl border border-zinc-800 bg-zinc-900/30 p-6 space-y-6 backdrop-blur-xs">
-        <h2 className="text-lg font-bold text-white flex items-center gap-2">
+      <div className="rounded-2xl border border-border bg-card/30 p-6 space-y-6 backdrop-blur-xs">
+        <h2 className="text-lg font-bold text-foreground flex items-center gap-2">
           <Settings className="size-5 text-primary" />
           Frecuencia y Destinatario
         </h2>
 
         <div className="grid gap-6 md:grid-cols-2">
           <div className="space-y-2">
-            <Label htmlFor="radar-frequency">¿Cada cuánto quieres recibir novedades?</Label>
-            <Select 
-              value={frequency} 
+            <Label htmlFor="radar-frequency">¿Cada cuánto querés recibir novedades?</Label>
+            <Select
+              value={frequency}
               onValueChange={(val) => setFrequency(val as EmailFrequency)}
             >
-              <SelectTrigger id="radar-frequency" className="w-full bg-zinc-950 border-zinc-800">
-                <SelectValue placeholder="Selecciona frecuencia" />
+              <SelectTrigger id="radar-frequency" className="w-full">
+                <SelectValue placeholder="Seleccioná la frecuencia" />
               </SelectTrigger>
-              <SelectContent className="bg-zinc-950 border-zinc-800">
+              <SelectContent>
                 <SelectItem value="weekly">Semanalmente (Todos los Jueves 18:00hs)</SelectItem>
                 <SelectItem value="biweekly">Cada 2 semanas (Quincenal)</SelectItem>
                 <SelectItem value="monthly">Mensualmente</SelectItem>
@@ -259,19 +261,19 @@ export function RadarForm({ initialSettings, categories, venues, instagramAccoun
           <div className="space-y-2">
             <Label htmlFor="radar-email">Dirección de correo electrónico</Label>
             <div className="relative">
-              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-zinc-500" />
+              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
               <div
                 id="radar-email"
-                className="pl-10 flex h-10 w-full items-center rounded-md border border-zinc-800 bg-zinc-950 text-sm text-zinc-300"
+                className="pl-10 flex h-10 w-full items-center rounded-md border border-border bg-muted text-sm text-muted-foreground"
               >
                 {email}
               </div>
             </div>
-            <p className="text-[11px] text-zinc-500">
+            <p className="text-[11px] text-muted-foreground">
               Te lo mandamos al email de tu cuenta.
             </p>
             {isAdmin && (
-              <p className="text-[11px] text-zinc-500 italic">
+              <p className="text-[11px] text-muted-foreground italic">
                 * (En fase beta, los correos de prueba solo se enviarán a tu casilla asociada).
               </p>
             )}
@@ -280,9 +282,9 @@ export function RadarForm({ initialSettings, categories, venues, instagramAccoun
       </div>
 
       {/* Sección 2: Categorías */}
-      <div className="rounded-2xl border border-zinc-800 bg-zinc-900/30 p-6 space-y-6 backdrop-blur-xs">
+      <div className="rounded-2xl border border-border bg-card/30 p-6 space-y-6 backdrop-blur-xs">
         <div>
-          <h2 className="text-lg font-bold text-white flex items-center gap-2 mb-1">
+          <h2 className="text-lg font-bold text-foreground flex items-center gap-2 mb-1">
             <Radio className="size-5 text-primary animate-pulse" />
             Categorías que te interesan
           </h2>
@@ -302,8 +304,8 @@ export function RadarForm({ initialSettings, categories, venues, instagramAccoun
                 className={cn(
                   "flex items-center justify-between p-3.5 rounded-xl border text-sm font-semibold transition-all hover:scale-[1.02] cursor-pointer",
                   isSelected
-                    ? "bg-primary/10 border-primary text-white shadow-md shadow-primary/5"
-                    : "bg-zinc-950/40 border-zinc-800 text-zinc-400 hover:border-zinc-700 hover:text-zinc-200"
+                    ? "bg-primary/10 border-primary text-foreground shadow-md shadow-primary/5"
+                    : "bg-muted/40 border-border text-muted-foreground hover:border-primary/40 hover:text-foreground"
                 )}
               >
                 <span>{category.name}</span>
@@ -315,47 +317,47 @@ export function RadarForm({ initialSettings, categories, venues, instagramAccoun
       </div>
 
       {/* Sección 3: Locales y Cuentas de Instagram */}
-      <div className="rounded-2xl border border-zinc-800 bg-zinc-900/30 p-6 space-y-6 backdrop-blur-xs">
+      <div className="rounded-2xl border border-border bg-card/30 p-6 space-y-6 backdrop-blur-xs">
         <div>
-          <h2 className="text-lg font-bold text-white flex items-center gap-2 mb-1">
+          <h2 className="text-lg font-bold text-foreground flex items-center gap-2 mb-1">
             <Search className="size-5 text-primary" />
             Lugares y Organizadores Preferidos
           </h2>
           <p className="text-xs text-muted-foreground">
-            Sigue locales físicos o directamente a organizadores/boliches de Instagram (ej: La Metro, Sex Us Machina) para enterarte de sus novedades.
+            Seguí locales físicos o directamente a organizadores/boliches de Instagram (ej: La Metro, Sex Us Machina) para enterarte de sus novedades.
           </p>
         </div>
 
         {/* Buscador Autocompletable Unificado */}
         <div ref={searchContainerRef} className="relative">
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4.5 text-zinc-500" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4.5 text-muted-foreground" />
             <Input
               type="text"
-              placeholder="Busca locales físicos o cuentas de Instagram (ej: Usina, Metro, Sex Us...)"
+              placeholder="Buscá locales físicos o cuentas de Instagram (ej: Usina, Metro, Sex Us...)"
               value={searchQuery}
               onChange={(e) => {
                 setSearchQuery(e.target.value)
                 setIsSearchOpen(true)
               }}
               onFocus={() => setIsSearchOpen(true)}
-              className="pl-10 bg-zinc-950 border-zinc-800"
+              className="pl-10"
             />
           </div>
 
           {/* Sugerencias de Autocompletado */}
           {isSearchOpen && searchResults.length > 0 && (
-            <div className="absolute top-full left-0 right-0 mt-2 z-50 rounded-xl border border-zinc-800 bg-zinc-950 shadow-2xl p-1.5 space-y-0.5 max-h-72 overflow-y-auto scrollbar-hide">
+            <div className="absolute top-full left-0 right-0 mt-2 z-50 rounded-xl border border-border bg-popover shadow-2xl p-1.5 space-y-0.5 max-h-72 overflow-y-auto scrollbar-hide">
               {searchResults.map((item) => (
                 <button
                   key={item.id}
                   type="button"
                   onClick={() => handleSelectItem(item)}
-                  className="w-full text-left p-3 hover:bg-zinc-900 rounded-lg text-sm transition-colors flex items-center justify-between cursor-pointer"
+                  className="w-full text-left p-3 hover:bg-muted rounded-lg text-sm transition-colors flex items-center justify-between cursor-pointer"
                 >
                   <div className="flex flex-col">
-                    <span className="font-semibold text-zinc-200">{item.name}</span>
-                    <span className="text-xs text-zinc-500 truncate">{item.subtitle}</span>
+                    <span className="font-semibold text-foreground">{item.name}</span>
+                    <span className="text-xs text-muted-foreground truncate">{item.subtitle}</span>
                   </div>
                   <Badge variant="outline" className={cn(
                     "text-[10px] uppercase font-bold",
@@ -369,7 +371,7 @@ export function RadarForm({ initialSettings, categories, venues, instagramAccoun
           )}
 
           {isSearchOpen && searchQuery.trim() && searchResults.length === 0 && (
-            <div className="absolute top-full left-0 right-0 mt-2 z-50 rounded-xl border border-zinc-850 bg-zinc-950 p-4 text-center text-xs text-zinc-500 italic">
+            <div className="absolute top-full left-0 right-0 mt-2 z-50 rounded-xl border border-border bg-popover p-4 text-center text-xs text-muted-foreground italic">
               No se encontraron coincidencias.
             </div>
           )}
@@ -419,8 +421,8 @@ export function RadarForm({ initialSettings, categories, venues, instagramAccoun
             ))}
           </div>
         ) : (
-          <p className="text-xs text-zinc-500 italic pt-2">
-            No estás siguiendo ningún local ni cuenta de Instagram aún. Escribe arriba para buscarlos y agregarlos.
+          <p className="text-xs text-muted-foreground italic pt-2">
+            No estás siguiendo ningún local ni cuenta de Instagram aún. Escribí arriba para buscarlos y agregarlos.
           </p>
         )}
       </div>
@@ -432,7 +434,7 @@ export function RadarForm({ initialSettings, categories, venues, instagramAccoun
             type="button"
             onClick={handleSendTestEmail}
             variant="outline"
-            className="border-zinc-800 hover:bg-zinc-900 font-semibold px-6 py-5 rounded-xl cursor-pointer"
+            className="border-border hover:bg-muted font-semibold px-6 py-5 rounded-xl cursor-pointer"
             disabled={isPending || isSendingTest}
           >
             {isSendingTest ? "Enviando prueba..." : "Enviar Correo de Prueba"}

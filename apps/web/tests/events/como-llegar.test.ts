@@ -25,13 +25,13 @@ describe.each(COMPONENTES)('%s', (archivo) => {
     expect(fuente).not.toMatch(/urlComoLlegar\([^)]*\)\s*\?\?/)
   })
 
-  it('el botón "Como llegar" está dentro de {googleMapsUrl && (...)}', () => {
+  it('el botón "Cómo llegar" está dentro de {googleMapsUrl && (...)}', () => {
     const condicion = fuente.indexOf('{googleMapsUrl && (')
-    const boton = fuente.indexOf('Como llegar')
+    const boton = fuente.indexOf('Cómo llegar')
     expect(condicion).toBeGreaterThan(-1)
     expect(boton).toBeGreaterThan(condicion)
     // Un solo botón, y el cierre del condicional viene después del texto.
-    expect(fuente.split('Como llegar')).toHaveLength(2)
+    expect(fuente.split('Cómo llegar')).toHaveLength(2)
     const cierre = fuente.indexOf(')}', boton)
     expect(cierre).toBeGreaterThan(boton)
     // Entre la condición y el texto no se cierra otro bloque JSX condicional.
