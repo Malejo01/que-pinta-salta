@@ -31,6 +31,7 @@ import { createClient } from '@supabase/supabase-js'
 import { INSTAGRAM_ENGINE_CONFIG } from '../lib/instagram-config'
 import { copyExternalImage, isOwnStorageUrl, EXTERNAL_IMAGES_FOLDER, type ExternalImageStorageClient } from '../lib/images/external'
 import { runBackfill, type BackfillStorageClient } from '../lib/images/backfill'
+import { traerTodasLasFilas } from '../lib/images/paginar-filas'
 
 /**
  * Carga .env.local sin dependencias, igual que scripts/imagenes-variantes.ts
@@ -137,32 +138,37 @@ async function main() {
 
   const ownHost = new URL(url).host
 
-  const { data: events, error: eventsError } = await supabase
-    .from('events')
-    .select('id, image_url')
-    .not('image_url', 'is', null)
-  if (eventsError) {
-    console.error(`[imagenes-externas] Error consultando events: ${eventsError.message}`)
+  // De a 1000 filas con .range() y orden estable (QPS-162): sin paginar,
+  // PostgREST devolvía solo las primeras 1000 de las ~1470 de events y el
+  // resto no se copiaba nunca, por más veces que se corriera el script.
+  let events: { id: string; image_url: string | null }[]
+  let movies: { id: string; poster_url: string | null }[]
+  try {
+    events = await traerTodasLasFilas<{ id: string; image_url: string | null }>((desde, hasta) =>
+      supabase.from('events').select('id, image_url').not('image_url', 'is', null).order('id').range(desde, hasta)
+    )
+  } catch (error) {
+    console.error(`[imagenes-externas] Error consultando events: ${error instanceof Error ? error.message : error}`)
     process.exit(1)
   }
-
-  const { data: movies, error: moviesError } = await supabase
-    .from('cinema_movies')
-    .select('id, poster_url')
-    .not('poster_url', 'is', null)
-  if (moviesError) {
-    console.error(`[imagenes-externas] Error consultando cinema_movies: ${moviesError.message}`)
+  try {
+    movies = await traerTodasLasFilas<{ id: string; poster_url: string | null }>((desde, hasta) =>
+      supabase.from('cinema_movies').select('id, poster_url').not('poster_url', 'is', null).order('id').range(desde, hasta)
+    )
+  } catch (error) {
+    console.error(`[imagenes-externas] Error consultando cinema_movies: ${error instanceof Error ? error.message : error}`)
     process.exit(1)
   }
+  console.log(`[imagenes-externas] leídas con imagen: events=${events.length}, cinema_movies=${movies.length}`)
 
   const targets: Target[] = []
-  for (const row of events ?? []) {
+  for (const row of events) {
     const value = row.image_url as string | null
     if (value && !isOwnStorageUrl(value) && !sameHost(value, ownHost)) {
       targets.push({ table: 'events', id: row.id as string, column: 'image_url', url: value })
     }
   }
-  for (const row of movies ?? []) {
+  for (const row of movies) {
     const value = row.poster_url as string | null
     if (value && !isOwnStorageUrl(value) && !sameHost(value, ownHost)) {
       targets.push({ table: 'cinema_movies', id: row.id as string, column: 'poster_url', url: value })
