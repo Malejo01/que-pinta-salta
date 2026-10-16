@@ -56,6 +56,9 @@ export interface DedupCleanupOptions {
    * hace backfill de claves.
    */
   onlyEventIds?: string[]
+  // Queda en `any` a propósito: los tests (dedup-cleanup-merged.test.ts,
+  // dedup-cleanup-plan.test.ts) pasan un cliente fake mínimo (`{ from }`) que no
+  // satisface `SupabaseClient`. Mismo contrato que lib/events/merged.ts.
   supabase?: any
 }
 
@@ -83,7 +86,7 @@ export interface DuplicateGroupPlan {
   conflicts: DiscardedValue[]
   ticketSourcesBefore: number
   ticketSourcesAfter: number
-  patch: Record<string, any>
+  patch: Record<string, unknown>
   auditEntries: MergeAuditEntry[]
 }
 
@@ -115,6 +118,15 @@ export interface DedupCleanupReport {
 /** Columnas que necesita el merge. `*` para no tener que sincronizar la lista. */
 const PAGE_SIZE = 500
 
+// Las filas de `events` quedan en `any` a propósito en todo este archivo (acá y
+// en toPlannedEvent, descriptionScore, pickKeeper, splitByVenue,
+// groupByDedupKey, buildDuplicateGroups, groupMatchesIds y planGroup): en
+// producción son filas reales de Supabase (columnas dinámicas, `select('*')`),
+// y los tests de caracterización (dedup-cleanup-plan.test.ts,
+// dedup-cleanup-merged.test.ts) les pasan fixtures tipados `Record<string,
+// unknown>` directo, sin cast. Tipar con `Tables<'events'>` de @qps/db
+// rompería esos tests (no están entre los archivos permitidos) o forzaría un
+// `as` por cada acceso a campo dentro de estas funciones puras.
 async function fetchAllEvents(supabase: any, options: DedupCleanupOptions): Promise<any[]> {
   const rows: any[] = []
   let offset = 0
@@ -240,7 +252,7 @@ export function buildDuplicateGroups(rows: any[]): {
   groups: Array<{ rows: any[]; byTicketUrl: boolean }>
   venueConflicts: Array<{ dedupKey: string; rows: any[] }>
 } {
-  const index = new Map<any, number>(rows.map((row, i) => [row, i]))
+  const index = new Map<unknown, number>(rows.map((row, i) => [row, i]))
   const parent = rows.map((_, i) => i)
   // Segundo union-find sólo con la regla de clave: si un grupo final abarca
   // más de una raíz de éste, existe gracias al link de compra.
@@ -319,10 +331,10 @@ export function planGroup(dedupKey: string, group: any[], byTicketUrl = false): 
 
   // Copia de trabajo: cada fusión ve el resultado de la anterior, igual que
   // pasaría si los eventos hubieran entrado de a uno por la ingesta.
-  const working: Record<string, any> = { ...keeper }
+  const working: Record<string, unknown> = { ...keeper }
   const conflicts: DiscardedValue[] = []
   const auditEntries: MergeAuditEntry[] = []
-  const patch: Record<string, any> = {}
+  const patch: Record<string, unknown> = {}
 
   for (const row of absorbed) {
     const merge = mergeEvents(working, row, {
@@ -373,20 +385,23 @@ export function planGroup(dedupKey: string, group: any[], byTicketUrl = false): 
  * las dos en favoritos, la fila sobrante se va con el DELETE en cascada.
  */
 async function repointFavorites(supabase: any, fromId: string, toId: string): Promise<number> {
-  const { data: favorites, error } = await supabase
-    .from('user_favorites')
-    .select('id, user_id')
-    .eq('event_id', fromId)
+  // `supabase` es `any` (ver DedupCleanupOptions.supabase); se anota la forma de lo
+  // seleccionado para no perder el tipado de las filas en el resto de la función.
+  const { data: favorites, error }: { data: Array<{ id: string; user_id: string }> | null; error: unknown } =
+    await supabase
+      .from('user_favorites')
+      .select('id, user_id')
+      .eq('event_id', fromId)
 
   if (error || !favorites || favorites.length === 0) return 0
 
-  const { data: keeperFavorites } = await supabase
+  const { data: keeperFavorites }: { data: Array<{ user_id: string }> | null } = await supabase
     .from('user_favorites')
     .select('user_id')
     .eq('event_id', toId)
 
-  const alreadyFavorited = new Set((keeperFavorites || []).map((row: any) => row.user_id))
-  const movable = favorites.filter((row: any) => !alreadyFavorited.has(row.user_id)).map((row: any) => row.id)
+  const alreadyFavorited = new Set((keeperFavorites || []).map((row) => row.user_id))
+  const movable = favorites.filter((row) => !alreadyFavorited.has(row.user_id)).map((row) => row.id)
   if (movable.length === 0) return 0
 
   const { error: updateError } = await supabase
@@ -397,7 +412,10 @@ async function repointFavorites(supabase: any, fromId: string, toId: string): Pr
   return updateError ? 0 : movable.length
 }
 
-/** Deja el flyer de Instagram apuntando al evento que sobrevive. */
+/**
+ * Deja el flyer de Instagram apuntando al evento que sobrevive.
+ * `supabase: any` por el mismo motivo que DedupCleanupOptions.supabase.
+ */
 async function repointInstagramFlyers(supabase: any, fromId: string, toId: string): Promise<void> {
   try {
     const { data } = await supabase
@@ -475,7 +493,9 @@ export async function runDedupCleanup(options: DedupCleanupOptions = {}): Promis
 
     try {
       const existing = rows.find((row) => row.id === plan.keeper.id)
-      let audit = (existing as any)?.merge_audit
+      // `existing` ya es `any` (viene de `rows: any[]`, ver fetchAllEvents): no hace
+      // falta otro cast para leer `.merge_audit`.
+      let audit = existing?.merge_audit
       for (const entry of plan.auditEntries) {
         audit = appendAudit(audit, entry)
       }
@@ -502,8 +522,13 @@ export async function runDedupCleanup(options: DedupCleanupOptions = {}): Promis
         }
         report.applied.eventsDeleted++
       }
-    } catch (error: any) {
-      report.errors.push(`Grupo "${plan.dedupKey}": ${error?.message || error}`)
+    } catch (error) {
+      // Replica `error?.message || error` sin `any`: si es un objeto con
+      // `.message`, se usa eso; si no (o viene vacío), se interpola el error tal cual.
+      const message = error !== null && typeof error === 'object' && 'message' in error
+        ? (error as { message?: unknown }).message
+        : undefined
+      report.errors.push(`Grupo "${plan.dedupKey}": ${message || error}`)
     }
   }
 
@@ -539,7 +564,7 @@ export async function runDedupCleanup(options: DedupCleanupOptions = {}): Promis
  * de línea: dos descripciones que sólo difieren al final se veían idénticas
  * cuando el recorte era mudo.
  */
-function preview(value: any, max = 110): string {
+function preview(value: unknown, max = 110): string {
   const text = String(value ?? '').replace(/\s+/g, ' ').trim()
   return text.length > max ? `"${text.slice(0, max)}…"` : `"${text}"`
 }

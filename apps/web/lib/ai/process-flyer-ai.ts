@@ -1,10 +1,20 @@
 import { createAdminClient } from '@/lib/supabase/server'
 import { extractEventFromFlyer } from './gemini'
-import { AIProcessingResult, GeminiExtractionResult } from './types'
+import { AIProcessingResult } from './types'
 import { upsertVenue, resolveCategoryId } from '@/lib/scraper/save-to-supabase'
 import { upsertEventWithDeduplication } from '@/lib/scraper/deduplicate'
 import { saltaWallClockToUtcISO } from '@/lib/date-format'
 import { validatePrice, validateStartTime, validateVenue } from './validate-extraction'
+import type { Tables } from '@qps/db'
+
+/** Fila mínima de `instagram_flyers` que necesita el pipeline de IA y su fallback. */
+type FlyerRow = Pick<
+  Tables<'instagram_flyers'>,
+  'id' | 'ig_post_id' | 'ig_post_url' | 'caption' | 'storage_image_url' | 'original_image_url' | 'published_at'
+>
+
+/** Cuenta de Instagram asociada al flyer (puede no venir si no hay `account_id` resuelto). */
+type FlyerAccount = Pick<Tables<'instagram_accounts'>, 'username' | 'default_venue_name' | 'default_category'> | null
 
 // Helper simple de slugify para evitar problemas con importaciones
 function slugify(text: string): string {
@@ -20,8 +30,11 @@ function slugify(text: string): string {
     .replace(/-+$/, '')             // Quitar guiones finales
 }
 
-// Limpia campos de texto que la IA podría devolver como el string "null"
-function cleanStringField(val: any): string | null {
+// Limpia campos de texto que la IA podría devolver como el string "null".
+// `val` es unknown y no el tipo que promete GeminiExtractionResult: el modelo
+// extrae, el código decide, y esta función existe justamente para no confiar
+// en que el runtime respete el tipo declarado.
+function cleanStringField(val: unknown): string | null {
   if (val === null || val === undefined) return null
   const s = String(val).trim()
   if (s.toLowerCase() === 'null' || s === '') return null
@@ -128,14 +141,14 @@ export async function processFlyerWithAI(flyerId: string): Promise<FlyerProcessi
     const res = await fetchImageBuffer(imageUrl)
     imageBuffer = res.buffer
     mimeType = res.mimeType
-  } catch (downloadError: any) {
+  } catch (downloadError: unknown) {
     console.error(`[AI Pipeline] Error descargando imagen del flyer ${flyerId}:`, downloadError)
-    
+
     // Guardar estado fallido y continuar con el guardado fallback del evento
     return await handleProcessingFallback(
       flyer,
       account,
-      `Error de descarga de imagen: ${downloadError.message || downloadError}`
+      `Error de descarga de imagen: ${(downloadError instanceof Error && downloadError.message) || downloadError}`
     )
   }
 
@@ -302,14 +315,14 @@ export async function processFlyerWithAI(flyerId: string): Promise<FlyerProcessi
       action: upsertRes.action,
       ...(venueError ? { venueError } : {}),
     }
-  } catch (aiError: any) {
+  } catch (aiError: unknown) {
     console.error(`[AI Pipeline] Error procesando con Gemini en flyer ${flyerId}:`, aiError)
-    
+
     // Guardar estado fallido y continuar con el guardado fallback del evento
     return await handleProcessingFallback(
       flyer,
       account,
-      `Error de IA o procesamiento: ${aiError.message || aiError}`
+      `Error de IA o procesamiento: ${(aiError instanceof Error && aiError.message) || aiError}`
     )
   }
 }
@@ -320,8 +333,8 @@ export async function processFlyerWithAI(flyerId: string): Promise<FlyerProcessi
  * marca el flyer original como FAILED en base de datos.
  */
 async function handleProcessingFallback(
-  flyer: any,
-  account: any,
+  flyer: FlyerRow,
+  account: FlyerAccount,
   errorMessage: string
 ): Promise<FlyerProcessingResult> {
   const supabase = createAdminClient()
@@ -404,9 +417,12 @@ async function handleProcessingFallback(
       action: upsertRes.action,
       ...(venueError ? { venueError } : {}),
     }
-  } catch (fallbackError: any) {
+  } catch (fallbackError: unknown) {
     console.error(`[AI Pipeline] Error crítico en el fallback para flyer ${flyer.id}:`, fallbackError)
-    
+    // Igual que antes: si el error no es un Error con mensaje, se guarda el valor
+    // crudo (puede no ser string) tal cual, tanto en ai_metadata como en el template.
+    const fallbackDetail = (fallbackError instanceof Error && fallbackError.message) || fallbackError
+
     // Si incluso el fallback falla en base de datos, marcamos el flyer como FAILED sin evento asociado
     try {
       await supabase
@@ -415,7 +431,7 @@ async function handleProcessingFallback(
           ai_status: 'FAILED',
           ai_metadata: {
             error: errorMessage,
-            fallback_error: fallbackError.message || fallbackError,
+            fallback_error: fallbackDetail,
           },
           ai_processed_at: new Date().toISOString(),
         })
@@ -426,7 +442,7 @@ async function handleProcessingFallback(
 
     return {
       success: false,
-      error: `Error crítico en fallback: ${fallbackError.message || fallbackError}`,
+      error: `Error crítico en fallback: ${fallbackDetail}`,
     }
   }
 }

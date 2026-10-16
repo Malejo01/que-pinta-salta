@@ -158,11 +158,11 @@ async function sendNewsletter(): Promise<NewsletterReply> {
       timestamp: new Date().toISOString()
     })
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('[RadarNewsletterCron] Falló la ejecución del cron del newsletter:', error)
     return reply(500, {
       success: false,
-      error: error?.message || 'Error desconocido'
+      error: (error instanceof Error && error.message) || 'Error desconocido'
     })
   }
 }

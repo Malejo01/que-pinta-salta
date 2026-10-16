@@ -1,4 +1,20 @@
-export const mockEvents: any[] = [
+type MockEvent = {
+  id: string
+  title: string
+  venue: string
+  date: string
+  time: string
+  category: string
+  price: number | string
+  image: string
+  description: string
+  address: string
+  ticketUrl?: string
+  vibe: string
+  isFeatured?: boolean
+}
+
+export const mockEvents: MockEvent[] = [
   {
     id: "1",
     title: "PeÃ±a FolklÃ³rica en Balcarce",

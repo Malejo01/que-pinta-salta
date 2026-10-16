@@ -36,13 +36,31 @@ export async function POST(request: Request) {
   return NextResponse.json(body, { status: httpStatus })
 }
 
-type BatchReply = { httpStatus: number; body: Record<string, any> }
+type AiFlyerResult = {
+  flyerId: string
+  igPostId: string | null
+  success: boolean
+  eventId?: string
+  action?: string
+  error?: string
+  venueError?: string
+}
 
-const reply = (httpStatus: number, body: Record<string, any>): BatchReply => ({ httpStatus, body })
+type BatchBody = {
+  success: boolean
+  error?: string
+  message?: string
+  processedCount?: number
+  results?: AiFlyerResult[]
+}
+
+type BatchReply = { httpStatus: number; body: BatchBody }
+
+const reply = (httpStatus: number, body: BatchBody): BatchReply => ({ httpStatus, body })
 
 function batchOutcome({ httpStatus, body }: BatchReply): JobOutcome {
   if (httpStatus >= 500) return { status: 'FAILED', errors: [String(body.error ?? 'error')] }
-  const results: Array<{ success: boolean; error?: string; action?: string; venueError?: string }> = body.results ?? []
+  const results: AiFlyerResult[] = body.results ?? []
   if (results.length === 0) return { status: 'SKIPPED' }
   const failed = results.filter((r) => !r.success)
   // Un flyer con evento creado pero sin lugar (resolve_venue_id falló) no es
@@ -105,12 +123,12 @@ async function processBatch(request: Request): Promise<BatchReply> {
           error: result.error,
           venueError: result.venueError,
         }
-      } catch (err: any) {
+      } catch (err: unknown) {
         return {
           flyerId: flyer.id,
           igPostId: flyer.ig_post_id,
           success: false,
-          error: err.message || String(err),
+          error: (err instanceof Error && err.message) || String(err),
         }
       }
     })
@@ -143,7 +161,7 @@ async function processBatch(request: Request): Promise<BatchReply> {
       results: processedResults,
     })
 
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('[AI Processing Endpoint] Error general en webhook:', err)
     return reply(500, {
       success: false,
@@ -186,9 +204,9 @@ export async function GET(request: Request) {
       },
       timestamp: new Date().toISOString(),
     })
-  } catch (err: any) {
+  } catch (err: unknown) {
     return NextResponse.json(
-      { success: false, error: err.message },
+      { success: false, error: err instanceof Error ? err.message : String(err) },
       { status: 500 }
     )
   }

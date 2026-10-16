@@ -135,7 +135,9 @@ export async function parseEventDetail(url: string, venueName: string = ''): Pro
     // Fallback: div.advertencia .p-2 para eventos sin texto enriquecido (solo aviso/nota).
     const richParas: string[] = [];
     $('*').contents().filter(function () {
-      return this.type === 'comment' && (this as any).data?.includes('ENRIQUECIDO');
+      // this.type === 'comment' narrows `this` de AnyNode a Comment (domhandler),
+      // que es el único nodo con `.data`.
+      return this.type === 'comment' && this.data?.includes('ENRIQUECIDO');
     }).each((_, commentNode) => {
       $(commentNode).next('div').find('p').each((_, el) => {
         const text = $(el).text().replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim();

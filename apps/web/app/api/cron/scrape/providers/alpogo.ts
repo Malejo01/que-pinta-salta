@@ -3,6 +3,22 @@ import { ScrapedEvent } from '../types'
 
 const ALPOGO_API_URL = 'https://alpogo.com/api/events/getEvents2'
 
+// Lo que este archivo lee de la respuesta de la API de Alpogo. Todo opcional:
+// el código ya hace `|| fallback` en cada campo, nunca asume que viene.
+interface AlpogoEvento {
+  nombre?: string
+  fecha_funcion?: string
+  menor_precio?: string
+  botonPrecio?: string
+  gratuito?: string
+  descripcion?: string
+  imagen_grilla?: string
+  imagen_logo?: string
+  urlCompra?: string
+  url?: string
+  lugar?: string
+}
+
 function isTextFree(title: string, description: string = ''): boolean {
   const text = `${title} ${description}`.toLowerCase()
     .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
@@ -36,14 +52,14 @@ export async function scrapeAlpogo(): Promise<ScrapedEvent[]> {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
       },
       body: JSON.stringify(payload),
-      next: { revalidate: 0 } as any // Avoid caching in Next.js
+      next: { revalidate: 0 } // Avoid caching in Next.js
     })
 
     if (!res.ok) {
       throw new Error(`HTTP ${res.status}: ${res.statusText}`)
     }
 
-    const data = await res.json()
+    const data: AlpogoEvento[] = await res.json()
     console.log(`[cron-alpogo] Recibidos ${data.length} eventos de Alpogo.`)
 
     for (const item of data) {

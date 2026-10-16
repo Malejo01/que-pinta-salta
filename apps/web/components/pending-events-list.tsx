@@ -16,8 +16,24 @@ import { useToast } from "@/hooks/use-toast"
 import { approvePendingEvent, deleteDraftEvent } from "@/lib/admin-actions"
 import { formatEventDate, formatSaltaClock } from "@/lib/date-format"
 
-export function PendingEventsList({ initialEvents }: { initialEvents: any[] }) {
-  const [events, setEvents] = useState(initialEvents)
+/** Fila que devuelve getPendingEvents() (lib/admin-actions.ts): el `.select()`
+ * interpola ADMIN_REVIEW_EVENT_ROW_SELECT (string, no literal), así que
+ * supabase-js no puede inferir las columnas y el tipo real es un
+ * `ParserError` (ver packages/core/src/events/public-select.ts). Por eso el
+ * prop se tipa `unknown[]` en el límite y se afirma esta forma acá, con
+ * solo los campos que usa este componente, en vez de `any[]` como antes. */
+interface PendingEvent {
+  id: string
+  title: string
+  image_url: string | null
+  start_date: string
+  description: string | null
+  profile: { full_name: string | null; email: string | null } | null
+  venue: { name: string } | null
+}
+
+export function PendingEventsList({ initialEvents }: { initialEvents: unknown[] }) {
+  const [events, setEvents] = useState(initialEvents as PendingEvent[])
   const [isPending, startTransition] = useTransition()
   const { toast } = useToast()
 

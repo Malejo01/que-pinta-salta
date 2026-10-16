@@ -2,6 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server"
 import { revalidatePath } from "next/cache"
+import type { TablesInsert } from "@qps/db"
 
 export type FavoriteType = 'event' | 'cinema' | 'flyer'
 
@@ -60,7 +61,7 @@ export async function toggleFavorite(
     return { success: true, favorited: false }
   } else {
     // Insertar favorito
-    const insertData: any = {
+    const insertData: TablesInsert<'user_favorites'> = {
       user_id: user.id
     }
 

@@ -5,7 +5,6 @@ import Link from "next/link"
 import { motion } from "framer-motion"
 import { Calendar, MapPin, Instagram, Film, Share2 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { formatEventDateShort } from "@/lib/date-format"
 import { FavoriteButton } from "@/components/favorite-button"
@@ -14,6 +13,7 @@ import { useDonation } from "@/components/donation-context"
 import type { DisplayEvent } from "@/components/home-content"
 import { eventHref, type MetricOrigin } from "@/lib/metricas/links"
 import { summarizeOccurrences } from "@/lib/events/occurrences-summary"
+import type { MovieShowings } from "@/lib/types"
 
 interface EventCardProps {
   event: DisplayEvent
@@ -25,7 +25,7 @@ interface EventCardProps {
   origin?: MetricOrigin
 }
 
-export function EventCard({ event, isFavorite, onToggleFavorite, onOpenMovie, className, origin }: EventCardProps) {
+export function EventCard({ event, isFavorite, onOpenMovie, className, origin }: EventCardProps) {
   const [imgSrc, setImgSrc] = useState<string>(event.image || "/placeholder.jpg")
   const [failedImage, setFailedImage] = useState<string | null>(null)
   const { openDonationModal } = useDonation()
@@ -151,13 +151,13 @@ export function EventCard({ event, isFavorite, onToggleFavorite, onOpenMovie, cl
                 Funciones Hoy
               </h4>
               <div className="space-y-2">
-                {Object.entries(event.showings).map(([cinemaKey, details]: [string, any]) => (
+                {Object.entries(event.showings as MovieShowings).map(([cinemaKey, details]) => (
                   <div key={cinemaKey} className="space-y-0.5">
                     <p className="text-[10px] font-bold text-zinc-300 truncate">
                       {details.name}
                     </p>
                     <div className="flex flex-wrap gap-1">
-                      {details.formats.flatMap((f: any) => f.times).slice(0, 5).map((time: string, tIdx: number) => (
+                      {details.formats.flatMap((f) => f.times).slice(0, 5).map((time: string, tIdx: number) => (
                         <span 
                           key={tIdx} 
                           className="bg-zinc-800 text-zinc-200 text-[11px] px-1 py-0.5 rounded border border-zinc-700/30"

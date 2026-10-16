@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import type { Event, Venue } from '../types';
+import type { Event } from '../types';
 import { upsertEventWithDeduplication } from './deduplicate';
 import { saltaWallClockToUtcISO } from '../date-format';
 import { formatVenueError, resolveVenueId } from '../venues/resolve';
@@ -229,8 +229,14 @@ export async function saveEventsToSupabase(
         result.skipped++;
         console.log(`⟳ Fusionado (Duplicado): ${event.title}`);
       }
-    } catch (e: any) {
-      result.errors.push(`Excepción en "${event.title}": ${e?.message}`);
+    } catch (e) {
+      // Replica `e?.message` sin `any`: si `e` es un objeto con `.message`
+      // (lo normal, Error u objeto plano), se usa ese valor; si no, undefined,
+      // igual que devolvía el optional chaining original.
+      const message = e !== null && typeof e === 'object' && 'message' in e
+        ? (e as { message?: unknown }).message
+        : undefined;
+      result.errors.push(`Excepción en "${event.title}": ${message}`);
     }
   }
 
