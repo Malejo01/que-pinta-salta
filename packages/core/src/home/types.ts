@@ -28,6 +28,8 @@ export interface DisplayEvent {
   /** Solo con dato explícito (age_restriction >= 18); null/undefined = sin chip. */
   vibe?: "adultos" | "familiar" | "exterior" | null
   isFeatured: boolean
+  /** Estado del evento (events.status): lo usa el modal de Buscar para el gate de "Voy / Me interesa". Flyers de Instagram y películas no lo tienen. */
+  status?: string
   // Campos opcionales para flyers de Instagram
   isInstagramFlyer?: boolean
   flyerId?: string

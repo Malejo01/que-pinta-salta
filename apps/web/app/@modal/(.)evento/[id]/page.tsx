@@ -4,6 +4,8 @@ import { EventModalWrapper } from "@/components/event-modal-wrapper"
 import { createClient } from "@/lib/supabase/server"
 import { parseOrigin } from "@/lib/metricas/links"
 import { esEventoFavorito } from "@/lib/favoritos/es-favorito"
+import { obtenerAsistencia } from "@/lib/asistencia"
+import { debenMostrarseBotonesAsistencia } from "@/lib/asistencia-visibilidad"
 
 interface ModalEventPageProps {
   params: Promise<{ id: string }>
@@ -44,6 +46,15 @@ export default async function ModalEventPage({ params, searchParams }: ModalEven
     return null
   }
 
+  // "Voy" / "Me interesa": solo se lee la asistencia si el evento está
+  // PUBLISHED (misma función que la ficha). Si la lectura falla, el modal
+  // sigue sin los botones.
+  const resultadoAsistencia = debenMostrarseBotonesAsistencia(event.status)
+    ? await obtenerAsistencia(id)
+    : null
+  const cantidadesAsistencia = resultadoAsistencia?.ok ? resultadoAsistencia.cantidades : undefined
+  const marcaAsistencia = resultadoAsistencia?.ok ? resultadoAsistencia.propia : null
+
   return (
     <EventModalWrapper
       event={event}
@@ -51,6 +62,9 @@ export default async function ModalEventPage({ params, searchParams }: ModalEven
       categories={categories}
       origin={origin}
       isFavorite={isFavorite}
+      cantidadesAsistencia={cantidadesAsistencia}
+      marcaAsistencia={marcaAsistencia}
+      haySesion={!!user}
     />
   )
 }

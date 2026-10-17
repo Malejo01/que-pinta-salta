@@ -59,6 +59,8 @@ interface BuscarContentProps {
   flyers: FlyerWithAccount[]
   cinemaMovies: CinemaMovie[]
   userFavorites: string[]
+  /** Si hay sesión (la lee /buscar en el servidor): lo usa "Voy / Me interesa" del modal. */
+  haySesion?: boolean
 }
 
 export function BuscarContent({
@@ -67,7 +69,8 @@ export function BuscarContent({
   serverNowISO,
   flyers,
   cinemaMovies,
-  userFavorites
+  userFavorites,
+  haySesion = false
 }: BuscarContentProps) {
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedEvent, setSelectedEvent] = useState<DisplayEvent | null>(null)
@@ -294,6 +297,7 @@ export function BuscarContent({
         origin="busqueda"
         isFavorite={!!selectedEvent && favorites.includes(selectedEvent.id)}
         onFavoriteChange={handleToggleFavorite}
+        haySesion={haySesion}
       />
       
       {selectedMovie && (
