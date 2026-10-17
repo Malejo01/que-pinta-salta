@@ -10,13 +10,19 @@ export const ANDROID_PACKAGE = 'ar.com.quepintasalta.app'
 
 /**
  * Huellas SHA-256 del certificado de firma de la app, listas para publicar
- * en `/.well-known/assetlinks.json`. Vacío hasta que exista un certificado
- * real: con la lista vacía, `assetLinksJson` devuelve `null` y la ruta
- * responde 404 — nunca se sirve un archivo con una huella inventada.
+ * en `/.well-known/assetlinks.json`. Con la lista vacía, `assetLinksJson`
+ * devuelve `null` y la ruta responde 404 — nunca se sirve un archivo con una
+ * huella inventada.
  *
- * [COMPLETAR: huella SHA-256 del certificado de firma de la app; sale de EAS en la noche 8. No inventar.]
+ * Huella del keystore de EAS del perfil `preview`, generado el 15/10,
+ * proyecto `@malejo01/que-pinta-salta` (paquete `ar.com.quepintasalta.app`).
+ * Es pública: está anotada en `ops/app-huellas.md`. Si algún día se publica
+ * en Play Store con App Signing, Google firma con otra clave: hay que
+ * **sumar** la huella de Play a esta lista, sin reemplazar esta.
  */
-export const ANDROID_SHA256_FINGERPRINTS: string[] = []
+export const ANDROID_SHA256_FINGERPRINTS: string[] = [
+  '30:6B:7A:9C:E0:20:70:CE:BE:C1:8D:50:7E:7C:E1:86:0C:BF:E8:0F:20:17:23:27:1A:27:0B:57:D7:88:43:C0',
+]
 
 /** 32 pares hexadecimales separados por ':' (mayúsculas o minúsculas). */
 const SHA256_FINGERPRINT_RE = /^([0-9A-Fa-f]{2}:){31}[0-9A-Fa-f]{2}$/

@@ -1,31 +1,18 @@
-// 23-d: `assetLinksJson` (apps/web/lib/config/app-links.ts) y que la
-// configuración real de la app (ANDROID_SHA256_FINGERPRINTS) siga vacía.
-// Sin red, sin certificado real: toda huella de este archivo está inventada
-// a propósito (32 pares hexadecimales de relleno, nunca una huella real de
-// EAS).
+// 23-d: `assetLinksJson` (apps/web/lib/config/app-links.ts). Sin red, sin
+// certificado real: toda huella de este archivo está inventada a propósito
+// (32 pares hexadecimales de relleno), nunca la huella real de EAS — esa ya
+// está cargada en `ANDROID_SHA256_FINGERPRINTS` (36-d) y la cubren los tests
+// de `app-links-route.test.ts` (que la constante tenga al menos una huella
+// con el formato correcto, y que la ruta real responda 200). Lo que este
+// archivo sigue probando, y el otro no, es que el 404 sigue existiendo como
+// camino real: `assetLinksJson` da `null` con la lista vacía o con cualquier
+// huella mal formada, de modo que la ruta nunca sirve un archivo con una
+// huella inventada o a medio completar.
 import { describe, expect, it } from 'vitest'
-import {
-  ANDROID_PACKAGE,
-  ANDROID_SHA256_FINGERPRINTS,
-  assetLinksJson,
-} from '@/lib/config/app-links'
+import { assetLinksJson } from '@/lib/config/app-links'
 
 /** Huella de prueba: 32 pares hex separados por ':' (00:01:02:...:1F). Inventada en este test. */
 const FAKE_FINGERPRINT = Array.from({ length: 32 }, (_, i) => i.toString(16).padStart(2, '0').toUpperCase()).join(':')
-
-describe('la configuración real de la app', () => {
-  it(
-    'ANDROID_SHA256_FINGERPRINTS sigue vacía: sin huella real de EAS todavía. ' +
-      'El día que se complete (noche 8), este test se rompe a propósito — y hay que actualizarlo, no revertir el código.',
-    () => {
-      expect(ANDROID_SHA256_FINGERPRINTS).toEqual([])
-    }
-  )
-
-  it("el paquete sigue siendo 'ar.com.quepintasalta.app' (decisión 1 de Mauro, para siempre una vez publicado)", () => {
-    expect(ANDROID_PACKAGE).toBe('ar.com.quepintasalta.app')
-  })
-})
 
 describe('assetLinksJson', () => {
   it('con la lista vacía, null (nunca se publica un archivo sin huellas)', () => {

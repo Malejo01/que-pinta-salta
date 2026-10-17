@@ -19,6 +19,51 @@ describe('app.config.ts', () => {
     expect(datos).toContainEqual({ scheme: 'https', host: 'www.quepintasalta.com.ar', pathPrefix: '/evento/' })
   })
 
+  // 36-d (G4): el intentFilter de App Links tiene que pedir la verificación
+  // automática de Android (autoVerify: true) — si no, Android nunca mira
+  // /.well-known/assetlinks.json y el link de evento abre el navegador, no
+  // la app. No se suma el host sin `www`: los links que se comparten salen
+  // de SITIO (con www), y verificar un host que redirige rompe la
+  // verificación de Android.
+  it('el intentFilter de App Links tiene autoVerify: true, scheme https, host www y pathPrefix /evento/', () => {
+    const filtroAppLinks = config.android?.intentFilters?.find((f) => {
+      const datos = Array.isArray(f.data) ? f.data : [f.data]
+      return datos.some((d) => d?.host === 'www.quepintasalta.com.ar')
+    })
+
+    expect(filtroAppLinks).toBeDefined()
+    expect(filtroAppLinks?.autoVerify).toBe(true)
+
+    const datos = Array.isArray(filtroAppLinks?.data) ? filtroAppLinks.data : [filtroAppLinks?.data]
+    expect(datos).toContainEqual({ scheme: 'https', host: 'www.quepintasalta.com.ar', pathPrefix: '/evento/' })
+
+    // Ningún intentFilter de App Links apunta al host sin `www` (rompe la
+    // verificación de Android: ver el comentario arriba).
+    const todosLosDatos = config.android?.intentFilters?.flatMap((f) => (Array.isArray(f.data) ? f.data : [f.data])) ?? []
+    expect(todosLosDatos.some((d) => d?.host === 'quepintasalta.com.ar')).toBe(false)
+  })
+
+  // Evasión encontrada por el revisor/seguridad (R36): el caso de arriba
+  // busca con `.find` el intentFilter del host "bueno" y comprueba aparte
+  // que ninguno tenga el host SIN `www` — pero no acota cuántos
+  // `intentFilters` hay en total. Reproducido a mano (temporalmente, sin
+  // commitear): agregar un SEGUNDO intentFilter con `autoVerify: true` y un
+  // host parecido pero distinto (una letra cambiada, ni siquiera el host sin
+  // `www`) pasaba inadvertido — Android lo tomaría como otro dominio a
+  // verificar, sin que ningún test se diera cuenta. Este caso afirma el
+  // CONJUNTO completo de hosts con `autoVerify: true`, no solo que el bueno
+  // esté presente: tiene que ser exactamente `{ 'www.quepintasalta.com.ar' }`,
+  // ni uno de más ni uno de menos.
+  it('el conjunto completo de hosts con autoVerify: true es exactamente { www.quepintasalta.com.ar } (ningún intentFilter de más)', () => {
+    const filtrosConAutoVerify = config.android?.intentFilters?.filter((f) => f.autoVerify === true) ?? []
+    const hosts = filtrosConAutoVerify
+      .flatMap((f) => (Array.isArray(f.data) ? f.data : [f.data]))
+      .map((d) => d?.host)
+      .sort()
+
+    expect(hosts).toEqual(['www.quepintasalta.com.ar'])
+  })
+
   it('no hay claves escritas en la config', () => {
     const texto = JSON.stringify(config)
     expect(texto).not.toMatch(/eyJ[A-Za-z0-9_-]{10,}/) // JWT (anon o service role)

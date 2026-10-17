@@ -1,10 +1,26 @@
 // Hero de la portada (R29, 29-h, ops/paridad-web-app.md §3.2 punto 2 y §2
 // punto 7; paridad con `apps/web/components/hero-carousel.tsx`): hasta 6
-// eventos de `selectCarouselEvents` (de core), 200 de alto, el afiche entero
-// sobre su versión desenfocada (ver el comentario de abajo sobre las dos
-// capas) y un degradé, badge de categoría, título en 2 líneas, `Calendar` +
-// fecha, `MapPin` + lugar, "Ver detalles" y el precio o "Entrada Gratuita",
-// puntos arriba a la derecha.
+// eventos de `selectCarouselEvents` (de core), el afiche entero sobre su
+// versión desenfocada (ver el comentario de abajo sobre las dos capas) y un
+// degradé, badge de categoría, título en 2 líneas, `Calendar` + fecha,
+// `MapPin` + lugar, "Ver detalles" y el precio o "Entrada Gratuita", puntos
+// arriba a la derecha.
+//
+// 36-b (G1 del feedback del teléfono 2, "el carrusel se ve muy chico"):
+// el alto fijo de 200 pasó a `altoHero(altoVentana)`, ~60 % del alto de la
+// ventana. El alto (y el ancho de cada diapositiva) se leen con
+// `useWindowDimensions()` DENTRO del componente, nunca con `Dimensions` a
+// nivel de módulo (QPS-132): así acompañan el cambio de tamaño de la
+// ventana (pantalla dividida y multiventana de Android). La rotación hoy no
+// se ejercita, porque `app.config.ts` fija `orientation: 'portrait'`: si
+// algún día se permite girar, esto ya queda listo, pero no se puede dar por
+// probado. El ancho de la ventana es también la única fuente del ancho de
+// cada diapositiva (antes se medía con `onLayout` sobre el contenedor, que
+// en los hechos coincidía con el ancho de la ventana porque el Hero ocupa
+// todo el ancho dentro del `ScrollView` de Inicio, sin padding horizontal):
+// usar la misma fuente para alto y ancho evita que `getItemLayout` y el
+// ancho de cada diapositiva queden de dos medidas distintas y la paginación
+// se desalinee.
 //
 // La web no tiene swipe (`ops/paridad-web-app.md` §3.2, fila Hero: "sin
 // swipe en la web; en la app CON swipe, porque es lo esperable en el
@@ -30,6 +46,7 @@ import {
   Image,
   Pressable,
   StyleSheet,
+  useWindowDimensions,
   View,
   type NativeScrollEvent,
   type NativeSyntheticEvent,
@@ -45,9 +62,19 @@ import { useColoresQPS } from '@/lib/colores'
 import { textoPrecio } from '@/lib/formato'
 import LOGO_MARCA from '@/assets/logo-circular.png'
 
-const ALTO_HERO = 200
+const PORCENTAJE_ALTO_HERO = 0.6
 const INTERVALO_MS = 5000
 const MAXIMO_EVENTOS = 6
+
+/**
+ * ~60 % del alto de la ventana (G1 del feedback del teléfono 2), redondeado.
+ * Pura, para poder testearla sin montar nada de React Native. Se llama con
+ * el alto que da `useWindowDimensions()` en el componente, nunca con
+ * `Dimensions.get(...)` a nivel de módulo (QPS-132).
+ */
+export function altoHero(altoVentana: number): number {
+  return Math.round(altoVentana * PORCENTAJE_ALTO_HERO)
+}
 
 export interface HeroProps {
   eventos: DisplayEvent[]
@@ -63,7 +90,10 @@ export function Hero({ eventos }: HeroProps) {
   const router = useRouter()
   const colores = useColoresQPS()
   const listaRef = useRef<FlatList<DisplayEvent>>(null)
-  const [ancho, setAncho] = useState(0)
+  // Única fuente del alto Y del ancho de cada diapositiva (ver el comentario
+  // de arriba del archivo): nunca `Dimensions.get` a nivel de módulo.
+  const { width: ancho, height: altoVentana } = useWindowDimensions()
+  const alto = altoHero(altoVentana)
   const [indice, setIndice] = useState(0)
 
   const slides = eventosHero(eventos)
@@ -100,25 +130,20 @@ export function Hero({ eventos }: HeroProps) {
   }
 
   return (
-    <View
-      style={[estilos.contenedor, { height: ALTO_HERO, backgroundColor: '#000' }]}
-      onLayout={(e) => setAncho(e.nativeEvent.layout.width)}
-    >
-      {ancho > 0 ? (
-        <FlatList
-          ref={listaRef}
-          data={slides}
-          horizontal
-          pagingEnabled
-          showsHorizontalScrollIndicator={false}
-          keyExtractor={(item) => item.id}
-          onMomentumScrollEnd={alTerminarDeDeslizar}
-          getItemLayout={(_data, index) => ({ length: ancho, offset: ancho * index, index })}
-          renderItem={({ item }) => (
-            <DiapositivaHero evento={item} ancho={ancho} alto={ALTO_HERO} onPress={() => router.push(`/evento/${item.id}`)} />
-          )}
-        />
-      ) : null}
+    <View style={[estilos.contenedor, { height: alto, backgroundColor: '#000' }]}>
+      <FlatList
+        ref={listaRef}
+        data={slides}
+        horizontal
+        pagingEnabled
+        showsHorizontalScrollIndicator={false}
+        keyExtractor={(item) => item.id}
+        onMomentumScrollEnd={alTerminarDeDeslizar}
+        getItemLayout={(_data, index) => ({ length: ancho, offset: ancho * index, index })}
+        renderItem={({ item }) => (
+          <DiapositivaHero evento={item} ancho={ancho} alto={alto} onPress={() => router.push(`/evento/${item.id}`)} />
+        )}
+      />
 
       {slides.length > 1 ? (
         <View style={estilos.puntos} pointerEvents="box-none">
