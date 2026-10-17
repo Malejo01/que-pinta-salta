@@ -27,6 +27,7 @@ import { urlComoLlegar, urlGo } from '@qps/core/metricas/links'
 import { ticketUrlsOf } from '@qps/core/scraper/dedup-key'
 import { vibeLabels } from '@qps/core/types'
 import { Afiche } from '@/components/Afiche'
+import { BotonCalendario } from '@/components/BotonCalendario'
 import { BotonesAsistencia } from '@/components/BotonesAsistencia'
 import { BotonCompartir } from '@/components/BotonCompartir'
 import { BotonFavorito } from '@/components/BotonFavorito'
@@ -226,6 +227,8 @@ export default function EventoPorId() {
             <Texto peso="semibold">Comprar tickets</Texto>
           </Pressable>
         ) : null}
+
+        <BotonCalendario evento={evento} />
       </View>
 
       <BotonesAsistencia eventId={evento.id} />
