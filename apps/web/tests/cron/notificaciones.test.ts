@@ -6,6 +6,7 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { saltaWallClockToDate, saltaWallClockToUtcISO } from '@qps/core/date-format'
+import { claveDedupe } from '@qps/core/notificaciones/reglas'
 
 const createAdminClient = vi.fn()
 const withJobRun = vi.fn()
@@ -31,6 +32,16 @@ const USER_ID = '10000000-0000-4000-8000-000000000001'
 const EVENT_ID = '20000000-0000-4000-8000-000000000001'
 const TOKEN_A = 'ExponentPushToken[token-a-de-prueba]'
 const TOKEN_B = 'ExponentPushToken[token-b-de-prueba]'
+
+// Usuarios con un token de forma inválida (no matchea EXPO_PUSH_TOKEN_REGEX):
+// `enviarLote` los descarta ANTES de mandar nada a Expo, así que nunca
+// generan un ticket. Si el emparejamiento ticket↔mensaje de route.ts se
+// corriera (ver el test "arreglo 3 (R39): el filtro..." más abajo), un
+// ticket real terminaría atribuido a uno de ellos.
+const USER_ID_TOKEN_INVALIDO = '10000000-0000-4000-8000-000000000002'
+const USER_ID_TOKEN_INVALIDO_2 = '10000000-0000-4000-8000-000000000003'
+const TOKEN_FORMA_INVALIDA = 'no-tiene-forma-de-token-de-expo'
+const TOKEN_FORMA_INVALIDA_2 = 'tampoco-esta'
 
 // 20:00 en Salta: fuera del horario de silencio por defecto (23:00-09:00).
 const AHORA = saltaWallClockToDate('2030-10-20T20:00:00')
@@ -248,6 +259,88 @@ describe('GET /api/cron/notificaciones: PUSH_ENVIO_REAL="1"', () => {
     expect(body.mensajes).toBe(2)
     expect(writes.inserts.notification_sends).toHaveLength(1)
     expect(writes.deletes.push_tokens ?? []).toHaveLength(0)
+  })
+
+  it('arreglo 3 (R39): un token de forma inválida ANTES de uno válido no corre el emparejamiento ticket↔dedupeKey (el dedupe_key registrado es el del usuario del token válido, no el de encima)', async () => {
+    process.env.PUSH_ENVIO_REAL = '1'
+    // Orden deliberado: el token de forma inválida va PRIMERO en push_tokens,
+    // así que su mensaje también va primero en `mensajes` (armarTanda
+    // preserva el orden de `userIds`, que sale de push_tokens). Si el
+    // emparejamiento se hiciera por posición sobre TODOS los mensajes (en
+    // vez de filtrar primero por `esTokenExpoValido`, como hace `enviarLote`
+    // de verdad), el único ticket real -el del token válido- quedaría
+    // atribuido a este primer mensaje. Si el inválido fuera el segundo, un
+    // emparejamiento corrido podría dar el resultado correcto por
+    // casualidad y el test no probaría nada.
+    mockDb({
+      push_tokens: [
+        { user_id: USER_ID_TOKEN_INVALIDO, token: TOKEN_FORMA_INVALIDA },
+        { user_id: USER_ID, token: TOKEN_A },
+      ],
+      user_favorites: [favoritoRow(USER_ID_TOKEN_INVALIDO), favoritoRow(USER_ID)],
+    })
+    // armarTickets por default (ver beforeEach): todo lo que de verdad se
+    // manda a Expo vuelve "ok". Como enviarLote descarta el token de forma
+    // inválida antes de armar el lote, a Expo solo llega TOKEN_A.
+
+    const res = await call()
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    expect(body.dryRun).toBe(false)
+    // Los dos usuarios generan candidato (armarTanda no valida la forma del
+    // token: eso es trabajo de enviarLote/expo-push.ts, más abajo en la
+    // cadena), así que son 2 mensajes.
+    expect(body.mensajes).toBe(2)
+    // Pero `enviarLote` descarta el de forma inválida antes de mandar nada.
+    expect(body.descartados).toBe(1)
+
+    // Solo un token llega de verdad a la API de Expo.
+    const [, initEnviado] = fetchMock.mock.calls[0] as [string, { body: string }]
+    const enviados = JSON.parse(initEnviado.body) as { to: string }[]
+    expect(enviados).toHaveLength(1)
+    expect(enviados[0].to).toBe(TOKEN_A)
+
+    // El único envío que puede quedar registrado es el del usuario con token
+    // válido, con SU dedupeKey (no el del usuario del token inválido, que
+    // nunca generó un ticket).
+    expect(writes.inserts.notification_sends).toHaveLength(1)
+    const fila = writes.inserts.notification_sends[0]
+    expect(fila.user_id).toBe(USER_ID)
+    expect(fila.dedupe_key).toBe(claveDedupe({ kind: 'favorito', userId: USER_ID, eventId: EVENT_ID }))
+    expect(fila.dedupe_key).not.toBe(
+      claveDedupe({ kind: 'favorito', userId: USER_ID_TOKEN_INVALIDO, eventId: EVENT_ID }),
+    )
+
+    // El mensaje de forma inválida nunca tuvo ticket, así que su dedupeKey
+    // queda como "no registrado por falla" (se reintenta la corrida que viene).
+    expect(body.enviosNoRegistradosPorFalla).toBe(1)
+  })
+
+  it('arreglo 3 (R39): dos tokens de forma inválida intercalados con uno válido en el medio no corren el emparejamiento', async () => {
+    process.env.PUSH_ENVIO_REAL = '1'
+    mockDb({
+      push_tokens: [
+        { user_id: USER_ID_TOKEN_INVALIDO, token: TOKEN_FORMA_INVALIDA },
+        { user_id: USER_ID, token: TOKEN_A },
+        { user_id: USER_ID_TOKEN_INVALIDO_2, token: TOKEN_FORMA_INVALIDA_2 },
+      ],
+      user_favorites: [favoritoRow(USER_ID_TOKEN_INVALIDO), favoritoRow(USER_ID), favoritoRow(USER_ID_TOKEN_INVALIDO_2)],
+    })
+
+    const res = await call()
+    const body = await res.json()
+    expect(body.mensajes).toBe(3)
+    expect(body.descartados).toBe(2)
+
+    const [, initEnviado] = fetchMock.mock.calls[0] as [string, { body: string }]
+    const enviados = JSON.parse(initEnviado.body) as { to: string }[]
+    expect(enviados).toHaveLength(1)
+    expect(enviados[0].to).toBe(TOKEN_A)
+
+    expect(writes.inserts.notification_sends).toHaveLength(1)
+    const fila = writes.inserts.notification_sends[0]
+    expect(fila.user_id).toBe(USER_ID)
+    expect(fila.dedupe_key).toBe(claveDedupe({ kind: 'favorito', userId: USER_ID, eventId: EVENT_ID }))
   })
 
   it('la respuesta no contiene ningún token ni ningún email', async () => {
