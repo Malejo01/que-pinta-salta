@@ -127,7 +127,11 @@ export const TABLAS_A_BORRAR: readonly EntradaTablaPersonal[] = [
   {
     tabla: "push_tokens",
     columna: "user_id",
-    comentario: "Tokens de notificaciones push del usuario (user_id es la PK).",
+    comentario:
+      "Tokens de notificaciones push del usuario. La PK es id (propia, uuid), no user_id: hay una fila " +
+      "por dispositivo (lo único unique es token, con push_tokens_token_key), así que una cuenta puede " +
+      "tener varias filas a la vez (celular, tablet). Borrar por user_id se lleva los tokens de todos " +
+      "los dispositivos de la cuenta.",
   },
   {
     tabla: "notification_preferences",
