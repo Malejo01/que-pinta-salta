@@ -12,6 +12,11 @@
 // la pruebe sin mockear nada. QPS-131 (R27, 27-b): la lógica se generalizó a
 // `clasificarErrorTabla` (lib/errores.ts), y este módulo la reexporta con el
 // nombre viejo para no romper esos tests.
+//
+// R38, tarea 38-a: `TipoAsistencia` y la regla de marcar/desmarcar/cambiar
+// (`siguienteMarca`) vienen de `@qps/core/asistencia`, para que la web y la
+// app compartan exactamente la misma lógica.
+import { siguienteMarca, type TipoAsistencia } from '@qps/core/asistencia'
 import { clasificarErrorTabla } from './errores'
 import { MENSAJE_SIN_CONFIGURACION } from './mensajes'
 import { supabase } from './supabase'
@@ -20,7 +25,7 @@ export { MENSAJE_SIN_CONFIGURACION }
 export const MENSAJE_ERROR = 'No pudimos cargar esta sección. Probá de nuevo.'
 export const MENSAJE_NO_DISPONIBLE = 'Pronto vas a poder marcar si vas.'
 
-export type TipoAsistencia = 'voy' | 'me_interesa'
+export type { TipoAsistencia }
 
 export interface CantidadesAsistencia {
   voy: number
@@ -99,10 +104,12 @@ export async function obtenerAsistencia(eventId: string, userId: string | null):
 }
 
 /**
- * Marca o desmarca `tipo` para `eventId`. Si ya estaba marcado con `tipo`
- * (`actual === tipo`), borra la fila propia; si no, hace upsert por
- * `(user_id, event_id)` con el nuevo `kind` (cambia el kind si había otro).
- * `userId` es siempre el de la sesión, nunca un dato de la pantalla.
+ * Marca o desmarca `tipo` para `eventId`. Qué toca hacer lo decide
+ * `siguienteMarca` (de `@qps/core/asistencia`): si tocar `tipo` deja la
+ * marca propia en `null` (ya estaba marcado con `tipo`), borra la fila
+ * propia; si no, hace upsert por `(user_id, event_id)` con el nuevo `kind`
+ * (cambia el kind si había otro). `userId` es siempre el de la sesión,
+ * nunca un dato de la pantalla.
  */
 export async function marcarAsistencia(
   eventId: string,
@@ -115,7 +122,7 @@ export async function marcarAsistencia(
   }
 
   try {
-    if (actual === tipo) {
+    if (siguienteMarca(actual, tipo) === null) {
       // La RLS ("eliminación del dueño") ya acota esto a la fila propia.
       const { error } = await supabase.from('event_attendance').delete().eq('event_id', eventId)
       if (error) return resultadoDeError(error)
