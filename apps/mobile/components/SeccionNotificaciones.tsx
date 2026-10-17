@@ -15,6 +15,12 @@
 // 29-c: solo el estilo (Texto, tokens de useColoresQPS y CampoTexto) — la
 // lógica de arriba (estado, carga, guardado) no cambia. El texto secundario
 // (antes `colors.border`, casi invisible: F4) pasa a `mutedForeground`.
+//
+// 33-a (QPS-146): el rojo del mensaje de error estaba escrito a mano
+// (`#dc2626`), el mismo problema que F4 corrigió en `CampoTexto` y en
+// `cuenta.tsx`. D1 (29-g): la app arranca siempre en oscuro, así que el
+// color queda fijo (no depende de `useColorScheme()`), igual que
+// `COLOR_ERROR` de `cuenta.tsx`.
 import { useCallback, useEffect, useState } from 'react'
 import { ActivityIndicator, Pressable, StyleSheet, Switch, View } from 'react-native'
 import { CANALES_RADAR, type CanalRadar } from '@qps/core/notificaciones/preferencias'
@@ -30,6 +36,9 @@ const ETIQUETAS_CANAL: Record<CanalRadar, string> = {
   push: 'Push',
   ambos: 'Ambos',
 }
+
+// Mismo valor que `COLOR_ERROR` de `app/(tabs)/cuenta.tsx` (33-a, QPS-146).
+const COLOR_ERROR = '#f87171'
 
 type Estado =
   | { tipo: 'cargando' }
@@ -189,7 +198,7 @@ export function SeccionNotificaciones() {
       </View>
 
       {mensaje ? (
-        <Texto style={{ color: mensaje.tipo === 'error' ? '#dc2626' : colores.foreground }}>{mensaje.texto}</Texto>
+        <Texto style={{ color: mensaje.tipo === 'error' ? COLOR_ERROR : colores.foreground }}>{mensaje.texto}</Texto>
       ) : null}
 
       <Pressable

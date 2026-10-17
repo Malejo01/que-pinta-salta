@@ -18,7 +18,7 @@ import { Cargando, ErrorCarga } from '@/components/EstadoCarga'
 import { Icono } from '@/components/Icono'
 import { Texto } from '@/components/Texto'
 import { useColoresQPS } from '@/lib/colores'
-import { guardarRadar, obtenerRadar, type OpcionesRadar } from '@/lib/radar'
+import { esAdminRadar, guardarRadar, obtenerRadar, probarEnvioRadar, type OpcionesRadar } from '@/lib/radar'
 import {
   buscarSeguibles,
   hayCambios,
@@ -72,6 +72,11 @@ export function PantallaRadar() {
   const [mensaje, setMensaje] = useState<{ tipo: 'ok' | 'error'; texto: string; detalle?: string } | null>(null)
   const [busqueda, setBusqueda] = useState('')
   const [buscadorAbierto, setBuscadorAbierto] = useState(false)
+  // G3 (R36, 36-c): "Enviar un email de prueba" solo para ADMIN. Ocultarlo
+  // es solo comodidad — el que decide de verdad es el servidor, en
+  // `POST /api/radar/prueba` (`esAdminRadar` lee `profiles.role` con RLS).
+  const [esAdmin, setEsAdmin] = useState(false)
+  const [enviandoPrueba, setEnviandoPrueba] = useState(false)
   // Cuenta de "reintentos" (mismo patrón que `app/pelicula/[id].tsx`, 28-l):
   // el efecto de carga no puede llamar, de forma sincrónica, a una función
   // que haga `setState` (lint react-hooks/set-state-in-effect). El fetch va
@@ -109,7 +114,24 @@ export function PantallaRadar() {
   if (userIdAnterior !== userId) {
     setUserIdAnterior(userId)
     setEstado({ tipo: 'cargando' })
+    setEsAdmin(false)
   }
+
+  // Rol de `userId` (solo para el botón de prueba): mismo patrón de arriba,
+  // `setEsAdmin` solo dentro del `.then()`, nunca de forma sincrónica en el
+  // cuerpo del efecto.
+  useEffect(() => {
+    if (cargandoSesion || !userId) return
+    let cancelado = false
+
+    esAdminRadar(userId).then((valor) => {
+      if (!cancelado) setEsAdmin(valor)
+    })
+
+    return () => {
+      cancelado = true
+    }
+  }, [cargandoSesion, userId])
 
   useEffect(() => {
     if (cargandoSesion || !userId) return
@@ -238,6 +260,20 @@ export function PantallaRadar() {
       setMensaje({ tipo: 'error', texto: 'Error al guardar', detalle: resultado.error })
     }
     setGuardando(false)
+  }
+
+  async function enviarPrueba() {
+    const token = session?.access_token
+    if (!token || enviandoPrueba) return
+    setEnviandoPrueba(true)
+    setMensaje(null)
+    const resultado = await probarEnvioRadar(token)
+    if (resultado.ok) {
+      setMensaje({ tipo: 'ok', texto: 'Prueba enviada', detalle: resultado.mensaje })
+    } else {
+      setMensaje({ tipo: 'error', texto: 'No se pudo enviar la prueba', detalle: resultado.mensaje })
+    }
+    setEnviandoPrueba(false)
   }
 
   const cambiosSinGuardar =
@@ -480,6 +516,19 @@ export function PantallaRadar() {
           </View>
         ) : null}
 
+        {esAdmin ? (
+          <Pressable
+            onPress={enviarPrueba}
+            disabled={enviandoPrueba}
+            accessibilityRole="button"
+            style={[estilos.botonSecundario, { borderColor: colores.border, opacity: enviandoPrueba ? 0.7 : 1 }]}
+          >
+            <Texto peso="bold" style={{ color: colores.foreground }}>
+              {enviandoPrueba ? 'Enviando prueba...' : 'Enviar un email de prueba'}
+            </Texto>
+          </Pressable>
+        ) : null}
+
         <Pressable
           onPress={guardar}
           disabled={guardando}
@@ -600,4 +649,12 @@ const estilos = StyleSheet.create({
   avisoCambios: { fontSize: 12, textAlign: 'center' },
   aviso: { borderWidth: 1, borderRadius: 12, padding: 12, gap: 4 },
   botonPrimario: { borderRadius: 12, paddingVertical: 16, alignItems: 'center', justifyContent: 'center', minHeight: 48 },
+  botonSecundario: {
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingVertical: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 48,
+  },
 })

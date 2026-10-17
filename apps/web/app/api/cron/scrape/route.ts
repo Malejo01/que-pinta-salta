@@ -4,6 +4,9 @@ import { withJobRun, jobTriggerFrom } from '@/lib/job-runs'
 import { summarizeVenueErrors } from '@/lib/venues/resolve'
 import { runScrapeJob } from './run-scrape-job'
 
+// Sin esto Vercel puede cortar la función a mitad y dejar la corrida en RUNNING.
+export const maxDuration = 60
+
 export async function GET(request: Request) {
   if (!hasBearerSecret(request, 'CRON_SECRET')) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

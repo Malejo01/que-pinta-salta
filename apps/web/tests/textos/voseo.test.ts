@@ -42,12 +42,32 @@ const FORMAS_TUTEO_SACADAS: { archivo: string; texto: string }[] = [
   { archivo: 'app/auth/sign-up/page.tsx', texto: '¿Ya tienes cuenta?' },
   // Cambiar contraseña (components/change-password-form.tsx)
   { archivo: 'components/change-password-form.tsx', texto: 'Cambia tu contraseña' },
+  // Toasts de favoritos (components/favorite-button.tsx, tarea 33-e, ronda 33)
+  { archivo: 'components/favorite-button.tsx', texto: 'Inténtalo de nuevo' },
+  { archivo: 'components/favorite-button.tsx', texto: 'invitamos un cafecito' },
 ]
 
 describe('Voseo rioplatense (30-e): las formas de tuteo que se sacaron no vuelven a aparecer', () => {
   it.each(FORMAS_TUTEO_SACADAS)('$archivo: no contiene "$texto"', ({ archivo, texto }) => {
     const contenido = read(archivo)
     expect(contenido).not.toContain(texto)
+  })
+})
+
+describe('Toasts de favoritos (33-e): el pedido del cafecito está en voseo y es idéntico en los dos lugares', () => {
+  const contenido = read('components/favorite-button.tsx')
+
+  it('no contiene "invitamos un cafecito" (tuteo invertido: el pedido es que nos inviten)', () => {
+    expect(contenido).not.toContain('invitamos un cafecito')
+  })
+
+  it('el texto del toast y el del onClick del botón de donación son idénticos', () => {
+    // Las dos ocurrencias del mismo pedido de cafecito en el archivo: la del
+    // description del toast y la del mensaje que recibe openDonationModal.
+    const coincidencias = [
+      ...contenido.matchAll(/Si Qué Pinta Salta te ayuda a organizar tu finde, invitanos un cafecito para ayudarnos a crear la App móvil\./g),
+    ]
+    expect(coincidencias.length).toBe(2)
   })
 })
 

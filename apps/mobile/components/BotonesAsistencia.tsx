@@ -8,11 +8,18 @@
 // R38, tarea 38-a: el texto de cada botón sale de `textoBoton`
 // (`@qps/core/asistencia`): el contador recién aparece desde
 // `UMBRAL_CONTADOR_ASISTENCIA`, igual que en la web.
+//
+// 33-a (QPS-147): el texto secundario usaba `colors.border` (el token de
+// borde de `useTheme()`, casi invisible en tema claro); pasa a
+// `colores.mutedForeground` (`useColoresQPS`, QPS-126) — mismo token que ya
+// usan `EstadoCarga`/`PantallaRadar`/`SeccionNotificaciones` para sus
+// mensajes secundarios. `colors.border` sigue para los bordes (no es texto).
 import { useCallback, useEffect, useState } from 'react'
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native'
 import { useRouter, useTheme } from 'expo-router'
 import { TEXTO_ENTRAR_PARA_MARCAR, textoBoton, type TipoAsistencia } from '@qps/core/asistencia'
 import { MENSAJE_NO_DISPONIBLE, marcarAsistencia, obtenerAsistencia, type EstadoAsistencia } from '@/lib/asistencia'
+import { useColoresQPS } from '@/lib/colores'
 import { useSession } from '@/lib/session'
 
 export interface BotonesAsistenciaProps {
@@ -23,6 +30,7 @@ type Estado = { tipo: 'cargando' } | EstadoAsistencia
 
 export function BotonesAsistencia({ eventId }: BotonesAsistenciaProps) {
   const { colors } = useTheme()
+  const colores = useColoresQPS()
   const router = useRouter()
   const { session, cargando: cargandoSesion } = useSession()
   const userId = session?.user.id ?? null
@@ -46,7 +54,7 @@ export function BotonesAsistencia({ eventId }: BotonesAsistenciaProps) {
   }
 
   if (estado.tipo === 'no-disponible') {
-    return <Text style={{ color: colors.border }}>{MENSAJE_NO_DISPONIBLE}</Text>
+    return <Text style={{ color: colores.mutedForeground }}>{MENSAJE_NO_DISPONIBLE}</Text>
   }
 
   if (estado.tipo === 'error') {
@@ -103,7 +111,7 @@ export function BotonesAsistencia({ eventId }: BotonesAsistenciaProps) {
         {boton('voy', cantidades.voy)}
         {boton('me_interesa', cantidades.meInteresa)}
       </View>
-      {!userId ? <Text style={{ color: colors.border }}>{TEXTO_ENTRAR_PARA_MARCAR}</Text> : null}
+      {!userId ? <Text style={{ color: colores.mutedForeground }}>{TEXTO_ENTRAR_PARA_MARCAR}</Text> : null}
     </View>
   )
 }

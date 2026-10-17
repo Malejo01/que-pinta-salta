@@ -5,7 +5,7 @@ import { ChangePasswordForm } from "@/components/change-password-form"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card } from "@/components/ui/card"
-import { Calendar, MapPin, Clock, Plus, User, AlertCircle, FileText, ArrowRight } from "lucide-react"
+import { Calendar, MapPin, Clock, Plus, User, AlertCircle, FileText, ArrowRight, Trash2 } from "lucide-react"
 import Link from "next/link"
 import Image from "next/image"
 
@@ -217,6 +217,18 @@ export default async function PerfilPage() {
           {/* Columna de cambio de contraseña (1/3 de ancho) */}
           <div className="space-y-6 lg:col-span-1">
             <ChangePasswordForm />
+
+            <Button
+              asChild
+              variant="ghost"
+              size="sm"
+              className="w-full justify-start text-destructive hover:text-destructive hover:bg-destructive/10"
+            >
+              <Link href="/perfil/eliminar-cuenta">
+                <Trash2 className="mr-2 size-4" />
+                Eliminar mi cuenta
+              </Link>
+            </Button>
           </div>
 
         </div>

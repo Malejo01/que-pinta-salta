@@ -1,11 +1,22 @@
-// Eventos de Inicio (R25): mismo select público y misma vigencia que la web
-// (`apps/web/lib/data.ts`), ahora desde `packages/core` para no copiar
-// lógica. Ni una regla de fecha propia: el prefiltro y la vigencia son de
-// `@qps/core/events/vigencia`, y qué evento cae en cada atajo (Hoy, Esta
-// noche, Finde, Semana) es de `@qps/core/home/atajos`.
+// Eventos de Inicio (R25, en memoria desde R36/36-a): mismo select público y
+// misma vigencia que la web (`apps/web/lib/data.ts`), ahora desde
+// `packages/core` para no copiar lógica. Ni una regla de fecha propia: el
+// prefiltro y la vigencia son de `@qps/core/events/vigencia`, y qué evento
+// cae en cada atajo (Hoy, Esta noche, Finde, Semana) es de
+// `@qps/core/home/atajos`.
+//
+// 36-a (G2 del feedback del teléfono): Inicio pedía de nuevo los eventos
+// vigentes en cada cambio de atajo (`obtenerEventosDeAtajo(atajo)`, una
+// consulta por atajo aunque la consulta en sí era siempre la misma). Ahora
+// se pide **una sola vez** con `obtenerEventosVigentesParaInicio` (sin
+// `Atajo`) y el atajo se aplica en memoria, en el llamador, con
+// `eventoEnAtajo` de core — por eso cada evento viaja junto con
+// `EventoParaAtajo` (start_date, end_date y el slug de la categoría: lo que
+// `eventoEnAtajo` necesita y que `DisplayEvent` no tiene, en particular
+// `end_date`). `obtenerEventosDeAtajo` queda borrada: no tiene más uso.
 import { PUBLIC_EVENT_SELECT } from '@qps/core/events/public-select'
 import { applyVigenciaPrefilter, isVigente } from '@qps/core/events/vigencia'
-import { eventoEnAtajo, type Atajo } from '@qps/core/home/atajos'
+import type { EventoParaAtajo } from '@qps/core/home/atajos'
 import { transformEvent } from '@qps/core/home/transform'
 import type { DisplayEvent, EventWithRelations } from '@qps/core/home/types'
 import type { Category, Event, Venue } from '@qps/core/types'
@@ -18,15 +29,14 @@ export const MENSAJE_ERROR_RED = 'No pudimos cargar los eventos. Revisá tu cone
 export type ResultadoEventos = { ok: true; eventos: DisplayEvent[] } | { ok: false; error: string }
 
 /**
- * Eventos vigentes que caen en la ventana de `atajo` (hora de Salta, `ahora`
- * por defecto es la actual). Mismo query que la home de la web
+ * La consulta que comparten `obtenerEventosVigentes` y
+ * `obtenerEventosVigentesParaInicio`: todos los eventos vigentes (hora de
+ * Salta, `ahora` por defecto la actual), mismo query que la home de la web
  * (`status = 'PUBLISHED'` + `PUBLIC_EVENT_SELECT`), con `includeToday: true`
- * en el prefiltro: la ventana de un atajo casi siempre empieza antes de
- * `ahora` (por ejemplo "Hoy" incluye lo que ya empezó), así que la base
- * necesita el superconjunto más amplio y el filtro exacto queda en
- * `isVigente` + `eventoEnAtajo`.
+ * en el prefiltro (trae también lo de hoy que ya empezó; el filtro exacto es
+ * `isVigente`, acá adentro).
  */
-export async function obtenerEventosDeAtajo(atajo: Atajo, ahora: Date = new Date()): Promise<ResultadoEventos> {
+async function filasVigentes(ahora: Date): Promise<{ ok: true; filas: EventWithRelations[] } | { ok: false; error: string }> {
   if (!supabase) {
     return { ok: false, error: MENSAJE_SIN_CONFIGURACION }
   }
@@ -47,46 +57,62 @@ export async function obtenerEventosDeAtajo(atajo: Atajo, ahora: Date = new Date
 
     const conCategoria = filas.filter((fila) => Boolean(fila.category))
     const vigentes = conCategoria.filter((fila) => isVigente(fila, ahora))
-    const delAtajo = vigentes.filter((fila) =>
-      eventoEnAtajo({ start_date: fila.start_date, end_date: fila.end_date, category: fila.category?.slug ?? null }, atajo, ahora)
-    )
 
-    return { ok: true, eventos: delAtajo.map(transformEvent) }
+    return { ok: true, filas: vigentes }
   } catch {
     return { ok: false, error: MENSAJE_ERROR_RED }
   }
 }
 
 /**
- * Eventos vigentes sin ventana de atajo (R26, Buscar): mismo query vigente
- * que `obtenerEventosDeAtajo` (status PUBLISHED, prefiltro de vigencia +
- * `isVigente`), sin filtrar por `Atajo`. El texto, la categoría, el lugar y
- * "Solo gratis" los aplica la pantalla con `filterEvents`/`soloGratis` de
- * `@qps/core/home`, no esta función.
+ * Eventos vigentes sin ventana de atajo (R26, Buscar; también la base de
+ * Inicio hasta 36-a): mismo query vigente de `filasVigentes`, sin filtrar
+ * por `Atajo`. El texto, la categoría, el lugar y "Solo gratis" los aplica
+ * la pantalla con `filterEvents`/`soloGratis` de `@qps/core/home`, no esta
+ * función.
  */
 export async function obtenerEventosVigentes(ahora: Date = new Date()): Promise<ResultadoEventos> {
-  if (!supabase) {
-    return { ok: false, error: MENSAJE_SIN_CONFIGURACION }
-  }
+  const resultado = await filasVigentes(ahora)
+  if (!resultado.ok) return resultado
 
-  try {
-    let query = supabase.from('events').select(PUBLIC_EVENT_SELECT).eq('status', 'PUBLISHED')
-    query = applyVigenciaPrefilter(query, ahora, { includeToday: true }).order('start_date', { ascending: true })
+  return { ok: true, eventos: resultado.filas.map(transformEvent) }
+}
 
-    const { data, error } = await query
-    if (error) {
-      return { ok: false, error: MENSAJE_ERROR_RED }
-    }
+/**
+ * Un evento vigente, ya transformado para mostrar (`DisplayEvent`), junto
+ * con `paraAtajo`: lo mínimo que `eventoEnAtajo` (core) necesita para decidir
+ * si cae en un atajo — incluido `end_date`, que `DisplayEvent` no conserva
+ * (`transformEvent` lo descarta). Reconstruir `paraAtajo` desde el
+ * `DisplayEvent` (por ejemplo `{ start_date: evento.startDateTime }`, sin
+ * `end_date`) cambiaría el resultado de `isVigente` para un evento con
+ * `end_date` explícito: por eso viaja aparte, desde la fila original.
+ */
+export interface EventoVigenteParaInicio {
+  evento: DisplayEvent
+  paraAtajo: EventoParaAtajo
+}
 
-    const filas = (data ?? []) as unknown as EventWithRelations[]
+export type ResultadoEventosParaInicio =
+  | { ok: true; eventos: EventoVigenteParaInicio[] }
+  | { ok: false; error: string }
 
-    const conCategoria = filas.filter((fila) => Boolean(fila.category))
-    const vigentes = conCategoria.filter((fila) => isVigente(fila, ahora))
+/**
+ * Eventos vigentes para Inicio (36-a): la misma consulta que
+ * `obtenerEventosVigentes`, una sola vez por carga — el atajo (Hoy, Esta
+ * noche, Finde, Semana) ya no se consulta: se aplica en memoria en el
+ * llamador, con `eventoEnAtajo` de `@qps/core/home/atajos` y la misma
+ * `ahora` de esta carga, sobre `paraAtajo` de cada elemento.
+ */
+export async function obtenerEventosVigentesParaInicio(ahora: Date = new Date()): Promise<ResultadoEventosParaInicio> {
+  const resultado = await filasVigentes(ahora)
+  if (!resultado.ok) return resultado
 
-    return { ok: true, eventos: vigentes.map(transformEvent) }
-  } catch {
-    return { ok: false, error: MENSAJE_ERROR_RED }
-  }
+  const eventos = resultado.filas.map((fila) => ({
+    evento: transformEvent(fila),
+    paraAtajo: { start_date: fila.start_date, end_date: fila.end_date, category: fila.category?.slug ?? null },
+  }))
+
+  return { ok: true, eventos }
 }
 
 /** Columnas mínimas de `categories` para los filtros de Buscar: lectura pública. */

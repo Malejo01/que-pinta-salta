@@ -246,14 +246,18 @@ describe('components/Hero.tsx: lectura estática', () => {
     expect(content).toMatch(/return\s*\(\)\s*=>\s*clearInterval\(/)
   })
 
-  it('el timer se reinicia al deslizar: el useEffect del intervalo depende de "indice" (que también cambia con onMomentumScrollEnd)', () => {
-    const idxEfecto = content.indexOf('setInterval(')
-    const cuerpoEfecto = content.slice(Math.max(0, idxEfecto - 400), idxEfecto)
-    expect(cuerpoEfecto).toMatch(/useEffect/)
-    const idxDeps = content.indexOf('}, [indice, slides.length])')
-    expect(idxDeps).toBeGreaterThan(-1)
-    expect(content).toMatch(/alto\s*=\s*200|ALTO_HERO\s*=\s*200/)
-  })
+  // 36-b (G1 del feedback del teléfono 2): este `it` cuidaba dos cosas —
+  // que el `setInterval` del autoplay esté dentro de un `useEffect` que
+  // depende de "indice" (se reinicia al deslizar), Y que el alto del Hero
+  // fuera el `ALTO_HERO = 200` fijo de la R29. Lo segundo ahora afirma
+  // justo lo contrario de lo que decidió la ronda (el alto fijo se fue a
+  // propósito, a favor de `altoHero(altoVentana)` con `useWindowDimensions`,
+  // ~60 % del alto de la ventana). Lo primero quedó cubierto, igual o más
+  // estricto, en `tests/hero.test.ts` ("setInterval está dentro de un
+  // useEffect" y "el efecto del intervalo depende de 'indice'... y de
+  // 'slides.length'"), que además prueba el alto nuevo (`altoHero`, el
+  // detector de que no queda ningún 200 fijo ni `Dimensions.get`). Se borra
+  // de acá para no duplicar: el lugar de estas aserciones es `hero.test.ts`.
 
   it('el afiche: FlatList horizontal con pagingEnabled (deslizable, a diferencia de la web)', () => {
     expect(content).toMatch(/horizontal/)

@@ -15,12 +15,26 @@
 // portada (29-h, `/(tabs)/buscar?categoria=<slug>`): mismo patrón
 // "comparar-y-ajustar" que `app/evento/[id].tsx` para sincronizar el estado
 // con el parámetro sin `setState` sincrónico dentro de un `useEffect`.
+//
+// 33-a (QPS-151): el input de texto pasa de un `TextInput` suelto (con
+// `Icono`+botón de limpiar propios) a `CampoTexto` (28-h, F4/F5) — el mismo
+// componente que ya usan Cuenta y Notificaciones. Mismo valor y handler
+// (`value={texto}`, `onChangeText={setTexto}`): la búsqueda y el filtro no
+// cambian, solo el componente de entrada.
+//
+// 33-a, vuelta 1 (revisor): el botón de limpiar ("X") se recupera con
+// `accionDerecha` de `CampoTexto` (prop nueva, aditiva, QPS-151) — mismo
+// `Pressable`/`accessibilityLabel`/`hitSlop` que tenía el `TextInput`
+// suelto, visible solo con `texto` no vacío. La lupa de la izquierda NO se
+// recupera a propósito: `CampoTexto` no tiene slot izquierdo, y ahora hay un
+// label visible ("Buscar") que cumple el mismo rol.
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { FlatList, Pressable, RefreshControl, StyleSheet, TextInput, View } from 'react-native'
+import { FlatList, Pressable, RefreshControl, StyleSheet, View } from 'react-native'
 import { useLocalSearchParams } from 'expo-router'
 import { buscarEventosPorTexto } from '@qps/core/home/busqueda'
 import { soloGratis } from '@qps/core/home/filtros-extra'
 import type { DisplayEvent } from '@qps/core/home/types'
+import { CampoTexto } from '@/components/CampoTexto'
 import { Cargando, ErrorCarga, Vacio } from '@/components/EstadoCarga'
 import { Icono, iconoPorCategoria } from '@/components/Icono'
 import { TarjetaEvento } from '@/components/TarjetaEvento'
@@ -148,27 +162,26 @@ export default function Buscar() {
   return (
     <View style={[estilos.contenedor, { backgroundColor: colores.background }]}>
       <View style={estilos.cabecera}>
-        <View style={[estilos.cajaBusqueda, { backgroundColor: colores.card, borderColor: colores.border }]}>
-          <Icono nombre="Search" tamanio={20} color={colores.mutedForeground} />
-          <TextInput
-            value={texto}
-            onChangeText={setTexto}
-            placeholder="Buscar por evento, lugar o descripcion..."
-            placeholderTextColor={colores.mutedForeground}
-            style={[estilos.inputBusqueda, { color: colores.foreground }]}
-          />
-          {texto ? (
-            <Pressable
-              onPress={() => setTexto('')}
-              accessibilityRole="button"
-              accessibilityLabel="Limpiar búsqueda"
-              style={estilos.botonLimpiar}
-              hitSlop={8}
-            >
-              <Icono nombre="X" tamanio={18} color={colores.mutedForeground} />
-            </Pressable>
-          ) : null}
-        </View>
+        <CampoTexto
+          label="Buscar"
+          value={texto}
+          onChangeText={setTexto}
+          placeholder="Buscar por evento, lugar o descripcion..."
+          autoCapitalize="none"
+          accionDerecha={
+            texto ? (
+              <Pressable
+                onPress={() => setTexto('')}
+                accessibilityRole="button"
+                accessibilityLabel="Limpiar búsqueda"
+                style={estilos.botonLimpiar}
+                hitSlop={8}
+              >
+                <Icono nombre="X" tamanio={18} color={colores.mutedForeground} />
+              </Pressable>
+            ) : undefined
+          }
+        />
 
         <Pressable
           onPress={() => setSoloGratisActivo((valor) => !valor)}
@@ -262,17 +275,14 @@ export default function Buscar() {
 const estilos = StyleSheet.create({
   contenedor: { flex: 1 },
   cabecera: { padding: 16, gap: 12 },
-  cajaBusqueda: {
-    flexDirection: 'row',
+  // Mismo tamaño mínimo (44dp) que el "ojito" de CampoTexto.tsx: el área
+  // táctil del botón de limpiar no puede depender solo del padding.
+  botonLimpiar: {
+    minWidth: 44,
+    minHeight: 44,
     alignItems: 'center',
-    gap: 8,
-    minHeight: 48,
-    borderWidth: 1,
-    borderRadius: 10,
-    paddingHorizontal: 12,
+    justifyContent: 'center',
   },
-  inputBusqueda: { flex: 1, fontSize: 15, paddingVertical: 10 },
-  botonLimpiar: { padding: 4 },
   chipGratis: {
     alignSelf: 'flex-start',
     borderWidth: 1,

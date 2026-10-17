@@ -118,17 +118,25 @@ export interface DedupCleanupReport {
 /** Columnas que necesita el merge. `*` para no tener que sincronizar la lista. */
 const PAGE_SIZE = 500
 
-// Las filas de `events` quedan en `any` a propósito en todo este archivo (acá y
-// en toPlannedEvent, descriptionScore, pickKeeper, splitByVenue,
-// groupByDedupKey, buildDuplicateGroups, groupMatchesIds y planGroup): en
-// producción son filas reales de Supabase (columnas dinámicas, `select('*')`),
-// y los tests de caracterización (dedup-cleanup-plan.test.ts,
-// dedup-cleanup-merged.test.ts) les pasan fixtures tipados `Record<string,
-// unknown>` directo, sin cast. Tipar con `Tables<'events'>` de @qps/db
-// rompería esos tests (no están entre los archivos permitidos) o forzaría un
-// `as` por cada acceso a campo dentro de estas funciones puras.
-async function fetchAllEvents(supabase: any, options: DedupCleanupOptions): Promise<any[]> {
-  const rows: any[] = []
+// Las filas de `events` se tipan `Record<string, unknown>` en todo este
+// archivo (acá y en toPlannedEvent, descriptionScore, pickKeeper,
+// splitByVenue, groupByDedupKey, buildDuplicateGroups, groupMatchesIds y
+// planGroup): en producción son filas reales de Supabase (columnas dinámicas,
+// `select('*')`), y es el mismo tipo que usan los fixtures de los tests de
+// caracterización (dedup-cleanup-plan.test.ts, dedup-cleanup-merged.test.ts),
+// que se les pasan directo, sin cast. Tipar con `Tables<'events'>` de
+// @qps/db rompería esos tests (no están entre los archivos permitidos) o
+// forzaría un `as` por cada acceso a campo dentro de estas funciones puras.
+// Cada acceso a un campo sale `unknown` y se estrecha con una guarda
+// (`typeof`, `Array.isArray`) o, cuando no hay guarda hoy, con un `as` que no
+// cambia nada en tiempo de ejecución (sólo el chequeo de tipos).
+//
+// El cliente de Supabase sigue en `any` (acá y en repointFavorites,
+// repointInstagramFlyers): mismo motivo que `DedupCleanupOptions.supabase`
+// más arriba, los tests le pasan un cliente fake (`{ from }`) que no
+// satisface `SupabaseClient`.
+async function fetchAllEvents(supabase: any, options: DedupCleanupOptions): Promise<Record<string, unknown>[]> {
+  const rows: Record<string, unknown>[] = []
   let offset = 0
 
   for (;;) {
@@ -156,24 +164,24 @@ async function fetchAllEvents(supabase: any, options: DedupCleanupOptions): Prom
   return rows
 }
 
-function toPlannedEvent(row: any): PlannedEvent {
+function toPlannedEvent(row: Record<string, unknown>): PlannedEvent {
   return {
-    id: row.id,
-    title: row.title,
-    slug: row.slug ?? null,
+    id: row.id as string,
+    title: row.title as string,
+    slug: (row.slug ?? null) as string | null,
     source: resolveEventSource(row),
-    status: row.status,
-    venue_id: row.venue_id ?? null,
-    start_date: row.start_date,
+    status: row.status as string,
+    venue_id: (row.venue_id ?? null) as string | null,
+    start_date: row.start_date as string,
     ticket_sources: Array.isArray(row.ticket_sources) ? row.ticket_sources.length : 0,
-    ticket_url: row.ticket_url ?? null,
+    ticket_url: (row.ticket_url ?? null) as string | null,
     view_count: typeof row.view_count === 'number' ? row.view_count : 0,
     priority: getSourcePriority(resolveEventSource(row)),
   }
 }
 
 /** Largo de la descripción real; la autogenerada por el scraper vale 0. */
-function descriptionScore(row: any): number {
+function descriptionScore(row: Record<string, unknown>): number {
   const text = typeof row.description === 'string' ? row.description.trim() : ''
   return isAutoDescription(text) ? 0 : text.length
 }
@@ -189,15 +197,20 @@ function descriptionScore(row: any): number {
  *      y favoritos encima, y hace determinista al job.
  * Los ticket_sources de todas las filas se unen en la que queda (mergeEvents).
  */
-export function pickKeeper(group: any[]): any[] {
+export function pickKeeper(group: Record<string, unknown>[]): Record<string, unknown>[] {
   const sorted = [...group].sort((a, b) => {
-    const byTime = Number(hasRealTime(b.start_date)) - Number(hasRealTime(a.start_date))
+    const byTime =
+      Number(hasRealTime(b.start_date as string | Date | null | undefined)) -
+      Number(hasRealTime(a.start_date as string | Date | null | undefined))
     if (byTime !== 0) return byTime
     const byPriority = getSourcePriority(resolveEventSource(b)) - getSourcePriority(resolveEventSource(a))
     if (byPriority !== 0) return byPriority
     const byDescription = descriptionScore(b) - descriptionScore(a)
     if (byDescription !== 0) return byDescription
-    return new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime()
+    return (
+      new Date((a.created_at as string | number | Date | null | undefined) || 0).getTime() -
+      new Date((b.created_at as string | number | Date | null | undefined) || 0).getTime()
+    )
   })
   return sorted
 }
@@ -208,7 +221,9 @@ export function pickKeeper(group: any[]): any[] {
  * propio grupo y las filas sin venue quedan afuera: no hay forma de saber a
  * cuál pertenecen.
  */
-export function splitByVenue(group: any[]): { groups: any[][]; excluded: any[] } {
+export function splitByVenue(
+  group: Record<string, unknown>[]
+): { groups: Record<string, unknown>[][]; excluded: Record<string, unknown>[] } {
   const venues = [...new Set(group.map((row) => row.venue_id).filter(Boolean))]
   if (venues.length <= 1) return { groups: [group], excluded: [] }
   return {
@@ -218,8 +233,8 @@ export function splitByVenue(group: any[]): { groups: any[][]; excluded: any[] }
 }
 
 /** Agrupa las filas por clave de dedup recalculada en memoria. */
-export function groupByDedupKey(rows: any[]): Map<string, any[]> {
-  const groups = new Map<string, any[]>()
+export function groupByDedupKey(rows: Record<string, unknown>[]): Map<string, Record<string, unknown>[]> {
+  const groups = new Map<string, Record<string, unknown>[]>()
 
   for (const row of rows) {
     const key = dedupKeyOf(row)
@@ -248,9 +263,9 @@ export function groupByDedupKey(rows: any[]): Map<string, any[]> {
  * venueConflicts son los buckets de misma clave que, aun después de aplicar la
  * regla del link, quedan partidos en más de un grupo.
  */
-export function buildDuplicateGroups(rows: any[]): {
-  groups: Array<{ rows: any[]; byTicketUrl: boolean }>
-  venueConflicts: Array<{ dedupKey: string; rows: any[] }>
+export function buildDuplicateGroups(rows: Record<string, unknown>[]): {
+  groups: Array<{ rows: Record<string, unknown>[]; byTicketUrl: boolean }>
+  venueConflicts: Array<{ dedupKey: string; rows: Record<string, unknown>[] }>
 } {
   const index = new Map<unknown, number>(rows.map((row, i) => [row, i]))
   const parent = rows.map((_, i) => i)
@@ -279,7 +294,7 @@ export function buildDuplicateGroups(rows: any[]): {
   const byDayUrl = new Map<string, number[]>()
   rows.forEach((row, i) => {
     if (!row.start_date) return
-    const day = formatSaltaDayKey(row.start_date)
+    const day = formatSaltaDayKey(row.start_date as string | Date)
     for (const url of ticketUrlsOf(row)) {
       const key = `${day}|${url}`
       const list = byDayUrl.get(key)
@@ -303,14 +318,14 @@ export function buildDuplicateGroups(rows: any[]): {
     else components.set(root, [i])
   })
 
-  const groups: Array<{ rows: any[]; byTicketUrl: boolean }> = []
+  const groups: Array<{ rows: Record<string, unknown>[]; byTicketUrl: boolean }> = []
   for (const members of components.values()) {
     if (members.length < 2) continue
     const keyRoots = new Set(members.map((i) => find(keyParent, i)))
     groups.push({ rows: members.map((i) => rows[i]), byTicketUrl: keyRoots.size > 1 })
   }
 
-  const venueConflicts: Array<{ dedupKey: string; rows: any[] }> = []
+  const venueConflicts: Array<{ dedupKey: string; rows: Record<string, unknown>[] }> = []
   for (const [dedupKey, bucket] of buckets) {
     if (bucket.length < 2) continue
     const roots = new Set(bucket.map((row) => find(parent, index.get(row)!)))
@@ -321,12 +336,16 @@ export function buildDuplicateGroups(rows: any[]): {
 }
 
 /** Un grupo contiene alguno de los ids pedidos (completo o prefijo >= 8). */
-function groupMatchesIds(group: any[], ids: string[]): boolean {
+function groupMatchesIds(group: Record<string, unknown>[], ids: string[]): boolean {
   return group.some((row) => ids.some((id) => id.length >= 8 && String(row.id).startsWith(id)))
 }
 
 /** Arma el plan de fusión de un grupo, sin tocar la base. */
-export function planGroup(dedupKey: string, group: any[], byTicketUrl = false): DuplicateGroupPlan {
+export function planGroup(
+  dedupKey: string,
+  group: Record<string, unknown>[],
+  byTicketUrl = false
+): DuplicateGroupPlan {
   const [keeper, ...absorbed] = pickKeeper(group)
 
   // Copia de trabajo: cada fusión ve el resultado de la anterior, igual que
@@ -341,7 +360,7 @@ export function planGroup(dedupKey: string, group: any[], byTicketUrl = false): 
       incomingSource: resolveEventSource(row),
       dedupKey,
       context: 'cleanup',
-      absorbedEventId: row.id,
+      absorbedEventId: row.id as string,
       absorbedSnapshot: row,
     })
 
@@ -353,11 +372,11 @@ export function planGroup(dedupKey: string, group: any[], byTicketUrl = false): 
 
   // Las vistas de las filas absorbidas se suman a la que queda; si no, un
   // evento popular pierde su historial de popularidad al deduplicar.
-  const totalViews = group.reduce((sum, row) => sum + (row.view_count || 0), 0)
+  const totalViews = group.reduce((sum, row) => sum + ((row.view_count as number) || 0), 0)
   if (totalViews !== (keeper.view_count || 0)) patch.view_count = totalViews
 
-  const finalTitle = patch.title ?? keeper.title
-  const finalStart = patch.start_date ?? keeper.start_date
+  const finalTitle = (patch.title ?? keeper.title) as string | null | undefined
+  const finalStart = (patch.start_date ?? keeper.start_date) as string | Date | null | undefined
   patch.dedup_key = buildDedupKey(finalTitle, finalStart) || null
 
   const ticketSourcesBefore = Array.isArray(keeper.ticket_sources) ? keeper.ticket_sources.length : 0
@@ -367,7 +386,7 @@ export function planGroup(dedupKey: string, group: any[], byTicketUrl = false): 
 
   return {
     dedupKey,
-    day: formatSaltaDayKey(keeper.start_date),
+    day: formatSaltaDayKey(keeper.start_date as string | Date),
     byTicketUrl,
     keeper: toPlannedEvent(keeper),
     absorbed: absorbed.map(toPlannedEvent),
@@ -493,8 +512,9 @@ export async function runDedupCleanup(options: DedupCleanupOptions = {}): Promis
 
     try {
       const existing = rows.find((row) => row.id === plan.keeper.id)
-      // `existing` ya es `any` (viene de `rows: any[]`, ver fetchAllEvents): no hace
-      // falta otro cast para leer `.merge_audit`.
+      // `existing` es `Record<string, unknown> | undefined` (viene de `rows`, ver
+      // fetchAllEvents): `.merge_audit` sale `unknown` y se pasa tal cual a
+      // `appendAudit` (que lo recibe como `any`, igual que antes).
       let audit = existing?.merge_audit
       for (const entry of plan.auditEntries) {
         audit = appendAudit(audit, entry)
@@ -538,7 +558,7 @@ export async function runDedupCleanup(options: DedupCleanupOptions = {}): Promis
     const keeperIds = new Set(report.groups.map((plan) => plan.keeper.id))
 
     for (const row of rows) {
-      if (absorbedIds.has(row.id) || keeperIds.has(row.id)) continue
+      if (absorbedIds.has(row.id as string) || keeperIds.has(row.id as string)) continue
       const key = dedupKeyOf(row)
       if (!key || row.dedup_key === key) continue
 

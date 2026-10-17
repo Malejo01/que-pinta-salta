@@ -88,12 +88,12 @@ export function FavoriteButton({
         toast({
           title: "Favorito guardado",
           description: shouldShowDonation 
-            ? "¡Plan guardado! ❤️ Si Qué Pinta Salta te ayuda a organizar tu finde, invitamos un cafecito para ayudarnos a crear la App móvil."
+            ? "¡Plan guardado! ❤️ Si Qué Pinta Salta te ayuda a organizar tu finde, invitanos un cafecito para ayudarnos a crear la App móvil."
             : "El elemento se agregó a tu agenda.",
           action: shouldShowDonation ? (
-            <ToastAction 
-              altText="Donar ahora" 
-              onClick={() => openDonationModal("¡Plan guardado! ❤️ Si Qué Pinta Salta te ayuda a organizar tu finde, invitamos un cafecito para ayudarnos a crear la App móvil.")}
+            <ToastAction
+              altText="Donar ahora"
+              onClick={() => openDonationModal("¡Plan guardado! ❤️ Si Qué Pinta Salta te ayuda a organizar tu finde, invitanos un cafecito para ayudarnos a crear la App móvil.")}
               className="bg-[#C12026] text-white hover:bg-[#A0191F] border-none"
             >
               Donar ahora
@@ -110,7 +110,7 @@ export function FavoriteButton({
       setIsFavorite(previousState)
       toast({
         title: "Error de conexión",
-        description: "No pudimos conectarnos al servidor. Inténtalo de nuevo.",
+        description: "No pudimos conectarnos al servidor. Intentalo de nuevo.",
         variant: "destructive",
       })
     } finally {

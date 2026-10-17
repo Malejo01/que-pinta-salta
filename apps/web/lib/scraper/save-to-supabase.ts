@@ -5,6 +5,7 @@ import { saltaWallClockToUtcISO } from '../date-format';
 import { formatVenueError, resolveVenueId } from '../venues/resolve';
 import { INSTAGRAM_ENGINE_CONFIG } from '../instagram-config';
 import { copyExternalImage, isOwnStorageUrl } from '../images/external';
+import { isThumbnail } from './merge-events';
 
 // Cliente directo (service role key para uso en scripts, nunca en browser)
 function getAdminClient() {
@@ -208,7 +209,13 @@ export async function saveEventsToSupabase(
       // Storage. copyExternalImage es idempotente (la ruta sale del hash de
       // la URL): copiar "siempre" no implica descargar siempre, solo una vez
       // por URL distinta. Si la copia falla, se guarda la URL original (como hoy).
-      if (eventData.image_url && !isOwnStorageUrl(eventData.image_url)) {
+      //
+      // Una miniatura NO se copia (QPS-160, mismo criterio que run-scrape-job.ts,
+      // 31-a): una vez copiada, la URL pasa a ser `externas/<sha1 hex>.<ext>`,
+      // y un digest hexadecimal nunca puede contener el texto que `isThumbnail`
+      // busca ("150x150", "thumb") — quedaría atascada para siempre. Por eso la
+      // guarda se evalúa ANTES de copiar, sobre la URL cruda.
+      if (eventData.image_url && !isOwnStorageUrl(eventData.image_url) && !isThumbnail(eventData.image_url)) {
         storageClient ??= supabase.storage.from(INSTAGRAM_ENGINE_CONFIG.STORAGE_BUCKET);
         const storageUrl = await copyExternalImage(eventData.image_url, storageClient);
         if (storageUrl) {

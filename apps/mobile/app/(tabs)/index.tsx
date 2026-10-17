@@ -7,13 +7,15 @@
 // no se dibuja nada, y si no se vio, se redirige — sin cambios desde la R25.
 //
 // Los atajos (Hoy · Esta noche · Finde · Semana) siguen sin cambiar de
-// comportamiento: un único pedido por atajo (`obtenerEventosDeAtajo`, mismo
-// de siempre) sigue siendo la fuente de "todos los eventos vigentes" que
-// alimenta el Hero, "Hoy en Salta" y las filas por categoría — cambiar de
-// atajo re-pide y re-arma las tres cosas a la vez, en vez de filtrar un
-// listado ya cargado. "Ver esta semana" (en el vacío de "Hoy en Salta") y
-// "Ver todos" de "Hoy en Salta" activan atajos (`semana`/`hoy`), igual que
-// la web los traduce a su filtro de fecha.
+// comportamiento, pero desde 36-a (G2 del feedback del teléfono) se aplican
+// **en memoria**: Inicio pide los eventos vigentes una sola vez
+// (`obtenerEventosVigentesParaInicio`, sin `Atajo`), junto con las
+// categorías y los cines, y solo vuelve a pedirlos al montar, con
+// "Reintentar" o con pull-to-refresh. Cambiar de atajo filtra ese mismo
+// listado con `eventoEnAtajo` (core) y la `ahora` guardada junto con la
+// carga — nunca pasa por `Cargando`. "Ver esta semana" (en el vacío de "Hoy
+// en Salta") y "Ver todos" de "Hoy en Salta" activan atajos
+// (`semana`/`hoy`), igual que la web los traduce a su filtro de fecha.
 //
 // Las películas en cartel (`lib/datos/cines.ts`) se cargan en paralelo y se
 // suman al conjunto con `transformMovie` (`@qps/core/home/transform`,
@@ -31,7 +33,7 @@ import { Redirect, useRouter } from 'expo-router'
 import { formatDateInSalta, transformMovie } from '@qps/core/home/transform'
 import { selectCarouselEvents, sortCategories } from '@qps/core/home/carousel'
 import { groupByCategory, selectTodayRow, type CategoryEventsRow } from '@qps/core/home/filters'
-import type { Atajo } from '@qps/core/home/atajos'
+import { eventoEnAtajo, type Atajo } from '@qps/core/home/atajos'
 import type { DisplayEvent } from '@qps/core/home/types'
 import type { Category } from '@qps/core/types'
 import { BannerRadar } from '@/components/BannerRadar'
@@ -43,12 +45,27 @@ import { Texto } from '@/components/Texto'
 import { useBienvenidaVista } from '@/lib/bienvenida'
 import { useColoresQPS } from '@/lib/colores'
 import { obtenerCines, type Pelicula } from '@/lib/datos/cines'
-import { obtenerCategorias, obtenerEventosDeAtajo, type CategoriaBasica } from '@/lib/datos/eventos'
+import {
+  obtenerCategorias,
+  obtenerEventosVigentesParaInicio,
+  type CategoriaBasica,
+  type EventoVigenteParaInicio,
+} from '@/lib/datos/eventos'
 
 type EstadoPortada =
   | { tipo: 'cargando' }
   | { tipo: 'error'; error: string }
-  | { tipo: 'ok'; eventos: DisplayEvent[]; categorias: CategoriaBasica[]; peliculas: Pelicula[] }
+  | {
+      tipo: 'ok'
+      eventos: EventoVigenteParaInicio[]
+      categorias: CategoriaBasica[]
+      peliculas: Pelicula[]
+      // Un único instante por carga (36-a): el mismo `ahora` que decidió
+      // qué era "vigente" en la consulta alimenta después el filtro de
+      // atajo y el armado de la portada, para que no se corra si pasa el
+      // tiempo sin recargar (ver el `useMemo` de `datosPortada`, más abajo).
+      ahora: Date
+    }
 
 export type SeccionPortada =
   | { tipo: 'hoy'; eventos: DisplayEvent[] }
@@ -86,9 +103,15 @@ export default function Inicio() {
   // que ya está armado sigue a la vista en vez de pasar a `Cargando`.
   const [refrescando, setRefrescando] = useState(false)
 
+  // Sin `atajo` entre las dependencias (36-a): cambiar de atajo ya no vuelve
+  // a pedir nada, así que esta función queda estable entre renders.
   const cargarDatos = useCallback(async (): Promise<EstadoPortada> => {
+    // Un único instante por carga (no `new Date()` suelto por el componente):
+    // decide qué es "vigente" en la consulta y queda guardado en `estado`
+    // para que el filtro de atajo y el armado de la portada usen el mismo.
+    const ahora = new Date()
     const [resEventos, resCategorias, resPeliculas] = await Promise.all([
-      obtenerEventosDeAtajo(atajo),
+      obtenerEventosVigentesParaInicio(ahora),
       obtenerCategorias(),
       obtenerCines(),
     ])
@@ -102,8 +125,9 @@ export default function Inicio() {
       eventos: resEventos.eventos,
       categorias: resCategorias.categorias,
       peliculas: resPeliculas.peliculas,
+      ahora,
     }
-  }, [atajo])
+  }, [])
 
   // Cuenta de "reintentos" (mismo patrón que `app/evento/[id].tsx` y
   // `app/pelicula/[id].tsx`, 28-l): el efecto no puede llamar, de forma
@@ -112,17 +136,6 @@ export default function Inicio() {
   // `.then()` (el `setState` queda en el callback de la promesa, no en el
   // cuerpo sincrónico del efecto); "Reintentar" solo sube este contador.
   const [intento, setIntento] = useState(0)
-
-  // Si `atajo` cambia con la portada ya montada, hay que volver a "cargando"
-  // antes de que el efecto de abajo dispare el pedido nuevo — si no, se ven
-  // los datos del atajo anterior hasta que resuelve. El ajuste va durante el
-  // render, no dentro de un efecto (comparar-y-ajustar con `useState`, mismo
-  // patrón que `idAnterior` en `app/evento/[id].tsx`).
-  const [atajoAnterior, setAtajoAnterior] = useState(atajo)
-  if (atajoAnterior !== atajo) {
-    setAtajoAnterior(atajo)
-    setEstado({ tipo: 'cargando' })
-  }
 
   useEffect(() => {
     let cancelado = false
@@ -150,13 +163,18 @@ export default function Inicio() {
   const datosPortada = useMemo(() => {
     if (estado.tipo !== 'ok') return null
 
-    // Un único instante por carga (no `new Date()` suelto en el render):
-    // mismo criterio que `serverNowISO` en
-    // `apps/web/components/home-content.tsx`.
-    const ahora = new Date()
+    // La misma `ahora` de la carga (guardada en `estado`), no una nueva: así
+    // el filtro de atajo tampoco se corre si pasa el tiempo sin recargar.
+    const { ahora } = estado
     const saltaTodayStr = formatDateInSalta(ahora)
+
+    // El atajo se aplica en memoria (36-a): las películas de cine no entran
+    // en este filtro, a propósito — se suman siempre, como antes (`peliculasComoEventos`).
+    const eventosDelAtajo = estado.eventos
+      .filter((item) => eventoEnAtajo(item.paraAtajo, atajo, ahora))
+      .map((item) => item.evento)
     const peliculasComoEventos = estado.peliculas.map((pelicula) => transformMovie(pelicula, saltaTodayStr))
-    const todosLosEventos = [...estado.eventos, ...peliculasComoEventos]
+    const todosLosEventos = [...eventosDelAtajo, ...peliculasComoEventos]
 
     // `sortCategories`/`groupByCategory` (de core) solo usan `.slug` y
     // `.name` de cada categoría: `CategoriaBasica` (lib/datos/eventos.ts)
@@ -169,7 +187,7 @@ export default function Inicio() {
     const hoyEventos = selectTodayRow(todosLosEventos, saltaTodayStr, ahora)
 
     return { carrusel, filas, hoyEventos }
-  }, [estado])
+  }, [estado, atajo])
 
   const secciones = useMemo(
     () => (datosPortada ? seccionesPortada(datosPortada.filas, datosPortada.hoyEventos) : []),
