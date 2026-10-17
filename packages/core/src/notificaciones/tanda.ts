@@ -229,9 +229,20 @@ function candidatosDeFavoritos(
  * El `dedupeKey` de un envío de tipo `novedad` siempre empieza con este
  * prefijo. No se escribe el formato `"novedad:<userId>:..."` a mano (sería
  * duplicar el formato de `claveDedupe`, acá y en `./reglas`): se deriva
- * llamando a `claveDedupe` con un `userId` vacío, así que si el formato de
- * `claveDedupe` cambia algún día, este prefijo lo sigue solo, sin que haya
- * que acordarse de tocar dos archivos.
+ * llamando a `claveDedupe` con un `userId` vacío.
+ *
+ * Esto solo sigue funcionando mientras `kind` sea el primer segmento de la
+ * clave (`./reglas`: `const partes = [kind, userId]`). Si ese orden cambiara
+ * (por ejemplo, `userId` primero), este prefijo dejaría de matchear
+ * cualquier clave real de `novedad`, `esDedupeKeyDeNovedad` siempre daría
+ * `false`, y el tope de novedades por día (39-a/41-a) se contaría siempre
+ * como 0. Un par de tests de integración de
+ * `apps/web/tests/core/notificaciones-tanda.test.ts` ya se pondrían en rojo
+ * con ese cambio (de forma indirecta, por un conteo que no da lo esperado),
+ * pero el test "el prefijo de dedupe de "novedad" depende de que `kind` sea
+ * el primer segmento..." en ese mismo archivo lo señala de forma directa,
+ * sobre la salida de `claveDedupe` — es el que hay que mirar primero si este
+ * comentario deja de ser cierto.
  */
 const PREFIJO_DEDUPE_NOVEDAD = claveDedupe({ kind: 'novedad', userId: '' })
 

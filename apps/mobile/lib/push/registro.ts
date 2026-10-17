@@ -8,6 +8,16 @@
 // `getExpoPushTokenAsync` (o de la RPC) se loguea como mucho `error.code` o
 // `error.name`, nunca `error.message` (en Android puede traer contexto del
 // dispositivo) y nunca el token.
+//
+// Vuelta 1 de arreglo (41-c2, hallazgo del revisor confirmado por
+// seguridad): las otras tres llamadas nativas (`setNotificationChannelAsync`,
+// `requestPermissionsAsync`, `getPermissionsAsync`) no estaban protegidas:
+// una excepción ahí dejaba `sincronizarPush` rechazada sin atrapar y
+// `estadoSincronizado` congelado (al arrancar) o el botón clavado en
+// `'pidiendo'` (en `correr()` de `index.tsx`). Ahora las cuatro están
+// envueltas, cada una en el lugar donde ya vive su lógica (mismo patrón que
+// `obtenerToken`), y cada una decide qué `EstadoPush` devolver según lo que
+// esa falla significa para la persona (ver los comentarios en cada función).
 import * as Notificaciones from 'expo-notifications'
 import Constants from 'expo-constants'
 import { Platform } from 'react-native'
@@ -93,25 +103,48 @@ function promesaTimeout(ms: number, reloj: Reloj): { promesa: Promise<never>; li
 /**
  * `setNotificationChannelAsync('default', …)`, solo en Android y antes de
  * pedir el permiso o el token. No hace nada en otras plataformas.
+ *
+ * Nunca tira: el canal es solo para que el aviso se vea con nombre e
+ * importancia propios (algo cosmético), no hace falta para obtener el
+ * token ni para registrar en el servidor. Si falla, se loguea sin dato y se
+ * sigue de largo (el aviso cae igual en el canal por defecto del sistema)
+ * en vez de abortar `sincronizarPush` entero por un problema que no impide
+ * que la persona reciba notificaciones.
  */
 export async function prepararCanalAndroid(deps: DependenciasPush = {}): Promise<void> {
   if (plataformaPush(Platform.OS) !== 'android') return
 
   const { notificaciones } = resolverDependencias(deps)
-  await notificaciones.setNotificationChannelAsync('default', {
-    name: 'Qué Pinta Salta',
-    importance: Notificaciones.AndroidImportance.DEFAULT,
-  })
+  try {
+    await notificaciones.setNotificationChannelAsync('default', {
+      name: 'Qué Pinta Salta',
+      importance: Notificaciones.AndroidImportance.DEFAULT,
+    })
+  } catch (error) {
+    registrarFallaSinDato('[push] no se pudo preparar el canal de notificaciones de Android', error)
+  }
 }
 
 /**
  * `requestPermissionsAsync()`. Se llama solo desde una acción de la
  * persona (el botón de "activar"), nunca al montar.
+ *
+ * Si la llamada nativa tira (un módulo mal linkeado, una Activity nula),
+ * no es que "este teléfono no puede recibir notificaciones" (`no-disponible`,
+ * que en Cuenta no deja botón): es que la propia pregunta del permiso
+ * falló por algo transitorio del lado nativo. Se devuelve `error-registro`
+ * a propósito, que deja el botón de "Reintentar" (intentarlo de nuevo puede
+ * andar sin reinstalar nada).
  */
 export async function pedirPermiso(deps: DependenciasPush = {}): Promise<EstadoPush> {
   const { notificaciones } = resolverDependencias(deps)
-  const permiso = await notificaciones.requestPermissionsAsync()
-  return estadoDesdePermiso({ status: permiso.status, canAskAgain: permiso.canAskAgain })
+  try {
+    const permiso = await notificaciones.requestPermissionsAsync()
+    return estadoDesdePermiso({ status: permiso.status, canAskAgain: permiso.canAskAgain })
+  } catch (error) {
+    registrarFallaSinDato('[push] no se pudo pedir el permiso de notificaciones', error)
+    return 'error-registro'
+  }
 }
 
 export type ResultadoToken = { ok: true; token: string } | { ok: false }
@@ -238,6 +271,13 @@ export async function borrarTokenDeEsteTelefono(deps: DependenciasPush = {}): Pr
  *   (`requestPermissionsAsync`);
  * - si en cualquiera de los dos casos el permiso queda concedido: canal,
  *   token y registro.
+ *
+ * Nunca tira: `pedirPermiso` y `obtenerToken` ya se protegen a sí mismas
+ * (y deciden su propio estado de falla), `prepararCanalAndroid` nunca
+ * propaga nada, y el `getPermissionsAsync` de acá abajo tiene su propio
+ * `try/catch` (no se delegó a una función aparte porque es la única
+ * llamada nativa que vive directamente en el cuerpo de `sincronizarPush`,
+ * no en una función con nombre propio como las otras tres).
  */
 export async function sincronizarPush(
   { preguntar }: { preguntar: boolean },
@@ -249,8 +289,19 @@ export async function sincronizarPush(
   if (preguntar) {
     estadoPermiso = await pedirPermiso(deps)
   } else {
-    const permiso = await notificaciones.getPermissionsAsync()
-    estadoPermiso = estadoDesdePermiso({ status: permiso.status, canAskAgain: permiso.canAskAgain })
+    try {
+      const permiso = await notificaciones.getPermissionsAsync()
+      estadoPermiso = estadoDesdePermiso({ status: permiso.status, canAskAgain: permiso.canAskAgain })
+    } catch (error) {
+      // Misma razón que en `pedirPermiso`: leer el permiso actual falló
+      // por algo del lado nativo (no porque el teléfono no admita push).
+      // `error-registro` deja el botón de "Reintentar"; `no-disponible`
+      // (sin botón) lo dejaría sin salida, y no atrapar nada congelaría
+      // `estadoSincronizado` en `'sin-pedir'` para siempre (la trampa que
+      // reportó el revisor).
+      registrarFallaSinDato('[push] no se pudo leer el permiso de notificaciones', error)
+      return 'error-registro'
+    }
   }
 
   if (estadoPermiso !== 'activo') return estadoPermiso

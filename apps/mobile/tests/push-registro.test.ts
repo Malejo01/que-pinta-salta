@@ -25,6 +25,11 @@ const estado = vi.hoisted(() => ({
   tokenResultado: { data: 'ExponentPushToken[de-prueba-1]' } as { data: string },
   tokenError: null as unknown,
   tokenNuncaResuelve: false,
+  // 41-c2 (vuelta 1 de arreglo): para forzar que las otras tres llamadas
+  // nativas rechacen, cada una con su propio interruptor.
+  getPermissionsError: null as unknown,
+  requestPermissionsError: null as unknown,
+  setChannelError: null as unknown,
   rpcError: null as unknown,
   ultimoRpcArgs: null as unknown,
   deleteRechaza: false,
@@ -44,14 +49,17 @@ const estado = vi.hoisted(() => ({
 vi.mock('expo-notifications', () => ({
   getPermissionsAsync: vi.fn(async () => {
     estado.llamadas.getPermissionsAsync++
+    if (estado.getPermissionsError) throw estado.getPermissionsError
     return estado.permisoActual
   }),
   requestPermissionsAsync: vi.fn(async () => {
     estado.llamadas.requestPermissionsAsync++
+    if (estado.requestPermissionsError) throw estado.requestPermissionsError
     return estado.permisoPedido
   }),
   setNotificationChannelAsync: vi.fn(async () => {
     estado.llamadas.setNotificationChannelAsync++
+    if (estado.setChannelError) throw estado.setChannelError
     return null
   }),
   getExpoPushTokenAsync: vi.fn(async () => {
@@ -128,6 +136,8 @@ import {
   CLAVE_TOKEN_PUSH,
   borrarTokenDeEsteTelefono,
   obtenerToken,
+  pedirPermiso,
+  prepararCanalAndroid,
   registrarToken,
   sincronizarPush,
 } from '../lib/push/registro'
@@ -140,6 +150,9 @@ beforeEach(() => {
   estado.tokenResultado = { data: TOKEN_DE_PRUEBA }
   estado.tokenError = null
   estado.tokenNuncaResuelve = false
+  estado.getPermissionsError = null
+  estado.requestPermissionsError = null
+  estado.setChannelError = null
   estado.rpcError = null
   estado.ultimoRpcArgs = null
   estado.deleteRechaza = false
@@ -287,6 +300,74 @@ describe('timeout del token', () => {
 
     expect(resultado).toBe('no-disponible')
     expect(estado.llamadas.rpc).toBe(0)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// 41-c2, vuelta 1 de arreglo: las otras tres llamadas nativas (el hallazgo
+// del revisor, confirmado por seguridad). Antes de este arreglo, ninguna de
+// las tres estaba protegida y `sincronizarPush` quedaba rechazada sin
+// atrapar.
+// ---------------------------------------------------------------------------
+describe('setNotificationChannelAsync que rechaza (Android)', () => {
+  it('prepararCanalAndroid no tira: se loguea y sigue', async () => {
+    estado.setChannelError = new Error('no se pudo crear el canal')
+    const espiaWarn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+
+    await expect(prepararCanalAndroid()).resolves.toBeUndefined()
+
+    expect(estado.llamadas.setNotificationChannelAsync).toBe(1)
+    expect(espiaWarn).toHaveBeenCalled()
+  })
+
+  it('sincronizarPush sigue de largo: pide el token y registra igual (no aborta por el canal)', async () => {
+    estado.permisoActual = { status: 'granted', canAskAgain: true, granted: true, expires: 'never' }
+    estado.setChannelError = new Error('no se pudo crear el canal')
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+
+    const resultado = await sincronizarPush({ preguntar: false })
+
+    expect(resultado).toBe('activo')
+    expect(estado.llamadas.setNotificationChannelAsync).toBe(1)
+    expect(estado.llamadas.getExpoPushTokenAsync).toBe(1)
+    expect(estado.llamadas.rpc).toBe(1)
+  })
+})
+
+describe('requestPermissionsAsync que rechaza (el botón, preguntar: true)', () => {
+  it('pedirPermiso no tira: da error-registro', async () => {
+    estado.requestPermissionsError = new Error('módulo nativo no respondió')
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+
+    await expect(pedirPermiso()).resolves.toBe('error-registro')
+  })
+
+  it('sincronizarPush da error-registro, sin reintento y sin llegar al token ni a la RPC', async () => {
+    estado.requestPermissionsError = new Error('módulo nativo no respondió')
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+
+    const resultado = await sincronizarPush({ preguntar: true })
+
+    expect(resultado).toBe('error-registro')
+    expect(estado.llamadas.requestPermissionsAsync).toBe(1)
+    expect(estado.llamadas.getExpoPushTokenAsync).toBe(0)
+    expect(estado.llamadas.rpc).toBe(0)
+  })
+})
+
+describe('getPermissionsAsync que rechaza (al arrancar, preguntar: false)', () => {
+  it('sincronizarPush no tira: da error-registro, sin reintento y sin pedir el permiso', async () => {
+    estado.getPermissionsError = new Error('módulo nativo no respondió')
+    const espiaWarn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+
+    const resultado = await sincronizarPush({ preguntar: false })
+
+    expect(resultado).toBe('error-registro')
+    expect(estado.llamadas.getPermissionsAsync).toBe(1)
+    expect(estado.llamadas.requestPermissionsAsync).toBe(0)
+    expect(estado.llamadas.getExpoPushTokenAsync).toBe(0)
+    expect(estado.llamadas.rpc).toBe(0)
+    expect(espiaWarn).toHaveBeenCalled()
   })
 })
 

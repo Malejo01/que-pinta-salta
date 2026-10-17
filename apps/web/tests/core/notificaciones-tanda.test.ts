@@ -433,6 +433,24 @@ describe('el tope de novedades por día se cuenta sobre los envíos YA REGISTRAD
   })
 })
 
+describe('el prefijo de dedupe de "novedad" depende de que `kind` sea el primer segmento de `claveDedupe` (revisor, 41-d2)', () => {
+  it(
+    'una clave real de "novedad" empieza con el mismo prefijo que `tanda.ts` deriva con `userId: ""` — ' +
+      'si `reglas.ts` reordenara `partes` (por ejemplo, `userId` antes que `kind`), este test se pone en ' +
+      'rojo: ese día, el prefijo de `PREFIJO_DEDUPE_NOVEDAD` en `tanda.ts` dejaría de matchear cualquier ' +
+      'clave real, `esDedupeKeyDeNovedad` siempre daría `false`, y el tope de novedades por día (41-a) se ' +
+      'contaría siempre como 0. Si el cambio de orden es a propósito, actualizá el comentario de ' +
+      '`PREFIJO_DEDUPE_NOVEDAD` junto con este test — no lo borres.',
+    () => {
+      // Mismo cálculo que `PREFIJO_DEDUPE_NOVEDAD` en `tanda.ts`, sin importar el símbolo privado:
+      // se repite la derivación acá para no depender de la implementación interna de ese archivo.
+      const prefijoDerivado = claveDedupe({ kind: 'novedad', userId: '' })
+      const claveReal = claveDedupe({ kind: 'novedad', userId: uuid(), extra: '2026-10-20T10' })
+      expect(claveReal.startsWith(prefijoDerivado)).toBe(true)
+    },
+  )
+})
+
 describe('el link es el que arma `urlEvento`', () => {
   it('el `data.url` del recordatorio de favoritos es exactamente `urlEvento(eventId, "app")`', () => {
     const ahora = salta('2026-10-20T18:00:00')

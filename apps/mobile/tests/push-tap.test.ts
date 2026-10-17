@@ -7,11 +7,15 @@
 // El formato de `data.url` que manda el backend (R39) sale de
 // `urlEvento(id, 'app')` de `@qps/core/metricas/links` — no se escribe a
 // mano para no divergir del valor real que arma `armarTanda`.
-import { readFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { dirname, extname, join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 import { urlEvento } from '@qps/core/metricas/links'
 import { claveRespuesta, eventoIdDesdeDatosPush, type RespuestaPushMinima } from '../lib/push/tap'
+
+const MOBILE_ROOT = fileURLToPath(new URL('..', import.meta.url))
 
 const UUID = '0b9d4f5a-6a2b-4c1e-8f3d-9a7b6c5d4e3f'
 const UUID_MAYUSCULAS = UUID.toUpperCase()
@@ -302,15 +306,275 @@ describe('encontrarEvasionesTapPush (fixtures en memoria: tiene que fallar de ve
   })
 })
 
-describe('components/ManejadorTapPush.tsx: sin evasiones conocidas', () => {
+// ---------------------------------------------------------------------------
+// Cierre transitivo de imports locales.
+//
+// `encontrarEvasionesTapPush` (arriba) escanea un solo string: si alguien
+// mueve el `Linking.openURL` a un módulo local nuevo e importa ese módulo
+// desde `ManejadorTapPush.tsx`, un chequeo que solo mire ese archivo no lo
+// ve. Esto pasó en la R37 (uno de los cinco bloqueantes): un detector nuevo
+// miraba solo el archivo de entrada mientras `tests/aperturas-url.test.ts`
+// sí cubría todo lo alcanzable — ahí la evasión era justamente un módulo
+// local importado normalmente.
+//
+// `cerrarImportsLocales` sigue, a partir de un archivo de entrada, todo
+// import local (`@/...`, resuelto contra la raíz del proyecto; o relativo,
+// `./...`/`../...`) de forma recursiva (BFS, con protección contra ciclos),
+// y devuelve cada archivo alcanzado junto con la cadena de archivos que
+// lleva hasta él (para poder informar "quién lo importa", igual que se hizo
+// en la R37). Los paquetes de `node_modules` (react, expo-router,
+// expo-notifications, etc.) y los paquetes `@qps/*` (código compartido del
+// monorepo, no de la app) NO se siguen: no son código nuestro, y en el caso
+// de los fixtures en memoria de más abajo ni siquiera existen en el disco
+// del directorio temporal.
+//
+// Límite conocido: el parseo de imports es con expresiones regulares (igual
+// que el resto de este archivo y que `tests/aperturas-url.test.ts`), no con
+// un parser de TypeScript. Soporta `import ... from '...'` (estático, con o
+// sin `type`, con destructuring multilínea), `import '...'` (efecto lateral),
+// `import('...')` (dinámico) y `require('...')`. Un import con un comentario
+// en medio de las llaves no matchea y se pierde silenciosamente — ninguno
+// de los archivos reales de este repo lo hace hoy, pero si alguna vez
+// aparece, este detector no lo ve (deliberadamente no se amplía el regex más
+// allá de lo que el código real necesita, para no inventar una forma de
+// resolver imports distinta de la que ya usa este repo).
+const EXTENSIONES_A_PROBAR = ['.ts', '.tsx', '.js', '.jsx']
+
+const RE_IMPORT_CON_FROM = /\b(?:import|export)\s+(?:type\s+)?[\w\s,{}*]*?\bfrom\s+['"]([^'"]+)['"]/g
+const RE_IMPORT_LADO_EFECTO = /\bimport\s+['"]([^'"]+)['"]/g
+const RE_IMPORT_DINAMICO = /\bimport\s*\(\s*['"]([^'"]+)['"]\s*\)/g
+const RE_REQUIRE = /\brequire\s*\(\s*['"]([^'"]+)['"]\s*\)/g
+
+/** Todos los specifiers que importa `content` (estático, lado-efecto, dinámico o `require`), sin resolver ni filtrar. */
+function especificadoresImportados(content: string): string[] {
+  const out: string[] = []
+  for (const re of [RE_IMPORT_CON_FROM, RE_IMPORT_LADO_EFECTO, RE_IMPORT_DINAMICO, RE_REQUIRE]) {
+    let m: RegExpExecArray | null
+    while ((m = re.exec(content))) out.push(m[1])
+  }
+  return out
+}
+
+/** La ruta absoluta (sin extensión resuelta) de un specifier local, o `null` si es un paquete (node_modules o `@qps/*`) que no se sigue. */
+function rutaBaseDelImport(specifier: string, archivoActual: string, root: string): string | null {
+  if (specifier.startsWith('@qps/')) return null // paquete compartido del monorepo: no es código de la app
+  if (specifier.startsWith('@/')) return join(root, specifier.slice(2))
+  if (specifier.startsWith('./') || specifier.startsWith('../')) return join(dirname(archivoActual), specifier)
+  return null // paquete de node_modules (react, expo-router, expo-notifications, etc.): no es código nuestro
+}
+
+/** Agrega la extensión (o el `/index.*`) que falte, probando en orden; `null` si ningún archivo real existe. */
+function resolverArchivo(rutaBase: string): string | null {
+  if (extname(rutaBase) && existsSync(rutaBase)) return rutaBase
+  for (const ext of EXTENSIONES_A_PROBAR) {
+    if (existsSync(rutaBase + ext)) return rutaBase + ext
+  }
+  for (const ext of EXTENSIONES_A_PROBAR) {
+    const candidato = join(rutaBase, `index${ext}`)
+    if (existsSync(candidato)) return candidato
+  }
+  return null
+}
+
+export interface ArchivoAlcanzado {
+  /** Ruta absoluta del archivo alcanzado. */
+  archivo: string
+  /** Cadena de rutas (relativas a `root`), desde el archivo de entrada hasta este, inclusive. */
+  cadena: string[]
+}
+
+/**
+ * Cierre transitivo de imports locales a partir de `archivoEntrada`: el
+ * archivo de entrada y todo lo que importa, directa o indirectamente, por
+ * una ruta `@/...` o relativa. `root` es la raíz contra la que se resuelve
+ * `@/...` (la raíz del proyecto mobile en producción; configurable para que
+ * los fixtures de los tests de abajo usen un directorio temporal aislado).
+ */
+export function cerrarImportsLocales(archivoEntrada: string, root: string = MOBILE_ROOT): ArchivoAlcanzado[] {
+  const visitados = new Map<string, string[]>()
+  const cola: ArchivoAlcanzado[] = [{ archivo: archivoEntrada, cadena: [relative(root, archivoEntrada)] }]
+  while (cola.length > 0) {
+    const siguiente = cola.shift()!
+    if (visitados.has(siguiente.archivo)) continue
+    visitados.set(siguiente.archivo, siguiente.cadena)
+    const content = readFileSync(siguiente.archivo, 'utf8')
+    for (const specifier of especificadoresImportados(content)) {
+      const base = rutaBaseDelImport(specifier, siguiente.archivo, root)
+      if (!base) continue
+      const resuelto = resolverArchivo(base)
+      if (!resuelto || visitados.has(resuelto)) continue
+      cola.push({ archivo: resuelto, cadena: [...siguiente.cadena, relative(root, resuelto)] })
+    }
+  }
+  return [...visitados.entries()].map(([archivo, cadena]) => ({ archivo, cadena }))
+}
+
+export interface ViolacionTransitiva extends Violacion {
+  /** Ruta (relativa a `root`) del archivo donde se encontró la violación — no siempre el de entrada. */
+  archivo: string
+  /** La cadena de imports que llega desde el archivo de entrada hasta `archivo`. */
+  cadena: string[]
+}
+
+/**
+ * Comentarios de línea y de bloque vaciados, conservando el resto del texto
+ * (mismo patrón que `quitarComentarios` en `tests/asistencia-umbral.test.ts`
+ * y `tests/base-visual.test.ts`: no se inventa una forma nueva). Hace falta
+ * acá porque, a diferencia de `ManejadorTapPush.tsx`, un módulo alcanzado
+ * por el cierre transitivo puede tener, en un comentario, el nombre de la
+ * propia función insegura que documenta por qué NO se usa (p. ej.
+ * `lib/links.ts` explica en un comentario que "quien la usa hace
+ * `Linking.openURL(...)`") — sin esto, ese comentario se contaría como una
+ * violación real.
+ */
+function quitarComentarios(content: string): string {
+  return content.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:"'])\/\/.*$/gm, '$1')
+}
+
+/**
+ * `encontrarEvasionesTapPush`, aplicado (sobre el contenido sin comentarios)
+ * a `archivoEntrada` y a todo el cierre transitivo de sus imports locales
+ * (ver `cerrarImportsLocales`). Cada violación indica en qué archivo
+ * apareció y la cadena completa de imports que lleva hasta él.
+ */
+export function encontrarEvasionesTapPushTransitivo(archivoEntrada: string, root: string = MOBILE_ROOT): ViolacionTransitiva[] {
+  const violaciones: ViolacionTransitiva[] = []
+  for (const { archivo, cadena } of cerrarImportsLocales(archivoEntrada, root)) {
+    const content = quitarComentarios(readFileSync(archivo, 'utf8'))
+    for (const v of encontrarEvasionesTapPush(content)) {
+      violaciones.push({ ...v, archivo: relative(root, archivo), cadena })
+    }
+  }
+  return violaciones
+}
+
+let dirsTemporales: string[] = []
+
+afterEach(() => {
+  for (const dir of dirsTemporales) rmSync(dir, { recursive: true, force: true })
+  dirsTemporales = []
+})
+
+/** Crea un directorio temporal con los archivos indicados (ruta relativa -> contenido) y lo registra para borrarse en `afterEach`. */
+function crearFixtureEnDisco(archivos: Record<string, string>): { root: string; ruta: (nombre: string) => string } {
+  const root = mkdtempSync(join(tmpdir(), 'push-tap-transitivo-'))
+  dirsTemporales.push(root)
+  for (const [nombreRelativo, contenido] of Object.entries(archivos)) {
+    const absoluto = join(root, nombreRelativo)
+    mkdirSync(dirname(absoluto), { recursive: true })
+    writeFileSync(absoluto, contenido, 'utf8')
+  }
+  return { root, ruta: (nombre: string) => join(root, nombre) }
+}
+
+describe('cerrarImportsLocales / encontrarEvasionesTapPushTransitivo (fixtures en disco: tiene que fallar de verdad)', () => {
+  it('sigue un import relativo y agarra el openURL que tiene adentro, con la cadena de alcance', () => {
+    const { root, ruta } = crearFixtureEnDisco({
+      'entrada.tsx': `import { abrir } from './modulo-malo'\nabrir()\n`,
+      'modulo-malo.ts': `import { Linking } from 'react-native'\nexport function abrir() { Linking.openURL('https://evil.example') }\n`,
+    })
+    const violaciones = encontrarEvasionesTapPushTransitivo(ruta('entrada.tsx'), root)
+    expect(violaciones).toHaveLength(1)
+    expect(violaciones[0].archivo).toBe('modulo-malo.ts')
+    expect(violaciones[0].cadena).toEqual(['entrada.tsx', 'modulo-malo.ts'])
+  })
+
+  it('sigue un import "@/..." resolviéndolo contra la raíz del proyecto', () => {
+    const { root, ruta } = crearFixtureEnDisco({
+      'entrada.tsx': `import { abrir } from '@/lib/malo'\n`,
+      'lib/malo.ts': `export function abrir(url: string) { Linking.openURL(url) }\n`,
+    })
+    const violaciones = encontrarEvasionesTapPushTransitivo(ruta('entrada.tsx'), root)
+    expect(violaciones).toHaveLength(1)
+    expect(violaciones[0].archivo).toBe(join('lib', 'malo.ts'))
+  })
+
+  it('sigue la cadena completa, no solo un salto: A importa B, B importa C, y C tiene el openURL', () => {
+    const { root, ruta } = crearFixtureEnDisco({
+      'a.tsx': `import './b'\n`,
+      'b.ts': `import './c'\n`,
+      'c.ts': `Linking.openURL(url)\n`,
+    })
+    const violaciones = encontrarEvasionesTapPushTransitivo(ruta('a.tsx'), root)
+    expect(violaciones).toHaveLength(1)
+    expect(violaciones[0].archivo).toBe('c.ts')
+    expect(violaciones[0].cadena).toEqual(['a.tsx', 'b.ts', 'c.ts'])
+  })
+
+  it('resuelve un import de carpeta contra su index.ts', () => {
+    const { root, ruta } = crearFixtureEnDisco({
+      'entrada.tsx': `import './carpeta'\n`,
+      'carpeta/index.ts': `Linking.openURL(url)\n`,
+    })
+    const violaciones = encontrarEvasionesTapPushTransitivo(ruta('entrada.tsx'), root)
+    expect(violaciones).toHaveLength(1)
+    expect(violaciones[0].archivo).toBe(join('carpeta', 'index.ts'))
+  })
+
+  it('no sigue paquetes @qps/*: no es código de la app (y en este fixture ni existe en el disco)', () => {
+    const { root, ruta } = crearFixtureEnDisco({
+      'entrada.tsx': `import { urlEvento } from '@qps/core/metricas/links'\n`,
+    })
+    expect(() => encontrarEvasionesTapPushTransitivo(ruta('entrada.tsx'), root)).not.toThrow()
+    expect(encontrarEvasionesTapPushTransitivo(ruta('entrada.tsx'), root)).toEqual([])
+  })
+
+  it('no sigue paquetes de node_modules (expo-router, react-native, etc.)', () => {
+    const { root, ruta } = crearFixtureEnDisco({
+      'entrada.tsx': `import { useRouter } from 'expo-router'\nimport { Linking } from 'react-native'\n`,
+    })
+    expect(() => encontrarEvasionesTapPushTransitivo(ruta('entrada.tsx'), root)).not.toThrow()
+    expect(encontrarEvasionesTapPushTransitivo(ruta('entrada.tsx'), root)).toEqual([])
+  })
+
+  it('no entra en loop infinito con un ciclo de imports (A importa B, B importa A)', () => {
+    const { root, ruta } = crearFixtureEnDisco({
+      'a.tsx': `import './b'\n`,
+      'b.ts': `import './a'\nLinking.openURL(url)\n`,
+    })
+    const violaciones = encontrarEvasionesTapPushTransitivo(ruta('a.tsx'), root)
+    expect(violaciones).toHaveLength(1)
+    expect(violaciones[0].archivo).toBe('b.ts')
+  })
+
+  it('una cadena segura (sin openURL, router.push con el objeto correcto en todos los archivos alcanzados): sin violaciones', () => {
+    const { root, ruta } = crearFixtureEnDisco({
+      'entrada.tsx': `import { navegar } from './navegacion'\n`,
+      'navegacion.ts': `export function navegar(router: any, id: string) { router.push({ pathname: '/evento/[id]', params: { id } }) }\n`,
+    })
+    expect(encontrarEvasionesTapPushTransitivo(ruta('entrada.tsx'), root)).toEqual([])
+  })
+
+  it('un módulo alcanzado que solo MENCIONA Linking.openURL en un comentario (documentando por qué no se usa) no cuenta como violación', () => {
+    const { root, ruta } = crearFixtureEnDisco({
+      'entrada.tsx': `import './docs'\n`,
+      'docs.ts': `/**\n * Quien la usa hace \`Linking.openURL(...)\`.catch(() => {}).\n */\nexport function f() { return null }\n`,
+    })
+    expect(encontrarEvasionesTapPushTransitivo(ruta('entrada.tsx'), root)).toEqual([])
+  })
+
+  it('pero si el módulo alcanzado tiene el openURL de verdad, AFUERA del comentario, sigue detectándolo', () => {
+    const { root, ruta } = crearFixtureEnDisco({
+      'entrada.tsx': `import './docs'\n`,
+      'docs.ts': `// no debería llamar a Linking.openURL nunca\nLinking.openURL(url)\n`,
+    })
+    const violaciones = encontrarEvasionesTapPushTransitivo(ruta('entrada.tsx'), root)
+    expect(violaciones).toHaveLength(1)
+    expect(violaciones[0].archivo).toBe('docs.ts')
+  })
+})
+
+describe('components/ManejadorTapPush.tsx: sin evasiones conocidas (archivo + cierre transitivo de sus imports locales)', () => {
   const RUTA = fileURLToPath(new URL('../components/ManejadorTapPush.tsx', import.meta.url))
   const src = readFileSync(RUTA, 'utf8')
 
-  it('no tiene ninguna violación', () => {
-    const violaciones = encontrarEvasionesTapPush(src)
+  it('no tiene ninguna violación, ni él ni ningún módulo local que importe (directa o indirectamente)', () => {
+    const violaciones = encontrarEvasionesTapPushTransitivo(RUTA)
     if (violaciones.length > 0) {
-      const detalle = violaciones.map((v) => `  :${v.line} — ${v.message}`).join('\n')
-      throw new Error(`ManejadorTapPush.tsx tiene aperturas inseguras:\n${detalle}`)
+      const detalle = violaciones
+        .map((v) => `  ${v.archivo}:${v.line} — ${v.message} (alcanzado desde: ${v.cadena.join(' → ')})`)
+        .join('\n')
+      throw new Error(`ManejadorTapPush.tsx (o un módulo local que importa) tiene aperturas inseguras:\n${detalle}`)
     }
     expect(violaciones).toEqual([])
   })

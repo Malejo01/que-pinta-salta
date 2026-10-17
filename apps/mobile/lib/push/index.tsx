@@ -72,9 +72,19 @@ export function PushProvider({ children }: { children: ReactNode }) {
     ultimoUserIdSincronizado.current = userId
 
     let vigente = true
-    sincronizarPush({ preguntar: false }).then((resultado) => {
-      if (vigente) setEstadoSincronizado(resultado)
-    })
+    sincronizarPush({ preguntar: false })
+      .then((resultado) => {
+        if (vigente) setEstadoSincronizado(resultado)
+      })
+      .catch(() => {
+        // `sincronizarPush` ya no debería tirar (registro.ts protege las
+        // cuatro llamadas nativas), pero sin este `.catch()` una excepción
+        // inesperada queda como "unhandled rejection" silenciosa y
+        // `estadoSincronizado` se congela en `'sin-pedir'` para siempre
+        // (el hallazgo del revisor). Red de última instancia: deja el
+        // botón de "Reintentar" en vez de nada.
+        if (vigente) setEstadoSincronizado('error-registro')
+      })
 
     return () => {
       vigente = false
@@ -88,8 +98,17 @@ export function PushProvider({ children }: { children: ReactNode }) {
 
   const correr = useCallback(async (preguntar: boolean) => {
     setEstadoSincronizado('pidiendo')
-    const resultado = await sincronizarPush({ preguntar })
-    setEstadoSincronizado(resultado)
+    try {
+      const resultado = await sincronizarPush({ preguntar })
+      setEstadoSincronizado(resultado)
+    } catch {
+      // Red de última instancia (igual razón que el `.catch()` del efecto
+      // de arriba): sin esto, una excepción inesperada deja el `await`
+      // rechazado sin que corra el segundo `setEstadoSincronizado`, y el
+      // estado (y el botón) quedan clavados en `'pidiendo'` para siempre,
+      // sin mensaje y sin forma de reintentar sin reiniciar la app.
+      setEstadoSincronizado('error-registro')
+    }
   }, [])
 
   const activar = useCallback(() => correr(true), [correr])
