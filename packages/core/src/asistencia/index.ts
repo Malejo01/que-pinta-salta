@@ -24,7 +24,7 @@
 export type TipoAsistencia = 'voy' | 'me_interesa'
 
 /**
- * [COMPLETAR: confirmar N con Mauro, propuesta 3]
+ * N = 3, confirmado por Mauro (17/10, 15:10).
  * Por qué existe un umbral: con pocas marcas, mostrar el número desanima
  * ("Voy · 1" se lee como "nadie más va"); a partir de N la cantidad empieza
  * a funcionar como señal social ("ya va gente"), así que recién ahí vale
