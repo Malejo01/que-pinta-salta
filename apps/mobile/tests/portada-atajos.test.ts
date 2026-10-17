@@ -164,6 +164,37 @@ describe('app/(tabs)/index.tsx: ninguna consulta al cambiar de atajo (detector e
     expect(deps).not.toHaveLength(0)
     expect(deps).toMatch(/\batajo\b/)
   })
+
+  // Evasión encontrada por el revisor/seguridad (R36): los dos casos de
+  // arriba solo miran EL `useEffect` que llama a `cargarDatos().then(`. Un
+  // segundo `useEffect` en el archivo, con deps `[atajo]`, que hiciera su
+  // propia carga (aunque no mencionara `obtenerEventosDeAtajo` ni
+  // `cargarDatos`, por ejemplo reusando `obtenerEventosVigentesParaInicio`
+  // directamente) pasaba los dos casos de arriba sin que ninguno lo notara:
+  // "no depende de atajo" solo se afirmaba del efecto encontrado por
+  // `cargarDatos().then(`, nunca de TODOS los `useEffect(` del archivo. Este
+  // caso recorre cada `useEffect(` real del archivo (balanceando paréntesis
+  // con `depsDe`, no con una expresión regular) y falla si cualquiera
+  // depende de "atajo" — no solo el que carga los datos.
+  it('ningún useEffect del archivo depende de "atajo" (no solo el que llama a cargarDatos): barrido completo', () => {
+    const indices: number[] = []
+    let desde = 0
+    for (;;) {
+      const idx = contenido.indexOf('useEffect(', desde)
+      if (idx === -1) break
+      indices.push(idx)
+      desde = idx + 'useEffect('.length
+    }
+
+    // Si el día de mañana no queda ningún useEffect en el archivo, este test
+    // deja de decir nada: que haya al menos uno (el que carga los datos).
+    expect(indices.length).toBeGreaterThan(0)
+
+    for (const idx of indices) {
+      const deps = depsDe(contenido, 'useEffect(', idx)
+      expect(deps).not.toMatch(/\batajo\b/)
+    }
+  })
 })
 
 // ---------------------------------------------------------------------------

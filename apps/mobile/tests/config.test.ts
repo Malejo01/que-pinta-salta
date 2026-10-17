@@ -43,6 +43,27 @@ describe('app.config.ts', () => {
     expect(todosLosDatos.some((d) => d?.host === 'quepintasalta.com.ar')).toBe(false)
   })
 
+  // Evasión encontrada por el revisor/seguridad (R36): el caso de arriba
+  // busca con `.find` el intentFilter del host "bueno" y comprueba aparte
+  // que ninguno tenga el host SIN `www` — pero no acota cuántos
+  // `intentFilters` hay en total. Reproducido a mano (temporalmente, sin
+  // commitear): agregar un SEGUNDO intentFilter con `autoVerify: true` y un
+  // host parecido pero distinto (una letra cambiada, ni siquiera el host sin
+  // `www`) pasaba inadvertido — Android lo tomaría como otro dominio a
+  // verificar, sin que ningún test se diera cuenta. Este caso afirma el
+  // CONJUNTO completo de hosts con `autoVerify: true`, no solo que el bueno
+  // esté presente: tiene que ser exactamente `{ 'www.quepintasalta.com.ar' }`,
+  // ni uno de más ni uno de menos.
+  it('el conjunto completo de hosts con autoVerify: true es exactamente { www.quepintasalta.com.ar } (ningún intentFilter de más)', () => {
+    const filtrosConAutoVerify = config.android?.intentFilters?.filter((f) => f.autoVerify === true) ?? []
+    const hosts = filtrosConAutoVerify
+      .flatMap((f) => (Array.isArray(f.data) ? f.data : [f.data]))
+      .map((d) => d?.host)
+      .sort()
+
+    expect(hosts).toEqual(['www.quepintasalta.com.ar'])
+  })
+
   it('no hay claves escritas en la config', () => {
     const texto = JSON.stringify(config)
     expect(texto).not.toMatch(/eyJ[A-Za-z0-9_-]{10,}/) // JWT (anon o service role)

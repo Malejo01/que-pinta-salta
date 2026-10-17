@@ -17,6 +17,33 @@ vi.mock('@supabase/supabase-js', () => ({
   createClient: (...a: unknown[]) => createClient(...a),
 }))
 
+// Evasión encontrada por el revisor/seguridad (R36): el detector de más
+// abajo ("nunca la service role") es un grep de TEXTO sobre route.ts
+// (`createAdminClient`, `SUPABASE_SERVICE_ROLE_KEY`). Si alguien mueve el uso
+// de la service role a otro módulo con otro nombre — por ejemplo un helper
+// `clienteConPermisosAmplios()` en `lib/supabase/server.ts` que adentro llama
+// a `createAdminClient()` — ninguna de las dos cadenas aparece en route.ts y
+// el grep pasa igual, aunque el endpoint ya use permisos de administrador.
+// Reproducido a mano (temporalmente, sin commitear) agregando ese helper y
+// usándolo en route.ts en vez del cliente con la anon key: el grep de texto
+// de abajo seguía en verde.
+//
+// Esto intercepta el MÓDULO en vez del texto: `createAdminClient` real tira
+// si alguien la llama (en vez de armar un cliente real con una clave de
+// servicio inventada), así que cualquier camino de `route.ts` — directo o a
+// través de un wrapper nuevo en `lib/supabase/server.ts` que use el mismo
+// módulo — revienta en vez de pasar inadvertido. Como `route.ts` hoy NO
+// importa nada de `lib/supabase/server` (usa `@supabase/supabase-js`
+// directo con la anon key), este mock no cambia el comportamiento actual:
+// solo asegura que, si alguien cablea ese import, el endpoint se rompe en
+// vez de colar en silencio.
+const { createAdminClient } = vi.hoisted(() => ({
+  createAdminClient: vi.fn(() => {
+    throw new Error('createAdminClient: /api/radar/prueba nunca tiene que armar un cliente con la service role')
+  }),
+}))
+vi.mock('@/lib/supabase/server', () => ({ createAdminClient }))
+
 const send = vi.fn()
 const ResendCtor = vi.fn()
 vi.mock('resend', () => ({
@@ -112,6 +139,7 @@ beforeEach(() => {
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = 'anon-falsa-de-prueba'
   process.env.RESEND_API_KEY = 'clave-falsa'
   createClient.mockReset()
+  createAdminClient.mockClear()
   send.mockReset()
   ResendCtor.mockReset()
   vi.spyOn(console, 'error').mockImplementation(() => {})
@@ -274,6 +302,32 @@ describe('otros métodos', () => {
     const res = await GET(req({}, 'GET'))
     expect(res.status).toBe(405)
     expect(createClient).not.toHaveBeenCalled()
+  })
+})
+
+describe('detector (módulo, no texto): POST nunca dispara createAdminClient, en ninguno de sus caminos', () => {
+  it('401 (sin token): createAdminClient no se llama', async () => {
+    const res = await POST(req())
+    expect(res.status).toBe(401)
+    expect(createAdminClient).not.toHaveBeenCalled()
+  })
+
+  it('403 (rol no admin): createAdminClient no se llama', async () => {
+    createClient.mockReturnValue(fakeClient({ role: 'USER' }))
+    const res = await POST(req({ authorization: `Bearer ${TOKEN}` }))
+    expect(res.status).toBe(403)
+    expect(createAdminClient).not.toHaveBeenCalled()
+  })
+
+  it('200 (admin con eventos): createAdminClient no se llama', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(AHORA)
+    send.mockResolvedValue({ error: null })
+    createClient.mockReturnValue(fakeClient({ role: 'ADMIN' }))
+    const res = await POST(req({ authorization: `Bearer ${TOKEN}` }))
+    vi.useRealTimers()
+    expect(res.status).toBe(200)
+    expect(createAdminClient).not.toHaveBeenCalled()
   })
 })
 
