@@ -16,6 +16,8 @@ import { COLORES_OSCURO, construirTema } from '@/lib/theme'
 import { leerEnv } from '@/lib/env'
 import { inicializarSentry } from '@/lib/sentry'
 import { SessionProvider } from '@/lib/session'
+import { PushProvider } from '@/lib/push'
+import { ManejadorTapPush } from '@/components/ManejadorTapPush'
 
 // Tema con los colores de la web (24-a) y, desde 29-g, con `fonts` en
 // Montserrat (ver `construirTema`). D1 (29-g, decisión de Mauro): la app
@@ -94,18 +96,25 @@ function RootLayout() {
 
   return (
     <SessionProvider>
-      <ThemeProvider value={TEMA_OSCURO}>
-        {/* D1 (QPS-148): barra de estado clara (íconos blancos) sobre el
-            fondo oscuro, fija en "light" porque la app arranca siempre
-            oscura (no hay selector de tema todavía). El día que exista un
-            selector de tema, este `style` tiene que dejar de ser fijo y
-            seguir a ese tema (igual que `TEMA_OSCURO`, arriba). */}
-        <StatusBar style="light" />
-        <Stack>
-          <Stack.Screen name="bienvenida" options={{ headerShown: false }} />
-          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        </Stack>
-      </ThemeProvider>
+      {/* Ronda 41 (41-c/41-d): `PushProvider` lee `useSession()` por dentro,
+          así que va adentro de `SessionProvider`. */}
+      <PushProvider>
+        <ThemeProvider value={TEMA_OSCURO}>
+          {/* D1 (QPS-148): barra de estado clara (íconos blancos) sobre el
+              fondo oscuro, fija en "light" porque la app arranca siempre
+              oscura (no hay selector de tema todavía). El día que exista un
+              selector de tema, este `style` tiene que dejar de ser fijo y
+              seguir a ese tema (igual que `TEMA_OSCURO`, arriba). */}
+          <StatusBar style="light" />
+          {/* Sin interfaz propia: registra el handler de avisos en primer
+              plano y navega a la ficha cuando se toca un push (41-d). */}
+          <ManejadorTapPush />
+          <Stack>
+            <Stack.Screen name="bienvenida" options={{ headerShown: false }} />
+            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+          </Stack>
+        </ThemeProvider>
+      </PushProvider>
     </SessionProvider>
   )
 }
