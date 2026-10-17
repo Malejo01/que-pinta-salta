@@ -373,14 +373,23 @@ export async function upsertEventWithDeduplication(
       // LÍMITE CONOCIDO, verificado (QPS-164 hallazgo 1, tarea 34-a, vuelta 1): esta condición
       // fusiona por `sameKey` (clave, sin mirar la hora) O por `score >= SIMILARITY_THRESHOLD`
       // (similitud de título, tampoco mira la hora). El paso 1 de findDuplicateMatch, más abajo,
-      // sí exige la misma hora para la clave exacta — pero eso no alcanza para este camino:
-      // normalizeTitleForKey() (dedup-key.ts) no saca stop words, sólo diacríticos y el sufijo
-      // de ciudad, así que dos títulos con la MISMA clave son casi el mismo texto, y
-      // calculateSimilarity() da por encima de 0,65 igual (0.9 por el atajo de substring, o 1.0
-      // si son idénticos). Es decir: siempre que `sameKey` daría verdadero, `score` también lo
-      // da, con o sin hora — gatear sólo `sameKey` por hora (se probó en la vuelta 1 y se
-      // revirtió acá) no cambia el resultado final, porque el `||` de abajo sigue entrando por
-      // `score`.
+      // sí exige la misma hora para la clave exacta — pero eso no alcanza para este camino.
+      //
+      // Acá adentro ya sabemos algo más fuerte que "misma clave": el slug es IDÉNTICO. Y slugify
+      // no recorta sufijos de ciudad ni stop words, así que dos títulos con el mismo slug son
+      // casi el mismo texto literal y calculateSimilarity() da por encima de 0,65 igual (1.0 si
+      // son idénticos, 0.9 por el atajo de substring). Dentro de esta rama, entonces, siempre
+      // que `sameKey` daría verdadero `score` también lo da: gatear sólo `sameKey` por hora (se
+      // probó en la vuelta 1 y se revirtió acá) no cambia el resultado final, porque el `||` de
+      // abajo sigue entrando por `score`.
+      //
+      // OJO con reusar este razonamiento fuera de esta rama: NO es cierto en general que clave
+      // igual implique score >= 0,65. normalizeTitleForKey() (dedup-key.ts) recorta el sufijo de
+      // ciudad y normalizeTitle() (más arriba, la del score) saca stop words, así que
+      // "Rock en Salta" y "Rock" comparten clave y dan score 0,5 — el atajo de substring exige
+      // más de 5 caracteres y "rock" tiene 4. Ese par no puede llegar hasta acá porque sus slugs
+      // difieren, pero sí entra al paso 2 (respaldo difuso), que compara por venue sin exigir
+      // slug igual.
       //
       // Esto importa en concreto para alpogo-scraper.ts, entradauno-scraper.ts y
       // vamos-scraper.ts: slugifican sólo el título (sin fecha ni hora) y procesan un ítem por

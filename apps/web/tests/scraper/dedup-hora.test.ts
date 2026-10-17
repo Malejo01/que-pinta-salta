@@ -102,6 +102,32 @@ describe('findDuplicateMatch: clave exacta + misma hora (QPS-164, hallazgo 1)', 
     expect(await findDuplicateMatch(incoming, db.client)).toBeNull()
   })
 
+  // Independencia del orden (QPS-164, hallazgo del revisor en la vuelta 1 de 34-a): la consulta
+  // de candidatos (deduplicate.ts, `.gte/.lte` sin `.order()`) no garantiza el orden del array,
+  // así que con DOS candidatos que comparten clave y venue compatible —uno sin hora real y otro
+  // con la hora exacta del entrante— el resultado no puede depender de cuál vino primero. Por
+  // eso van los dos sentidos: el sin-hora-real primero y el de-hora-exacta primero. Si alguien
+  // "simplificara" las dos pasadas del paso 1 (exactTimeMatch / match, deduplicate.ts) a un solo
+  // `.find()` que devuelva el primer candidato que cumpla "misma hora O falta hora real", el caso
+  // con el sin-hora-real primero rompería: matchearía esa fila en vez de la de hora exacta.
+  it('dos candidatos en la base, uno sin hora real primero y el de hora exacta después: matchea el de hora exacta', async () => {
+    const sinHora = row(1, { start_date: SIN_HORA })
+    const conHoraExacta = row(2, { start_date: FUNCION_21 })
+    const db = createFakeEventsDb([sinHora, conHoraExacta])
+    const incoming = { title: TITULO, start_date: FUNCION_21 }
+    const match = await findDuplicateMatch(incoming, db.client)
+    expect(match).toMatchObject({ matchedBy: 'dedup_key', event: { id: uid(2) } })
+  })
+
+  it('mismos dos candidatos, orden inverso (el de hora exacta primero): matchea el mismo, el de hora exacta', async () => {
+    const conHoraExacta = row(2, { start_date: FUNCION_21 })
+    const sinHora = row(1, { start_date: SIN_HORA })
+    const db = createFakeEventsDb([conHoraExacta, sinHora])
+    const incoming = { title: TITULO, start_date: FUNCION_21 }
+    const match = await findDuplicateMatch(incoming, db.client)
+    expect(match).toMatchObject({ matchedBy: 'dedup_key', event: { id: uid(2) } })
+  })
+
   // El caso "fácil de romper sin que nadie lo note": que la condición de hora se salte si el
   // start_date viene en un formato de string distinto para el mismo instante. sameClock
   // (deduplicate.ts) compara con new Date(...).getUTCHours()/getUTCMinutes(), no el texto crudo,
@@ -142,16 +168,22 @@ describe('upsertEventWithDeduplication: colisión de slug único (QPS-164, halla
     // hora acá, así que esta rama se comporta igual que antes de la tarea 34-a.
     //
     // No alcanza con gatear sólo `sameKey` por hora (se probó en la vuelta 1 de esta tarea y se
-    // revirtió, ver el comentario en deduplicate.ts): es estructural. `dedupKeyOf()`
-    // (buildDedupKey + normalizeTitleForKey) sólo puede coincidir entre dos títulos de texto
-    // distinto si la ÚNICA diferencia es un sufijo de ciudad (CITY_SUFFIX_RE, dedup-key.ts) — y
-    // en ese caso el título más corto queda como substring literal del más largo tras
-    // normalizeTitle(), lo que dispara el atajo de 0.9 de calculateSimilarity (deduplicate.ts,
-    // "si uno contiene al otro"), por encima del umbral 0.65 igual. Con título IDÉNTICO entre
-    // funciones (el caso real de estos tres scrapers) da 1.0. Es decir: siempre que
-    // `dedupKeyOf()` coincide, `score` también coincide, tenga o no la misma hora — así que
-    // gatear `sameKey` por hora sin gatear también `score` no cambia el resultado final de esta
-    // rama: el `||` sigue entrando por `score`.
+    // revirtió, ver el comentario en deduplicate.ts): es estructural dentro de esta rama, porque
+    // acá el slug YA es idéntico (es la condición que lleva a esta rama), y `slugify()` no
+    // recorta sufijos de ciudad ni stop words: dos títulos con el mismo slug son casi el mismo
+    // texto literal, así que calculateSimilarity() da por encima de 0,65 igual (1.0 si son
+    // idénticos, como el caso real de estos tres scrapers; 0.9 por el atajo de substring si sólo
+    // difieren en un sufijo). Es decir: dentro de esta rama (slug idéntico), siempre que
+    // `sameKey` daría verdadero, `score` también lo da — así que gatear `sameKey` por hora sin
+    // gatear también `score` no cambia el resultado final de esta rama: el `||` sigue entrando
+    // por `score`.
+    //
+    // OJO: esto no es una propiedad general de `sameKey`/`score` fuera de esta rama. Por ejemplo
+    // "Rock en Salta" y "Rock" comparten `dedupKeyOf()` (normalizeTitleForKey recorta el sufijo
+    // de ciudad) pero dan `score` 0,5 (normalizeTitle saca stop words y el atajo de substring de
+    // calculateSimilarity exige más de 5 caracteres; "rock" tiene 4). Ese par no puede llegar a
+    // esta rama porque sus slugs difieren ("rock-en-salta" vs "rock"), pero sí entra al paso 2 de
+    // findDuplicateMatch (respaldo difuso), que no exige slug igual.
     //
     // Arreglarlo de verdad exige sumar el mismo chequeo de hora (sameStartTimeForKey) también a
     // `score >= SIMILARITY_THRESHOLD` en deduplicate.ts (ver el comentario ahí, justo antes de

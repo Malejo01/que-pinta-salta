@@ -147,6 +147,10 @@ describe('processFlyerWithAI: tags solo sale de artists si es array de strings (
     ['string', 'Banda Suelta'],
     ['número', 42],
     ['null', null],
+    // El caso que motiva la decisión de diseño del comentario de validateArtistsTags
+    // (process-flyer-ai.ts): se descarta el array ENTERO si algún elemento no es string, no se
+    // filtra elemento por elemento. Si se filtrara, este caso daría `tags: ['Banda X']`.
+    ['array mixto', ['Banda X', 42, { raro: true }]],
   ])('artists como %s: tags queda en array vacío', async (_tipo, artistsValue) => {
     db.flyer = flyer('Caption de prueba.')
     extract.mockResolvedValue({
