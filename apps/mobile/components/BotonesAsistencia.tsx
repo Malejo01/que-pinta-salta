@@ -5,6 +5,10 @@
 // marcar si vas" y el resto de la ficha sigue andando. Nunca se muestra
 // quién marcó: solo las cantidades.
 //
+// R38, tarea 38-a: el texto de cada botón sale de `textoBoton`
+// (`@qps/core/asistencia`): el contador recién aparece desde
+// `UMBRAL_CONTADOR_ASISTENCIA`, igual que en la web.
+//
 // 33-a (QPS-147): el texto secundario usaba `colors.border` (el token de
 // borde de `useTheme()`, casi invisible en tema claro); pasa a
 // `colores.mutedForeground` (`useColoresQPS`, QPS-126) — mismo token que ya
@@ -13,13 +17,8 @@
 import { useCallback, useEffect, useState } from 'react'
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native'
 import { useRouter, useTheme } from 'expo-router'
-import {
-  MENSAJE_NO_DISPONIBLE,
-  marcarAsistencia,
-  obtenerAsistencia,
-  type EstadoAsistencia,
-  type TipoAsistencia,
-} from '@/lib/asistencia'
+import { TEXTO_ENTRAR_PARA_MARCAR, textoBoton, type TipoAsistencia } from '@qps/core/asistencia'
+import { MENSAJE_NO_DISPONIBLE, marcarAsistencia, obtenerAsistencia, type EstadoAsistencia } from '@/lib/asistencia'
 import { useColoresQPS } from '@/lib/colores'
 import { useSession } from '@/lib/session'
 
@@ -28,11 +27,6 @@ export interface BotonesAsistenciaProps {
 }
 
 type Estado = { tipo: 'cargando' } | EstadoAsistencia
-
-const ETIQUETAS: Record<TipoAsistencia, string> = {
-  voy: 'Voy',
-  me_interesa: 'Me interesa',
-}
 
 export function BotonesAsistencia({ eventId }: BotonesAsistenciaProps) {
   const { colors } = useTheme()
@@ -104,7 +98,7 @@ export function BotonesAsistencia({ eventId }: BotonesAsistenciaProps) {
           <ActivityIndicator color={marcado ? '#fff' : colors.text} />
         ) : (
           <Text style={[estilos.textoBoton, { color: marcado ? '#fff' : colors.text }]}>
-            {ETIQUETAS[tipo]} · {cantidad}
+            {textoBoton(tipo, cantidad)}
           </Text>
         )}
       </Pressable>
@@ -117,7 +111,7 @@ export function BotonesAsistencia({ eventId }: BotonesAsistenciaProps) {
         {boton('voy', cantidades.voy)}
         {boton('me_interesa', cantidades.meInteresa)}
       </View>
-      {!userId ? <Text style={{ color: colores.mutedForeground }}>Entrá para marcar si vas.</Text> : null}
+      {!userId ? <Text style={{ color: colores.mutedForeground }}>{TEXTO_ENTRAR_PARA_MARCAR}</Text> : null}
     </View>
   )
 }
