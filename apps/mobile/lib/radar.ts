@@ -7,6 +7,7 @@
 // tabla de seguidos, borra lo propio y vuelve a insertar lo nuevo. El
 // `user_id` que recibe cada función es siempre el que la pantalla leyó de
 // `useSession()`.
+import { SITIO } from '@qps/core/metricas/links'
 import {
   FRECUENCIAS_RADAR,
   normalizarPreferenciasRadar,
@@ -14,11 +15,16 @@ import {
   type PreferenciasRadarEntrada,
 } from '@qps/core/radar/preferencias'
 import { MENSAJE_SIN_CONFIGURACION } from '@/lib/mensajes'
+import { fetchConTimeout, TIMEOUT_RED_MS } from '@/lib/red'
 import { supabase } from '@/lib/supabase'
 
 export { MENSAJE_SIN_CONFIGURACION }
 export const MENSAJE_ERROR = 'No pudimos cargar tu Radar. Probá de nuevo.'
 export const MENSAJE_ERROR_GUARDAR = 'No pudimos guardar tu Radar. Probá de nuevo.'
+// Mismo texto que usaría la web para un error de red en esta misma prueba
+// (no hay uno literal todavía: es el patrón de `MENSAJE_ERROR_RED` de
+// `lib/favoritos.ts`/`lib/datos/*.ts`, adaptado al envío de prueba).
+export const MENSAJE_ERROR_RED_PRUEBA = 'No pudimos enviar la prueba. Revisá tu conexión.'
 
 /** Etiquetas en español de `FRECUENCIAS_RADAR`, en el mismo orden. */
 export const ETIQUETAS_FRECUENCIA: Record<EmailFrequency, string> = {
@@ -182,5 +188,49 @@ export async function guardarRadar(userId: string, datos: PreferenciasRadarEntra
     return { ok: true }
   } catch {
     return { ok: false, error: MENSAJE_ERROR_GUARDAR }
+  }
+}
+
+/**
+ * `true` si `profiles.role` de `userId` es `'ADMIN'`. Es solo para decidir
+ * si se arma el botón "Enviar un email de prueba" (comodidad de UI): el que
+ * decide de verdad es el servidor, en `POST /api/radar/prueba`. Cualquier
+ * problema (sin cliente, sin fila, error de red) da `false`, nunca explota.
+ */
+export async function esAdminRadar(userId: string): Promise<boolean> {
+  if (!supabase) return false
+  try {
+    const { data, error } = await supabase.from('profiles').select('role').eq('id', userId).single()
+    if (error || !data) return false
+    return data.role === 'ADMIN'
+  } catch {
+    return false
+  }
+}
+
+export type ResultadoPruebaRadar = { ok: true; mensaje: string } | { ok: false; mensaje: string }
+
+/**
+ * Pide al sitio (`${SITIO}/api/radar/prueba`, R36 36-c) que mande un correo
+ * de prueba del Radar al email de la sesión. `accessToken` va en
+ * `Authorization: Bearer …`: el servidor es quien decide si es admin (RLS +
+ * `profiles.role`), este `fetch` nunca manda el email ni ningún otro dato
+ * del destinatario. Mismo timeout que el cliente de Supabase
+ * (`fetchConTimeout`/`TIMEOUT_RED_MS` de `lib/red.ts`), para no quedar
+ * esperando para siempre con la red caída a mitad de camino.
+ */
+export async function probarEnvioRadar(accessToken: string): Promise<ResultadoPruebaRadar> {
+  try {
+    const respuesta = await fetchConTimeout(fetch, TIMEOUT_RED_MS)(`${SITIO}/api/radar/prueba`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${accessToken}` },
+    })
+    const datos = (await respuesta.json().catch(() => null)) as { success?: boolean; message?: string } | null
+    if (!datos || typeof datos.message !== 'string') {
+      return { ok: false, mensaje: MENSAJE_ERROR_RED_PRUEBA }
+    }
+    return datos.success ? { ok: true, mensaje: datos.message } : { ok: false, mensaje: datos.message }
+  } catch {
+    return { ok: false, mensaje: MENSAJE_ERROR_RED_PRUEBA }
   }
 }

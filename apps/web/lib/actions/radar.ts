@@ -3,6 +3,7 @@
 import { createClient } from "@/lib/supabase/server"
 import { revalidatePath } from "next/cache"
 import { Resend } from "resend"
+import type { SupabaseClient, User } from "@supabase/supabase-js"
 import { buildRadarEmail, radarEnvLabel } from "@/lib/radar/email"
 import { getRadarEvents } from "@/lib/radar/events"
 import { normalizarPreferenciasRadar, type EmailFrequency } from "@qps/core/radar/preferencias"
@@ -18,17 +19,14 @@ export interface RadarSettingsData {
 }
 
 /**
- * Obtiene la configuración actual del radar del usuario autenticado,
- * junto con sus intereses en categorías, locales e Instagram.
+ * Cuerpo de `getRadarSettings`, con el cliente y el usuario ya resueltos:
+ * lo reutiliza `sendTestRadarEmail` (endpoint con Bearer y server action)
+ * para no autenticar dos veces.
  */
-export async function getRadarSettings(): Promise<RadarSettingsData | null> {
-  const supabase = await createClient()
-  const { data: { user }, error: authError } = await supabase.auth.getUser()
-
-  if (!user || authError) {
-    return null
-  }
-
+async function getRadarSettingsData(
+  supabase: SupabaseClient,
+  user: Pick<User, "id" | "email">
+): Promise<RadarSettingsData | null> {
   // 1. Obtener configuraciones básicas
   const { data: settings, error: settingsError } = await supabase
     .from("user_radar_settings")
@@ -77,6 +75,21 @@ export async function getRadarSettings(): Promise<RadarSettingsData | null> {
     venueIds: venues?.map(v => v.venue_id) || [],
     instagramAccountIds: instagramAccounts?.map(ig => ig.instagram_account_id) || []
   }
+}
+
+/**
+ * Obtiene la configuración actual del radar del usuario autenticado,
+ * junto con sus intereses en categorías, locales e Instagram.
+ */
+export async function getRadarSettings(): Promise<RadarSettingsData | null> {
+  const supabase = await createClient()
+  const { data: { user }, error: authError } = await supabase.auth.getUser()
+
+  if (!user || authError) {
+    return null
+  }
+
+  return getRadarSettingsData(supabase, user)
 }
 
 /**
@@ -207,38 +220,33 @@ export async function updateRadarSettings(data: {
   return { success: true }
 }
 
+export type TestRadarEmailResult = { success: boolean; message?: string; count?: number }
+
 /**
- * Server Action para probar el envío de correos del radar del usuario actual (Sandbox).
+ * Cuerpo compartido de la prueba de envío del Radar (Sandbox): lee la
+ * configuración del usuario, busca sus eventos y, si hay, manda el correo
+ * con Resend al email del propio usuario (nunca a otro destinatario).
+ *
+ * Recibe el cliente de Supabase y el usuario **ya autenticados y
+ * autorizados**: ni esta función ni `getRadarSettingsData` vuelven a
+ * verificar sesión o rol — eso lo hace quien la llama (la server action
+ * `triggerTestRadarEmail`, con la sesión por cookies, o el endpoint
+ * `POST /api/radar/prueba`, con el Bearer del usuario).
  */
-export async function triggerTestRadarEmail(): Promise<{ success: boolean; message?: string; count?: number }> {
-  const supabase = await createClient()
-  const { data: { user }, error: authError } = await supabase.auth.getUser()
-
-  if (!user || authError) {
-    return { success: false, message: "Tenés que iniciar sesión para realizar la prueba." }
-  }
-
-  // Solo administradores: verificación en el servidor, antes de leer settings o llamar a Resend.
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("role")
-    .eq("id", user.id)
-    .single()
-
-  if (profile?.role !== "ADMIN") {
-    return { success: false, message: "Solo administradores." }
-  }
-
+export async function sendTestRadarEmail(
+  supabase: SupabaseClient,
+  user: Pick<User, "id" | "email">
+): Promise<TestRadarEmailResult> {
   const apiKey = process.env.RESEND_API_KEY
   if (!apiKey) {
-    console.error("[triggerTestRadarEmail] RESEND_API_KEY no configurada.")
+    console.error("[sendTestRadarEmail] RESEND_API_KEY no configurada.")
     return { success: false, message: "La variable de entorno RESEND_API_KEY no está configurada en el servidor." }
   }
 
   const resend = new Resend(apiKey)
 
   // 1. Obtener la configuración de radar del usuario
-  const settings = await getRadarSettings()
+  const settings = await getRadarSettingsData(supabase, user)
   if (!settings) {
     return { success: false, message: "No se encontraron configuraciones de radar para tu usuario." }
   }
@@ -267,14 +275,18 @@ export async function triggerTestRadarEmail(): Promise<{ success: boolean; messa
     })
 
     if (!hasUnsubscribe) {
-      console.warn('[triggerTestRadarEmail] RADAR_UNSUBSCRIBE_SECRET no configurada: el correo sale sin link ni cabeceras de baja.')
+      console.warn('[sendTestRadarEmail] RADAR_UNSUBSCRIBE_SECRET no configurada: el correo sale sin link ni cabeceras de baja.')
     }
 
     const { error: sendError } = await resend.emails.send(message)
 
+    // El mensaje que ve el usuario nunca lleva el detalle de Resend (ni de
+    // ninguna excepción más abajo): esto corre tanto desde la server action
+    // como desde el endpoint con Bearer, y el segundo no puede filtrar
+    // detalles internos en el cuerpo de la respuesta.
     if (sendError) {
-      console.error("[triggerTestRadarEmail] Error en el envío de Resend:", sendError.message)
-      return { success: false, message: `Error de Resend: ${sendError.message}` }
+      console.error("[sendTestRadarEmail] Error en el envío de Resend:", sendError.message)
+      return { success: false, message: "No pudimos enviar el correo de prueba. Intentá de nuevo." }
     }
 
     const okMessage = hasUnsubscribe
@@ -282,7 +294,34 @@ export async function triggerTestRadarEmail(): Promise<{ success: boolean; messa
       : `Correo de prueba enviado a ${user.email} (${label}) SIN link de baja: falta RADAR_UNSUBSCRIBE_SECRET en este entorno.`
     return { success: true, message: okMessage, count: events.length }
   } catch (err: any) {
-    console.error("[triggerTestRadarEmail] Excepción en envío:", err?.message)
-    return { success: false, message: err?.message || "Ocurrió una excepción inesperada al enviar el correo." }
+    console.error("[sendTestRadarEmail] Excepción en envío:", err?.message)
+    return { success: false, message: "Ocurrió una excepción inesperada al enviar el correo." }
   }
+}
+
+/**
+ * Server Action para probar el envío de correos del radar del usuario actual (Sandbox).
+ * Sesión por cookies; valida acá mismo que el usuario sea ADMIN antes de
+ * delegar en `sendTestRadarEmail`. Lo que ve la web no cambia.
+ */
+export async function triggerTestRadarEmail(): Promise<TestRadarEmailResult> {
+  const supabase = await createClient()
+  const { data: { user }, error: authError } = await supabase.auth.getUser()
+
+  if (!user || authError) {
+    return { success: false, message: "Tenés que iniciar sesión para realizar la prueba." }
+  }
+
+  // Solo administradores: verificación en el servidor, antes de leer settings o llamar a Resend.
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", user.id)
+    .single()
+
+  if (profile?.role !== "ADMIN") {
+    return { success: false, message: "Solo administradores." }
+  }
+
+  return sendTestRadarEmail(supabase, user)
 }
