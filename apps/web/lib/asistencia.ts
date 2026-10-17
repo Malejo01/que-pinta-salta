@@ -23,12 +23,42 @@
 // del usuario de la sesión. Nunca con quién marcó cada tipo: eso no sale de
 // la base (la vista pública no tiene `user_id`, y `event_attendance` solo
 // se lee/escribe acotado al usuario de la sesión).
+//
+// Invariante de `marcarAsistencia` (bloqueante 1, vuelta 1): si la
+// escritura (el upsert o el delete) salió bien, la función NUNCA devuelve
+// `ok: false`. Antes, un error en la relectura de cantidades DESPUÉS de
+// escribir hacía que la función devolviera `DB_ERROR` con la marca ya
+// guardada: la pantalla mostraba "sin marca" sobre una escritura que sí
+// había quedado, y el siguiente toque la borraba sin que nadie se entere.
+// Por eso las cantidades también se leen ANTES de escribir (de respaldo) y
+// la relectura de después nunca puede convertir una escritura exitosa en
+// un error.
+//
+// `debenMostrarseBotonesAsistencia` (bloqueante 2, vuelta 1): los botones
+// solo se muestran para eventos PUBLISHED. La vista `event_attendance_counts`
+// (supabase/migrations/20261013120100_voy_me_interesa.sql) agrega únicamente
+// eventos PUBLISHED, así que mostrar los botones en un evento CANCELLED o
+// PAST deja un contador clavado en 0 aunque se pueda tocar el botón. El día
+// que se quiera contar también ahí, hace falta una migración que cambie esa
+// vista — no alcanza con tocar este archivo.
 
 import { createClient } from "@/lib/supabase/server"
 import { siguienteMarca, type TipoAsistencia } from "@qps/core/asistencia"
 
 function esTipoValido(tipo: unknown): tipo is TipoAsistencia {
   return tipo === "voy" || tipo === "me_interesa"
+}
+
+/**
+ * `true` solo para eventos `PUBLISHED`: es el único estado en el que
+ * `event_attendance_counts` suma votos, así que es el único en el que
+ * mostrar los botones tiene un contador que se mueve. Única fuente de
+ * verdad: tanto `app/evento/[id]/page.tsx` (no pasar las cantidades) como
+ * `components/event-detail-page.tsx` (no dibujar los botones) llaman a
+ * esta misma función.
+ */
+export function debenMostrarseBotonesAsistencia(status: string): boolean {
+  return status === "PUBLISHED"
 }
 
 export interface CantidadesAsistencia {
@@ -117,16 +147,33 @@ export async function marcarAsistencia(eventId: string, tipo: TipoAsistencia): P
     }
 
     // La marca actual se lee de la base, no del cliente: puede mentir o
-    // estar desactualizado.
-    const { data: filaPropia, error: errorPropia } = await supabase
-      .from("event_attendance")
-      .select("kind")
-      .eq("event_id", eventId)
-      .maybeSingle()
+    // estar desactualizado. Se lee en la misma tanda (en paralelo) que las
+    // cantidades de ANTES de escribir: todavía no se escribió nada, así
+    // que acá sigue siendo seguro devolver un error si algo falla. Las
+    // cantidades de antes son el respaldo si la relectura de DESPUÉS de
+    // escribir falla (ver más abajo): un número desactualizado por un
+    // instante es mucho menos grave que decirle a la persona que su acción
+    // falló cuando en realidad se guardó.
+    const [respuestaPropia, respuestaCantidadesAntes] = await Promise.all([
+      supabase.from("event_attendance").select("kind").eq("event_id", eventId).maybeSingle(),
+      supabase.from("event_attendance_counts").select("voy, me_interesa").eq("event_id", eventId).maybeSingle(),
+    ])
 
+    const { data: filaPropia, error: errorPropia } = respuestaPropia
     if (errorPropia) {
       console.error("[marcarAsistencia] Error al leer la marca actual:", errorPropia)
       return { ok: false, error: "DB_ERROR" }
+    }
+
+    if (respuestaCantidadesAntes.error) {
+      // No es crítico para decidir qué escribir (solo usa `filaPropia`): si
+      // esto falla, simplemente no hay respaldo si la relectura de después
+      // también falla (ver el `catch` interno más abajo).
+      console.error("[marcarAsistencia] Error al leer cantidades antes de escribir:", respuestaCantidadesAntes.error)
+    }
+    const cantidadesAntes: CantidadesAsistencia = {
+      voy: respuestaCantidadesAntes.data?.voy ?? 0,
+      meInteresa: respuestaCantidadesAntes.data?.me_interesa ?? 0,
     }
 
     const actual: TipoAsistencia | null = esTipoValido(filaPropia?.kind) ? filaPropia.kind : null
@@ -149,23 +196,40 @@ export async function marcarAsistencia(eventId: string, tipo: TipoAsistencia): P
       }
     }
 
-    const { data: filaCantidades, error: errorCantidades } = await supabase
-      .from("event_attendance_counts")
-      .select("voy, me_interesa")
-      .eq("event_id", eventId)
-      .maybeSingle()
+    // A partir de aquí la escritura YA quedó hecha: esta función no puede
+    // devolver `ok: false` por ningún motivo (bloqueante 1, vuelta 1). El
+    // `try/catch` es propio de este bloque (no del de la función entera)
+    // para que ni siquiera una excepción inesperada en la relectura escape
+    // como un error: si falla, se cae a las cantidades leídas antes de
+    // escribir.
+    try {
+      const { data: filaCantidades, error: errorCantidades } = await supabase
+        .from("event_attendance_counts")
+        .select("voy, me_interesa")
+        .eq("event_id", eventId)
+        .maybeSingle()
 
-    if (errorCantidades) {
-      console.error("[marcarAsistencia] Error al releer cantidades:", errorCantidades)
-      return { ok: false, error: "DB_ERROR" }
+      if (errorCantidades) {
+        console.error(
+          "[marcarAsistencia] Error al releer cantidades después de escribir (se usan las de antes de escribir):",
+          errorCantidades,
+        )
+        return { ok: true, cantidades: cantidadesAntes, propia: nueva }
+      }
+
+      const cantidades: CantidadesAsistencia = {
+        voy: filaCantidades?.voy ?? 0,
+        meInteresa: filaCantidades?.me_interesa ?? 0,
+      }
+
+      return { ok: true, cantidades, propia: nueva }
+    } catch (excepcionRelectura) {
+      console.error(
+        "[marcarAsistencia] Excepción al releer cantidades después de escribir (se usan las de antes de escribir):",
+        excepcionRelectura,
+      )
+      return { ok: true, cantidades: cantidadesAntes, propia: nueva }
     }
-
-    const cantidades: CantidadesAsistencia = {
-      voy: filaCantidades?.voy ?? 0,
-      meInteresa: filaCantidades?.me_interesa ?? 0,
-    }
-
-    return { ok: true, cantidades, propia: nueva }
   } catch (excepcion) {
     console.error("[marcarAsistencia] Excepción inesperada:", excepcion)
     return { ok: false, error: "DB_ERROR" }

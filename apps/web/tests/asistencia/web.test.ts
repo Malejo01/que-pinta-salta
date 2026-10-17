@@ -17,8 +17,20 @@
  *     `components/botones-asistencia.tsx` importan la lógica de
  *     `@qps/core/asistencia` y no tienen su propia copia (mismo criterio
  *     que `apps/mobile/tests/asistencia.test.ts`).
+ *
+ * Vuelta 1 (dos revisores, tres bloqueantes sobre 76cd928):
+ *  - Bloqueante 1: si la escritura (upsert/delete) sale bien, `marcarAsistencia`
+ *    nunca devuelve `ok: false`, aunque falle la relectura de cantidades de
+ *    DESPUÉS de escribir (ver el describe "si la escritura sale bien...").
+ *  - Bloqueante 2: los botones solo se muestran para eventos PUBLISHED
+ *    (`debenMostrarseBotonesAsistencia`, ver el describe de ese nombre).
+ *  - Bloqueante 3: el barrido de "copia local" ahora recorre TODO el código
+ *    de `apps/web` (no solo los dos archivos vigilados), con el mismo
+ *    criterio que `apps/mobile/tests/asistencia.test.ts` después de
+ *    `e73e0f2` (ver el describe "barrido recursivo...").
  */
 import { readFileSync, readdirSync } from 'node:fs'
+import { relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -27,7 +39,7 @@ vi.mock('@/lib/supabase/server', () => ({
   createClient: (...a: unknown[]) => createClient(...a),
 }))
 
-import { marcarAsistencia, obtenerAsistencia } from '../../lib/asistencia'
+import { debenMostrarseBotonesAsistencia, marcarAsistencia, obtenerAsistencia } from '../../lib/asistencia'
 
 beforeEach(() => {
   createClient.mockReset()
@@ -40,6 +52,13 @@ afterEach(() => {
 // ---------------------------------------------------------------------------
 // Doble de Supabase para `event_attendance` / `event_attendance_counts`.
 // ---------------------------------------------------------------------------
+interface RespuestaCounts {
+  data?: { voy: number; me_interesa: number } | null
+  error?: unknown
+  /** Si es `true`, el `maybeSingle()` tira una excepción en vez de devolver `{ data, error }`. */
+  lanzar?: unknown
+}
+
 interface ConfigDoble {
   user: { id: string } | null
   propiaData?: { kind: string } | null
@@ -47,6 +66,15 @@ interface ConfigDoble {
   upsertError?: unknown
   deleteError?: unknown
   countsData?: { voy: number; me_interesa: number } | null
+  /**
+   * Respuestas sucesivas para `event_attendance_counts`.select(...).maybeSingle():
+   * la primera llamada usa `countsSecuencia[0]`, la segunda `countsSecuencia[1]`,
+   * etc. (si se agotan, se repite la última). Si no se da, se usa siempre
+   * `countsData` (comportamiento previo, sin distinguir llamadas).
+   * Existe para el bloqueante 1: simular "la relectura de DESPUÉS de
+   * escribir falla, pero la de ANTES de escribir anduvo bien".
+   */
+  countsSecuencia?: RespuestaCounts[]
 }
 
 function construirCliente(config: ConfigDoble) {
@@ -56,6 +84,8 @@ function construirCliente(config: ConfigDoble) {
     upserts: [] as unknown[],
     deletes: 0,
   }
+
+  let llamadasCounts = 0
 
   const from = vi.fn((tabla: string) => {
     llamadas.tablas.push(tabla)
@@ -92,10 +122,16 @@ function construirCliente(config: ConfigDoble) {
           llamadas.selects.push({ tabla, columnas })
           return {
             eq: () => ({
-              maybeSingle: async () => ({
-                data: config.countsData ?? { voy: 0, me_interesa: 0 },
-                error: null,
-              }),
+              maybeSingle: async () => {
+                const indice = llamadasCounts
+                llamadasCounts++
+                if (config.countsSecuencia && config.countsSecuencia.length > 0) {
+                  const respuesta = config.countsSecuencia[Math.min(indice, config.countsSecuencia.length - 1)]
+                  if (respuesta.lanzar) throw respuesta.lanzar
+                  return { data: respuesta.data ?? null, error: respuesta.error ?? null }
+                }
+                return { data: config.countsData ?? { voy: 0, me_interesa: 0 }, error: null }
+              },
             }),
           }
         },
@@ -299,6 +335,111 @@ describe('marcarAsistencia: el user_id siempre sale de auth.getUser()', () => {
 })
 
 // ---------------------------------------------------------------------------
+// Bloqueante 1 (vuelta 1, revisor): si la escritura salió bien, la función
+// NUNCA devuelve `ok: false`, aunque falle la relectura de cantidades de
+// DESPUÉS de escribir. El bug original: el upsert/delete andaba, la
+// relectura de después fallaba -> DB_ERROR con la marca ya guardada; la
+// pantalla seguía mostrando "sin marca" y, al tocar otra vez, se borraba la
+// marca que acababa de quedar sin que nadie se enterara.
+// ---------------------------------------------------------------------------
+describe('marcarAsistencia: si la escritura sale bien, nunca devuelve error (bloqueante 1)', () => {
+  it(
+    'primer select de cantidades (antes de escribir) anda, la escritura anda, el SEGUNDO select ' +
+      '(después de escribir) falla: ok:true, con la marca recién escrita y las cantidades leídas ANTES de escribir',
+    async () => {
+      const { cliente, llamadas } = construirCliente({
+        user: { id: 'usuario-sesion-7' },
+        propiaData: null, // sin marca: "voy" -> upsert
+        countsSecuencia: [
+          { data: { voy: 5, me_interesa: 2 } }, // antes de escribir: anda
+          { error: { code: '42501', message: 'detalle interno de postgres (segundo select)' } }, // después: falla
+        ],
+      })
+      createClient.mockResolvedValue(cliente)
+
+      const resultado = await marcarAsistencia('evento-de-prueba-1', 'voy')
+
+      // Si este test falla con `{ ok: false, error: 'DB_ERROR' }`, es
+      // exactamente el bug del revisor: la escritura quedó hecha (ver el
+      // upsert más abajo) pero la función igual reporta error.
+      expect(resultado).toEqual({ ok: true, cantidades: { voy: 5, meInteresa: 2 }, propia: 'voy' })
+      expect(llamadas.upserts).toEqual([
+        { user_id: 'usuario-sesion-7', event_id: 'evento-de-prueba-1', kind: 'voy' },
+      ])
+      // El error de la relectura se registra (no se pierde en silencio).
+      expect(console.error).toHaveBeenCalled()
+    },
+  )
+
+  it(
+    'variante con delete: actual ya era "voy", se vuelve a tocar "voy" (borra); la relectura de ' +
+      'después falla igual: ok:true, propia: null, con las cantidades de antes de escribir',
+    async () => {
+      const { cliente, llamadas } = construirCliente({
+        user: { id: 'usuario-sesion-8' },
+        propiaData: { kind: 'voy' },
+        countsSecuencia: [
+          { data: { voy: 3, me_interesa: 1 } },
+          { error: { code: '42501', message: 'falla la segunda lectura' } },
+        ],
+      })
+      createClient.mockResolvedValue(cliente)
+
+      const resultado = await marcarAsistencia('evento-de-prueba-1', 'voy')
+
+      expect(resultado).toEqual({ ok: true, cantidades: { voy: 3, meInteresa: 1 }, propia: null })
+      expect(llamadas.deletes).toBe(1)
+    },
+  )
+
+  it(
+    'la segunda relectura tira una EXCEPCIÓN (no un error de Supabase) después de escribir bien: ' +
+      'también ok:true con las cantidades de antes, nunca escapa como un error no controlado',
+    async () => {
+      const { cliente } = construirCliente({
+        user: { id: 'usuario-sesion-9' },
+        propiaData: null,
+        countsSecuencia: [{ data: { voy: 1, me_interesa: 0 } }, { lanzar: new Error('red caída') }],
+      })
+      createClient.mockResolvedValue(cliente)
+
+      const resultado = await marcarAsistencia('evento-de-prueba-1', 'voy')
+
+      expect(resultado).toEqual({ ok: true, cantidades: { voy: 1, meInteresa: 0 }, propia: 'voy' })
+    },
+  )
+
+  it(
+    'propiedad general: con la escritura exitosa (upsert o delete sin error), ningún camino de ' +
+      'fallas en las lecturas de cantidades (antes, después, ambas, ninguna, o una excepción) ' +
+      'devuelve `ok: false`',
+    async () => {
+      const escenarios: Array<{ etiqueta: string; countsSecuencia?: RespuestaCounts[] }> = [
+        { etiqueta: 'las dos lecturas de cantidades andan', countsSecuencia: [{ data: { voy: 1, me_interesa: 0 } }, { data: { voy: 1, me_interesa: 0 } }] },
+        { etiqueta: 'antes falla, después anda', countsSecuencia: [{ error: { code: '42501', message: 'x' } }, { data: { voy: 1, me_interesa: 0 } }] },
+        { etiqueta: 'antes anda, después falla', countsSecuencia: [{ data: { voy: 1, me_interesa: 0 } }, { error: { code: '42501', message: 'x' } }] },
+        { etiqueta: 'las dos lecturas de cantidades fallan', countsSecuencia: [{ error: { code: '42501', message: 'x' } }, { error: { code: '42501', message: 'y' } }] },
+        { etiqueta: 'antes anda, después tira una excepción', countsSecuencia: [{ data: { voy: 1, me_interesa: 0 } }, { lanzar: new Error('boom') }] },
+        { etiqueta: 'sin countsSecuencia (comportamiento por defecto)' },
+      ]
+
+      for (const escenario of escenarios) {
+        const { cliente } = construirCliente({
+          user: { id: 'usuario-sesion-propiedad' },
+          propiaData: null,
+          countsSecuencia: escenario.countsSecuencia,
+        })
+        createClient.mockResolvedValue(cliente)
+
+        const resultado = await marcarAsistencia('evento-de-prueba-1', 'voy')
+
+        expect(resultado.ok, `escenario "${escenario.etiqueta}": se esperaba ok:true`).toBe(true)
+      }
+    },
+  )
+})
+
+// ---------------------------------------------------------------------------
 // obtenerAsistencia: sin sesión no consulta event_attendance.
 // ---------------------------------------------------------------------------
 describe('obtenerAsistencia: sin sesión', () => {
@@ -321,6 +462,78 @@ describe('obtenerAsistencia: sin sesión', () => {
 
     expect(resultado).toEqual({ ok: true, cantidades: { voy: 4, meInteresa: 1 }, propia: null })
     expect(llamadasTabla).toEqual(['event_attendance_counts'])
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Bloqueante 2 (vuelta 1, revisor): los botones solo tienen sentido en
+// eventos PUBLISHED, porque `event_attendance_counts` solo agrega votos de
+// eventos PUBLISHED. En CANCELLED/PAST el contador quedaba clavado en 0
+// aunque los botones se mostraran y se pudieran tocar.
+//
+// No se puede renderizar `app/evento/[id]/page.tsx` ni
+// `components/event-detail-page.tsx` en este test (no hay
+// `@testing-library/react` en el proyecto y son Server/Client Components con
+// Supabase, Next.js, etc. de por medio). En su lugar: (a) se prueba
+// directamente la función pura `debenMostrarseBotonesAsistencia`, que es la
+// ÚNICA fuente de verdad que deciden ambos archivos, y (b) un detector
+// estático sobre el código fuente de esos dos archivos que confirma que
+// efectivamente LLAMAN a esa función en el lugar que importa (si alguno de
+// los dos dejara de llamarla, este detector lo marca en rojo, que es
+// exactamente el bug original: contador clavado en 0 en eventos
+// CANCELLED/PAST porque los botones se siguen mostrando).
+// ---------------------------------------------------------------------------
+describe('debenMostrarseBotonesAsistencia: solo PUBLISHED', () => {
+  it('PUBLISHED: true', () => {
+    expect(debenMostrarseBotonesAsistencia('PUBLISHED')).toBe(true)
+  })
+
+  it('CANCELLED: false', () => {
+    expect(debenMostrarseBotonesAsistencia('CANCELLED')).toBe(false)
+  })
+
+  it('PAST: false', () => {
+    expect(debenMostrarseBotonesAsistencia('PAST')).toBe(false)
+  })
+
+  it('DRAFT (u otro estado cualquiera): false', () => {
+    expect(debenMostrarseBotonesAsistencia('DRAFT')).toBe(false)
+    expect(debenMostrarseBotonesAsistencia('')).toBe(false)
+  })
+})
+
+describe('detector estático: page.tsx y event-detail-page.tsx usan debenMostrarseBotonesAsistencia para gatear los botones', () => {
+  const WEB_ROOT_LOCAL = fileURLToPath(new URL('../../', import.meta.url))
+  const contenidoPage = readFileSync(`${WEB_ROOT_LOCAL}/app/evento/[id]/page.tsx`, 'utf8')
+  const contenidoEventDetail = readFileSync(`${WEB_ROOT_LOCAL}/components/event-detail-page.tsx`, 'utf8')
+
+  it(
+    'app/evento/[id]/page.tsx: la asignación de `cantidadesAsistencia` llama a debenMostrarseBotonesAsistencia ' +
+      '(si esto no matchea, alguien sacó el chequeo y volvió a pasar las cantidades siempre, aunque el evento ' +
+      'no sea PUBLISHED: el bug original)',
+    () => {
+      expect(contenidoPage).toMatch(
+        /const\s+cantidadesAsistencia\s*=\s*[\s\S]{0,120}?debenMostrarseBotonesAsistencia\s*\(/,
+      )
+    },
+  )
+
+  it('app/evento/[id]/page.tsx: importa debenMostrarseBotonesAsistencia de "@/lib/asistencia" (una sola fuente de verdad, no una copia)', () => {
+    expect(contenidoPage).toMatch(/import\s*\{[^}]*\bdebenMostrarseBotonesAsistencia\b[^}]*\}\s*from\s*['"]@\/lib\/asistencia['"]/)
+  })
+
+  it(
+    'components/event-detail-page.tsx: la condición que dibuja <BotonesAsistencia /> llama a ' +
+      'debenMostrarseBotonesAsistencia (defensa en profundidad)',
+    () => {
+      expect(contenidoEventDetail).toMatch(
+        /\{\s*cantidadesAsistencia\s*&&\s*debenMostrarseBotonesAsistencia\s*\([^)]*\)\s*&&[\s\S]{0,80}?<BotonesAsistencia/,
+      )
+    },
+  )
+
+  it('components/event-detail-page.tsx: importa debenMostrarseBotonesAsistencia de "@/lib/asistencia"', () => {
+    expect(contenidoEventDetail).toMatch(/import\s*\{[^}]*\bdebenMostrarseBotonesAsistencia\b[^}]*\}\s*from\s*['"]@\/lib\/asistencia['"]/)
   })
 })
 
@@ -511,6 +724,35 @@ describe('detector estático: la única tabla/vista de la que se leen "voy"/"me_
   })
 })
 
+// ---------------------------------------------------------------------------
+// No bloqueante (vuelta 1, revisor): dos huecos conocidos del detector de
+// arriba. Hoy ningún archivo real de apps/web usa este patrón (ni
+// `const TABLA = 'event_attendance'; supabase.from(TABLA)…` ni
+// `const COLUMNAS = 'user_id, kind'; …select(COLUMNAS)…`), así que no hay
+// ningún falso negativo real ahora mismo — pero si algún día alguien
+// escribe el código así, el detector de arriba NO lo va a agarrar.
+//
+// Estos dos tests documentan el límite a propósito: afirman que HOY no se
+// detecta. El día que se cierre el hueco (resolviendo identificadores a su
+// valor constante en `extraerFromSelect`), estos dos tests se van a romper
+// a propósito — hay que ACTUALIZARLOS para que esperen la detección, no
+// revertir el cierre del hueco.
+// ---------------------------------------------------------------------------
+describe('límite conocido del detector (no bloqueante): nombre de tabla en una constante', () => {
+  it('"const TABLA = \'event_attendance\'; supabase.from(TABLA).select(\'user_id, kind\')" no se detecta hoy: el regex de .from() exige un literal entre comillas, así que ni siquiera genera una entrada', () => {
+    const fixture = `const TABLA = 'event_attendance'\nsupabase.from(TABLA).select('user_id, kind').eq('event_id', id)`
+    expect(extraerFromSelect(fixture)).toEqual([])
+  })
+})
+
+describe('límite conocido del detector (no bloqueante): columnas en una constante', () => {
+  it('"const COLUMNAS = \'user_id, kind\'; supabase.from(\'event_attendance\').select(COLUMNAS)" no se detecta hoy: el regex de .select() también exige un literal, así que las columnas quedan en null (y un `columnas === null` se descarta sin avisar)', () => {
+    const fixture = `const COLUMNAS = 'user_id, kind'\nsupabase.from('event_attendance').select(COLUMNAS).eq('event_id', id)`
+    const [r] = extraerFromSelect(fixture)
+    expect(r.columnas).toBeNull()
+  })
+})
+
 // ===========================================================================
 // 4. Detector estático: lib/asistencia.ts y components/botones-asistencia.tsx
 // importan la lógica de @qps/core/asistencia y no tienen su propia copia.
@@ -572,6 +814,28 @@ function tieneComparacionManualDeMarca(content: string): boolean {
   return false
 }
 
+/**
+ * `true` si `content` tiene los CUATRO patrones de "copia local" A LA VEZ
+ * (unión de tipo, etiquetas, umbral numérico y comparación manual): la
+ * señal de que un archivo —sea cual sea su nombre, y esté o no en la lista
+ * fija `ARCHIVOS_ASISTENCIA`— tiene la lógica de asistencia copiada entera,
+ * y no solo una coincidencia aislada de uno de los cuatro patrones (que por
+ * separado puede aparecer en código sin ninguna relación con asistencia:
+ * por ejemplo un `>= 3` de paginación, o un `===` cualquiera). Es el
+ * chequeo que usa el barrido recursivo de más abajo (bloqueante 3, vuelta
+ * 1), donde no hay una lista fija de archivos "sospechosos": tiene que
+ * evitar falsos positivos en el resto del código de la app. Mismo criterio
+ * que `apps/mobile/tests/asistencia.test.ts` después de `e73e0f2`.
+ */
+function tieneCopiaLocalCompleta(content: string): boolean {
+  return (
+    tieneUnionTipoAsistenciaLocal(content) &&
+    tieneEtiquetasLocal(content) &&
+    tieneUmbralNumericoLocal(content) &&
+    tieneComparacionManualDeMarca(content)
+  )
+}
+
 describe('detector de copia local (fixtures en memoria: tiene que fallar de verdad)', () => {
   describe('importaAsistenciaDeCore', () => {
     it('detecta el import real (con alias, evasión a)', () => {
@@ -615,6 +879,57 @@ describe('detector de copia local (fixtures en memoria: tiene que fallar de verd
       expect(tieneComparacionManualDeMarca(`const marcado = marca === tipo`)).toBe(true)
     })
   })
+
+  describe('tieneCopiaLocalCompleta', () => {
+    it('evasión c (bloqueante 3, vuelta 1): un TERCER archivo con la copia completa, con otros nombres de variable y de tipo, se marca', () => {
+      // La forma que probó el revisor: `lib/asistencia-interno.ts` con el
+      // mismo tipo, las mismas etiquetas, el mismo umbral `>= 3` y la misma
+      // regla de marcar, con otros nombres, sin importar nada de
+      // `@qps/core/asistencia` (aunque el import de core siga puesto en
+      // `lib/asistencia.ts`, solo para el tipo).
+      const asistenciaInterno = `
+        export type MarcaInterna = 'voy' | 'me_interesa'
+
+        export const ETIQUETAS_INTERNAS: Record<MarcaInterna, string> = {
+          voy: 'Voy',
+          me_interesa: 'Me interesa',
+        }
+
+        export function cantidadVisibleInterna(n: number): number | null {
+          return n >= 3 ? n : null
+        }
+
+        export function siguienteMarcaInterna(previo: MarcaInterna | null, nuevo: MarcaInterna): MarcaInterna | null {
+          return previo === nuevo ? null : nuevo
+        }
+      `
+      expect(tieneCopiaLocalCompleta(asistenciaInterno)).toBe(true)
+    })
+
+    it('un archivo que solo importa de core y lo usa, sin ninguno de los cuatro patrones: false', () => {
+      const archivoLimpio = `
+        import { siguienteMarca, textoBoton, type TipoAsistencia } from '@qps/core/asistencia'
+        export function usar(tipo: TipoAsistencia, cantidad: number) {
+          return textoBoton(tipo, cantidad)
+        }
+      `
+      expect(tieneCopiaLocalCompleta(archivoLimpio)).toBe(false)
+    })
+
+    it('un solo patrón aislado, sin relación con asistencia (umbral de paginación): false (hace falta la combinación completa)', () => {
+      const paginacion = `function hayMasPaginas(cantidadCargada: number) { return cantidadCargada >= 3 }`
+      expect(tieneCopiaLocalCompleta(paginacion)).toBe(false)
+    })
+
+    it('tres de los cuatro patrones, sin el cuarto: false (hace falta la combinación completa, no una coincidencia parcial)', () => {
+      const incompleto = `
+        type Marca = 'voy' | 'me_interesa'
+        const etiquetas = { voy: 'Voy', me_interesa: 'Me interesa' }
+        function umbral(n: number) { return n >= 3 ? n : null }
+      `
+      expect(tieneCopiaLocalCompleta(incompleto)).toBe(false)
+    })
+  })
 })
 
 const WEB_ROOT = fileURLToPath(new URL('../../', import.meta.url))
@@ -654,4 +969,47 @@ describe.each(ARCHIVOS_ASISTENCIA)('$etiqueta: importa de @qps/core/asistencia y
       expect(tieneComparacionManualDeMarca(contenido)).toBe(false)
     })
   }
+})
+
+// ---------------------------------------------------------------------------
+// Bloqueante 3 (vuelta 1, revisor): la evasión real era poner la copia
+// completa en un TERCER archivo (`lib/asistencia-interno.ts`) y delegar ahí
+// desde los dos archivos de `ARCHIVOS_ASISTENCIA` — esos dos seguían "limpios"
+// porque el detector de arriba solo miraba esos dos nombres fijos. El
+// arreglo: barrer TODO el código de `apps/web` (reutilizando
+// `listarArchivosDeCodigo`, ya definida arriba para el detector 3 — no se
+// escribe una función nueva) y aplicar `tieneCopiaLocalCompleta` a cada
+// archivo. `listarArchivosDeCodigo` ya excluye `tests/`, `node_modules`,
+// `.next` y `.git` por nombre de directorio en cualquier profundidad, así
+// que cubre `lib/`, `components/` y `app/` (y no da falsos positivos por
+// mirar fixtures de los propios tests).
+//
+// Si alguien reintrodujera la evasión (un tercer archivo cualquiera con la
+// copia completa), el `it.each` de abajo lo marca en rojo nombrando el
+// archivo exacto.
+// ---------------------------------------------------------------------------
+describe('barrido recursivo de apps/web (sin tests/): ninguna copia local completa de asistencia fuera de core', () => {
+  const archivos = listarArchivosDeCodigo(WEB_ROOT)
+
+  it(
+    'encuentra una cantidad razonable de archivos, incluidos los dos vigilados (si esto falla, el barrido ' +
+      'se achicó y el resto de este describe no prueba nada)',
+    () => {
+      expect(archivos.length).toBeGreaterThan(30)
+      expect(archivos).toContain(`${WEB_ROOT}/lib/asistencia.ts`)
+      expect(archivos).toContain(`${WEB_ROOT}/components/botones-asistencia.tsx`)
+    },
+  )
+
+  it.each(archivos.map((archivo) => [relative(WEB_ROOT, archivo), archivo] as const))('%s', (etiqueta, archivo) => {
+    const contenido = readFileSync(archivo, 'utf8')
+    if (tieneCopiaLocalCompleta(contenido)) {
+      throw new Error(
+        `${etiqueta}: tiene los cuatro patrones de una copia local completa de la lógica de asistencia ` +
+          `(unión de tipo, etiquetas, umbral numérico y comparación manual) — tiene que usar ` +
+          `@qps/core/asistencia en vez de reimplementarla`,
+      )
+    }
+    expect(tieneCopiaLocalCompleta(contenido)).toBe(false)
+  })
 })

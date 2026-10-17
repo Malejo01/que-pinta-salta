@@ -8,7 +8,7 @@ import { createClient, createAdminClient } from "@/lib/supabase/server"
 import { formatSaltaSchemaDate } from "@/lib/date-format"
 import { parseOrigin } from "@/lib/metricas/links"
 import { esEventoFavorito } from "@/lib/favoritos/es-favorito"
-import { obtenerAsistencia } from "@/lib/asistencia"
+import { debenMostrarseBotonesAsistencia, obtenerAsistencia } from "@/lib/asistencia"
 import type { Metadata } from "next"
 
 interface EventPageProps {
@@ -73,12 +73,6 @@ export default async function EventPage({ params, searchParams }: EventPageProps
   let isFavorite = false
   const user = userResult.data.user
 
-  // Si la lectura de asistencia falla, la ficha sigue funcionando: no se
-  // muestran los botones (el `console.error` ya quedó dentro de
-  // `obtenerAsistencia`).
-  const cantidadesAsistencia = resultadoAsistencia.ok ? resultadoAsistencia.cantidades : undefined
-  const marcaAsistencia = resultadoAsistencia.ok ? resultadoAsistencia.propia : null
-
   if (user) {
     const [profileRes, favoriteResult] = await Promise.all([
       supabase
@@ -108,6 +102,19 @@ export default async function EventPage({ params, searchParams }: EventPageProps
     }
     notFound()
   }
+
+  // "Voy" / "Me interesa" (bloqueante 2, vuelta 1): si la lectura de
+  // asistencia falla, la ficha sigue funcionando: no se muestran los
+  // botones (el `console.error` ya quedó dentro de `obtenerAsistencia`).
+  // Además, solo se pasan las cantidades si el evento está PUBLISHED: la
+  // vista `event_attendance_counts` solo agrega votos de eventos
+  // PUBLISHED, así que en un evento CANCELLED o PAST el contador quedaría
+  // clavado en 0 aunque se pudiera tocar el botón. El día que se quiera
+  // contar también en PAST/CANCELLED hace falta una migración que cambie
+  // esa vista, no alcanza con sacar este chequeo.
+  const cantidadesAsistencia =
+    resultadoAsistencia.ok && debenMostrarseBotonesAsistencia(event.status) ? resultadoAsistencia.cantidades : undefined
+  const marcaAsistencia = resultadoAsistencia.ok ? resultadoAsistencia.propia : null
 
   // Schema.org Structured Data (JSON-LD) for Google Rich Results.
   // Sólo para eventos que realmente están publicados: emitir schema de un

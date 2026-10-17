@@ -32,7 +32,7 @@ import { ViewBeacon } from "@/components/view-beacon"
 import { goHref, urlComoLlegar, type MetricOrigin } from "@/lib/metricas/links"
 import { FlyerImage } from "@/components/flyer-image"
 import { BotonesAsistencia } from "@/components/botones-asistencia"
-import type { CantidadesAsistencia } from "@/lib/asistencia"
+import { debenMostrarseBotonesAsistencia, type CantidadesAsistencia } from "@/lib/asistencia"
 import type { TipoAsistencia } from "@qps/core/asistencia"
 
 type EventWithRelations = Event & { 
@@ -401,7 +401,18 @@ export function EventDetailPage({
               )}
             </div>
 
-            {cantidadesAsistencia && (
+            {/*
+              Bloqueante 2, vuelta 1: la fuente de verdad real es
+              `app/evento/[id]/page.tsx`, que ya no pasa `cantidadesAsistencia`
+              para eventos que no son PUBLISHED (la vista
+              `event_attendance_counts` solo agrega votos PUBLISHED, así que
+              en CANCELLED/PAST el contador quedaría clavado en 0). Este
+              chequeo repite la MISMA función (`debenMostrarseBotonesAsistencia`,
+              una sola fuente de verdad) como defensa en profundidad, para que
+              ningún otro call site futuro de este componente pueda dibujar
+              los botones fuera de PUBLISHED.
+            */}
+            {cantidadesAsistencia && debenMostrarseBotonesAsistencia(event.status) && (
               <BotonesAsistencia
                 eventId={event.id}
                 cantidadesIniciales={cantidadesAsistencia}
