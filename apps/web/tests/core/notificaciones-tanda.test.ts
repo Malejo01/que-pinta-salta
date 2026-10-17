@@ -14,6 +14,18 @@
  * la tanda), el link contra `urlEvento` (no un string pegado a mano), un
  * usuario sin fila de preferencias, el dedupe de dos usuarios distintos con
  * el mismo evento, y que `announcements` no genere nada en esta ronda.
+ *
+ * R41 (tarea 41-a, `ops/rondas/41-push-app/tareas/41-a-novedades-core.md`):
+ * `usuario.novedades` ahora trae solo las novedades NUEVAS de la corrida
+ * (antes, R39, tenía que traer también las ya avisadas, porque el tope se
+ * contaba por posición en el array). Ninguno de los fixtures de arriba
+ * (R39) ponía `enviosRegistrados` con `dedupe_key` de tipo `novedad` junto
+ * con `novedades`, así que ese cambio de contrato no les cambia el
+ * resultado: ninguno se ajustó. Lo que se agregó es el bloque de abajo, "el
+ * tope de novedades por día se cuenta sobre los envíos YA REGISTRADOS...",
+ * con los casos que exigen el contrato nuevo (envíos de novedad ya
+ * registrados restan lugar al tope de novedades; un envío de favorito no
+ * resta ahí, pero sí resta en el tope total).
  */
 import { describe, expect, it } from 'vitest'
 import {
@@ -283,6 +295,141 @@ describe('el tope mixto: lo de hoy + lo nuevo de la tanda', () => {
       ],
     }
     expect(armarTanda(datos, ahora)).toHaveLength(1)
+  })
+})
+
+describe('el tope de novedades por día se cuenta sobre los envíos YA REGISTRADOS de tipo novedad (R41, 41-a)', () => {
+  it('con 2 envíos de novedad hoy (MAX_NOVEDADES_POR_DIA 3) y 2 novedades nuevas en horas distintas: sale 1 solo grupo (3 - 2 = 1 de lugar)', () => {
+    const ahora = salta('2026-10-20T20:00:00') // fuera de silencio
+    const userId = uuid()
+    const datos: DatosParaTanda = {
+      usuarios: [
+        usuario({
+          userId,
+          novedades: [
+            novedad({ momento: salta('2026-10-20T14:00:00') }),
+            novedad({ momento: salta('2026-10-20T18:00:00') }),
+          ],
+          enviosRegistrados: [
+            envio({
+              sent_at: saltaWallClockToUtcISO('2026-10-20T08:00:00'),
+              dedupe_key: claveDedupe({ kind: 'novedad', userId, extra: '2026-10-20T08' }),
+            }),
+            envio({
+              sent_at: saltaWallClockToUtcISO('2026-10-20T10:00:00'),
+              dedupe_key: claveDedupe({ kind: 'novedad', userId, extra: '2026-10-20T10' }),
+            }),
+          ],
+        }),
+      ],
+    }
+    const mensajes = armarTanda(datos, ahora)
+    expect(mensajes).toHaveLength(1)
+    expect(mensajes[0].kind).toBe('novedad')
+  })
+
+  it('con 3 envíos de novedad hoy (ya al tope): no sale nada, aunque haya novedades nuevas', () => {
+    const ahora = salta('2026-10-20T20:00:00')
+    const userId = uuid()
+    const datos: DatosParaTanda = {
+      usuarios: [
+        usuario({
+          userId,
+          novedades: [novedad({ momento: salta('2026-10-20T18:00:00') })],
+          enviosRegistrados: [
+            envio({
+              sent_at: saltaWallClockToUtcISO('2026-10-20T06:00:00'),
+              dedupe_key: claveDedupe({ kind: 'novedad', userId, extra: '2026-10-20T06' }),
+            }),
+            envio({
+              sent_at: saltaWallClockToUtcISO('2026-10-20T10:00:00'),
+              dedupe_key: claveDedupe({ kind: 'novedad', userId, extra: '2026-10-20T10' }),
+            }),
+            envio({
+              sent_at: saltaWallClockToUtcISO('2026-10-20T14:00:00'),
+              dedupe_key: claveDedupe({ kind: 'novedad', userId, extra: '2026-10-20T14' }),
+            }),
+          ],
+        }),
+      ],
+    }
+    expect(armarTanda(datos, ahora)).toHaveLength(0)
+  })
+
+  it('3 envíos de novedad, pero de AYER: no cuentan para el tope de hoy, la novedad nueva sale', () => {
+    const ahora = salta('2026-10-20T20:00:00')
+    const userId = uuid()
+    const datos: DatosParaTanda = {
+      usuarios: [
+        usuario({
+          userId,
+          novedades: [novedad({ momento: salta('2026-10-20T18:00:00') })],
+          enviosRegistrados: [
+            envio({
+              sent_at: saltaWallClockToUtcISO('2026-10-19T06:00:00'),
+              dedupe_key: claveDedupe({ kind: 'novedad', userId, extra: '2026-10-19T06' }),
+            }),
+            envio({
+              sent_at: saltaWallClockToUtcISO('2026-10-19T10:00:00'),
+              dedupe_key: claveDedupe({ kind: 'novedad', userId, extra: '2026-10-19T10' }),
+            }),
+            envio({
+              sent_at: saltaWallClockToUtcISO('2026-10-19T14:00:00'),
+              dedupe_key: claveDedupe({ kind: 'novedad', userId, extra: '2026-10-19T14' }),
+            }),
+          ],
+        }),
+      ],
+    }
+    expect(armarTanda(datos, ahora)).toHaveLength(1)
+  })
+
+  it('un envío de FAVORITO hoy no consume el tope de novedades: con daily_cap alto, las 3 novedades nuevas (una por hora) salen todas', () => {
+    const ahora = salta('2026-10-20T20:00:00')
+    const userId = uuid()
+    const datos: DatosParaTanda = {
+      usuarios: [
+        usuario({
+          userId,
+          preferencias: prefs({ daily_cap: 10 }), // alto a propósito: que no interfiera el tope TOTAL
+          novedades: [
+            novedad({ momento: salta('2026-10-20T08:00:00') }),
+            novedad({ momento: salta('2026-10-20T14:00:00') }),
+            novedad({ momento: salta('2026-10-20T18:00:00') }),
+          ],
+          enviosRegistrados: [
+            envio({
+              sent_at: saltaWallClockToUtcISO('2026-10-20T07:00:00'),
+              dedupe_key: claveDedupe({ kind: 'favorito', userId, eventId: uuid() }),
+            }),
+          ],
+        }),
+      ],
+    }
+    const mensajes = armarTanda(datos, ahora)
+    expect(mensajes).toHaveLength(3)
+    expect(mensajes.every((m) => m.kind === 'novedad')).toBe(true)
+  })
+
+  it('ese mismo envío de favorito SÍ cuenta para el tope TOTAL (paso 5 de `armarTanda`): con daily_cap 1, bloquea a la novedad', () => {
+    const ahora = salta('2026-10-20T20:00:00')
+    const userId = uuid()
+    const datos: DatosParaTanda = {
+      usuarios: [
+        usuario({
+          userId,
+          preferencias: prefs({ daily_cap: 1 }),
+          novedades: [novedad({ momento: salta('2026-10-20T18:00:00') })],
+          enviosRegistrados: [
+            envio({
+              sent_at: saltaWallClockToUtcISO('2026-10-20T07:00:00'),
+              dedupe_key: claveDedupe({ kind: 'favorito', userId, eventId: uuid() }),
+            }),
+          ],
+        }),
+      ],
+    }
+    expect(armarTanda(datos, ahora)).toHaveLength(0)
   })
 })
 
