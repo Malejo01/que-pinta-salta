@@ -2,7 +2,7 @@
  * Tarea 38-q: el umbral del contador de "Voy / Me interesa", del lado de la
  * app. Hueco real, verificado por el lead: se rompió `cantidadVisible` a
  * mano (que devolviera siempre `n`, sin umbral) y la suite de `apps/mobile`
- * pasó en verde, 71/71 — ningún test de esta carpeta ejercitaba el umbral
+ * pasó entera en verde — ningún test de esta carpeta ejercitaba el umbral
  * (los tests de `packages/core`/`apps/web` lo cubren, pero el runner de
  * `apps/mobile` no los corre). Este archivo cierra ese hueco: importa
  * `textoBoton` exactamente como lo hace la app (`@qps/core/asistencia`, vía
