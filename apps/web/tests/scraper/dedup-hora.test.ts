@@ -153,10 +153,14 @@ describe('findDuplicateMatch: clave exacta + misma hora (QPS-164, hallazgo 1)', 
 })
 
 describe('upsertEventWithDeduplication: colisión de slug único (QPS-164, hallazgo 1)', () => {
-  // Reproduce el slug como lo generan alpogo-scraper.ts (línea ~117), entradauno-scraper.ts
-  // (línea ~248) y vamos-scraper.ts (línea ~41): `slugify(título)`, sin fecha ni hora. Procesan
-  // un ítem por función, así que dos funciones reales del mismo show el mismo día llegan con el
-  // MISMO slug. norteticket (parsers.ts) es la única fuente inmune porque mete el start_date en
+  // El fixture arma a mano un slug plano (`slugify(título)`, sin fecha ni hora) para ejercitar el
+  // camino de la colisión de slug único en deduplicate.ts, sin depender de cómo arma el slug cada
+  // scraper. alpogo-scraper.ts ya NO genera este patrón desde la tarea 40-c (mete fecha y hora con
+  // slugConFechaHora): el patrón plano sigue siendo el de entradauno-scraper.ts y
+  // vamos-scraper.ts mientras no cambien (Mauro decidió el 17/10 a las 17:05 que la tarea 40-d no
+  // entra en esta ronda, así que por ahora siguen slugificando sólo el título) y además sigue
+  // aplicando a las filas viejas que ya están en la base con el slug plano, vengan de la fuente
+  // que vengan. norteticket (parsers.ts) es la única fuente inmune porque mete el start_date en
   // el slug.
   const SLUG = 'show-doble-funcion-de-prueba'
 

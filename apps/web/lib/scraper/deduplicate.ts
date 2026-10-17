@@ -297,14 +297,18 @@ export async function findDuplicateMatch(
 
   let bestMatch: Event | null = null;
   let highestScore = 0;
-  // Desempate determinista (mismo criterio que las dos pasadas del paso 1):
-  // con el mismo puntaje, gana el candidato con menor diferencia en minutos.
-  // Un candidato sin hora real no tiene diferencia comparable (horasCompatibles
-  // ya lo dejó pasar por el bypass de "sin hora"), así que se lo trata como el
-  // peor caso posible (Infinity): pierde el desempate contra cualquiera que sí
-  // tenga hora real dentro de la tolerancia. Necesario porque la consulta de
-  // candidatos no tiene `.order()`: con cualquier orden del array el resultado
-  // tiene que ser el mismo.
+  // Desempate determinista, en tres criterios (necesario porque la consulta de candidatos no
+  // tiene `.order()`: con cualquier orden del array el resultado tiene que ser el mismo):
+  //   1. gana el mayor puntaje;
+  //   2. con el mismo puntaje, gana el candidato con menor diferencia en minutos. Un candidato
+  //      sin hora real no tiene diferencia comparable (horasCompatibles ya lo dejó pasar por el
+  //      bypass de "sin hora"), así que se lo trata como el peor caso posible (Infinity): pierde
+  //      el desempate contra cualquiera que sí tenga hora real dentro de la tolerancia;
+  //   3. con el mismo puntaje Y la misma diferencia en minutos (dos candidatos a la misma
+  //      distancia del entrante, ver tests/scraper/dedup-tolerancia.test.ts), gana el de menor
+  //      `id` (comparación de strings). Sin este tercer criterio, ese empate exacto lo decidía
+  //      el orden del array (el `<` de la comparación de arriba es estricto), que es justo lo que
+  //      esta función no puede depender.
   let bestDiffMs = Infinity;
 
   for (const candidate of candidates) {
@@ -320,7 +324,12 @@ export async function findDuplicateMatch(
           )
         : Infinity;
 
-    if (score > highestScore || (score === highestScore && diffMs < bestDiffMs)) {
+    const isBetter =
+      score > highestScore ||
+      (score === highestScore &&
+        (diffMs < bestDiffMs || (diffMs === bestDiffMs && (!bestMatch || candidate.id < bestMatch.id))));
+
+    if (isBetter) {
       highestScore = score;
       bestDiffMs = diffMs;
       bestMatch = candidate as Event;

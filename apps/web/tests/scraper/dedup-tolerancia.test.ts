@@ -25,6 +25,8 @@ describe('findDuplicateMatch: paso 2 (respaldo difuso) con tolerancia de hora (Q
   const TITULO = 'Show Tolerancia Paso Dos'
 
   const FUNCION_16 = '2026-11-20T19:00:00.000Z' // 16:00 Salta
+  const FUNCION_19 = '2026-11-20T22:00:00.000Z' // 19:00 Salta
+  const FUNCION_20 = '2026-11-20T23:00:00.000Z' // 20:00 Salta
   const FUNCION_21 = '2026-11-21T00:00:00.000Z' // 21:00 Salta (sigue siendo el 20 en Salta)
   const FUNCION_21_15 = '2026-11-21T00:15:00.000Z' // 21:15 Salta
   const FUNCION_21_30 = '2026-11-21T00:30:00.000Z' // 21:30 Salta
@@ -162,6 +164,23 @@ describe('findDuplicateMatch: paso 2 (respaldo difuso) con tolerancia de hora (Q
     const dbB = createFakeEventsDb([conHora, sinHora]) // orden inverso
     const matchB = await findDuplicateMatch(incoming, dbB.client)
     expect(matchB).toMatchObject({ matchedBy: 'venue_similarity', event: { id: uid(2) } })
+  })
+
+  // Empate exacto de score Y de diferencia en minutos (los dos candidatos a 60 minutos del
+  // entrante): sin el tercer criterio de desempate (menor `id`), este caso lo decidía el orden
+  // del array, que la consulta de candidatos no garantiza.
+  it('candidatos a las 19:00 y a las 21:00, entrante a las 20:00, mismo puntaje y misma distancia: elige el de menor id', async () => {
+    const show19 = row(1, { start_date: FUNCION_19 })
+    const show21 = row(2, { start_date: FUNCION_21 })
+    const incoming = { title: TITULO, start_date: FUNCION_20, venue_id: VENUE }
+
+    const dbA = createFakeEventsDb([show19, show21])
+    const matchA = await findDuplicateMatch(incoming, dbA.client)
+    expect(matchA).toMatchObject({ matchedBy: 'venue_similarity', event: { id: uid(1) } })
+
+    const dbB = createFakeEventsDb([show21, show19]) // orden inverso
+    const matchB = await findDuplicateMatch(incoming, dbB.client)
+    expect(matchB).toMatchObject({ matchedBy: 'venue_similarity', event: { id: uid(1) } })
   })
 })
 
