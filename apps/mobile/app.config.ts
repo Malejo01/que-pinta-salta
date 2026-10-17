@@ -24,9 +24,50 @@ const CREMA_LOGO = '#FCF4EA'
  * igual se inicializa con `EXPO_PUBLIC_SENTRY_DSN`: lo único que falta son los
  * source maps (QPS-143).
  */
-export function plugins(env: Record<string, string | undefined>): string[] {
-  const base = ['expo-router', 'expo-secure-store', '@react-native-google-signin/google-signin']
+export type Plugin = string | [string, Record<string, unknown>]
+
+/** `oklchToHex('oklch(0.55 0.2 25)')`, el primario del tema oscuro. */
+export const COLOR_NOTIFICACION = '#cc272e'
+
+/**
+ * Textos de permiso (chore/deps-app-v1, 17/10). En Android el diálogo de
+ * notificaciones y el de calendario son del sistema; estos textos son los de
+ * iOS, en español, para que nada quede con el inglés por defecto.
+ */
+export const TEXTO_PERMISO_CALENDARIO =
+  'Qué Pinta Salta usa tu calendario solo para agregar los eventos que elegís.'
+
+export function plugins(env: Record<string, string | undefined>): Plugin[] {
+  const base: Plugin[] = [
+    'expo-router',
+    'expo-secure-store',
+    '@react-native-google-signin/google-signin',
+    // R41: avisos push. Sin ícono propio todavía (Android usa el de la app);
+    // el color es el `primary` del tema oscuro (lib/theme.ts) en hex: la
+    // config no importa lib/ (la evalúa EAS), y tests/config.test.ts exige
+    // que coincidan.
+    ['expo-notifications', { color: COLOR_NOTIFICACION }],
+    // R42: "Agregar al calendario". Solo escribe: el permiso se pide al tocar.
+    [
+      'expo-calendar',
+      { calendarPermission: TEXTO_PERMISO_CALENDARIO, writeOnlyCalendarPermission: TEXTO_PERMISO_CALENDARIO },
+    ],
+    // expo-sharing (R42) NO lleva plugin: el plugin es para RECIBIR lo que
+    // otra app comparte (share extension / intent filters), y la app solo
+    // comparte hacia afuera con shareAsync, que no lo necesita.
+  ]
   return env.SENTRY_AUTH_TOKEN?.trim() ? [...base, '@sentry/react-native/expo'] : base
+}
+
+/**
+ * `google-services.json` (Firebase, para el token de push de Android) no va
+ * al repo: EAS lo monta desde la variable de tipo archivo
+ * `GOOGLE_SERVICES_JSON` (ops/push-firebase-pasos.md). Sin la variable, el
+ * build sale sin Firebase y la app anda igual: el registro del token falla
+ * con gracia (R41).
+ */
+export function googleServicesFile(env: Record<string, string | undefined>): string | undefined {
+  return env.GOOGLE_SERVICES_JSON?.trim() || undefined
 }
 
 const config: ExpoConfig = {
@@ -42,6 +83,7 @@ const config: ExpoConfig = {
   icon: './assets/icon.png',
   android: {
     package: 'ar.com.quepintasalta.app',
+    ...(googleServicesFile(process.env) ? { googleServicesFile: googleServicesFile(process.env) } : {}),
     adaptiveIcon: {
       foregroundImage: './assets/adaptive-icon.png',
       backgroundColor: CREMA_LOGO,
