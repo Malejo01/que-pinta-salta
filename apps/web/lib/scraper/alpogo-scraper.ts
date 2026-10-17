@@ -2,6 +2,7 @@ import slugify from 'slugify';
 import { saveEventsToSupabase, type SaveResult } from './save-to-supabase';
 import { inferCategorySlug } from './categorize';
 import type { Event } from '../types';
+import { slugConFechaHora } from '@qps/core/scraper/slug-fecha-hora';
 
 function isTextFree(title: string, description: string): boolean {
   const text = `${title} ${description}`.toLowerCase()
@@ -114,7 +115,7 @@ export async function scrapeAlpogoSalta(): Promise<SaveResult> {
       console.log(`[alpogo]   -> ${item.nombre}`);
 
       // Slug
-      const slug = slugify(item.nombre, { lower: true, strict: true });
+      const slug = slugConFechaHora(slugify(item.nombre, { lower: true, strict: true }), item.fecha_funcion);
 
       // Descriptions
       const { description, short_description } = cleanDescription(item.descripcion || item.descripcion_corta);
