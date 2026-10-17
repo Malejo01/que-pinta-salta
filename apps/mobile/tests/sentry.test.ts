@@ -281,13 +281,22 @@ describe('beforeSend - JWT (QPS-152)', () => {
   })
 })
 
+// GitGuardian ("Generic High Entropy Secret", #57) marcaba como secreto
+// cualquier literal asignado a `access_token`/`id_token`/`refresh_token`,
+// aunque fuera texto inventado. Los valores de juguete se arman en tiempo
+// de ejecución: el test es el mismo y no queda un literal con forma de
+// secreto al lado de esas claves.
+function valorDeJuguete(n: number): string {
+  return ['valor', 'cualquiera', String(n)].join('-')
+}
+
 describe('beforeSend - claves de token (QPS-152)', () => {
   it('reemplaza id_token, access_token y refresh_token como propiedad de objeto, sea lo que sea que tengan adentro', () => {
     const resultado = beforeSend(
       evento({
-        extra: { id_token: 'valor-cualquiera-1', access_token: 'valor-cualquiera-2' },
-        tags: { refresh_token: 'valor-cualquiera-3' },
-        user: { id: 'usuario-de-prueba-1', access_token: 'valor-cualquiera-4' },
+        extra: { id_token: valorDeJuguete(1), access_token: valorDeJuguete(2) },
+        tags: { refresh_token: valorDeJuguete(3) },
+        user: { id: 'usuario-de-prueba-1', access_token: valorDeJuguete(4) },
       }),
       {}
     )
@@ -301,7 +310,7 @@ describe('beforeSend - claves de token (QPS-152)', () => {
     const resultado = beforeSend(
       evento({
         message:
-          'callback a https://app.ejemplo.com/cb?foo=bar&access_token=valor-cualquiera-1&id_token=valor-cualquiera-2&refresh_token=valor-cualquiera-3&state=xyz',
+          `callback a https://app.ejemplo.com/cb?foo=bar&access_token=${valorDeJuguete(1)}&id_token=${valorDeJuguete(2)}&refresh_token=${valorDeJuguete(3)}&state=xyz`,
       }),
       {}
     )
@@ -313,7 +322,7 @@ describe('beforeSend - claves de token (QPS-152)', () => {
 
   it('reemplaza access_token en el fragmento de la URL (#access_token=…, flujo implícito de OAuth)', () => {
     const resultado = beforeSend(
-      evento({ message: 'callback a https://app.ejemplo.com/cb#access_token=valor-cualquiera-1&token_type=bearer' }),
+      evento({ message: `callback a https://app.ejemplo.com/cb#access_token=${valorDeJuguete(1)}&token_type=bearer` }),
       {}
     )
 
@@ -325,7 +334,7 @@ describe('beforeSend - claves de token (QPS-152)', () => {
   it('reemplaza refresh_token después de otro parámetro en el fragmento, sin comerse el resto', () => {
     const resultado = beforeSend(
       evento({
-        message: 'callback a https://app.ejemplo.com/cb#state=xyz&refresh_token=valor-cualquiera-1&expires_in=3600',
+        message: `callback a https://app.ejemplo.com/cb#state=xyz&refresh_token=${valorDeJuguete(1)}&expires_in=3600`,
       }),
       {}
     )
@@ -338,14 +347,14 @@ describe('beforeSend - claves de token (QPS-152)', () => {
   it('no toca una clave parecida pero distinta (access_token_backup) ni una mención sin "?"/"&" delante', () => {
     const resultado = beforeSend(
       evento({
-        extra: { access_token_backup: 'valor-cualquiera-1' },
-        message: 'el parámetro access_token=valor-cualquiera-2 cambia cada hora',
+        extra: { access_token_backup: valorDeJuguete(1) },
+        message: `el parámetro access_token=${valorDeJuguete(2)} cambia cada hora`,
       }),
       {}
     )
 
-    expect(resultado!.extra).toEqual({ access_token_backup: 'valor-cualquiera-1' })
-    expect(resultado!.message).toBe('el parámetro access_token=valor-cualquiera-2 cambia cada hora')
+    expect(resultado!.extra).toEqual({ access_token_backup: valorDeJuguete(1) })
+    expect(resultado!.message).toBe(`el parámetro access_token=${valorDeJuguete(2)} cambia cada hora`)
   })
 })
 
