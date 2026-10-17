@@ -72,7 +72,7 @@ export default function MisEventosClient({ initialEvents }: { initialEvents: unk
     return (
       <div className="flex flex-col items-center justify-center py-20 text-center border rounded-lg border-dashed bg-muted/30">
         <CalendarDays className="size-12 text-muted-foreground mb-4" />
-        <h3 className="text-xl font-semibold mb-2">No tienes eventos creados</h3>
+        <h3 className="text-xl font-semibold mb-2">No tenés eventos creados</h3>
         <p className="text-muted-foreground mb-6 max-w-sm">
           Aún no has creado ningún evento. ¡Empieza a compartir lo que pasa en Salta!
         </p>

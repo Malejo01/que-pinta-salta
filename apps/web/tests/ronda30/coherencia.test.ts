@@ -17,13 +17,12 @@
  *    (30-a, 30-b, 30-c, 30-e, 30-f).
  * 2. Ninguna forma de tuteo de la lista de 30-e en `apps/web/app` o
  *    `apps/web/components` (directorios completos, no solo lo que tocó la
- *    ronda), salvo los archivos de la R29 (`app/auth/login/page.tsx`,
- *    `app/favoritos/**`, `components/favorite-button.tsx`),
- *    `components/event-form.tsx` (el formulario de admin, que sigue
- *    tuteando a propósito, fuera del alcance de 30-e) y, por el mismo
- *    motivo, `app/mis-eventos/mis-eventos-client.tsx` y
- *    `components/draft-events-manager.tsx` (deuda de voseo real pero fuera
- *    del alcance de 30-e, QPS-157).
+ *    ronda), salvo `app/auth/login/page.tsx` y `components/favorite-button.tsx`
+ *    (archivos de la R29) y `components/event-form.tsx` (el formulario de
+ *    admin, que sigue tuteando a propósito, fuera del alcance de 30-e). La
+ *    R35 (35-b) cerró la deuda de `app/favoritos/**` y de QPS-157
+ *    (`app/mis-eventos/mis-eventos-client.tsx` y
+ *    `components/draft-events-manager.tsx`): ya no son excepciones.
  * 3. Ningún `type="password"` suelto fuera de `PasswordInput`
  *    (`components/ui/password-input.tsx`): desde la R35 `app/auth/login/page.tsx`
  *    también usa `PasswordInput`, así que la excepción de la R29 ya no
@@ -163,16 +162,15 @@ const FORMAS_TUTEO_FRASES = [
 // alcance) y components/event-form.tsx (el formulario de admin: el lead
 // pidió explícitamente declararlo como excepción comentada en vez de
 // aflojar el detector, porque sigue tuteando a propósito y no es parte de
-// QPS-021).
+// QPS-021). La R35 (35-b) cerró app/favoritos/** y la deuda de QPS-157
+// (app/mis-eventos/mis-eventos-client.tsx y components/draft-events-manager.tsx):
+// ya no hacen falta esas excepciones.
 const TUTEO_ARCHIVO_EXACTO_EXCEPTUADO = new Set([
   'app/auth/login/page.tsx',
   'components/favorite-button.tsx',
   'components/event-form.tsx',
-  // Deuda de voseo fuera del alcance de 30-e (QPS-157): pantallas propias y panel de borradores.
-  'app/mis-eventos/mis-eventos-client.tsx',
-  'components/draft-events-manager.tsx',
 ])
-const TUTEO_PREFIJO_EXCEPTUADO = ['app/favoritos/']
+const TUTEO_PREFIJO_EXCEPTUADO: string[] = []
 
 function tuteoEstaExceptuado(relPath: string): boolean {
   if (TUTEO_ARCHIVO_EXACTO_EXCEPTUADO.has(relPath)) return true
@@ -187,7 +185,7 @@ function sinComentarios(fuente: string): string {
   return fuente.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '')
 }
 
-describe('Ronda 30: ninguna forma de tuteo de la lista de 30-e en apps/web/app o apps/web/components (fuera de las excepciones de la R29 y event-form.tsx)', () => {
+describe('Ronda 30/35: ninguna forma de tuteo de la lista de 30-e en apps/web/app o apps/web/components (fuera de las excepciones de la R29 y event-form.tsx)', () => {
   const archivos = [...listarArchivosRecursivo('app'), ...listarArchivosRecursivo('components')].filter(
     (relPath) => !tuteoEstaExceptuado(relPath)
   )

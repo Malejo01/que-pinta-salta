@@ -123,10 +123,10 @@ export function FavoritosList({ flexibles, porDia }: FavoritosListProps) {
             <Heart className="size-8 text-muted-foreground" />
           </div>
           <h2 className="mb-2 text-xl font-semibold text-foreground">
-            No tienes favoritos aún
+            Todavía no tenés favoritos
           </h2>
           <p className="mb-6 max-w-sm text-sm text-muted-foreground px-4">
-            Explora la cartelera de eventos, peñas, boliches o cines y toca el corazón para guardarlos en tu agenda personal.
+            Explorá la cartelera de eventos, peñas, boliches o cines y tocá el corazón para guardarlos en tu agenda personal.
           </p>
           <Button asChild className="bg-primary text-primary-foreground hover:bg-primary/90 font-semibold">
             <Link href="/">Explorar eventos</Link>
@@ -149,7 +149,7 @@ export function FavoritosList({ flexibles, porDia }: FavoritosListProps) {
           </Button>
           <h1 className="text-3xl font-bold text-foreground tracking-tight">Mi Agenda de Eventos</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Tienes {totalFavoritos} {totalFavoritos === 1 ? 'elemento guardado' : 'elementos guardados'} organizados para tu salida.
+            Tenés {totalFavoritos} {totalFavoritos === 1 ? 'guardado' : 'guardados'}
           </p>
         </div>
 
