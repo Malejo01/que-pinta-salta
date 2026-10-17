@@ -4,6 +4,7 @@ import {
   normalizeVamosEvento,
 } from './vamos-parsers';
 import { saveEventsToSupabase, type SaveResult } from './save-to-supabase';
+import { slugConFechaHora } from '@qps/core/scraper/slug-fecha-hora';
 import type { Event } from '../types';
 
 /**
@@ -38,7 +39,13 @@ export async function scrapeVamosGobAr(): Promise<SaveResult> {
 
       console.log(`[vamos]   -> ${normalized.title}`);
 
-      const slug = slugify(normalized.title, { lower: true, strict: true });
+      // Slug: vamos manda un ítem por espectáculo (start_date es la primera
+      // función, end_date la última), así que el slug lleva la fecha/hora de
+      // la primera función para que un espectáculo que vuelve meses después
+      // con el mismo nombre no se fusione en la fila vieja. Riesgo conocido:
+      // si la API deja de listar funciones pasadas, la "primera función"
+      // cambia, y con ella el slug en la próxima corrida.
+      const slug = slugConFechaHora(slugify(normalized.title, { lower: true, strict: true }), normalized.start_date);
 
       eventsToSave.push({
         title:             normalized.title,
