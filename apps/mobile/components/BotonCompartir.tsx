@@ -5,8 +5,12 @@
 // `tests/compartir-ficha.test.ts`. Se usa en la ficha (junto al corazón,
 // 40, fondo `muted`) y en la tarjeta (32, fondo oscuro `bg-black/60`, la
 // web no lo tiene en la ficha pero sí en la card).
+//
+// R42, 42-b: el armado del texto se movió a `mensajeCompartirEvento`
+// (`lib/compartir.ts`), **sin cambiarlo** — es la tercera forma válida del
+// mismo detector.
 import { Pressable, Share, StyleSheet } from 'react-native'
-import { urlEvento } from '@qps/core/metricas/links'
+import { mensajeCompartirEvento } from '@/lib/compartir'
 import { Icono } from '@/components/Icono'
 import { useColoresQPS } from '@/lib/colores'
 
@@ -26,9 +30,8 @@ export function BotonCompartir({ eventId, titulo, fecha, hora, lugar, tamanio = 
   const colores = useColoresQPS()
 
   async function compartir() {
-    const url = urlEvento(eventId, 'app')
-    if (!url) return
-    const mensaje = `${titulo}\n${fecha}${hora ? ` · ${hora} hs` : ''} · ${lugar}\n${url}`
+    const mensaje = mensajeCompartirEvento({ eventId, titulo, fecha, hora, lugar })
+    if (!mensaje) return
     try {
       await Share.share({ message: mensaje })
     } catch {
