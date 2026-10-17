@@ -8,6 +8,7 @@ import { createClient, createAdminClient } from "@/lib/supabase/server"
 import { formatSaltaSchemaDate } from "@/lib/date-format"
 import { parseOrigin } from "@/lib/metricas/links"
 import { esEventoFavorito } from "@/lib/favoritos/es-favorito"
+import { obtenerAsistencia } from "@/lib/asistencia"
 import type { Metadata } from "next"
 
 interface EventPageProps {
@@ -61,15 +62,22 @@ export default async function EventPage({ params, searchParams }: EventPageProps
   const origin = parseOrigin(Array.isArray(sp.o) ? sp.o[0] : sp.o)
   const supabase = await createClient()
 
-  const [event, categories, userResult] = await Promise.all([
+  const [event, categories, userResult, resultadoAsistencia] = await Promise.all([
     getEventById(id),
     getCategories(),
     supabase.auth.getUser(),
+    obtenerAsistencia(id),
   ])
 
   let isAdmin = false
   let isFavorite = false
   const user = userResult.data.user
+
+  // Si la lectura de asistencia falla, la ficha sigue funcionando: no se
+  // muestran los botones (el `console.error` ya quedó dentro de
+  // `obtenerAsistencia`).
+  const cantidadesAsistencia = resultadoAsistencia.ok ? resultadoAsistencia.cantidades : undefined
+  const marcaAsistencia = resultadoAsistencia.ok ? resultadoAsistencia.propia : null
 
   if (user) {
     const [profileRes, favoriteResult] = await Promise.all([
@@ -205,12 +213,15 @@ export default async function EventPage({ params, searchParams }: EventPageProps
           }}
         />
       )}
-      <EventDetailPage 
-        event={event} 
-        isAdmin={isAdmin} 
-        categories={categories} 
+      <EventDetailPage
+        event={event}
+        isAdmin={isAdmin}
+        categories={categories}
         isFavorite={isFavorite}
         origin={origin}
+        cantidadesAsistencia={cantidadesAsistencia}
+        marcaAsistencia={marcaAsistencia}
+        haySesion={!!user}
       />
     </>
   )

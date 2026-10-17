@@ -31,6 +31,9 @@ import { useToast } from "@/hooks/use-toast"
 import { ViewBeacon } from "@/components/view-beacon"
 import { goHref, urlComoLlegar, type MetricOrigin } from "@/lib/metricas/links"
 import { FlyerImage } from "@/components/flyer-image"
+import { BotonesAsistencia } from "@/components/botones-asistencia"
+import type { CantidadesAsistencia } from "@/lib/asistencia"
+import type { TipoAsistencia } from "@qps/core/asistencia"
 
 type EventWithRelations = Event & { 
   category: Category | null; 
@@ -44,9 +47,25 @@ interface EventDetailPageProps {
   isFavorite?: boolean
   /** Origen de la visita (`?o=`), ya validado en el servidor. */
   origin?: MetricOrigin
+  /**
+   * "Voy" / "Me interesa" (R38, tarea 38-b): opcionales para no romper otros
+   * call sites. Si falta alguno, los botones no se muestran.
+   */
+  cantidadesAsistencia?: CantidadesAsistencia
+  marcaAsistencia?: TipoAsistencia | null
+  haySesion?: boolean
 }
 
-export function EventDetailPage({ event, isAdmin = false, categories = [], isFavorite = false, origin = "directo" }: EventDetailPageProps) {
+export function EventDetailPage({
+  event,
+  isAdmin = false,
+  categories = [],
+  isFavorite = false,
+  origin = "directo",
+  cantidadesAsistencia,
+  marcaAsistencia = null,
+  haySesion = false,
+}: EventDetailPageProps) {
   const router = useRouter()
   const [localCategories, setLocalCategories] = useState<Category[]>(categories)
   const [isEditingCategory, setIsEditingCategory] = useState(false)
@@ -381,6 +400,16 @@ export function EventDetailPage({ event, isAdmin = false, categories = [], isFav
                 </Button>
               )}
             </div>
+
+            {cantidadesAsistencia && (
+              <BotonesAsistencia
+                eventId={event.id}
+                cantidadesIniciales={cantidadesAsistencia}
+                marcaInicial={marcaAsistencia}
+                haySesion={haySesion}
+                className="mt-6"
+              />
+            )}
           </div>
         </div>
 
