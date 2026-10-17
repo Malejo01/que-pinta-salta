@@ -21,6 +21,11 @@ interface EntradaUnoFuncionMenor {
   oFuncionFecha: EntradaUnoFuncion
 }
 
+// Nota cruzada: hay otro tipo con este mismo nombre, `EntradaUnoRawEvent`, en
+// lib/scraper/entradauno-scraper.ts. No son el mismo tipo: ya divergen. Ese
+// (el scraper manual del admin) es el único que lee `cDescripcion_l172`; este
+// no lo tiene. No se unifican: unificarlos cambiaría lo que lee el cron. Si
+// agregás un campo acá, fijate si el scraper del admin también lo necesita.
 interface EntradaUnoRawEvent {
   cNombre: string
   cDescripcion?: string

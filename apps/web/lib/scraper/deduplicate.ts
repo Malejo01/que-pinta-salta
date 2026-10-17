@@ -1,7 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Event, TicketSource } from '../types';
 import { formatSaltaDayKey } from '../date-format';
-import { buildDedupKey, dedupKeyOf, saltaDayRangeUtc, normalizeTitleForKey, venuesCompatible, sameTicketEvent } from './dedup-key';
+import { buildDedupKey, dedupKeyOf, saltaDayRangeUtc, normalizeTitleForKey, venuesCompatible, sameTicketEvent, hasRealTime } from './dedup-key';
 import { mergeEvents, appendAudit, mergeTicketSources } from './merge-events';
 import { describeSource } from './source-priority';
 import { resolveMergeTarget, mergedIntoId } from '../events/merged';
@@ -129,6 +129,35 @@ export type DuplicateMatch = {
 };
 
 /**
+ * Reloj (hora:minuto) de un start_date, para comparar horas de inicio en el
+ * paso 1 de findDuplicateMatch. No se puede reusar saltaClock() de
+ * dedup-key.ts (la que usa sameTicketEvent() en el paso 0) porque no está
+ * exportada: es un helper privado de ese módulo. Se compara acá por otro
+ * camino que da el mismo resultado: el offset de Salta es la constante fija
+ * -03:00 (sin horario de verano desde 2009), así que comparar hora:minuto en
+ * UTC es equivalente a compararla en hora de Salta — restar la misma
+ * constante a los dos lados no cambia si son iguales o no.
+ */
+function sameClock(a: string | Date, b: string | Date): boolean {
+  const dateA = new Date(a);
+  const dateB = new Date(b);
+  return dateA.getUTCHours() === dateB.getUTCHours() && dateA.getUTCMinutes() === dateB.getUTCMinutes();
+}
+
+/**
+ * Criterio de "misma hora" del paso 1 (clave exacta): la misma hora de Salta (sameClock), o que
+ * a alguna de las dos le falte hora real (hasRealTime, 00:00 es el placeholder de "sin hora").
+ * Sólo lo usa el paso 1: el paso 2 (respaldo difuso) y la colisión de slug único de
+ * upsertEventWithDeduplication fusionan por similitud de título y no miran la hora — ver sus
+ * docstrings para el límite conocido que eso deja (QPS-164, hallazgo 1).
+ */
+function sameStartTimeForKey(a?: string | Date | null, b?: string | Date | null): boolean {
+  if (!a || !b) return false;
+  if (!hasRealTime(a) || !hasRealTime(b)) return true;
+  return sameClock(a, b);
+}
+
+/**
  * Busca el evento equivalente que ya está en la base.
  *
  * Tres pasadas, en este orden:
@@ -136,15 +165,24 @@ export type DuplicateMatch = {
  *   0. Mismo link de compra + mismo día + misma hora (ver sameTicketEvent).
  *      Gana aunque los venues difieran.
  *
- *   1. Clave de dedup exacta (título normalizado + día en hora de Salta).
- *      Es la regla principal y no necesita venue_id: justamente los duplicados
- *      que importan son los que escriben el lugar distinto o no lo traen.
+ *   1. Clave de dedup exacta (título normalizado + día en hora de Salta) +
+ *      misma hora de inicio (ver sameStartTimeForKey más arriba, salvo que a
+ *      alguna de las dos filas le falte hora real). Es la regla principal y
+ *      no necesita venue_id: justamente los duplicados que importan son los
+ *      que escriben el lugar distinto o no lo traen.
  *
  *   2. Respaldo difuso: mismo venue_id + similitud de título >= 0.65, sobre los
  *      mismos candidatos del día. Cubre lo que la clave exacta no puede —
  *      "Airbag" vs "Airbag: Gira El Rey del Mundo" — y es el comportamiento que
  *      esta función ya tenía, así que no se pierde ningún match que antes
- *      encontraba.
+ *      encontraba. NO mira la hora: dos funciones reales del mismo show, el
+ *      mismo día, en el mismo venue y con título idéntico (similitud 1.0)
+ *      siguen fusionándose (QPS-164, hallazgo 1 — límite conocido, pendiente
+ *      de decisión de Mauro en ops/loop/preguntas/01-r34-difuso-hora.md).
+ *
+ * La misma hora sólo la exige el paso 1. La colisión de slug único de
+ * upsertEventWithDeduplication (más abajo) es un cuarto camino, fuera de esta
+ * función, que tampoco mira la hora — ver su comentario para el mismo límite.
  *
  * Los candidatos se traen por rango del día calendario de Salta, no de UTC: un
  * evento de las 22:00 es 01:00 UTC del día siguiente, y agrupar por día UTC
@@ -201,25 +239,50 @@ export async function findDuplicateMatch(
   }
 
   // 1. Clave exacta. Se recalcula sobre el candidato en vez de leer la columna
-  //    para que un cambio en la normalización aplique sin backfill previo. Solo
-  //    si el lugar es compatible: misma clave en dos venues distintos son dos
-  //    eventos (dos boliches con "Fiesta de fin de semana" el mismo sábado).
+  //    para que un cambio en la normalización aplique sin backfill previo.
+  //    Lugar compatible además de la clave: misma clave en dos venues
+  //    distintos son dos eventos (dos boliches con "Fiesta de fin de semana"
+  //    el mismo sábado).
   if (incomingKey) {
-    // Primero el candidato a la misma hora: con dos funciones el mismo día
-    // (16 y 21), la de las 21 tiene que encontrarse a sí misma, no a la otra.
-    const incomingTime = new Date(event.start_date).getTime();
-    const ordered = [...candidates].sort(
-      (a, b) =>
-        Number(new Date(b.start_date).getTime() === incomingTime) -
-        Number(new Date(a.start_date).getTime() === incomingTime)
+    const keyCandidates = candidates.filter(
+      (candidate: { title?: string | null; start_date?: string | null; venue_id?: string | null }) =>
+        dedupKeyOf(candidate) === incomingKey && venuesCompatible(event.venue_id, candidate.venue_id)
     );
-    for (const candidate of ordered) {
-      if (dedupKeyOf(candidate) === incomingKey && venuesCompatible(event.venue_id, candidate.venue_id)) {
-        console.log(
-          `[deduplicate] MATCH por clave: "${event.title}" == "${candidate.title}" (${incomingKey})`
-        );
-        return { event: candidate as Event, matchedBy: 'dedup_key', score: 1 };
-      }
+
+    // Dos pasadas, no un solo filtro con el bypass de "sin hora real": la
+    // consulta de candidatos (arriba) es `.gte/.lte` SIN `.order()`, así que
+    // PostgREST no garantiza el orden del array `candidates`. Con un solo
+    // filtro, si hubiera dos candidatos con la misma clave y venue compatible
+    // —uno sin hora real y otro con la hora exacta del entrante— el resultado
+    // dependería de cuál vino primero en el array, no de cuál corresponde: un
+    // mis-merge (QPS-164, hallazgo del revisor en la vuelta 1 de 34-a).
+    //
+    // Primera pasada: sólo candidatos con hora real igual a la del entrante.
+    // Esto gana siempre que exista, sin depender del orden.
+    const exactTimeMatch = keyCandidates.find(
+      (candidate: { start_date?: string | null }) =>
+        hasRealTime(event.start_date) &&
+        hasRealTime(candidate.start_date) &&
+        sameStartTimeForKey(event.start_date, candidate.start_date)
+    );
+
+    // Segunda pasada, sólo si ninguno calificó arriba: el bypass de "a alguna
+    // de las dos le falta hora real" (00:00 de Salta, el placeholder de "sin
+    // hora") se mantiene igual que antes de esta tarea — sin esto, dos
+    // funciones reales del mismo show el mismo día (16:00 y 21:00) quedaban
+    // en una sola fila.
+    const match =
+      exactTimeMatch ??
+      keyCandidates.find(
+        (candidate: { start_date?: string | null }) =>
+          !hasRealTime(event.start_date) || !hasRealTime(candidate.start_date)
+      );
+
+    if (match) {
+      console.log(
+        `[deduplicate] MATCH por clave: "${event.title}" == "${match.title}" (${incomingKey})`
+      );
+      return { event: match as Event, matchedBy: 'dedup_key', score: 1 };
     }
   }
 
@@ -307,6 +370,44 @@ export async function upsertEventWithDeduplication(
       const sameKey = dedupKey && dedupKeyOf(eventBySlug) === dedupKey;
       const score = calculateSimilarity(eventData.title || '', eventBySlug.title);
 
+      // LÍMITE CONOCIDO, verificado (QPS-164 hallazgo 1, tarea 34-a, vuelta 1): esta condición
+      // fusiona por `sameKey` (clave, sin mirar la hora) O por `score >= SIMILARITY_THRESHOLD`
+      // (similitud de título, tampoco mira la hora). El paso 1 de findDuplicateMatch, más abajo,
+      // sí exige la misma hora para la clave exacta — pero eso no alcanza para este camino.
+      //
+      // Acá adentro ya sabemos algo más fuerte que "misma clave": el slug es IDÉNTICO. Y slugify
+      // no recorta sufijos de ciudad ni stop words, así que dos títulos con el mismo slug son
+      // casi el mismo texto literal y calculateSimilarity() da por encima de 0,65 igual (1.0 si
+      // son idénticos, 0.9 por el atajo de substring). Dentro de esta rama, entonces, siempre
+      // que `sameKey` daría verdadero `score` también lo da: gatear sólo `sameKey` por hora (se
+      // probó en la vuelta 1 y se revirtió acá) no cambia el resultado final, porque el `||` de
+      // abajo sigue entrando por `score`.
+      //
+      // OJO con reusar este razonamiento fuera de esta rama: NO es cierto en general que clave
+      // igual implique score >= 0,65. normalizeTitleForKey() (dedup-key.ts) recorta el sufijo de
+      // ciudad y normalizeTitle() (más arriba, la del score) saca stop words, así que
+      // "Rock en Salta" y "Rock" comparten clave y dan score 0,5 — el atajo de substring exige
+      // más de 5 caracteres y "rock" tiene 4. Ese par no puede llegar hasta acá porque sus slugs
+      // difieren, pero sí entra al paso 2 (respaldo difuso), que compara por venue sin exigir
+      // slug igual.
+      //
+      // Esto importa en concreto para alpogo-scraper.ts, entradauno-scraper.ts y
+      // vamos-scraper.ts: slugifican sólo el título (sin fecha ni hora) y procesan un ítem por
+      // función, así que dos funciones reales del mismo show el mismo día llegan con el MISMO
+      // slug y siguen fusionándose en una sola fila por este camino (ver
+      // tests/scraper/dedup-hora.test.ts, describe 'upsertEventWithDeduplication: colisión de
+      // slug único'). norteticket (parsers.ts) es la única fuente inmune porque mete el
+      // start_date en el slug.
+      //
+      // Gatear también `score >= SIMILARITY_THRESHOLD` por hora (con el mismo criterio que usa
+      // el paso 1, ver sameStartTimeForKey más arriba) cerraría esto — pero es la misma decisión
+      // de producto que el paso 2 (respaldo difuso, ver su docstring): si el criterio de "misma
+      // hora" se extiende a los caminos por similitud, y con qué tolerancia de minutos (dos
+      // fuentes suelen escribir la hora de un mismo evento real con unos minutos de diferencia).
+      // No se decide de noche: pendiente de Mauro, anotada en
+      // ops/loop/preguntas/01-r34-difuso-hora.md. El día que se decida, el cambio acá es sumar
+      // `&& sameStartTimeForKey(eventData.start_date, eventBySlug.start_date)` (con la tolerancia
+      // que se elija) a la condición de abajo.
       if (sameKey || score >= SIMILARITY_THRESHOLD) {
         existingEvent = eventBySlug;
         console.log(`[deduplicate] MATCH POR SLUG: "${eventData.title}" coincide con "${eventBySlug.title}" (ID: ${eventBySlug.id})`);

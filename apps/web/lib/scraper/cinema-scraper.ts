@@ -3,6 +3,7 @@ import { MovieShowings } from '@/lib/types';
 import * as cheerio from 'cheerio';
 import { INSTAGRAM_ENGINE_CONFIG } from '@/lib/instagram-config';
 import { copyExternalImage, isOwnStorageUrl } from '@/lib/images/external';
+import { isThumbnail } from '@/lib/scraper/merge-events';
 
 /**
  * Generates a clean URL-friendly slug from a raw movie title
@@ -503,7 +504,14 @@ export async function runCinemaScrapeAndSync() {
       // completo desde el sitio del cine. Si ya es una URL de nuestro Storage
       // (de una corrida anterior), no se vuelve a copiar. Si la copia falla,
       // se guarda la URL original (como hoy).
-      if (finalPosterUrl && !isOwnStorageUrl(finalPosterUrl)) {
+      //
+      // Una miniatura NO se copia (QPS-160, mismo criterio que
+      // run-scrape-job.ts, 31-a): una vez copiada, la URL pasa a ser
+      // `externas/<sha1 hex>.<ext>`, y un digest hexadecimal nunca puede
+      // contener el texto que `isThumbnail` busca ("150x150", "thumb") —
+      // quedaría atascada para siempre. Por eso la guarda se evalúa ANTES de
+      // copiar, sobre la URL cruda.
+      if (finalPosterUrl && !isOwnStorageUrl(finalPosterUrl) && !isThumbnail(finalPosterUrl)) {
         const storageUrl = await copyExternalImage(finalPosterUrl, storageClient);
         if (storageUrl) {
           finalPosterUrl = storageUrl;

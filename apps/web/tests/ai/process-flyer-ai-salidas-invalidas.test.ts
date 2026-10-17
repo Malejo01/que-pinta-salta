@@ -115,20 +115,26 @@ describe('processFlyerWithAI: campos faltantes en la salida del modelo', () => {
 })
 
 describe('processFlyerWithAI: tipos equivocados en la salida del modelo', () => {
-  it('title como número: revienta el control hasTitle y cae al fallback de error (DRAFT con título de revisión)', async () => {
-    // Hallazgo: cleanStringField(12345) no tira, pero extractedData.title.trim() en el cálculo
-    // de hasTitle sí (12345 es number, no tiene .trim()). La excepción la agarra el catch general
-    // de processFlyerWithAI y cae al mismo camino que un fallo de Gemini: evento de revisión manual.
+  it('title como número: QPS-164 hallazgo 4 arreglado, ahora se rechaza por validación, no por excepción atrapada', async () => {
+    // Actualizado en la tarea 34-b (QPS-164, hallazgo 4): antes extractedData.title.trim() en
+    // el cálculo de hasTitle reventaba (12345 es number, no tiene .trim()) y esa excepción la
+    // agarraba el catch general de processFlyerWithAI, cayendo al mismo camino que un fallo
+    // real de Gemini (fallback de error, ai_status FAILED). Ahora hasTitle se calcula con un
+    // chequeo de tipo explícito (typeof === 'string') antes de cualquier .trim(): el título
+    // inválido se rechaza por validación (title_error en ai_metadata, hasTitle=false, DRAFT),
+    // el flujo normal de éxito sigue su curso y el flyer queda PROCESSED, no FAILED.
     db.flyer = flyer('Caption de prueba.')
     extract.mockResolvedValue({ title: 12345, date: '2030-10-31', start_time: '20:00', venue_name: 'Venue de Prueba' })
     const res = await processFlyerWithAI('flyer-de-prueba')
 
-    expect(res.success).toBe(false)
+    expect(res.success).toBe(true)
     const ev = eventPayload()
-    expect(ev.title).toBe('Revisar: Flyer de @cuenta_de_prueba')
-    expect(ev.status).toBe('DRAFT')
-    expect((ev.ai_metadata as Record<string, unknown>).is_fallback).toBe(true)
-    expect(flyerFailedUpdate()?.ai_status).toBe('FAILED')
+    expect(ev.title).toBe('Evento flyer @cuenta_de_prueba') // fallback de título, no "Revisar: Flyer de..."
+    expect(ev.status).toBe('DRAFT') // título inválido => hasTitle false => no autopublica
+    const meta = ev.ai_metadata as Record<string, unknown>
+    expect(meta.is_fallback).toBeUndefined() // no pasó por handleProcessingFallback
+    expect(typeof meta.title_error).toBe('string') // mensaje claro de por qué hasTitle es false
+    expect(flyerFailedUpdate()).toBeUndefined() // el flyer no quedó FAILED
   })
 
   it('date como número con formato de fecha (sin guiones): no matchea el patrón YYYY-MM-DD, usa published_at sin reventar', async () => {
@@ -160,12 +166,15 @@ describe('processFlyerWithAI: tipos equivocados en la salida del modelo', () => 
     expect(ev.start_date).toBe('2030-10-31T03:00:00.000Z') // 00:00 Salta
   })
 
-  it('artists como string (no array): hoy se asigna tal cual a tags, sin envolver en array (hallazgo)', async () => {
+  it('artists como string (no array): QPS-164 hallazgo 3 arreglado, tags queda en array vacío', async () => {
+    // Actualizado en la tarea 34-b (QPS-164, hallazgo 3): antes `tags: extractedData.artists || []`
+    // no validaba que fuera array y dejaba el string crudo en `tags` (una columna que el resto
+    // del código asume array). Ahora validateArtistsTags exige Array.isArray; un string no array
+    // descarta a `tags: []`.
     db.flyer = flyer('Caption de prueba.')
     extract.mockResolvedValue({ title: 'Show de Prueba', venue_name: 'Venue de Prueba', artists: 'Banda Suelta' })
     await processFlyerWithAI('flyer-de-prueba')
-    // `tags: extractedData.artists || []` no valida que sea array: con un string lo deja crudo.
-    expect(eventPayload().tags).toBe('Banda Suelta')
+    expect(eventPayload().tags).toEqual([])
   })
 
   it('venue_name como array: String() lo aplana con comas y se usa como nombre de lugar, sin reventar', async () => {
@@ -179,10 +188,13 @@ describe('processFlyerWithAI: tipos equivocados en la salida del modelo', () => 
 })
 
 describe('processFlyerWithAI: fechas imposibles', () => {
-  it('31 de febrero (shape válido, calendario inválido): la fecha se desplaza silenciosamente al 2 de marzo, no se rechaza', async () => {
-    // Hallazgo: el control de fecha es solo de forma (/^\d{4}-\d{2}-\d{2}$/), no de calendario.
-    // saltaWallClockToUtcISO delega en el constructor de Date, que normaliza el desborde de
-    // días en vez de devolver un valor inválido. El filtro determinista no atrapa esto hoy.
+  it('31 de febrero (shape válido, calendario inválido): QPS-164 hallazgo 2 arreglado, ya no se desplaza y queda a revisión', async () => {
+    // Actualizado en la tarea 34-b (QPS-164, hallazgo 2): antes el control de fecha era solo de
+    // forma (/^\d{4}-\d{2}-\d{2}$/) y saltaWallClockToUtcISO delegaba en el constructor de Date,
+    // que normalizaba el desborde de días (30/02 -> 2/3) en vez de rechazarlo. Ahora
+    // isValidCalendarDate detecta que el 30/02 no existe: isValidDate y hasDate quedan en false,
+    // start_date cae al fallback (published_at, siempre un instante ISO válido) y el evento
+    // nunca se autopublica con esta fecha.
     db.flyer = flyer('Fiesta de Prueba.')
     extract.mockResolvedValue({
       title: 'Fiesta de Prueba',
@@ -194,17 +206,18 @@ describe('processFlyerWithAI: fechas imposibles', () => {
     const res = await processFlyerWithAI('flyer-de-prueba')
     expect(res.success).toBe(true)
     const ev = eventPayload()
-    expect((ev.ai_metadata as Record<string, unknown>).date_source).toBe('flyer')
-    // 2031-02-30 20:00 Salta -> normalizado a 2031-03-02 20:00 Salta -> 23:00Z.
-    expect(ev.start_date).toBe('2031-03-02T23:00:00.000Z')
+    expect((ev.ai_metadata as Record<string, unknown>).date_source).toBe('published_at') // ya no 'flyer'
+    expect(ev.start_date).toBe('2030-10-01T00:00:00.000Z') // fallback a published_at, no al 2/3 desplazado
+    expect(ev.status).toBe('DRAFT') // nunca se autopublica con una fecha de calendario inválida
   })
 
-  it('mes 13 (shape válido, mes inválido): Date no puede parsear y queda un start_date roto, sin rechazarse (hallazgo)', async () => {
-    // Hallazgo más serio que el anterior: acá new Date(...) devuelve Invalid Date, y
-    // saltaWallClockToUtcISO cae a su rama de "no se pudo parsear": devuelve el string de
-    // entrada SIN convertir a UTC ni agregar el sufijo "Z". El evento queda con un
-    // start_date que no es un instante ISO válido, y como hasDate sólo mira la forma
-        // (\d{4}-\d{2}-\d{2}$), el evento puede autopublicarse igual si el resto está completo.
+  it('mes 13 (shape válido, mes inválido): QPS-164 hallazgo 2 arreglado, ya no queda un start_date roto', async () => {
+    // Actualizado en la tarea 34-b (QPS-164, hallazgo 2): antes new Date(...) devolvía Invalid
+    // Date y saltaWallClockToUtcISO caía a su rama de "no se pudo parsear", devolviendo el
+    // string de entrada SIN convertir a UTC ni agregar "Z" (start_date quedaba sin ser un
+    // instante ISO válido) y además el evento se autopublicaba igual porque hasDate sólo miraba
+    // la forma. Ahora isValidCalendarDate rechaza el mes 13: isValidDate y hasDate quedan en
+    // false, start_date es siempre el fallback (instante ISO válido) y el evento no se autopublica.
     db.flyer = flyer('Fiesta de Prueba.')
     extract.mockResolvedValue({
       title: 'Fiesta de Prueba',
@@ -216,8 +229,8 @@ describe('processFlyerWithAI: fechas imposibles', () => {
     const res = await processFlyerWithAI('flyer-de-prueba')
     expect(res.success).toBe(true)
     const ev = eventPayload()
-    expect(ev.start_date).toBe('2031-13-01T20:00:00') // ni UTC ni "Z": quedó el wall-clock crudo
-    expect(ev.status).toBe('PUBLISHED') // hasDate no valida el mes: el evento se autopublica igual
+    expect(ev.start_date).toBe('2030-10-01T00:00:00.000Z') // fallback a published_at, instante ISO válido
+    expect(ev.status).toBe('DRAFT') // hasDate ahora valida el mes: no se autopublica
   })
 
   it('fecha de ayer (shape válido, vencida): el flyer se marca SKIPPED y no se crea ni actualiza ningún evento', async () => {
