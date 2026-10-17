@@ -3,9 +3,10 @@
 // A propósito NO se mockea '@/lib/auth/usuario-de-request': corre de verdad,
 // contra el createClient mockeado, así se ejercita también la decisión
 // Bearer-vs-cookie desde el endpoint.
-import { beforeEach, describe, expect, it, vi } from "vitest"
-import { existsSync, readFileSync, readdirSync, statSync } from "node:fs"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs"
 import { dirname, join, resolve } from "node:path"
+import { tmpdir } from "node:os"
 
 const createClient = vi.fn()
 const createAdminClient = vi.fn()
@@ -92,7 +93,7 @@ beforeEach(() => {
   eliminarCuenta.mockResolvedValue({ ok: true })
 })
 
-describe("content-type: defensa contra CSRF, se evalúa antes que nada", () => {
+describe("content-type: capa adicional (no la defensa principal contra CSRF), se evalúa antes que nada", () => {
   it("content-type que no es JSON se rechaza con 415 y el cliente admin no se crea", async () => {
     const res = await POST(crearRequest({ contentType: "text/plain" }))
     expect(res.status).toBe(415)
@@ -104,6 +105,24 @@ describe("content-type: defensa contra CSRF, se evalúa antes que nada", () => {
     const res = await POST(crearRequest({ contentType: null }))
     expect(res.status).toBe(415)
     expect(createAdminClient).not.toHaveBeenCalled()
+  })
+
+  it('"text/plain;charset=application/json" se rechaza: contiene la cadena "application/json" pero su essence es text/plain (uno de los tres CORS-safelisted, no dispara preflight). Este es justo el caso que motivó pasar de includes() a comparación exacta', async () => {
+    const res = await POST(crearRequest({ contentType: "text/plain;charset=application/json" }))
+    expect(res.status).toBe(415)
+    expect(createAdminClient).not.toHaveBeenCalled()
+  })
+
+  it('"application/json; charset=utf-8" (lo que manda un cliente normal, incluida la app) sigue pasando: el recorte es solo hasta el ";"', async () => {
+    createClient.mockResolvedValue(crearClienteSesion({ usuarioCookie: USUARIO_SESION }))
+    const res = await POST(crearRequest({ contentType: "application/json; charset=utf-8" }))
+    expect(res.status).toBe(200)
+  })
+
+  it('"APPLICATION/JSON" (mayúsculas) sigue pasando: la comparación es case-insensitive', async () => {
+    createClient.mockResolvedValue(crearClienteSesion({ usuarioCookie: USUARIO_SESION }))
+    const res = await POST(crearRequest({ contentType: "APPLICATION/JSON" }))
+    expect(res.status).toBe(200)
   })
 })
 
@@ -432,6 +451,104 @@ function especificadoresImportados(contenido: string): string[] {
 }
 
 /**
+ * Saca comentarios de bloque y de línea antes de aplicar los patrones de
+ * `contienePatronProhibido`. Cierra la evasión de poner un comentario en
+ * medio de una palabra clave para que la regex no la vea contigua (ej.
+ * `await import/* no es un espacio *\/(especificador)`). NO es un parser de
+ * JS: no distingue si un `//` o un `/*` cae dentro de un string o de un
+ * template literal (ej. una URL `https://...`).
+ *
+ * El costo de esto NO es el mismo para los dos reemplazos:
+ * - El de línea (`\/\/.*$`) como mucho pierde el resto de ESA línea.
+ * - El de bloque (`\/\*[\s\S]*?\*\/`) es perezoso pero multilínea: si
+ *   aparece un `/*` que no es un comentario real (ej. un literal de regex
+ *   con una clase de caracteres como `/[/*]/`, válido en JS sin escapar la
+ *   barra), el reemplazo se come todo hasta el PRÓXIMO `*\/` real, que puede
+ *   estar muchas líneas más abajo. Si en el medio hay un `require(...)`,
+ *   `import(...)` o `process[...]` genuino, desaparece del análisis sin que
+ *   nada lo marque.
+ *
+ * Hoy ningún archivo alcanzable desde las páginas de "eliminar cuenta"
+ * dispara ese caso (se revisó el cierre transitivo completo), así que no se
+ * reescribió el saneador para acotarlo. Si algún día hace falta acotarlo de
+ * verdad, una opción barata es no sanear el bloque cuando el conteo de
+ * `/*` y `*\/` en el archivo no cierra parejo, y dejar el contenido
+ * original en ese caso (prohibido por defecto, nunca permitido por
+ * defecto).
+ */
+function sanearComentarios(contenido: string): string {
+  return contenido.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/\/\/.*$/gm, "")
+}
+
+/**
+ * Patrones prohibidos en los archivos de "eliminar cuenta": no hay ningún
+ * caso legítimo de `import()` dinámico, de `require`/`createRequire` (como
+ * palabras, no solo como llamada) ni de leer `process` por corchete —
+ * incluido "process" como string entre corchetes— en estas páginas. Es la
+ * respuesta directa a la evasión que encontró el revisor (armar el
+ * especificador del módulo y el nombre de la función en memoria, para
+ * esquivar el `from "..."` literal que sigue el recorrido de imports y el
+ * substring "createAdminClient"):
+ *
+ *   const especificador = ["@/lib/supabase", "server"].join("/")
+ *   const nombreFuncion = "create" + "AdminClient"
+ *   const modulo = await import(especificador)
+ *   const admin = modulo[nombreFuncion]()
+ *
+ * Ese código no tiene ningún `from` literal (el recorrido de imports
+ * estáticos no lo sigue) ni "createAdminClient" contiguo (el substring no
+ * matchea en ningún archivo): por eso hace falta esta regla aparte, no una
+ * vuelta de tuerca a la anterior. Se prueba más abajo con el fixture que
+ * reproduce exactamente este código.
+ *
+ * Esta función fue creciendo en vueltas de revisión sucesivas, cada vez
+ * para cerrar una evasión concreta que encontró el revisor. Lo que CUBRE
+ * hoy:
+ *
+ *   1. `import()` dinámico, aunque haya un comentario de bloque en medio de
+ *      la palabra clave (`import/* comentario *\/(`): el comentario lo saca
+ *      `sanearComentarios`, arriba, antes de evaluar.
+ *   2. La palabra `require`, sin exigir el paréntesis al lado: cubre tanto
+ *      `require("...")` como asignarla a otro identificador y llamarla
+ *      aparte (`const r = require; r(especificador)`).
+ *   3. `createRequire` (de `node:module`), la forma estándar de Node de
+ *      obtener un `require` dinámico: `\brequire\b` no la agarra porque
+ *      "Require" ahí va con mayúscula y pegada a "create", sin límite de
+ *      palabra en el medio.
+ *   4. `process.env[...]` y `process[...]` por corchete, con el nombre
+ *      `process` o `process.env` escrito tal cual (identificador, no
+ *      string).
+ *   5. `["process"]`: poner la palabra `process` como STRING entre
+ *      corchetes (ej. `globalThis["process"]["env"][...]`) evade los dos
+ *      patrones de `process` del punto 4, porque en el texto crudo
+ *      `process` queda seguido de una comilla de cierre, no de `[`.
+ *
+ * LÍMITE CONOCIDO que SIGUE abierto — no es que no quede ninguno más, es que
+ * este es el único que CONOCEMOS y no cerramos a propósito (para no acabar
+ * escribiendo un parser de JS a mano con regex): un import estático con
+ * namespace (`import * as m from "@/lib/supabase/server"`) seguido de un
+ * acceso por corchete con el nombre armado en memoria
+ * (`m["create" + "AdminClient"]`) no es un `import(`, no contiene la
+ * palabra `require` ni `createRequire`, y no es `process[...]` ni
+ * `["process"]`: esta regla no lo agarra. Hay un test que fija justamente
+ * este borde (ver más abajo, "LÍMITE CONOCIDO"): si algún día se cierra, ese
+ * test se rompe a propósito y hay que actualizarlo. Si hace falta cerrar
+ * este hueco, la línea a tocar es `especificadoresImportados` (más abajo):
+ * habría que detectar imports de namespace (`import \* as (\w+) from`) y,
+ * para cada uno, prohibir `nombreDelNamespace\s*\[` en el mismo archivo.
+ */
+function contienePatronProhibido(contenido: string): { prohibido: boolean; cual?: string } {
+  const saneado = sanearComentarios(contenido)
+  if (/\bimport\s*\(/.test(saneado)) return { prohibido: true, cual: "import() dinámico" }
+  if (/\brequire\b/.test(saneado)) return { prohibido: true, cual: "require" }
+  if (/\bcreateRequire\b/.test(saneado)) return { prohibido: true, cual: "createRequire (node:module)" }
+  if (/process\.env\s*\[/.test(saneado)) return { prohibido: true, cual: "process.env[...] por corchete" }
+  if (/process\s*\[/.test(saneado)) return { prohibido: true, cual: "process[...] por corchete" }
+  if (/\[\s*["']process["']\s*\]/.test(saneado)) return { prohibido: true, cual: '["process"] por corchete' }
+  return { prohibido: false }
+}
+
+/**
  * Cierre transitivo de todos los módulos locales (propios de apps/web) que
  * un archivo importa, directa o indirectamente. Así, si uno de los archivos
  * de "eliminar cuenta" importa un módulo intermedio que reexporta
@@ -500,5 +617,212 @@ describe("createAdminClient / service role nunca llegan a las páginas de elimin
         expect(contenido.includes("SUPABASE_SERVICE_ROLE_KEY")).toBe(false)
       }
     }
+  })
+
+  it("ninguno de esos archivos, ni lo que importan transitivamente, usa import() dinámico, require, ni lee process[...] o process.env[...] por corchete (cierra la vía que encontró el revisor, siguiendo el mismo cierre transitivo que el test vecino de arriba)", () => {
+    expect(archivosDeEntrada.length).toBeGreaterThan(0)
+    for (const archivo of archivosDeEntrada) {
+      const cierre = cierreTransitivo(archivo)
+      for (const [rutaVisitada, contenido] of cierre) {
+        const resultado = contienePatronProhibido(contenido)
+        expect(
+          resultado.prohibido,
+          `${rutaVisitada} (alcanzable desde ${archivo}) usa un patrón prohibido: ${resultado.cual}`,
+        ).toBe(false)
+      }
+    }
+  })
+})
+
+// Fixture compartido por las dos describes de abajo: el código exacto que el
+// revisor mostró como evasión (arma el especificador del módulo y el nombre
+// de la función en memoria, así que ni el recorrido de imports estáticos ni
+// el substring "createAdminClient" lo agarran). No es un archivo nuevo en el
+// repo (no hay ninguno de esos acá): es una constante en memoria.
+const FIXTURE_EVASION = [
+  'const especificador = ["@/lib/supabase", "server"].join("/")',
+  'const nombreFuncion = "create" + "AdminClient"',
+  "const modulo = await import(especificador)",
+  "const admin = modulo[nombreFuncion]()",
+].join("\n")
+
+describe("el chequeo de patrones prohibidos sigue el cierre transitivo, no solo el archivo de entrada", () => {
+  // Fija el hueco que encontró el revisor: la primera versión de esta regla
+  // revisaba `archivosDeEntrada` con `readFileSync` directo, sin pasar por
+  // `cierreTransitivo` como su vecino de arriba. Si una página de eliminar
+  // cuenta importa normalmente un módulo local nuevo, y ESE módulo (no la
+  // página) tiene la evasión, el chequeo viejo no la veía: el substring
+  // "createAdminClient" sí llega al módulo intermedio, pero busca el nombre
+  // literal, que la evasión evita a propósito.
+  //
+  // No hay ningún archivo con esta evasión en el repo: se crea un directorio
+  // temporal fuera de `apps/web` (con `node:fs`/`node:os`) solo para esta
+  // prueba, y se borra al final en `afterEach`.
+  let carpetaTemporal: string
+  let rutaEntrada: string
+
+  beforeEach(() => {
+    carpetaTemporal = mkdtempSync(join(tmpdir(), "qps-cierre-transitivo-"))
+    rutaEntrada = join(carpetaTemporal, "entrada.ts")
+    const rutaIntermedio = join(carpetaTemporal, "intermedio.ts")
+    // La "página": solo importa el módulo intermedio de forma normal. Su
+    // propio contenido no tiene nada prohibido.
+    writeFileSync(rutaEntrada, ['import { algo } from "./intermedio"', "export default algo"].join("\n"))
+    // El módulo intermedio (NO el archivo de entrada) es el que tiene la
+    // evasión.
+    writeFileSync(rutaIntermedio, FIXTURE_EVASION)
+  })
+
+  afterEach(() => {
+    rmSync(carpetaTemporal, { recursive: true, force: true })
+  })
+
+  it("el archivo de entrada, revisado solo a sí mismo (sin cierre transitivo), no muestra nada prohibido: así es como fallaba el chequeo viejo", () => {
+    const contenidoEntrada = readFileSync(rutaEntrada, "utf8")
+    expect(contienePatronProhibido(contenidoEntrada).prohibido).toBe(false)
+  })
+
+  it("el cierre transitivo sí llega al módulo intermedio, y ahí el chequeo nuevo detecta la evasión", () => {
+    const cierre = cierreTransitivo(rutaEntrada)
+    // Confirma que la transitividad ocurrió de verdad: dos archivos
+    // visitados (entrada.ts + intermedio.ts), no solo el de entrada.
+    expect(cierre.size).toBe(2)
+
+    let detectado = false
+    let cual: string | undefined
+    for (const [, contenido] of cierre) {
+      const resultado = contienePatronProhibido(contenido)
+      if (resultado.prohibido) {
+        detectado = true
+        cual = resultado.cual
+      }
+    }
+    expect(detectado).toBe(true)
+    expect(cual).toBe("import() dinámico")
+  })
+})
+
+describe("la evasión con import() dinámico que encontró el revisor queda cubierta", () => {
+  it('el fixture reproduce la evasión real: no deja ni un "from" literal que seguir ni el substring "createAdminClient" contiguo', () => {
+    expect(especificadoresImportados(FIXTURE_EVASION)).toEqual([])
+    expect(FIXTURE_EVASION.includes("createAdminClient")).toBe(false)
+  })
+
+  it("la regla nueva (prohibir import() dinámico) sí la detecta", () => {
+    const resultado = contienePatronProhibido(FIXTURE_EVASION)
+    expect(resultado.prohibido).toBe(true)
+    expect(resultado.cual).toBe("import() dinámico")
+  })
+
+  it("también detecta require() dinámico (mismo riesgo, otra sintaxis)", () => {
+    const resultado = contienePatronProhibido('const modulo = require("@/lib/supabase/server")')
+    expect(resultado.prohibido).toBe(true)
+    expect(resultado.cual).toBe("require")
+  })
+
+  it("también detecta process.env[...] por corchete (la otra vía hacia la service role)", () => {
+    const resultado = contienePatronProhibido('const clave = process.env["SUPABASE_SERVICE_ROLE_KEY"]')
+    expect(resultado.prohibido).toBe(true)
+    expect(resultado.cual).toBe("process.env[...] por corchete")
+  })
+
+  it("no da falso positivo con código legítimo (sin import(), sin require(), sin process.env[...])", () => {
+    const codigoLegitimo = [
+      'import { createClient } from "@/lib/supabase/server"',
+      "export default async function Pagina() {",
+      "  const supabase = await createClient()",
+      "  return supabase",
+      "}",
+    ].join("\n")
+    expect(contienePatronProhibido(codigoLegitimo).prohibido).toBe(false)
+  })
+})
+
+describe("las evasiones de regex que encontró el revisor en la regla nueva, ya cerradas", () => {
+  it('un comentario de bloque en medio de "import" y "(" ya no esconde el import() dinámico (sanearComentarios lo expone antes de evaluar)', () => {
+    const codigo = "const admin = await import/* no es un espacio */(especificador)"
+    const resultado = contienePatronProhibido(codigo)
+    expect(resultado.prohibido).toBe(true)
+    expect(resultado.cual).toBe("import() dinámico")
+  })
+
+  it('un comentario que solo MENCIONA "import(" como texto, sin usarlo de verdad, no da falso positivo (se saca antes de evaluar)', () => {
+    const codigo = [
+      "// esta función no usa import() dinámico ni require",
+      'import { createClient } from "@/lib/supabase/server"',
+      "export default async function Pagina() {",
+      "  const supabase = await createClient()",
+      "  return supabase",
+      "}",
+    ].join("\n")
+    expect(contienePatronProhibido(codigo).prohibido).toBe(false)
+  })
+
+  it("require asignado a otro identificador y llamado aparte también se detecta (ya no hace falta el substring \"require(\" contiguo)", () => {
+    const codigo = ["const r = require", 'const modulo = r("@/lib/supabase/server")'].join("\n")
+    const resultado = contienePatronProhibido(codigo)
+    expect(resultado.prohibido).toBe(true)
+    expect(resultado.cual).toBe("require")
+  })
+
+  it('la palabra "required" (atributo de formulario, no "require") no da falso positivo: \\brequire\\b no matchea dentro de otra palabra', () => {
+    const codigo = "const props = { required: true, autoComplete: 'off' }"
+    expect(contienePatronProhibido(codigo).prohibido).toBe(false)
+  })
+
+  it('process["env"]["SUPABASE_SERVICE_ROLE_KEY"] (corchete también en "env", no solo en el nombre de la variable) también se detecta', () => {
+    const codigo = 'const clave = globalThis.process["env"]["SUPABASE_SERVICE_ROLE_KEY"]'
+    const resultado = contienePatronProhibido(codigo)
+    expect(resultado.prohibido).toBe(true)
+    expect(resultado.cual).toBe("process[...] por corchete")
+  })
+
+  it("process.env con notación de punto (lo que usa legítimamente este repo, ej. lib/contacto.ts) no da falso positivo", () => {
+    const codigo = 'const url = process.env.NEXT_PUBLIC_SUPABASE_URL'
+    expect(contienePatronProhibido(codigo).prohibido).toBe(false)
+  })
+
+  it("createRequire de node:module (la forma estándar de obtener un require dinámico) también se detecta: \\brequire\\b no la agarra porque la mayúscula y la falta de límite de palabra entre \"create\" y \"Require\" la esconden", () => {
+    const codigo = [
+      'import { createRequire } from "node:module"',
+      "const req = createRequire(import.meta.url)",
+      'const modulo = req("@/lib/supabase/server")',
+    ].join("\n")
+    const resultado = contienePatronProhibido(codigo)
+    expect(resultado.prohibido).toBe(true)
+    expect(resultado.cual).toBe("createRequire (node:module)")
+  })
+
+  it('un identificador que solo EMPIEZA como "createRequire" (ej. "createRequirementsList") no da falso positivo: \\bcreateRequire\\b exige que la palabra termine ahí', () => {
+    const codigo = "const createRequirementsList = () => []"
+    expect(contienePatronProhibido(codigo).prohibido).toBe(false)
+  })
+
+  it('poner "process" como STRING entre corchetes (ej. globalThis["process"]["env"][...]) también se detecta: evade los patrones de process.env[...] y process[...] porque "process" ahí queda seguido de una comilla de cierre, no de "["', () => {
+    const codigo = 'const clave = globalThis["process"]["env"]["SUPABASE_SERVICE_ROLE_KEY"]'
+    const resultado = contienePatronProhibido(codigo)
+    expect(resultado.prohibido).toBe(true)
+    expect(resultado.cual).toBe('["process"] por corchete')
+  })
+
+  it('acceder a una propiedad distinta de "process" por corchete (ej. fila["processId"]) no da falso positivo: el patrón exige la comilla de cierre pegada a "process"', () => {
+    const codigo = 'const id = fila["processId"]'
+    expect(contienePatronProhibido(codigo).prohibido).toBe(false)
+  })
+})
+
+describe('LÍMITE CONOCIDO de contienePatronProhibido: el import de namespace con acceso por corchete con el nombre armado en memoria NO se detecta hoy', () => {
+  // Fija el borde documentado en el comentario de la función: no es una
+  // aspiración ("ojalá lo agarre"), es el estado real de hoy. Si algún día
+  // se cierra este hueco (ver la línea a tocar en el comentario de
+  // `contienePatronProhibido`), este test se tiene que romper a propósito,
+  // y ahí se actualiza junto con el cierre.
+  it("import * as namespace + acceso por corchete con el nombre de la función armado en memoria: hoy pasa sin que nada lo marque", () => {
+    const codigo = [
+      'import * as modulo from "@/lib/supabase/server"',
+      'const nombreFuncion = "create" + "AdminClient"',
+      "const admin = modulo[nombreFuncion]()",
+    ].join("\n")
+    expect(contienePatronProhibido(codigo).prohibido).toBe(false)
   })
 })

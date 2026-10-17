@@ -25,8 +25,10 @@ const pedidosEnCurso = new Set<string>()
  * El orden de las guardas de abajo importa y es, a propósito, el orden en
  * el que están escritas:
  *
- * 1. Content-Type (defensa contra CSRF, ver el comentario de esa guarda).
- * 2. Origen (si viene `Origin`, que coincida con el propio sitio).
+ * 1. Content-Type exacto (una capa más, no la defensa principal; ver el
+ *    comentario de esa guarda).
+ * 2. Origen (si viene `Origin`, que coincida con el propio sitio: junto con
+ *    el `SameSite=Lax` de la cookie de sesión, es la defensa real contra CSRF).
  * 3. Usuario autenticado — **con el cliente admin todavía sin crear**.
  * 4. Confirmación explícita (`"ELIMINAR"` literal).
  * 5. El `user_id` sale únicamente del usuario del paso 3 (nunca del body).
@@ -34,16 +36,23 @@ const pedidosEnCurso = new Set<string>()
  * 7. Recién acá, `createAdminClient()` y el borrado de verdad.
  */
 export async function POST(request: Request) {
-  // 1. Content-Type: no es prolijidad, es la defensa contra CSRF de este
-  // endpoint. Un formulario HTML de otro sitio puede disparar un POST
-  // cross-site con las cookies de sesión de la persona, pero no puede
-  // declarar `Content-Type: application/json` sin que el navegador dispare
-  // antes un preflight de CORS — y este endpoint no manda ninguna cabecera
-  // que lo autorice, así que ese preflight falla y el navegador nunca llega
-  // a mandar el POST real. Por eso alcanza con exigir este content-type acá,
-  // sin un token CSRF aparte.
-  const contentType = request.headers.get("content-type") ?? ""
-  if (!contentType.toLowerCase().includes("application/json")) {
+  // 1. Content-Type exacto: NO es la defensa principal contra CSRF de este
+  // endpoint (esa son el chequeo de `Origin` del paso 2 y el `SameSite=Lax`
+  // de la cookie de sesión de `@supabase/ssr`, que no viaja en un POST
+  // cross-site: no hay override de `sameSite` en este repo). Esta guarda es
+  // una capa más: sacar del juego a un `<form>` HTML cross-site, que solo
+  // puede mandar `application/x-www-form-urlencoded`, `multipart/form-data`
+  // o `text/plain` (los tres "CORS-safelisted", sin preflight).
+  //
+  // Por eso la comparación tiene que ser con el tipo exacto (sin el
+  // parámetro `charset`), nunca con un `includes()`: un `Content-Type:
+  // text/plain;charset=application/json` CONTIENE la cadena
+  // "application/json", pero su *essence* (la parte antes del `;`) es
+  // `text/plain`, uno de los tres "CORS-safelisted" de la spec de Fetch, así
+  // que el navegador NO dispara preflight para ese valor. Un `includes()`
+  // dejaría pasar justo el caso que esta guarda tiene que cortar.
+  const tipoDeContenido = (request.headers.get("content-type") ?? "").split(";")[0].trim().toLowerCase()
+  if (tipoDeContenido !== "application/json") {
     return NextResponse.json({ error: "No se pudo eliminar la cuenta" }, { status: 415 })
   }
 
