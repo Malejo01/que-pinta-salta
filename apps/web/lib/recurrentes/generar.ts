@@ -3,6 +3,7 @@ import { resolveVenueId } from '../venues/resolve'
 import { upsertEventWithDeduplication } from '../scraper/deduplicate'
 import { INSTAGRAM_ENGINE_CONFIG } from '../instagram-config'
 import { copyExternalImage, isOwnStorageUrl } from '../images/external'
+import { isThumbnail } from '../scraper/merge-events'
 import {
   CATEGORIA_MUSEOS,
   CATEGORIA_PENAS,
@@ -90,7 +91,14 @@ async function generarItem(supabase: SupabaseClient, r: Recurrente, ahora: Date)
 
       // La imagen se reusa tal cual en cada fecha nueva (ver filaPena): si es
       // externa, se copia a Storage una sola vez acá, no una vez por fecha.
-      if (imagenPena && !isOwnStorageUrl(imagenPena)) {
+      //
+      // Una miniatura NO se copia (QPS-160, mismo criterio que
+      // run-scrape-job.ts, 31-a): una vez copiada, la URL pasa a ser
+      // `externas/<sha1 hex>.<ext>`, y un digest hexadecimal nunca puede
+      // contener el texto que `isThumbnail` busca ("150x150", "thumb") —
+      // quedaría atascada para siempre. Por eso la guarda se evalúa ANTES de
+      // copiar, sobre la URL cruda.
+      if (imagenPena && !isOwnStorageUrl(imagenPena) && !isThumbnail(imagenPena)) {
         const storageUrl = await copyExternalImage(
           imagenPena,
           supabase.storage.from(INSTAGRAM_ENGINE_CONFIG.STORAGE_BUCKET)
@@ -110,8 +118,11 @@ async function generarItem(supabase: SupabaseClient, r: Recurrente, ahora: Date)
       // La imagen de la plantilla se reusa tal cual en cada fecha nueva (ver
       // filaMuseo): si es externa, se copia a Storage una sola vez acá, no
       // una vez por fecha (mismo criterio que las peñas, arriba).
+      //
+      // Una miniatura NO se copia (QPS-160, mismo criterio que las peñas,
+      // arriba, y que run-scrape-job.ts, 31-a).
       const imagenPlantilla = plantilla.image_url as string | null
-      if (imagenPlantilla && !isOwnStorageUrl(imagenPlantilla)) {
+      if (imagenPlantilla && !isOwnStorageUrl(imagenPlantilla) && !isThumbnail(imagenPlantilla)) {
         const storageUrl = await copyExternalImage(
           imagenPlantilla,
           supabase.storage.from(INSTAGRAM_ENGINE_CONFIG.STORAGE_BUCKET)
