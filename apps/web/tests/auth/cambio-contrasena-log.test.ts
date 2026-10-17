@@ -2,14 +2,21 @@
 // crudo de Supabase (puede traer datos de la cuenta). Detector estático:
 // lee el código fuente con `fs` (si la ruta no existe, `readFileSync` tira
 // y el test falla ruidosamente, nunca un "no hay nada que revisar") y
-// busca, dentro de cada bloque `catch`, llamadas a `console.*` que pasen
+// busca, dentro de cada bloque `catch` (de un try/catch o de un
+// `.catch(...)` encadenado a una promesa), llamadas a `console.*` que pasen
 // la variable del error (o un alias directo de ella) sin pasar por una
 // propiedad segura (`.message`, `.code`, `typeof`, `instanceof`).
 //
 // El detector resiste las evasiones típicas: un alias (`const e = err`),
 // una cadena de variables intermedias, la llamada partida en varias
-// líneas, y el error en cualquier posición de los argumentos (no solo el
-// segundo).
+// líneas, el error en cualquier posición de los argumentos (no solo el
+// segundo), un `.catch(err => ...)` encadenado (con o sin paréntesis en el
+// parámetro, con cuerpo de bloque o de una sola expresión), y un `catch`
+// con destructuring en el parámetro (`catch ({ message, ...rest })`): ahí
+// no se pierde el bloque en silencio, y loguear la variable de `...rest` o
+// un objeto rearmado a partir de ella (`{ ...rest }`) sigue siendo
+// violación, mientras que loguear una propiedad desestructurada segura
+// (`message`) sin `rest` no lo es.
 import { readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
@@ -113,11 +120,19 @@ function dividirArgumentosTopLevel(contenido: string): string[] {
 }
 
 interface BloqueCatch {
-  catchVar: string
+  /** Variables "semilla" que valen como el objeto de error crudo dentro de este bloque. Puede estar vacío (p. ej. `catch ({ message })` sin `...rest`): ahí no hay nada crudo que rastrear. */
+  seeds: Set<string>
   cuerpo: string
 }
 
-function encontrarBloquesCatch(fuente: string): BloqueCatch[] {
+/** Nombre de la variable de rest (`...rest`) dentro del contenido de un patrón de destructuring de objeto, si lo hay. */
+function nombreRestDeDestructuring(contenidoLlaves: string): string | undefined {
+  const m = /\.\.\.\s*([A-Za-z_$][\w$]*)/.exec(contenidoLlaves)
+  return m ? m[1] : undefined
+}
+
+/** `catch (err) { ... }` / `catch (err: unknown) { ... }`: identificador simple. */
+function bloqueDesdeCatchIdentificador(fuente: string): BloqueCatch[] {
   const resultado: BloqueCatch[] = []
   const re = /catch\s*\(\s*([A-Za-z_$][\w$]*)\s*(?::[^)]*)?\)\s*\{/g
   let m: RegExpExecArray | null
@@ -125,22 +140,109 @@ function encontrarBloquesCatch(fuente: string): BloqueCatch[] {
     const catchVar = m[1]
     const desde = m.index + m[0].length
     const cuerpo = extraerBalanceado(fuente, desde, '{', '}')
-    resultado.push({ catchVar, cuerpo })
+    resultado.push({ seeds: new Set([catchVar]), cuerpo })
   }
   return resultado
 }
 
-/** Variables que son copia directa (sin transformación) de alguna variable ya conocida como "cruda". Resuelve cadenas (a = err; b = a). */
-function construirAliasesCrudos(cuerpo: string, catchVar: string): Set<string> {
-  const aliases = new Set<string>([catchVar])
+/**
+ * `catch ({ message, ...rest }) { ... }`: destructuring en el parámetro.
+ * No hay una variable que sea "todo el error", así que no hay nada crudo
+ * que rastrear salvo la variable de rest (si existe): ella sola puede
+ * traer cualquier campo del objeto original. El bloque igual se analiza
+ * (no se pierde en silencio), y si no hay `...rest`, el conjunto de
+ * semillas queda vacío a propósito (una propiedad desestructurada como
+ * `message` no es cruda).
+ */
+function bloqueDesdeCatchDestructuring(fuente: string): BloqueCatch[] {
+  const resultado: BloqueCatch[] = []
+  const re = /catch\s*\(\s*\{([^{}]*)\}\s*(?::[^)]*)?\)\s*\{/g
+  let m: RegExpExecArray | null
+  while ((m = re.exec(fuente))) {
+    const restVar = nombreRestDeDestructuring(m[1])
+    const desde = m.index + m[0].length
+    const cuerpo = extraerBalanceado(fuente, desde, '{', '}')
+    const seeds = new Set<string>()
+    if (restVar) seeds.add(restVar)
+    resultado.push({ seeds, cuerpo })
+  }
+  return resultado
+}
+
+/** De la parte derecha de una arrow function (ya sin el parámetro ni el `=>`), el cuerpo "interior" tanto si es un bloque (`{ ... }`, se le quitan las llaves) como si es una sola expresión (se usa tal cual). */
+function cuerpoDesdeBodyDeArrow(body: string): string {
+  const recortado = body.trim()
+  if (recortado.startsWith('{') && recortado.endsWith('}')) {
+    return recortado.slice(1, -1)
+  }
+  return recortado
+}
+
+/** Dado el contenido de los paréntesis de un `.catch(...)` (ya balanceado), separa el parámetro (identificador simple o destructuring) del cuerpo de la arrow function. `null` si no es una arrow function con un parámetro reconocible (p. ej. `.catch(() => {})` sin variable de error, o `.catch(nombreDeFuncion)`). */
+function extraerBloqueDeArrowCatch(contenido: string): BloqueCatch | null {
+  // Destructuring, siempre con paréntesis alrededor: ({ message, ...rest }) => ...
+  const mDestructuring = /^\s*\(\s*\{([^{}]*)\}\s*(?::[^)]*)?\)\s*=>\s*([\s\S]*)$/.exec(contenido)
+  if (mDestructuring) {
+    const restVar = nombreRestDeDestructuring(mDestructuring[1])
+    const seeds = new Set<string>()
+    if (restVar) seeds.add(restVar)
+    return { seeds, cuerpo: cuerpoDesdeBodyDeArrow(mDestructuring[2]) }
+  }
+  // Identificador simple con paréntesis, con o sin anotación de tipo: (err) => ... / (err: unknown) => ...
+  const mConParen = /^\s*\(\s*([A-Za-z_$][\w$]*)\s*(?::[^)]*)?\)\s*=>\s*([\s\S]*)$/.exec(contenido)
+  if (mConParen) {
+    return { seeds: new Set([mConParen[1]]), cuerpo: cuerpoDesdeBodyDeArrow(mConParen[2]) }
+  }
+  // Identificador simple sin paréntesis: err => ...
+  const mSinParen = /^\s*([A-Za-z_$][\w$]*)\s*=>\s*([\s\S]*)$/.exec(contenido)
+  if (mSinParen) {
+    return { seeds: new Set([mSinParen[1]]), cuerpo: cuerpoDesdeBodyDeArrow(mSinParen[2]) }
+  }
+  return null
+}
+
+/** `.catch(err => { ... })` / `.catch((err) => ...)` encadenado a una promesa: con y sin llaves en el cuerpo, con y sin paréntesis en el parámetro, incluido el destructuring. */
+function bloqueDesdeCatchPromise(fuente: string): BloqueCatch[] {
+  const resultado: BloqueCatch[] = []
+  const re = /\.catch\s*\(/g
+  let m: RegExpExecArray | null
+  while ((m = re.exec(fuente))) {
+    const desde = m.index + m[0].length
+    const contenido = extraerBalanceado(fuente, desde, '(', ')')
+    const bloque = extraerBloqueDeArrowCatch(contenido)
+    if (bloque) resultado.push(bloque)
+  }
+  return resultado
+}
+
+/**
+ * Variables que son "crudas" dentro de este bloque: las semillas (el
+ * identificador del catch, o la variable de `...rest` en un destructuring)
+ * más cualquier variable que sea copia directa de una ya conocida como
+ * cruda (resuelve cadenas: `a = err; b = a`) o que reconstruya un objeto a
+ * partir de una de ellas con spread (`const original = { message, ...rest }`,
+ * el "objeto rearmado"). Si `semillas` viene vacío (p. ej. un destructuring
+ * sin `...rest`), no hay nada crudo que rastrear y el resultado queda vacío.
+ */
+function construirAliasesCrudos(cuerpo: string, semillas: Set<string>): Set<string> {
+  const aliases = new Set<string>(semillas)
   let cambiado = true
   while (cambiado) {
     cambiado = false
-    const re = /\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*([A-Za-z_$][\w$]*)\s*;/g
+    const reDirecto = /\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*([A-Za-z_$][\w$]*)\s*;/g
     let m: RegExpExecArray | null
-    while ((m = re.exec(cuerpo))) {
+    while ((m = reDirecto.exec(cuerpo))) {
       const [, lhs, rhs] = m
       if (aliases.has(rhs) && !aliases.has(lhs)) {
+        aliases.add(lhs)
+        cambiado = true
+      }
+    }
+    const reSpread = /\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*\{([^{}]*)\}/g
+    while ((m = reSpread.exec(cuerpo))) {
+      const [, lhs, contenidoObjeto] = m
+      const spreadDe = nombreRestDeDestructuring(contenidoObjeto)
+      if (spreadDe && aliases.has(spreadDe) && !aliases.has(lhs)) {
         aliases.add(lhs)
         cambiado = true
       }
@@ -176,11 +278,17 @@ function contieneAliasCrudo(arg: string, alias: string): boolean {
   return false
 }
 
-/** Detector principal: lista de violaciones ("" si no hay ninguna) sobre un código fuente. */
+/** Detector principal: lista de violaciones ("" si no hay ninguna) sobre un código fuente. Analiza tanto `try { } catch (...) { }` (con identificador simple o destructuring) como `.catch(...)` encadenado a una promesa. */
 function encontrarLogsDeErrorCrudo(fuente: string): string[] {
   const violaciones: string[] = []
-  for (const { catchVar, cuerpo } of encontrarBloquesCatch(fuente)) {
-    const aliases = construirAliasesCrudos(cuerpo, catchVar)
+  const bloques = [
+    ...bloqueDesdeCatchIdentificador(fuente),
+    ...bloqueDesdeCatchDestructuring(fuente),
+    ...bloqueDesdeCatchPromise(fuente),
+  ]
+  for (const { seeds, cuerpo } of bloques) {
+    const aliases = construirAliasesCrudos(cuerpo, seeds)
+    if (aliases.size === 0) continue
     for (const args of encontrarLlamadasConsole(cuerpo)) {
       for (const arg of args) {
         for (const alias of aliases) {
@@ -249,6 +357,81 @@ describe('encontrarLogsDeErrorCrudo: detecta el error crudo y resiste evasiones'
       const codigo = typeof err?.code === "string" ? err.code : err instanceof Error ? err.name : "error_desconocido"
       console.error('x', codigo)
     }`
+    expect(encontrarLogsDeErrorCrudo(src)).toEqual([])
+  })
+
+  // -------------------------------------------------------------------------
+  // Evasión nueva 1: `.catch(...)` encadenado a una promesa (QPS-155, hueco
+  // encontrado por revisor y seguridad: la regex original exigía
+  // `catch (ident) { ... }` y no reconocía nada de esto).
+  // -------------------------------------------------------------------------
+
+  it('evasión - .catch(err => console.error(err)) sin llaves (cuerpo de una sola expresión) -> violación', () => {
+    const src = `fetch('/x').catch(err => console.error(err))`
+    expect(encontrarLogsDeErrorCrudo(src).length).toBeGreaterThan(0)
+  })
+
+  it('evasión - .catch((err) => { console.error(err) }) con paréntesis y llaves -> violación', () => {
+    const src = `fetch('/x').catch((err) => { console.error(err) })`
+    expect(encontrarLogsDeErrorCrudo(src).length).toBeGreaterThan(0)
+  })
+
+  it('evasión - .catch(err => { console.error(err) }) sin paréntesis, con llaves -> violación', () => {
+    const src = `fetch('/x').catch(err => { console.error(err) })`
+    expect(encontrarLogsDeErrorCrudo(src).length).toBeGreaterThan(0)
+  })
+
+  it('evasión - .catch((err) => console.error("x", err)) sin llaves, error no en primera posición -> violación', () => {
+    const src = `fetch('/x').catch((err) => console.error('x', err))`
+    expect(encontrarLogsDeErrorCrudo(src).length).toBeGreaterThan(0)
+  })
+
+  it('evasión - .catch partido en varias líneas -> violación igual', () => {
+    const src = `fetch('/x').catch(\n  (err) => {\n    console.error(err)\n  }\n)`
+    expect(encontrarLogsDeErrorCrudo(src).length).toBeGreaterThan(0)
+  })
+
+  it('evasión - alias dentro del cuerpo de un .catch(err => { ... }) -> violación', () => {
+    const src = `fetch('/x').catch(err => { const e = err; console.error(e) })`
+    expect(encontrarLogsDeErrorCrudo(src).length).toBeGreaterThan(0)
+  })
+
+  it('seguro: .catch(err => console.error(err.message)) -> sin violación', () => {
+    const src = `fetch('/x').catch(err => console.error(err.message))`
+    expect(encontrarLogsDeErrorCrudo(src)).toEqual([])
+  })
+
+  it('seguro: .catch(() => {}) sin variable de error (como view-beacon.tsx) -> sin violación', () => {
+    const src = `fetch('/x').catch(() => {})`
+    expect(encontrarLogsDeErrorCrudo(src)).toEqual([])
+  })
+
+  // -------------------------------------------------------------------------
+  // Evasión nueva 2: destructuring en el parámetro del catch (QPS-155,
+  // mismo hueco: la regex original exigía un identificador simple y el
+  // bloque entero quedaba sin analizar).
+  // -------------------------------------------------------------------------
+
+  it('evasión - catch ({ message, ...rest }) { console.error(rest) }: loguear el rest -> violación', () => {
+    const src = `try {} catch ({ message, ...rest }) { console.error(rest) }`
+    expect(encontrarLogsDeErrorCrudo(src).length).toBeGreaterThan(0)
+  })
+
+  it('evasión - catch ({ message, ...rest }) { ... }: loguear el objeto rearmado a partir del rest -> violación', () => {
+    const src = `try {} catch ({ message, ...rest }) {
+      const original = { message, ...rest }
+      console.error('x', original)
+    }`
+    expect(encontrarLogsDeErrorCrudo(src).length).toBeGreaterThan(0)
+  })
+
+  it('seguro: catch ({ message }) { console.error(message) } sin rest -> sin violación', () => {
+    const src = `try {} catch ({ message }) { console.error(message) }`
+    expect(encontrarLogsDeErrorCrudo(src)).toEqual([])
+  })
+
+  it('seguro: catch ({ message, ...rest }) { console.error(message) }: loguear solo la propiedad segura, no el rest -> sin violación', () => {
+    const src = `try {} catch ({ message, ...rest }) { console.error(message) }`
     expect(encontrarLogsDeErrorCrudo(src)).toEqual([])
   })
 })
