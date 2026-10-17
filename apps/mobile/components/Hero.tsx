@@ -10,8 +10,11 @@
 // el alto fijo de 200 pasó a `altoHero(altoVentana)`, ~60 % del alto de la
 // ventana. El alto (y el ancho de cada diapositiva) se leen con
 // `useWindowDimensions()` DENTRO del componente, nunca con `Dimensions` a
-// nivel de módulo (QPS-132): así acompañan la rotación y el cambio de
-// tamaño. El ancho de la ventana es también la única fuente del ancho de
+// nivel de módulo (QPS-132): así acompañan el cambio de tamaño de la
+// ventana (pantalla dividida y multiventana de Android). La rotación hoy no
+// se ejercita, porque `app.config.ts` fija `orientation: 'portrait'`: si
+// algún día se permite girar, esto ya queda listo, pero no se puede dar por
+// probado. El ancho de la ventana es también la única fuente del ancho de
 // cada diapositiva (antes se medía con `onLayout` sobre el contenedor, que
 // en los hechos coincidía con el ancho de la ventana porque el Hero ocupa
 // todo el ancho dentro del `ScrollView` de Inicio, sin padding horizontal):

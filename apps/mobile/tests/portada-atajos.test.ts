@@ -105,6 +105,26 @@ function depsDe(texto: string, marcador: string, desde: number): string {
   return texto.slice(idxAperturaDeps, idxCierreDeps + 1)
 }
 
+/**
+ * Evasión encontrada en la pasada integral (R36): el barrido de más abajo, y
+ * la búsqueda del efecto que llama a `cargarDatos().then(`, usaban
+ * `indexOf('useEffect(', …)` — una cadena LITERAL. Un
+ * `useLayoutEffect(() => { cargarDatos().then(setEstado) }, [atajo])`
+ * (sumando `useLayoutEffect` al import de `'react'`) reintroduce el bug
+ * entero (vuelve a pedir todo en cada cambio de atajo) sin que `indexOf`
+ * lo note: `"useLayoutEffect("` no contiene `"useEffect("` como substring
+ * (el "Layout" se mete en el medio). Por eso esta regex cubre las dos
+ * formas — y, de paso, también `React.useEffect(`/`React.useLayoutEffect(`
+ * (por si algún día este archivo deja de desestructurar los hooks de
+ * `'react'`), aunque hoy `app/(tabs)/index.tsx` no usa ese estilo.
+ */
+const PATRON_EFECTO = /\b(?:React\.)?use(?:Effect|LayoutEffect)\(/g
+
+/** Todas las llamadas a useEffect/useLayoutEffect (con o sin "React."), en orden, con su índice y el texto exacto del marcador (para pasarle a `depsDe`). */
+function indicesDeEfectos(contenido: string): { idx: number; marcador: string }[] {
+  return [...contenido.matchAll(PATRON_EFECTO)].map((m) => ({ idx: m.index, marcador: m[0] }))
+}
+
 describe('app/(tabs)/index.tsx: ninguna consulta al cambiar de atajo (detector estático)', () => {
   const crudo = readFileSync(INDEX_PATH, 'utf8')
   const contenido = sinComentarios(crudo)
@@ -140,14 +160,18 @@ describe('app/(tabs)/index.tsx: ninguna consulta al cambiar de atajo (detector e
     expect(deps).not.toMatch(/\batajo\b/)
   })
 
-  it('el useEffect que dispara la carga depende de [cargarDatos, intento], nunca de "atajo"', () => {
+  it('el useEffect/useLayoutEffect que dispara la carga depende de [cargarDatos, intento], nunca de "atajo"', () => {
     const idxLlamadaCargarDatos = contenido.indexOf('cargarDatos().then(')
     expect(idxLlamadaCargarDatos).toBeGreaterThan(-1)
 
-    const idxUseEffect = contenido.lastIndexOf('useEffect(', idxLlamadaCargarDatos)
-    expect(idxUseEffect).toBeGreaterThan(-1)
+    // El efecto que lo envuelve: el más cercano, ANTES de esa llamada, sea
+    // useEffect( o useLayoutEffect( (ver el comentario de PATRON_EFECTO:
+    // `lastIndexOf('useEffect(', …)` no encuentra un useLayoutEffect).
+    const efectosAntes = indicesDeEfectos(contenido).filter((e) => e.idx <= idxLlamadaCargarDatos)
+    expect(efectosAntes.length).toBeGreaterThan(0)
+    const { idx: idxEfecto, marcador } = efectosAntes[efectosAntes.length - 1]
 
-    const deps = depsDe(contenido, 'useEffect(', idxUseEffect)
+    const deps = depsDe(contenido, marcador, idxEfecto)
     expect(deps).not.toHaveLength(0)
     expect(deps.replace(/\s/g, '')).toBe('[cargarDatos,intento]')
     expect(deps).not.toMatch(/\batajo\b/)
@@ -173,25 +197,26 @@ describe('app/(tabs)/index.tsx: ninguna consulta al cambiar de atajo (detector e
   // directamente) pasaba los dos casos de arriba sin que ninguno lo notara:
   // "no depende de atajo" solo se afirmaba del efecto encontrado por
   // `cargarDatos().then(`, nunca de TODOS los `useEffect(` del archivo. Este
-  // caso recorre cada `useEffect(` real del archivo (balanceando paréntesis
-  // con `depsDe`, no con una expresión regular) y falla si cualquiera
-  // depende de "atajo" — no solo el que carga los datos.
-  it('ningún useEffect del archivo depende de "atajo" (no solo el que llama a cargarDatos): barrido completo', () => {
-    const indices: number[] = []
-    let desde = 0
-    for (;;) {
-      const idx = contenido.indexOf('useEffect(', desde)
-      if (idx === -1) break
-      indices.push(idx)
-      desde = idx + 'useEffect('.length
-    }
+  // caso recorre cada efecto real del archivo (balanceando paréntesis con
+  // `depsDe`, no con una expresión regular para las deps en sí) y falla si
+  // cualquiera depende de "atajo" — no solo el que carga los datos.
+  //
+  // Segunda evasión, encontrada en la pasada integral: el barrido buscaba
+  // solo la cadena literal "useEffect(" — un `useLayoutEffect(() => {
+  // cargarDatos().then(setEstado) }, [atajo])` (sumando `useLayoutEffect` al
+  // import de 'react') reintroduce el bug entero (vuelve a pedir todo en
+  // cada cambio de atajo) sin que el barrido lo note, porque "useEffect("
+  // no es un substring de "useLayoutEffect(". `indicesDeEfectos` (arriba)
+  // usa una regex que cubre las dos formas.
+  it('ningún useEffect/useLayoutEffect del archivo depende de "atajo" (no solo el que llama a cargarDatos): barrido completo', () => {
+    const efectos = indicesDeEfectos(contenido)
 
-    // Si el día de mañana no queda ningún useEffect en el archivo, este test
+    // Si el día de mañana no queda ningún efecto en el archivo, este test
     // deja de decir nada: que haya al menos uno (el que carga los datos).
-    expect(indices.length).toBeGreaterThan(0)
+    expect(efectos.length).toBeGreaterThan(0)
 
-    for (const idx of indices) {
-      const deps = depsDe(contenido, 'useEffect(', idx)
+    for (const { idx, marcador } of efectos) {
+      const deps = depsDe(contenido, marcador, idx)
       expect(deps).not.toMatch(/\batajo\b/)
     }
   })
