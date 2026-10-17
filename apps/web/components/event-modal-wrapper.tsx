@@ -30,6 +30,10 @@ import { goHref, urlComoLlegar, type MetricOrigin } from "@/lib/metricas/links"
 import { FlyerImage } from "@/components/flyer-image"
 import { FavoriteButton } from "@/components/favorite-button"
 import { ShareButton } from "@/components/share-button"
+import { BotonesAsistencia } from "@/components/botones-asistencia"
+import type { CantidadesAsistencia } from "@/lib/asistencia"
+import { debenMostrarseBotonesAsistencia } from "@/lib/asistencia-visibilidad"
+import type { TipoAsistencia } from "@qps/core/asistencia"
 
 type EventWithRelations = Event & { category: Category | null; venue: Venue | null }
 
@@ -41,9 +45,22 @@ interface EventModalWrapperProps {
   origin?: MetricOrigin
   /** Si el evento ya es favorito del usuario (sesión del servidor). */
   isFavorite?: boolean
+  /** "Voy" / "Me interesa" (R38-c): si falta `cantidadesAsistencia`, los botones no se muestran. */
+  cantidadesAsistencia?: CantidadesAsistencia
+  marcaAsistencia?: TipoAsistencia | null
+  haySesion?: boolean
 }
 
-export function EventModalWrapper({ event, isAdmin = false, categories = [], origin = "directo", isFavorite = false }: EventModalWrapperProps) {
+export function EventModalWrapper({
+  event,
+  isAdmin = false,
+  categories = [],
+  origin = "directo",
+  isFavorite = false,
+  cantidadesAsistencia,
+  marcaAsistencia = null,
+  haySesion = false,
+}: EventModalWrapperProps) {
   const router = useRouter()
   // Estado local: el Dialog se cierra al instante (como `movie-modal.tsx`) y
   // recién después se navega hacia atrás. Ver tarea 18-f.
@@ -328,6 +345,17 @@ export function EventModalWrapper({ event, isAdmin = false, categories = [], ori
               </Button>
             )}
           </div>
+
+          {/* Misma condición que la ficha (`event-detail-page.tsx`): una sola función de visibilidad. */}
+          {cantidadesAsistencia && debenMostrarseBotonesAsistencia(event.status) && (
+            <BotonesAsistencia
+              eventId={event.id}
+              cantidadesIniciales={cantidadesAsistencia}
+              marcaInicial={marcaAsistencia}
+              haySesion={haySesion}
+              className="mt-6"
+            />
+          )}
         </div>
       </DialogContent>
     </Dialog>

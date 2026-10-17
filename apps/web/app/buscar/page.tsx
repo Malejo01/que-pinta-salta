@@ -25,7 +25,7 @@ export const metadata: Metadata = {
 export default async function BuscarPage() {
   const supabase = await createClient()
 
-  const [events, categories, flyers, { data: cinemaMovies }, userFavorites] = await Promise.all([
+  const [events, categories, flyers, { data: cinemaMovies }, userFavorites, userResult] = await Promise.all([
     getEvents(),
     getCategories(),
     getActiveFlyers(),
@@ -34,7 +34,8 @@ export default async function BuscarPage() {
       .select('*')
       .eq('is_currently_showing', true)
       .order('title', { ascending: true }),
-    getUserFavorites()
+    getUserFavorites(),
+    supabase.auth.getUser(),
   ])
   const serverNowISO = new Date().toISOString()
 
@@ -46,6 +47,7 @@ export default async function BuscarPage() {
       flyers={flyers}
       cinemaMovies={cinemaMovies || []}
       userFavorites={userFavorites}
+      haySesion={!!userResult.data.user}
     />
   )
 }

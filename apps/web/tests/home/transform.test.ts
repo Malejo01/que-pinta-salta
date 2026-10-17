@@ -176,6 +176,12 @@ describe('transformEvent', () => {
     expect(transformEvent(event).price).toBe(15000)
   })
 
+  it('copia el status del evento (lo usa el modal de Buscar para el gate de asistencia)', () => {
+    const base = { start_date: salta('2030-10-10T21:00:00').toISOString() }
+    expect(transformEvent(makeEvent({ ...base, status: 'PUBLISHED' })).status).toBe('PUBLISHED')
+    expect(transformEvent(makeEvent({ ...base, status: 'CANCELLED' })).status).toBe('CANCELLED')
+  })
+
   it('vibe "adultos" solo con age_restriction >= 18; 17 y 0 no suman chip', () => {
     const base = { start_date: salta('2030-10-10T21:00:00').toISOString() }
     expect(transformEvent(makeEvent({ ...base, age_restriction: 18 })).vibe).toBe('adultos')

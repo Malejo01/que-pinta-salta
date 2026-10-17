@@ -21,6 +21,8 @@ interface DisplayEvent {
   ticketUrl?: string
   isFeatured?: boolean
   vibe?: string | null
+  /** Estado del evento: gate de "Voy / Me interesa". Flyers y películas no lo tienen. */
+  status?: string
 }
 
 type Event = DisplayEvent
@@ -39,6 +41,7 @@ import { ViewBeacon } from "@/components/view-beacon"
 import { goHref, urlComoLlegar, type MetricOrigin } from "@/lib/metricas/links"
 import { FlyerImage } from "@/components/flyer-image"
 import { FavoriteButton } from "@/components/favorite-button"
+import { BotonesAsistenciaDiferidos } from "@/components/botones-asistencia-diferidos"
 
 interface EventModalProps {
   event: Event | null
@@ -50,9 +53,11 @@ interface EventModalProps {
   isFavorite?: boolean
   /** El corazón del modal confirmó un cambio (QPS-158): /buscar actualiza la tarjeta de abajo. */
   onFavoriteChange?: (eventId: string, favorited: boolean) => void
+  /** Si hay sesión (la lee /buscar en el servidor): para "Voy / Me interesa". */
+  haySesion?: boolean
 }
 
-export function EventModal({ event, open, onClose, origin = "directo", isFavorite = false, onFavoriteChange }: EventModalProps) {
+export function EventModal({ event, open, onClose, origin = "directo", isFavorite = false, onFavoriteChange, haySesion = false }: EventModalProps) {
   if (!event) return null
 
   const formattedDate = formatEventDate(event.date, true)
@@ -160,6 +165,14 @@ export function EventModal({ event, open, onClose, origin = "directo", isFavorit
               </Button>
             )}
           </div>
+
+          <BotonesAsistenciaDiferidos
+            eventId={event.id}
+            status={event.status}
+            abierto={open}
+            haySesion={haySesion}
+            className="mt-6"
+          />
         </div>
       </DialogContent>
     </Dialog>

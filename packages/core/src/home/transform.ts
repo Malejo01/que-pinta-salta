@@ -48,6 +48,7 @@ export function transformEvent(event: EventWithRelations): DisplayEvent {
     ticketUrl: event.ticket_url || undefined,
     vibe: ageChip(event.age_restriction),
     isFeatured: event.is_featured,
+    status: event.status,
   }
 }
 
