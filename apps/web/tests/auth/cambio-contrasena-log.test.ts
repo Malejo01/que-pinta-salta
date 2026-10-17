@@ -219,10 +219,15 @@ function bloqueDesdeCatchPromise(fuente: string): BloqueCatch[] {
  * Variables que son "crudas" dentro de este bloque: las semillas (el
  * identificador del catch, o la variable de `...rest` en un destructuring)
  * más cualquier variable que sea copia directa de una ya conocida como
- * cruda (resuelve cadenas: `a = err; b = a`) o que reconstruya un objeto a
+ * cruda (resuelve cadenas: `a = err; b = a`), que reconstruya un objeto a
  * partir de una de ellas con spread (`const original = { message, ...rest }`,
- * el "objeto rearmado"). Si `semillas` viene vacío (p. ej. un destructuring
- * sin `...rest`), no hay nada crudo que rastrear y el resultado queda vacío.
+ * el "objeto rearmado"), o que destructure una variable ya cruda **en el
+ * cuerpo** (no en el parámetro del catch): `const { message, ...rest } = err`
+ * marca `rest` como crudo (el objeto de error menos unas pocas claves), pero
+ * nunca una propiedad desestructurada suelta como `message` (loguearla es
+ * justamente lo que el detector permite). Si `semillas` viene vacío (p. ej.
+ * un destructuring sin `...rest`), no hay nada crudo que rastrear y el
+ * resultado queda vacío.
  */
 function construirAliasesCrudos(cuerpo: string, semillas: Set<string>): Set<string> {
   const aliases = new Set<string>(semillas)
@@ -244,6 +249,17 @@ function construirAliasesCrudos(cuerpo: string, semillas: Set<string>): Set<stri
       const spreadDe = nombreRestDeDestructuring(contenidoObjeto)
       if (spreadDe && aliases.has(spreadDe) && !aliases.has(lhs)) {
         aliases.add(lhs)
+        cambiado = true
+      }
+    }
+    // `const { message, ...rest } = err` (o `= <alias ya crudo>`): solo el
+    // `...rest` es crudo, nunca una propiedad desestructurada suelta.
+    const reDestructuringAsignacion = /\b(?:const|let|var)\s*\{([^{}]*)\}\s*=\s*([A-Za-z_$][\w$]*)\b/g
+    while ((m = reDestructuringAsignacion.exec(cuerpo))) {
+      const [, contenidoLlaves, rhs] = m
+      const restVar = nombreRestDeDestructuring(contenidoLlaves)
+      if (restVar && aliases.has(rhs) && !aliases.has(restVar)) {
+        aliases.add(restVar)
         cambiado = true
       }
     }
@@ -433,6 +449,30 @@ describe('encontrarLogsDeErrorCrudo: detecta el error crudo y resiste evasiones'
   it('seguro: catch ({ message, ...rest }) { console.error(message) }: loguear solo la propiedad segura, no el rest -> sin violación', () => {
     const src = `try {} catch ({ message, ...rest }) { console.error(message) }`
     expect(encontrarLogsDeErrorCrudo(src)).toEqual([])
+  })
+
+  // -------------------------------------------------------------------------
+  // Evasión nueva 3: destructuring por asignación **dentro del cuerpo** del
+  // catch (no en el parámetro): `catch (err) { const { message, ...rest } =
+  // err; console.error(rest) }`. `construirAliasesCrudos` solo seguía alias
+  // por copia directa (`const b = a`) y por objeto literal con spread
+  // (`const b = { ...a }`); ninguno de los dos matchea un `{ ... }` del lado
+  // izquierdo del `=`.
+  // -------------------------------------------------------------------------
+
+  it('evasión - catch (err) { const { message, ...rest } = err; console.error(rest) }: loguear el rest -> violación', () => {
+    const src = `try {} catch (err) { const { message, ...rest } = err; console.error(rest) }`
+    expect(encontrarLogsDeErrorCrudo(src).length).toBeGreaterThan(0)
+  })
+
+  it('seguro: catch (err) { const { message } = err; console.error(message) } sin rest -> sin violación', () => {
+    const src = `try {} catch (err) { const { message } = err; console.error(message) }`
+    expect(encontrarLogsDeErrorCrudo(src)).toEqual([])
+  })
+
+  it('evasión - variable intermedia: catch (err) { const e = err; const { ...r } = e; console.error(r) } -> violación', () => {
+    const src = `try {} catch (err) { const e = err; const { ...r } = e; console.error(r) }`
+    expect(encontrarLogsDeErrorCrudo(src).length).toBeGreaterThan(0)
   })
 })
 
