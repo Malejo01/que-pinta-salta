@@ -145,11 +145,17 @@ describe('findDuplicateMatch: dos funciones el mismo día (16:00 y 21:00)', () =
     expect(match?.event.id).toBe(uid(2)) // la de las 21, no la de las 16
   })
 
-  it('HALLAZGO: si sólo existe la función de las 16 y llega una nueva función a las 21 (mismo título, sin ticket_url compartido), se fusionan en una sola fila', async () => {
-    // La clave de dedup es título+día, sin hora: no hay ninguna señal que distinga "es una
-    // función nueva" de "es un reintento/actualización de la misma función". El resultado hoy
-    // es que la función de las 21 pisa el start_date de la de las 16 en el mismo registro: la
-    // base termina con una sola fila para dos funciones reales.
+  // Tarea 34-a (QPS-164, hallazgo 1): el paso de clave exacta (paso 1) ya no fusiona estos dos
+  // casos (ahora exige sameClock, ver deduplicate.ts) — pero el resultado observable de
+  // upsertEventWithDeduplication en ESTE escenario puntual (mismo venue Y título idéntico tras
+  // normalizeTitle) NO cambia, porque cae en el paso 2 (respaldo difuso): mismo venue_id +
+  // similitud 1.0 (título idéntico) >= 0.65 también matchea, y ese paso no mira la hora — está
+  // explícitamente fuera de alcance de esta tarea ("ni el respaldo difuso... cambia"). Se deja
+  // el comentario y la aserción tal como están (siguen fusionando) a propósito, para no fijar
+  // un resultado que el código no da; el caso que SÍ queda separado por el arreglo (sin venue
+  // compartido, que es el camino que describe el propio docstring del paso 1: "no necesita
+  // venue_id") está cubierto en tests/scraper/dedup-hora.test.ts. Reportado como límite al lead.
+  it('si sólo existe la función de las 16 y llega una nueva función a las 21 (mismo título, sin ticket_url compartido), se fusionan en una sola fila (vía respaldo difuso, mismo venue)', async () => {
     const show16 = row(1, { start_date: FUNCION_16, scrape_source_key: 'manual' })
     const db = createFakeEventsDb([show16])
     const incoming = {
@@ -164,10 +170,11 @@ describe('findDuplicateMatch: dos funciones el mismo día (16:00 y 21:00)', () =
     expect(db.updates[0].payload.start_date).toBe(FUNCION_21) // la de las 16 desapareció
   })
 
-  it('con ticket_url propio por función (cada función con su link): igual se fusionan por clave (el link distinto no las separa)', async () => {
-    // sameTicketEvent (paso 0) exige MISMO link; con links distintos no aporta señal y el
-    // match sigue cayendo en el paso 1 (clave exacta), que no mira la hora para decidir si
-    // fusiona, sólo para elegir CUÁL candidato usar cuando hay más de uno con la misma clave.
+  // Misma explicación que el caso anterior: con links distintos tampoco entra por el paso 0
+  // (sameTicketEvent exige MISMO link), ni por el paso 1 (ahora bloqueado por la hora distinta),
+  // pero el mismo venue + título idéntico lo vuelve a fusionar en el paso 2 (respaldo difuso, sin
+  // chequeo de hora, fuera de alcance de esta tarea).
+  it('con ticket_url propio por función (cada función con su link): igual se fusionan (vía respaldo difuso, mismo venue)', async () => {
     const show16 = row(1, { start_date: FUNCION_16, ticket_url: 'https://tickets.example.test/funcion-16' })
     const db = createFakeEventsDb([show16])
     const incoming = {
