@@ -503,3 +503,137 @@ describe('GET /api/cron/notificaciones: novedades (R41, 41-b)', () => {
     expect(texto).not.toContain(CATEGORY_ID)
   })
 })
+
+// ---------------------------------------------------------------------------
+// 41-q: de punta a punta, A TRAVÉS DE LA RUTA (no solo de cargarNovedades,
+// que ya se prueba sola en tests/notificaciones/novedades.test.ts), con
+// armarTanda real de por medio. Los cuatro casos del encargo.
+// ---------------------------------------------------------------------------
+describe('GET /api/cron/notificaciones: 41-q, de punta a punta (ruta + cargarNovedades + armarTanda)', () => {
+  const CATEGORY_ID = '50000000-0000-4000-8000-000000000001'
+  const EVENT_ID_NOVEDAD = '50000000-0000-4000-8000-000000000002'
+  // Bien en el futuro: isVigente siempre lo deja pasar.
+  const EVENTO_NOVEDAD_START = saltaWallClockToUtcISO('2030-11-20T20:00:00')
+
+  function eventoNovedadRow(overrides: Row = {}): Row {
+    return {
+      id: EVENT_ID_NOVEDAD,
+      title: 'Evento Nuevo de Prueba (41-q)',
+      created_at: saltaWallClockToUtcISO('2030-11-01T05:00:00'),
+      start_date: EVENTO_NOVEDAD_START,
+      end_date: null,
+      status: 'PUBLISHED',
+      category_id: CATEGORY_ID,
+      venue_id: null,
+      ...overrides,
+    }
+  }
+
+  const AHORA_0505 = saltaWallClockToUtcISO('2030-11-01T05:05:00')
+  const AHORA_CORRIDA1 = saltaWallClockToDate('2030-11-01T09:05:00')
+  const AHORA_CORRIDA2 = saltaWallClockToDate('2030-11-01T10:05:00')
+  // Corrida OK a las 05:05 (dentro del silencio por defecto, 23:00-09:00):
+  // inicioVentanaNovedades la descarta como candidata (el usuario estaba en
+  // silencio en ese momento), así que la ventana cae al fallback de 24 h.
+  const CORRIDA_0505: Row = { started_at: AHORA_0505, details: { novedadesHasta: AHORA_0505 } }
+
+  it('corrida 1 a las 09:05, con una corrida OK a las 05:05 ya registrada: el evento creado a las 05:00 da porTipo.novedad: 1', async () => {
+    vi.setSystemTime(AHORA_CORRIDA1)
+    mockDb({
+      user_favorites: [],
+      user_followed_categories: [{ user_id: USER_ID, category_id: CATEGORY_ID }],
+      events: [eventoNovedadRow()],
+      job_runs: [CORRIDA_0505],
+    })
+
+    const res = await call()
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    expect(body.dryRun).toBe(true)
+    expect(body.porTipo.novedad).toBe(1)
+  })
+
+  it('corrida 2 a las 10:05, con la corrida 1 registrada OK y su envío ya en notification_sends: ese evento no vuelve', async () => {
+    // Corrida 1 de verdad (PUSH_ENVIO_REAL="1"), para tener una fila real de
+    // notification_sends con su dedupe_key, no uno inventado a mano.
+    process.env.PUSH_ENVIO_REAL = '1'
+    vi.setSystemTime(AHORA_CORRIDA1)
+    mockDb({
+      user_favorites: [],
+      user_followed_categories: [{ user_id: USER_ID, category_id: CATEGORY_ID }],
+      events: [eventoNovedadRow()],
+      job_runs: [CORRIDA_0505],
+    })
+    const res1 = await call()
+    const body1 = await res1.json()
+    expect(body1.porTipo.novedad).toBe(1)
+    expect(writes.inserts.notification_sends).toHaveLength(1)
+    const filaNovedad = writes.inserts.notification_sends[0]
+    expect(filaNovedad.kind).toBe('novedad')
+
+    // Corrida 2, una hora más tarde: la corrida 1 ya quedó registrada OK en
+    // job_runs (con su novedadesHasta = 09:05) y ese envío ya está en
+    // notification_sends. El evento sigue en la base (created_at no cambia).
+    vi.setSystemTime(AHORA_CORRIDA2)
+    mockDb({
+      user_favorites: [],
+      user_followed_categories: [{ user_id: USER_ID, category_id: CATEGORY_ID }],
+      events: [eventoNovedadRow()],
+      job_runs: [CORRIDA_0505, { started_at: AHORA_CORRIDA1.toISOString(), details: { novedadesHasta: AHORA_CORRIDA1.toISOString() } }],
+      notification_sends: [{ user_id: USER_ID, dedupe_key: filaNovedad.dedupe_key, sent_at: AHORA_CORRIDA1.toISOString() }],
+    })
+
+    const res2 = await call()
+    const body2 = await res2.json()
+    expect(body2.porTipo.novedad).toBeUndefined()
+    expect(body2.mensajes).toBe(0)
+  })
+
+  it('un evento con updated_at reciente y created_at viejo: no cuenta como novedad (la ventana es siempre sobre created_at)', async () => {
+    vi.setSystemTime(AHORA_CORRIDA1)
+    mockDb({
+      user_favorites: [],
+      user_followed_categories: [{ user_id: USER_ID, category_id: CATEGORY_ID }],
+      events: [
+        eventoNovedadRow({
+          // Mucho antes que la ventana de 24h (sin corridas previas útiles,
+          // cae al fallback ahora-24h: este created_at queda bien afuera).
+          created_at: saltaWallClockToUtcISO('2030-10-01T10:00:00'),
+          // "Recién editado": si el filtro usara updated_at (el agujero que
+          // reporté arriba), este evento SÍ entraría.
+          updated_at: AHORA_CORRIDA1.toISOString(),
+        }),
+      ],
+    })
+
+    const res = await call()
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    expect(body.porTipo.novedad).toBeUndefined()
+    expect(body.mensajes).toBe(0)
+  })
+
+  it('tres envíos de novedad hoy: ninguna novedad más (tope de 3), pero el recordatorio de favorito sale porque queda lugar en el tope total (3 de 4)', async () => {
+    // AHORA (del beforeEach, 20:00 de Salta) ya deja "debido" al favorito
+    // default de mockDb (favoritoRow(USER_ID), 3h antes de EVENTO_START):
+    // no hace falta tocar el reloj para este caso.
+    const dedupeNovedad = (extra: string) => claveDedupe({ kind: 'novedad', userId: USER_ID, extra })
+    mockDb({
+      user_followed_categories: [{ user_id: USER_ID, category_id: CATEGORY_ID }],
+      events: [eventoNovedadRow({ created_at: saltaWallClockToUtcISO('2030-10-20T15:00:00') })],
+      notification_sends: [
+        { user_id: USER_ID, dedupe_key: dedupeNovedad('hora-1'), sent_at: AHORA.toISOString() },
+        { user_id: USER_ID, dedupe_key: dedupeNovedad('hora-2'), sent_at: AHORA.toISOString() },
+        { user_id: USER_ID, dedupe_key: dedupeNovedad('hora-3'), sent_at: AHORA.toISOString() },
+      ],
+      // user_favorites: el default de mockDb (favoritoRow(USER_ID)), sin tocar.
+    })
+
+    const res = await call()
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    expect(body.porTipo.novedad).toBeUndefined() // el tope de 3 novedades/día ya está agotado
+    expect(body.porTipo.favorito).toBe(1) // 3 envíos hoy, daily_cap default 4: queda 1 lugar, y lo toma el favorito
+    expect(body.mensajes).toBe(1)
+  })
+})

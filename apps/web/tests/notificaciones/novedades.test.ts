@@ -114,6 +114,11 @@ beforeEach(() => {
 
 describe('cargarNovedades', () => {
   it('usa `created_at` y nunca pide `updated_at` al leer events', async () => {
+    // El `.select()` pide `created_at` sin importar qué columna use el
+    // FILTRO de ventana (se usa también para el cruce en memoria): mirar
+    // solo las columnas del `.select()` no detecta que el filtro cambie a
+    // `updated_at`. Por eso esta prueba mira los FILTROS registrados
+    // (`.gt()`/`.lte()`), no el string de `.select()`.
     const userId = uuid()
     const categoriaId = uuid()
     const ahora = salta('2026-10-20T12:00:00')
@@ -133,7 +138,18 @@ describe('cargarNovedades', () => {
     expect(resultado.ok).toBe(true)
     const columnasEvents = registro.events?.[0]?.columnas ?? ''
     expect(columnasEvents).toContain('created_at')
-    expect(columnasEvents).not.toContain('updated_at')
+
+    const llamadasEvents = registro.events?.[0]?.llamadas ?? []
+    // El filtro de ventana es `.gt()` (desde) + `.lte()` (hasta): tienen que
+    // existir los dos y los dos sobre `created_at`.
+    const filtrosDeVentana = llamadasEvents.filter((l) => l.metodo === 'gt' || l.metodo === 'lte')
+    expect(filtrosDeVentana).toHaveLength(2)
+    for (const filtro of filtrosDeVentana) {
+      expect(filtro.args[0]).toBe('created_at')
+    }
+    // Ninguna llamada a events (de ningún método: eq/in/gt/gte/lte/order)
+    // filtra por `updated_at`.
+    expect(llamadasEvents.some((l) => l.args[0] === 'updated_at')).toBe(false)
   })
 
   it('la ingesta de la madrugada: a un usuario en silencio por defecto, un evento de las 05:00 le llega a las 09:05', async () => {
