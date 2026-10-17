@@ -32,7 +32,8 @@ import { ViewBeacon } from "@/components/view-beacon"
 import { goHref, urlComoLlegar, type MetricOrigin } from "@/lib/metricas/links"
 import { FlyerImage } from "@/components/flyer-image"
 import { BotonesAsistencia } from "@/components/botones-asistencia"
-import { debenMostrarseBotonesAsistencia, type CantidadesAsistencia } from "@/lib/asistencia"
+import type { CantidadesAsistencia } from "@/lib/asistencia"
+import { debenMostrarseBotonesAsistencia } from "@/lib/asistencia-visibilidad"
 import type { TipoAsistencia } from "@qps/core/asistencia"
 
 type EventWithRelations = Event & { 

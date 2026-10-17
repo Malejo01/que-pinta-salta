@@ -39,7 +39,8 @@ vi.mock('@/lib/supabase/server', () => ({
   createClient: (...a: unknown[]) => createClient(...a),
 }))
 
-import { debenMostrarseBotonesAsistencia, marcarAsistencia, obtenerAsistencia } from '../../lib/asistencia'
+import { marcarAsistencia, obtenerAsistencia } from '../../lib/asistencia'
+import { debenMostrarseBotonesAsistencia } from '../../lib/asistencia-visibilidad'
 
 beforeEach(() => {
   createClient.mockReset()
@@ -518,8 +519,10 @@ describe('detector estático: page.tsx y event-detail-page.tsx usan debenMostrar
     },
   )
 
-  it('app/evento/[id]/page.tsx: importa debenMostrarseBotonesAsistencia de "@/lib/asistencia" (una sola fuente de verdad, no una copia)', () => {
-    expect(contenidoPage).toMatch(/import\s*\{[^}]*\bdebenMostrarseBotonesAsistencia\b[^}]*\}\s*from\s*['"]@\/lib\/asistencia['"]/)
+  it('app/evento/[id]/page.tsx: importa debenMostrarseBotonesAsistencia de "@/lib/asistencia-visibilidad" (una sola fuente de verdad, no una copia)', () => {
+    expect(contenidoPage).toMatch(
+      /import\s*\{[^}]*\bdebenMostrarseBotonesAsistencia\b[^}]*\}\s*from\s*['"]@\/lib\/asistencia-visibilidad['"]/,
+    )
   })
 
   it(
@@ -532,8 +535,27 @@ describe('detector estático: page.tsx y event-detail-page.tsx usan debenMostrar
     },
   )
 
-  it('components/event-detail-page.tsx: importa debenMostrarseBotonesAsistencia de "@/lib/asistencia"', () => {
-    expect(contenidoEventDetail).toMatch(/import\s*\{[^}]*\bdebenMostrarseBotonesAsistencia\b[^}]*\}\s*from\s*['"]@\/lib\/asistencia['"]/)
+  it('components/event-detail-page.tsx: importa debenMostrarseBotonesAsistencia de "@/lib/asistencia-visibilidad"', () => {
+    expect(contenidoEventDetail).toMatch(
+      /import\s*\{[^}]*\bdebenMostrarseBotonesAsistencia\b[^}]*\}\s*from\s*['"]@\/lib\/asistencia-visibilidad['"]/,
+    )
+  })
+
+  // Vuelta 2: la función se mudó de `lib/asistencia.ts` a
+  // `lib/asistencia-visibilidad.ts` porque el primero es un módulo
+  // `"use server"` y ahí todos los exports tienen que ser `async` (Next hace
+  // fallar el build, y ni `tsc` ni Vitest lo ven). Esta guarda deja en rojo
+  // el día que alguien vuelva a exportar algo que no sea una función `async`
+  // desde ese archivo.
+  it('lib/asistencia.ts ("use server"): todos sus exports son funciones async (si no, falla el build de Next)', () => {
+    const contenidoLib = readFileSync(`${WEB_ROOT_LOCAL}/lib/asistencia.ts`, 'utf8')
+    expect(contenidoLib.startsWith('"use server"')).toBe(true)
+
+    const exportsDeValor = [...contenidoLib.matchAll(/^export\s+(?!type\b|interface\b)(\w+)/gm)].map((m) => m[1])
+    expect(exportsDeValor.length).toBeGreaterThan(0)
+    for (const palabra of exportsDeValor) {
+      expect(palabra).toBe('async')
+    }
   })
 })
 

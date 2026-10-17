@@ -8,7 +8,8 @@ import { createClient, createAdminClient } from "@/lib/supabase/server"
 import { formatSaltaSchemaDate } from "@/lib/date-format"
 import { parseOrigin } from "@/lib/metricas/links"
 import { esEventoFavorito } from "@/lib/favoritos/es-favorito"
-import { debenMostrarseBotonesAsistencia, obtenerAsistencia } from "@/lib/asistencia"
+import { obtenerAsistencia } from "@/lib/asistencia"
+import { debenMostrarseBotonesAsistencia } from "@/lib/asistencia-visibilidad"
 import type { Metadata } from "next"
 
 interface EventPageProps {

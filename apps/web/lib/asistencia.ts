@@ -34,31 +34,19 @@
 // la relectura de después nunca puede convertir una escritura exitosa en
 // un error.
 //
-// `debenMostrarseBotonesAsistencia` (bloqueante 2, vuelta 1): los botones
-// solo se muestran para eventos PUBLISHED. La vista `event_attendance_counts`
-// (supabase/migrations/20261013120100_voy_me_interesa.sql) agrega únicamente
-// eventos PUBLISHED, así que mostrar los botones en un evento CANCELLED o
-// PAST deja un contador clavado en 0 aunque se pueda tocar el botón. El día
-// que se quiera contar también ahí, hace falta una migración que cambie esa
-// vista — no alcanza con tocar este archivo.
+// Qué NO vive acá (bloqueante 2 de la vuelta 1, movido en la vuelta 2):
+// `debenMostrarseBotonesAsistencia` —la decisión de mostrar los botones solo
+// en eventos PUBLISHED— está en `lib/asistencia-visibilidad.ts`. Este
+// archivo es un módulo `"use server"`, y ahí **todos** los exports tienen
+// que ser funciones `async`: una función común exportada desde acá hace
+// fallar el build de Next aunque el typecheck y los tests pasen. El motivo
+// completo está escrito en ese archivo.
 
 import { createClient } from "@/lib/supabase/server"
 import { siguienteMarca, type TipoAsistencia } from "@qps/core/asistencia"
 
 function esTipoValido(tipo: unknown): tipo is TipoAsistencia {
   return tipo === "voy" || tipo === "me_interesa"
-}
-
-/**
- * `true` solo para eventos `PUBLISHED`: es el único estado en el que
- * `event_attendance_counts` suma votos, así que es el único en el que
- * mostrar los botones tiene un contador que se mueve. Única fuente de
- * verdad: tanto `app/evento/[id]/page.tsx` (no pasar las cantidades) como
- * `components/event-detail-page.tsx` (no dibujar los botones) llaman a
- * esta misma función.
- */
-export function debenMostrarseBotonesAsistencia(status: string): boolean {
-  return status === "PUBLISHED"
 }
 
 export interface CantidadesAsistencia {
