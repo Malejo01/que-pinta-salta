@@ -185,3 +185,184 @@ describe('beforeSend', () => {
     expect(original).toEqual(copiaOriginal)
   })
 })
+
+// QPS-152: además del email, el saneador saca JWT (`eyJ….….…`) y las claves
+// `id_token`/`access_token`/`refresh_token` (como propiedad de objeto o como
+// parámetro de query string). Ningún JWT de estos tests es real: se arman a
+// mano con base64url de un JSON de juguete, igual que lo haría cualquier
+// emisor de JWT, pero sin que sea un token que exista en ningún sistema.
+function base64url(valor: unknown): string {
+  return Buffer.from(JSON.stringify(valor), 'utf8')
+    .toString('base64')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '')
+}
+
+// JWT de juguete: cabecera y payload son JSON inventado codificado a mano,
+// la "firma" es una cadena fija sin ningún significado criptográfico.
+const JWT_DE_JUGUETE = `${base64url({ alg: 'HS256', typ: 'JWT' })}.${base64url({
+  usuarioDePrueba: true,
+  numero: 7,
+})}.firmaDeJugueteSinSignificadoXYZ`
+
+describe('beforeSend - JWT (QPS-152)', () => {
+  it('saca un JWT de message', () => {
+    const resultado = beforeSend(evento({ message: `token viejo: ${JWT_DE_JUGUETE} ya vencido` }), {})
+
+    expect(resultado!.message).toBe('token viejo: [jwt] ya vencido')
+  })
+
+  it('saca un JWT de exception.values[].value', () => {
+    const resultado = beforeSend(
+      evento({ exception: { values: [{ type: 'Error', value: `sesión con ${JWT_DE_JUGUETE} inválida` }] } }),
+      {}
+    )
+
+    expect(resultado!.exception!.values![0].value).toBe('sesión con [jwt] inválida')
+  })
+
+  it('saca un JWT de un breadcrumb (message y data)', () => {
+    const resultado = beforeSend(
+      evento({
+        breadcrumbs: [
+          {
+            message: `authorization: Bearer ${JWT_DE_JUGUETE}`,
+            data: { token: JWT_DE_JUGUETE, intento: 1 },
+          },
+        ],
+      }),
+      {}
+    )
+
+    const migas = resultado!.breadcrumbs!
+    expect(migas[0].message).toBe('authorization: Bearer [jwt]')
+    expect(migas[0].data).toEqual({ token: '[jwt]', intento: 1 })
+  })
+
+  it('saca un JWT de extra y de tags', () => {
+    const resultado = beforeSend(
+      evento({
+        extra: { sesion: `activa: ${JWT_DE_JUGUETE}` },
+        tags: { token: JWT_DE_JUGUETE },
+      }),
+      {}
+    )
+
+    expect(resultado!.extra).toEqual({ sesion: 'activa: [jwt]' })
+    expect(resultado!.tags).toEqual({ token: '[jwt]' })
+  })
+
+  it('saca un JWT de un campo custom de user (no email/username/ip_address)', () => {
+    const resultado = beforeSend(
+      evento({ user: { id: 'usuario-de-prueba-1', sesion: JWT_DE_JUGUETE } }),
+      {}
+    )
+
+    expect(resultado!.user).toEqual({ id: 'usuario-de-prueba-1', sesion: '[jwt]' })
+  })
+
+  it('no toca un "eyJ" metido en medio de una palabra más larga', () => {
+    const resultado = beforeSend(
+      evento({ message: 'revisá la leyJudicial.penal.civil antes de firmar' }),
+      {}
+    )
+
+    expect(resultado!.message).toBe('revisá la leyJudicial.penal.civil antes de firmar')
+  })
+
+  it('no toca una palabra corta con puntos que arranca con "eyJ" pero no es un JWT', () => {
+    const resultado = beforeSend(
+      evento({ message: 'contactanos en eyJardin.deflores.2024 para más info' }),
+      {}
+    )
+
+    expect(resultado!.message).toBe('contactanos en eyJardin.deflores.2024 para más info')
+  })
+})
+
+describe('beforeSend - claves de token (QPS-152)', () => {
+  it('reemplaza id_token, access_token y refresh_token como propiedad de objeto, sea lo que sea que tengan adentro', () => {
+    const resultado = beforeSend(
+      evento({
+        extra: { id_token: 'valor-cualquiera-1', access_token: 'valor-cualquiera-2' },
+        tags: { refresh_token: 'valor-cualquiera-3' },
+        user: { id: 'usuario-de-prueba-1', access_token: 'valor-cualquiera-4' },
+      }),
+      {}
+    )
+
+    expect(resultado!.extra).toEqual({ id_token: '[token]', access_token: '[token]' })
+    expect(resultado!.tags).toEqual({ refresh_token: '[token]' })
+    expect(resultado!.user).toEqual({ id: 'usuario-de-prueba-1', access_token: '[token]' })
+  })
+
+  it('reemplaza access_token, id_token y refresh_token como parámetro de query string, conservando el resto de la URL', () => {
+    const resultado = beforeSend(
+      evento({
+        message:
+          'callback a https://app.ejemplo.com/cb?foo=bar&access_token=valor-cualquiera-1&id_token=valor-cualquiera-2&refresh_token=valor-cualquiera-3&state=xyz',
+      }),
+      {}
+    )
+
+    expect(resultado!.message).toBe(
+      'callback a https://app.ejemplo.com/cb?foo=bar&access_token=[token]&id_token=[token]&refresh_token=[token]&state=xyz'
+    )
+  })
+
+  it('reemplaza access_token en el fragmento de la URL (#access_token=…, flujo implícito de OAuth)', () => {
+    const resultado = beforeSend(
+      evento({ message: 'callback a https://app.ejemplo.com/cb#access_token=valor-cualquiera-1&token_type=bearer' }),
+      {}
+    )
+
+    expect(resultado!.message).toBe(
+      'callback a https://app.ejemplo.com/cb#access_token=[token]&token_type=bearer'
+    )
+  })
+
+  it('reemplaza refresh_token después de otro parámetro en el fragmento, sin comerse el resto', () => {
+    const resultado = beforeSend(
+      evento({
+        message: 'callback a https://app.ejemplo.com/cb#state=xyz&refresh_token=valor-cualquiera-1&expires_in=3600',
+      }),
+      {}
+    )
+
+    expect(resultado!.message).toBe(
+      'callback a https://app.ejemplo.com/cb#state=xyz&refresh_token=[token]&expires_in=3600'
+    )
+  })
+
+  it('no toca una clave parecida pero distinta (access_token_backup) ni una mención sin "?"/"&" delante', () => {
+    const resultado = beforeSend(
+      evento({
+        extra: { access_token_backup: 'valor-cualquiera-1' },
+        message: 'el parámetro access_token=valor-cualquiera-2 cambia cada hora',
+      }),
+      {}
+    )
+
+    expect(resultado!.extra).toEqual({ access_token_backup: 'valor-cualquiera-1' })
+    expect(resultado!.message).toBe('el parámetro access_token=valor-cualquiera-2 cambia cada hora')
+  })
+})
+
+describe('beforeSend - sin datos sensibles (QPS-152)', () => {
+  it('deja un evento sin email, JWT ni token igual, sin modificar', () => {
+    const original = evento({
+      message: 'fetch a /api/eventos falló con status 500',
+      level: 'error',
+      tags: { pantalla: 'cuenta' },
+      extra: { intento: 3 },
+      user: { id: 'usuario-de-prueba-1' },
+      breadcrumbs: [{ message: 'navegación a /cuenta', data: { desde: '/inicio' } }],
+    })
+    const copiaOriginal = JSON.parse(JSON.stringify(original))
+
+    const resultado = beforeSend(original, {})
+
+    expect(resultado).toEqual(copiaOriginal)
+  })
+})

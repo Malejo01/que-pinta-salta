@@ -16,42 +16,99 @@ type Breadcrumb = Sentry.Breadcrumb
 
 const PATRON_EMAIL = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi
 
+// `eyJ` es la cabecera típica de un JWT (es el base64 de `{"`, con el que
+// arranca cualquier header/payload JSON). Para no comerse una palabra que
+// por casualidad empiece así:
+//   - `(?<![A-Za-z0-9_-])` / `(?![A-Za-z0-9_-])`: "eyJ" tiene que ser el
+//     arranque/final de una tanda de base64url, no estar metido en medio de
+//     una palabra más larga (ej. "leyJudicial.penal.civil": la "J" viene
+//     pegada a "ley", no hay límite real ahí).
+//   - `{15,}` en el primer tramo: un header real (`{"alg":"HS256",...}` en
+//     base64) tiene bastante más de 15 caracteres después de "eyJ"; una
+//     palabra corta que arranque con "eyJ" por casualidad (ej.
+//     "eyJardin.deflores.2024") no llega a ese largo y no matchea.
+//   - tres tramos separados por puntos, cada uno solo con el alfabeto
+//     base64url (letras, números, `-`, `_`): nada de espacios ni símbolos
+//     que no aparezcan en un JWT real.
+const PATRON_JWT =
+  /(?<![A-Za-z0-9_-])eyJ[A-Za-z0-9_-]{15,}\.[A-Za-z0-9_-]{4,}\.[A-Za-z0-9_-]{6,}(?![A-Za-z0-9_-])/g
+
+// Claves que, sin importar qué tengan adentro, se reemplazan directo por
+// `[token]` (no hace falta mirar el valor: el nombre de la clave ya dice que
+// es un secreto de sesión).
+const CLAVES_TOKEN = new Set(['id_token', 'access_token', 'refresh_token'])
+
+// Las mismas tres claves, pero como parámetro de query string o de fragmento
+// (`?access_token=…`, `&id_token=…`, `#access_token=…`: el flujo implícito
+// de OAuth devuelve el token en el fragmento de la URL, después del `#`):
+// se reemplaza solo el valor, separador y clave quedan igual.
+const PATRON_QUERY_TOKEN = /([?&#](?:id_token|access_token|refresh_token)=)[^&\s]+/g
+
 function sinEmail<T extends string | undefined>(texto: T): T {
   if (typeof texto !== 'string') return texto
   return texto.replace(PATRON_EMAIL, '[email]') as T
 }
 
+function sinJwt<T extends string | undefined>(texto: T): T {
+  if (typeof texto !== 'string') return texto
+  return texto.replace(PATRON_JWT, '[jwt]') as T
+}
+
+function sinTokenDeQuery<T extends string | undefined>(texto: T): T {
+  if (typeof texto !== 'string') return texto
+  return texto.replace(PATRON_QUERY_TOKEN, '$1[token]') as T
+}
+
+/** Email, luego token de query/fragmento, luego JWT; no se pisan entre sí. */
+function sanear<T extends string | undefined>(texto: T): T {
+  if (typeof texto !== 'string') return texto
+  return sinJwt(sinTokenDeQuery(sinEmail(texto))) as T
+}
+
 function limpiarBreadcrumb(miga: Breadcrumb): Breadcrumb {
-  const limpia: Breadcrumb = { ...miga, message: sinEmail(miga.message) }
+  const limpia: Breadcrumb = { ...miga, message: sanear(miga.message) }
   if (limpia.data) {
-    const data: Record<string, unknown> = {}
-    for (const [clave, valor] of Object.entries(limpia.data)) {
-      data[clave] = typeof valor === 'string' ? sinEmail(valor) : valor
-    }
-    limpia.data = data
+    limpia.data = limpiarCadenasSuperficiales(limpia.data as Record<string, unknown>)
   }
   return limpia
 }
 
 /**
- * Transforma, sin mutar, los valores `string` de un nivel (no recorre
- * objetos anidados: no hace falta para `extra`/`tags`, que son planos).
+ * Transforma, sin mutar, los valores de un nivel (no recorre objetos
+ * anidados: no hace falta para `extra`/`tags`/`data`/`user`, que son
+ * planos). Las claves de `CLAVES_TOKEN` se reemplazan enteras por
+ * `[token]`; el resto de los valores `string` pasa por `sanear`.
+ *
+ * Es de un solo nivel a propósito: hoy ningún `extra`/`user`/
+ * `breadcrumb.data` de la app mete un objeto anidado (el único call site es
+ * `lib/google.ts`, con `tags` plano y tipado `Record<string, Primitive>`), y
+ * esta función tampoco se usa sobre `event.contexts` ni `event.request`
+ * (quedan sin tocar). Si el día de mañana se agrega un `setExtra`/
+ * `setContext` con un objeto anidado, o se empieza a sanear `contexts`/
+ * `request`, esto hay que revisarlo de nuevo (no asumir que ya está
+ * cubierto).
  */
 function limpiarCadenasSuperficiales<V>(objeto: Record<string, V>): Record<string, V> {
   const limpio: Record<string, V> = { ...objeto }
   for (const clave of Object.keys(limpio)) {
+    if (CLAVES_TOKEN.has(clave)) {
+      limpio[clave] = '[token]' as V
+      continue
+    }
     const valor = limpio[clave]
-    if (typeof valor === 'string') limpio[clave] = sinEmail(valor) as V
+    if (typeof valor === 'string') limpio[clave] = sanear(valor) as V
   }
   return limpio
 }
 
 /**
  * Pura. Saca `user.email`, `user.ip_address`, `user.username` y cualquier
- * email que aparezca en `message`, en `exception.values[].value` (ahí es
- * donde Sentry guarda el texto de una excepción capturada; `message` suele
- * venir vacío en ese caso), en las `breadcrumbs` o en los valores `string`
- * de `extra`/`tags`, antes de que Sentry mande el evento.
+ * email, JWT o token que aparezca en `message`, en `exception.values[].value`
+ * (ahí es donde Sentry guarda el texto de una excepción capturada; `message`
+ * suele venir vacío en ese caso), en las `breadcrumbs`, en los valores
+ * `string` de `extra`/`tags`/resto de `user`, o como `?access_token=…` /
+ * `&id_token=…` en cualquiera de esos campos, antes de que Sentry mande el
+ * evento.
  */
 export function beforeSend(event: ErrorEvent, _hint: EventHint): ErrorEvent | null {
   const limpio: ErrorEvent = { ...event }
@@ -61,17 +118,17 @@ export function beforeSend(event: ErrorEvent, _hint: EventHint): ErrorEvent | nu
     delete usuario.email
     delete usuario.ip_address
     delete usuario.username
-    limpio.user = usuario
+    limpio.user = limpiarCadenasSuperficiales(usuario as Record<string, unknown>)
   }
 
-  limpio.message = sinEmail(limpio.message)
+  limpio.message = sanear(limpio.message)
 
   const excepcion = limpio.exception
   if (excepcion?.values) {
     limpio.exception = {
       ...excepcion,
       // `type` es el nombre de la clase de error: no se toca, solo `value`.
-      values: excepcion.values.map((item) => ({ ...item, value: sinEmail(item.value) })),
+      values: excepcion.values.map((item) => ({ ...item, value: sanear(item.value) })),
     }
   }
 

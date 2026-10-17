@@ -330,7 +330,11 @@ export default function Cuenta() {
   if (session) {
     const inicial = session.user.email ? session.user.email.charAt(0).toUpperCase() : '?'
     return (
-      <ScrollView style={estilos.pantalla} contentContainerStyle={estilos.contenedorSesion}>
+      <ScrollView
+        style={estilos.pantalla}
+        contentContainerStyle={estilos.contenedorSesion}
+        keyboardShouldPersistTaps="handled"
+      >
         <View style={estilos.avatar}>
           <Texto peso="bold" style={{ color: colores.primaryForeground, fontSize: 24 }}>
             {inicial}

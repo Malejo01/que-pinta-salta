@@ -95,7 +95,11 @@ function RootLayout() {
   return (
     <SessionProvider>
       <ThemeProvider value={TEMA_OSCURO}>
-        {/* D1: barra de estado clara (íconos blancos) sobre el fondo oscuro. */}
+        {/* D1 (QPS-148): barra de estado clara (íconos blancos) sobre el
+            fondo oscuro, fija en "light" porque la app arranca siempre
+            oscura (no hay selector de tema todavía). El día que exista un
+            selector de tema, este `style` tiene que dejar de ser fijo y
+            seguir a ese tema (igual que `TEMA_OSCURO`, arriba). */}
         <StatusBar style="light" />
         <Stack>
           <Stack.Screen name="bienvenida" options={{ headerShown: false }} />

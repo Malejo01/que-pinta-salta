@@ -3,15 +3,31 @@
 // en `primary` y, con `secureTextEntry` + `mostrarOcultar`, el "ojito" para
 // mostrar/ocultar el texto (F5). Lo usan los campos de email y contraseña de
 // Cuenta y los horarios de Notificaciones (`SeccionNotificaciones`).
-import { forwardRef, useEffect, useState } from 'react'
-import { AppState, Pressable, StyleSheet, Text, TextInput, useColorScheme, View, type TextInputProps } from 'react-native'
+//
+// 33-a (QPS-151, vuelta 1): `accionDerecha` es una prop opcional, aditiva —
+// sin ella, el componente se comporta exactamente igual que antes (Cuenta y
+// Notificaciones no cambian en nada, y la rama de `conOjito` sigue intacta).
+// Se agregó para que `app/(tabs)/buscar.tsx` pueda recuperar el botón de
+// limpiar la búsqueda (el "X") que se perdió al migrar de un `TextInput`
+// suelto a `CampoTexto`: se renderiza dentro de la `caja`, a la derecha del
+// `TextInput`, igual que el "ojito" pero sin ningún comportamiento propio
+// (el contenido y el `onPress` los define quien use `CampoTexto`).
+import { forwardRef, useEffect, useState, type ReactNode } from 'react'
+import { AppState, Pressable, StyleSheet, Text, TextInput, View, type TextInputProps } from 'react-native'
 import { Icono } from '@/components/Icono'
 import { useColoresQPS } from '@/lib/colores'
 
-// El rojo del error del alta/login (R24) se perdía en tema oscuro: un rojo
-// más claro cuando el esquema es `dark` (F4).
-const ROJO_ERROR_CLARO = '#dc2626'
-const ROJO_ERROR_OSCURO = '#f87171'
+// El rojo del error del alta/login (R24) seguía el esquema del sistema
+// operativo (`useColorScheme()`): un rojo pensado para fondo claro
+// (`#dc2626`) y otro para fondo oscuro (`#f87171`, F4). Pero D1 (29-g) hizo
+// que la app renderice siempre oscura (`useColoresQPS()` ya no depende del
+// esquema del sistema) — así que seguir el esquema del sistema era
+// justamente lo que producía el rojo equivocado: con el teléfono en modo
+// claro, el campo elegía `#dc2626` y lo pintaba sobre `colores.card`, que
+// sigue oscuro (4,07:1, abajo del 4,5:1 de AA; revisor, 33-a vuelta 2,
+// QPS-146). El color queda fijo, mismo valor y mismo motivo que
+// `COLOR_ERROR` de `app/(tabs)/cuenta.tsx` y `components/SeccionNotificaciones.tsx`.
+const COLOR_ERROR = '#f87171'
 
 export interface CampoTextoProps extends TextInputProps {
   label: string
@@ -19,19 +35,21 @@ export interface CampoTextoProps extends TextInputProps {
   /** Solo tiene efecto junto con `secureTextEntry`: suma el "ojito" para
    * mostrar/ocultar el texto (F5). */
   mostrarOcultar?: boolean
+  /** Contenido opcional a la derecha del `TextInput`, dentro de la misma
+   * `caja` (33-a, QPS-151): por ejemplo, el botón de limpiar de Buscar. Sin
+   * esta prop, `CampoTexto` no cambia en nada. */
+  accionDerecha?: ReactNode
 }
 
 export const CampoTexto = forwardRef<TextInput, CampoTextoProps>(function CampoTexto(
-  { label, error, mostrarOcultar, secureTextEntry, style, onFocus, onBlur, ...resto },
+  { label, error, mostrarOcultar, accionDerecha, secureTextEntry, style, onFocus, onBlur, ...resto },
   ref
 ) {
   const colores = useColoresQPS()
-  const esquema = useColorScheme()
   const [enFoco, setEnFoco] = useState(false)
   const [oculto, setOculto] = useState(true)
 
   const conOjito = Boolean(secureTextEntry) && Boolean(mostrarOcultar)
-  const colorError = esquema === 'dark' ? ROJO_ERROR_OSCURO : ROJO_ERROR_CLARO
 
   // Si el campo tiene el "ojito" (contraseña visible), al pasar a segundo
   // plano (otra app al frente, o Android capturando el thumbnail de "Apps
@@ -85,8 +103,9 @@ export const CampoTexto = forwardRef<TextInput, CampoTextoProps>(function CampoT
             <Icono nombre={oculto ? 'Eye' : 'EyeOff'} tamanio={20} color={colores.mutedForeground} />
           </Pressable>
         ) : null}
+        {accionDerecha}
       </View>
-      {error ? <Text style={[estilos.error, { color: colorError }]}>{error}</Text> : null}
+      {error ? <Text style={[estilos.error, { color: COLOR_ERROR }]}>{error}</Text> : null}
     </View>
   )
 })
