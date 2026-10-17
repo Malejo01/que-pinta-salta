@@ -48,7 +48,13 @@ export function ChangePasswordForm() {
       setConfirmPassword("")
       notify.success("Contraseña actualizada con éxito")
     } catch (err: any) {
-      console.error("Error al actualizar la contraseña:", err)
+      // QPS-155: nunca el objeto de error crudo a la consola (puede traer
+      // datos de la cuenta) — mismo criterio que /auth/recuperar (R29):
+      // solo un código o un mensaje genérico, nunca el cuerpo de la
+      // respuesta de Supabase. El usuario sigue viendo err.message igual
+      // que antes; eso no cambia.
+      const codigo = typeof err?.code === "string" ? err.code : err instanceof Error ? err.name : "error_desconocido"
+      console.error("Error al actualizar la contraseña:", codigo)
       setError(err.message || "Ocurrió un error al actualizar la contraseña.")
       notify.error("Error al actualizar la contraseña")
     } finally {
