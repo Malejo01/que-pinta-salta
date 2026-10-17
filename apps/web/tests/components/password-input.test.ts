@@ -165,8 +165,9 @@ describe('PasswordInput: la envoltura usa useState(false) y delega en PasswordIn
   })
 })
 
-describe('Detector estático: los tres formularios usan PasswordInput y no tienen type="password" suelto', () => {
+describe('Detector estático: los cuatro formularios usan PasswordInput y no tienen type="password" suelto', () => {
   const archivos = [
+    'app/auth/login/page.tsx',
     'app/auth/sign-up/page.tsx',
     'components/auth-modal.tsx',
     'components/change-password-form.tsx',

@@ -27,6 +27,14 @@ interface ShareDeps {
   /** `navigator.clipboard.writeText`, como respaldo sin Web Share API. */
   writeText?: (text: string) => Promise<void>
   toast: (opts: { title: string; description?: string; variant?: "destructive" }) => void
+  /**
+   * QPS-159: se llama solo si se compartió de verdad (la Web Share API
+   * resolvió) o se copió el link al portapapeles; nunca si el usuario
+   * canceló el diálogo nativo (`AbortError`), si otro error de `share`
+   * dejó en duda si se compartió, o si falló el copiado. Pensado para el
+   * modal de donación que se abre después de compartir desde la tarjeta.
+   */
+  onShared?: () => void
 }
 
 /**
@@ -38,10 +46,12 @@ export async function shareEvent(data: ShareData, deps: ShareDeps): Promise<void
   if (deps.share) {
     try {
       await deps.share(data)
+      deps.onShared?.()
     } catch (err) {
       if (err instanceof Error && err.name === "AbortError") return
       // Otros errores al compartir (p. ej. sin apps instaladas): no molestamos
-      // con un toast de error, el usuario ya ve que no pasó nada.
+      // con un toast de error, el usuario ya ve que no pasó nada. Tampoco
+      // onShared: no hay certeza de que se haya compartido.
     }
     return
   }
@@ -57,6 +67,7 @@ export async function shareEvent(data: ShareData, deps: ShareDeps): Promise<void
       return
     }
     deps.toast({ title: "Link copiado" })
+    deps.onShared?.()
   }
 }
 
@@ -64,16 +75,27 @@ interface ShareButtonProps {
   eventId: string
   title: string
   className?: string
+  /**
+   * URL a compartir, cuando no es la ficha del evento (QPS-159: la tarjeta
+   * comparte distinto según el tipo de `DisplayEvent` — película, flyer,
+   * evento — y esos ids no son uuids de la tabla `events`). Si no se pasa,
+   * se usa `buildShareData(eventId, title)` (la URL de la ficha, vía
+   * `urlEvento`), como hacían siempre `event-detail-page.tsx` y
+   * `event-modal-wrapper.tsx`.
+   */
+  url?: string
+  /** Ver `ShareDeps.onShared`. */
+  onShared?: () => void
 }
 
-export function ShareButton({ eventId, title, className }: ShareButtonProps) {
+export function ShareButton({ eventId, title, className, url, onShared }: ShareButtonProps) {
   const { toast } = useToast()
 
   const handleShare = async (e: React.MouseEvent) => {
     e.preventDefault()
     e.stopPropagation()
 
-    const data = buildShareData(eventId, title)
+    const data = url ? { title, url } : buildShareData(eventId, title)
     if (!data) return
 
     const canShare = typeof navigator !== "undefined" && typeof navigator.share === "function"
@@ -83,6 +105,7 @@ export function ShareButton({ eventId, title, className }: ShareButtonProps) {
       share: canShare ? (d) => navigator.share(d) : undefined,
       writeText: canCopy ? (text) => navigator.clipboard.writeText(text) : undefined,
       toast,
+      onShared,
     })
   }
 

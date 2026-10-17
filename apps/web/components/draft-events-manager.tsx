@@ -870,7 +870,7 @@ export function DraftEventsManager({
                             value={description}
                             onChange={(e) => setDescription(e.target.value)}
                             className="bg-background/50 min-h-[100px] text-sm border-border/80 leading-relaxed"
-                            placeholder="Escribe notas, line-up, restricciones de edad..."
+                            placeholder="Escribí notas, line-up, restricciones de edad..."
                           />
                         </div>
                       </CardContent>

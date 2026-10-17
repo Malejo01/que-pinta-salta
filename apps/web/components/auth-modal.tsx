@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input"
 import { PasswordInput } from "@/components/ui/password-input"
 import { Label } from "@/components/ui/label"
 import { mensajeErrorAlta } from "@/lib/auth/mensajes"
+import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useToast } from "@/hooks/use-toast"
 
@@ -144,6 +145,15 @@ export function AuthModalProvider({ children }: { children: ReactNode }) {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
               />
+              {mode === "login" && (
+                <Link
+                  href="/auth/recuperar"
+                  onClick={close}
+                  className="text-sm text-muted-foreground underline underline-offset-4 hover:text-foreground"
+                >
+                  ¿Olvidaste tu contraseña?
+                </Link>
+              )}
             </div>
             {error && (
               <p className="rounded-md bg-destructive/10 p-3 text-sm text-destructive text-center">

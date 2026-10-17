@@ -3,11 +3,12 @@
 import { useState, useEffect } from "react"
 import Link from "next/link"
 import { motion } from "framer-motion"
-import { Calendar, MapPin, Instagram, Film, Share2 } from "lucide-react"
+import { Calendar, MapPin, Instagram, Film } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
 import { formatEventDateShort } from "@/lib/date-format"
 import { FavoriteButton } from "@/components/favorite-button"
+import { ShareButton } from "@/components/share-button"
 import { FlyerImage } from "@/components/flyer-image"
 import { useDonation } from "@/components/donation-context"
 import type { DisplayEvent } from "@/components/home-content"
@@ -77,27 +78,22 @@ export function EventCard({ event, isFavorite, onToggleFavorite, onOpenMovie, cl
     }
   }
 
-  const handleShareClick = (e: React.MouseEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
+  // QPS-159: un solo mecanismo de compartir (Web Share API / portapapeles en
+  // `ShareButton`), ya no un link de WhatsApp armado a mano. El id de
+  // `DisplayEvent` no siempre es el uuid de `events` (`movie-…`, `ig-…`), así
+  // que acá sí armamos la URL según el tipo — lo que cambió es cómo se
+  // comparte (`shareEvent`), no la URL de destino.
+  const currentOrigin = typeof window !== "undefined" ? window.location.origin : "https://quepintasalta.com.ar"
+  const shareUrl = event.isCinemaMovie
+    ? `${currentOrigin}/cines`
+    : event.isInstagramFlyer && event.flyerId
+    ? `${currentOrigin}/flyer/${event.flyerId}`
+    : `${currentOrigin}${eventHref(event.id)}`
 
-    const currentOrigin = typeof window !== "undefined" ? window.location.origin : "https://quepintasalta.com.ar"
-    let message = ""
-
-    if (event.isCinemaMovie) {
-      message = `¡Che! Mirá esta película en Salta: *${event.title}* 🎬\n🔗 ${currentOrigin}/cines`
-    } else if (event.isInstagramFlyer) {
-      message = `¡Che! Mirá este flyer en Salta: *${event.title}* (en ${event.venue}) 🍻\n🔗 ${currentOrigin}/flyer/${event.flyerId}`
-    } else {
-      const formattedOccDate = formatEventDateShort(event.date)
-      message = `¡Che! Mirá este evento en Salta: *${event.title}* (${formattedOccDate} en ${event.venue}) 📅\n🔗 ${currentOrigin}/evento/${event.id}`
-    }
-
-    const encodedText = encodeURIComponent(message)
-    const url = `https://api.whatsapp.com/send?text=${encodedText}`
-    window.open(url, "_blank")
-    
-    // Mostramos el modal de donación luego de compartir
+  // Se mantiene el modal de donación de hoy, pero solo si se compartió de
+  // verdad o se copió el link (ver `ShareButton`/`shareEvent`), no si se
+  // canceló el diálogo nativo.
+  const handleShared = () => {
     setTimeout(() => {
       openDonationModal("¡Gracias por compartir! Si Qué Pinta Salta te ayuda a organizar tu finde, ¿nos invitás un cafecito para fondear el desarrollo de la App móvil oficial?")
     }, 800)
@@ -221,13 +217,13 @@ export function EventCard({ event, isFavorite, onToggleFavorite, onOpenMovie, cl
           className="absolute right-2 top-2 z-30 sm:opacity-0 sm:group-hover/card:opacity-100 transition-all duration-350"
         />
 
-        <button
-          onClick={handleShareClick}
-          className="absolute right-12 top-2 z-30 flex size-8 items-center justify-center rounded-full bg-black/60 text-white backdrop-blur-md transition-all hover:scale-110 active:scale-95 cursor-pointer sm:opacity-0 sm:group-hover/card:opacity-100 duration-350 after:absolute after:-left-2 after:-right-1 after:-top-1.5 after:-bottom-1.5 after:content-['']"
-          title="Compartir en WhatsApp"
-        >
-          <Share2 className="size-4 hover:text-emerald-400 text-zinc-100" />
-        </button>
+        <ShareButton
+          eventId={event.id}
+          title={event.title}
+          url={shareUrl}
+          onShared={handleShared}
+          className="absolute right-12 top-2 z-30 sm:opacity-0 sm:group-hover/card:opacity-100 duration-350"
+        />
 
         <Badge 
           variant="secondary" 
