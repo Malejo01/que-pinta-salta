@@ -12,14 +12,14 @@
 // este arreglo — es una limitación conocida de "opción 1", fuera de alcance de esta tarea
 // (comentada en deduplicate-similitud.test.ts, describe 'dos funciones el mismo día').
 //
-// Vuelta 1 (bloqueante del revisor, QPS-164 hallazgo 1): se probó agregar el mismo criterio de
-// hora a `sameKey` en la colisión de slug único de upsertEventWithDeduplication, pero se revirtió
-// en la vuelta 2 porque no cambiaba nada observable (ver el comentario "LÍMITE CONOCIDO" en
-// deduplicate.ts, justo antes de `if (sameKey || score >= SIMILARITY_THRESHOLD)`): esa misma
-// condición también fusiona por `score` (similitud de título), que no mira la hora y que, por
-// cómo normalizeTitleForKey() recorta el título, coincide siempre que `sameKey` coincide. Ver el
-// describe 'upsertEventWithDeduplication: colisión de slug único' más abajo para el límite
-// documentado (no resuelto esta tarea, pendiente de decisión de Mauro).
+// R40 (QPS-164, hallazgo 1, decisión de Mauro del 17/10): la colisión de slug único de
+// upsertEventWithDeduplication ahora SÍ mira la hora, con la tolerancia TOLERANCIA_HORA_DEDUP_MIN
+// (dedup-key.ts, 120 minutos) en vez de la hora exacta que probó y revirtió la vuelta 1 de la
+// tarea 34-a. El describe 'upsertEventWithDeduplication: colisión de slug único' de más abajo ya
+// no documenta un límite conocido: dos funciones reales del mismo show, a más de la tolerancia,
+// quedan en filas separadas (con el slug nuevo llevando fecha y hora, no sólo el día, para que una
+// tercera función no vuelva a chocar). Los casos de bordes, orden del array y el paso 2 (respaldo
+// difuso) con tolerancia están en tests/scraper/dedup-tolerancia.test.ts (tarea 40-b).
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { findDuplicateMatch, upsertEventWithDeduplication } from '@/lib/scraper/deduplicate'
 import { createFakeEventsDb, type EventRow } from '../events/fake-events-db'
@@ -152,7 +152,7 @@ describe('findDuplicateMatch: clave exacta + misma hora (QPS-164, hallazgo 1)', 
   })
 })
 
-describe('upsertEventWithDeduplication: colisión de slug único (QPS-164, hallazgo 1 — límite conocido)', () => {
+describe('upsertEventWithDeduplication: colisión de slug único (QPS-164, hallazgo 1)', () => {
   // Reproduce el slug como lo generan alpogo-scraper.ts (línea ~117), entradauno-scraper.ts
   // (línea ~248) y vamos-scraper.ts (línea ~41): `slugify(título)`, sin fecha ni hora. Procesan
   // un ítem por función, así que dos funciones reales del mismo show el mismo día llegan con el
@@ -160,60 +160,46 @@ describe('upsertEventWithDeduplication: colisión de slug único (QPS-164, halla
   // el slug.
   const SLUG = 'show-doble-funcion-de-prueba'
 
-  it('LÍMITE CONOCIDO: dos funciones reales, mismo slug (alpogo/entradauno/vamos), horas distintas, se fusionan en una sola fila por este camino', async () => {
-    // El paso 1 de findDuplicateMatch (la clave exacta) ya exige la misma hora de inicio
-    // (sameStartTimeForKey, en deduplicate.ts), pero la colisión de slug único es una rama
-    // DISTINTA, con su propia condición: `if (sameKey || score >= SIMILARITY_THRESHOLD)`. Ni
-    // `sameKey` (clave exacta, sin hora) ni `score` (similitud de título, sin hora) miran la
-    // hora acá, así que esta rama se comporta igual que antes de la tarea 34-a.
-    //
-    // No alcanza con gatear sólo `sameKey` por hora (se probó en la vuelta 1 de esta tarea y se
-    // revirtió, ver el comentario en deduplicate.ts): es estructural dentro de esta rama, porque
-    // acá el slug YA es idéntico (es la condición que lleva a esta rama), y `slugify()` no
-    // recorta sufijos de ciudad ni stop words: dos títulos con el mismo slug son casi el mismo
-    // texto literal, así que calculateSimilarity() da por encima de 0,65 igual (1.0 si son
-    // idénticos, como el caso real de estos tres scrapers; 0.9 por el atajo de substring si sólo
-    // difieren en un sufijo). Es decir: dentro de esta rama (slug idéntico), siempre que
-    // `sameKey` daría verdadero, `score` también lo da — así que gatear `sameKey` por hora sin
-    // gatear también `score` no cambia el resultado final de esta rama: el `||` sigue entrando
-    // por `score`.
-    //
-    // OJO: esto no es una propiedad general de `sameKey`/`score` fuera de esta rama. Por ejemplo
-    // "Rock en Salta" y "Rock" comparten `dedupKeyOf()` (normalizeTitleForKey recorta el sufijo
-    // de ciudad) pero dan `score` 0,5 (normalizeTitle saca stop words y el atajo de substring de
-    // calculateSimilarity exige más de 5 caracteres; "rock" tiene 4). Ese par no puede llegar a
-    // esta rama porque sus slugs difieren ("rock-en-salta" vs "rock"), pero sí entra al paso 2 de
-    // findDuplicateMatch (respaldo difuso), que no exige slug igual.
-    //
-    // Arreglarlo de verdad exige sumar el mismo chequeo de hora (sameStartTimeForKey) también a
-    // `score >= SIMILARITY_THRESHOLD` en deduplicate.ts (ver el comentario ahí, justo antes de
-    // esa condición) — y eso es la misma decisión de producto que el paso 2 (respaldo difuso):
-    // si el criterio de "misma hora" se extiende a los caminos por similitud, y con qué
-    // tolerancia de minutos (dos fuentes distintas suelen escribir la hora de un mismo evento
-    // real con algunos minutos de diferencia; sin tolerancia, esos duplicados reales dejarían
-    // de juntarse). Pendiente de Mauro: ops/loop/preguntas/01-r34-difuso-hora.md.
+  it('dos funciones reales, mismo slug (alpogo/entradauno/vamos), horas a más de la tolerancia: quedan en filas separadas', async () => {
+    // La colisión de slug único es una rama distinta de findDuplicateMatch, con su propia
+    // condición: `if (matchesByTitle && horasCompatibles(...))` (deduplicate.ts). `matchesByTitle`
+    // (sameKey o score >= SIMILARITY_THRESHOLD) sigue sin mirar la hora — acá el slug YA es
+    // idéntico, así que da verdadero igual que antes de la tarea 34-a — pero ahora el `&&` con
+    // horasCompatibles() (tolerancia TOLERANCIA_HORA_DEDUP_MIN, dedup-key.ts) corta la fusión
+    // cuando las horas están a más de 120 minutos, como acá (16:00 y 21:00, 300 minutos). El slug
+    // nuevo lleva fecha y hora (slugConFechaHora), no sólo el día, para que una tercera función no
+    // vuelva a chocar (ver el test de abajo).
     const show16 = row(1, { start_date: FUNCION_16, slug: SLUG, venue_id: null })
     const db = createFakeEventsDb([show16])
     const incoming = { title: TITULO, start_date: FUNCION_21, slug: SLUG, venue_id: null, status: 'PUBLISHED' }
     const res = await upsertEventWithDeduplication(incoming, 'alpogo', db.client)
-    expect(res).toMatchObject({ action: 'update', eventId: uid(1) })
-    expect(db.rows).toHaveLength(1) // sigue siendo una sola fila: QPS-164 hallazgo 1 persiste por este camino
+    expect(res).toMatchObject({ action: 'insert' })
+    expect(db.inserts).toHaveLength(1)
+    expect(db.inserts[0].slug).toBe(`${SLUG}-2026-11-20-2100`)
+    expect(db.rows).toHaveLength(2) // QPS-164 hallazgo 1: quedan dos funciones separadas
   })
 
-  it('LÍMITE CONOCIDO: con una tercera función el mismo día, las tres siguen fusionándose en una sola fila (mismo motivo: el score, no el chequeo de hora)', async () => {
+  it('con una tercera función el mismo día, las tres quedan en filas separadas con slugs distintos entre sí', async () => {
     const show16 = row(1, { start_date: FUNCION_16, slug: SLUG, venue_id: null })
     const db = createFakeEventsDb([show16])
 
     const incoming21 = { title: TITULO, start_date: FUNCION_21, slug: SLUG, venue_id: null, status: 'PUBLISHED' }
     const res21 = await upsertEventWithDeduplication(incoming21, 'alpogo', db.client)
-    expect(res21).toMatchObject({ action: 'update', eventId: uid(1) })
+    expect(res21).toMatchObject({ action: 'insert' })
 
+    // La colisión de slug siempre consulta `.eq('slug', eventData.slug)` con el slug BASE
+    // (`SLUG`), así que la tercera función choca otra vez con la fila de las 16 (la única que
+    // sigue teniendo el slug base: la de las 21 ya se renombró arriba), no con la de las 21. Con
+    // un sufijo de sólo día, la segunda y la tercera función saldrían las dos con `SLUG-2026-11-20`
+    // y el segundo insert violaría el índice único de `slug` — por eso el sufijo lleva la hora.
     const FUNCION_23 = '2026-11-21T02:00:00.000Z' // 23:00 Salta, sigue siendo el 20 en Salta
     const incoming23 = { title: TITULO, start_date: FUNCION_23, slug: SLUG, venue_id: null, status: 'PUBLISHED' }
     const res23 = await upsertEventWithDeduplication(incoming23, 'alpogo', db.client)
-    expect(res23).toMatchObject({ action: 'update', eventId: uid(1) })
+    expect(res23).toMatchObject({ action: 'insert' })
 
-    expect(db.rows).toHaveLength(1) // las tres funciones reales siguen siendo una sola fila
+    expect(db.rows).toHaveLength(3) // las tres funciones reales quedan en tres filas
+    const slugs = db.rows.map((r) => r.slug)
+    expect(new Set(slugs).size).toBe(3) // slugs distintos entre sí
   })
 
   it('colisión de slug entre dos eventos SIN relación (clave y score distintos): se sigue sufijando sólo con el día, sin cambios por esta tarea', async () => {
