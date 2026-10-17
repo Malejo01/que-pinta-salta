@@ -25,8 +25,9 @@
  *    `components/draft-events-manager.tsx` (deuda de voseo real pero fuera
  *    del alcance de 30-e, QPS-157).
  * 3. Ningún `type="password"` suelto fuera de `PasswordInput`
- *    (`components/ui/password-input.tsx`), salvo `app/auth/login/page.tsx`
- *    (R29).
+ *    (`components/ui/password-input.tsx`): desde la R35 `app/auth/login/page.tsx`
+ *    también usa `PasswordInput`, así que la excepción de la R29 ya no
+ *    existe.
  */
 import { readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
@@ -227,15 +228,15 @@ describe('Ronda 30: ninguna forma de tuteo de la lista de 30-e en apps/web/app o
 // ---------------------------------------------------------------------------
 
 const PASSWORD_INPUT_DEFINICION = 'components/ui/password-input.tsx'
-const PASSWORD_EXCEPCION_R29 = 'app/auth/login/page.tsx'
+const LOGIN_PAGE = 'app/auth/login/page.tsx'
 const TYPE_PASSWORD_LITERAL = /type=["']password["']/
 
-describe('Ronda 30: ningún type="password" suelto fuera de PasswordInput (salvo app/auth/login/page.tsx, R29)', () => {
+describe('Ronda 30: ningún type="password" suelto fuera de PasswordInput', () => {
   const archivos = [...listarArchivosRecursivo('app'), ...listarArchivosRecursivo('components')].filter(
-    (relPath) => relPath !== PASSWORD_INPUT_DEFINICION && relPath !== PASSWORD_EXCEPCION_R29
+    (relPath) => relPath !== PASSWORD_INPUT_DEFINICION
   )
 
-  it('ningún archivo (fuera de las excepciones) tiene type="password" literal', () => {
+  it('ningún archivo tiene type="password" literal', () => {
     const violaciones: string[] = []
     for (const relPath of archivos) {
       const lineas = read(relPath).split('\n')
@@ -252,7 +253,9 @@ describe('Ronda 30: ningún type="password" suelto fuera de PasswordInput (salvo
     expect(read(PASSWORD_INPUT_DEFINICION)).toMatch(/type=\{visible \? ['"]text['"] : ['"]password['"]\}/)
   })
 
-  it('la excepción declarada (login, R29) existe de verdad y tiene type="password"', () => {
-    expect(TYPE_PASSWORD_LITERAL.test(read(PASSWORD_EXCEPCION_R29))).toBe(true)
+  it('app/auth/login/page.tsx importa y usa <PasswordInput /> (ya no tiene la excepción de la R29)', () => {
+    const src = read(LOGIN_PAGE)
+    expect(src).toMatch(/import\s*\{[^}]*PasswordInput[^}]*\}\s*from\s*['"]@\/components\/ui\/password-input['"]/)
+    expect(src).toMatch(/<PasswordInput\b/)
   })
 })
