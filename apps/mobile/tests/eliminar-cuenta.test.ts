@@ -97,7 +97,10 @@ describe('eliminarMiCuenta: el pedido al servidor', () => {
     const [url, init] = mockFetch.mock.calls[0]
     expect(url).toBe(RUTA_ESPERADA)
     expect(init?.method).toBe('POST')
-    expect(init?.headers).toMatchObject({
+    // toEqual (no toMatchObject): un header de más (p. ej. un X-Qps-Uid con
+    // el id de la cuenta) tiene que poner este test en rojo, no pasar
+    // inadvertido.
+    expect(init?.headers).toEqual({
       'Content-Type': 'application/json',
       Authorization: `Bearer ${TOKEN_DE_PRUEBA}`,
     })
@@ -155,7 +158,8 @@ describe('eliminarMiCuenta: el pedido al servidor', () => {
 // ---------------------------------------------------------------------------
 describe('completarEliminacionDeCuenta', () => {
   it('si sale bien: cierra sesión, borra la bandera de la Bienvenida y navega a /bienvenida', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true }) as Response))
+    const mockFetch = vi.fn(async () => ({ ok: true }) as Response)
+    vi.stubGlobal('fetch', mockFetch)
     const navegarABienvenida = vi.fn()
 
     const resultado = await completarEliminacionDeCuenta(TOKEN_DE_PRUEBA, false, { navegarABienvenida })
@@ -165,28 +169,36 @@ describe('completarEliminacionDeCuenta', () => {
     expect(estado.banderaBienvenidaBorrada).toBe(1)
     expect(navegarABienvenida).toHaveBeenCalledTimes(1)
     expect(estado.googleSignOutLlamado).toBe(0) // entró con email, no con Google
+    // Una segunda llamada de red agregada acá dentro (telemetría con el
+    // email, por ejemplo) tiene que poner este test en rojo.
+    expect(mockFetch).toHaveBeenCalledTimes(1)
   })
 
   it('si la persona entró con Google, también cierra la sesión nativa de Google', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true }) as Response))
+    const mockFetch = vi.fn(async () => ({ ok: true }) as Response)
+    vi.stubGlobal('fetch', mockFetch)
     const navegarABienvenida = vi.fn()
 
     await completarEliminacionDeCuenta(TOKEN_DE_PRUEBA, true, { navegarABienvenida })
 
     expect(estado.googleSignOutLlamado).toBe(1)
+    expect(mockFetch).toHaveBeenCalledTimes(1)
   })
 
   it('si entró con email, no llama a GoogleSignin.signOut()', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true }) as Response))
+    const mockFetch = vi.fn(async () => ({ ok: true }) as Response)
+    vi.stubGlobal('fetch', mockFetch)
     const navegarABienvenida = vi.fn()
 
     await completarEliminacionDeCuenta(TOKEN_DE_PRUEBA, false, { navegarABienvenida })
 
     expect(estado.googleSignOutLlamado).toBe(0)
+    expect(mockFetch).toHaveBeenCalledTimes(1)
   })
 
   it('si falla el servidor: no cierra sesión, no borra la bandera y no navega', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false }) as Response))
+    const mockFetch = vi.fn(async () => ({ ok: false }) as Response)
+    vi.stubGlobal('fetch', mockFetch)
     const navegarABienvenida = vi.fn()
 
     const resultado = await completarEliminacionDeCuenta(TOKEN_DE_PRUEBA, false, { navegarABienvenida })
@@ -195,6 +207,7 @@ describe('completarEliminacionDeCuenta', () => {
     expect(estado.signOutLlamado).toBe(0)
     expect(estado.banderaBienvenidaBorrada).toBe(0)
     expect(navegarABienvenida).not.toHaveBeenCalled()
+    expect(mockFetch).toHaveBeenCalledTimes(1)
   })
 
   it('sin red: tampoco cierra sesión, ni borra la bandera, ni navega', async () => {
@@ -210,5 +223,6 @@ describe('completarEliminacionDeCuenta', () => {
     expect(estado.signOutLlamado).toBe(0)
     expect(estado.banderaBienvenidaBorrada).toBe(0)
     expect(navegarABienvenida).not.toHaveBeenCalled()
+    expect(mockFetch).toHaveBeenCalledTimes(1)
   })
 })
