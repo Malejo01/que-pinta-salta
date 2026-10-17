@@ -114,7 +114,11 @@ describe('botones-asistencia-diferidos.tsx: detector estático', () => {
     const corte = codigo.search(/<BotonesAsistencia\b/)
     expect(corte).toBeGreaterThan(0)
     const antes = codigo.slice(0, corte)
-    expect(antes).toMatch(/if\s*\(\s*resultado\s*===\s*null\s*\|\|\s*!resultado\.ok\s*\)\s*return\s+null/)
+    // Sin resultado, con el de OTRO evento (el modal cambió de evento) o con
+    // ok: false, no se dibuja nada.
+    expect(antes).toMatch(
+      /if\s*\(\s*resultado\s*===\s*null\s*\|\|\s*resultado\.eventId\s*!==\s*eventId\s*\|\|\s*!resultado\.respuesta\.ok\s*\)\s*return\s+null/,
+    )
     expect(antes).toMatch(/if\s*\(\s*!debeCargarAsistencia\([^)]*\)\s*\)\s*return\s+null/)
   })
 

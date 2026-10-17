@@ -35,7 +35,9 @@ export function BotonesAsistenciaDiferidos({
   haySesion,
   className,
 }: BotonesAsistenciaDiferidosProps) {
-  const [resultado, setResultado] = useState<ResultadoAsistencia | null>(null)
+  // El resultado guarda de qué evento es: si el evento cambiara con el modal
+  // abierto, nunca se dibujan las cantidades del anterior.
+  const [resultado, setResultado] = useState<{ eventId: string; respuesta: ResultadoAsistencia } | null>(null)
 
   useEffect(() => {
     if (!debeCargarAsistencia({ abierto, status })) return
@@ -43,7 +45,7 @@ export function BotonesAsistenciaDiferidos({
     let cancelado = false
     obtenerAsistencia(eventId)
       .then((respuesta) => {
-        if (!cancelado) setResultado(respuesta)
+        if (!cancelado) setResultado({ eventId, respuesta })
       })
       .catch((err) => {
         if (cancelado) return
@@ -59,14 +61,15 @@ export function BotonesAsistenciaDiferidos({
   }, [abierto, eventId, status])
 
   if (!debeCargarAsistencia({ abierto, status })) return null
-  if (resultado === null || !resultado.ok) return null
+  if (resultado === null || resultado.eventId !== eventId || !resultado.respuesta.ok) return null
+  const { cantidades, propia } = resultado.respuesta
 
   return (
     <BotonesAsistencia
       key={eventId}
       eventId={eventId}
-      cantidadesIniciales={resultado.cantidades}
-      marcaInicial={resultado.propia}
+      cantidadesIniciales={cantidades}
+      marcaInicial={propia}
       haySesion={haySesion}
       className={className}
     />
