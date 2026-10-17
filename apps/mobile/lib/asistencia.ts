@@ -122,7 +122,9 @@ export async function marcarAsistencia(
   }
 
   try {
-    if (siguienteMarca(actual, tipo) === null) {
+    const nueva = siguienteMarca(actual, tipo)
+
+    if (nueva === null) {
       // La RLS ("eliminación del dueño") ya acota esto a la fila propia.
       const { error } = await supabase.from('event_attendance').delete().eq('event_id', eventId)
       if (error) return resultadoDeError(error)
@@ -131,7 +133,7 @@ export async function marcarAsistencia(
 
     const { error } = await supabase
       .from('event_attendance')
-      .upsert({ user_id: userId, event_id: eventId, kind: tipo }, { onConflict: 'user_id,event_id' })
+      .upsert({ user_id: userId, event_id: eventId, kind: nueva }, { onConflict: 'user_id,event_id' })
     if (error) return resultadoDeError(error)
     return { tipo: 'ok' }
   } catch (excepcion) {

@@ -17,7 +17,8 @@
 // (mismo estilo que `tests/estado-carga-detector.test.ts`); (2) que
 // `marcarAsistencia` sigue siendo idempotente con `siguienteMarca` de core,
 // para las 6 combinaciones.
-import { readFileSync } from 'node:fs'
+import { readFileSync, readdirSync, statSync } from 'node:fs'
+import { join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { siguienteMarca, type TipoAsistencia as TipoAsistenciaDeCore } from '@qps/core/asistencia'
@@ -416,6 +417,33 @@ describe('marcarAsistencia: la decisión de borrar/upsert coincide con siguiente
 // `components/BotonesAsistencia.tsx` importan la lógica de core y no tienen
 // su propia copia.
 //
+// Vuelta 1 (revisor, bloqueante 1): los cuatro chequeos de "copia local" de
+// abajo solo miraban esos dos archivos vigilados. La evasión concreta que el
+// revisor probó: crear un TERCER archivo (`lib/asistencia-interno.ts`) con la
+// copia completa (tipo con otro nombre, etiquetas, umbral `>= 3` y la
+// comparación manual), usarlo desde los dos archivos vigilados, y dejar el
+// `import ... from '@qps/core/asistencia'` puesto aunque sea solo para el
+// tipo. Con eso los cuatro chequeos quedaban en verde sobre los dos archivos
+// vigilados (no tienen la copia: la tiene el tercero) y el detector no
+// miraba ningún otro archivo.
+//
+// El arreglo: además de seguir probando con precisión los dos archivos
+// vigilados (abajo, con los cuatro chequeos por separado — eso no cambió),
+// se agrega un BARRIDO recursivo de todo el código de la app (`lib/`,
+// `components/` y `app/`) que busca los cuatro patrones A LA VEZ en un
+// mismo archivo (`tieneCopiaLocalCompleta`): esa combinación completa es
+// una señal mucho más específica que cualquiera de los cuatro por separado
+// (un `>= 3` aislado, por ejemplo, aparece en código de paginación o de
+// estilos sin ninguna relación con asistencia), así que barrerla en todo el
+// árbol de la app no da falsos positivos — se verifica más abajo con
+// fixtures y también corriendo el barrido sobre el código real.
+//
+// `tests/` queda AFUERA del barrido a propósito: ahí los literales
+// `'voy'`/`'me_interesa'`, el mapa de etiquetas y los números (`>= 3`,
+// `=== 3`) son fixtures legítimos de los propios tests — de este archivo, y
+// también de `tests/asistencia-umbral.test.ts`, que otro teammate puede
+// estar escribiendo en paralelo — no una copia de la lógica de producción.
+//
 // Evasiones consideradas (y por qué este detector las agarra):
 //   a) Alias de import: `import { siguienteMarca as x } from '@qps/core/asistencia'`
 //      sigue siendo detectado como "importa de core" (el regex no depende
@@ -433,6 +461,17 @@ describe('marcarAsistencia: la decisión de borrar/upsert coincide con siguiente
 //      `TipoAsistencia`, el chequeo de unión de tipo busca la FORMA del
 //      valor ('voy' | 'me_interesa', en cualquier orden), que no cambia
 //      aunque el tipo se declare con otro nombre.
+//   c) Copia completa en un tercer archivo no vigilado (la evasión real del
+//      revisor, bloqueante 1): el barrido recorre TODO `lib/`,
+//      `components/` y `app/`, no solo los dos archivos de la lista fija,
+//      así que el tercer archivo cae igual, tenga el nombre que tenga.
+//   d) Que la función que lista los archivos del barrido se achique sola
+//      (a mano, o por un cambio futuro que la rompa): el test "encuentra
+//      archivos" afirma que el barrido tiene más de 30 elementos y que
+//      incluye los dos archivos vigilados, así que un barrido roto (por
+//      ejemplo, que solo mire un directorio, o que no recorra
+//      subdirectorios) queda en rojo aunque nadie haya tocado el resto de
+//      los tests.
 // ---------------------------------------------------------------------------
 
 const MOBILE_ROOT = fileURLToPath(new URL('..', import.meta.url))
@@ -496,6 +535,54 @@ export function tieneComparacionManualDeMarca(content: string): boolean {
     return true
   }
   return false
+}
+
+/**
+ * `true` si `content` tiene los CUATRO patrones de "copia local" A LA VEZ
+ * (unión de tipo, etiquetas, umbral numérico y comparación manual): la
+ * señal de que un archivo —sea cual sea su nombre, y esté o no en la lista
+ * fija de archivos vigilados— tiene la lógica de asistencia copiada
+ * entera, y no solo una coincidencia aislada de uno de los cuatro patrones
+ * (que por separado puede aparecer en código sin ninguna relación con
+ * asistencia: por ejemplo un `>= 3` de paginación, o un `===` cualquiera).
+ * Es el chequeo que se usa en el barrido recursivo de más abajo, donde no
+ * hay una lista fija de archivos "sospechosos": tiene que evitar falsos
+ * positivos en el resto del código de la app.
+ */
+export function tieneCopiaLocalCompleta(content: string): boolean {
+  return (
+    tieneUnionTipoAsistenciaLocal(content) &&
+    tieneEtiquetasLocal(content) &&
+    tieneUmbralNumericoLocal(content) &&
+    tieneComparacionManualDeMarca(content)
+  )
+}
+
+const DIRECTORIOS_BARRIDOS = ['lib', 'components', 'app'] as const
+
+/**
+ * Todos los `.ts`/`.tsx` bajo `lib/`, `components/` y `app/` (el código de
+ * la app), recorridos recursivamente. A propósito NO incluye `tests/` (ver
+ * la cabecera de esta sección): ahí los mismos literales son fixtures
+ * legítimos de los tests, no una copia de la lógica de producción.
+ */
+function listarArchivosDeLaApp(): string[] {
+  const out: string[] = []
+  function recorrer(dir: string) {
+    for (const entry of readdirSync(dir)) {
+      const full = join(dir, entry)
+      const st = statSync(full)
+      if (st.isDirectory()) {
+        recorrer(full)
+      } else if (entry.endsWith('.ts') || entry.endsWith('.tsx')) {
+        out.push(full)
+      }
+    }
+  }
+  for (const d of DIRECTORIOS_BARRIDOS) {
+    recorrer(join(MOBILE_ROOT, d))
+  }
+  return out
 }
 
 describe('detector de copia local (fixtures en memoria: tiene que fallar de verdad)', () => {
@@ -607,6 +694,87 @@ describe('detector de copia local (fixtures en memoria: tiene que fallar de verd
     it('comparar un campo de estado contra un literal (como en el componente) no cuenta: false', () => {
       expect(tieneComparacionManualDeMarca(`estado.tipo === 'cargando'`)).toBe(false)
     })
+  })
+
+  describe('tieneCopiaLocalCompleta', () => {
+    it('evasión c (bloqueante 1 del revisor): un tercer archivo con la copia completa, con otros nombres de variable y de tipo, se marca', () => {
+      // La forma de `lib/asistencia-interno.ts` que probó el revisor: el
+      // mismo tipo, las mismas etiquetas, el mismo umbral y la misma regla
+      // de marcar/desmarcar que core, pero con otros nombres y sin importar
+      // nada de `@qps/core/asistencia`.
+      const asistenciaInterno = `
+        export type MarcaInterna = 'voy' | 'me_interesa'
+
+        export const ETIQUETAS_INTERNAS: Record<MarcaInterna, string> = {
+          voy: 'Voy',
+          me_interesa: 'Me interesa',
+        }
+
+        export function cantidadVisibleInterna(n: number): number | null {
+          return n >= 3 ? n : null
+        }
+
+        export function siguienteMarcaInterna(previo: MarcaInterna | null, nuevo: MarcaInterna): MarcaInterna | null {
+          return previo === nuevo ? null : nuevo
+        }
+      `
+      expect(tieneCopiaLocalCompleta(asistenciaInterno)).toBe(true)
+    })
+
+    it('un archivo que solo importa de core y lo usa, sin ninguno de los cuatro patrones: false', () => {
+      const archivoLimpio = `
+        import { siguienteMarca, textoBoton, type TipoAsistencia } from '@qps/core/asistencia'
+        export function usar(tipo: TipoAsistencia, cantidad: number) {
+          return textoBoton(tipo, cantidad)
+        }
+      `
+      expect(tieneCopiaLocalCompleta(archivoLimpio)).toBe(false)
+    })
+
+    it('un solo patrón aislado, sin relación con asistencia (umbral de paginación): false (hace falta la combinación completa)', () => {
+      const paginacion = `function hayMasPaginas(cantidadCargada: number) { return cantidadCargada >= 3 }`
+      expect(tieneCopiaLocalCompleta(paginacion)).toBe(false)
+    })
+
+    it('tres de los cuatro patrones, sin el cuarto: false (hace falta la combinación completa, no una coincidencia parcial)', () => {
+      const incompleto = `
+        type Marca = 'voy' | 'me_interesa'
+        const etiquetas = { voy: 'Voy', me_interesa: 'Me interesa' }
+        function umbral(n: number) { return n >= 3 ? n : null }
+      `
+      expect(tieneCopiaLocalCompleta(incompleto)).toBe(false)
+    })
+  })
+})
+
+// ---------------------------------------------------------------------------
+// R38, tarea 38-a, vuelta 1 (revisor, bloqueante 1): barrido recursivo de
+// `lib/`, `components/` y `app/` (todo el código de la app, sin `tests/`;
+// ver la cabecera de esta sección) buscando `tieneCopiaLocalCompleta` en
+// cualquier archivo, no solo en los dos de `ARCHIVOS_ASISTENCIA`. Esto es lo
+// que agarra un tercer archivo con la copia completa, dondequiera que lo
+// pongan.
+// ---------------------------------------------------------------------------
+describe('barrido recursivo de lib/, components/ y app/: ninguna copia local completa de asistencia fuera de core', () => {
+  const archivos = listarArchivosDeLaApp()
+  const relativos = archivos.map((f) => relative(MOBILE_ROOT, f))
+
+  it('encuentra una cantidad razonable de archivos, incluidos los dos vigilados (si esto falla, el barrido se achicó y el resto de este describe no prueba nada)', () => {
+    expect(archivos.length).toBeGreaterThan(30)
+    expect(relativos).toContain(join('lib', 'asistencia.ts'))
+    expect(relativos).toContain(join('components', 'BotonesAsistencia.tsx'))
+  })
+
+  it.each(archivos.map((file) => [relative(MOBILE_ROOT, file), file] as const))('%s', (label, file) => {
+    const contenido = readFileSync(file, 'utf8')
+    if (tieneCopiaLocalCompleta(contenido)) {
+      throw new Error(
+        `${label}: tiene los cuatro patrones de una copia local completa de la lógica de asistencia ` +
+          `(unión de tipo, etiquetas, umbral numérico y comparación manual) — tiene que usar ` +
+          `@qps/core/asistencia en vez de reimplementarla`
+      )
+    }
+    expect(tieneCopiaLocalCompleta(contenido)).toBe(false)
   })
 })
 

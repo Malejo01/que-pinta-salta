@@ -1,9 +1,14 @@
 /**
- * "Voy" / "Me interesa" de la ficha de un evento (R38, tarea 38-a). Lógica
- * pura (sin Supabase, sin React, sin imports de ninguna app): la usan la web
- * y la app para que el texto del botón y la regla de marcar/desmarcar sean
- * exactamente los mismos en los dos lugares, probado por un test de
- * equivalencia.
+ * "Voy" / "Me interesa" de la ficha de un evento (R38, tareas 38-a y 38-b).
+ * Lógica pura (sin Supabase, sin React, sin imports de ninguna app): la usan
+ * la web (`apps/web/lib/asistencia.ts`, `apps/web/components/botones-asistencia.tsx`)
+ * y la app (`apps/mobile/lib/asistencia.ts`, `apps/mobile/components/BotonesAsistencia.tsx`)
+ * para que el texto del botón y la regla de marcar/desmarcar sean el mismo
+ * código en los dos lados, no una copia. Todavía no hay un test de
+ * equivalencia entre los dos lados; lo que sí existe hoy son dos detectores
+ * estáticos, uno por lado, que prueban que cada app importa esta lógica de
+ * acá y no tiene su propia copia: `apps/mobile/tests/asistencia.test.ts` y
+ * `apps/web/tests/asistencia/web.test.ts`.
  *
  * Regla de datos: acá solo se trabaja con cantidades y con la marca propia
  * del usuario de la sesión (`TipoAsistencia | null`). Nunca con quién marcó
@@ -56,8 +61,9 @@ export const ETIQUETAS_ASISTENCIA: Record<TipoAsistencia, string> = {
 
 /**
  * El texto del botón: único lugar donde se arma ("Voy · 5" o "Voy", según
- * `cantidadVisible`). La web y la app llaman a esta misma función, así que
- * un test de equivalencia alcanza para probar que muestran lo mismo.
+ * `cantidadVisible`). La web (`apps/web/components/botones-asistencia.tsx`) y
+ * la app (`apps/mobile/components/BotonesAsistencia.tsx`) llaman a esta
+ * misma función.
  */
 export function textoBoton(tipo: TipoAsistencia, cantidad: number): string {
   const visible = cantidadVisible(cantidad)
