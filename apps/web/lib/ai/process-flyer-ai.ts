@@ -42,6 +42,48 @@ function cleanStringField(val: unknown): string | null {
 }
 
 /**
+ * True si un string "YYYY-MM-DD" (ya validado por regex de forma) corresponde a un día que
+ * existe en el calendario (QPS-164). `new Date` no tira con fechas imposibles: un desborde de
+ * días (31/02) lo corre silenciosamente a otro día (2/3), y un mes fuera de 1-12 (mes 13)
+ * devuelve Invalid Date sin que el string ISO final lo refleje. Por eso la fecha se valida acá,
+ * antes de construir cualquier Date, en vez de confiar en el constructor.
+ *
+ * `new Date(year, month, 0).getDate()` (con `month` en base 1, no en base 0 de Date) da el
+ * último día del mes anterior a `month + 1`, es decir el último día de `month`: respeta
+ * bisiestos sin tabla propia (29/02/2028 válido, 29/02/2031 inválido).
+ */
+function isValidCalendarDate(value: string): boolean {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value)
+  if (!m) return false
+  const year = Number(m[1])
+  const month = Number(m[2])
+  const day = Number(m[3])
+  if (month < 1 || month > 12) return false
+  if (day < 1) return false
+  const daysInMonth = new Date(year, month, 0).getDate()
+  return day <= daysInMonth
+}
+
+/**
+ * `tags` sale de `artists` solo si es un array y todos sus elementos son strings (QPS-164).
+ * Si `artists` no es array (string, número, null, objeto), o es un array con algún elemento
+ * que no es string, se descarta por completo y `tags` queda `[]`.
+ *
+ * Se descarta el array entero en vez de filtrar elemento por elemento: un array "mixto" (p. ej.
+ * `["Banda X", 42, { raro: true }]`) es señal de que el modelo alucinó la estructura completa,
+ * no de que haya algunos nombres buenos entre medio de basura. Filtrar igual deja pasar esos
+ * nombres "buenos" sin ninguna garantía de que correspondan a artistas reales del flyer, y hoy
+ * nadie revisa `tags` como campo crítico de auto-publicación (no participa de
+ * `qualifiesForAutoPublish`): es preferible perder tags válidos en un caso raro a normalizar en
+ * silencio una salida que ya mostró que no respeta el tipo declarado.
+ */
+function validateArtistsTags(artists: unknown): string[] {
+  if (!Array.isArray(artists)) return []
+  if (!artists.every((a) => typeof a === 'string')) return []
+  return artists
+}
+
+/**
  * Descarga una imagen desde una URL y retorna un Buffer y su mimeType.
  */
 async function fetchImageBuffer(url: string): Promise<{ buffer: Buffer; mimeType: string }> {
@@ -189,7 +231,11 @@ export async function processFlyerWithAI(flyerId: string): Promise<FlyerProcessi
     // Ojo: published_at viene de Apify como instante UTC real, así que NO se convierte.
     let startDate = flyer.published_at
     const rawDate = cleanStringField(extractedData.date)
-    const isValidDate = rawDate && /^\d{4}-\d{2}-\d{2}$/.test(rawDate)
+    // QPS-164: además de la forma (YYYY-MM-DD), el día tiene que existir en el calendario.
+    // Una fecha imposible (31/02, mes 13, 29/02 de un año no bisiesto) queda inválida acá:
+    // nunca se arma un start_date a partir de ella, así que start_date siempre es un instante
+    // ISO válido (cae al fallback de published_at, que ya lo es).
+    const isValidDate = rawDate !== null && /^\d{4}-\d{2}-\d{2}$/.test(rawDate) && isValidCalendarDate(rawDate)
     // QPS-073: de dónde salió la fecha final, para exigir confirmación en
     // publishDraftEvent cuando no vino del flyer sino del posteo.
     const dateSource = isValidDate ? 'flyer' : 'published_at'
@@ -224,17 +270,39 @@ export async function processFlyerWithAI(flyerId: string): Promise<FlyerProcessi
       startDate = saltaWallClockToUtcISO(`${rawDate}T${timeCheck.time}:00`)
     }
 
-    // Generar slug del evento
-    const rawTitle = cleanStringField(extractedData.title)
+    // QPS-164: título rechazado por validación, no por excepción. Antes `extractedData.title.trim()`
+    // reventaba cuando el modelo no devolvía un string (p. ej. un número) y esa excepción la
+    // atrapaba el catch general de más abajo, que trata el flyer como si Gemini hubiera fallado
+    // por completo (handleProcessingFallback, ai_status FAILED). Ahora un título que no es
+    // string, o que queda vacío después de limpiarlo, es simplemente un título inválido: el
+    // evento sigue su camino normal (éxito), pero sin calificar para auto-publicación.
+    const titleIsValid = typeof extractedData.title === 'string' && extractedData.title.trim().length > 0
+    const titleError = titleIsValid
+      ? null
+      : `title inválido: se esperaba un string no vacío, se recibió ${
+          extractedData.title === null ? 'null' : typeof extractedData.title
+        }`
+
+    // Generar slug del evento. Un título inválido (rechazado arriba) no llega ni limpiado:
+    // se descarta entero y cae directo al mismo título por defecto que se usa cuando Gemini
+    // no extrajo ningún título.
+    const rawTitle = titleIsValid ? cleanStringField(extractedData.title) : null
     const eventTitle = rawTitle || `Evento flyer @${account?.username}`
     const eventSlug = `${slugify(eventTitle)}-${flyer.ig_post_id}`
 
     // Evaluar si califica para auto-publicación: requiere título, fecha, hora y lugar válidos y detectados
-    const hasTitle = !!extractedData.title && extractedData.title.trim().length > 0
-    const hasDate = !!extractedData.date && /^\d{4}-\d{2}-\d{2}$/.test(extractedData.date)
+    const hasTitle = titleIsValid
+    // QPS-164: misma fecha ya limpiada y validada contra el calendario (ver isValidDate):
+    // extractedData.date es la salida cruda del modelo, se chequea con typeof porque puede no
+    // ser un string (igual que title), y además de la forma tiene que existir en el calendario.
+    const rawExtractedDate = extractedData.date
+    const hasDate =
+      typeof rawExtractedDate === 'string' &&
+      /^\d{4}-\d{2}-\d{2}$/.test(rawExtractedDate) &&
+      isValidCalendarDate(rawExtractedDate)
     const hasTime = timeCheck.reliable
     const hasVenue = !!venueName && venueName !== 'Lugar no especificado'
-    
+
     const qualifiesForAutoPublish = !!(hasTitle && hasDate && hasTime && hasVenue)
     const eventStatus = qualifiesForAutoPublish ? 'PUBLISHED' : 'DRAFT'
 
@@ -258,7 +326,7 @@ export async function processFlyerWithAI(flyerId: string): Promise<FlyerProcessi
       ticket_url: flyer.ig_post_url,
       is_commercial: false,
       age_restriction: 0,
-      tags: extractedData.artists || [],
+      tags: validateArtistsTags(extractedData.artists),
       status: eventStatus,
       is_featured: false,
       view_count: 0,
@@ -278,6 +346,9 @@ export async function processFlyerWithAI(flyerId: string): Promise<FlyerProcessi
         venue_inferred: venueCheck.inferred,
         venue_source: venueCheck.source,
         ...(venueError ? { venue_error: VENUE_ERROR_PUBLIC } : {}),
+        // QPS-164: por qué hasTitle quedó en false (no por qué eventTitle es el fallback: eso
+        // también pasa sin título extraído, que no es un error).
+        ...(titleError ? { title_error: titleError } : {}),
       },
     }
 
@@ -299,6 +370,7 @@ export async function processFlyerWithAI(flyerId: string): Promise<FlyerProcessi
           venue_inferred: venueCheck.inferred,
           venue_source: venueCheck.source,
           ...(venueError ? { venue_error: VENUE_ERROR_PUBLIC } : {}),
+          ...(titleError ? { title_error: titleError } : {}),
         },
         ai_processed_at: new Date().toISOString(),
         venue_name: venueName,
