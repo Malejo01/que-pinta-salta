@@ -10,7 +10,7 @@ import { createAdminClient, createClient } from '@/lib/supabase/server'
  * trabajo corre igual.
  */
 
-export type JobKey = 'ticketeras' | 'instagram' | 'cines' | 'cola_ia' | 'radar_newsletter' | 'recurrentes'
+export type JobKey = 'ticketeras' | 'instagram' | 'cines' | 'cola_ia' | 'radar_newsletter' | 'recurrentes' | 'notificaciones'
 
 export const JOB_LABELS: Record<JobKey, string> = {
   recurrentes: 'Peñas y museos (recurrentes)',
@@ -19,6 +19,7 @@ export const JOB_LABELS: Record<JobKey, string> = {
   cines: 'Cines',
   cola_ia: 'Cola de IA de flyers',
   radar_newsletter: 'Radar Salteño (newsletter)',
+  notificaciones: 'Notificaciones push',
 }
 
 export type JobRunStatus = 'RUNNING' | 'SUCCESS' | 'PARTIAL' | 'FAILED' | 'SKIPPED'
