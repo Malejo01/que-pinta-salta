@@ -5,7 +5,13 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import fs from 'node:fs'
 import path from 'node:path'
-import config, { plugins } from '../app.config'
+import config, {
+  COLOR_NOTIFICACION,
+  TEXTO_PERMISO_CALENDARIO,
+  googleServicesFile,
+  plugins,
+} from '../app.config'
+import { COLORES_OSCURO } from '../lib/theme'
 import { ANDROID_PACKAGE } from '../../web/lib/config/app-links'
 
 describe('app.config.ts', () => {
@@ -89,7 +95,13 @@ describe('app.config.ts para EAS (QPS-143)', () => {
   it('sin SENTRY_AUTH_TOKEN el plugin de Sentry no entra (no puede tumbar el build)', () => {
     expect(plugins({})).not.toContain('@sentry/react-native/expo')
     expect(plugins({ SENTRY_AUTH_TOKEN: '   ' })).not.toContain('@sentry/react-native/expo')
-    expect(plugins({})).toEqual(['expo-router', 'expo-secure-store', '@react-native-google-signin/google-signin'])
+    expect(plugins({}).map((p) => (typeof p === 'string' ? p : p[0]))).toEqual([
+      'expo-router',
+      'expo-secure-store',
+      '@react-native-google-signin/google-signin',
+      'expo-notifications',
+      'expo-calendar',
+    ])
   })
 
   it('con SENTRY_AUTH_TOKEN el plugin entra, y el token no queda en la config', () => {
@@ -147,3 +159,38 @@ describe('app.config.ts: extra.entorno (28-c)', () => {
     expect(Object.keys(config.extra ?? {}).sort()).toEqual(['eas', 'entorno'])
   })
 })
+
+// chore/deps-app-v1 (17/10): los plugins de expo-notifications y
+// expo-calendar, y el google-services.json que monta EAS.
+describe('app.config.ts: dependencias de la v1 (push, calendario, compartir)', () => {
+  const opciones = (nombre: string) => {
+    const p = plugins({}).find((x) => (typeof x === 'string' ? x : x[0]) === nombre)
+    return typeof p === 'string' || p === undefined ? undefined : p[1]
+  }
+
+  it('expo-notifications usa el primario del tema oscuro (mismo color que la app)', () => {
+    expect(COLOR_NOTIFICACION).toBe(COLORES_OSCURO.primary)
+    expect(opciones('expo-notifications')).toEqual({ color: COLOR_NOTIFICACION })
+  })
+
+  it('expo-calendar trae los textos de permiso en español', () => {
+    const o = opciones('expo-calendar')
+    expect(o?.calendarPermission).toBe(TEXTO_PERMISO_CALENDARIO)
+    expect(o?.writeOnlyCalendarPermission).toBe(TEXTO_PERMISO_CALENDARIO)
+    expect(TEXTO_PERMISO_CALENDARIO).toMatch(/calendario/)
+  })
+
+  it('expo-sharing no lleva plugin (es para recibir lo compartido, y la app solo comparte hacia afuera)', () => {
+    expect(JSON.stringify(plugins({}))).not.toContain('expo-sharing')
+  })
+
+  it('googleServicesFile sale de GOOGLE_SERVICES_JSON y, sin la variable, no se define', () => {
+    expect(googleServicesFile({})).toBeUndefined()
+    expect(googleServicesFile({ GOOGLE_SERVICES_JSON: '   ' })).toBeUndefined()
+    expect(googleServicesFile({ GOOGLE_SERVICES_JSON: '/eas/ruta/google-services.json' })).toBe(
+      '/eas/ruta/google-services.json'
+    )
+    expect(config.android).not.toHaveProperty('googleServicesFile')
+  })
+})
+
