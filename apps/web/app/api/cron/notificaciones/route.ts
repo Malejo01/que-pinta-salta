@@ -11,7 +11,13 @@ import {
 } from '@qps/core/notificaciones/tanda'
 import type { PreferenciasNotificacion } from '@qps/core/notificaciones/preferencias'
 import { isVigente } from '@qps/core/events/vigencia'
-import { enviarLote, leerReceipts, tokensInvalidos, type MensajePush } from '@/lib/notificaciones/expo-push'
+import {
+  enviarLote,
+  esTokenExpoValido,
+  leerReceipts,
+  tokensInvalidos,
+  type MensajePush,
+} from '@/lib/notificaciones/expo-push'
 
 // Igual que recurrentes/route.ts: sin esto Vercel puede cortar la función a
 // mitad y dejar la corrida en RUNNING (como sus crones hermanos, scrape,
@@ -220,12 +226,39 @@ async function enviarNotificaciones(): Promise<NotificacionesReply> {
     }
   }
 
+  // Qué `dedupeKey` tuvieron al menos un ticket `status: 'ok'` (arreglo 3,
+  // R39): `enviarLote` filtra los mensajes con token de forma inválida ANTES
+  // de armar los lotes (`esTokenExpoValido`), así que `tickets` tiene un
+  // elemento por cada mensaje de `mensajes` que pasó ese filtro, EN EL MISMO
+  // ORDEN (es el invariante que documenta expo-push.ts): filtrar `mensajes`
+  // con el mismo predicado y emparejar por posición reconstruye, para cada
+  // ticket, de qué `MensajeDeTanda` (y por lo tanto de qué `dedupeKey`) vino.
+  // Un mensaje descartado por forma de token inválida no genera ticket, así
+  // que tampoco puede contar como éxito para su dedupeKey.
+  const mensajesConTokenValido = mensajes.filter((m) => esTokenExpoValido(m.to))
+  const dedupeKeysConExito = new Set<string>()
+  mensajesConTokenValido.forEach((mensaje, i) => {
+    if (tickets[i]?.ticket?.status === 'ok') dedupeKeysConExito.add(mensaje.dedupeKey)
+  })
+
   // notification_sends: una fila por dedupeKey, no por mensaje. Los mensajes
   // de los dos dispositivos del mismo usuario comparten dedupeKey, y esa
   // columna es unique en toda la tabla: un segundo INSERT con la misma clave
   // choca.
+  //
+  // Solo se escribe la fila si el envío salió de verdad: al menos un ticket
+  // de ese dedupeKey volvió con `status: 'ok'`. Si ninguno salió (timeout,
+  // error de red, HTTP de error, token inválido, o un ticket de Expo con
+  // `status: 'error'`), NO se escribe fila: al no quedar en
+  // `notification_sends`, el aviso vuelve a ser candidato en la corrida
+  // siguiente (`dedupeKeysYaEnviados` de `armarTanda` no lo va a tener). Es
+  // la semántica que queda: un aviso se puede llegar a mandar dos veces si
+  // la escritura en `notification_sends` falla DESPUÉS de haber mandado de
+  // verdad (eso ya pasaba antes de este arreglo, no es nuevo), pero nunca se
+  // pierde en silencio por un error de envío.
+  const mensajesExitosos = [...mensajes].filter((mensaje) => dedupeKeysConExito.has(mensaje.dedupeKey))
   const porDedupe = new Map<string, MensajeDeTanda>()
-  for (const mensaje of mensajes) {
+  for (const mensaje of mensajesExitosos) {
     if (!porDedupe.has(mensaje.dedupeKey)) porDedupe.set(mensaje.dedupeKey, mensaje)
   }
 
@@ -246,6 +279,13 @@ async function enviarNotificaciones(): Promise<NotificacionesReply> {
     }
   }
 
+  // Cuántos dedupeKey distintos de esta tanda NO se registraron porque
+  // ningún ticket de ese aviso volvió `ok` (no incluye los que sí tuvieron
+  // éxito pero el INSERT de notification_sends falló: esos ya están en
+  // `erroresRegistro`).
+  const dedupeKeysTotales = new Set(mensajes.map((m) => m.dedupeKey)).size
+  const enviosNoRegistradosPorFalla = dedupeKeysTotales - porDedupe.size
+
   return reply(200, {
     dryRun: false,
     mensajes: mensajes.length,
@@ -254,6 +294,7 @@ async function enviarNotificaciones(): Promise<NotificacionesReply> {
     tokensInvalidosBorrados: invalidos.length,
     erroresLote: erroresEnvio.length + erroresReceipts.length,
     erroresRegistro,
+    enviosNoRegistradosPorFalla,
   })
 }
 
@@ -265,9 +306,15 @@ function toOutcome(r: NotificacionesReply): JobOutcome {
     mensajes?: number
     erroresLote?: number
     erroresRegistro?: number
+    enviosNoRegistradosPorFalla?: number
     tokensInvalidosBorrados?: number
   }
-  const fallos = (body.erroresLote ?? 0) + (body.erroresRegistro ?? 0)
+  // `erroresLote` solo cuenta lotes enteros que fallaron (timeout, red, HTTP);
+  // `enviosNoRegistradosPorFalla` suma además los avisos que Expo procesó
+  // pero cuyo ticket volvió con error (arreglo 3, R39): sin esto, una
+  // corrida donde todos los tickets fallaran individualmente igual se vería
+  // "SUCCESS" en job_runs.
+  const fallos = (body.erroresLote ?? 0) + (body.erroresRegistro ?? 0) + (body.enviosNoRegistradosPorFalla ?? 0)
   return {
     status: fallos > 0 ? 'PARTIAL' : 'SUCCESS',
     itemsProcessed: body.mensajes ?? 0,

@@ -221,6 +221,51 @@ describe('cada regla de 39-a aplicada', () => {
   })
 })
 
+describe('novedades futuras (arreglo 1, R39): no se filtran por `ahora` en la fuente original, `armarTanda` las descarta', () => {
+  it('una novedad con `momento` en el futuro no genera mensaje', () => {
+    const ahora = salta('2026-10-20T10:30:00')
+    const datos: DatosParaTanda = {
+      usuarios: [
+        usuario({
+          novedades: [novedad({ momento: salta('2026-10-21T10:00:00') })], // mañana
+        }),
+      ],
+    }
+    expect(armarTanda(datos, ahora)).toHaveLength(0)
+  })
+
+  it('el borde exacto (`momento === ahora`) sí genera mensaje, igual criterio que favoritos (`>=`)', () => {
+    const ahora = salta('2026-10-20T10:30:00')
+    const datos: DatosParaTanda = {
+      usuarios: [usuario({ novedades: [novedad({ momento: ahora })] })],
+    }
+    expect(armarTanda(datos, ahora)).toHaveLength(1)
+  })
+
+  it('una novedad futura no consume lugar en el tope de 3 grupos del día: las 3 de hoy siguen agrupando normalmente', () => {
+    const ahora = salta('2026-10-20T20:00:00') // fuera del horario de silencio (23:00-09:00) y después de las 3 novedades de hoy
+    const datos: DatosParaTanda = {
+      usuarios: [
+        usuario({
+          novedades: [
+            // Una novedad de mañana, cronológicamente "primera" si no se filtrara por `ahora`.
+            novedad({ momento: salta('2026-10-21T08:00:00') }),
+            // 3 novedades de hoy, cada una en su propia hora de Salta: sin el
+            // filtro, la de mañana ocuparía el primer lugar del tope y una de
+            // estas 3 quedaría afuera.
+            novedad({ momento: salta('2026-10-20T08:00:00') }),
+            novedad({ momento: salta('2026-10-20T09:00:00') }),
+            novedad({ momento: salta('2026-10-20T10:00:00') }),
+          ],
+        }),
+      ],
+    }
+    const mensajes = armarTanda(datos, ahora)
+    expect(mensajes).toHaveLength(3)
+    expect(mensajes.every((m) => m.kind === 'novedad')).toBe(true)
+  })
+})
+
 describe('el tope mixto: lo de hoy + lo nuevo de la tanda', () => {
   it('3 envíos previos hoy con daily_cap 4 y 3 candidatos nuevos: entra 1 solo', () => {
     const ahora = salta('2026-10-20T18:00:00')

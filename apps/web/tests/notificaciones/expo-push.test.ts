@@ -7,6 +7,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   EXPO_PUSH_BATCH_SIZE,
+  EXPO_PUSH_LOTES_EN_PARALELO,
   enviarLote,
   esTokenExpoValido,
   leerReceipts,
@@ -117,6 +118,152 @@ describe('enviarLote: loteo', () => {
     expect((init.headers as Record<string, string>)['content-type']).toBe('application/json')
     expect((init.headers as Record<string, string>)['accept']).toBe('application/json')
     expect(init.method).toBe('POST')
+  })
+})
+
+describe('enviarLote: concurrencia acotada (arreglo 2, R39)', () => {
+  /** Deja correr la cola de microtasks pendientes `n` veces (bastante margen: cada paso de la cadena fetch→json→return es como mucho 3-4 microtasks). */
+  async function flush(n = 10): Promise<void> {
+    for (let i = 0; i < n; i++) await Promise.resolve()
+  }
+
+  /** `fetch` de mentira que no resuelve hasta que el test lo decide: deja observar cuántas llamadas están "en vuelo". */
+  function fetchControlado() {
+    let enVuelo = 0
+    let maxEnVuelo = 0
+    const pendientes: Array<() => void> = []
+
+    const fetchImpl = vi.fn().mockImplementation((_url: string, init: RequestInit) => {
+      enVuelo += 1
+      maxEnVuelo = Math.max(maxEnVuelo, enVuelo)
+      const body = JSON.parse(init.body as string) as Array<{ to: string }>
+      return new Promise<Response>((resolve) => {
+        pendientes.push(() => {
+          enVuelo -= 1
+          // Respuesta "ok" por default, identificable por el primer `to` del lote
+          // (sirve para verificar en el test de emparejamiento qué lote la generó).
+          resolve(
+            respuestaFalsa({
+              data: body.map((m, i) => ({ status: 'ok', id: `${m.to}-ticket-${i}` })),
+            }),
+          )
+        })
+      })
+    })
+
+    return { fetchImpl, pendientes: () => pendientes, resolverProximo: () => pendientes.shift()?.(), maxEnVuelo: () => maxEnVuelo }
+  }
+
+  it('nunca hay más de EXPO_PUSH_LOTES_EN_PARALELO llamadas a fetch en vuelo a la vez', async () => {
+    const totalLotes = EXPO_PUSH_LOTES_EN_PARALELO + 3
+    const mensajes = Array.from({ length: totalLotes * EXPO_PUSH_BATCH_SIZE }, (_, i) => ({ to: tokenFalso(i) }))
+    const { fetchImpl, pendientes, resolverProximo, maxEnVuelo } = fetchControlado()
+
+    const promesa = enviarLote(mensajes, fetchImpl as unknown as typeof fetch)
+
+    // Apenas arranca, ya se dispararon como mucho EXPO_PUSH_LOTES_EN_PARALELO
+    // llamadas (nunca las 8 de un `Promise.all` sin tope).
+    expect(fetchImpl.mock.calls.length).toBeLessThanOrEqual(EXPO_PUSH_LOTES_EN_PARALELO)
+    expect(fetchImpl.mock.calls.length).toBeGreaterThan(0)
+
+    // Ir resolviendo de a uno (el más viejo primero) hasta agotar los lotes.
+    // `maxEnVuelo` (dentro del doble de fetch) va registrando, en el momento
+    // exacto de cada llamada y cada resolución, cuántas hay en simultáneo:
+    // es la métrica que importa, no una revisación puntual del test.
+    let resueltos = 0
+    let iteracionesSinAvanzar = 0
+    while (resueltos < totalLotes) {
+      if (pendientes().length === 0) {
+        iteracionesSinAvanzar += 1
+        if (iteracionesSinAvanzar > 50) throw new Error('la cola de fetch pendientes nunca avanzó: posible deadlock')
+        await flush()
+        continue
+      }
+      iteracionesSinAvanzar = 0
+      resolverProximo()
+      resueltos += 1
+      await flush()
+    }
+
+    await promesa
+
+    expect(fetchImpl).toHaveBeenCalledTimes(totalLotes)
+    expect(maxEnVuelo()).toBeLessThanOrEqual(EXPO_PUSH_LOTES_EN_PARALELO)
+    expect(maxEnVuelo()).toBeGreaterThan(0)
+  })
+
+  it('con varios lotes en paralelo resueltos fuera de orden, el resultado mantiene el orden y el emparejamiento exacto (error en un lote del medio)', async () => {
+    const totalLotes = EXPO_PUSH_LOTES_EN_PARALELO + 2
+    const mensajes = Array.from({ length: totalLotes * EXPO_PUSH_BATCH_SIZE }, (_, i) => ({ to: tokenFalso(i) }))
+
+    // El lote del medio (índice 2) devuelve un error de DeviceNotRegistered
+    // en su tercer mensaje; todos los demás, en todos los lotes, salen "ok".
+    const loteConError = 2
+    const posicionConError = 2
+
+    let enVuelo = 0
+    let maxEnVuelo = 0
+    const pendientes: Array<() => void> = []
+    const fetchImpl = vi.fn().mockImplementation((_url: string, init: RequestInit) => {
+      enVuelo += 1
+      maxEnVuelo = Math.max(maxEnVuelo, enVuelo)
+      const body = JSON.parse(init.body as string) as Array<{ to: string }>
+      const indiceDeLote = Number(body[0].to.match(/token-(\d+)\]/)![1]) / EXPO_PUSH_BATCH_SIZE
+      return new Promise<Response>((resolve) => {
+        pendientes.push(() => {
+          enVuelo -= 1
+          const data = body.map((m, i) => {
+            if (indiceDeLote === loteConError && i === posicionConError) {
+              return { status: 'error', message: 'no registrado', details: { error: 'DeviceNotRegistered' } }
+            }
+            return { status: 'ok', id: `${m.to}-ticket-${i}` }
+          })
+          resolve(respuestaFalsa({ data }))
+        })
+      })
+    })
+
+    const promesa = enviarLote(mensajes, fetchImpl as unknown as typeof fetch)
+
+    // Resolver TODO fuera de orden (los más nuevos primero): el resultado
+    // tiene que quedar igual de correcto que si se hubiera resuelto en orden,
+    // porque el orden final depende del índice, no de cuándo llegó la respuesta.
+    let resueltos = 0
+    let iteracionesSinAvanzar = 0
+    while (resueltos < totalLotes) {
+      if (pendientes.length === 0) {
+        iteracionesSinAvanzar += 1
+        if (iteracionesSinAvanzar > 50) throw new Error('la cola de fetch pendientes nunca avanzó: posible deadlock')
+        await flush()
+        continue
+      }
+      iteracionesSinAvanzar = 0
+      const ultimo = pendientes.pop()
+      ultimo?.()
+      resueltos += 1
+      await flush()
+    }
+
+    const resultado = await promesa
+
+    expect(resultado.tickets).toHaveLength(totalLotes * EXPO_PUSH_BATCH_SIZE)
+
+    // Orden y emparejamiento: cada ticket corresponde al token de su misma posición.
+    resultado.tickets.forEach((t, i) => {
+      expect(t.token).toBe(tokenFalso(i))
+    })
+
+    // El error en el medio del lote 2 cae exactamente en su posición global
+    // (loteConError * EXPO_PUSH_BATCH_SIZE + posicionConError), ni uno antes ni uno después.
+    const indiceGlobalDelError = loteConError * EXPO_PUSH_BATCH_SIZE + posicionConError
+    const invalidos = tokensInvalidos(resultado.tickets, {})
+    expect(invalidos).toEqual([tokenFalso(indiceGlobalDelError)])
+    expect(resultado.tickets[indiceGlobalDelError - 1].ticket?.status).toBe('ok')
+    expect(resultado.tickets[indiceGlobalDelError + 1].ticket?.status).toBe('ok')
+
+    // Resolver fuera de orden no significa sin tope: la concurrencia siguió acotada.
+    expect(maxEnVuelo).toBeLessThanOrEqual(EXPO_PUSH_LOTES_EN_PARALELO)
+    expect(maxEnVuelo).toBeGreaterThan(0)
   })
 })
 

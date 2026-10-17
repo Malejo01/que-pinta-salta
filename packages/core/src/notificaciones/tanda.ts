@@ -54,6 +54,15 @@ export interface FavoritoParaTanda extends EventoParaRecordatorioFavorito {
  * Instagram), ya resuelta a un evento concreto por quien llama. `id` tiene
  * que ser único entre las novedades de este usuario (lo exige el agrupado
  * de `./reglas`, que agrupa por `id`).
+ *
+ * Contrato con quien llama (R39, arreglo 1): `UsuarioParaTanda.novedades`
+ * tiene que traer TODAS las novedades del día de Salta, las ya avisadas y
+ * las nuevas, no solo las nuevas. `limitarNovedadesPorDia` (`./reglas`)
+ * cuenta `MAX_NOVEDADES_POR_DIA` por posición cronológica dentro del array,
+ * no por si ese grupo ya se mandó: si quien llama filtrara las ya
+ * enviadas antes de pasarlas, el tope se correría de lugar (un grupo que en
+ * realidad es el 4° del día ocuparía la posición del 1°) y se podrían
+ * mandar más avisos de los que el tope permite.
  */
 export interface NovedadParaTanda extends NovedadParaAgrupar {
   eventId: string
@@ -87,6 +96,7 @@ export interface UsuarioParaTanda {
    */
   tokens: string[]
   favoritos: FavoritoParaTanda[]
+  /** Ver el contrato en el docstring de `NovedadParaTanda`: todas las del día, no solo las nuevas. */
   novedades: NovedadParaTanda[]
   enviosRegistrados: EnvioRegistradoParaTanda[]
 }
@@ -216,10 +226,37 @@ function candidatosDeFavoritos(
  * todavía no se mandó. `prepararNovedadesParaEnviar` devuelve los grupos con
  * el tipo base `NovedadParaAgrupar` (solo `id`/`momento`): `porId` recupera
  * el `eventId`/`title` de cada una a partir del `id`, sin castear.
+ *
+ * Antes de agrupar, se descartan las novedades cuyo `momento` todavía no
+ * llegó (`momento > ahora`), por simetría con `debeEnviarRecordatorioFavorito`
+ * de favoritos. El filtro es `<=` (no un rango exacto), igual criterio que
+ * favoritos usa con `>=`: el borde exacto (`momento === ahora`) SÍ genera
+ * candidato. El filtro va antes de `prepararNovedadesParaEnviar` a propósito:
+ * así una novedad futura no ocupa lugar en el tope de `MAX_NOVEDADES_POR_DIA`
+ * del día (si se filtrara después de agrupar/topear, una novedad de mañana
+ * podría desplazar a una de hoy fuera del tope).
+ *
+ * Limitación conocida, no arreglada en esta ronda: una novedad TARDÍA (que
+ * llega a esta función con un `momento` anterior a otra que una corrida
+ * previa ya procesó y agrupó) puede hacer que el tope diario se pase, porque
+ * `limitarNovedadesPorDia` (`./reglas`) cuenta por posición cronológica
+ * dentro del array que recibe en cada corrida, no por si ese grupo ya se
+ * mandó en una corrida anterior. El día que se decida resolver esto, el
+ * lugar a tocar es `limitarNovedadesPorDia` en `./reglas` (no modificable
+ * desde esta tarea): tendría que descontar del tope los grupos cuyo
+ * `dedupeKey` ya está en `dedupeKeysYaEnviados`, en vez de contar todos los
+ * grupos del día por igual.
  */
-function candidatosDeNovedades(usuario: UsuarioParaTanda, dedupeKeysYaEnviados: Set<string>): Candidato[] {
-  const porId = new Map(usuario.novedades.map((novedad) => [novedad.id, novedad]))
-  const grupos = prepararNovedadesParaEnviar(usuario.novedades)
+function candidatosDeNovedades(
+  usuario: UsuarioParaTanda,
+  ahora: Date,
+  dedupeKeysYaEnviados: Set<string>,
+): Candidato[] {
+  const novedadesYaOcurridas = usuario.novedades.filter(
+    (novedad) => new Date(novedad.momento).getTime() <= ahora.getTime(),
+  )
+  const porId = new Map(novedadesYaOcurridas.map((novedad) => [novedad.id, novedad]))
+  const grupos = prepararNovedadesParaEnviar(novedadesYaOcurridas)
 
   const candidatos: Candidato[] = []
 
@@ -299,7 +336,7 @@ export function armarTanda(datos: DatosParaTanda, ahora: Date): MensajeDeTanda[]
 
     const candidatos: Candidato[] = [
       ...(prefs.favorite_reminders ? candidatosDeFavoritos(usuario, ahora, dedupeKeysYaEnviados) : []),
-      ...(prefs.follow_news ? candidatosDeNovedades(usuario, dedupeKeysYaEnviados) : []),
+      ...(prefs.follow_news ? candidatosDeNovedades(usuario, ahora, dedupeKeysYaEnviados) : []),
     ]
 
     let cantidadEnviosHoy = contarEnviosDelDiaSalta(usuario.enviosRegistrados, ahora)

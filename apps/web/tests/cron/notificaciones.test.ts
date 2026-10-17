@@ -182,16 +182,15 @@ describe('GET /api/cron/notificaciones: dryRun (PUSH_ENVIO_REAL distinto de "1")
 })
 
 describe('GET /api/cron/notificaciones: PUSH_ENVIO_REAL="1"', () => {
-  it('manda de verdad, registra en notification_sends y borra el token DeviceNotRegistered de push_tokens', async () => {
+  it('manda de verdad y, si el envío salió bien, registra en notification_sends (caso ya existente)', async () => {
     process.env.PUSH_ENVIO_REAL = '1'
-    armarTickets = () => [{ status: 'error', message: 'no registrado', details: { error: 'DeviceNotRegistered' } }]
+    // armarTickets por default (ver beforeEach): todos los tickets vuelven "ok".
 
     const res = await call()
     expect(res.status).toBe(200)
     const body = await res.json()
     expect(body.dryRun).toBe(false)
     expect(body.mensajes).toBe(1)
-    expect(fetchMock).toHaveBeenCalledTimes(1) // solo /send: sin tickets "ok" no hay ids para /getReceipts
 
     expect(writes.inserts.notification_sends).toHaveLength(1)
     expect(writes.inserts.notification_sends[0]).toMatchObject({
@@ -202,11 +201,45 @@ describe('GET /api/cron/notificaciones: PUSH_ENVIO_REAL="1"', () => {
       event_id: EVENT_ID,
     })
     expect(typeof writes.inserts.notification_sends[0].dedupe_key).toBe('string')
+    expect(body.enviosNoRegistradosPorFalla).toBe(0)
+  })
 
+  it('arreglo 3 (R39): el único ticket de un dedupeKey vuelve con error — no se inserta fila (se reintenta la próxima corrida), pero el token igual se borra si es DeviceNotRegistered', async () => {
+    process.env.PUSH_ENVIO_REAL = '1'
+    armarTickets = () => [{ status: 'error', message: 'no registrado', details: { error: 'DeviceNotRegistered' } }]
+
+    const res = await call()
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    expect(body.dryRun).toBe(false)
+    expect(body.mensajes).toBe(1)
+    expect(fetchMock).toHaveBeenCalledTimes(1) // solo /send: sin tickets "ok" no hay ids para /getReceipts
+
+    // La fila NO se inserta: el status 'SUCCESS' no puede mentir sobre un
+    // envío que en realidad falló, y como no queda registrada, la corrida
+    // siguiente la vuelve a intentar (dedupeKeysYaEnviados no la va a tener).
+    expect(writes.inserts.notification_sends ?? []).toHaveLength(0)
+    expect(body.enviosNoRegistradosPorFalla).toBe(1)
+
+    // El borrado del token es independiente de si se pudo registrar el envío.
     expect(writes.deletes.push_tokens).toEqual([TOKEN_A])
   })
 
-  it('dos tokens del mismo usuario: dos mensajes pero una sola fila en notification_sends', async () => {
+  it('arreglo 3 (R39): un dedupeKey con dos tokens, uno ok y uno con error, SÍ se inserta (alcanza con un ticket ok)', async () => {
+    process.env.PUSH_ENVIO_REAL = '1'
+    mockDb({ push_tokens: [{ user_id: USER_ID, token: TOKEN_A }, { user_id: USER_ID, token: TOKEN_B }] })
+    armarTickets = (tokens) =>
+      tokens.map((_, i) => (i === 0 ? { status: 'ok', id: `ticket-${i}` } : { status: 'error', message: 'algo salió mal' }))
+
+    const res = await call()
+    const body = await res.json()
+    expect(body.mensajes).toBe(2)
+    expect(writes.inserts.notification_sends).toHaveLength(1)
+    expect(body.enviosNoRegistradosPorFalla).toBe(0)
+    expect(writes.deletes.push_tokens ?? []).toHaveLength(0) // el error no es DeviceNotRegistered: no se borra nada
+  })
+
+  it('dos tokens del mismo usuario: dos mensajes pero una sola fila en notification_sends (los dos tickets salen ok)', async () => {
     process.env.PUSH_ENVIO_REAL = '1'
     mockDb({ push_tokens: [{ user_id: USER_ID, token: TOKEN_A }, { user_id: USER_ID, token: TOKEN_B }] })
 

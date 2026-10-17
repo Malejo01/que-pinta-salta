@@ -85,6 +85,27 @@ export type ResultadoReceipts = {
 export const EXPO_PUSH_BATCH_SIZE = 100
 
 /**
+ * Cuántos lotes de `EXPO_PUSH_BATCH_SIZE` se mandan en paralelo como máximo
+ * (R39, arreglo 2, seguridad). Antes, `enviarLote` hacía `Promise.all` de
+ * TODOS los lotes a la vez: la cantidad de lotes depende de la cantidad de
+ * tokens que haya en `push_tokens`, y `register_push_token` no tiene tope
+ * por usuario (la tabla solo tiene `unique(token)`), así que un solo usuario
+ * que registre muchos tokens podía inflar la cantidad de requests
+ * simultáneas a Expo dentro de una corrida (`maxDuration = 60` en la ruta),
+ * degradando el envío de todos los demás usuarios de esa corrida.
+ *
+ * Valor conservador, sin datos de producción para ajustarlo todavía: con
+ * `EXPO_PUSH_TIMEOUT_MS` (10 s) por lote, 5 en paralelo dejan margen dentro
+ * de los 60 s de la ruta para varias tandas de lotes sin acaparar toda la
+ * ventana de tiempo en una sola ráfaga.
+ *
+ * Esto acota el daño, no lo elimina: el tope de fondo (un límite de tokens
+ * por usuario, o `unique(user_id, platform)` en `push_tokens`) es una
+ * migración, y esta tarea no puede escribir migraciones.
+ */
+export const EXPO_PUSH_LOTES_EN_PARALELO = 5
+
+/**
  * Cuánto esperamos la respuesta de Expo antes de abortar, con
  * `AbortSignal.timeout` (no hace falta armar un `AbortController` a mano).
  * Esto corre dentro de un route handler con tiempo de ejecución acotado
@@ -108,6 +129,37 @@ function enLotesDe<T>(items: T[], tamaño: number): T[][] {
   const lotes: T[][] = []
   for (let i = 0; i < items.length; i += tamaño) lotes.push(items.slice(i, i + tamaño))
   return lotes
+}
+
+/**
+ * Como `Promise.all(items.map(fn))`, pero sin disparar más de `limite` `fn`
+ * en simultáneo: un pool fijo de "trabajadores" que van tomando el próximo
+ * ítem disponible. El resultado queda en el MISMO ORDEN que `items`
+ * (`resultados[i]` se escribe por índice, nunca por orden de llegada), así
+ * que da exactamente lo mismo que `Promise.all` para quien lo llama, salvo
+ * la concurrencia. Ese orden es el invariante que `enviarLote` necesita para
+ * emparejar tickets con tokens (ver el comentario de arriba del archivo).
+ */
+async function conConcurrenciaLimitada<T, R>(
+  items: T[],
+  limite: number,
+  fn: (item: T) => Promise<R>,
+): Promise<R[]> {
+  const resultados: R[] = new Array(items.length)
+  let siguiente = 0
+
+  async function trabajador(): Promise<void> {
+    while (siguiente < items.length) {
+      const indice = siguiente
+      siguiente += 1
+      resultados[indice] = await fn(items[indice])
+    }
+  }
+
+  const cantidadDeTrabajadores = Math.max(1, Math.min(limite, items.length))
+  await Promise.all(Array.from({ length: cantidadDeTrabajadores }, () => trabajador()))
+
+  return resultados
 }
 
 /** `err.name` (y mensaje si lo tiene) de un fetch que rechazó: nunca contiene tokens, son errores nuestros de red/abort. */
@@ -185,6 +237,11 @@ async function enviarUnLote(
  * sus mensajes vuelven con `ticket: null`, para que los lotes de al lado
  * sigan su curso.
  *
+ * Los lotes no salen todos a la vez: `conConcurrenciaLimitada` los manda de
+ * a lo sumo `EXPO_PUSH_LOTES_EN_PARALELO` en simultáneo (ver su docstring).
+ * El resultado final queda en el mismo orden que si hubieran salido todos
+ * juntos con `Promise.all`.
+ *
  * `fetchImpl` recibe el `fetch` global de forma explícita por default (no
  * hay un `globalThis.fetch` escondido adentro): en los tests siempre se pasa
  * un doble.
@@ -194,7 +251,9 @@ export async function enviarLote(mensajes: MensajePush[], fetchImpl: typeof fetc
   const descartados = mensajes.length - validos.length
 
   const lotes = enLotesDe(validos, EXPO_PUSH_BATCH_SIZE)
-  const resultados = await Promise.all(lotes.map((lote) => enviarUnLote(lote, fetchImpl)))
+  const resultados = await conConcurrenciaLimitada(lotes, EXPO_PUSH_LOTES_EN_PARALELO, (lote) =>
+    enviarUnLote(lote, fetchImpl),
+  )
 
   const tickets: TicketConToken[] = []
   const erroresLote: string[] = []
