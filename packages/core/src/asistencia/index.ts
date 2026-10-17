@@ -4,11 +4,15 @@
  * la web (`apps/web/lib/asistencia.ts`, `apps/web/components/botones-asistencia.tsx`)
  * y la app (`apps/mobile/lib/asistencia.ts`, `apps/mobile/components/BotonesAsistencia.tsx`)
  * para que el texto del botón y la regla de marcar/desmarcar sean el mismo
- * código en los dos lados, no una copia. Todavía no hay un test de
- * equivalencia entre los dos lados; lo que sí existe hoy son dos detectores
- * estáticos, uno por lado, que prueban que cada app importa esta lógica de
- * acá y no tiene su propia copia: `apps/mobile/tests/asistencia.test.ts` y
- * `apps/web/tests/asistencia/web.test.ts`.
+ * código en los dos lados, no una copia. Lo fijan tres tests (38-q): dos
+ * detectores estáticos, uno por lado, que prueban que cada app importa esta
+ * lógica de acá y no tiene su propia copia
+ * (`apps/mobile/tests/asistencia.test.ts` y
+ * `apps/web/tests/asistencia/web.test.ts`), y el de paridad
+ * (`apps/web/tests/asistencia/paridad.test.ts`), que fija el texto esperado
+ * para cada cantidad **y** que los dos componentes lo saquen de `textoBoton`
+ * en vez de armarlo a mano. Ninguno de los dos solo alcanza: el detector no
+ * dice qué texto sale, y la tabla de textos no dice quién la usa.
  *
  * Regla de datos: acá solo se trabaja con cantidades y con la marca propia
  * del usuario de la sesión (`TipoAsistencia | null`). Nunca con quién marcó
