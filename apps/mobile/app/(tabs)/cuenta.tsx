@@ -205,6 +205,10 @@ export default function Cuenta() {
     linkBienvenida: { marginTop: 8, padding: 8 },
     version: { fontSize: 11, marginTop: 4 },
     salir: { marginTop: 20, padding: 8 },
+    // 37-d: "Eliminar mi cuenta", lejos de "Entrar"/"Crear cuenta" y después
+    // de "Cerrar sesión" (acción destructiva, nunca cerca de los botones
+    // principales).
+    eliminarCuenta: { marginTop: 8, padding: 8 },
   }
 
   if (cargando) {
@@ -373,6 +377,18 @@ export default function Cuenta() {
               Cerrar sesión
             </Texto>
           )}
+        </Pressable>
+
+        {/* 37-d: "Eliminar mi cuenta", acción destructiva, bien abajo
+            (después de "Cerrar sesión"), nunca cerca de los botones
+            principales. */}
+        <Pressable
+          onPress={() => router.push('/eliminar-cuenta')}
+          accessibilityRole="button"
+          accessibilityLabel="Eliminar mi cuenta"
+          style={estilos.eliminarCuenta}
+        >
+          <Texto style={{ fontSize: 12, color: COLOR_ERROR }}>Eliminar mi cuenta</Texto>
         </Pressable>
       </ScrollView>
     )
