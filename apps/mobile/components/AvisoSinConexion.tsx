@@ -5,14 +5,21 @@
 // la red.
 //
 // Mismos tokens que `EstadoCarga` (`useColoresQPS`, `mutedForeground` para
-// el texto). Fondo `muted` (no `card`, que son las tarjetas de contenido):
-// así la banda se nota como un aviso aparte, no como una tarjeta más de la
-// lista.
+// el texto, acá vía `tono="secundario"` de `Texto`). Fondo `muted` (no
+// `card`, que son las tarjetas de contenido) se mantiene, pero 43-c2
+// (pasada de ux-ui) encontró que en oscuro —el único esquema que la app usa
+// hoy: `lib/colores.ts` llama siempre a `coloresSegunEsquema('dark')`—
+// `muted` y `card` casi no se distinguen (contraste ~1,09:1): el fondo solo
+// no alcanza para que la banda se note como un aviso aparte. Lo que de
+// verdad la separa es el borde inferior en `colores.border`, que en oscuro
+// queda bastante más arriba que `muted` y que `card` (mismo patrón que el
+// separador de `Encabezado.tsx`).
 //
 // Sin ícono: `components/Icono.tsx` es el único wrapper de íconos aprobado,
 // y su lista (los 32 que también usa la web) no tiene ninguno de "sin
 // señal" — el encargo permite ir sin ícono en ese caso.
-import { StyleSheet, Text, View } from 'react-native'
+import { StyleSheet, View } from 'react-native'
+import { Texto } from '@/components/Texto'
 import { useColoresQPS } from '@/lib/colores'
 import { TITULO_SIN_CONEXION, textoGuardadoEn } from '@/lib/sin-conexion/aviso'
 
@@ -23,19 +30,37 @@ export interface AvisoSinConexionProps {
 
 export function AvisoSinConexion({ guardadoEn }: AvisoSinConexionProps) {
   const colores = useColoresQPS()
+  // Una sola vez: el texto visible y el `accessibilityLabel` tienen que decir
+  // exactamente lo mismo. Si se llamara `textoGuardadoEn` dos veces (una para
+  // cada lugar) con dos `new Date()` distintos, podrían caer en lados
+  // opuestos de la medianoche de Salta y el lector de pantalla anunciaría
+  // algo distinto de lo que se ve.
+  const textoSegundaLinea = textoGuardadoEn(guardadoEn, new Date())
 
   return (
-    <View style={[estilos.contenedor, { backgroundColor: colores.muted }]} accessibilityRole="alert">
-      <Text style={[estilos.titulo, { color: colores.mutedForeground }]}>{TITULO_SIN_CONEXION}</Text>
-      <Text style={[estilos.subtitulo, { color: colores.mutedForeground }]}>
-        {textoGuardadoEn(guardadoEn, new Date())}
-      </Text>
+    <View
+      style={[estilos.contenedor, { backgroundColor: colores.muted, borderBottomColor: colores.border }]}
+      accessible
+      accessibilityLiveRegion="polite"
+      accessibilityLabel={`${TITULO_SIN_CONEXION}. ${textoSegundaLinea}`}
+    >
+      <Texto peso="semibold" tono="secundario">
+        {TITULO_SIN_CONEXION}
+      </Texto>
+      <Texto tono="secundario" style={estilos.subtitulo}>
+        {textoSegundaLinea}
+      </Texto>
     </View>
   )
 }
 
 const estilos = StyleSheet.create({
-  contenedor: { paddingVertical: 10, paddingHorizontal: 16, gap: 2 },
-  titulo: { fontWeight: '600' },
+  contenedor: {
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    gap: 2,
+    marginBottom: 8,
+    borderBottomWidth: 1,
+  },
   subtitulo: { fontSize: 13 },
 })
