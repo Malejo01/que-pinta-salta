@@ -46,11 +46,13 @@
 // (`./cache`) antes de `await obtener(userId)` y la vuelve a comparar
 // cuando la respuesta llega: si cambió, ni escribe (rama `ok`) ni lee
 // (rama de error por red) la caché — ver el detalle en cada rama, abajo.
-// `leerFavoritosGuardados` NO necesita este chequeo: sus dos llamadores
-// (43-d, pantalla de Favoritos y `app/(tabs)/_layout.tsx`, fuera de los
-// archivos permitidos de esta tarea) ya hacen `await esperarBorradoDeCache()`
-// antes de llamarla, así que cuando se ejecuta no hay ningún borrado en
-// vuelo que invalidar.
+// `leerFavoritosGuardados` NO necesita este chequeo: sus dos únicos
+// llamadores están los dos en `app/(tabs)/favoritos.tsx` (el
+// `useFocusEffect` y `refrescar`, 43-c) y los dos hacen `await
+// esperarBorradoDeCache()` antes de llamarla, así que cuando se ejecuta no
+// hay ningún borrado en vuelo que invalidar. No hay ninguna otra ruta: si
+// alguna vez aparece un llamador nuevo, tiene que esperar el borrado igual
+// o llevar el chequeo de época.
 import { formatDateInSalta } from '@qps/core/home/transform'
 import type { DisplayEvent } from '@qps/core/home/types'
 import { obtenerFavoritos, type ResultadoFavoritos } from '@/lib/favoritos'

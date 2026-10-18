@@ -67,6 +67,25 @@ describe('app/(tabs)/index.tsx: carga con caché (detector estático)', () => {
     expect(antes).toMatch(/desdeCache/)
   })
 
+  // Agujero de la pasada del revisor (R43, 43-r2): el chequeo de arriba solo
+  // mira la subcadena "desdeCache" en los 80 caracteres previos, sin mirar
+  // la polaridad. Estos dos cambios reales dejan ese chequeo en verde sin
+  // que el aviso respete la red:
+  //   `{estado.desdeCache || true ? <AvisoSinConexion .../> : null}` → el
+  //     aviso queda SIEMPRE visible, incluso con red;
+  //   `{!estado.desdeCache ? <AvisoSinConexion .../> : null}` → lógica
+  //     invertida: aparece justo cuando SÍ hay red.
+  // Por eso exige el patrón real `estado.desdeCache ?` (con espacios
+  // variables, pero sin un `!` adelante ni un `||` en el medio).
+  it('la condición es "estado.desdeCache ?", sin negar y sin un || que la anule', () => {
+    const idxUso = contenidoIndex.indexOf('<AvisoSinConexion')
+    const antes = contenidoIndex.slice(Math.max(0, idxUso - 80), idxUso)
+
+    expect(antes).toMatch(/estado\.desdeCache\s*\?\s*$/)
+    expect(antes).not.toMatch(/!\s*estado\.desdeCache/)
+    expect(antes).not.toMatch(/\|\|/)
+  })
+
   it('sigue manteniendo todo lo de 36-a: cargarDatos (useCallback) con deps []', () => {
     const idx = contenidoIndex.indexOf('const cargarDatos = useCallback(')
     expect(idx).toBeGreaterThan(-1)
@@ -141,6 +160,19 @@ describe('app/(tabs)/favoritos.tsx: carga con caché (detector estático)', () =
     // a partir del uso de <AvisoSinConexion, no la primera del archivo.
     const idxTitulo = contenidoFavoritos.indexOf('Mi Agenda de Eventos', idxUso)
     expect(idxTitulo).toBeGreaterThan(idxUso)
+  })
+
+  // Mismo agujero que en index.tsx (ver el comentario de arriba): la
+  // subcadena "desdeCache" no mira la polaridad. Acá la condición real es
+  // `estado.tipo === 'ok' && estado.desdeCache ? (` — se exige ese patrón
+  // completo, sin negar y sin un `||` en el medio.
+  it('la condición es "estado.tipo === \'ok\' && estado.desdeCache ?", sin negar y sin un || que la anule', () => {
+    const idxUso = contenidoFavoritos.indexOf('<AvisoSinConexion')
+    const antes = contenidoFavoritos.slice(Math.max(0, idxUso - 80), idxUso)
+
+    expect(antes).toMatch(/estado\.tipo\s*===\s*'ok'\s*&&\s*estado\.desdeCache\s*\?\s*\(?\s*$/)
+    expect(antes).not.toMatch(/!\s*estado\.desdeCache/)
+    expect(antes).not.toMatch(/\|\|/)
   })
 
   // Sigue en verde sin tocarlo (trampa 2 del encargo: el detector de
