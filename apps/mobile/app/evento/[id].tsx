@@ -33,6 +33,7 @@ import { BotonFavorito } from '@/components/BotonFavorito'
 import { Cargando, ErrorCarga, Vacio } from '@/components/EstadoCarga'
 import { Icono } from '@/components/Icono'
 import { Texto } from '@/components/Texto'
+import { ESCALA_MAXIMA_COMPACTA } from '@/lib/accesibilidad'
 import { useColoresQPS } from '@/lib/colores'
 import { datosTarjetaCompartir } from '@/lib/compartir'
 import { obtenerEventoPorId, type ResultadoEvento } from '@/lib/datos/eventos'
@@ -159,14 +160,14 @@ export default function EventoPorId() {
       <View style={[estilos.contenedorImagen, { width: anchoAfiche, aspectRatio: 3 / 4, borderRadius: 16 }]}>
         <Afiche url={evento.image_url} llenar ancho={800} />
         <View style={[estilos.badgeCategoria, { backgroundColor: colores.primary }]}>
-          <Texto peso="bold" style={[estilos.textoBadge, { color: colores.primaryForeground }]} numberOfLines={1}>
+          <Texto peso="bold" style={[estilos.textoBadge, { color: colores.primaryForeground }]} numberOfLines={1} maxFontSizeMultiplier={ESCALA_MAXIMA_COMPACTA}>
             {categoryName}
           </Texto>
         </View>
       </View>
 
       <View style={estilos.filaTitulo}>
-        <Texto peso="bold" style={estilos.titulo}>
+        <Texto peso="bold" accessibilityRole="header" style={estilos.titulo}>
           {evento.title}
         </Texto>
         <View style={estilos.accionesTitulo}>
@@ -232,7 +233,7 @@ export default function EventoPorId() {
 
       <View style={estilos.ctas}>
         {urlLlegar ? (
-          <Pressable onPress={comoLlegar} style={[estilos.ctaPrimario, { backgroundColor: colores.primary }]}>
+          <Pressable onPress={comoLlegar} accessibilityRole="link" style={[estilos.ctaPrimario, { backgroundColor: colores.primary }]}>
             <Icono nombre="Navigation" tamanio={18} color={colores.primaryForeground} />
             <Texto peso="semibold" style={{ color: colores.primaryForeground }}>
               Como llegar
@@ -241,7 +242,7 @@ export default function EventoPorId() {
         ) : null}
 
         {tieneTicket && urlCompra ? (
-          <Pressable onPress={comprar} style={[estilos.ctaOutline, { borderColor: colores.border }]}>
+          <Pressable onPress={comprar} accessibilityRole="link" style={[estilos.ctaOutline, { borderColor: colores.border }]}>
             <Icono nombre="ExternalLink" tamanio={18} color={colores.foreground} />
             <Texto peso="semibold">Comprar tickets</Texto>
           </Pressable>

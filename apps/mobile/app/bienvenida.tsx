@@ -30,11 +30,12 @@ export default function Bienvenida() {
       </Text>
       <Pressable
         onPress={empezar}
+        accessibilityRole="button"
         style={[estilos.boton, { backgroundColor: colors.primary }]}
       >
         <Text style={estilos.textoBoton}>Empezar</Text>
       </Pressable>
-      <Pressable onPress={entrar} style={estilos.botonSecundario}>
+      <Pressable onPress={entrar} accessibilityRole="button" style={estilos.botonSecundario}>
         <Text style={[estilos.textoSecundario, { color: colors.text }]}>Entrar</Text>
       </Pressable>
     </View>

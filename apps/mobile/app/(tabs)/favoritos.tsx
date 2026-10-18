@@ -360,7 +360,7 @@ export default function Favoritos() {
               ) : null}
               {totalFavoritos > 0 ? (
                 <View style={[estilos.encabezado, { borderBottomColor: colors.border }]}>
-                  <Texto peso="bold" style={estilos.titulo}>
+                  <Texto peso="bold" accessibilityRole="header" style={estilos.titulo}>
                     Mi Agenda de Eventos
                   </Texto>
                   <Texto tono="secundario" style={estilos.subtitulo}>
@@ -472,6 +472,10 @@ const estilos = StyleSheet.create({
   subtitulo: { fontSize: 13 },
   // bg-emerald-600 de la web: color fijo (no es un token de ColoresQPS),
   // igual que el verde de "gratis" en components/TarjetaEvento.tsx.
+  // 46-d: el contraste (3,77) queda como excepción documentada en
+  // tests/contraste.test.ts (decisión de Mauro) — acá solo se suma
+  // `minHeight: 48` (paddingVertical 12 + el ícono/texto de adentro daban
+  // ~42dp de alto real, por debajo del mínimo táctil).
   botonWhatsApp: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -481,6 +485,7 @@ const estilos = StyleSheet.create({
     backgroundColor: '#059669',
     paddingHorizontal: 20,
     paddingVertical: 12,
+    minHeight: 48,
     borderRadius: 12,
     marginTop: 4,
   },

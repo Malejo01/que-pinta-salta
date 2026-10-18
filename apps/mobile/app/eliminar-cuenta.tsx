@@ -159,7 +159,7 @@ const estilos = {
   bloque: { gap: 4 },
   boton: (habilitado: boolean, colorDeshabilitado: string) => ({
     width: '100%' as const,
-    minHeight: 44,
+    minHeight: 48,
     borderRadius: 8,
     padding: 12,
     alignItems: 'center' as const,

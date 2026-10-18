@@ -17,6 +17,7 @@ import { CampoTexto } from '@/components/CampoTexto'
 import { Cargando, ErrorCarga } from '@/components/EstadoCarga'
 import { Icono } from '@/components/Icono'
 import { Texto } from '@/components/Texto'
+import { hitSlopPara } from '@/lib/accesibilidad'
 import { useColoresQPS } from '@/lib/colores'
 import { esAdminRadar, guardarRadar, obtenerRadar, probarEnvioRadar, type OpcionesRadar } from '@/lib/radar'
 import {
@@ -314,7 +315,7 @@ export function PantallaRadar() {
 
         {/* Card 1: Frecuencia y Destinatario */}
         <View style={[estilos.card, { backgroundColor: colores.card, borderColor: colores.border }]}>
-          <Texto peso="bold" style={estilos.tituloCard}>
+          <Texto peso="bold" accessibilityRole="header" style={estilos.tituloCard}>
             Frecuencia y Destinatario
           </Texto>
 
@@ -329,7 +330,7 @@ export function PantallaRadar() {
                   key={opcion.valor}
                   onPress={() => actualizarOk((previo) => ({ ...previo, frecuencia: opcion.valor }))}
                   accessibilityRole="radio"
-                  accessibilityState={{ selected: seleccionada }}
+                  accessibilityState={{ checked: seleccionada }}
                   style={[
                     estilos.filaFrecuencia,
                     { borderColor: seleccionada ? colores.primary : colores.border },
@@ -360,7 +361,7 @@ export function PantallaRadar() {
             <Animated.View style={{ transform: [{ scale: pulso }] }}>
               <Icono nombre="Radio" tamanio={20} color={colores.primary} />
             </Animated.View>
-            <Texto peso="bold" style={estilos.tituloCard}>
+            <Texto peso="bold" accessibilityRole="header" style={estilos.tituloCard}>
               Categorías que te interesan
             </Texto>
           </View>
@@ -399,7 +400,7 @@ export function PantallaRadar() {
         <View style={[estilos.card, { backgroundColor: colores.card, borderColor: colores.border }]}>
           <View style={estilos.filaTitulo}>
             <Icono nombre="Search" tamanio={20} color={colores.primary} />
-            <Texto peso="bold" style={estilos.tituloCard}>
+            <Texto peso="bold" accessibilityRole="header" style={estilos.tituloCard}>
               Lugares y Organizadores Preferidos
             </Texto>
           </View>
@@ -427,6 +428,7 @@ export function PantallaRadar() {
                   <Pressable
                     key={`${item.tipo}-${item.id}`}
                     onPress={() => elegirSeguible(item)}
+                    accessibilityRole="button"
                     style={estilos.filaSugerencia}
                   >
                     <View style={estilos.textoSugerencia}>
@@ -469,6 +471,14 @@ export function PantallaRadar() {
                     onPress={() => quitarLugar(venue.id)}
                     accessibilityRole="button"
                     accessibilityLabel={`Dejar de seguir ${venue.name}`}
+                    // 46-c: el "X" no tiene estilo propio, mide lo que mide el
+                    // ícono (14×14) — el chip que lo envuelve (`estilos.chip`,
+                    // minHeight: 36) es un View, no el Pressable, así que el
+                    // detector estático no ve este caso (documentado en el
+                    // reporte de la tarea). hitSlopPara(14) listo lo acerca a
+                    // 48; no se verificó contra chips vecinos muy angostos
+                    // (riesgo anotado para 46-q).
+                    hitSlop={hitSlopPara(14)}
                   >
                     <Icono nombre="X" tamanio={14} color={COLOR_ESMERALDA} />
                   </Pressable>
@@ -481,6 +491,7 @@ export function PantallaRadar() {
                     onPress={() => quitarCuenta(cuenta.id)}
                     accessibilityRole="button"
                     accessibilityLabel={`Dejar de seguir @${cuenta.username}`}
+                    hitSlop={hitSlopPara(14)}
                   >
                     <Icono nombre="X" tamanio={14} color={COLOR_ROSA} />
                   </Pressable>
@@ -560,7 +571,7 @@ export function PantallaRadar() {
             <Icono nombre="Radio" tamanio={28} color={colores.primary} />
           </Animated.View>
         </View>
-        <Texto peso="bold" style={estilos.tituloEncabezado}>
+        <Texto peso="bold" accessibilityRole="header" style={estilos.tituloEncabezado}>
           Mi Radar Salteño
         </Texto>
         <Texto tono="secundario" style={estilos.subtituloEncabezado}>
@@ -595,6 +606,9 @@ const estilos = StyleSheet.create({
   etiquetaCampo: { fontSize: 13 },
   textoChico: { fontSize: 12 },
   listaFrecuencias: { gap: 8 },
+  // 46-c: 44 -> 48 (AREA_TACTIL_MINIMA de lib/accesibilidad.ts) en las tres
+  // filas/ítems de abajo (filaFrecuencia, itemCategoria, filaSugerencia): son
+  // filas completas con padding vertical 12-14, los 4dp de más no se notan.
   filaFrecuencia: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -603,7 +617,7 @@ const estilos = StyleSheet.create({
     borderRadius: 10,
     paddingHorizontal: 12,
     paddingVertical: 12,
-    minHeight: 44,
+    minHeight: 48,
   },
   textoFrecuencia: { flex: 1, fontSize: 14 },
   cajaEmail: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 12, minHeight: 44, justifyContent: 'center' },
@@ -617,7 +631,7 @@ const estilos = StyleSheet.create({
     borderRadius: 12,
     paddingHorizontal: 12,
     paddingVertical: 14,
-    minHeight: 44,
+    minHeight: 48,
   },
   textoCategoria: { flex: 1, fontSize: 14 },
   sugerencias: { borderWidth: 1, borderRadius: 12, overflow: 'hidden' },
@@ -628,7 +642,7 @@ const estilos = StyleSheet.create({
     gap: 8,
     paddingHorizontal: 12,
     paddingVertical: 12,
-    minHeight: 44,
+    minHeight: 48,
   },
   textoSugerencia: { flex: 1 },
   badge: { borderWidth: 1, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 },

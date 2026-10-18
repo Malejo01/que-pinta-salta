@@ -26,6 +26,7 @@ import { useTheme } from 'expo-router'
 import type { VariantWidth } from '@qps/core/images/variants'
 import { leerEnv } from '@/lib/env'
 import { fuentesDeImagen, siguienteFuente } from '@/lib/imagenes/url-segura'
+import { metodoDeRedimension } from '@/lib/imagenes/tamanio'
 import LOGO_MARCA from '@/assets/logo-circular.png'
 
 // Solo el tamaño: así el mismo valor sirve para el `<View>` de la marca
@@ -135,6 +136,7 @@ function AficheInterno({ url, estilo, llenar, fallback, ancho, resizeMode, blurR
       source={{ uri: fuenteActual }}
       style={llenar ? estilos.imagenLlenar : [estilos.imagen, estilo]}
       resizeMode={resizeMode ?? 'cover'}
+      resizeMethod={metodoDeRedimension({ llenar, ancho })}
       blurRadius={blurRadius}
       onLoad={() => alTerminar?.('imagen')}
       onError={() => {

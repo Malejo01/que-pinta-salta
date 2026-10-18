@@ -55,6 +55,7 @@ export function ErrorBoundary({ retry }: ErrorBoundaryProps) {
       </Text>
       <Pressable
         onPress={retry}
+        accessibilityRole="button"
         style={[estilosError.boton, { backgroundColor: colores.primary }]}
       >
         <Text style={[estilosError.textoBoton, { color: colores.primaryForeground }]}>Reintentar</Text>
