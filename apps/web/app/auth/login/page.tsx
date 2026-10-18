@@ -61,7 +61,7 @@ export default function LoginPage() {
       router.push('/')
       router.refresh()
     } catch (error: unknown) {
-      setError(error instanceof Error ? error.message : 'Ocurrio un error')
+      setError(error instanceof Error ? error.message : 'Ocurrió un error')
     } finally {
       setIsLoading(false)
     }
@@ -115,9 +115,9 @@ export default function LoginPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-2xl">Iniciar Sesion</CardTitle>
+            <CardTitle className="text-2xl">Iniciar Sesión</CardTitle>
             <CardDescription>
-              Ingresa tu email y contraseña para acceder
+              Ingresá tu email y contraseña para entrar
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -155,7 +155,7 @@ export default function LoginPage() {
                   </p>
                 )}
                 <Button type="submit" className="w-full" disabled={isLoading}>
-                  {isLoading ? 'Iniciando sesion...' : 'Iniciar sesion'}
+                  {isLoading ? 'Iniciando sesión...' : 'Iniciar sesión'}
                 </Button>
               </div>
             </form>
@@ -180,8 +180,20 @@ export default function LoginPage() {
               <span>Google</span>
             </Button>
 
+            <p className="mt-4 text-xs text-muted-foreground text-center">
+              Al continuar con Google aceptás los{' '}
+              <Link href="/terminos" className="text-primary underline underline-offset-4">
+                Términos y condiciones
+              </Link>{' '}
+              y la{' '}
+              <Link href="/privacidad" className="text-primary underline underline-offset-4">
+                Política de Privacidad
+              </Link>
+              .
+            </p>
+
             <div className="mt-4 text-center text-sm">
-              ¿No tienes cuenta?{' '}
+              ¿No tenés cuenta?{' '}
               <Link
                 href="/auth/sign-up"
                 className="text-primary underline underline-offset-4"
