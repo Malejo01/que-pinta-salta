@@ -9,6 +9,12 @@
 // `marcarFavorito` cuenta como éxito; y sin configuración de Supabase
 // ("sin sesión" en el sentido de que no hay cliente con el que escribir) no
 // se llama a ningún insert/delete.
+//
+// R47, tarea 47-e (QPS-197): `obtenerFavoritos` ahora separa `voy` (✓,
+// social) de `eventos` (♥ Guardados) — se agrega el doble de la tabla
+// `event_attendance` (el `select` de ids con Voy que usa `obtenerFavoritos`,
+// y el `delete().select('kind')` que ahora hace `desmarcarFavorito` antes
+// de borrar el favorito).
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const USER_ID_SESION = 'usuario-de-sesion-1'
@@ -27,11 +33,17 @@ const estado = vi.hoisted(() => ({
   esFavoritoFila: { data: null as unknown, error: null as unknown } as { data: unknown; error: unknown },
   insertResultado: { error: null as unknown } as { error: unknown },
   deleteResultado: { error: null as unknown } as { error: unknown },
+  // R47: ids con Voy (lectura de event_attendance que hace obtenerFavoritos)
+  // y el resultado del delete+select('kind') que hace desmarcarFavorito.
+  voyFilas: { data: [] as unknown, error: null as unknown } as { data: unknown; error: unknown },
+  asistenciaDeleteResultado: { data: [] as unknown, error: null as unknown } as { data: unknown; error: unknown },
   arrojarFavoritos: null as unknown,
   arrojarEventos: null as unknown,
   arrojarEsFavorito: null as unknown,
   arrojarInsert: null as unknown,
   arrojarDelete: null as unknown,
+  arrojarVoy: null as unknown,
+  arrojarAsistenciaDelete: null as unknown,
   llamadas: {
     favoritosSelect: 0,
     eventosSelect: 0,
@@ -41,11 +53,14 @@ const estado = vi.hoisted(() => ({
     esFavoritoSelect: 0,
     insert: 0,
     delete: 0,
+    voySelect: 0,
+    asistenciaDelete: 0,
   },
   ultimoInsert: null as unknown,
   ultimoFavoritosEqs: [] as Array<[string, unknown]>,
   ultimoEsFavoritoEqs: [] as Array<[string, unknown]>,
   ultimoDeleteEqs: [] as Array<[string, unknown]>,
+  ultimoAsistenciaDeleteEqs: [] as Array<[string, unknown]>,
   ultimoEventosIn: null as unknown,
   ultimoFlyersIn: null as unknown,
   ultimoMoviesIn: null as unknown,
@@ -163,6 +178,38 @@ vi.mock('@/lib/supabase', () => ({
         }
         return builder
       }
+      if (tabla === 'event_attendance') {
+        // Dos usos distintos de la misma tabla (R47):
+        //  - obtenerFavoritos: .select('event_id, kind').eq('kind', 'voy')
+        //  - desmarcarFavorito: .delete().eq('event_id', id).select('kind')
+        let accion: 'select-voy' | 'delete' | null = null
+        const eqs: Array<[string, unknown]> = []
+        const builder: Record<string, unknown> = {}
+        builder.select = () => {
+          if (accion !== 'delete') accion = 'select-voy'
+          return builder
+        }
+        builder.eq = (campo: string, valor: unknown) => {
+          eqs.push([campo, valor])
+          return builder
+        }
+        builder.delete = () => {
+          accion = 'delete'
+          return builder
+        }
+        builder.then = (resolve: (v: unknown) => unknown, reject: (e: unknown) => unknown) => {
+          if (accion === 'delete') {
+            estado.llamadas.asistenciaDelete++
+            estado.ultimoAsistenciaDeleteEqs = eqs
+            if (estado.arrojarAsistenciaDelete) return Promise.reject(estado.arrojarAsistenciaDelete).catch(reject)
+            return Promise.resolve(estado.asistenciaDeleteResultado).then(resolve, reject)
+          }
+          estado.llamadas.voySelect++
+          if (estado.arrojarVoy) return Promise.reject(estado.arrojarVoy).catch(reject)
+          return Promise.resolve(estado.voyFilas).then(resolve, reject)
+        }
+        return builder
+      }
       throw new Error(`tabla inesperada en el doble de favoritos: ${tabla}`)
     },
   },
@@ -214,11 +261,15 @@ beforeEach(() => {
   estado.esFavoritoFila = { data: null, error: null }
   estado.insertResultado = { error: null }
   estado.deleteResultado = { error: null }
+  estado.voyFilas = { data: [], error: null }
+  estado.asistenciaDeleteResultado = { data: [], error: null }
   estado.arrojarFavoritos = null
   estado.arrojarEventos = null
   estado.arrojarEsFavorito = null
   estado.arrojarInsert = null
   estado.arrojarDelete = null
+  estado.arrojarVoy = null
+  estado.arrojarAsistenciaDelete = null
   estado.llamadas = {
     favoritosSelect: 0,
     eventosSelect: 0,
@@ -228,11 +279,14 @@ beforeEach(() => {
     esFavoritoSelect: 0,
     insert: 0,
     delete: 0,
+    voySelect: 0,
+    asistenciaDelete: 0,
   }
   estado.ultimoInsert = null
   estado.ultimoFavoritosEqs = []
   estado.ultimoEsFavoritoEqs = []
   estado.ultimoDeleteEqs = []
+  estado.ultimoAsistenciaDeleteEqs = []
   estado.ultimoEventosIn = null
   estado.ultimoFlyersIn = null
   estado.ultimoMoviesIn = null
@@ -287,7 +341,7 @@ describe('obtenerFavoritos: camino feliz', () => {
 
     const resultado = await obtenerFavoritos(USER_ID_SESION)
 
-    expect(resultado).toEqual({ ok: true, eventos: [] })
+    expect(resultado).toEqual({ ok: true, voy: [], eventos: [] })
     expect(estado.llamadas.eventosSelect).toBe(0)
   })
 
@@ -308,7 +362,7 @@ describe('obtenerFavoritos: camino feliz', () => {
 
     const resultado = await obtenerFavoritos(USER_ID_SESION)
 
-    expect(resultado).toEqual({ ok: true, eventos: [] })
+    expect(resultado).toEqual({ ok: true, voy: [], eventos: [] })
     expect(estado.llamadas.eventosSelect).toBe(0)
   })
 })
@@ -577,7 +631,68 @@ describe('obtenerFavoritos: flyers de Instagram y películas (F13)', () => {
 
     const resultado = await obtenerFavoritos(USER_ID_SESION)
 
-    expect(resultado).toEqual({ ok: true, eventos: [] })
+    expect(resultado).toEqual({ ok: true, voy: [], eventos: [] })
+  })
+})
+
+// ---------------------------------------------------------------------------
+// R47, tarea 47-e (QPS-197): Voy (✓, social) separado de Guardados (♥),
+// contenido en Guardados (un evento con Voy también está entre los
+// favoritos "de verdad"), y un Voy sin favorito (un Voy viejo, de antes del
+// backfill) tiene que aparecer igual.
+// ---------------------------------------------------------------------------
+describe('obtenerFavoritos: Voy (R47)', () => {
+  it('un evento con Voy Y favorito aparece primero en "voy", y no se duplica en "eventos" (Guardados)', async () => {
+    estado.favoritosFilas = { data: [{ event_id: EVENT_ID }, { event_id: OTRO_EVENT_ID }], error: null }
+    estado.eventosFilas = { data: [filaDeEventoVigente(EVENT_ID), filaDeEventoVigente(OTRO_EVENT_ID)], error: null }
+    estado.voyFilas = { data: [{ event_id: EVENT_ID, kind: 'voy' }], error: null }
+
+    const resultado = await obtenerFavoritos(USER_ID_SESION)
+
+    expect(resultado.ok).toBe(true)
+    if (!resultado.ok) throw new Error('no debería fallar')
+    expect(resultado.voy.map((e) => e.id)).toEqual([EVENT_ID])
+    // EVENT_ID tiene Voy: está en "voy", y NO se repite en "eventos" (Guardados).
+    expect(resultado.eventos.map((e) => e.id)).toEqual([OTRO_EVENT_ID])
+  })
+
+  it('un Voy sin favorito (Voy viejo, de antes del backfill) aparece en "voy" igual', async () => {
+    estado.favoritosFilas = { data: [], error: null }
+    estado.eventosFilas = { data: [filaDeEventoVigente(EVENT_ID)], error: null }
+    estado.voyFilas = { data: [{ event_id: EVENT_ID, kind: 'voy' }], error: null }
+
+    const resultado = await obtenerFavoritos(USER_ID_SESION)
+
+    expect(resultado.ok).toBe(true)
+    if (!resultado.ok) throw new Error('no debería fallar')
+    expect(resultado.voy.map((e) => e.id)).toEqual([EVENT_ID])
+    expect(resultado.eventos).toEqual([])
+    // El id con Voy se unió a eventIds, aunque no hubiera fila de favoritos.
+    expect(estado.ultimoEventosIn).toEqual([EVENT_ID])
+  })
+
+  it('si falla la lectura de event_attendance (Voy), Guardados sigue andando: ok:true, voy:[], eventos con lo que sí hay', async () => {
+    estado.favoritosFilas = { data: [{ event_id: EVENT_ID }], error: null }
+    estado.eventosFilas = { data: [filaDeEventoVigente(EVENT_ID)], error: null }
+    estado.arrojarVoy = { message: 'boom' }
+
+    const resultado = await obtenerFavoritos(USER_ID_SESION)
+
+    expect(resultado).toEqual({ ok: true, voy: [], eventos: expect.any(Array) })
+    if (!resultado.ok) throw new Error('no debería fallar')
+    expect(resultado.eventos.map((e) => e.id)).toEqual([EVENT_ID])
+  })
+
+  it('"eventos" sigue siendo un arreglo plano (no un objeto con flexibles/porDia)', async () => {
+    estado.favoritosFilas = { data: [{ event_id: EVENT_ID }], error: null }
+    estado.eventosFilas = { data: [filaDeEventoVigente(EVENT_ID)], error: null }
+
+    const resultado = await obtenerFavoritos(USER_ID_SESION)
+
+    expect(resultado.ok).toBe(true)
+    if (!resultado.ok) throw new Error('no debería fallar')
+    expect(Array.isArray(resultado.eventos)).toBe(true)
+    expect(Array.isArray(resultado.voy)).toBe(true)
   })
 })
 
@@ -656,6 +771,14 @@ describe('ciclo guardar → listar (doble en memoria)', () => {
             builder.then = (resolve: (v: unknown) => unknown) => Promise.resolve({ data: [], error: null }).then(resolve)
             return builder
           }
+          if (tabla === 'event_attendance') {
+            // Ningún Voy en este doble: solo se ejercita el ciclo de Guardados.
+            const builder: Record<string, unknown> = {}
+            builder.select = () => builder
+            builder.eq = () => builder
+            builder.then = (resolve: (v: unknown) => unknown) => Promise.resolve({ data: [], error: null }).then(resolve)
+            return builder
+          }
           throw new Error(`tabla inesperada en el doble del ciclo guardar → listar: ${tabla}`)
         },
       },
@@ -673,6 +796,6 @@ describe('ciclo guardar → listar (doble en memoria)', () => {
     // Otro usuario no ve el favorito recién guardado (el doble también
     // respeta el filtro por user_id, no solo la función).
     const listadoOtro = await obtenerCiclo('otro-usuario-de-ciclo')
-    expect(listadoOtro).toEqual({ ok: true, eventos: [] })
+    expect(listadoOtro).toEqual({ ok: true, voy: [], eventos: [] })
   })
 })
