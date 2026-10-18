@@ -65,7 +65,7 @@ function listarTsxYTs(root: string): string[] {
  * no la necesitamos). Esto es lo que evita que un comentario que *menciona*
  * `<Pressable` o `allowFontScaling={false}` cuente como un uso real.
  */
-function quitarComentarios(content: string): string {
+export function quitarComentarios(content: string): string {
   const lineasDeTexto = content.split('\n')
   const resultado: string[] = []
   let dentroDeBloqueComentario = false

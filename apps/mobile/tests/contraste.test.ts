@@ -151,6 +151,32 @@ const FIJOS: ParContraste[] = [
     archivos: ['components/BotonesAsistencia.tsx'],
     nota: "escrito como '#fff' (3 dígitos) en el código, no '#ffffff'",
   },
+  // 46-q, punto 4 del encargo (el revisor de la tanda 1 lo encontró
+  // faltante): el botón "Eliminar mi cuenta para siempre" de
+  // `app/eliminar-cuenta.tsx` SÍ es un par real en pantalla, aunque no
+  // use `colores.primary` (por eso no estaba en la tabla de arriba, ver el
+  // comentario del grupo "#f87171 (texto de error)/background"). Leído el
+  // código de verdad (no lo que decía el encargo): el texto siempre es
+  // '#ffffff' (ya escrito en 6 dígitos, no abreviado), tanto en
+  // `<ActivityIndicator color="#ffffff" />` (mientras envía) como en el
+  // `<Texto style={{ color: '#ffffff' }}>` — no cambia de color según el
+  // estado. El FONDO sí cambia con `estilos.boton(habilitado, colorDeshabilitado)`:
+  // `COLOR_ERROR` ('#f87171') si `habilitado`, `colores.border` (token) si
+  // no — los dos son pares reales, se agregan los dos.
+  {
+    nombre: 'blanco/#f87171 (botón "Eliminar mi cuenta", habilitado)',
+    uso: 'texto',
+    a: fijo('#ffffff'),
+    b: fijo('#f87171'),
+    archivos: ['app/eliminar-cuenta.tsx'],
+  },
+  {
+    nombre: 'blanco/border (botón "Eliminar mi cuenta", deshabilitado)',
+    uso: 'texto',
+    a: fijo('#ffffff'),
+    b: token('border'),
+    archivos: ['app/eliminar-cuenta.tsx'],
+  },
 ]
 
 const TODOS: ParContraste[] = [...PARES, ...FIJOS]
@@ -188,6 +214,20 @@ const EXCEPCIONES: Record<string, ExcepcionContraste> = {
   '#f87171 (borde del aviso de error)/background::claro': { ratio: 2.6, motivo: MOTIVO_FIJO_PENSADO_PARA_OSCURO },
   '#34d399 (texto del chip "Lugar")/background::claro': { ratio: 1.81, motivo: MOTIVO_FIJO_PENSADO_PARA_OSCURO },
   '#f472b6 (texto del chip "Instagram")/background::claro': { ratio: 2.49, motivo: MOTIVO_FIJO_PENSADO_PARA_OSCURO },
+  // 46-q, punto 4 del encargo: el par que faltaba (revisor de la tanda 1).
+  // El texto es SIEMPRE '#ffffff' (no cambia con el esquema ni con
+  // habilitado/deshabilitado): lo que cambia es el FONDO. `COLOR_ERROR`
+  // ('#f87171', igual en los dos esquemas — ver su comentario en
+  // app/eliminar-cuenta.tsx) da 2.77, abajo de 4,5 en los dos esquemas.
+  'blanco/#f87171 (botón "Eliminar mi cuenta", habilitado)::claro': { ratio: 2.77, motivo: MOTIVO_FIJO_PENSADO_PARA_OSCURO },
+  'blanco/#f87171 (botón "Eliminar mi cuenta", habilitado)::oscuro': { ratio: 2.77, motivo: MOTIVO_FIJO_PENSADO_PARA_OSCURO },
+  // El fondo deshabilitado es `colores.border` (token, varía con el
+  // esquema): en claro (`oklch(0.9 0 0)`, gris muy claro) el blanco casi no
+  // contrasta — 1.35. Mismo motivo que el resto de esta tabla: decide
+  // Mauro si corresponde un color de texto distinto para el estado
+  // deshabilitado, o si no importa (el botón deshabilitado no es
+  // interactivo).
+  'blanco/border (botón "Eliminar mi cuenta", deshabilitado)::claro': { ratio: 1.35, motivo: MOTIVO_TOKEN_WEB },
 }
 
 type VeredictoPar = { ok: true } | { ok: false; motivo: string }
@@ -279,5 +319,30 @@ describe('EXCEPCIONES: todas las claves corresponden a un par declarado', () => 
   it.each(Object.keys(EXCEPCIONES))('%s', (clave) => {
     const [nombre] = clave.split('::')
     expect(nombres.has(nombre)).toBe(true)
+  })
+})
+
+// 46-q, punto 4 del encargo: el informe de la ronda (el que se lleva a
+// Mauro) tiene que reflejar TODOS los pares de EXCEPCIONES — si se agrega
+// una excepción nueva sin sumarla también a esta lista (y, de verdad, al
+// informe), este test falla. La lista de abajo es la misma que el informe
+// de 46-q va a llevar: si el informe cambia, hay que actualizar esto (y
+// viceversa).
+const PARES_DEL_INFORME_DE_LA_RONDA = [
+  'primary (texto)/background',
+  'primary (texto)/card',
+  'blanco (botón de WhatsApp)/#059669',
+  '#f87171 (texto de error)/background',
+  '#f87171 (borde del aviso de error)/background',
+  '#34d399 (texto del chip "Lugar")/background',
+  '#f472b6 (texto del chip "Instagram")/background',
+  'blanco/#f87171 (botón "Eliminar mi cuenta", habilitado)',
+  'blanco/border (botón "Eliminar mi cuenta", deshabilitado)',
+]
+
+describe('EXCEPCIONES: los nombres (sin esquema) están todos en la lista que el informe de la ronda le lleva a Mauro', () => {
+  const nombresDeExcepciones = new Set([...Object.keys(EXCEPCIONES)].map((clave) => clave.split('::')[0]))
+  it.each([...nombresDeExcepciones])('%s', (nombre) => {
+    expect(PARES_DEL_INFORME_DE_LA_RONDA, `"${nombre}" está en EXCEPCIONES pero no en PARES_DEL_INFORME_DE_LA_RONDA — sumarlo acá (y al informe)`).toContain(nombre)
   })
 })
