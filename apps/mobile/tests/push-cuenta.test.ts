@@ -188,7 +188,8 @@ describe('components/SeccionNotificaciones.tsx: monta AvisoActivarPush variante 
 
     const finEtiquetaSwitch = SRC_SECCION_NOTIFICACIONES.indexOf('/>', idxSwitch)
     const tramoSwitch = SRC_SECCION_NOTIFICACIONES.slice(idxSwitch, finEtiquetaSwitch + 2)
-    expect(tramoSwitch).toMatch(/<Switch\s+value=\{announcements\}\s+disabled\s*\/>/)
+    // R46: todo <Switch> lleva accessibilityLabel (tests/accesibilidad-detector.test.ts).
+    expect(tramoSwitch).toMatch(/<Switch\s+value=\{announcements\}\s+disabled\s+accessibilityLabel="Avisos de Qué Pinta Salta"\s*\/>/)
   })
 
   it('el "Pronto" de announcements NO tiene onValueChange (no se puede tocar)', () => {
