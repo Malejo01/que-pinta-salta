@@ -144,17 +144,29 @@ export function SeccionNotificaciones() {
 
       <View style={estilos.filaInterruptor}>
         <Texto>Recordatorios de favoritos</Texto>
-        <Switch value={favoriteReminders} onValueChange={(valor) => setEstado({ ...estado, favoriteReminders: valor })} />
+        <Switch
+          value={favoriteReminders}
+          onValueChange={(valor) => setEstado({ ...estado, favoriteReminders: valor })}
+          accessibilityLabel="Recordatorios de favoritos"
+        />
       </View>
 
       <View style={estilos.filaInterruptor}>
         <Texto>Novedades de lo que seguís</Texto>
-        <Switch value={followNews} onValueChange={(valor) => setEstado({ ...estado, followNews: valor })} />
+        <Switch
+          value={followNews}
+          onValueChange={(valor) => setEstado({ ...estado, followNews: valor })}
+          accessibilityLabel="Novedades de lo que seguís"
+        />
       </View>
 
       <View style={estilos.filaInterruptor}>
         <Texto>Avisos de Qué Pinta Salta</Texto>
-        <Switch value={announcements} onValueChange={(valor) => setEstado({ ...estado, announcements: valor })} />
+        <Switch
+          value={announcements}
+          onValueChange={(valor) => setEstado({ ...estado, announcements: valor })}
+          accessibilityLabel="Avisos de Qué Pinta Salta"
+        />
       </View>
 
       <Texto peso="semibold" style={estilos.subtitulo}>Canal del Radar</Texto>
@@ -165,6 +177,8 @@ export function SeccionNotificaciones() {
             <Pressable
               key={canal}
               onPress={() => setEstado({ ...estado, radarChannel: canal })}
+              accessibilityRole="button"
+              accessibilityState={{ selected: seleccionado }}
               style={[estilos.chip, { borderColor: colores.border }, seleccionado && { backgroundColor: colores.primary }]}
             >
               <Texto peso="semibold" style={{ color: seleccionado ? colores.primaryForeground : colores.foreground }}>
@@ -204,6 +218,8 @@ export function SeccionNotificaciones() {
       <Pressable
         onPress={guardar}
         disabled={guardando}
+        accessibilityRole="button"
+        accessibilityState={{ busy: guardando }}
         style={[estilos.boton, { borderColor: colores.border, backgroundColor: colores.primary, marginTop: 8 }]}
       >
         {guardando ? (

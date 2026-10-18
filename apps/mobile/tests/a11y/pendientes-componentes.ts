@@ -16,6 +16,24 @@
 // `sin-escalar` y `escala-suelta` no tienen entradas acá (ninguna, en ningún
 // archivo): las dos están en 0 desde esta ronda y el test principal las
 // exige en 0 siempre, sin pasar por esta línea de base.
+//
+// 46-c (Ronda 46, tanda 2): bajó `sin-rol` y `sin-etiqueta` a 0 en todos los
+// archivos (roles, etiquetas y accessibilityState agregados) y subió a 48
+// los `minHeight: 44` de filas/botones grandes donde 4dp no se notan
+// (PantallaRadar filaFrecuencia/itemCategoria/filaSugerencia, EstadoCarga
+// boton, FilaCategoria botonVerTodos) — esos archivos salieron de esta
+// lista. Las cuatro entradas que quedan son "piezas chicas con forma propia"
+// (ojito, botón de usuario, pill, puntos del Hero) donde subir el tamaño del
+// estilo SÍ se notaría (fondo/borde visibles, o layout vecino que se corre):
+// se arreglaron con `hitSlop` (`lib/accesibilidad.ts`, `hitSlopPara`), que
+// agranda el área de toque real sin cambiar nada de lo que se ve — pero el
+// detector estático de `tests/accesibilidad-detector.test.ts` no entiende
+// `hitSlop` (solo mira `minHeight`/`minWidth`/`height`/`width` del
+// `StyleSheet.create`, ver su cabecera): por eso siguen listadas acá, con el
+// motivo de cada una en el componente y en el reporte de 46-c. Si en algún
+// momento se agrega la excepción correspondiente a
+// `EXCEPCIONES_AREA_CHICA` (en `tests/accesibilidad-detector.test.ts`, no es
+// archivo de esta tarea), estas cuatro entradas se podrían borrar.
 
 /** Las seis reglas que detecta `tests/accesibilidad-detector.test.ts`. */
 export type ReglaAccesibilidad = 'sin-rol' | 'sin-etiqueta' | 'link-externo' | 'area-chica' | 'sin-escalar' | 'escala-suelta'
@@ -26,45 +44,29 @@ export type LineaBaseAccesibilidad = Record<string, Partial<Record<ReglaAccesibi
 
 export const PENDIENTES_COMPONENTES: LineaBaseAccesibilidad = {
   // El "ojito" de mostrar/ocultar contraseña: 44×44 (estilos.ojito), sin
-  // hitSlop que lo compense. Arreglo sugerido: hitSlopPara(44) (llega a 48)
-  // o subir minWidth/minHeight a 48.
+  // fondo/borde propio. Ya tiene `hitSlop={hitSlopPara(44)}` (46-c): el área
+  // de toque real llega a 48, pero el estilo sigue en 44 (subirlo no
+  // cambiaría nada visible — ya está dentro de una caja de 48 — pero el
+  // detector no ve el hitSlop, solo el número del estilo).
   'components/CampoTexto.tsx': { 'area-chica': 1 },
-  // El botón de usuario (ícono solo, con sesión): 40×40 (estilos.botonUsuario).
+  // El botón de usuario (ícono solo, con sesión): 40×40 (estilos.botonUsuario),
+  // sin fondo propio. Ya tiene `hitSlop={hitSlopPara(40)}` (46-c): se eligió
+  // hitSlop en vez de subir el tamaño del estilo porque la fila es
+  // `space-between` con el logo del otro extremo, y agrandar el estilo
+  // corre el ícono unos px.
   'components/Encabezado.tsx': { 'area-chica': 1 },
-  // El Pressable de "Voy"/"Me interesa" (la función `boton(tipo, cantidad)`
-  // se declara una sola vez en el archivo, aunque se llama dos veces): sin
-  // accessibilityRole.
-  'components/BotonesAsistencia.tsx': { 'sin-rol': 1 },
-  // `ErrorCarga` y `Vacio` comparten la misma clave de estilo `boton`
-  // (minHeight: 44): dos Pressable distintos, dos hallazgos.
-  'components/EstadoCarga.tsx': { 'area-chica': 2 },
-  // "Ver todos" de cada fila de categoría: estilos.botonVerTodos, minHeight: 44.
-  'components/FilaCategoria.tsx': { 'area-chica': 1 },
-  // DiapositivaHero (la tarjeta grande del carrusel) no tiene
-  // accessibilityRole; los puntos de paginación (estilos.punto, height: 6)
-  // tienen hitSlop={10} pero no les alcanza para llegar a 48 en el eje
-  // horizontal (6 o 20 + 2×10 = 26 o 40, los dos < 48) — a diferencia de la
-  // excepción documentada de `buscar.tsx`, este caso NO está en la lista de
-  // excepciones de abajo: sigue siendo un hallazgo real hasta que 46-c deje
-  // anotado, en el propio Hero.tsx, por qué no hace falta que lleguen (y
-  // entonces sí pase a la lista de excepciones) o hasta que se arregle.
-  'components/Hero.tsx': { 'sin-rol': 1, 'area-chica': 1 },
-  // Tres Pressable sin accessibilityRole (la fila de "Lugares y
-  // Organizadores" de las sugerencias de búsqueda no tiene rol; "Canal del
-  // Radar" y "Guardar Preferencias" tampoco) — ojo, de esos tres solo el de
-  // la sugerencia es el que suma a `sin-rol` en el barrido real, porque los
-  // otros dos SÍ tienen accessibilityRole="radio"/"checkbox"/"button": ver
-  // el detalle en el reporte de la tarea. `area-chica`: la fila de
-  // frecuencia, cada ítem de categoría y la fila de sugerencia, los tres con
-  // minHeight: 44 (el `minHeight: 36` del chip de lugar/cuenta está en un
-  // `View`, no en el `Pressable` que lo acompaña: el heurístico no lo ve,
-  // documentado en el reporte).
-  'components/PantallaRadar.tsx': { 'sin-rol': 1, 'area-chica': 3 },
-  // Los tres Switch de arriba (recordatorios, novedades, avisos) no tienen
-  // accessibilityLabel; el chip de "Canal del Radar" y "Guardar
-  // notificaciones" no tienen accessibilityRole.
-  'components/SeccionNotificaciones.tsx': { 'sin-rol': 2, 'sin-etiqueta': 3 },
+  // Los puntos de paginación del Hero (estilos.punto, height: 6): en
+  // vertical llegan a 48 con hitSlop (46-c); en horizontal están pegados
+  // (gap: 6) y no pueden llegar a 48 sin pisarse entre ellos — el gesto
+  // principal para cambiar de diapositiva es deslizar, no tocar el punto.
+  // Autorizado explícitamente por el plan de 46-c.
+  'components/Hero.tsx': { 'area-chica': 1 },
   // La pill de cada atajo (Hoy/Esta noche/Finde/Semana): estilos.pill,
-  // minHeight: 44.
+  // minHeight: 44 (el ancho sí llega, solo falta alto). Ya tiene
+  // `hitSlop={hitSlopPara(AREA_TACTIL_MINIMA, 44)}` (46-c): se eligió
+  // hitSlop en vez de subir `minHeight` porque la pill tiene fondo/borde
+  // visibles y un resaltado animado (`estilos.resaltado`) que mide el
+  // layout real de cada pill — subir el estilo desalinearía el resaltado y
+  // agrandaría visiblemente la pill.
   'components/PillsAtajos.tsx': { 'area-chica': 1 },
 }

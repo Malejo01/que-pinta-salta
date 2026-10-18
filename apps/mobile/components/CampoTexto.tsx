@@ -15,6 +15,7 @@
 import { forwardRef, useEffect, useState, type ReactNode } from 'react'
 import { AppState, Pressable, StyleSheet, Text, TextInput, View, type TextInputProps } from 'react-native'
 import { Icono } from '@/components/Icono'
+import { hitSlopPara } from '@/lib/accesibilidad'
 import { useColoresQPS } from '@/lib/colores'
 
 // El rojo del error del alta/login (R24) seguía el esquema del sistema
@@ -98,6 +99,13 @@ export const CampoTexto = forwardRef<TextInput, CampoTextoProps>(function CampoT
             onPress={() => setOculto((valor) => !valor)}
             accessibilityRole="button"
             accessibilityLabel={oculto ? 'Mostrar contraseña' : 'Ocultar contraseña'}
+            // 46-c: el ojito es 44×44 (ver `estilos.ojito`), 4dp corto de los
+            // 48 de `AREA_TACTIL_MINIMA`. No se sube el tamaño del estilo (no
+            // tiene fondo/borde visible: agrandarlo no cambiaría nada de lo
+            // que se VE, pero sí correría el TextInput vecino unos px, cosa
+            // que `hitSlop` evita del todo) — el detector estático no ve
+            // `hitSlop`, así que sigue listado en `tests/a11y/pendientes-componentes.ts`.
+            hitSlop={hitSlopPara(44)}
             style={estilos.ojito}
           >
             <Icono nombre={oculto ? 'Eye' : 'EyeOff'} tamanio={20} color={colores.mutedForeground} />

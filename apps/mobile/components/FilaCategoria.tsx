@@ -41,7 +41,7 @@ export function FilaCategoria({ categoria, titulo, eventos, alVerTodos }: FilaCa
       <View style={estilos.encabezado}>
         <View style={estilos.tituloFila}>
           <Icono nombre={iconoPorCategoria(categoria)} tamanio={20} color={colores.primary} />
-          <Texto peso="bold" style={estilos.titulo}>
+          <Texto peso="bold" accessibilityRole="header" style={estilos.titulo}>
             {titulo}
           </Texto>
           <View style={[estilos.pillContador, { backgroundColor: colores.muted }]}>
@@ -106,7 +106,12 @@ const estilos = StyleSheet.create({
   titulo: { fontSize: 20 },
   pillContador: { borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2 },
   textoContador: { fontSize: 12 },
-  botonVerTodos: { minHeight: 44, justifyContent: 'center', paddingVertical: 12, marginVertical: -12 },
+  // 46-c: 44 -> 48 (AREA_TACTIL_MINIMA de lib/accesibilidad.ts). Los 4dp de
+  // más no se notan: es texto solo ("Ver todos"), sin fondo/borde, con
+  // `marginVertical` negativo que ya compensa el padding para no empujar la
+  // fila — el único cambio real es que el `Pressable` pasa a medir 2dp más
+  // arriba y abajo de lo que medía antes.
+  botonVerTodos: { minHeight: 48, justifyContent: 'center', paddingVertical: 12, marginVertical: -12 },
   textoVerTodos: { fontSize: 14 },
   lista: { paddingHorizontal: 16, gap: 20 },
   celda: { width: ANCHO_TARJETA, height: ALTO_TARJETA },

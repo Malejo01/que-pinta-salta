@@ -21,6 +21,7 @@ import { Afiche } from '@/components/Afiche'
 import { BotonCompartir } from '@/components/BotonCompartir'
 import { BotonFavorito } from '@/components/BotonFavorito'
 import { Icono } from '@/components/Icono'
+import { ESCALA_MAXIMA_COMPACTA } from '@/lib/accesibilidad'
 import { useColoresQPS } from '@/lib/colores'
 import { textoPrecio } from '@/lib/formato'
 
@@ -73,13 +74,17 @@ export function TarjetaEvento({ evento }: TarjetaEventoProps) {
 
       <View style={estilos.arriba} pointerEvents="none">
         <View style={[estilos.badge, { backgroundColor: colores.primary }]}>
-          <Text style={[estilos.textoBadge, { color: colores.primaryForeground }]} numberOfLines={1}>
+          <Text
+            style={[estilos.textoBadge, { color: colores.primaryForeground }]}
+            numberOfLines={1}
+            maxFontSizeMultiplier={ESCALA_MAXIMA_COMPACTA}
+          >
             {evento.categoryName}
           </Text>
         </View>
         {evento.isFeatured ? (
           <View style={estilos.badgeDestacado}>
-            <Text style={estilos.textoBadgeDestacado} numberOfLines={1}>
+            <Text style={estilos.textoBadgeDestacado} numberOfLines={1} maxFontSizeMultiplier={ESCALA_MAXIMA_COMPACTA}>
               ★ Destacado
             </Text>
           </View>
@@ -92,30 +97,34 @@ export function TarjetaEvento({ evento }: TarjetaEventoProps) {
       </View>
 
       <View style={estilos.abajo} pointerEvents="none">
-        <Text style={estilos.titulo} numberOfLines={2}>
+        <Text style={estilos.titulo} numberOfLines={2} maxFontSizeMultiplier={ESCALA_MAXIMA_COMPACTA}>
           {evento.title}
         </Text>
 
         <View style={estilos.filaLugar}>
           <Icono nombre="MapPin" tamanio={12} color="rgba(255,255,255,0.8)" />
-          <Text style={estilos.lugar} numberOfLines={1}>
+          <Text style={estilos.lugar} numberOfLines={1} maxFontSizeMultiplier={ESCALA_MAXIMA_COMPACTA}>
             {evento.venue}
           </Text>
         </View>
 
-        <Text style={estilos.fecha} numberOfLines={1}>
+        <Text style={estilos.fecha} numberOfLines={1} maxFontSizeMultiplier={ESCALA_MAXIMA_COMPACTA}>
           {fecha}
           {evento.time ? ` ${evento.time}` : ''}
         </Text>
 
         {otrasFechas > 0 ? (
-          <Text style={estilos.masFechas} numberOfLines={1}>
+          <Text style={estilos.masFechas} numberOfLines={1} maxFontSizeMultiplier={ESCALA_MAXIMA_COMPACTA}>
             +{otrasFechas} fechas
           </Text>
         ) : null}
 
         {precio ? (
-          <Text style={[estilos.precio, evento.price === 'gratis' && estilos.precioGratis]} numberOfLines={1}>
+          <Text
+            style={[estilos.precio, evento.price === 'gratis' && estilos.precioGratis]}
+            numberOfLines={1}
+            maxFontSizeMultiplier={ESCALA_MAXIMA_COMPACTA}
+          >
             {precio}
           </Text>
         ) : null}
