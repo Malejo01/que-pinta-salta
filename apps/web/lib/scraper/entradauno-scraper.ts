@@ -2,7 +2,6 @@ import slugify from 'slugify';
 import { saveEventsToSupabase, type SaveResult } from './save-to-supabase';
 import { inferCategorySlug } from './categorize';
 import { filtrarSaltaCapital, loguearDescartes } from './salta-capital';
-import { slugConFechaHora } from '@qps/core/scraper/slug-fecha-hora';
 import type { Event } from '../types';
 
 const CARTELERA_JSON_URL = 'https://s3.sa-east-1.amazonaws.com/contenido.general.entradauno/cache/12/cartelera.json';
@@ -245,13 +244,8 @@ export async function scrapeEntradaUno(): Promise<SaveResult> {
       const categorySlug = inferCategorySlug(rawEvent.cNombre, description, venueName);
       const isCommercial = COMMERCIAL_CATEGORIES.has(categorySlug);
 
-      // Slug: entradauno manda un ítem por espectáculo (start_date es la
-      // primera función, end_date la última), así que el slug lleva la
-      // fecha/hora de la primera función para que un espectáculo que vuelve
-      // meses después con el mismo nombre no se fusione en la fila vieja.
-      // Riesgo conocido: si la API deja de listar funciones pasadas, la
-      // "primera función" cambia, y con ella el slug en la próxima corrida.
-      const slug = slugConFechaHora(slugify(rawEvent.cNombre, { lower: true, strict: true }), start_date);
+      // Slug
+      const slug = slugify(rawEvent.cNombre, { lower: true, strict: true });
 
       // Link directo de compra
       const ticketUrl = `https://entradauno.com/landing/${rawEvent.cSeo}` +
