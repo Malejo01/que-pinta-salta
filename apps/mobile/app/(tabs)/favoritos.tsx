@@ -46,18 +46,28 @@ import { formatEventDate } from '@qps/core/date-format'
 import { armarMensajeWhatsApp } from '@qps/core/favoritos/armar'
 import type { DisplayEvent } from '@qps/core/home/types'
 import LOGO_MARCA from '@/assets/logo-circular.png'
+import { AvisoSinConexion } from '@/components/AvisoSinConexion'
+import { AvisoActivarPush } from '@/components/AvisoActivarPush'
 import { Cargando, ErrorCarga, Vacio } from '@/components/EstadoCarga'
 import { Icono } from '@/components/Icono'
 import { TarjetaEvento } from '@/components/TarjetaEvento'
 import { Texto } from '@/components/Texto'
 import { useColoresQPS } from '@/lib/colores'
-import { obtenerFavoritos, rutaDeFavorito } from '@/lib/favoritos'
-import { useSession } from '@/lib/session'
+import { rutaDeFavorito } from '@/lib/favoritos'
+import { esperarBorradoDeCache, useSession } from '@/lib/session'
+import { cargarFavoritosConCache, leerFavoritosGuardados } from '@/lib/sin-conexion/favoritos'
 
+// R43, 43-c: `desdeCache` en la rama 'ok' (cuándo se guardó lo que se está
+// mostrando, `null` con una carga fresca) y una variante nueva, 'invitar',
+// para la pantalla de "Entrá para guardar tus favoritos" — antes era una
+// decisión tomada ANTES de mirar `estado` (`if (!userId) return <...>`), lo
+// que no dejaba lugar para mostrar la caché sin sesión (ver
+// `decidirVistaFavoritos`, más abajo).
 type EstadoLista =
   | { tipo: 'cargando' }
   | { tipo: 'error'; error: string }
-  | { tipo: 'ok'; eventos: DisplayEvent[] }
+  | { tipo: 'ok'; eventos: DisplayEvent[]; desdeCache: { guardadoEn: Date } | null }
+  | { tipo: 'invitar' }
 
 interface SeccionFavoritos {
   key: string
@@ -115,11 +125,48 @@ export function agruparFavoritosParaSecciones(eventos: DisplayEvent[]): SeccionF
   return secciones
 }
 
+export type VistaFavoritos = 'cargando-sesion' | 'invitar' | 'contenido'
+
+/**
+ * Pura (R43, 43-c, punto 5 del encargo). Qué pantalla mostrar: el estado de
+ * la sesión manda primero (`cargandoSesion`); sin usuario y sin `sinConexion`
+ * (de `useSession()`, 43-d) es siempre 'invitar' — nunca se intenta leer la
+ * caché de favoritos con sesión ausente y red disponible (o sin haberse
+ * resuelto si hay red: ver el comentario de `useFocusEffect`, más abajo).
+ * Con usuario, siempre 'contenido' (el bloque que ya sabe mostrar
+ * cargando/error/ok según `estado`, sin cambios de 36-a/28-c para acá). Sin
+ * usuario pero con `sinConexion`, `estado.tipo === 'invitar'` es lo que deja
+ * la lectura de la caché (`leerFavoritosGuardados`) cuando no encontró nada
+ * guardado: ahí también es 'invitar'; si encontró algo, `estado` ya es
+ * `{ tipo: 'ok', ... }` y cae en 'contenido'.
+ */
+export function decidirVistaFavoritos({
+  cargandoSesion,
+  hayUsuario,
+  sinConexion,
+  estado,
+}: {
+  cargandoSesion: boolean
+  hayUsuario: boolean
+  sinConexion: boolean
+  estado: EstadoLista
+}): VistaFavoritos {
+  if (cargandoSesion) return 'cargando-sesion'
+  if (!hayUsuario) {
+    if (!sinConexion) return 'invitar'
+    if (estado.tipo === 'invitar') return 'invitar'
+  }
+  return 'contenido'
+}
+
 export default function Favoritos() {
   const { colors } = useTheme()
   const colores = useColoresQPS()
   const router = useRouter()
-  const { session, cargando: cargandoSesion } = useSession()
+  // R43 (43-c, con sinConexion de 43-d): sin sesión y sin red para refrescar
+  // el token, Favoritos puede mostrar la caché en vez de "Entrá…" (ver
+  // `useFocusEffect` y `decidirVistaFavoritos`, arriba).
+  const { session, cargando: cargandoSesion, sinConexion } = useSession()
   const userId = session?.user.id ?? null
 
   const [estado, setEstado] = useState<EstadoLista>({ tipo: 'cargando' })
@@ -127,26 +174,99 @@ export default function Favoritos() {
   // grilla sigue a la vista en vez de pasar a `Cargando`.
   const [refrescando, setRefrescando] = useState(false)
 
+  // R43, 43-c: `cargarFavoritosConCache` en vez de `obtenerFavoritos` — si
+  // falla por red, muestra la última caché buena (`desdeCache` distinto de
+  // `null`). `esperarBorradoDeCache` (antes de leer la caché, `@/lib/session`,
+  // 43-d) evita mostrarle a esta cuenta la caché de OTRA que todavía no
+  // terminó de borrarse tras un cambio de sesión.
   const cargar = useCallback(async () => {
     if (!userId) return
     setEstado({ tipo: 'cargando' })
-    const resultado = await obtenerFavoritos(userId)
-    setEstado(resultado.ok ? { tipo: 'ok', eventos: resultado.eventos } : { tipo: 'error', error: resultado.error })
+    await esperarBorradoDeCache()
+    const resultado = await cargarFavoritosConCache(userId)
+    setEstado(
+      resultado.tipo === 'ok'
+        ? { tipo: 'ok', eventos: resultado.eventos, desdeCache: resultado.desdeCache }
+        : { tipo: 'error', error: resultado.error },
+    )
   }, [userId])
 
+  // Repite el cuerpo de `cargar` en vez de llamarla (ver el comentario de
+  // cabecera sobre `tests/favoritos-armar.test.ts`, que cuenta los llamados a
+  // la función de carga en todo el archivo y espera exactamente uno).
+  //
+  // R43, 43-c (vuelta 2): sin userId pero con sinConexion, la vista
+  // 'contenido' dibuja el SectionList con su RefreshControl (ver `vista`,
+  // más abajo) — antes `refrescar` cortaba con un `if (!userId) return` sin
+  // prender `refrescando` ni hacer nada, así que tirar para refrescar no
+  // tenía ningún efecto visible. Ahora, en ese caso puntual, vuelve a LEER
+  // LA CACHÉ (no prueba la red: no hay sesión con la que pedirle nada al
+  // servidor). La sesión se recupera sola cuando el refresco automático del
+  // token de Supabase (`startAutoRefresh`, cableado al `AppState` en
+  // `lib/supabase.ts`) lo logra, y recién ahí, al cambiar `userId`, esta
+  // pantalla vuelve a pedir por red (vía `cargar`, en el próximo foco) y el
+  // aviso de `AvisoSinConexion` desaparece. Sin sinConexion (vista
+  // 'invitar', sin RefreshControl) sigue sin hacer nada, como antes.
   const refrescar = useCallback(async () => {
-    if (!userId) return
+    if (!userId) {
+      if (!sinConexion) return
+      setRefrescando(true)
+      try {
+        await esperarBorradoDeCache()
+        const cache = await leerFavoritosGuardados()
+        setEstado(
+          cache
+            ? { tipo: 'ok', eventos: cache.eventos, desdeCache: { guardadoEn: cache.guardadoEn } }
+            : { tipo: 'invitar' },
+        )
+      } finally {
+        // Si `leerFavoritosGuardados` tirara, el spinner no puede quedar
+        // girando (misma familia de bloqueante que R41/R42).
+        setRefrescando(false)
+      }
+      return
+    }
     setRefrescando(true)
-    const resultado = await obtenerFavoritos(userId)
-    setEstado(resultado.ok ? { tipo: 'ok', eventos: resultado.eventos } : { tipo: 'error', error: resultado.error })
+    await esperarBorradoDeCache()
+    const resultado = await cargarFavoritosConCache(userId)
+    setEstado(
+      resultado.tipo === 'ok'
+        ? { tipo: 'ok', eventos: resultado.eventos, desdeCache: resultado.desdeCache }
+        : { tipo: 'error', error: resultado.error },
+    )
     setRefrescando(false)
-  }, [userId])
+  }, [userId, sinConexion])
 
   useFocusEffect(
     useCallback(() => {
       if (cargandoSesion) return
-      cargar()
-    }, [cargandoSesion, cargar]),
+
+      if (userId) {
+        cargar()
+        return
+      }
+
+      // Sin sesión: solo se intenta la caché con `sinConexion` (el token
+      // venció y no hay red para refrescarlo, 43-d) — con red disponible
+      // nunca se lee la caché de favoritos (punto 2 del encargo de 43-c).
+      if (!sinConexion) {
+        setEstado({ tipo: 'invitar' })
+        return
+      }
+
+      // Mismo arranque que `cargar` (trampa 6): "cargando" antes de leer la
+      // caché, para no mostrar un parpadeo de "Entrá…" mientras se lee.
+      setEstado({ tipo: 'cargando' })
+      void (async () => {
+        await esperarBorradoDeCache()
+        const cache = await leerFavoritosGuardados()
+        setEstado(
+          cache
+            ? { tipo: 'ok', eventos: cache.eventos, desdeCache: { guardadoEn: cache.guardadoEn } }
+            : { tipo: 'invitar' },
+        )
+      })()
+    }, [cargandoSesion, userId, sinConexion, cargar]),
   )
 
   const secciones = useMemo(
@@ -164,7 +284,13 @@ export default function Favoritos() {
     }
   }, [estado])
 
-  if (cargandoSesion) {
+  // R43, 43-c: qué pantalla mostrar ya no es "si hay userId" a secas (eso
+  // nunca dejaba ver la caché sin sesión) — `decidirVistaFavoritos` (arriba,
+  // pura) mira también `sinConexion` y el `estado` que dejó la lectura de la
+  // caché.
+  const vista = decidirVistaFavoritos({ cargandoSesion, hayUsuario: userId !== null, sinConexion, estado })
+
+  if (vista === 'cargando-sesion') {
     return (
       <View style={[estilos.centrado, { backgroundColor: colors.background, flex: 1 }]}>
         <Cargando />
@@ -172,10 +298,11 @@ export default function Favoritos() {
     )
   }
 
-  if (!userId) {
-    // Sin sesión no hay nada propio que refrescar (28-c): esta rama no lleva
-    // RefreshControl. Estado de la web (§3.10, "Vacíos"): logo al 30%, texto
-    // y "Ingresar" (el mismo texto y destino que el botón de
+  if (vista === 'invitar') {
+    // Sin sesión y sin caché que mostrar (o con red, nunca se la lee):
+    // pantalla de siempre, sin RefreshControl (28-c: no hay nada propio que
+    // refrescar). Estado de la web (§3.10, "Vacíos"): logo al 30%, texto y
+    // "Ingresar" (el mismo texto y destino que el botón de
     // components/Encabezado.tsx, copiado ahí de apps/web/components/navbar.tsx).
     return (
       <View style={[estilos.centrado, { backgroundColor: colors.background, flex: 1 }]}>
@@ -202,6 +329,14 @@ export default function Favoritos() {
 
   return (
     <View style={[estilos.contenedor, { backgroundColor: colors.background }]}>
+      {/* Ronda 41, 41-e: el aviso para activar push, arriba de la lista.
+          Solo llega acá con sesión (la rama sin userId ya retornó antes);
+          no agrega ninguna lectura ni toca useFocusEffect/cargar. Sin
+          wrapper con padding propio: `AvisoActivarPush` devuelve `null` en
+          casi todos los estados, y un `View` con padding alrededor dejaría
+          un hueco vacío aunque no haya nada que mostrar. */}
+      <AvisoActivarPush variante="favoritos" />
+
       {estado.tipo === 'cargando' ? <Cargando /> : null}
 
       {estado.tipo === 'error' ? <ErrorCarga mensaje={estado.error} onReintentar={cargar} /> : null}
@@ -216,28 +351,36 @@ export default function Favoritos() {
           }
           contentContainerStyle={estilos.lista}
           ListHeaderComponent={
-            totalFavoritos > 0 ? (
-              <View style={[estilos.encabezado, { borderBottomColor: colors.border }]}>
-                <Texto peso="bold" accessibilityRole="header" style={estilos.titulo}>
-                  Mi Agenda de Eventos
-                </Texto>
-                <Texto tono="secundario" style={estilos.subtitulo}>
-                  Tenés {totalFavoritos} {totalFavoritos === 1 ? 'elemento guardado' : 'elementos guardados'} organizados
-                  para tu salida.
-                </Texto>
-                <Pressable
-                  onPress={compartirPorWhatsApp}
-                  accessibilityRole="button"
-                  accessibilityLabel="Compartir agenda por WhatsApp"
-                  style={estilos.botonWhatsApp}
-                >
-                  <Icono nombre="Share2" tamanio={18} color="#fff" />
-                  <Texto peso="semibold" style={estilos.textoBotonWhatsApp}>
-                    Compartir agenda por WhatsApp
+            <>
+              {/* R43, 43-c: arriba del encabezado "Mi Agenda de Eventos" y
+                  también con la lista vacía (`totalFavoritos === 0`) — por
+                  eso va afuera del `totalFavoritos > 0` de abajo. */}
+              {estado.tipo === 'ok' && estado.desdeCache ? (
+                <AvisoSinConexion guardadoEn={estado.desdeCache.guardadoEn} />
+              ) : null}
+              {totalFavoritos > 0 ? (
+                <View style={[estilos.encabezado, { borderBottomColor: colors.border }]}>
+                  <Texto peso="bold" accessibilityRole="header" style={estilos.titulo}>
+                    Mi Agenda de Eventos
                   </Texto>
-                </Pressable>
-              </View>
-            ) : null
+                  <Texto tono="secundario" style={estilos.subtitulo}>
+                    Tenés {totalFavoritos} {totalFavoritos === 1 ? 'elemento guardado' : 'elementos guardados'} organizados
+                    para tu salida.
+                  </Texto>
+                  <Pressable
+                    onPress={compartirPorWhatsApp}
+                    accessibilityRole="button"
+                    accessibilityLabel="Compartir agenda por WhatsApp"
+                    style={estilos.botonWhatsApp}
+                  >
+                    <Icono nombre="Share2" tamanio={18} color="#fff" />
+                    <Texto peso="semibold" style={estilos.textoBotonWhatsApp}>
+                      Compartir agenda por WhatsApp
+                    </Texto>
+                  </Pressable>
+                </View>
+              ) : null}
+            </>
           }
           renderSectionHeader={({ section }) => (
             <View style={estilos.encabezadoSeccion}>

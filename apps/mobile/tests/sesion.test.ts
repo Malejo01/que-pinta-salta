@@ -24,11 +24,11 @@ import { estadoInicialSesion } from '../lib/session'
 
 describe('estadoInicialSesion', () => {
   it('sin cliente de Supabase: arranca sin sesión y sin "cargando"', () => {
-    expect(estadoInicialSesion(false)).toEqual({ session: null, cargando: false })
+    expect(estadoInicialSesion(false)).toEqual({ session: null, cargando: false, sinConexion: false })
   })
 
   it('con cliente de Supabase: arranca sin sesión, "cargando" hasta que resuelva getSession()', () => {
-    expect(estadoInicialSesion(true)).toEqual({ session: null, cargando: true })
+    expect(estadoInicialSesion(true)).toEqual({ session: null, cargando: true, sinConexion: false })
   })
 })
 

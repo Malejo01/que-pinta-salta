@@ -18,6 +18,7 @@ import {
   tokensInvalidos,
   type MensajePush,
 } from '@/lib/notificaciones/expo-push'
+import { cargarNovedades } from '@/lib/notificaciones/novedades'
 
 // Igual que recurrentes/route.ts: sin esto Vercel puede cortar la función a
 // mitad y dejar la corrida en RUNNING (como sus crones hermanos, scrape,
@@ -91,7 +92,11 @@ async function enviarNotificaciones(): Promise<NotificacionesReply> {
   const userIds = [...tokensPorUsuario.keys()]
 
   if (userIds.length === 0) {
-    return reply(200, { dryRun: !modoEnvioReal(), mensajes: 0, porTipo: {} })
+    // Sin tokens, no hay nada que armar, pero la ventana de novedades tiene
+    // que avanzar igual (novedadesHasta = ahora): si no, el día que no haya
+    // ningún token la ventana queda clavada, y al aparecer el primero se
+    // dispara un aviso con toda la antigüedad acumulada de golpe.
+    return reply(200, { dryRun: !modoEnvioReal(), mensajes: 0, porTipo: {}, novedadesHasta: ahora.toISOString() })
   }
 
   // 2. Preferencias de esos usuarios (si no hay fila, armarTanda usa los
@@ -168,24 +173,27 @@ async function enviarNotificaciones(): Promise<NotificacionesReply> {
     enviosPorUsuario.set(fila.user_id, lista)
   }
 
-  // 5. Novedades (follow_news): QUEDA SIN ARMAR A PROPÓSITO.
-  // Arrancar esto bien pide resolver, por cada usuario, las novedades de sus
-  // categorías/locales/cuentas de Instagram seguidas (user_followed_*, igual
-  // que lib/radar/events.ts) y ADEMÁS distinguir "evento nuevo desde la
-  // última corrida" de "evento que ya existía": no hay una columna de
-  // "primera vez que se vio este evento" ni una tabla de eventos de
-  // novedades todavía (iría en una migración, que esta tarea no puede
-  // escribir). Mauro decide si eso sale de created_at de events (impreciso:
-  // created_at no distingue "nuevo para el usuario" de "nuevo a secas") o de
-  // algo nuevo. Hasta entonces, la lista va vacía: ningún usuario recibe
-  // push de novedades, pero los recordatorios de favoritos sí funcionan
-  // completos.
+  // 5. Novedades (follow_news): cargarNovedades (apps/web/lib/notificaciones/novedades.ts,
+  // tarea 41-b) resuelve, por cada usuario, la ventana de tiempo
+  // (inicioVentanaNovedades, 41-a, por usuario: saltea las corridas en las
+  // que ESE usuario estaba en silencio) y el cruce de los eventos nuevos
+  // (events.created_at) con lo que sigue (categorías, locales, cuentas de
+  // Instagram). Si falla cualquiera de sus lecturas, 500, igual que las
+  // lecturas de arriba: la corrida queda FAILED y la ventana no avanza.
+  const resultadoNovedades = await cargarNovedades(supabase, { userIds, preferenciasPorUsuario, ahora })
+  if (!resultadoNovedades.ok) {
+    // cargarNovedades ya hizo su propio console.error con el nombre de la
+    // tabla y el message: no se duplica el log acá.
+    return reply(500, { error: `${resultadoNovedades.tabla} query failed` })
+  }
+  const novedadesPorUsuario = resultadoNovedades.porUsuario
+
   const usuarios: UsuarioParaTanda[] = userIds.map((userId) => ({
     userId,
     preferencias: preferenciasPorUsuario.get(userId) ?? null,
     tokens: tokensPorUsuario.get(userId) ?? [],
     favoritos: favoritosPorUsuario.get(userId) ?? [],
-    novedades: [],
+    novedades: novedadesPorUsuario.get(userId) ?? [],
     enviosRegistrados: enviosPorUsuario.get(userId) ?? [],
   }))
 
@@ -194,7 +202,10 @@ async function enviarNotificaciones(): Promise<NotificacionesReply> {
 
   if (!modoEnvioReal()) {
     // dryRun: ni un fetch a Expo, ni una escritura. Solo se arma y se cuenta.
-    return reply(200, { dryRun: true, mensajes: mensajes.length, porTipo })
+    // novedadesHasta viaja igual: la ventana de novedades tiene que avanzar
+    // aunque el envío de verdad esté apagado (ver el comentario del cuerpo
+    // del PR: "mientras esté en dryRun, cada corrida corre la ventana").
+    return reply(200, { dryRun: true, mensajes: mensajes.length, porTipo, novedadesHasta: ahora.toISOString() })
   }
 
   // Modo real: se manda de verdad. `mensajesPush` sale limpio (sin userId,
@@ -295,6 +306,7 @@ async function enviarNotificaciones(): Promise<NotificacionesReply> {
     erroresLote: erroresEnvio.length + erroresReceipts.length,
     erroresRegistro,
     enviosNoRegistradosPorFalla,
+    novedadesHasta: ahora.toISOString(),
   })
 }
 
@@ -308,6 +320,7 @@ function toOutcome(r: NotificacionesReply): JobOutcome {
     erroresRegistro?: number
     enviosNoRegistradosPorFalla?: number
     tokensInvalidosBorrados?: number
+    novedadesHasta?: string
   }
   // `erroresLote` solo cuenta lotes enteros que fallaron (timeout, red, HTTP);
   // `enviosNoRegistradosPorFalla` suma además los avisos que Expo procesó
@@ -319,6 +332,14 @@ function toOutcome(r: NotificacionesReply): JobOutcome {
     status: fallos > 0 ? 'PARTIAL' : 'SUCCESS',
     itemsProcessed: body.mensajes ?? 0,
     itemsFailed: fallos,
-    details: { dryRun: body.dryRun ?? true, tokensInvalidosBorrados: body.tokensInvalidosBorrados ?? 0 },
+    // novedadesHasta (R41, 41-b) solo viaja en las ramas SUCCESS/PARTIAL de
+    // acá (nunca en la de httpStatus >= 500, más arriba, que no tiene
+    // `details`): con un 500 la ventana de novedades NO avanza, a propósito
+    // (la corrida siguiente reintenta desde el mismo punto).
+    details: {
+      dryRun: body.dryRun ?? true,
+      tokensInvalidosBorrados: body.tokensInvalidosBorrados ?? 0,
+      novedadesHasta: body.novedadesHasta,
+    },
   }
 }

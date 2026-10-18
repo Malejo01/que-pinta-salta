@@ -73,9 +73,23 @@ export interface AficheProps {
    * Hero lo usa para la capa de fondo desenfocada.
    */
   blurRadius?: number
+  /**
+   * R42, 42-d: avisa cuando termina de decidirse qué mostrar — `'imagen'`
+   * si el `<Image>` real terminó de cargar (`onLoad`), `'marca'` si ya no
+   * queda ninguna fuente que probar (el `onError` que fuerza el índice fuera
+   * de rango). Si no hay ninguna fuente válida DESDE EL PRINCIPIO (sin URL,
+   * host no permitido, o Storage sin `supabaseUrl`), `Afiche` devuelve el
+   * `fallback` (o la marca de hoy) sin dibujar ningún `<Image>`: no hay
+   * `onLoad` ni `onError`, así que esta prop NUNCA se llama en ese caso —
+   * quien la use y necesite saber ese caso también (como `TarjetaCompartir`,
+   * 42-d) lo resuelve por su cuenta con `fuentesDeImagen`, la misma función
+   * pura que usa este componente. `undefined` por defecto: sin esta prop,
+   * nada cambia.
+   */
+  alTerminar?: (resultado: 'imagen' | 'marca') => void
 }
 
-export function Afiche({ url, estilo, llenar, fallback, ancho, resizeMode, blurRadius }: AficheProps) {
+export function Afiche({ url, estilo, llenar, fallback, ancho, resizeMode, blurRadius, alTerminar }: AficheProps) {
   // `key={url}` remonta `AficheInterno` cada vez que cambia la URL, así el
   // índice de la fuente vuelve a 0 sin un efecto ni un setState sincrónico.
   return (
@@ -88,11 +102,12 @@ export function Afiche({ url, estilo, llenar, fallback, ancho, resizeMode, blurR
       ancho={ancho}
       resizeMode={resizeMode}
       blurRadius={blurRadius}
+      alTerminar={alTerminar}
     />
   )
 }
 
-function AficheInterno({ url, estilo, llenar, fallback, ancho, resizeMode, blurRadius }: AficheProps) {
+function AficheInterno({ url, estilo, llenar, fallback, ancho, resizeMode, blurRadius, alTerminar }: AficheProps) {
   const { colors } = useTheme()
   const supabaseUrl = leerEnv().supabase?.url ?? null
   const fuentes = fuentesDeImagen(url, supabaseUrl, ancho)
@@ -123,6 +138,7 @@ function AficheInterno({ url, estilo, llenar, fallback, ancho, resizeMode, blurR
       resizeMode={resizeMode ?? 'cover'}
       resizeMethod={metodoDeRedimension({ llenar, ancho })}
       blurRadius={blurRadius}
+      onLoad={() => alTerminar?.('imagen')}
       onError={() => {
         const siguiente = siguienteFuente(fuentes, indice)
         if (siguiente !== null) {
@@ -131,6 +147,7 @@ function AficheInterno({ url, estilo, llenar, fallback, ancho, resizeMode, blurR
           // No queda ninguna fuente: se fuerza un índice fuera de rango
           // para que `fuenteActual` dé `null` y se muestre la marca.
           setIndice(fuentes.length)
+          alTerminar?.('marca')
         }
       }}
     />

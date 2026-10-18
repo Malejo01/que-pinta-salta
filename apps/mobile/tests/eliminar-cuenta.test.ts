@@ -11,6 +11,13 @@ import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SITIO } from '@qps/core/metricas/links'
+// El doble en memoria de AsyncStorage (vía el alias de `vitest.config.ts`,
+// R43 43-a): `limpiarTrasEliminarCuenta` llama a `borrarTodaLaCache()` sin
+// pasarle un almacén, así que usa este mismo doble. `reiniciar()` vacía la
+// memoria entre tests para que el caso "sale bien" y el caso "falla" no se
+// pisen.
+import { reiniciar } from './dobles/async-storage'
+import { CLAVE_AGENDA, guardarCache, leerCache, TTL_AGENDA_MS } from '@/lib/sin-conexion/cache'
 
 const estado = vi.hoisted(() => ({
   signOutLlamado: 0,
@@ -54,6 +61,7 @@ beforeEach(() => {
   estado.signOutLlamado = 0
   estado.googleSignOutLlamado = 0
   estado.banderaBienvenidaBorrada = 0
+  reiniciar()
 })
 
 afterEach(() => {
@@ -224,5 +232,37 @@ describe('completarEliminacionDeCuenta', () => {
     expect(estado.banderaBienvenidaBorrada).toBe(0)
     expect(navegarABienvenida).not.toHaveBeenCalled()
     expect(mockFetch).toHaveBeenCalledTimes(1)
+  })
+
+  // R43, 43-d (plan §8): `limpiarTrasEliminarCuenta` borra TODA la caché sin
+  // conexión, además del borrado que dispara el `SIGNED_OUT` del propio
+  // `signOut()` (eso lo cubre `tests/sesion-cache.test.ts`, no acá).
+  describe('el borrado de la caché sin conexión', () => {
+    it('si sale bien, borra toda la caché (p. ej. la agenda guardada)', async () => {
+      await guardarCache(CLAVE_AGENDA, { fixture: 'agenda' }, { ahora: new Date() })
+      expect(await leerCache(CLAVE_AGENDA, { ahora: new Date(), ttlMs: TTL_AGENDA_MS })).not.toBeNull()
+
+      const mockFetch = vi.fn(async () => ({ ok: true }) as Response)
+      vi.stubGlobal('fetch', mockFetch)
+      const navegarABienvenida = vi.fn()
+
+      const resultado = await completarEliminacionDeCuenta(TOKEN_DE_PRUEBA, false, { navegarABienvenida })
+
+      expect(resultado).toEqual({ ok: true })
+      expect(await leerCache(CLAVE_AGENDA, { ahora: new Date(), ttlMs: TTL_AGENDA_MS })).toBeNull()
+    })
+
+    it('si falla el POST, la caché queda tal cual', async () => {
+      await guardarCache(CLAVE_AGENDA, { fixture: 'agenda' }, { ahora: new Date() })
+
+      const mockFetch = vi.fn(async () => ({ ok: false }) as Response)
+      vi.stubGlobal('fetch', mockFetch)
+      const navegarABienvenida = vi.fn()
+
+      const resultado = await completarEliminacionDeCuenta(TOKEN_DE_PRUEBA, false, { navegarABienvenida })
+
+      expect(resultado.ok).toBe(false)
+      expect(await leerCache(CLAVE_AGENDA, { ahora: new Date(), ttlMs: TTL_AGENDA_MS })).not.toBeNull()
+    })
   })
 })

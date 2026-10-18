@@ -17,13 +17,19 @@ import type { CinemaMovie } from '@qps/core/types'
 import type { FlyerWithAccount } from '@qps/core/instagram-config'
 import { obtenerCategorias } from '@/lib/datos/eventos'
 import { MENSAJE_SIN_CONFIGURACION } from '@/lib/mensajes'
+import { esErrorDeRed } from '@/lib/red'
 import { supabase } from '@/lib/supabase'
 
 export { MENSAJE_SIN_CONFIGURACION }
 export const MENSAJE_ERROR_RED = 'No pudimos cargar tus favoritos. Revisá tu conexión.'
 export const MENSAJE_ERROR_GUARDAR = 'No pudimos guardar el favorito. Probá de nuevo.'
 
-export type ResultadoFavoritos = { ok: true; eventos: DisplayEvent[] } | { ok: false; error: string }
+// R43, 43-b: `sinConexion` se suma cuando `esErrorDeRed` (lib/red.ts)
+// reconoce alguna de las consultas (incluida `obtenerCategorias`, que ya
+// trae su propia bandera) como "sin conexión", sobre la RESPUESTA COMPLETA
+// de cada una, no solo su `error`. El mensaje no cambia. La caché vive en
+// `lib/sin-conexion/favoritos.ts` (43-b): este archivo no toca AsyncStorage.
+export type ResultadoFavoritos = { ok: true; eventos: DisplayEvent[] } | { ok: false; error: string; sinConexion?: boolean }
 export type ResultadoFavorito = { ok: true; marcado: boolean } | { ok: false; error: string }
 export type ResultadoMarcarFavorito = { ok: true } | { ok: false; error: string }
 
@@ -45,14 +51,16 @@ export async function obtenerFavoritos(userId: string): Promise<ResultadoFavorit
   if (!supabase) return { ok: false, error: MENSAJE_SIN_CONFIGURACION }
 
   try {
-    const { data: filas, error: errorFavoritos } = await supabase
+    const respuestaFavoritos = await supabase
       .from('user_favorites')
       .select('event_id, instagram_flyer_id, cinema_movie_id')
       .eq('user_id', userId)
 
-    if (errorFavoritos) return { ok: false, error: MENSAJE_ERROR_RED }
+    if (respuestaFavoritos.error) {
+      return { ok: false, error: MENSAJE_ERROR_RED, sinConexion: esErrorDeRed(respuestaFavoritos) || undefined }
+    }
 
-    const { eventIds, flyerIds, movieIds } = idsDeFavoritos(filas ?? [])
+    const { eventIds, flyerIds, movieIds } = idsDeFavoritos(respuestaFavoritos.data ?? [])
 
     if (eventIds.length === 0 && flyerIds.length === 0 && movieIds.length === 0) {
       return { ok: true, eventos: [] }
@@ -80,10 +88,17 @@ export async function obtenerFavoritos(userId: string): Promise<ResultadoFavorit
       obtenerCategorias(),
     ])
 
-    if (eventosRes.error || flyersRes.error || moviesRes.error) return { ok: false, error: MENSAJE_ERROR_RED }
+    if (eventosRes.error || flyersRes.error || moviesRes.error) {
+      const sinConexion = esErrorDeRed(eventosRes) || esErrorDeRed(flyersRes) || esErrorDeRed(moviesRes)
+      return { ok: false, error: MENSAJE_ERROR_RED, sinConexion: sinConexion || undefined }
+    }
     // El texto es siempre el de esta pantalla (no el de `obtenerCategorias`,
     // pensado para Buscar): nunca se mezclan los mensajes de dos módulos.
-    if (!categoriasRes.ok) return { ok: false, error: MENSAJE_ERROR_RED }
+    // `sinConexion` sí viaja: es la bandera que `obtenerCategorias` ya
+    // propagó (trampa de la tarea — pasarle `categoriasRes` entero a
+    // `esErrorDeRed` daría siempre `false`, porque no tiene la forma de una
+    // respuesta de postgrest).
+    if (!categoriasRes.ok) return { ok: false, error: MENSAJE_ERROR_RED, sinConexion: categoriasRes.sinConexion }
 
     const categoryNameBySlug = new Map(categoriasRes.categorias.map((c) => [c.slug, c.name]))
 
@@ -100,8 +115,8 @@ export async function obtenerFavoritos(userId: string): Promise<ResultadoFavorit
     // Agenda" de la web) muestra por ahora una lista simple, en el orden de
     // armarFavoritos: flexibles primero, después por día.
     return { ok: true, eventos: [...flexibles, ...porDia.flatMap((grupo) => grupo.items)] }
-  } catch {
-    return { ok: false, error: MENSAJE_ERROR_RED }
+  } catch (e) {
+    return { ok: false, error: MENSAJE_ERROR_RED, sinConexion: esErrorDeRed(e) || undefined }
   }
 }
 

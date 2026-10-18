@@ -56,6 +56,7 @@ import Trophy from 'lucide-react-native/icons/trophy'
 import Zap from 'lucide-react-native/icons/zap'
 import Landmark from 'lucide-react-native/icons/landmark'
 import Flame from 'lucide-react-native/icons/flame'
+import CalendarPlus from 'lucide-react-native/icons/calendar-plus'
 
 /** Los mismos íconos que usa la web (apps/web, lucide-react), con el mismo nombre. */
 const ICONOS_LUCIDE = {
@@ -91,6 +92,7 @@ const ICONOS_LUCIDE = {
   Zap,
   Landmark,
   Flame,
+  CalendarPlus,
 } satisfies Record<string, LucideIcon>
 
 export type NombreIcono = keyof typeof ICONOS_LUCIDE

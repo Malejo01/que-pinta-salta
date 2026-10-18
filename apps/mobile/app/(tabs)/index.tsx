@@ -36,6 +36,7 @@ import { groupByCategory, selectTodayRow, type CategoryEventsRow } from '@qps/co
 import { eventoEnAtajo, type Atajo } from '@qps/core/home/atajos'
 import type { DisplayEvent } from '@qps/core/home/types'
 import type { Category } from '@qps/core/types'
+import { AvisoSinConexion } from '@/components/AvisoSinConexion'
 import { BannerRadar } from '@/components/BannerRadar'
 import { Cargando, ErrorCarga } from '@/components/EstadoCarga'
 import { FilaCategoria } from '@/components/FilaCategoria'
@@ -51,6 +52,7 @@ import {
   type CategoriaBasica,
   type EventoVigenteParaInicio,
 } from '@/lib/datos/eventos'
+import { cargarAgendaConCache } from '@/lib/sin-conexion/agenda'
 
 type EstadoPortada =
   | { tipo: 'cargando' }
@@ -65,6 +67,10 @@ type EstadoPortada =
       // atajo y el armado de la portada, para que no se corra si pasa el
       // tiempo sin recargar (ver el `useMemo` de `datosPortada`, más abajo).
       ahora: Date
+      // R43, 43-c: cuándo se guardó lo que se está mostrando, si viene de la
+      // caché (`cargarAgendaConCache`, por una falla de red); `null` con una
+      // carga fresca. `AvisoSinConexion` se dibuja solo cuando no es `null`.
+      desdeCache: { guardadoEn: Date } | null
     }
 
 export type SeccionPortada =
@@ -105,27 +111,57 @@ export default function Inicio() {
 
   // Sin `atajo` entre las dependencias (36-a): cambiar de atajo ya no vuelve
   // a pedir nada, así que esta función queda estable entre renders.
+  //
+  // R43, 43-c: la carga en sí (las tres consultas en paralelo) pasa a ser el
+  // `cargar` que le inyecta a `cargarAgendaConCache` (`@/lib/sin-conexion/agenda`):
+  // si falla por red, esa función muestra la última caché buena en vez del
+  // error. El `error` que se devuelve es el de la PRIMERA consulta que falló
+  // (eventos, después categorías, después películas — mismo orden que antes
+  // de esta ronda), pero `sinConexion` es el O lógico de las tres: una falla
+  // de red en cualquiera alcanza para habilitar la caché, aunque la primera
+  // en fallar no haya sido por red.
   const cargarDatos = useCallback(async (): Promise<EstadoPortada> => {
     // Un único instante por carga (no `new Date()` suelto por el componente):
     // decide qué es "vigente" en la consulta y queda guardado en `estado`
     // para que el filtro de atajo y el armado de la portada usen el mismo.
+    // Es también la `ahora` con la que `cargarAgendaConCache` filtra la
+    // caché al mostrarla: la de ESTA carga, no la de cuando se guardó.
     const ahora = new Date()
-    const [resEventos, resCategorias, resPeliculas] = await Promise.all([
-      obtenerEventosVigentesParaInicio(ahora),
-      obtenerCategorias(),
-      obtenerCines(),
-    ])
 
-    if (!resEventos.ok) return { tipo: 'error', error: resEventos.error }
-    if (!resCategorias.ok) return { tipo: 'error', error: resCategorias.error }
-    if (!resPeliculas.ok) return { tipo: 'error', error: resPeliculas.error }
+    const resultado = await cargarAgendaConCache({
+      ahora,
+      cargar: async () => {
+        const [resEventos, resCategorias, resPeliculas] = await Promise.all([
+          obtenerEventosVigentesParaInicio(ahora),
+          obtenerCategorias(),
+          obtenerCines(),
+        ])
+
+        const sinConexion =
+          (!resEventos.ok && Boolean(resEventos.sinConexion)) ||
+          (!resCategorias.ok && Boolean(resCategorias.sinConexion)) ||
+          (!resPeliculas.ok && Boolean(resPeliculas.sinConexion))
+
+        if (!resEventos.ok) return { ok: false, error: resEventos.error, sinConexion: sinConexion || undefined }
+        if (!resCategorias.ok) return { ok: false, error: resCategorias.error, sinConexion: sinConexion || undefined }
+        if (!resPeliculas.ok) return { ok: false, error: resPeliculas.error, sinConexion: sinConexion || undefined }
+
+        return {
+          ok: true,
+          datos: { eventos: resEventos.eventos, categorias: resCategorias.categorias, peliculas: resPeliculas.peliculas },
+        }
+      },
+    })
+
+    if (resultado.tipo === 'error') return { tipo: 'error', error: resultado.error }
 
     return {
       tipo: 'ok',
-      eventos: resEventos.eventos,
-      categorias: resCategorias.categorias,
-      peliculas: resPeliculas.peliculas,
+      eventos: resultado.datos.eventos,
+      categorias: resultado.datos.categorias,
+      peliculas: resultado.datos.peliculas,
       ahora,
+      desdeCache: resultado.desdeCache,
     }
   }, [])
 
@@ -210,6 +246,8 @@ export default function Inicio() {
           }
           contentContainerStyle={estilos.scroll}
         >
+          {estado.desdeCache ? <AvisoSinConexion guardadoEn={estado.desdeCache.guardadoEn} /> : null}
+
           {datosPortada.carrusel.length > 0 ? <Hero eventos={datosPortada.carrusel} /> : null}
 
           <PillsAtajos atajo={atajo} onCambiar={setAtajo} />

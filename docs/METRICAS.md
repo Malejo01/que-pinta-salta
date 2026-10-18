@@ -6,7 +6,7 @@ Desde la Ronda 4 (QPS-027), el sitio cuenta **vistas de evento** y **clics a la 
 
 | Métrica | Cuándo suma | Dónde |
 |---|---|---|
-| **Vista** (`views`) | Cada vez que se abre la ficha o el modal de un evento. El navegador manda un aviso (`sendBeacon`) al montarse. | `components/view-beacon.tsx` → `POST /api/metricas/vista` |
+| **Vista** (`views`) | Cada vez que se abre la ficha o el modal de un evento. El navegador manda un aviso (`sendBeacon`) al montarse. La app de Android manda la vista con `User-Agent: QuePintaSaltaApp/<versión>` (sin eso, el endpoint la descartaría como bot: el `fetch` de React Native sale con `okhttp/x.y.z`). | `components/view-beacon.tsx` → `POST /api/metricas/vista`; en la app, `apps/mobile/lib/metricas.ts` |
 | **Clic** (`clicks`) | Cada vez que alguien toca "Comprar tickets" (ficha o modal). Pasa por `/go/[id]`, que cuenta y redirige al link de compra guardado. | `app/go/[id]/route.ts` |
 
 **Origen** (`origin`): de dónde vino la persona. Viaja como `?o=` en los links internos.
@@ -20,13 +20,14 @@ Desde la Ronda 4 (QPS-027), el sitio cuenta **vistas de evento** y **clics a la 
 | `favoritos` | `/favoritos` |
 | `ficha` | Botón "Comprar" de la ficha o el modal (solo clics) |
 | `radar` | Link del mail del Radar |
+| `app` | La app de Android: vistas de la ficha y clics a "Comprar" |
 | `directo` | Sin `?o=`: link compartido, Google, URL escrita a mano |
 
 **Destacado** (`featured`): el valor de `events.is_featured` en el momento de contar. Sirve para comparar destacado contra no destacado.
 
 ## Qué NO se guarda
 
-Ni IP, ni user agent, ni cookies, ni id de usuario. La tabla tiene solo evento, día, origen, destacado y los dos contadores. El user agent se lee para filtrar bots y se descarta. (Vercel registra IP y user agent en sus propios logs de plataforma, con su retención: eso va en la política de privacidad, QPS-040.)
+Ni IP, ni user agent, ni cookies, ni id de usuario. La tabla tiene solo evento, día, origen, destacado y los dos contadores. El user agent se lee para filtrar bots y se descarta. (Vercel registra IP y user agent en sus propios logs de plataforma, con su retención: eso va en la política de privacidad, QPS-040.) La app tampoco manda nada de la persona: el cuerpo de la vista es solo `{ eventId, origin: 'app' }` — sin usuario, sin dispositivo y sin la versión de la app (esa va en el `User-Agent`, no en el cuerpo).
 
 ## Qué no cuenta (filtro de bots)
 

@@ -20,13 +20,22 @@ import type { EventoParaAtajo } from '@qps/core/home/atajos'
 import { transformEvent } from '@qps/core/home/transform'
 import type { DisplayEvent, EventWithRelations } from '@qps/core/home/types'
 import type { Category, Event, Venue } from '@qps/core/types'
+import { esErrorDeRed } from '@/lib/red'
 import { MENSAJE_SIN_CONFIGURACION } from '@/lib/mensajes'
 import { supabase } from '@/lib/supabase'
 
 export { MENSAJE_SIN_CONFIGURACION }
 export const MENSAJE_ERROR_RED = 'No pudimos cargar los eventos. Revisá tu conexión.'
 
-export type ResultadoEventos = { ok: true; eventos: DisplayEvent[] } | { ok: false; error: string }
+// R43, 43-b: `sinConexion` se suma a la rama de error cuando `esErrorDeRed`
+// (lib/red.ts) la reconoce como "sin conexión" — nunca a partir del `error`
+// solo, sino de la RESPUESTA COMPLETA (`{ error, status }`, porque
+// postgrest-js 2.106 solo distingue un `fetch` rechazado de un 4xx/5xx por
+// el `status`) o, en el `catch`, de la excepción atrapada. El mensaje no
+// cambia. Quien construye la caché a partir de esto es
+// `lib/sin-conexion/agenda.ts` (43-b): este archivo nunca toca AsyncStorage
+// ni `lib/sin-conexion/cache.ts`.
+export type ResultadoEventos = { ok: true; eventos: DisplayEvent[] } | { ok: false; error: string; sinConexion?: boolean }
 
 /**
  * La consulta que comparten `obtenerEventosVigentes` y
@@ -36,7 +45,9 @@ export type ResultadoEventos = { ok: true; eventos: DisplayEvent[] } | { ok: fal
  * en el prefiltro (trae también lo de hoy que ya empezó; el filtro exacto es
  * `isVigente`, acá adentro).
  */
-async function filasVigentes(ahora: Date): Promise<{ ok: true; filas: EventWithRelations[] } | { ok: false; error: string }> {
+async function filasVigentes(
+  ahora: Date,
+): Promise<{ ok: true; filas: EventWithRelations[] } | { ok: false; error: string; sinConexion?: boolean }> {
   if (!supabase) {
     return { ok: false, error: MENSAJE_SIN_CONFIGURACION }
   }
@@ -45,22 +56,22 @@ async function filasVigentes(ahora: Date): Promise<{ ok: true; filas: EventWithR
     let query = supabase.from('events').select(PUBLIC_EVENT_SELECT).eq('status', 'PUBLISHED')
     query = applyVigenciaPrefilter(query, ahora, { includeToday: true }).order('start_date', { ascending: true })
 
-    const { data, error } = await query
-    if (error) {
-      return { ok: false, error: MENSAJE_ERROR_RED }
+    const respuesta = await query
+    if (respuesta.error) {
+      return { ok: false, error: MENSAJE_ERROR_RED, sinConexion: esErrorDeRed(respuesta) || undefined }
     }
 
     // PUBLIC_EVENT_SELECT es un string armado en runtime (no un literal), así
     // que supabase-js no puede inferir con él el tipo de la fila: "as unknown
     // as" en vez de "as" (mismo patrón que apps/web/lib/data.ts).
-    const filas = (data ?? []) as unknown as EventWithRelations[]
+    const filas = (respuesta.data ?? []) as unknown as EventWithRelations[]
 
     const conCategoria = filas.filter((fila) => Boolean(fila.category))
     const vigentes = conCategoria.filter((fila) => isVigente(fila, ahora))
 
     return { ok: true, filas: vigentes }
-  } catch {
-    return { ok: false, error: MENSAJE_ERROR_RED }
+  } catch (e) {
+    return { ok: false, error: MENSAJE_ERROR_RED, sinConexion: esErrorDeRed(e) || undefined }
   }
 }
 
@@ -94,7 +105,7 @@ export interface EventoVigenteParaInicio {
 
 export type ResultadoEventosParaInicio =
   | { ok: true; eventos: EventoVigenteParaInicio[] }
-  | { ok: false; error: string }
+  | { ok: false; error: string; sinConexion?: boolean }
 
 /**
  * Eventos vigentes para Inicio (36-a): la misma consulta que
@@ -122,7 +133,7 @@ export interface CategoriaBasica {
   slug: string
 }
 
-export type ResultadoCategorias = { ok: true; categorias: CategoriaBasica[] } | { ok: false; error: string }
+export type ResultadoCategorias = { ok: true; categorias: CategoriaBasica[] } | { ok: false; error: string; sinConexion?: boolean }
 
 /** Las categorías (id, name, slug), para armar los filtros de Buscar. */
 export async function obtenerCategorias(): Promise<ResultadoCategorias> {
@@ -131,18 +142,18 @@ export async function obtenerCategorias(): Promise<ResultadoCategorias> {
   }
 
   try {
-    const { data, error } = await supabase
+    const respuesta = await supabase
       .from('categories')
       .select('id, name, slug')
       .order('name', { ascending: true })
 
-    if (error) {
-      return { ok: false, error: MENSAJE_ERROR_RED }
+    if (respuesta.error) {
+      return { ok: false, error: MENSAJE_ERROR_RED, sinConexion: esErrorDeRed(respuesta) || undefined }
     }
 
-    return { ok: true, categorias: (data ?? []) as unknown as CategoriaBasica[] }
-  } catch {
-    return { ok: false, error: MENSAJE_ERROR_RED }
+    return { ok: true, categorias: (respuesta.data ?? []) as unknown as CategoriaBasica[] }
+  } catch (e) {
+    return { ok: false, error: MENSAJE_ERROR_RED, sinConexion: esErrorDeRed(e) || undefined }
   }
 }
 
