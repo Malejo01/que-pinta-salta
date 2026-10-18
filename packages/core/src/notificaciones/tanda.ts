@@ -29,6 +29,7 @@ import {
   debeEnviarRecordatorioFavorito,
   estaEnHorarioDeSilencio,
   hayLugarEnTopeDiario,
+  MAX_NOVEDADES_POR_DIA,
   prepararNovedadesParaEnviar,
   type EnvioRegistradoParaTope,
   type EventoParaRecordatorioFavorito,
@@ -55,14 +56,18 @@ export interface FavoritoParaTanda extends EventoParaRecordatorioFavorito {
  * que ser único entre las novedades de este usuario (lo exige el agrupado
  * de `./reglas`, que agrupa por `id`).
  *
- * Contrato con quien llama (R39, arreglo 1): `UsuarioParaTanda.novedades`
- * tiene que traer TODAS las novedades del día de Salta, las ya avisadas y
- * las nuevas, no solo las nuevas. `limitarNovedadesPorDia` (`./reglas`)
- * cuenta `MAX_NOVEDADES_POR_DIA` por posición cronológica dentro del array,
- * no por si ese grupo ya se mandó: si quien llama filtrara las ya
- * enviadas antes de pasarlas, el tope se correría de lugar (un grupo que en
- * realidad es el 4° del día ocuparía la posición del 1°) y se podrían
- * mandar más avisos de los que el tope permite.
+ * Contrato con quien llama (R41, tarea 41-a): `UsuarioParaTanda.novedades`
+ * trae SOLO las novedades NUEVAS de esta corrida (las que detectó
+ * `novedadesDeUsuario` de `./novedades`, en la ventana desde la última
+ * corrida OK hasta ahora), no todas las del día de Salta. Es al revés del
+ * contrato de la R39: ahí el array tenía que traer también las ya avisadas,
+ * porque `limitarNovedadesPorDia` (`./reglas`) cuenta `MAX_NOVEDADES_POR_DIA`
+ * por posición cronológica dentro del array que recibe, no por si ese grupo
+ * ya se mandó, y filtrar antes de pasarlas corría el tope de lugar. Ahora es
+ * seguro filtrar: el tope de novedades por día se cuenta sobre
+ * `enviosRegistrados` (los envíos YA REGISTRADOS en `notification_sends`,
+ * con `contarEnviosDelDiaSalta`), no por posición en este array (ver
+ * `candidatosDeNovedades`, más abajo).
  */
 export interface NovedadParaTanda extends NovedadParaAgrupar {
   eventId: string
@@ -96,7 +101,7 @@ export interface UsuarioParaTanda {
    */
   tokens: string[]
   favoritos: FavoritoParaTanda[]
-  /** Ver el contrato en el docstring de `NovedadParaTanda`: todas las del día, no solo las nuevas. */
+  /** Ver el contrato en el docstring de `NovedadParaTanda`: solo las nuevas de esta corrida, no todas las del día. */
   novedades: NovedadParaTanda[]
   enviosRegistrados: EnvioRegistradoParaTanda[]
 }
@@ -221,42 +226,92 @@ function candidatosDeFavoritos(
 }
 
 /**
+ * El `dedupeKey` de un envío de tipo `novedad` siempre empieza con este
+ * prefijo. No se escribe el formato `"novedad:<userId>:..."` a mano (sería
+ * duplicar el formato de `claveDedupe`, acá y en `./reglas`): se deriva
+ * llamando a `claveDedupe` con un `userId` vacío.
+ *
+ * Esto solo sigue funcionando mientras `kind` sea el primer segmento de la
+ * clave (`./reglas`: `const partes = [kind, userId]`). Si ese orden cambiara
+ * (por ejemplo, `userId` primero), este prefijo dejaría de matchear
+ * cualquier clave real de `novedad`, `esDedupeKeyDeNovedad` siempre daría
+ * `false`, y el tope de novedades por día (39-a/41-a) se contaría siempre
+ * como 0. Un par de tests de integración de
+ * `apps/web/tests/core/notificaciones-tanda.test.ts` ya se pondrían en rojo
+ * con ese cambio (de forma indirecta, por un conteo que no da lo esperado),
+ * pero el test "el prefijo de dedupe de "novedad" depende de que `kind` sea
+ * el primer segmento..." en ese mismo archivo lo señala de forma directa,
+ * sobre la salida de `claveDedupe` — es el que hay que mirar primero si este
+ * comentario deja de ser cierto.
+ */
+const PREFIJO_DEDUPE_NOVEDAD = claveDedupe({ kind: 'novedad', userId: '' })
+
+/**
+ * `true` si `dedupeKey` es de un envío de tipo `novedad`. Se usa sobre
+ * `enviosRegistrados` de UN solo usuario (ya viene filtrado por usuario en
+ * `UsuarioParaTanda`), así que alcanza con el prefijo: no hace falta
+ * reconstruir la clave completa ni filtrar además por `userId`.
+ */
+function esDedupeKeyDeNovedad(dedupeKey: string): boolean {
+  return dedupeKey.startsWith(PREFIJO_DEDUPE_NOVEDAD)
+}
+
+/**
  * Un candidato por grupo de novedades que pasó `prepararNovedadesParaEnviar`
- * (agrupado por hora de Salta + tope de `MAX_NOVEDADES_POR_DIA`, 39-a) y que
+ * (agrupado por hora de Salta + tope de novedades por día, 39-a/41-a) y que
  * todavía no se mandó. `prepararNovedadesParaEnviar` devuelve los grupos con
  * el tipo base `NovedadParaAgrupar` (solo `id`/`momento`): `porId` recupera
  * el `eventId`/`title` de cada una a partir del `id`, sin castear.
+ *
+ * El tope de novedades por día (R41, 41-a) se cuenta sobre los envíos YA
+ * REGISTRADOS de tipo `novedad` del día de Salta (`yaHoy`, con
+ * `contarEnviosDelDiaSalta` sobre la lista YA FILTRADA por
+ * `esDedupeKeyDeNovedad`: si corriera sobre `enviosRegistrados` entero, los
+ * recordatorios de favoritos de hoy le comerían lugar a este tope, que es
+ * distinto del tope total de `armarTanda`, paso 5, que no se toca). Antes
+ * (R39) el tope se contaba por posición cronológica dentro del array de
+ * `usuario.novedades` (ver el docstring de `NovedadParaTanda`); ahora que
+ * ese array trae solo las nuevas de esta corrida, se le pasa
+ * `MAX_NOVEDADES_POR_DIA - yaHoy` explícito a `prepararNovedadesParaEnviar`
+ * (nunca el default): si ya no queda lugar (`restante <= 0`), no hay
+ * candidatos de novedades, antes de agrupar nada.
  *
  * Antes de agrupar, se descartan las novedades cuyo `momento` todavía no
  * llegó (`momento > ahora`), por simetría con `debeEnviarRecordatorioFavorito`
  * de favoritos. El filtro es `<=` (no un rango exacto), igual criterio que
  * favoritos usa con `>=`: el borde exacto (`momento === ahora`) SÍ genera
  * candidato. El filtro va antes de `prepararNovedadesParaEnviar` a propósito:
- * así una novedad futura no ocupa lugar en el tope de `MAX_NOVEDADES_POR_DIA`
- * del día (si se filtrara después de agrupar/topear, una novedad de mañana
- * podría desplazar a una de hoy fuera del tope).
+ * así una novedad futura no ocupa lugar en el tope del día (si se filtrara
+ * después de agrupar/topear, una novedad de mañana podría desplazar a una de
+ * hoy fuera del tope).
  *
- * Limitación conocida, no arreglada en esta ronda: una novedad TARDÍA (que
- * llega a esta función con un `momento` anterior a otra que una corrida
- * previa ya procesó y agrupó) puede hacer que el tope diario se pase, porque
- * `limitarNovedadesPorDia` (`./reglas`) cuenta por posición cronológica
- * dentro del array que recibe en cada corrida, no por si ese grupo ya se
- * mandó en una corrida anterior. El día que se decida resolver esto, el
- * lugar a tocar es `limitarNovedadesPorDia` en `./reglas` (no modificable
- * desde esta tarea): tendría que descontar del tope los grupos cuyo
- * `dedupeKey` ya está en `dedupeKeysYaEnviados`, en vez de contar todos los
- * grupos del día por igual.
+ * Con `momento = ahora` para todas las novedades de la corrida (41-a,
+ * `novedadesDeUsuario`), `agruparNovedadesPorHora` (`./reglas`) devuelve UN
+ * SOLO grupo por corrida, con la `claveHora` del bucket de hora de Salta de
+ * esa corrida. Si dos corridas caen en la MISMA hora de reloj de Salta (un
+ * `workflow_dispatch` a mano además del cron horario, o un reintento dentro
+ * de la misma hora), la segunda arma el mismo `dedupeKey` que la primera y
+ * el dedupe de abajo (`dedupeKeysYaEnviados`) la descarta entera; y como la
+ * ventana de `inicioVentanaNovedades` (`./novedades`) ya avanzó hasta el
+ * `ahora` de la primera corrida, esas novedades no se reintentan en ninguna
+ * corrida futura. Es angosto (el cron corre una vez por hora, a los :05),
+ * pero es real: no se resuelve en esta ronda.
  */
 function candidatosDeNovedades(
   usuario: UsuarioParaTanda,
   ahora: Date,
   dedupeKeysYaEnviados: Set<string>,
 ): Candidato[] {
+  const enviosDeNovedadHoy = usuario.enviosRegistrados.filter((envio) => esDedupeKeyDeNovedad(envio.dedupe_key))
+  const yaHoy = contarEnviosDelDiaSalta(enviosDeNovedadHoy, ahora)
+  const restante = MAX_NOVEDADES_POR_DIA - yaHoy
+  if (restante <= 0) return []
+
   const novedadesYaOcurridas = usuario.novedades.filter(
     (novedad) => new Date(novedad.momento).getTime() <= ahora.getTime(),
   )
   const porId = new Map(novedadesYaOcurridas.map((novedad) => [novedad.id, novedad]))
-  const grupos = prepararNovedadesParaEnviar(novedadesYaOcurridas)
+  const grupos = prepararNovedadesParaEnviar(novedadesYaOcurridas, restante)
 
   const candidatos: Candidato[] = []
 

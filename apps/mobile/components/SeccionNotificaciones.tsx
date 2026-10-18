@@ -24,6 +24,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { ActivityIndicator, Pressable, StyleSheet, Switch, View } from 'react-native'
 import { CANALES_RADAR, type CanalRadar } from '@qps/core/notificaciones/preferencias'
+import { AvisoActivarPush } from '@/components/AvisoActivarPush'
 import { CampoTexto } from '@/components/CampoTexto'
 import { Cargando, ErrorCarga } from '@/components/EstadoCarga'
 import { Texto } from '@/components/Texto'
@@ -138,9 +139,16 @@ export function SeccionNotificaciones() {
     setGuardando(false)
   }
 
+  // Ronda 41, 41-e, decisión 4 del plan: el canal del Radar por push no lo
+  // manda el backend todavía (solo email), así que esto es honesto, no una
+  // cifra ni un horario (QPS-113 sigue sin confirmar).
+  const radarPorPush = radarChannel === 'push' || radarChannel === 'ambos'
+
   return (
     <View style={estilos.seccion}>
       <Texto peso="bold" style={estilos.titulo}>Notificaciones</Texto>
+
+      <AvisoActivarPush variante="cuenta" />
 
       <View style={estilos.filaInterruptor}>
         <Texto>Recordatorios de favoritos</Texto>
@@ -153,8 +161,15 @@ export function SeccionNotificaciones() {
       </View>
 
       <View style={estilos.filaInterruptor}>
-        <Texto>Avisos de Qué Pinta Salta</Texto>
-        <Switch value={announcements} onValueChange={(valor) => setEstado({ ...estado, announcements: valor })} />
+        <View style={estilos.filaEtiquetaConPronto}>
+          <Texto>Avisos de Qué Pinta Salta</Texto>
+          <Texto tono="secundario" style={estilos.etiquetaPronto}>Pronto</Texto>
+        </View>
+        {/* Decisión 4 del plan: visible pero apagado. El valor que la
+            persona ya tenía se guarda igual (ver `guardar`, más abajo: el
+            upsert manda `announcements` tal como vino de la base, nunca un
+            `false` fijo). */}
+        <Switch value={announcements} disabled />
       </View>
 
       <Texto peso="semibold" style={estilos.subtitulo}>Canal del Radar</Texto>
@@ -174,6 +189,9 @@ export function SeccionNotificaciones() {
           )
         })}
       </View>
+      {radarPorPush ? (
+        <Texto tono="secundario">Por ahora el Radar te sigue llegando por email.</Texto>
+      ) : null}
 
       <Texto peso="semibold" style={estilos.subtitulo}>Horario de silencio</Texto>
       <View style={estilos.filaHorario}>
@@ -223,6 +241,8 @@ const estilos = StyleSheet.create({
   titulo: { fontSize: 16 },
   subtitulo: { marginTop: 8 },
   filaInterruptor: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  filaEtiquetaConPronto: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  etiquetaPronto: { fontSize: 11, textTransform: 'uppercase' },
   filaChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: { borderWidth: 1, borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8 },
   filaHorario: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
