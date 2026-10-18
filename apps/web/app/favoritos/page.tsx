@@ -7,11 +7,12 @@ import { FavoritosList } from "./favoritos-list"
 import { applyVigenciaPrefilter } from "@/lib/events/vigencia"
 import { PUBLIC_EVENT_SELECT } from "@/lib/events/public-select"
 import { armarFavoritos, idsDeFavoritos } from "@qps/core/favoritos/armar"
+import { idsDeEventosVoy, separarMisEventos } from "@qps/core/favoritos/mis-eventos"
 import type { Event, Category, Venue, CinemaMovie } from "@/lib/types"
 import type { FlyerWithAccount } from "@/lib/instagram-config"
 
 export const metadata = {
-  title: "Mis Favoritos — Qué Pinta Salta",
+  title: "Mis eventos — Qué Pinta Salta",
   description: "Los eventos, boliches y películas que guardaste para armar tu propia agenda en Salta.",
 }
 
@@ -37,7 +38,27 @@ export default async function FavoritosPage() {
     console.error("[FavoritosPage] Error obteniendo favoritos de BD:", dbError)
   }
 
-  const { eventIds, flyerIds, movieIds } = idsDeFavoritos(favorites ?? [])
+  // 1.b Los ids de evento marcados con ✓ Voy (R47, QPS-197): la RLS del dueño
+  // ya acota `event_attendance` a las filas propias, así que el select no
+  // pide `user_id` ni filtra por él. Si SOLO esta lectura falla, no tiramos
+  // abajo la página entera: seguimos con `idsVoy` vacío (Guardados sigue
+  // andando) — misma decisión que tomó la app en `lib/favoritos.ts`.
+  const { data: filasVoy, error: errorVoy } = await supabase
+    .from("event_attendance")
+    .select("event_id, kind")
+    .eq("kind", "voy")
+
+  if (errorVoy) {
+    console.error("[FavoritosPage] Error obteniendo eventos con Voy:", errorVoy)
+  }
+
+  const idsVoy = errorVoy ? [] : idsDeEventosVoy(filasVoy ?? [])
+
+  const { eventIds: eventIdsFavoritos, flyerIds, movieIds } = idsDeFavoritos(favorites ?? [])
+  // Los ids de Voy se unen a los de favoritos ANTES de pedir los eventos: así
+  // un Voy viejo sin su fila de favorito (datos de antes del backfill) igual
+  // entra en la consulta de `events` y aparece en la sección Voy.
+  const eventIds = [...new Set([...eventIdsFavoritos, ...idsVoy])]
 
   // 2. Fetch paralelos de los detalles de los elementos guardados (filtrando solo activos y futuros)
   const now = new Date()
@@ -79,17 +100,27 @@ export default async function FavoritosPage() {
   const favoriteMovies = (moviesRes.data || []) as unknown as CinemaMovie[]
   const categoryNameBySlug = new Map(categories.map(c => [c.slug, c.name]))
 
-  const { flexibles, porDia } = armarFavoritos(
+  const armado = armarFavoritos(
     { eventos: favoriteEvents, flyers: favoriteFlyers, peliculas: favoriteMovies, categoryNameBySlug },
     now,
   )
+
+  // 4. Separar en "Voy" (✓, social) y "Guardados" (♥, el resto) con la
+  // misma función de core que usa la app (`@qps/core/favoritos/mis-eventos`).
+  //
+  // Corrección al encargo original de esta tarea: NO se pasa el tercer
+  // parámetro `extrasVoy`. Como `idsVoy` ya se unió a `eventIds` ANTES de
+  // pedir los eventos (más arriba), cualquier evento con Voy que siga
+  // vigente y PUBLISHED ya está dentro de `armado`: pasar además `extrasVoy`
+  // sería un segundo camino para lo mismo.
+  const { voy, guardados } = separarMisEventos(armado, idsVoy)
 
   return (
     <div className="min-h-screen bg-background pb-page sm:pb-0">
       <Navbar />
 
       <main className="container mx-auto px-4 py-8">
-        <FavoritosList flexibles={flexibles} porDia={porDia} />
+        <FavoritosList voy={voy} flexibles={guardados.flexibles} porDia={guardados.porDia} />
       </main>
 
       <MobileNav />
