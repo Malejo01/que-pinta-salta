@@ -56,6 +56,7 @@ import {
   MENSAJE_NO_DISPONIBLE,
   MENSAJE_SIN_CONFIGURACION,
   guardarNotificaciones,
+  horaCorta,
   obtenerNotificaciones,
 } from '../lib/notificaciones'
 
@@ -291,5 +292,88 @@ describe('sin configuración de Supabase: no se escribe ni se lee nada', () => {
 describe('MENSAJE_NO_DISPONIBLE: no es un mensaje de error crudo', () => {
   it('es una constante de la UI amable', () => {
     expect(MENSAJE_NO_DISPONIBLE).toBe('Pronto vas a poder elegir tus notificaciones.')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Ronda 41, 41-e: horaCorta (quiet_start/quiet_end llegan de PostgREST como
+// "HH:MM:SS").
+// ---------------------------------------------------------------------------
+describe('horaCorta', () => {
+  it('"23:00:00" da "23:00"', () => {
+    expect(horaCorta('23:00:00', '09:00')).toBe('23:00')
+  })
+
+  it('"09:05" (ya corta) da "09:05", sin cambios', () => {
+    expect(horaCorta('09:05', '23:00')).toBe('09:05')
+  })
+
+  it('"00:00:00" da "00:00" (el borde de la medianoche)', () => {
+    expect(horaCorta('00:00:00', '23:00')).toBe('00:00')
+  })
+
+  it('"9:5" (sin dos dígitos) cae al default: no se "arregla" a "09:05"', () => {
+    expect(horaCorta('9:5', '23:00')).toBe('23:00')
+  })
+
+  it('"" cae al default', () => {
+    expect(horaCorta('', '23:00')).toBe('23:00')
+  })
+
+  it('null cae al default', () => {
+    expect(horaCorta(null, '09:00')).toBe('09:00')
+  })
+
+  it('undefined cae al default', () => {
+    expect(horaCorta(undefined, '09:00')).toBe('09:00')
+  })
+
+  it('un formato con minutos fuera de rango ("23:00:99") cae al default', () => {
+    expect(horaCorta('23:00:99', '09:00')).toBe('09:00')
+  })
+
+  it('un formato con hora fuera de rango ("24:00:00") cae al default', () => {
+    expect(horaCorta('24:00:00', '09:00')).toBe('09:00')
+  })
+
+  it('el default de quiet_start (23:00) y quiet_end (09:00) son distintos: cada llamada recibe el suyo', () => {
+    expect(horaCorta('nope', '23:00')).toBe('23:00')
+    expect(horaCorta('nope', '09:00')).toBe('09:00')
+  })
+})
+
+describe('obtenerNotificaciones: normaliza quiet_start/quiet_end "HH:MM:SS" a "HH:MM"', () => {
+  it('con la fila en "22:30:00" devuelve "22:30", y eso pasa la validación de guardarNotificaciones', async () => {
+    estado.lectura = {
+      data: {
+        radar_channel: 'email',
+        favorite_reminders: true,
+        follow_news: true,
+        announcements: false,
+        quiet_start: '22:30:00',
+        quiet_end: '08:00:00',
+      },
+      error: null,
+    }
+
+    const resultado = await obtenerNotificaciones(USER_ID_SESION)
+
+    expect(resultado.tipo).toBe('ok')
+    if (resultado.tipo !== 'ok') throw new Error('no debería fallar')
+    expect(resultado.preferencias.quiet_start).toBe('22:30')
+    expect(resultado.preferencias.quiet_end).toBe('08:00')
+
+    // El mismo valor que devolvió obtenerNotificaciones, al guardarlo, pasa
+    // la validación de core (HORA_RE exige "HH:MM" exacto): antes de esta
+    // tarea, "22:30:00" hacía fallar "Guardar".
+    const guardado = await guardarNotificaciones(USER_ID_SESION, {
+      radar_channel: resultado.preferencias.radar_channel,
+      favorite_reminders: resultado.preferencias.favorite_reminders,
+      follow_news: resultado.preferencias.follow_news,
+      announcements: resultado.preferencias.announcements,
+      quiet_start: resultado.preferencias.quiet_start,
+      quiet_end: resultado.preferencias.quiet_end,
+    })
+    expect(guardado.tipo).toBe('ok')
   })
 })

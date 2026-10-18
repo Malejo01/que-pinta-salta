@@ -47,6 +47,7 @@ import { armarMensajeWhatsApp } from '@qps/core/favoritos/armar'
 import type { DisplayEvent } from '@qps/core/home/types'
 import LOGO_MARCA from '@/assets/logo-circular.png'
 import { AvisoSinConexion } from '@/components/AvisoSinConexion'
+import { AvisoActivarPush } from '@/components/AvisoActivarPush'
 import { Cargando, ErrorCarga, Vacio } from '@/components/EstadoCarga'
 import { Icono } from '@/components/Icono'
 import { TarjetaEvento } from '@/components/TarjetaEvento'
@@ -328,6 +329,14 @@ export default function Favoritos() {
 
   return (
     <View style={[estilos.contenedor, { backgroundColor: colors.background }]}>
+      {/* Ronda 41, 41-e: el aviso para activar push, arriba de la lista.
+          Solo llega acá con sesión (la rama sin userId ya retornó antes);
+          no agrega ninguna lectura ni toca useFocusEffect/cargar. Sin
+          wrapper con padding propio: `AvisoActivarPush` devuelve `null` en
+          casi todos los estados, y un `View` con padding alrededor dejaría
+          un hueco vacío aunque no haya nada que mostrar. */}
+      <AvisoActivarPush variante="favoritos" />
+
       {estado.tipo === 'cargando' ? <Cargando /> : null}
 
       {estado.tipo === 'error' ? <ErrorCarga mensaje={estado.error} onReintentar={cargar} /> : null}
