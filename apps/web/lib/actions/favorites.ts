@@ -85,12 +85,13 @@ export async function toggleFavorite(
 
     if (type === 'event') {
       // Primero la asistencia (ver el porqué del orden en la cabecera del
-      // archivo). Nunca se pide `user_id`: la RLS del dueño ya acota esta
-      // consulta a la fila propia con solo filtrar por `event_id`.
+      // archivo). La RLS del dueño ya acota esta consulta a la fila propia;
+      // el `user_id` va igual, como defensa en profundidad (revisor del #76).
       const { data: filaBorrada, error: deleteAsistenciaError } = await supabase
         .from("event_attendance")
         .delete()
         .eq("event_id", cleanId)
+        .eq("user_id", user.id)
         .select("kind")
 
       if (deleteAsistenciaError) {

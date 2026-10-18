@@ -209,6 +209,44 @@ export function hasRealTime(startDate?: string | Date | null): boolean {
   return clock !== '' && clock !== '00:00'
 }
 
+/**
+ * Tolerancia, en minutos, para considerar compatibles dos horas en los
+ * caminos de deduplicación que van por similitud (no por clave exacta):
+ * decisión de Mauro del 17/10 (QPS-164, hallazgo 1). La usan el paso 2 de
+ * `findDuplicateMatch` y la colisión de slug de `upsertEventWithDeduplication`
+ * en `apps/web/lib/scraper/deduplicate.ts`. Separa las 16:00 de las 21:00 del
+ * mismo show (no se fusionan) y junta las 21:00 con las 21:30 que llegan de
+ * dos fuentes distintas (sí se fusionan). El paso 0 (`sameTicketEvent`) y el
+ * paso 1 siguen comparando la hora exacta: no cambian en esta ronda.
+ */
+export const TOLERANCIA_HORA_DEDUP_MIN = 120
+
+/**
+ * Compara dos horas de inicio como instantes (no como "hora de pared"), con
+ * una tolerancia en minutos. Si a alguna de las dos le falta una hora real
+ * (00:00 de Salta, `null`/`undefined`, o una fecha inválida), devuelve `true`
+ * sin comparar nada: así se mantiene el comportamiento de hoy, donde un
+ * evento sin hora no se parte de uno que sí la tiene.
+ *
+ * Espera instantes ya resueltos a UTC (lo que guarda `start_date` en la
+ * base: `save-to-supabase.ts` y `run-scrape-job.ts` ya pasaron la hora de
+ * pared de Salta por `saltaWallClockToUtcISO`/`.toISOString()` antes de
+ * llegar acá). No hace ninguna conversión de zona horaria: para un string de
+ * hora de pared sin zona, convertir antes con `saltaWallClockToUtcISO`.
+ *
+ * El borde es inclusivo: exactamente `toleranciaMin` minutos de diferencia
+ * da `true`.
+ */
+export function horasCompatibles(
+  a?: string | Date | null,
+  b?: string | Date | null,
+  toleranciaMin = TOLERANCIA_HORA_DEDUP_MIN,
+): boolean {
+  if (!hasRealTime(a) || !hasRealTime(b)) return true
+  const diffMs = Math.abs(new Date(a as string | Date).getTime() - new Date(b as string | Date).getTime())
+  return diffMs <= toleranciaMin * 60_000
+}
+
 /** Descripción que genera el scraper cuando la fuente no trae ninguna. */
 export function isAutoDescription(text?: string | null): boolean {
   return !!text && /^\s*evento importado autom[aá]ticamente/i.test(text)

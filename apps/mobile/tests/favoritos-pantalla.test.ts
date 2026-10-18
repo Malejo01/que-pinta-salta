@@ -74,7 +74,10 @@ describe('app/(tabs)/favoritos.tsx: textos copiados literal de favoritos-list.ts
 // ---------------------------------------------------------------------------
 describe('app/(tabs)/favoritos.tsx: el título de la pantalla es "Mis eventos" (R47, 47-g)', () => {
   it('el encabezado de la lista dice "Mis eventos"', () => {
-    expect(PANTALLA).toMatch(/<Texto\s+peso="bold"\s+style=\{estilos\.titulo\}>\s*Mis eventos\s*<\/Texto>/)
+    // R46: el título es un encabezado (accessibilityRole="header"), en cualquier orden de props.
+    expect(PANTALLA).toMatch(
+      /<Texto(?=[^>]*peso="bold")(?=[^>]*accessibilityRole="header")(?=[^>]*style=\{estilos\.titulo\})[^>]*>\s*Mis eventos\s*<\/Texto>/,
+    )
   })
 
   it('ya no queda el título viejo ("Mi Agenda de Eventos") en el archivo', () => {

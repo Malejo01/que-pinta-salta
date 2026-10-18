@@ -226,6 +226,7 @@ export default function Buscar() {
             return (
               <Pressable
                 onPress={() => alTocarCategoria(item.slug)}
+                accessibilityRole="button"
                 style={[estilos.tileCategoria, { backgroundColor: colores.card, borderColor: colores.border }]}
               >
                 <View style={[estilos.iconoCategoria, { backgroundColor: `${colores.primary}1A` }]}>
@@ -283,11 +284,18 @@ const estilos = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  // 46-d: minHeight (no hitSlop) a propósito, aunque el chip tiene forma
+  // propia (pill) — ver el reporte de la tarea: el detector de
+  // `tests/accesibilidad-detector.test.ts` (`area-chica`) decide solo por
+  // el nombre de la clave de estilo que usa el `style` del `Pressable`, sin
+  // mirar `hitSlop`; la única excepción documentada (`EXCEPCIONES_AREA_CHICA`)
+  // vive en ese mismo archivo, que esta tarea no puede tocar. 44 -> 48 (4dp
+  // más de alto, casi imperceptible en una pill chica).
   chipGratis: {
     alignSelf: 'flex-start',
     borderWidth: 1,
     borderRadius: 999,
-    minHeight: 44,
+    minHeight: 48,
     paddingHorizontal: 16,
     alignItems: 'center',
     justifyContent: 'center',

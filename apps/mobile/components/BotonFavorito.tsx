@@ -24,8 +24,25 @@ import { TEXTO_SACASTE_GUARDADO_CON_VOY } from '@qps/core/asistencia'
 import { avisar } from '@/lib/aviso'
 import { desmarcarFavorito, marcarFavorito, obtenerEsFavorito } from '@/lib/favoritos'
 import { Icono } from '@/components/Icono'
+import { hitSlopPara } from '@/lib/accesibilidad'
 import { useColoresQPS } from '@/lib/colores'
 import { useSession } from '@/lib/session'
+
+/**
+ * `hitSlopPara(tamanio)` sirve para los dos usos: 40 en la ficha
+ * (`app/evento/[id].tsx`, `estilos.accionesTitulo`, gap 8, junto a
+ * `BotonCompartir`) y 32 en la tarjeta (`TarjetaEvento.tsx`,
+ * `estilos.accionesArriba`, gap 6, también junto a `BotonCompartir`).
+ *
+ * Con 40: hitSlopPara(40) da 4 por lado — 4+4=8, justo el gap de la ficha, no
+ * se pisa. Con 32: hitSlopPara(32) da 8 por lado — 8+8=16, más que el gap de
+ * 6 de la tarjeta: el lado lateral se baja a la mitad del gap (3) en los dos
+ * botones para no comerse el vecino (46-c, para que lo revise 46-q).
+ */
+function hitSlopBotonAccion(tamanio: number) {
+  const base = hitSlopPara(tamanio)
+  return tamanio <= 32 ? { ...base, left: 3, right: 3 } : base
+}
 
 export interface BotonFavoritoProps {
   eventId: string
@@ -105,6 +122,7 @@ export function BotonFavorito({ eventId, tamanio = 40, fondo = 'muted' }: BotonF
       disabled={cargando}
       accessibilityRole="button"
       accessibilityLabel={marcado ? 'Quitar de favoritos' : 'Agregar a favoritos'}
+      hitSlop={hitSlopBotonAccion(tamanio)}
       style={[
         estilos.boton,
         { width: tamanio, height: tamanio, borderRadius: tamanio / 2, backgroundColor: fondoColor },

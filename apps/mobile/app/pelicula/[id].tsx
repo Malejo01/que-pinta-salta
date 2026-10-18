@@ -119,7 +119,7 @@ function Ficha({ pelicula, colores }: { pelicula: Pelicula; colores: ColoresQPS 
         <Afiche url={pelicula.poster_url} llenar />
       </View>
 
-      <Texto peso="bold" style={estilos.titulo}>
+      <Texto peso="bold" accessibilityRole="header" style={estilos.titulo}>
         {pelicula.title}
       </Texto>
 
@@ -198,7 +198,7 @@ function BloqueCine({
 
           {urlCompra ? (
             <Pressable
-              accessibilityRole="button"
+              accessibilityRole="link"
               onPress={() => Linking.openURL(urlCompra).catch(() => {})}
               style={[estilos.botonComprar, { backgroundColor: colores.muted }]}
             >
@@ -222,7 +222,7 @@ const estilos = StyleSheet.create({
   titulo: { fontSize: 22, marginTop: 16, marginBottom: 8 },
   sinFunciones: { textAlign: 'center', fontStyle: 'italic', paddingVertical: 8 },
   bloqueCine: { paddingVertical: 4 },
-  triggerCine: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 44, paddingVertical: 4 },
+  triggerCine: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 48, paddingVertical: 4 },
   triggerTexto: { flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 1 },
   punto: { width: 6, height: 6, borderRadius: 3 },
   nombreCine: { fontSize: 15, flexShrink: 1 },

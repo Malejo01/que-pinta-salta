@@ -326,13 +326,20 @@ function construirClienteToggle(config: ConfigToggle) {
 
     if (tabla === 'event_attendance') {
       return {
+        // El delete filtra por event_id Y por user_id (defensa en profundidad
+        // sobre la RLS del dueño, sugerencia del revisor del #76).
         delete: () => ({
-          eq: () => ({
-            select: async (columnas: string) => {
-              if (columnas !== 'kind') throw new Error(`select inesperado tras delete de event_attendance: "${columnas}"`)
-              orden.push('event_attendance.delete')
-              return { data: config.deleteAttendanceFilas ?? [], error: config.deleteAttendanceError ?? null }
-            },
+          eq: (columna1: string) => ({
+            eq: (columna2: string) => ({
+              select: async (columnas: string) => {
+                if (columnas !== 'kind') throw new Error(`select inesperado tras delete de event_attendance: "${columnas}"`)
+                if ([columna1, columna2].sort().join(',') !== 'event_id,user_id') {
+                  throw new Error(`el delete de event_attendance tiene que filtrar por event_id y user_id, filtró por: ${columna1}, ${columna2}`)
+                }
+                orden.push('event_attendance.delete')
+                return { data: config.deleteAttendanceFilas ?? [], error: config.deleteAttendanceError ?? null }
+              },
+            }),
           }),
         }),
       }

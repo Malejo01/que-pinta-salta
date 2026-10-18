@@ -132,10 +132,12 @@ function construirClienteToggle(config: ConfigToggle) {
       return {
         delete: () => ({
           eq: () => ({
-            select: async () => {
-              orden.push('event_attendance.delete')
-              return { data: config.deleteAttendanceFilas ?? [], error: config.deleteAttendanceError ?? null }
-            },
+            eq: () => ({
+              select: async () => {
+                orden.push('event_attendance.delete')
+                return { data: config.deleteAttendanceFilas ?? [], error: config.deleteAttendanceError ?? null }
+              },
+            }),
           }),
         }),
       }

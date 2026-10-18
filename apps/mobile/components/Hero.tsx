@@ -58,6 +58,7 @@ import type { DisplayEvent } from '@qps/core/home/types'
 import { Afiche } from '@/components/Afiche'
 import { Icono } from '@/components/Icono'
 import { Texto } from '@/components/Texto'
+import { AREA_TACTIL_MINIMA, ESCALA_MAXIMA_COMPACTA, hitSlopPara } from '@/lib/accesibilidad'
 import { useColoresQPS } from '@/lib/colores'
 import { textoPrecio } from '@/lib/formato'
 import LOGO_MARCA from '@/assets/logo-circular.png'
@@ -65,6 +66,20 @@ import LOGO_MARCA from '@/assets/logo-circular.png'
 const PORCENTAJE_ALTO_HERO = 0.6
 const INTERVALO_MS = 5000
 const MAXIMO_EVENTOS = 6
+
+/**
+ * Los puntos de paginación (`estilos.punto`) miden 6 de alto, siempre —
+ * `hitSlopPara(AREA_TACTIL_MINIMA, 6)` da 0 de lateral (el primer argumento
+ * ya es 48) y 21 arriba/abajo (6 + 2×21 = 48, llega). El ancho SÍ varía (20
+ * el activo, 6 los demás) y los puntos están pegados entre sí (`estilos.puntos`,
+ * gap: 6): no pueden llegar a 48 de ancho sin que las áreas de toque de dos
+ * puntos vecinos se pisen. Se les da algo de aire igual (la mitad del gap,
+ * 3, en vez de 0) sin llegar a pisarse — sigue sin alcanzar los 48, así que
+ * `components/Hero.tsx` sigue en `tests/a11y/pendientes-componentes.ts` con
+ * `area-chica: 1` (el motivo: el gesto principal para cambiar de diapositiva
+ * es deslizar, no tocar el punto).
+ */
+const HIT_SLOP_PUNTO = { ...hitSlopPara(AREA_TACTIL_MINIMA, 6), left: 3, right: 3 }
 
 /**
  * ~60 % del alto de la ventana (G1 del feedback del teléfono 2), redondeado.
@@ -153,7 +168,7 @@ export function Hero({ eventos }: HeroProps) {
               onPress={() => irA(i)}
               accessibilityRole="button"
               accessibilityLabel={`Ir al evento ${i + 1}`}
-              hitSlop={10}
+              hitSlop={HIT_SLOP_PUNTO}
               style={[
                 estilos.punto,
                 i === indice
@@ -181,7 +196,12 @@ function DiapositivaHero({ evento, ancho, alto, onPress }: DiapositivaHeroProps)
   const precio = textoPrecio(evento.price)
 
   return (
-    <Pressable onPress={onPress} style={[estilos.diapositiva, { width: ancho, height: alto }]}>
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={`${evento.title}, ver detalles`}
+      style={[estilos.diapositiva, { width: ancho, height: alto }]}
+    >
       {/* Dos `<Afiche llenar>` con la MISMA url (misma cadena de fuentes y
           mismo allow-list, sin armar nada a mano): abajo, la versión
           desenfocada a sangre (`cover` + `blurRadius`) que llena todo el
@@ -218,26 +238,26 @@ function DiapositivaHero({ evento, ancho, alto, onPress }: DiapositivaHeroProps)
 
       <View style={estilos.contenido}>
         <View style={[estilos.badge, { backgroundColor: colores.primary }]}>
-          <Texto peso="bold" style={estilos.textoBadge} numberOfLines={1}>
+          <Texto peso="bold" style={estilos.textoBadge} numberOfLines={1} maxFontSizeMultiplier={ESCALA_MAXIMA_COMPACTA}>
             {evento.categoryName}
           </Texto>
         </View>
 
-        <Texto peso="bold" style={estilos.titulo} numberOfLines={2}>
+        <Texto peso="bold" style={estilos.titulo} numberOfLines={2} maxFontSizeMultiplier={ESCALA_MAXIMA_COMPACTA}>
           {evento.title}
         </Texto>
 
         <View style={estilos.filaDatos}>
           <View style={estilos.dato}>
             <Icono nombre="Calendar" tamanio={12} color={colores.primary} />
-            <Texto style={estilos.textoDato} numberOfLines={1}>
+            <Texto style={estilos.textoDato} numberOfLines={1} maxFontSizeMultiplier={ESCALA_MAXIMA_COMPACTA}>
               {fecha}
               {evento.time ? ` - ${evento.time}` : ''}
             </Texto>
           </View>
           <View style={estilos.dato}>
             <Icono nombre="MapPin" tamanio={12} color={colores.primary} />
-            <Texto style={estilos.textoDato} numberOfLines={1}>
+            <Texto style={estilos.textoDato} numberOfLines={1} maxFontSizeMultiplier={ESCALA_MAXIMA_COMPACTA}>
               {evento.venue}
             </Texto>
           </View>
@@ -246,12 +266,12 @@ function DiapositivaHero({ evento, ancho, alto, onPress }: DiapositivaHeroProps)
         <View style={estilos.filaAccion}>
           <View style={[estilos.botonVerDetalles, { backgroundColor: colores.primary }]}>
             <Icono nombre="Ticket" tamanio={14} color={colores.primaryForeground} />
-            <Texto peso="semibold" style={estilos.textoBoton}>
+            <Texto peso="semibold" style={estilos.textoBoton} maxFontSizeMultiplier={ESCALA_MAXIMA_COMPACTA}>
               Ver detalles
             </Texto>
           </View>
           {evento.price !== 'confirmar' ? (
-            <Texto peso="bold" style={estilos.textoPrecio} numberOfLines={1}>
+            <Texto peso="bold" style={estilos.textoPrecio} numberOfLines={1} maxFontSizeMultiplier={ESCALA_MAXIMA_COMPACTA}>
               {evento.price === 'gratis' ? 'Entrada Gratuita' : precio}
             </Texto>
           ) : null}

@@ -9,6 +9,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import LOGO_MARCA from '@/assets/logo-circular.png'
 import { Icono } from '@/components/Icono'
 import { Texto } from '@/components/Texto'
+import { hitSlopPara } from '@/lib/accesibilidad'
 import { useColoresQPS } from '@/lib/colores'
 import { useSession } from '@/lib/session'
 
@@ -46,6 +47,13 @@ export function Encabezado() {
           onPress={() => router.push('/cuenta')}
           accessibilityRole="button"
           accessibilityLabel="Ir a Cuenta"
+          // 46-c: 40×40 (ver `estilos.botonUsuario`), 8dp corto de los 48 de
+          // `AREA_TACTIL_MINIMA`. Sin fondo/borde propio (solo el ícono
+          // centrado): subir el tamaño del estilo movería el logo de la
+          // izquierda (la fila es `space-between`) sin que se note nada
+          // bueno a cambio, así que va con `hitSlop`. El detector estático
+          // no lo ve: sigue en `tests/a11y/pendientes-componentes.ts`.
+          hitSlop={hitSlopPara(40)}
           style={estilos.botonUsuario}
         >
           <Icono nombre="User" color={colores.foreground} tamanio={24} />

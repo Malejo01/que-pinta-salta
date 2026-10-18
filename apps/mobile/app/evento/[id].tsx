@@ -32,20 +32,23 @@ import { Redirect, useLocalSearchParams, useRouter, useTheme } from 'expo-router
 import { formatEventDate } from '@qps/core/date-format'
 import { capitalizeFirst, cleanDescription, formatEventTimeDisplay } from '@qps/core/event-display'
 import { urlComoLlegar, urlGo } from '@qps/core/metricas/links'
-import { ticketUrlsOf } from '@qps/core/scraper/dedup-key'
 import { vibeLabels } from '@qps/core/types'
 import { Afiche } from '@/components/Afiche'
+import { BotonCalendario } from '@/components/BotonCalendario'
 import { BotonSeguir } from '@/components/BotonSeguir'
 import { Cargando, ErrorCarga, Vacio } from '@/components/EstadoCarga'
 import { FilaAccionesEvento } from '@/components/FilaAccionesEvento'
 import { Icono } from '@/components/Icono'
 import { Texto } from '@/components/Texto'
+import { ESCALA_MAXIMA_COMPACTA } from '@/lib/accesibilidad'
 import { useColoresQPS } from '@/lib/colores'
+import { datosTarjetaCompartir } from '@/lib/compartir'
 import { obtenerEventoPorId, type ResultadoEvento } from '@/lib/datos/eventos'
 import { textoPrecio, type PrecioEvento } from '@/lib/formato'
 import { esUuid } from '@/lib/links'
 import { obtenerSeguimientoDeEvento, type SeguimientoDeEvento } from '@/lib/radar'
 import { useSession } from '@/lib/session'
+import { useVistaEvento } from '@/lib/metricas-hook'
 
 type Estado = { tipo: 'cargando' } | ResultadoEvento
 
@@ -120,6 +123,11 @@ export default function EventoPorId() {
     setIntento((valor) => valor + 1)
   }, [])
 
+  // La vista de la ficha, con origen `app` (43-e): una sola vez por montaje
+  // y por evento, solo cuando cargó bien. Arriba de los `return` tempranos
+  // de abajo, por las reglas de los hooks.
+  useVistaEvento(estado.tipo === 'ok' ? estado.evento.id : null)
+
   if (!valido) {
     return <Redirect href="/" />
   }
@@ -162,7 +170,11 @@ export default function EventoPorId() {
   const precioEvento: PrecioEvento = evento.is_free ? 'gratis' : evento.price_min === 0 ? 'confirmar' : evento.price_min
   const precioTexto = precioEvento === 'gratis' ? 'Entrada Gratuita' : textoPrecio(precioEvento)
 
-  const tieneTicket = ticketUrlsOf({ ticket_url: evento.ticket_url, ticket_sources: evento.ticket_sources }).size > 0
+  // Como la web (`displayEvent.ticketUrl &&`, en `event-detail-page.tsx`):
+  // `/go/<id>` solo redirige a `events.ticket_url` (`urlGo`/`urlCompra` de
+  // abajo); con solo `ticket_sources` el botón llevaba a la ficha web, que
+  // no cuenta el clic.
+  const tieneTicket = Boolean(evento.ticket_url?.trim())
   const urlCompra = urlGo(evento.id, 'app')
   const urlLlegar = urlComoLlegar({ address: evento.venue?.address, venue: evento.venue?.name })
 
@@ -179,7 +191,7 @@ export default function EventoPorId() {
       <View style={[estilos.contenedorImagen, { width: anchoAfiche, aspectRatio: 3 / 4, borderRadius: 16 }]}>
         <Afiche url={evento.image_url} llenar ancho={800} />
         <View style={[estilos.badgeCategoria, { backgroundColor: colores.primary }]}>
-          <Texto peso="bold" style={[estilos.textoBadge, { color: colores.primaryForeground }]} numberOfLines={1}>
+          <Texto peso="bold" style={[estilos.textoBadge, { color: colores.primaryForeground }]} numberOfLines={1} maxFontSizeMultiplier={ESCALA_MAXIMA_COMPACTA}>
             {categoryName}
           </Texto>
         </View>
@@ -188,7 +200,7 @@ export default function EventoPorId() {
       {/* El corazón y Compartir se mudaron a FilaAccionesEvento (R47, 47-f,
           QPS-197): ya no van sueltos junto al título (antes, acá, con
           `estilos.accionesTitulo`). */}
-      <Texto peso="bold" style={estilos.titulo}>
+      <Texto peso="bold" accessibilityRole="header" style={estilos.titulo}>
         {evento.title}
       </Texto>
 
@@ -257,7 +269,7 @@ export default function EventoPorId() {
 
       <View style={estilos.ctas}>
         {urlLlegar ? (
-          <Pressable onPress={comoLlegar} style={[estilos.ctaPrimario, { backgroundColor: colores.primary }]}>
+          <Pressable onPress={comoLlegar} accessibilityRole="link" style={[estilos.ctaPrimario, { backgroundColor: colores.primary }]}>
             <Icono nombre="Navigation" tamanio={18} color={colores.primaryForeground} />
             <Texto peso="semibold" style={{ color: colores.primaryForeground }}>
               Como llegar
@@ -266,11 +278,13 @@ export default function EventoPorId() {
         ) : null}
 
         {tieneTicket && urlCompra ? (
-          <Pressable onPress={comprar} style={[estilos.ctaOutline, { borderColor: colores.border }]}>
+          <Pressable onPress={comprar} accessibilityRole="link" style={[estilos.ctaOutline, { borderColor: colores.border }]}>
             <Icono nombre="ExternalLink" tamanio={18} color={colores.foreground} />
             <Texto peso="semibold">Comprar tickets</Texto>
           </Pressable>
         ) : null}
+
+        <BotonCalendario evento={evento} />
       </View>
 
       <FilaAccionesEvento
@@ -280,6 +294,7 @@ export default function EventoPorId() {
         hora={hora}
         lugar={lugar}
         status={evento.status}
+        tarjeta={datosTarjetaCompartir(evento) ?? undefined}
       />
     </ScrollView>
   )

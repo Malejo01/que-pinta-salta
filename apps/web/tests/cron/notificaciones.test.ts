@@ -60,14 +60,44 @@ function favoritoRow(userId: string, overrides: Row = {}): Row {
 
 type Writes = { inserts: Record<string, Row[]>; deletes: Record<string, unknown[]> }
 
-function fakeClient(tables: Record<string, Row[]>, writes: Writes) {
+/** Una llamada a un método de filtro (`.eq()`, `.in()`, `.gt()`, ...) registrada por `fakeClient`, para los tests que necesitan afirmar QUÉ se pidió, no solo qué volvió. */
+type Llamada = { metodo: string; args: unknown[] }
+type RegistroTabla = { columnas?: string; llamadas: Llamada[] }
+type Queries = Record<string, RegistroTabla[]>
+
+/**
+ * Ignora los filtros de verdad: cada fixture de `tables` ya viene
+ * pre-filtrada a lo que esa consulta devolvería en la base real (igual
+ * criterio que antes de R41). Lo nuevo (R41, 41-b, porque `cargarNovedades`
+ * ahora corre adentro de `enviarNotificaciones` y usa `.eq()`/`.gt()`/`.gte()`/`.lte()`,
+ * que esta función no tenía) es que registra, por tabla, las columnas
+ * pedidas y cada filtro, en `queries` — y que una tabla puede devolver un
+ * error a pedido (`errors`), para simular una lectura que falla.
+ */
+function fakeClient(tables: Record<string, Row[]>, writes: Writes, queries: Queries = {}, errors: Record<string, string> = {}) {
   return {
     from: (table: string) => {
       const rows = tables[table] ?? []
+      const entrada: RegistroTabla = { llamadas: [] }
+      queries[table] = [...(queries[table] ?? []), entrada]
+
+      const metodo = (nombre: string) => (...args: unknown[]) => {
+        entrada.llamadas.push({ metodo: nombre, args })
+        return chain
+      }
+
       const chain: Record<string, unknown> = {
-        select: () => chain,
-        in: () => chain,
-        not: () => chain,
+        select: (columnas?: string) => {
+          entrada.columnas = columnas
+          return chain
+        },
+        eq: metodo('eq'),
+        in: metodo('in'),
+        not: metodo('not'),
+        gt: metodo('gt'),
+        gte: metodo('gte'),
+        lte: metodo('lte'),
+        order: metodo('order'),
         delete: () => ({
           in: (_col: string, vals: unknown[]) => {
             writes.deletes[table] = [...(writes.deletes[table] ?? []), ...vals]
@@ -78,8 +108,11 @@ function fakeClient(tables: Record<string, Row[]>, writes: Writes) {
           writes.inserts[table] = [...(writes.inserts[table] ?? []), ...newRows]
           return Promise.resolve({ error: null })
         },
-        then: (res: (v: unknown) => unknown, rej: (e: unknown) => unknown) =>
-          Promise.resolve({ data: rows, error: null }).then(res, rej),
+        then: (res: (v: unknown) => unknown, rej: (e: unknown) => unknown) => {
+          const mensaje = errors[table]
+          const resultado = mensaje ? { data: null, error: { message: mensaje } } : { data: rows, error: null }
+          return Promise.resolve(resultado).then(res, rej)
+        },
       }
       return chain
     },
@@ -109,18 +142,29 @@ function fetchFalso() {
 }
 
 let writes: Writes
+let queries: Queries
 let fetchMock: ReturnType<typeof fetchFalso>
 
-function mockDb(tables: Partial<Record<string, Row[]>> = {}) {
+function mockDb(tables: Partial<Record<string, Row[]>> = {}, errors: Record<string, string> = {}) {
   writes = { inserts: {}, deletes: {} }
+  queries = {}
   const base: Record<string, Row[]> = {
     push_tokens: [{ user_id: USER_ID, token: TOKEN_A }],
     notification_preferences: [],
     user_favorites: [favoritoRow(USER_ID)],
     notification_sends: [],
+    // R41, 41-b: cargarNovedades lee estas cuatro tablas en TODA corrida con
+    // al menos un token. Vacías por defecto: nadie sigue nada, así que
+    // cargarNovedades corta ahí y ni mira `events` (ver su propio test en
+    // tests/notificaciones/novedades.test.ts) — los tests de R39 de acá
+    // abajo no necesitan saber nada de novedades para seguir pasando.
+    job_runs: [],
+    user_followed_categories: [],
+    user_followed_venues: [],
+    user_followed_instagram_accounts: [],
     ...tables,
   }
-  createAdminClient.mockReturnValue(fakeClient(base, writes))
+  createAdminClient.mockReturnValue(fakeClient(base, writes, queries, errors))
 }
 
 const call = (headers: Record<string, string> = { authorization: `Bearer ${SECRETO}` }) =>
@@ -353,5 +397,243 @@ describe('GET /api/cron/notificaciones: PUSH_ENVIO_REAL="1"', () => {
     expect(texto).not.toContain(TOKEN_B)
     expect(texto).not.toContain('@')
     expect(texto).not.toContain(USER_ID)
+  })
+})
+
+// Las novedades en sí (la ventana por usuario, el cruce con lo que sigue,
+// los flyers de Instagram) se prueban a fondo en
+// tests/notificaciones/novedades.test.ts (41-b), con un doble que registra
+// las consultas. Acá solo lo que le toca a la RUTA: que cargarNovedades se
+// conecte (una novedad real cuenta en porTipo), que `novedadesHasta` viaje
+// en las tres salidas 200 (modo real, dryRun y la salida temprana sin
+// tokens) y SOLO ahí, y que una lectura fallida dé 500 con FAILED sin
+// `details` (la ventana no avanza).
+describe('GET /api/cron/notificaciones: novedades (R41, 41-b)', () => {
+  const CATEGORY_ID = '40000000-0000-4000-8000-000000000001'
+  const EVENT_ID_NOVEDAD = '40000000-0000-4000-8000-000000000002'
+  // 5h antes de AHORA (20:00 de Salta): dentro de la ventana de 24h que usa
+  // inicioVentanaNovedades cuando no hay corridas previas (job_runs vacía,
+  // el default de mockDb).
+  const EVENTO_NOVEDAD_CREATED_AT = saltaWallClockToUtcISO('2030-10-20T15:00:00')
+  // Bien en el futuro: isVigente siempre lo deja pasar.
+  const EVENTO_NOVEDAD_START = saltaWallClockToUtcISO('2030-10-25T20:00:00')
+
+  function eventoNovedadRow(): Row {
+    return {
+      id: EVENT_ID_NOVEDAD,
+      title: 'Evento Nuevo de Prueba',
+      created_at: EVENTO_NOVEDAD_CREATED_AT,
+      start_date: EVENTO_NOVEDAD_START,
+      end_date: null,
+      status: 'PUBLISHED',
+      category_id: CATEGORY_ID,
+      venue_id: null,
+    }
+  }
+
+  it('en dryRun, con una novedad real: porTipo.novedad es 1, cero fetch y cero escrituras', async () => {
+    mockDb({
+      user_favorites: [], // aísla: sin favoritos, para que la única novedad sea la de categoría.
+      user_followed_categories: [{ user_id: USER_ID, category_id: CATEGORY_ID }],
+      events: [eventoNovedadRow()],
+    })
+
+    const res = await call()
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    expect(body.dryRun).toBe(true)
+    expect(body.porTipo.novedad).toBe(1)
+    expect(fetchMock).not.toHaveBeenCalled()
+    expect(writes.inserts.notification_sends ?? []).toHaveLength(0)
+    expect(writes.deletes.push_tokens ?? []).toHaveLength(0)
+  })
+
+  it('`novedadesHasta` es el `ahora` de la corrida, tanto en el body como en `details` (vía toOutcome)', async () => {
+    const res = await call()
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    expect(body.novedadesHasta).toBe(AHORA.toISOString())
+
+    const toOutcome = withJobRun.mock.calls[0][3] as (r: unknown) => { details?: Record<string, unknown> }
+    const outcome = toOutcome({ httpStatus: res.status, body })
+    expect(outcome.details?.novedadesHasta).toBe(AHORA.toISOString())
+  })
+
+  it('sin tokens (la salida temprana): también lleva `novedadesHasta`, para que la ventana avance igual', async () => {
+    mockDb({ push_tokens: [] })
+
+    const res = await call()
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    expect(body.mensajes).toBe(0)
+    expect(body.novedadesHasta).toBe(AHORA.toISOString())
+  })
+
+  it('PUSH_ENVIO_REAL="1": la respuesta de verdad también lleva `novedadesHasta`', async () => {
+    process.env.PUSH_ENVIO_REAL = '1'
+    const res = await call()
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    expect(body.dryRun).toBe(false)
+    expect(body.novedadesHasta).toBe(AHORA.toISOString())
+  })
+
+  it('si falla la lectura de novedades: 500, y toOutcome da FAILED, SIN `details` (la ventana no avanza)', async () => {
+    mockDb({}, { job_runs: 'conexión perdida' })
+
+    const res = await call()
+    expect(res.status).toBe(500)
+    const body = await res.json()
+    expect(body.error).toBe('job_runs query failed')
+    expect(body.novedadesHasta).toBeUndefined()
+
+    const toOutcome = withJobRun.mock.calls[0][3] as (r: unknown) => { status: string; details?: Record<string, unknown> }
+    const outcome = toOutcome({ httpStatus: res.status, body })
+    expect(outcome.status).toBe('FAILED')
+    expect(outcome.details).toBeUndefined()
+  })
+
+  it('una lectura de novedades fallida no expone ningún dato de usuario en la respuesta', async () => {
+    mockDb({ user_followed_categories: [{ user_id: USER_ID, category_id: CATEGORY_ID }] }, { events: 'conexión perdida' })
+
+    const res = await call()
+    expect(res.status).toBe(500)
+    const texto = JSON.stringify(await res.json())
+    expect(texto).not.toContain(USER_ID)
+    expect(texto).not.toContain(CATEGORY_ID)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// 41-q: de punta a punta, A TRAVÉS DE LA RUTA (no solo de cargarNovedades,
+// que ya se prueba sola en tests/notificaciones/novedades.test.ts), con
+// armarTanda real de por medio. Los cuatro casos del encargo.
+// ---------------------------------------------------------------------------
+describe('GET /api/cron/notificaciones: 41-q, de punta a punta (ruta + cargarNovedades + armarTanda)', () => {
+  const CATEGORY_ID = '50000000-0000-4000-8000-000000000001'
+  const EVENT_ID_NOVEDAD = '50000000-0000-4000-8000-000000000002'
+  // Bien en el futuro: isVigente siempre lo deja pasar.
+  const EVENTO_NOVEDAD_START = saltaWallClockToUtcISO('2030-11-20T20:00:00')
+
+  function eventoNovedadRow(overrides: Row = {}): Row {
+    return {
+      id: EVENT_ID_NOVEDAD,
+      title: 'Evento Nuevo de Prueba (41-q)',
+      created_at: saltaWallClockToUtcISO('2030-11-01T05:00:00'),
+      start_date: EVENTO_NOVEDAD_START,
+      end_date: null,
+      status: 'PUBLISHED',
+      category_id: CATEGORY_ID,
+      venue_id: null,
+      ...overrides,
+    }
+  }
+
+  const AHORA_0505 = saltaWallClockToUtcISO('2030-11-01T05:05:00')
+  const AHORA_CORRIDA1 = saltaWallClockToDate('2030-11-01T09:05:00')
+  const AHORA_CORRIDA2 = saltaWallClockToDate('2030-11-01T10:05:00')
+  // Corrida OK a las 05:05 (dentro del silencio por defecto, 23:00-09:00):
+  // inicioVentanaNovedades la descarta como candidata (el usuario estaba en
+  // silencio en ese momento), así que la ventana cae al fallback de 24 h.
+  const CORRIDA_0505: Row = { started_at: AHORA_0505, details: { novedadesHasta: AHORA_0505 } }
+
+  it('corrida 1 a las 09:05, con una corrida OK a las 05:05 ya registrada: el evento creado a las 05:00 da porTipo.novedad: 1', async () => {
+    vi.setSystemTime(AHORA_CORRIDA1)
+    mockDb({
+      user_favorites: [],
+      user_followed_categories: [{ user_id: USER_ID, category_id: CATEGORY_ID }],
+      events: [eventoNovedadRow()],
+      job_runs: [CORRIDA_0505],
+    })
+
+    const res = await call()
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    expect(body.dryRun).toBe(true)
+    expect(body.porTipo.novedad).toBe(1)
+  })
+
+  it('corrida 2 a las 10:05, con la corrida 1 registrada OK y su envío ya en notification_sends: ese evento no vuelve', async () => {
+    // Corrida 1 de verdad (PUSH_ENVIO_REAL="1"), para tener una fila real de
+    // notification_sends con su dedupe_key, no uno inventado a mano.
+    process.env.PUSH_ENVIO_REAL = '1'
+    vi.setSystemTime(AHORA_CORRIDA1)
+    mockDb({
+      user_favorites: [],
+      user_followed_categories: [{ user_id: USER_ID, category_id: CATEGORY_ID }],
+      events: [eventoNovedadRow()],
+      job_runs: [CORRIDA_0505],
+    })
+    const res1 = await call()
+    const body1 = await res1.json()
+    expect(body1.porTipo.novedad).toBe(1)
+    expect(writes.inserts.notification_sends).toHaveLength(1)
+    const filaNovedad = writes.inserts.notification_sends[0]
+    expect(filaNovedad.kind).toBe('novedad')
+
+    // Corrida 2, una hora más tarde: la corrida 1 ya quedó registrada OK en
+    // job_runs (con su novedadesHasta = 09:05) y ese envío ya está en
+    // notification_sends. El evento sigue en la base (created_at no cambia).
+    vi.setSystemTime(AHORA_CORRIDA2)
+    mockDb({
+      user_favorites: [],
+      user_followed_categories: [{ user_id: USER_ID, category_id: CATEGORY_ID }],
+      events: [eventoNovedadRow()],
+      job_runs: [CORRIDA_0505, { started_at: AHORA_CORRIDA1.toISOString(), details: { novedadesHasta: AHORA_CORRIDA1.toISOString() } }],
+      notification_sends: [{ user_id: USER_ID, dedupe_key: filaNovedad.dedupe_key, sent_at: AHORA_CORRIDA1.toISOString() }],
+    })
+
+    const res2 = await call()
+    const body2 = await res2.json()
+    expect(body2.porTipo.novedad).toBeUndefined()
+    expect(body2.mensajes).toBe(0)
+  })
+
+  it('un evento con updated_at reciente y created_at viejo: no cuenta como novedad (la ventana es siempre sobre created_at)', async () => {
+    vi.setSystemTime(AHORA_CORRIDA1)
+    mockDb({
+      user_favorites: [],
+      user_followed_categories: [{ user_id: USER_ID, category_id: CATEGORY_ID }],
+      events: [
+        eventoNovedadRow({
+          // Mucho antes que la ventana de 24h (sin corridas previas útiles,
+          // cae al fallback ahora-24h: este created_at queda bien afuera).
+          created_at: saltaWallClockToUtcISO('2030-10-01T10:00:00'),
+          // "Recién editado": si el filtro usara updated_at (el agujero que
+          // reporté arriba), este evento SÍ entraría.
+          updated_at: AHORA_CORRIDA1.toISOString(),
+        }),
+      ],
+    })
+
+    const res = await call()
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    expect(body.porTipo.novedad).toBeUndefined()
+    expect(body.mensajes).toBe(0)
+  })
+
+  it('tres envíos de novedad hoy: ninguna novedad más (tope de 3), pero el recordatorio de favorito sale porque queda lugar en el tope total (3 de 4)', async () => {
+    // AHORA (del beforeEach, 20:00 de Salta) ya deja "debido" al favorito
+    // default de mockDb (favoritoRow(USER_ID), 3h antes de EVENTO_START):
+    // no hace falta tocar el reloj para este caso.
+    const dedupeNovedad = (extra: string) => claveDedupe({ kind: 'novedad', userId: USER_ID, extra })
+    mockDb({
+      user_followed_categories: [{ user_id: USER_ID, category_id: CATEGORY_ID }],
+      events: [eventoNovedadRow({ created_at: saltaWallClockToUtcISO('2030-10-20T15:00:00') })],
+      notification_sends: [
+        { user_id: USER_ID, dedupe_key: dedupeNovedad('hora-1'), sent_at: AHORA.toISOString() },
+        { user_id: USER_ID, dedupe_key: dedupeNovedad('hora-2'), sent_at: AHORA.toISOString() },
+        { user_id: USER_ID, dedupe_key: dedupeNovedad('hora-3'), sent_at: AHORA.toISOString() },
+      ],
+      // user_favorites: el default de mockDb (favoritoRow(USER_ID)), sin tocar.
+    })
+
+    const res = await call()
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    expect(body.porTipo.novedad).toBeUndefined() // el tope de 3 novedades/día ya está agotado
+    expect(body.porTipo.favorito).toBe(1) // 3 envíos hoy, daily_cap default 4: queda 1 lugar, y lo toma el favorito
+    expect(body.mensajes).toBe(1)
   })
 })

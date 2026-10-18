@@ -67,6 +67,36 @@ describe('app/evento/[id].tsx: el orden de la ficha (ops/paridad-web-app.md §3.
   })
 })
 
+// R42, 42-c: "Agregar al calendario" (BotonCalendario) va dentro de
+// `estilos.ctas`, DESPUÉS de "Comprar tickets" (el bloque condicional) y
+// ANTES de cerrar ese `View` — `<BotonesAsistencia>` ya estaba fuera de ese
+// `View`, así que sigue después. Mismo estilo de detector con fixtures en
+// memoria, sobre el archivo real; los casos de arriba (de 29-b) no se tocan.
+describe('app/evento/[id].tsx: "Agregar al calendario" (BotonCalendario, R42 42-c)', () => {
+  const content = readFileSync(FICHA_PATH, 'utf8')
+
+  const idxComprarTickets = content.indexOf('Comprar tickets')
+  const idxBotonCalendario = content.indexOf('<BotonCalendario')
+  const idxFilaAcciones = content.indexOf('<FilaAccionesEvento')
+
+  it('tiene <BotonCalendario', () => {
+    expect(idxBotonCalendario).toBeGreaterThan(-1)
+  })
+
+  it('<BotonCalendario está después de "Comprar tickets"', () => {
+    expect(idxBotonCalendario).toBeGreaterThan(idxComprarTickets)
+  })
+
+  it('<BotonCalendario está antes de <FilaAccionesEvento (R47: la fila Guardar/Voy/Compartir va después de los CTAs)', () => {
+    expect(idxFilaAcciones).toBeGreaterThan(-1)
+    expect(idxBotonCalendario).toBeLessThan(idxFilaAcciones)
+  })
+
+  it('ya no hay <BotonesAsistencia en la ficha (R47)', () => {
+    expect(content.indexOf('<BotonesAsistencia')).toBe(-1)
+  })
+})
+
 describe('components/BotonFavorito.tsx: los dos accessibilityLabel (icono solo, sin texto "Guardar")', () => {
   const content = readFileSync(BOTON_FAVORITO_PATH, 'utf8')
 

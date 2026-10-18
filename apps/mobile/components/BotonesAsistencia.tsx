@@ -23,7 +23,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native'
 import { useRouter, useTheme } from 'expo-router'
-import { TEXTO_ENTRAR_PARA_MARCAR, textoBotonVoy, type TipoAsistencia } from '@qps/core/asistencia'
+import { cantidadVisible, ETIQUETAS_ASISTENCIA, TEXTO_ENTRAR_PARA_MARCAR, textoBotonVoy, type TipoAsistencia } from '@qps/core/asistencia'
 import { MENSAJE_NO_DISPONIBLE, marcarAsistencia, obtenerAsistencia, type EstadoAsistencia } from '@/lib/asistencia'
 import { useColoresQPS } from '@/lib/colores'
 import { useSession } from '@/lib/session'
@@ -93,11 +93,20 @@ export function BotonesAsistencia({ eventId }: BotonesAsistenciaProps) {
 
   function boton(tipo: TipoAsistencia, cantidad: number) {
     const marcado = propia === tipo
+    // "Voy, 5 personas" (con la cantidad) desde el umbral de `cantidadVisible`;
+    // si no, solo la etiqueta ("Voy"), igual que `textoBotonVoy`
+    // pero en voseo accesible, no en el formato compacto "Voy · 5" del texto
+    // visible.
+    const visible = cantidadVisible(cantidad)
+    const etiqueta = visible === null ? ETIQUETAS_ASISTENCIA[tipo] : `${ETIQUETAS_ASISTENCIA[tipo]}, ${visible} personas`
     return (
       <Pressable
         key={tipo}
         onPress={() => alPresionar(tipo)}
         disabled={marcando !== null}
+        accessibilityRole="button"
+        accessibilityLabel={etiqueta}
+        accessibilityState={{ selected: marcado, busy: marcando === tipo }}
         style={[estilos.boton, { borderColor: colors.border }, marcado && { backgroundColor: colors.primary }]}
       >
         {marcando === tipo ? (

@@ -38,6 +38,7 @@ import {
 } from '@qps/core/asistencia'
 import { BotonCompartir } from '@/components/BotonCompartir'
 import { avisar } from '@/lib/aviso'
+import type { DatosTarjetaCompartir } from '@/lib/compartir'
 import { marcarAsistencia, obtenerAsistencia } from '@/lib/asistencia'
 import { useColoresQPS } from '@/lib/colores'
 import { desmarcarFavorito, marcarFavorito } from '@/lib/favoritos'
@@ -51,6 +52,8 @@ export interface FilaAccionesEventoProps {
   lugar: string
   /** Solo con `'PUBLISHED'` se muestra el botón de Voy (ver arriba). */
   status: string
+  /** R42: con los datos de la tarjeta, Compartir abre la hoja "Compartir tarjeta" (ver `BotonCompartir`). */
+  tarjeta?: DatosTarjetaCompartir
 }
 
 /** El estado único de Guardar/Voy de esta fila (nunca dos estados separados). */
@@ -101,7 +104,7 @@ function etiquetaAccesible(accion: 'guardar' | 'voy', seleccionado: boolean): st
   return seleccionado ? 'Dejar de marcar que vas a este evento' : 'Marcar que vas a este evento'
 }
 
-export function FilaAccionesEvento({ eventId, titulo, fecha, hora, lugar, status }: FilaAccionesEventoProps) {
+export function FilaAccionesEvento({ eventId, titulo, fecha, hora, lugar, status, tarjeta }: FilaAccionesEventoProps) {
   const { colors } = useTheme()
   const colores = useColoresQPS()
   const router = useRouter()
@@ -257,6 +260,7 @@ export function FilaAccionesEvento({ eventId, titulo, fecha, hora, lugar, status
               lugar={lugar}
               tamanio={44}
               fondo="muted"
+              tarjeta={tarjeta}
             />
           ) : (
             <Pressable

@@ -5,10 +5,10 @@ import { upsertEventWithDeduplication } from '@/lib/scraper/deduplicate'
 import { formatVenueError, resolveVenueId } from '@/lib/venues/resolve'
 import { archiveExpiredFlyers } from '@/lib/instagram/process-apify-payload'
 import { resolveCategoryWithAliases } from '@/lib/scraper/categorize'
-import { formatSaltaDayKey } from '@/lib/date-format'
 import { copyExternalImage, isOwnStorageUrl } from '@/lib/images/external'
 import { INSTAGRAM_ENGINE_CONFIG } from '@/lib/instagram-config'
 import { isThumbnail } from '@/lib/scraper/merge-events'
+import { slugConFechaHora } from '@qps/core/scraper/slug-fecha-hora'
 
 /**
  * Generates a URL-friendly slug from a title
@@ -94,8 +94,7 @@ async function upsertScrapedEvents(events: ScrapedEvent[]) {
       
       // Generate a unique base slug (without source at the end to unify duplicates)
       const baseSlug = generateSlug(event.title)
-      const dateStr = formatSaltaDayKey(event.dateTime)
-      const slug = `${baseSlug}-${dateStr}`
+      const slug = slugConFechaHora(baseSlug, event.dateTime)
       
       const eventData = {
         title: event.title,

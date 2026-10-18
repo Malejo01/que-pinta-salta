@@ -35,10 +35,12 @@ import { Icono, type NombreIcono } from '@/components/Icono'
 import { LoQueSeguis } from '@/components/LoQueSeguis'
 import { SeccionNotificaciones } from '@/components/SeccionNotificaciones'
 import { Texto } from '@/components/Texto'
+import { hitSlopPara } from '@/lib/accesibilidad'
 import { useColoresQPS } from '@/lib/colores'
 import { codigoErrorGoogle, mensajeErrorGoogle, registrarErrorGoogle } from '@/lib/google'
 import { leerEnv } from '@/lib/env'
 import { urlSitio } from '@/lib/links'
+import { borrarTokenDeEsteTelefono } from '@/lib/push/registro'
 import { supabase } from '@/lib/supabase'
 import { useSession } from '@/lib/session'
 import { textoVersion } from '@/lib/version'
@@ -317,6 +319,11 @@ export default function Cuenta() {
     setAccionEnCurso('salir')
     try {
       const entroConGoogle = session?.user.app_metadata.provider === 'google'
+      // Ronda 41, 41-e: borra la fila del token de este teléfono antes de
+      // cerrar la sesión. `borrarTokenDeEsteTelefono` (41-c) nunca tira, así
+      // que no se envuelve en su propio try/catch (eso ocultaría si algún
+      // día empieza a tirar).
+      await borrarTokenDeEsteTelefono()
       await supabase.auth.signOut()
       if (entroConGoogle) {
         try {
@@ -361,7 +368,7 @@ export default function Cuenta() {
         <LoQueSeguis userId={session.user.id} />
 
         {/* F9: volver a ver la Bienvenida, al pie de Cuenta. */}
-        <Pressable onPress={() => router.push('/bienvenida')} style={estilos.linkBienvenida}>
+        <Pressable onPress={() => router.push('/bienvenida')} accessibilityRole="button" style={estilos.linkBienvenida}>
           <Texto peso="semibold" tono="primario" style={{ fontSize: 13, textDecorationLine: 'underline' }}>
             Ver la bienvenida
           </Texto>
@@ -420,7 +427,7 @@ export default function Cuenta() {
         <Image source={WORDMARK} style={estilos.wordmark} />
 
         <View style={estilos.card}>
-          <Texto peso="bold" style={{ fontSize: 20 }}>
+          <Texto peso="bold" accessibilityRole="header" style={{ fontSize: 20 }}>
             Iniciar Sesion
           </Texto>
 
@@ -444,8 +451,12 @@ export default function Cuenta() {
           />
 
           {/* F6 (29-e la dejó armada en la web; esto es el link que faltaba
-              en la app, R29-h): abre /auth/recuperar con urlSitio. */}
-          <Pressable onPress={abrirRecuperarContrasenia} accessibilityRole="button" hitSlop={8}>
+              en la app, R29-h): abre /auth/recuperar con urlSitio. Abre afuera
+              de la app (rol "link"). Alto real: una sola línea de texto,
+              fontSize 13, sin padding propio (~18dp) — hitSlopPara(300, 18)
+              agrega 15dp arriba/abajo (300 asegura 0 horizontal: el texto ya
+              es mucho más ancho que 48). */}
+          <Pressable onPress={abrirRecuperarContrasenia} accessibilityRole="link" hitSlop={hitSlopPara(300, 18)}>
             <Texto tono="primario" style={{ fontSize: 13, textDecorationLine: 'underline' }}>
               ¿Olvidaste tu contraseña?
             </Texto>
@@ -456,7 +467,13 @@ export default function Cuenta() {
             <Texto tono="secundario">Te mandamos un email para confirmar la cuenta.</Texto>
           ) : null}
 
-          <Pressable onPress={entrar} disabled={accionEnCurso !== null} style={estilos.boton(accionEnCurso !== null)}>
+          <Pressable
+            onPress={entrar}
+            disabled={accionEnCurso !== null}
+            accessibilityRole="button"
+            accessibilityState={{ busy: accionEnCurso !== null }}
+            style={estilos.boton(accionEnCurso !== null)}
+          >
             {accionEnCurso === 'entrar' ? (
               <ActivityIndicator color={colores.primaryForeground} />
             ) : (
@@ -466,7 +483,13 @@ export default function Cuenta() {
             )}
           </Pressable>
 
-          <Pressable onPress={crearCuenta} disabled={accionEnCurso !== null} style={estilos.boton(accionEnCurso !== null)}>
+          <Pressable
+            onPress={crearCuenta}
+            disabled={accionEnCurso !== null}
+            accessibilityRole="button"
+            accessibilityState={{ busy: accionEnCurso !== null }}
+            style={estilos.boton(accionEnCurso !== null)}
+          >
             {accionEnCurso === 'crear' ? (
               <ActivityIndicator color={colores.primaryForeground} />
             ) : (
@@ -494,7 +517,7 @@ export default function Cuenta() {
         </View>
 
         {/* F9: volver a ver la Bienvenida, al pie de Cuenta. */}
-        <Pressable onPress={() => router.push('/bienvenida')} style={estilos.linkBienvenida}>
+        <Pressable onPress={() => router.push('/bienvenida')} accessibilityRole="button" style={estilos.linkBienvenida}>
           <Texto peso="semibold" tono="primario" style={{ fontSize: 13, textDecorationLine: 'underline' }}>
             Ver la bienvenida
           </Texto>
