@@ -88,8 +88,9 @@ export default function TerminosPage() {
             o desde la página del Radar.
           </li>
           <li>
-            Notificaciones en la app: están disponibles desde la app, y las activás y las apagás cuando querés.
-            Respetan un horario de silencio (de 23:00 a 09:00) y un tope de 4 avisos por día.
+            Notificaciones en la app: las activás y las apagás cuando querés. Respetan un horario de silencio —por
+            defecto, de 23:00 a 09:00, y lo podés cambiar desde la app— y un tope de avisos por día, que hoy es de 4
+            y no se edita.
           </li>
         </ul>
       </SeccionLegal>
@@ -128,8 +129,9 @@ export default function TerminosPage() {
       >
         <p>
           Los afiches, los nombres y las marcas de los eventos, los lugares y las ticketeras son de sus dueños: los
-          mostramos para informar sobre el evento, no los tenemos como propios. Si sos titular de alguno de esos
-          contenidos y querés que corrijamos algo o que lo quitemos, escribinos (más abajo está el contacto).
+          mostramos para informar sobre el evento, no los tenemos como propios <Marca>[REVISIÓN LEGAL]</Marca>. Si
+          sos titular de alguno de esos contenidos y querés que corrijamos algo o que lo quitemos, escribinos (más
+          abajo está el contacto).
         </p>
         <p>
           El nombre y el diseño de Qué Pinta Salta son nuestros. <Marca>[REVISIÓN LEGAL]</Marca>.

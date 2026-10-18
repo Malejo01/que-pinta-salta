@@ -82,6 +82,29 @@ describe("/terminos: aviso de borrador y marcas pendientes", () => {
     const apariciones = html.split("[REVISIÓN LEGAL]").length - 1
     expect(apariciones).toBeGreaterThanOrEqual(8)
   })
+
+  // 45-c2: la sección 8 (contenido de terceros) suma su propia marca
+  // [REVISIÓN LEGAL] en el primer párrafo, que antes no tenía ninguna; por
+  // eso el total pasa de 9 a 10.
+  it("tiene al menos 10 marcas [REVISIÓN LEGAL]", () => {
+    const apariciones = html.split("[REVISIÓN LEGAL]").length - 1
+    expect(apariciones).toBeGreaterThanOrEqual(10)
+  })
+})
+
+describe("/terminos: horario de silencio como default editable (45-c2)", () => {
+  it("no presenta el tope de avisos como fijo con la frase vieja", () => {
+    expect(html).not.toContain("un tope de 4 avisos por día")
+  })
+
+  it('dice "por defecto" y que se puede cambiar desde la app', () => {
+    expect(html).toContain("por defecto")
+    expect(html).toContain("lo podés cambiar desde la app")
+  })
+
+  it("dice que el tope de avisos no se edita", () => {
+    expect(html).toContain("no se edita")
+  })
 })
 
 describe("/terminos: enlaza las páginas relacionadas", () => {
