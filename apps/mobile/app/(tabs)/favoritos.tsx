@@ -1,11 +1,21 @@
 // Favoritos (R27, tarea 27-b; grilla R28, 28-f; paridad R29, 29-a: F13; layout
 // de la web R29, 29-i: §3.7). Sin sesión, invita a entrar desde Cuenta; con
-// sesión, el layout de "Mi Agenda de Eventos" de la web
-// (apps/web/app/favoritos/favoritos-list.tsx): título + botón verde
-// "Compartir agenda por WhatsApp", "Plan flexible / Sin fecha definida"
-// (películas y flyers) y después los grupos por día, cada uno con su
-// separador, en una grilla de 2 con `TarjetaEvento`. El `userId` sale de
-// `useSession()`, nunca de un parámetro de pantalla.
+// sesión, el layout de la web (apps/web/app/favoritos/favoritos-list.tsx):
+// título + botón verde "Compartir agenda por WhatsApp", "Plan flexible / Sin
+// fecha definida" (películas y flyers) y después los grupos por día, cada
+// uno con su separador, en una grilla de 2 con `TarjetaEvento`. El `userId`
+// sale de `useSession()`, nunca de un parámetro de pantalla.
+//
+// R47, tarea 47-g (QPS-197): la ruta y el archivo siguen siendo
+// "favoritos.tsx" (no cambian), pero la pantalla pasa a llamarse "Mis
+// eventos" (el título en pantalla; la pestaña de la barra se renombra en
+// `app/(tabs)/_layout.tsx`, archivo de esta misma tarea). `obtenerFavoritos`
+// (`lib/favoritos.ts`, 47-e) ahora devuelve `{ voy, eventos }`: la
+// `SectionList` arranca con la sección "Voy" (`seccionVoy`, en el orden que
+// ya trae core — no se reordena) y sigue con "Guardados"
+// (`agruparFavoritosParaSecciones`, sobre `eventos`). Las dos listas ya
+// vienen separadas sin repetidos (core, `separarMisEventos`): esta pantalla
+// no vuelve a filtrar nada entre ellas, solo las concatena.
 //
 // Recarga: `useFocusEffect` (en vez de `useEffect`) vuelve a leer cada vez
 // que la pestaña toma foco (ya no se queda con la lectura vieja al volver de
@@ -18,12 +28,16 @@
 // exactamente una: por eso `refrescar`, más abajo, repite el mismo cuerpo en
 // vez de llamar a esa función).
 //
-// `lib/favoritos.ts` (29-a) ya devuelve la lista plana en el orden de
-// `armarFavoritos` (flexibles primero, después por día): no es un archivo
-// permitido de esta tarea, así que `agruparFavoritosParaSecciones`, acá
-// abajo, no vuelve a filtrar ni a ordenar nada — solo separa esa misma lista
-// por tipo (`isCinemaMovie`/`isInstagramFlyer`) y por `date` (ya agrupada y
-// ordenada por el core) para dársela a `SectionList` en la forma que pide.
+// `lib/favoritos.ts` (29-a; reescrito en 47-e) ya devuelve `eventos` como
+// lista plana en el orden de `armarFavoritos` (flexibles primero, después
+// por día): no es un archivo permitido de esta tarea, así que
+// `agruparFavoritosParaSecciones`, acá abajo, no vuelve a filtrar ni a
+// ordenar nada — solo separa esa misma lista por tipo
+// (`isCinemaMovie`/`isInstagramFlyer`) y por `date` (ya agrupada y ordenada
+// por el core) para dársela a `SectionList` en la forma que pide. `voy`
+// nunca tiene películas ni flyers (`separarMisEventos`, core), así que
+// `seccionVoy` no necesita ese mismo agrupado: es un solo grupo, ya ordenado
+// por fecha.
 //
 // El mensaje de WhatsApp es `armarMensajeWhatsApp`
 // (`@qps/core/favoritos/armar`, de 29-a — ver el comentario ahí sobre por
@@ -57,7 +71,7 @@ import { useSession } from '@/lib/session'
 type EstadoLista =
   | { tipo: 'cargando' }
   | { tipo: 'error'; error: string }
-  | { tipo: 'ok'; eventos: DisplayEvent[] }
+  | { tipo: 'ok'; voy: DisplayEvent[]; eventos: DisplayEvent[] }
 
 interface SeccionFavoritos {
   key: string
@@ -115,6 +129,18 @@ export function agruparFavoritosParaSecciones(eventos: DisplayEvent[]): SeccionF
   return secciones
 }
 
+/**
+ * La sección "Voy" (R47, tarea 47-g, QPS-197): un solo grupo con los
+ * eventos de `voy` (los que llegan con ✓ Voy), ya ordenados por fecha por
+ * `separarMisEventos` (core) — no se reordenan acá. `null` si no hay
+ * ninguno: la pantalla no dibuja ni el grupo ni su encabezado. Exportada
+ * para probarla en `tests/favoritos-pantalla.test.ts`.
+ */
+export function seccionVoy(voy: DisplayEvent[]): SeccionFavoritos | null {
+  if (voy.length === 0) return null
+  return { key: 'voy', titulo: `Voy (${voy.length})`, esFlexible: false, data: enFilasDeDos(voy) }
+}
+
 export default function Favoritos() {
   const { colors } = useTheme()
   const colores = useColoresQPS()
@@ -131,14 +157,22 @@ export default function Favoritos() {
     if (!userId) return
     setEstado({ tipo: 'cargando' })
     const resultado = await obtenerFavoritos(userId)
-    setEstado(resultado.ok ? { tipo: 'ok', eventos: resultado.eventos } : { tipo: 'error', error: resultado.error })
+    setEstado(
+      resultado.ok
+        ? { tipo: 'ok', voy: resultado.voy, eventos: resultado.eventos }
+        : { tipo: 'error', error: resultado.error },
+    )
   }, [userId])
 
   const refrescar = useCallback(async () => {
     if (!userId) return
     setRefrescando(true)
     const resultado = await obtenerFavoritos(userId)
-    setEstado(resultado.ok ? { tipo: 'ok', eventos: resultado.eventos } : { tipo: 'error', error: resultado.error })
+    setEstado(
+      resultado.ok
+        ? { tipo: 'ok', voy: resultado.voy, eventos: resultado.eventos }
+        : { tipo: 'error', error: resultado.error },
+    )
     setRefrescando(false)
   }, [userId])
 
@@ -149,14 +183,20 @@ export default function Favoritos() {
     }, [cargandoSesion, cargar]),
   )
 
-  const secciones = useMemo(
-    () => (estado.tipo === 'ok' ? agruparFavoritosParaSecciones(estado.eventos) : []),
-    [estado],
-  )
+  // "Voy" primero (en el orden que ya trae core), después "Guardados": las
+  // dos listas ya vienen separadas sin repetidos (separarMisEventos, core).
+  const secciones = useMemo(() => {
+    if (estado.tipo !== 'ok') return []
+    const voy = seccionVoy(estado.voy)
+    const guardados = agruparFavoritosParaSecciones(estado.eventos)
+    return voy ? [voy, ...guardados] : guardados
+  }, [estado])
 
   const compartirPorWhatsApp = useCallback(async () => {
     if (estado.tipo !== 'ok') return
-    const mensaje = armarMensajeWhatsApp(estado.eventos)
+    // Las dos listas juntas, sin repetir (ya vienen sin repetidos de core):
+    // el mensaje incluye tanto lo que Voy como lo Guardado.
+    const mensaje = armarMensajeWhatsApp([...estado.voy, ...estado.eventos])
     try {
       await Share.share({ message: mensaje })
     } catch {
@@ -198,7 +238,9 @@ export default function Favoritos() {
     )
   }
 
-  const totalFavoritos = estado.tipo === 'ok' ? estado.eventos.length : 0
+  // El total cuenta las dos listas (Voy + Guardados): nunca se repiten entre
+  // ellas (core ya las separó sin solaparse).
+  const totalFavoritos = estado.tipo === 'ok' ? estado.voy.length + estado.eventos.length : 0
 
   return (
     <View style={[estilos.contenedor, { backgroundColor: colors.background }]}>
@@ -219,7 +261,7 @@ export default function Favoritos() {
             totalFavoritos > 0 ? (
               <View style={[estilos.encabezado, { borderBottomColor: colors.border }]}>
                 <Texto peso="bold" style={estilos.titulo}>
-                  Mi Agenda de Eventos
+                  Mis eventos
                 </Texto>
                 <Texto tono="secundario" style={estilos.subtitulo}>
                   Tenés {totalFavoritos} {totalFavoritos === 1 ? 'elemento guardado' : 'elementos guardados'} organizados
@@ -299,7 +341,7 @@ export default function Favoritos() {
               {fila.length === 1 ? <View style={estilos.celda} /> : null}
             </View>
           )}
-          ListEmptyComponent={<Vacio mensaje="Todavía no guardaste ningún evento" />}
+          ListEmptyComponent={<Vacio mensaje="Todavía no tenés nada en Mis eventos" />}
         />
       ) : null}
     </View>
