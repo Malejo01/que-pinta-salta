@@ -81,9 +81,12 @@ export async function eliminarMiCuenta(accessToken: string): Promise<ResultadoEl
  * para que, si alguna vez se vuelve a crear una cuenta en este teléfono, se
  * vuelva a mostrar.
  *
- * Ninguno de los tres pasos tira: la cuenta ya está borrada para siempre en
- * el servidor en el momento en que se llama a esta función, así que no hay
- * nada que reintentar ni ningún error que mostrar si algo de esto falla.
+ * Los tres pasos van cada uno en su `try/catch` porque cualquiera **puede**
+ * tirar (`SecureStore` tira en `deleteItemAsync`, y `signOut` puede tirar por
+ * una excepción de verdad: ver el párrafo de QPS-193 más abajo). Esta función
+ * no propaga ninguna: la cuenta ya está borrada para siempre en el servidor
+ * en el momento en que se la llama, así que no hay nada que reintentar ni
+ * ningún error que mostrarle a la persona si algo de esto falla.
  *
  * NOTA: el borrado de la bandera de la Bienvenida debería vivir en
  * `lib/bienvenida.ts`, junto a `marcarBienvenidaVista`, pero esa función no
