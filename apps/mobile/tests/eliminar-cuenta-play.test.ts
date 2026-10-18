@@ -112,4 +112,27 @@ describe('app/eliminar-cuenta.tsx (detector de texto): QPS-191, el mail de conta
     expect(codigo).not.toContain('openURL')
     expect(codigo).not.toContain('mailto:')
   })
+
+  // -------------------------------------------------------------------------
+  // Hallazgo de ux-ui (44-c2): nada avisaba que el mail se puede copiar.
+  // Como la pantalla no puede abrir mailto: (tests/aperturas-url.test.ts),
+  // copiar el mail es la única salida de quien no puede borrar la cuenta
+  // desde la app, así que el aviso tiene que estar sí o sí: para quien ve la
+  // pantalla (leyenda visible) y para TalkBack (accessibilityHint).
+  // -------------------------------------------------------------------------
+  it('el mail tiene un accessibilityLabel que lo identifica como correo de contacto', () => {
+    expect(codigo).toMatch(/accessibilityLabel=\{`Correo de contacto: \$\{CONTACTO_EMAIL\}`\}/)
+  })
+
+  it('el bloque del mail tiene un accessibilityHint cuyo texto nombra "copiar"', () => {
+    expect(codigo).toMatch(/accessibilityHint="[^"]*copiar[^"]*"/i)
+  })
+
+  it('hay una leyenda visible (no solo el accessibilityHint) que dice cómo copiar el mail', () => {
+    // Si alguien borra la leyenda visible pero deja el accessibilityHint,
+    // sacar el accessibilityHint del código no debería dejar ningún rastro
+    // de "copiar" en lo que queda.
+    const sinAccessibilityHint = codigo.replace(/accessibilityHint="[^"]*"/g, '')
+    expect(sinAccessibilityHint.toLowerCase()).toMatch(/copiar/)
+  })
 })

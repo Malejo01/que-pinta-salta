@@ -7,7 +7,9 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { AlertCircle, CheckCircle2, Loader2, Trash2 } from "lucide-react"
-import { CONTACTO_EMAIL } from "@qps/core/contacto"
+import { CONTACTO_EMAIL, mailtoContacto } from "@qps/core/contacto"
+
+const linkClass = "text-primary underline underline-offset-4 hover:text-primary/80"
 
 /**
  * Compara lo que escribió la persona contra "ELIMINAR". Acepta espacios de
@@ -87,43 +89,58 @@ export function EliminarCuentaForm() {
     )
   }
 
+  // El contacto va acá y no en `page.tsx` a propósito: tiene que irse de la
+  // pantalla junto con el formulario cuando `eliminada` pasa a `true`. Si
+  // viviera en la página, quedaría un "¿Algo no anda?" debajo del cartel
+  // "Tu cuenta fue eliminada", compitiendo con el único botón que ahí tiene
+  // sentido. Va fuera del `<form>`: no es un control del formulario.
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      {error && (
-        <div className="flex items-start gap-2 rounded-lg border border-destructive bg-destructive/10 p-3 text-sm text-destructive">
-          <AlertCircle className="size-4 shrink-0 mt-0.5" />
-          <span>{error}</span>
-        </div>
-      )}
-
-      <div className="space-y-2">
-        <Label htmlFor="confirmacion-eliminar">
-          Escribí <span className="font-semibold text-foreground">ELIMINAR</span> para confirmar
-        </Label>
-        <Input
-          id="confirmacion-eliminar"
-          value={texto}
-          onChange={(e) => setTexto(e.target.value)}
-          placeholder="ELIMINAR"
-          autoComplete="off"
-          disabled={enviando}
-          className="bg-background/50 focus-visible:ring-destructive/50"
-        />
-      </div>
-
-      <Button type="submit" variant="destructive" className="w-full font-medium" disabled={!habilitado}>
-        {enviando ? (
-          <>
-            <Loader2 className="mr-2 size-4 animate-spin" />
-            Eliminando tu cuenta...
-          </>
-        ) : (
-          <>
-            <Trash2 className="mr-2 size-4" />
-            Eliminar mi cuenta para siempre
-          </>
+    <div className="space-y-4">
+      <form onSubmit={handleSubmit} className="space-y-4">
+        {error && (
+          <div className="flex items-start gap-2 rounded-lg border border-destructive bg-destructive/10 p-3 text-sm text-destructive">
+            <AlertCircle className="size-4 shrink-0 mt-0.5" />
+            <span>{error}</span>
+          </div>
         )}
-      </Button>
-    </form>
+
+        <div className="space-y-2">
+          <Label htmlFor="confirmacion-eliminar">
+            Escribí <span className="font-semibold text-foreground">ELIMINAR</span> para confirmar
+          </Label>
+          <Input
+            id="confirmacion-eliminar"
+            value={texto}
+            onChange={(e) => setTexto(e.target.value)}
+            placeholder="ELIMINAR"
+            autoComplete="off"
+            disabled={enviando}
+            className="bg-background/50 focus-visible:ring-destructive/50"
+          />
+        </div>
+
+        <Button type="submit" variant="destructive" className="w-full font-medium" disabled={!habilitado}>
+          {enviando ? (
+            <>
+              <Loader2 className="mr-2 size-4 animate-spin" />
+              Eliminando tu cuenta...
+            </>
+          ) : (
+            <>
+              <Trash2 className="mr-2 size-4" />
+              Eliminar mi cuenta para siempre
+            </>
+          )}
+        </Button>
+      </form>
+
+      <p className="text-sm text-muted-foreground">
+        ¿Algo no anda? Escribinos a{" "}
+        <a href={mailtoContacto("Problema para eliminar mi cuenta")} className={linkClass}>
+          {CONTACTO_EMAIL}
+        </a>
+        .
+      </p>
+    </div>
   )
 }

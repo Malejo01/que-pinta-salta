@@ -109,7 +109,16 @@ export default function EliminarCuenta() {
 
       <View style={estilos.bloque}>
         <Texto tono="secundario">Si no podés eliminarla desde acá, escribinos a</Texto>
-        <Texto selectable>{CONTACTO_EMAIL}</Texto>
+        <Texto
+          selectable
+          accessibilityLabel={`Correo de contacto: ${CONTACTO_EMAIL}`}
+          accessibilityHint="Mantené presionado para copiarlo"
+        >
+          {CONTACTO_EMAIL}
+        </Texto>
+        <Texto tono="secundario" style={{ fontSize: 12 }}>
+          Mantené presionado para copiarlo
+        </Texto>
       </View>
 
       <CampoTexto

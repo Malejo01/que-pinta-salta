@@ -4,10 +4,11 @@ import Link from "next/link"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { AlertTriangle, ArrowLeft } from "lucide-react"
+// El "¿Algo no anda? Escribinos a <mail>" vive adentro de EliminarCuentaForm,
+// no acá: tiene que desaparecer junto con el formulario cuando la cuenta ya
+// se eliminó, y ese estado solo lo conoce el formulario. Por eso esta página
+// no importa nada de `@qps/core/contacto`.
 import { EliminarCuentaForm } from "./eliminar-cuenta-form"
-import { CONTACTO_EMAIL, mailtoContacto } from "@qps/core/contacto"
-
-const linkClass = "text-primary underline underline-offset-4 hover:text-primary/80"
 
 export const revalidate = 0 // Evitar caché estática para esta página privada
 
@@ -65,14 +66,6 @@ export default async function EliminarCuentaPage() {
             </div>
 
             <EliminarCuentaForm />
-
-            <p className="text-sm text-muted-foreground">
-              ¿Algo no anda? Escribinos a{" "}
-              <a href={mailtoContacto()} className={linkClass}>
-                {CONTACTO_EMAIL}
-              </a>
-              .
-            </p>
           </CardContent>
         </Card>
       </main>
