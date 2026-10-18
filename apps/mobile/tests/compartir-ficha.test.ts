@@ -22,6 +22,16 @@
 // `armarMensajeWhatsApp(...)` — no se afloja la primera regla (si alguien
 // arma a mano la URL de un evento dentro de un `Share.share`, sin pasar por
 // `urlEvento(id, 'app')` NI por `armarMensajeWhatsApp`, sigue fallando).
+//
+// R42, 42-b: el armado del texto de un evento puntual se movió de
+// `BotonCompartir.tsx` (donde vivía inline en `compartir()`) a
+// `mensajeCompartirEvento` (`lib/compartir.ts`), sin cambiarlo. La tercera
+// regla válida, entonces, es que el mensaje salga de un llamado a
+// `mensajeCompartirEvento(...)` — mismo criterio que `armarMensajeWhatsApp`
+// de arriba: el nombre exacto, no un escape genérico. Tampoco se afloja nada:
+// un `mensajeCompartirEvento(...)` con `session.user.email` en el mismo
+// template sigue fallando por el dato de sesión, y un nombre parecido
+// (`mensajeCompartirOtraCosa(...)`) no cuela.
 import { readFileSync, readdirSync, statSync } from 'node:fs'
 import { join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -30,6 +40,7 @@ import { describe, expect, it } from 'vitest'
 const MOBILE_ROOT = fileURLToPath(new URL('..', import.meta.url))
 const APP_DIR = join(MOBILE_ROOT, 'app')
 const COMPONENTS_DIR = join(MOBILE_ROOT, 'components')
+const LIB_DIR = join(MOBILE_ROOT, 'lib')
 const BOTON_COMPARTIR_RELATIVA = join('components', 'BotonCompartir.tsx')
 
 interface Violation {
@@ -61,10 +72,77 @@ function definicionDe(content: string, nombre: string): string | null {
   return m ? m[1] : null
 }
 
+/**
+ * Separa por comas de nivel superior (sin entrar en `{}`, `()` ni `[]`) —
+ * para poder leer `{ eventId, titulo: tituloConSesion, fecha }` o
+ * `armarMensajeWhatsApp(eventosConEmail)` propiedad por propiedad / argumento
+ * por argumento, sin romperse con objetos o arrays anidados adentro de un
+ * valor.
+ */
+function separarPorComaDeNivelSuperior(contenido: string): string[] {
+  const partes: string[] = []
+  let profundidad = 0
+  let actual = ''
+  for (const caracter of contenido) {
+    if ('{(['.includes(caracter)) profundidad++
+    else if ('})]'.includes(caracter)) profundidad--
+    if (caracter === ',' && profundidad === 0) {
+      partes.push(actual)
+      actual = ''
+    } else {
+      actual += caracter
+    }
+  }
+  if (actual.trim()) partes.push(actual)
+  return partes
+}
+
+/**
+ * De los argumentos de un llamado (`{ eventId, titulo: tituloConSesion, ... }`
+ * o `eventosConEmail`), los pares "nombre del argumento" → "identificador
+ * simple" que se le pasó. Un valor que no sea un identificador suelto (una
+ * expresión, un template, un `props.algo`, un `.map(...)`) queda fuera a
+ * propósito: esta heurística no resuelve esos casos (ver el comentario de
+ * cabecera de `encontrarViolacionesDeCompartir`).
+ */
+function identificadoresDeArgumentos(argsStr: string): { arg: string; ident: string }[] {
+  const recortado = argsStr.trim()
+  const esObjeto = recortado.startsWith('{') && recortado.endsWith('}')
+  const cuerpo = esObjeto ? recortado.slice(1, -1) : recortado
+  const pares: { arg: string; ident: string }[] = []
+  for (const parteCruda of separarPorComaDeNivelSuperior(cuerpo)) {
+    const parte = parteCruda.trim()
+    if (!parte) continue
+    const idxDosPuntos = parte.indexOf(':')
+    const esPropiedadConValor = esObjeto && idxDosPuntos !== -1
+    const arg = esPropiedadConValor ? parte.slice(0, idxDosPuntos).trim() : parte
+    const valor = esPropiedadConValor ? parte.slice(idxDosPuntos + 1).trim() : parte
+    if (/^[A-Za-z_]\w*$/.test(valor)) {
+      pares.push({ arg, ident: valor })
+    }
+  }
+  return pares
+}
+
+/** Los pares argumento→identificador de un llamado a `nombreFuncionRe(...)` dentro de `texto`, o `[]` si no aparece. */
+function argumentosDelLlamado(
+  texto: string,
+  nombreFuncionRe: RegExp,
+): { arg: string; ident: string }[] {
+  const m = texto.match(nombreFuncionRe)
+  if (!m || m.index === undefined) return []
+  const inicioArgs = m.index + m[0].length
+  const argsStr = leerBalanceado(texto, inicioArgs, '(', ')')
+  return identificadoresDeArgumentos(argsStr)
+}
+
 const URL_EVENTO_APP_RE = /urlEvento\([^)]*,\s*['"]app['"]\s*\)/
 // 29-i/29-q: la segunda forma válida de armar `message` — la agenda entera,
 // no un evento puntual (ver el comentario de arriba del archivo).
 const ARMAR_MENSAJE_WHATSAPP_RE = /\barmarMensajeWhatsApp\s*\(/
+// 42-b: la tercera forma válida — el texto de un evento puntual armado por
+// `lib/compartir.ts`, sin cambiarlo (ver el comentario de arriba del archivo).
+const MENSAJE_COMPARTIR_EVENTO_RE = /\bmensajeCompartirEvento\s*\(/
 const TOKENS_DE_SESION = ['session', 'user.email', 'user.id']
 
 /**
@@ -75,16 +153,38 @@ const TOKENS_DE_SESION = ['session', 'user.email', 'user.id']
  *   `urlEvento(id, 'app')` — el link con el origen "app" — **o** salir de un
  *   llamado a `armarMensajeWhatsApp(...)` (el mensaje de "Compartir agenda
  *   por WhatsApp", que no es de un solo evento y arma sus propios links con
- *   su propia regla, auditada en `packages/core/src/favoritos/armar.ts`);
+ *   su propia regla, auditada en `packages/core/src/favoritos/armar.ts`) **o**
+ *   de un llamado a `mensajeCompartirEvento(...)` (el mensaje de un evento
+ *   puntual, auditado en `lib/compartir.ts`);
  * - el texto armado nunca puede mencionar `session`, `user.email` ni
- *   `user.id` (datos de la sesión, no de la pantalla).
+ *   `user.id` (datos de la sesión, no de la pantalla) — ni directamente en
+ *   `textoArmado`, ni en los ARGUMENTOS con los que se llama a
+ *   `mensajeCompartirEvento(...)` / `armarMensajeWhatsApp(...)` (42-b:
+ *   `mensajeCompartirEvento({ titulo: tituloConSesion, ... })` con
+ *   `const tituloConSesion = \`... ${session.user.email}\`` es la misma
+ *   violación con una variable intermedia; se resuelve cada identificador
+ *   que se pasa como valor de una propiedad del objeto literal o como
+ *   argumento posicional, con `definicionDe`, y se corre `TOKENS_DE_SESION`
+ *   también sobre esas definiciones).
  *
  * No es un parser completo de JS (es una heurística con regex, como el resto
  * de los detectores de esta carpeta): cubre el patrón real del código
- * (`const mensaje = \`...\`; Share.share({ message: mensaje })` o
- * `const mensaje = armarMensajeWhatsApp(...); Share.share({ message: mensaje })`),
+ * (`const mensaje = \`...\`; Share.share({ message: mensaje })`,
+ * `const mensaje = armarMensajeWhatsApp(...); Share.share({ message: mensaje })`
+ * o `const mensaje = mensajeCompartirEvento({ ... }); Share.share({ message: mensaje })`),
  * con un nivel de indirección para variables referenciadas dentro del
- * template o pasadas como el valor de `message`.
+ * template o pasadas como el valor de `message`, y un nivel más para los
+ * identificadores que se pasan como argumento de `mensajeCompartirEvento` /
+ * `armarMensajeWhatsApp`. Lo que esto NO ve (y no hay forma de verlo sin un
+ * parser real): dos niveles de indirección (una variable que depende de otra
+ * variable que depende de la sesión), un dato de sesión que entra por una
+ * prop (`titulo: props.titulo`) o por un hook en vez de por un `const`/`let`
+ * del mismo archivo, o un dato de sesión metido adentro de un array con
+ * `.map(...)` en vez de un identificador suelto. Cuando un argumento no es
+ * un identificador simple, o `definicionDe` no encuentra su definición en el
+ * archivo, no se reporta nada para ese argumento: es a propósito (ver más
+ * abajo, en `identificadoresDeArgumentos`) para no inventar falsos
+ * positivos con una heurística de regex.
  */
 export function encontrarViolacionesDeCompartir(content: string): Violation[] {
   const violaciones: Violation[] = []
@@ -132,11 +232,46 @@ export function encontrarViolacionesDeCompartir(content: string): Violation[] {
     // sigue sin colar.
     const usaArmarMensajeWhatsApp = ARMAR_MENSAJE_WHATSAPP_RE.test(textoArmado)
 
-    if (!usaUrlEventoApp && !usaArmarMensajeWhatsApp) {
+    // El texto de un evento puntual (42-b): `mensajeCompartirEvento` es el
+    // armado que tenía `BotonCompartir.tsx` inline, movido a `lib/compartir.ts`
+    // sin cambiarlo. Mismo criterio que `armarMensajeWhatsApp`: el nombre
+    // exacto, no un escape genérico.
+    const usaMensajeCompartirEvento = MENSAJE_COMPARTIR_EVENTO_RE.test(textoArmado)
+
+    if (!usaUrlEventoApp && !usaArmarMensajeWhatsApp && !usaMensajeCompartirEvento) {
       violaciones.push({
         line: lineAt(content, m.index),
-        message: 'Share.share: el mensaje no usa urlEvento(id, "app") ni armarMensajeWhatsApp(...)',
+        message:
+          'Share.share: el mensaje no usa urlEvento(id, "app"), armarMensajeWhatsApp(...) ni mensajeCompartirEvento(...)',
       })
+    }
+
+    // 42-b: la indirección también puede venir por los ARGUMENTOS de
+    // `mensajeCompartirEvento(...)` / `armarMensajeWhatsApp(...)`. Una
+    // variable intermedia como `tituloConSesion` en
+    // `mensajeCompartirEvento({ titulo: tituloConSesion, ... })` no aparece
+    // nunca como substring en `textoArmado` (que es el llamado en sí, no el
+    // texto final que arma la función) — hay que resolver esos
+    // identificadores y correr `TOKENS_DE_SESION` también sobre sus
+    // definiciones.
+    const textosSecundarios: { arg: string; ident: string; def: string }[] = []
+    if (usaMensajeCompartirEvento || usaArmarMensajeWhatsApp) {
+      const argumentos = [
+        ...(usaMensajeCompartirEvento ? argumentosDelLlamado(textoArmado, MENSAJE_COMPARTIR_EVENTO_RE) : []),
+        ...(usaArmarMensajeWhatsApp ? argumentosDelLlamado(textoArmado, ARMAR_MENSAJE_WHATSAPP_RE) : []),
+      ]
+      for (const { arg, ident } of argumentos) {
+        const def = definicionDe(content, ident)
+        // Si no hay definición en el archivo (viene por props, por un hook,
+        // por destructuring) no se inventa una violación: es una heurística
+        // con regex, no un parser, y reportar sin poder resolver de verdad
+        // llenaría esto de falsos positivos. Lo que se pierde con esta
+        // decisión: un dato de sesión que entra por una prop o un hook en
+        // vez de por un `const`/`let` de este archivo no se ve.
+        if (def !== null) {
+          textosSecundarios.push({ arg, ident, def })
+        }
+      }
     }
 
     for (const token of TOKENS_DE_SESION) {
@@ -145,6 +280,14 @@ export function encontrarViolacionesDeCompartir(content: string): Violation[] {
           line: lineAt(content, m.index),
           message: `Share.share: el mensaje incluye "${token}" (dato de sesión)`,
         })
+      }
+      for (const { arg, ident, def } of textosSecundarios) {
+        if (def.includes(token)) {
+          violaciones.push({
+            line: lineAt(content, m.index),
+            message: `Share.share: el mensaje incluye "${token}" (dato de sesión) por el argumento "${arg}" (definición de "${ident}")`,
+          })
+        }
       }
     }
   }
@@ -188,6 +331,98 @@ describe('encontrarViolacionesDeCompartir (fixtures en memoria: tiene que fallar
     const content = [
       'const mensaje = armarMensajeWhatsApp(estado.eventos)',
       'Share.share({ message: mensaje })',
+    ].join('\n')
+    expect(encontrarViolacionesDeCompartir(content)).toEqual([])
+  })
+
+  // 42-b: la tercera forma válida.
+  it('acepta el patrón real de un evento puntual: const mensaje = mensajeCompartirEvento({ ... }); Share.share({ message: mensaje })', () => {
+    const content = [
+      'const mensaje = mensajeCompartirEvento({ eventId, titulo, fecha, hora, lugar })',
+      'if (!mensaje) return',
+      'await Share.share({ message: mensaje })',
+    ].join('\n')
+    expect(encontrarViolacionesDeCompartir(content)).toEqual([])
+  })
+
+  it('un nombre de función parecido (no mensajeCompartirEvento exacto) no cuela', () => {
+    const content = [
+      'const mensaje = mensajeCompartirOtraCosa({ eventId, titulo, fecha, hora, lugar })',
+      'Share.share({ message: mensaje })',
+    ].join('\n')
+    const v = encontrarViolacionesDeCompartir(content)
+    expect(v.some((x) => x.message.includes('no usa urlEvento'))).toBe(true)
+  })
+
+  it('mensajeCompartirEvento(...) con session.user.email en el mismo template sigue fallando por el dato de sesión', () => {
+    const content = [
+      'const mensaje = mensajeCompartirEvento({ eventId, titulo: `${session.user.email} invita`, fecha, hora, lugar })',
+      'Share.share({ message: mensaje })',
+    ].join('\n')
+    const v = encontrarViolacionesDeCompartir(content)
+    expect(v.some((x) => x.message.includes('"session"'))).toBe(true)
+    expect(v.some((x) => x.message.includes('"user.email"'))).toBe(true)
+  })
+
+  // 42-b, vuelta 1 del revisor: la evasión con una variable intermedia. El
+  // dato de sesión no está en `textoArmado` (el llamado en sí) sino en la
+  // DEFINICIÓN de `tituloConSesion`, que se le pasa como argumento `titulo`.
+  it('mensajeCompartirEvento(...) con una variable intermedia (ej. tituloConSesion) sigue fallando por el dato de sesión', () => {
+    const content = [
+      'const tituloConSesion = `Mirá esto ${session?.user?.email}`',
+      'const mensaje = mensajeCompartirEvento({ eventId, titulo: tituloConSesion, fecha, hora, lugar })',
+      'if (!mensaje) return',
+      'await Share.share({ message: mensaje })',
+    ].join('\n')
+    const v = encontrarViolacionesDeCompartir(content)
+    expect(v.some((x) => x.message.includes('"session"') && x.message.includes('tituloConSesion'))).toBe(true)
+    expect(v.some((x) => x.message.includes('argumento "titulo"'))).toBe(true)
+  })
+
+  // La misma evasión, pero con `armarMensajeWhatsApp` (la función de
+  // "Compartir agenda") y el dato de sesión adentro del array que se le pasa.
+  it('armarMensajeWhatsApp(eventosConEmail) sigue fallando cuando eventosConEmail se define con session.user.email', () => {
+    const content = [
+      'const eventosConEmail = [{ title: evento.title, nota: session.user.email }]',
+      'const mensaje = armarMensajeWhatsApp(eventosConEmail)',
+      'Share.share({ message: mensaje })',
+    ].join('\n')
+    const v = encontrarViolacionesDeCompartir(content)
+    expect(v.some((x) => x.message.includes('"session"') && x.message.includes('eventosConEmail'))).toBe(true)
+    expect(v.some((x) => x.message.includes('"user.email"') && x.message.includes('eventosConEmail'))).toBe(true)
+  })
+
+  // Caso legítimo: una variable intermedia SIN nada de sesión no tiene que
+  // fallar — la resolución de argumentos no puede volverse un falso
+  // positivo genérico contra cualquier variable intermedia.
+  it('mensajeCompartirEvento(...) con una variable intermedia sin datos de sesión (ej. const titulo = evento.title) no falla', () => {
+    const content = [
+      'const titulo = evento.title',
+      'const mensaje = mensajeCompartirEvento({ eventId, titulo, fecha, hora, lugar })',
+      'if (!mensaje) return',
+      'await Share.share({ message: mensaje })',
+    ].join('\n')
+    expect(encontrarViolacionesDeCompartir(content)).toEqual([])
+  })
+
+  // Un argumento que llega por props (no es un identificador simple, no hay
+  // `const`/`let` para resolver): no se inventa una violación.
+  it('un argumento que llega por props (titulo: props.titulo) no explota ni inventa una violación', () => {
+    const content = [
+      'const mensaje = mensajeCompartirEvento({ eventId, titulo: props.titulo, fecha, hora, lugar })',
+      'await Share.share({ message: mensaje })',
+    ].join('\n')
+    expect(encontrarViolacionesDeCompartir(content)).toEqual([])
+  })
+
+  // Un identificador suelto como argumento, pero sin `const`/`let` en el
+  // archivo (por ejemplo, viene desestructurado de un hook): tampoco
+  // inventa una violación.
+  it('un argumento cuyo identificador no tiene definición en el archivo (ej. desestructurado de un hook) no explota ni inventa una violación', () => {
+    const content = [
+      'const { titulo: tituloDesdeHook } = useAlgo()',
+      'const mensaje = mensajeCompartirEvento({ eventId, titulo: tituloDesdeHook, fecha, hora, lugar })',
+      'await Share.share({ message: mensaje })',
     ].join('\n')
     expect(encontrarViolacionesDeCompartir(content)).toEqual([])
   })
@@ -293,9 +528,10 @@ describe('app/(tabs)/favoritos.tsx: "Compartir agenda por WhatsApp" usa armarMen
 })
 
 // Barrido hacia adelante: si el día de mañana aparece otro Share.share en
-// app/ o components/, también tiene que cumplir las dos reglas.
-describe('app/ y components/: cualquier otro Share.share también cumple las reglas', () => {
-  const archivos = [...listarTsxYTs(APP_DIR), ...listarTsxYTs(COMPONENTS_DIR)]
+// app/, components/ o lib/ (42-b: el texto puede armarse en una función de
+// lib/, como mensajeCompartirEvento), también tiene que cumplir las reglas.
+describe('app/, components/ y lib/: cualquier otro Share.share también cumple las reglas', () => {
+  const archivos = [...listarTsxYTs(APP_DIR), ...listarTsxYTs(COMPONENTS_DIR), ...listarTsxYTs(LIB_DIR)]
 
   it('encuentra al menos un archivo para analizar, incluido BotonCompartir', () => {
     expect(archivos.length).toBeGreaterThan(0)

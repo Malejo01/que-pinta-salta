@@ -5,8 +5,23 @@
 // `tests/compartir-ficha.test.ts`. Se usa en la ficha (junto al corazón,
 // 40, fondo `muted`) y en la tarjeta (32, fondo oscuro `bg-black/60`, la
 // web no lo tiene en la ficha pero sí en la card).
+//
+// R42, 42-b: el armado del texto se movió a `mensajeCompartirEvento`
+// (`lib/compartir.ts`), **sin cambiarlo** — es la tercera forma válida del
+// mismo detector.
+//
+// R42, 42-d: prop opcional `tarjeta` — con ella, tocar abre
+// `HojaCompartirTarjeta` (la vista previa 4:5 con "Compartir imagen" y
+// "Compartir link") en vez de compartir el texto directo. `compartir()`
+// sigue siendo la MISMA función de siempre (sin cambiarla, mismo
+// `Share.share` que acepta el detector): la hoja la recibe como
+// `compartirTexto` y la usa para "Compartir link" y para la caída cuando no
+// hay cómo compartir una imagen (ver el comentario de `HojaCompartirTarjeta.tsx`).
+// Sin la prop (las tarjetas de Inicio y Buscar), nada cambia.
+import { useState } from 'react'
 import { Pressable, Share, StyleSheet } from 'react-native'
-import { urlEvento } from '@qps/core/metricas/links'
+import { mensajeCompartirEvento, type DatosTarjetaCompartir } from '@/lib/compartir'
+import { HojaCompartirTarjeta } from '@/components/HojaCompartirTarjeta'
 import { Icono } from '@/components/Icono'
 import { useColoresQPS } from '@/lib/colores'
 
@@ -20,15 +35,18 @@ export interface BotonCompartirProps {
   tamanio?: number
   /** `'muted'` por defecto (ficha); la tarjeta pasa `'oscuro'` (`bg-black/60`). */
   fondo?: 'muted' | 'oscuro'
+  /** Solo la ficha la pasa (42-d): con ella, tocar abre la hoja de
+   * "Compartir imagen"/"Compartir link" en vez de compartir el texto. */
+  tarjeta?: DatosTarjetaCompartir
 }
 
-export function BotonCompartir({ eventId, titulo, fecha, hora, lugar, tamanio = 40, fondo = 'muted' }: BotonCompartirProps) {
+export function BotonCompartir({ eventId, titulo, fecha, hora, lugar, tamanio = 40, fondo = 'muted', tarjeta }: BotonCompartirProps) {
   const colores = useColoresQPS()
+  const [hojaVisible, setHojaVisible] = useState(false)
 
   async function compartir() {
-    const url = urlEvento(eventId, 'app')
-    if (!url) return
-    const mensaje = `${titulo}\n${fecha}${hora ? ` · ${hora} hs` : ''} · ${lugar}\n${url}`
+    const mensaje = mensajeCompartirEvento({ eventId, titulo, fecha, hora, lugar })
+    if (!mensaje) return
     try {
       await Share.share({ message: mensaje })
     } catch {
@@ -36,18 +54,32 @@ export function BotonCompartir({ eventId, titulo, fecha, hora, lugar, tamanio = 
     }
   }
 
+  function alTocar() {
+    if (tarjeta) {
+      setHojaVisible(true)
+    } else {
+      compartir()
+    }
+  }
+
   const fondoColor = fondo === 'oscuro' ? 'rgba(0,0,0,0.6)' : colores.muted
   const colorIcono = fondo === 'oscuro' ? '#fff' : colores.foreground
 
   return (
-    <Pressable
-      onPress={compartir}
-      accessibilityRole="button"
-      accessibilityLabel="Compartir"
-      style={[estilos.boton, { width: tamanio, height: tamanio, borderRadius: tamanio / 2, backgroundColor: fondoColor }]}
-    >
-      <Icono nombre="Share2" tamanio={Math.round(tamanio * 0.45)} color={colorIcono} />
-    </Pressable>
+    <>
+      <Pressable
+        onPress={alTocar}
+        accessibilityRole="button"
+        accessibilityLabel="Compartir"
+        style={[estilos.boton, { width: tamanio, height: tamanio, borderRadius: tamanio / 2, backgroundColor: fondoColor }]}
+      >
+        <Icono nombre="Share2" tamanio={Math.round(tamanio * 0.45)} color={colorIcono} />
+      </Pressable>
+
+      {tarjeta ? (
+        <HojaCompartirTarjeta visible={hojaVisible} datos={tarjeta} compartirTexto={compartir} onCerrar={() => setHojaVisible(false)} />
+      ) : null}
+    </>
   )
 }
 

@@ -27,6 +27,7 @@ import { urlComoLlegar, urlGo } from '@qps/core/metricas/links'
 import { ticketUrlsOf } from '@qps/core/scraper/dedup-key'
 import { vibeLabels } from '@qps/core/types'
 import { Afiche } from '@/components/Afiche'
+import { BotonCalendario } from '@/components/BotonCalendario'
 import { BotonesAsistencia } from '@/components/BotonesAsistencia'
 import { BotonCompartir } from '@/components/BotonCompartir'
 import { BotonFavorito } from '@/components/BotonFavorito'
@@ -34,6 +35,7 @@ import { Cargando, ErrorCarga, Vacio } from '@/components/EstadoCarga'
 import { Icono } from '@/components/Icono'
 import { Texto } from '@/components/Texto'
 import { useColoresQPS } from '@/lib/colores'
+import { datosTarjetaCompartir } from '@/lib/compartir'
 import { obtenerEventoPorId, type ResultadoEvento } from '@/lib/datos/eventos'
 import { textoPrecio, type PrecioEvento } from '@/lib/formato'
 import { esUuid } from '@/lib/links'
@@ -160,7 +162,16 @@ export default function EventoPorId() {
         </Texto>
         <View style={estilos.accionesTitulo}>
           <BotonFavorito eventId={evento.id} tamanio={40} fondo="muted" />
-          <BotonCompartir eventId={evento.id} titulo={evento.title} fecha={fecha} hora={hora} lugar={lugar} tamanio={40} fondo="muted" />
+          <BotonCompartir
+            eventId={evento.id}
+            titulo={evento.title}
+            fecha={fecha}
+            hora={hora}
+            lugar={lugar}
+            tamanio={40}
+            fondo="muted"
+            tarjeta={datosTarjetaCompartir(evento) ?? undefined}
+          />
         </View>
       </View>
 
@@ -226,6 +237,8 @@ export default function EventoPorId() {
             <Texto peso="semibold">Comprar tickets</Texto>
           </Pressable>
         ) : null}
+
+        <BotonCalendario evento={evento} />
       </View>
 
       <BotonesAsistencia eventId={evento.id} />
