@@ -102,6 +102,46 @@ describe('datosCalendario — sin hora (día completo)', () => {
     expect(datos.diaFin).toBe('2026-10-26')
   })
 
+  // Detector de la rotura "armar el día completo con la fecha UTC en vez del
+  // día de Salta" (plan R42), encontrada por el lead corriendo esa rotura a
+  // mano en `calcularHorarioDiaCompleto`: cambiar `formatSaltaDayKey` por
+  // `new Date(...).toISOString().slice(0, 10)`.
+  //
+  // El `dia` del INICIO no se puede proteger con ningún caso de borde: un
+  // evento sin hora es, por definición, 00:00 de Salta = 03:00Z del MISMO
+  // día, así que el día UTC y el día de Salta de `start_date` siempre
+  // coinciden. El que sí se rompe es `diaFin`, y solo si la HORA del
+  // `end_date` es tarde en el día de Salta (21:00 en adelante): recién ahí
+  // el día de Salta y el día UTC de ese instante difieren. Un `end_date`
+  // temprano (como el de arriba, 03:00Z = 00:00 de Salta) NO agarra la
+  // rotura, porque con esa hora el día UTC y el día de Salta siguen
+  // coincidiendo: por eso hace falta este caso aparte, no alcanza con
+  // "simplificar" reusando el de arriba.
+  it('sin hora con end_date TARDE en el día de Salta (21:00+, UTC ya un día después): diaFin es el día de Salta, no el día UTC', () => {
+    // end_date: 2026-10-26T22:00:00-03:00 = 2026-10-27T01:00:00Z.
+    // Día de Salta del end_date: 26. Día UTC del end_date: 27.
+    const datos = datosCalendario(evento({ start_date: '2026-10-23T03:00:00Z', end_date: '2026-10-26T22:00:00-03:00' }))
+    if (datos?.tipo !== 'dia-completo') throw new Error('se esperaba dia-completo')
+    expect(datos.dia).toBe('2026-10-23')
+    // Con la rotura (día UTC) esto da '2026-10-27': el evento del calendario
+    // se estira un día de más.
+    expect(datos.diaFin).toBe('2026-10-26')
+  })
+
+  // Caso simétrico: el end_date cae el MISMO día de Salta que el inicio
+  // (no hay que estirar el evento ningún día), pero en UTC ya es el día
+  // siguiente. `diaFin` tiene que quedarse igual a `dia`, no adelantarse.
+  it('sin hora con end_date del MISMO día de Salta que el inicio (22:00, UTC ya el día siguiente): diaFin no se adelanta', () => {
+    // end_date: 2026-10-26T22:00:00-03:00 = 2026-10-27T01:00:00Z, mismo día
+    // de Salta (26) que el start_date.
+    const datos = datosCalendario(evento({ start_date: '2026-10-26T03:00:00Z', end_date: '2026-10-26T22:00:00-03:00' }))
+    if (datos?.tipo !== 'dia-completo') throw new Error('se esperaba dia-completo')
+    expect(datos.dia).toBe('2026-10-26')
+    // Con la rotura (día UTC) esto da '2026-10-27' en vez de quedarse en el
+    // mismo día.
+    expect(datos.diaFin).toBe('2026-10-26')
+  })
+
   it('sin hora con end_date inválido: diaFin = dia', () => {
     const datos = datosCalendario(evento({ start_date: '2026-10-23T03:00:00Z', end_date: 'no-es-una-fecha' }))
     if (datos?.tipo !== 'dia-completo') throw new Error('se esperaba dia-completo')
