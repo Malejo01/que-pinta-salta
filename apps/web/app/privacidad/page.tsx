@@ -65,8 +65,9 @@ export default function PrivacidadPage() {
             <strong className="text-foreground">Notificaciones en la app:</strong> solo si las activás: el permiso
             del teléfono se pide recién cuando tocás &quot;Activar notificaciones&quot;. Guardamos el token de
             notificaciones de tu teléfono, la plataforma y la última vez que se usó, y un registro de los avisos que
-            te mandamos, para no repetirte uno y para respetar el tope diario. Al cerrar sesión, el token de ese
-            teléfono se borra.
+            te mandamos, para no repetirte uno y para respetar el tope diario. Al cerrar sesión intentamos borrar el
+            token de ese teléfono. Si en ese momento no hay conexión, puede quedar guardado un tiempo más; se borra
+            en cuanto eliminás tu cuenta.
           </li>
           <li>
             <strong className="text-foreground">Lo que la app guarda en tu teléfono:</strong> la sesión, en el
@@ -107,6 +108,12 @@ export default function PrivacidadPage() {
             historial de búsquedas por usuario. La app no tiene analítica de terceros ni anuncios.
           </li>
         </ul>
+        <p>
+          <strong className="text-foreground">Darnos estos datos es opcional.</strong> Podés usar la agenda, buscar
+          y ver las fichas de evento sin crear una cuenta, tanto en el sitio como en la app. Si no creás una cuenta,
+          no vas a poder guardar favoritos, marcar &quot;Voy&quot; o &quot;Me interesa&quot;, seguir categorías,
+          lugares ni cuentas, ni usar Mi Radar o las notificaciones de la app. Nada más cambia.
+        </p>
       </SeccionLegal>
 
       <SeccionLegal titulo="Para qué los usamos">
@@ -118,10 +125,17 @@ export default function PrivacidadPage() {
           <li>Enviarte por email las novedades de Mi Radar, solo si lo activás.</li>
           <li>Moderar los eventos cargados por usuarios antes de publicarlos.</li>
           <li>Entender qué secciones se usan, para mejorar el sitio y la app.</li>
-          <li>
-            Mostrar publicidad en el sitio, que es lo que sostiene el servicio gratuito (ver &quot;Cookies y
-            almacenamiento local&quot;).
-          </li>
+          {ADS_ENABLED ? (
+            <li>
+              Mostrar publicidad en el sitio, que es lo que sostiene el servicio gratuito (ver &quot;Cookies y
+              almacenamiento local&quot;).
+            </li>
+          ) : (
+            <li>
+              Si en el futuro mostramos publicidad en el sitio, va a ser para sostener el servicio gratuito (ver
+              &quot;Cookies y almacenamiento local&quot;).
+            </li>
+          )}
         </ul>
         <p>No vendemos tus datos personales.</p>
       </SeccionLegal>

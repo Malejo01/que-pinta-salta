@@ -106,3 +106,23 @@ describe('"Voy" / "Me interesa": el total se muestra desde 3 y nunca se dice qui
     expect(html).toContain('nunca se muestra quién')
   })
 })
+
+describe('el token de notificaciones no se afirma como borrado con certeza', () => {
+  it('el HTML no dice que el token se borra siempre, y sí que se intenta borrar', () => {
+    expect(html).not.toContain('el token de ese teléfono se borra')
+    expect(html).toContain('intentamos borrar el token')
+  })
+})
+
+describe('carácter facultativo de los datos (art. 6, Ley 25.326)', () => {
+  it('el HTML dice que dar los datos es opcional y nombra la consecuencia de no darlos', () => {
+    expect(html).toContain('Darnos estos datos es opcional')
+    expect(html).toContain('no vas a poder guardar favoritos')
+  })
+})
+
+describe('la publicidad no se afirma sin condicionar a ADS_ENABLED', () => {
+  it('el HTML no dice que se muestra publicidad cuando ADS_ENABLED está apagado', () => {
+    expect(html).not.toContain('que es lo que sostiene el servicio gratuito')
+  })
+})
