@@ -129,9 +129,17 @@ describe('upsertEventWithDeduplication sigue merged_into_event_id', () => {
       row(1, { status: 'DRAFT', title: 'Banda de Prueba 1', start_date: '2026-12-25T23:00:00.000Z', slug: 'slug-compartido' }, uid(2)),
       row(2, { title: 'Destino Distinto de Prueba', slug: 'x-destino', start_date: '2026-12-25T23:00:00.000Z' }),
     ])
-    const ev = { ...incoming(), slug: 'slug-compartido', start_date: '2026-12-26T23:00:00.000Z' }
-    // Otro día: findDuplicateMatch no trae candidatos; el único match posible es el slug
+    const ev = { ...incoming(), slug: 'slug-compartido', start_date: '2026-12-26T03:00:00.000Z' }
+    // Dos condiciones a la vez, no una: (1) otro día de Salta (26 contra 25) -> la fila 1 queda
+    // fuera del rango de candidatos de findDuplicateMatch, así que el único match posible es el
+    // slug; (2) el entrante es 00:00 de Salta (sin hora real) -> horasCompatibles() da `true` sin
+    // comparar nada (R40, QPS-164 hallazgo 1), y la fusión entra por `score >= SIMILARITY_THRESHOLD`
     // (mismo título, score 1), que apunta al fusionado.
+    //
+    // OJO: si alguien le pone una hora real al entrante, este test deja de probar el bloque 2b
+    // (seguir merged_into_event_id por el camino del slug) y pasa a probar la tolerancia de hora
+    // de la colisión de slug (desde la R40, dos días distintos con hora real no se fusionan por
+    // slug) -- no es una "limpieza" válida de este fixture.
     const res = await upsertEventWithDeduplication(ev, 'norteticket', db.client)
     expect(res).toMatchObject({ action: 'update', eventId: uid(2) })
     expect(db.updates.map((u) => u.id)).toEqual([uid(2)])
