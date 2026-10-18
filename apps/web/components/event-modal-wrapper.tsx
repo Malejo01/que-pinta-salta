@@ -28,14 +28,18 @@ import { deferredRefresh } from "@/lib/deferred-refresh"
 import { ViewBeacon } from "@/components/view-beacon"
 import { goHref, urlComoLlegar, type MetricOrigin } from "@/lib/metricas/links"
 import { FlyerImage } from "@/components/flyer-image"
-import { FavoriteButton } from "@/components/favorite-button"
 import { ShareButton } from "@/components/share-button"
-import { BotonesAsistencia } from "@/components/botones-asistencia"
+import { FilaAccionesEvento } from "@/components/fila-acciones-evento"
+import { BotonSeguir } from "@/components/boton-seguir"
 import type { CantidadesAsistencia } from "@/lib/asistencia"
 import { debenMostrarseBotonesAsistencia } from "@/lib/asistencia-visibilidad"
 import type { TipoAsistencia } from "@qps/core/asistencia"
+import type { obtenerSeguimientoDeEvento } from "@/lib/actions/radar"
 
 type EventWithRelations = Event & { category: Category | null; venue: Venue | null }
+
+/** Lo que devuelve `obtenerSeguimientoDeEvento` (lugar y, si hay, cuenta de Instagram a seguir). */
+type SeguimientoEvento = Awaited<ReturnType<typeof obtenerSeguimientoDeEvento>>
 
 interface EventModalWrapperProps {
   event: EventWithRelations
@@ -45,9 +49,11 @@ interface EventModalWrapperProps {
   origin?: MetricOrigin
   /** Si el evento ya es favorito del usuario (sesión del servidor). */
   isFavorite?: boolean
-  /** "Voy" / "Me interesa" (R38-c): si falta `cantidadesAsistencia`, los botones no se muestran. */
+  /** "Voy" (R38-c, reescrito en la R47): si falta `cantidadesAsistencia`, la fila igual muestra ♥ y Compartir, sin Voy. */
   cantidadesAsistencia?: CantidadesAsistencia
   marcaAsistencia?: TipoAsistencia | null
+  /** "+ Seguir" (lugar y, si hay, cuenta de Instagram): `null` si no se pudo leer o no hay nada que seguir. */
+  seguimiento?: SeguimientoEvento | null
   haySesion?: boolean
 }
 
@@ -59,6 +65,7 @@ export function EventModalWrapper({
   isFavorite = false,
   cantidadesAsistencia,
   marcaAsistencia = null,
+  seguimiento = null,
   haySesion = false,
 }: EventModalWrapperProps) {
   const router = useRouter()
@@ -183,23 +190,16 @@ export function EventModalWrapper({
         </div>
 
         <div className="p-6">
+          {/*
+            Ancla del bloque del título (QPS-199): antes el ♥ y Compartir
+            vivían pegados al <DialogTitle>. El detector estático de
+            `tests/asistencia/orden-ficha.test.ts` busca este bloque (no
+            "FavoriteButton"/"ShareButton" sueltos, que también aparecen más
+            abajo, dentro de la fila nueva) para confirmar que salieron de
+            acá.
+          */}
           <DialogHeader className="mb-4">
-            <div className="flex items-start justify-between gap-4">
-              <DialogTitle className="text-2xl flex-1">{displayEvent.title}</DialogTitle>
-              <div className="flex flex-shrink-0 items-center gap-2">
-                <ShareButton
-                  eventId={event.id}
-                  title={event.title}
-                  className="size-10 bg-muted/40 hover:bg-muted text-foreground"
-                />
-                <FavoriteButton
-                  itemId={event.id}
-                  type="event"
-                  initialIsFavorite={isFavorite}
-                  className="size-10 bg-muted/40 hover:bg-muted text-foreground"
-                />
-              </div>
-            </div>
+            <DialogTitle className="text-2xl">{displayEvent.title}</DialogTitle>
           </DialogHeader>
 
           {isAdmin && (
@@ -294,11 +294,32 @@ export function EventModalWrapper({
             
             <div className="flex items-center gap-3 text-muted-foreground">
               <MapPin className="size-5 text-primary" />
-              <div>
-                <p className="font-medium text-foreground">{displayEvent.venue}</p>
-                <p className="text-sm">{displayEvent.address}</p>
+              <div className="flex flex-wrap items-center gap-2">
+                <div>
+                  <p className="font-medium text-foreground">{displayEvent.venue}</p>
+                  <p className="text-sm">{displayEvent.address}</p>
+                </div>
+                {seguimiento?.lugar && (
+                  <BotonSeguir
+                    tipo="lugar"
+                    id={seguimiento.lugar.id}
+                    etiqueta={seguimiento.lugar.nombre}
+                    siguiendoInicial={seguimiento.lugar.siguiendo}
+                    haySesion={haySesion}
+                  />
+                )}
               </div>
             </div>
+
+            {seguimiento?.cuenta && (
+              <BotonSeguir
+                tipo="cuenta"
+                id={seguimiento.cuenta.id}
+                etiqueta={seguimiento.cuenta.username}
+                siguiendoInicial={seguimiento.cuenta.siguiendo}
+                haySesion={haySesion}
+              />
+            )}
 
             {displayEvent.vibe && (
               <div className="flex items-center gap-3 text-muted-foreground">
@@ -346,16 +367,30 @@ export function EventModalWrapper({
             )}
           </div>
 
-          {/* Misma condición que la ficha (`event-detail-page.tsx`): una sola función de visibilidad. */}
-          {cantidadesAsistencia && debenMostrarseBotonesAsistencia(event.status) && (
-            <BotonesAsistencia
-              eventId={event.id}
-              cantidadesIniciales={cantidadesAsistencia}
-              marcaInicial={marcaAsistencia}
-              haySesion={haySesion}
-              className="mt-6"
-            />
-          )}
+          {/*
+            Misma función que la ficha (`event-detail-page.tsx`), una sola
+            fuente de verdad: `mostrarVoy` es `false` sin
+            `cantidadesAsistencia` o fuera de PUBLISHED/etc, pero la fila
+            IGUAL se dibuja (♥ y Compartir). El `ShareButton` que antes
+            estaba en el encabezado ahora se le pasa por `compartir`.
+          */}
+          <FilaAccionesEvento
+            eventId={event.id}
+            titulo={event.title}
+            guardadoInicial={isFavorite}
+            voyInicial={marcaAsistencia === "voy"}
+            cantidadesIniciales={cantidadesAsistencia ?? { voy: 0 }}
+            haySesion={haySesion}
+            mostrarVoy={Boolean(cantidadesAsistencia) && debenMostrarseBotonesAsistencia(event.status)}
+            compartir={
+              <ShareButton
+                eventId={event.id}
+                title={event.title}
+                className="size-10 bg-muted/40 hover:bg-muted text-foreground"
+              />
+            }
+            className="mt-6"
+          />
         </div>
       </DialogContent>
     </Dialog>

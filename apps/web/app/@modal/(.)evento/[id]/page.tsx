@@ -6,6 +6,7 @@ import { parseOrigin } from "@/lib/metricas/links"
 import { esEventoFavorito } from "@/lib/favoritos/es-favorito"
 import { obtenerAsistencia } from "@/lib/asistencia"
 import { debenMostrarseBotonesAsistencia } from "@/lib/asistencia-visibilidad"
+import { obtenerSeguimientoDeEvento } from "@/lib/actions/radar"
 
 interface ModalEventPageProps {
   params: Promise<{ id: string }>
@@ -18,10 +19,11 @@ export default async function ModalEventPage({ params, searchParams }: ModalEven
   const origin = parseOrigin(Array.isArray(sp.o) ? sp.o[0] : sp.o)
   const supabase = await createClient()
 
-  const [event, categories, userResult] = await Promise.all([
+  const [event, categories, userResult, seguimiento] = await Promise.all([
     getEventById(id),
     getCategories(),
     supabase.auth.getUser(),
+    obtenerSeguimientoDeEvento(id),
   ])
 
   let isAdmin = false
@@ -46,9 +48,9 @@ export default async function ModalEventPage({ params, searchParams }: ModalEven
     return null
   }
 
-  // "Voy" / "Me interesa": solo se lee la asistencia si el evento está
-  // PUBLISHED (misma función que la ficha). Si la lectura falla, el modal
-  // sigue sin los botones.
+  // "Voy": solo se lee la asistencia si el evento está PUBLISHED (misma
+  // función que la ficha). Si la lectura falla, el modal sigue sin el
+  // botón de Voy (la fila de ♥ Guardar/Compartir se dibuja igual).
   const resultadoAsistencia = debenMostrarseBotonesAsistencia(event.status)
     ? await obtenerAsistencia(id)
     : null
@@ -64,6 +66,7 @@ export default async function ModalEventPage({ params, searchParams }: ModalEven
       isFavorite={isFavorite}
       cantidadesAsistencia={cantidadesAsistencia}
       marcaAsistencia={marcaAsistencia}
+      seguimiento={seguimiento}
       haySesion={!!user}
     />
   )

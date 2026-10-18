@@ -10,6 +10,7 @@ import { parseOrigin } from "@/lib/metricas/links"
 import { esEventoFavorito } from "@/lib/favoritos/es-favorito"
 import { obtenerAsistencia } from "@/lib/asistencia"
 import { debenMostrarseBotonesAsistencia } from "@/lib/asistencia-visibilidad"
+import { obtenerSeguimientoDeEvento } from "@/lib/actions/radar"
 import type { Metadata } from "next"
 
 interface EventPageProps {
@@ -63,11 +64,12 @@ export default async function EventPage({ params, searchParams }: EventPageProps
   const origin = parseOrigin(Array.isArray(sp.o) ? sp.o[0] : sp.o)
   const supabase = await createClient()
 
-  const [event, categories, userResult, resultadoAsistencia] = await Promise.all([
+  const [event, categories, userResult, resultadoAsistencia, seguimiento] = await Promise.all([
     getEventById(id),
     getCategories(),
     supabase.auth.getUser(),
     obtenerAsistencia(id),
+    obtenerSeguimientoDeEvento(id),
   ])
 
   let isAdmin = false
@@ -104,9 +106,10 @@ export default async function EventPage({ params, searchParams }: EventPageProps
     notFound()
   }
 
-  // "Voy" / "Me interesa" (bloqueante 2, vuelta 1): si la lectura de
-  // asistencia falla, la ficha sigue funcionando: no se muestran los
-  // botones (el `console.error` ya quedó dentro de `obtenerAsistencia`).
+  // "Voy" (bloqueante 2, vuelta 1): si la lectura de asistencia falla, la
+  // ficha sigue funcionando: no se muestra el botón de Voy, pero la fila de
+  // ♥ Guardar/Compartir se dibuja igual (el `console.error` ya quedó
+  // dentro de `obtenerAsistencia`).
   // Además, solo se pasan las cantidades si el evento está PUBLISHED: la
   // vista `event_attendance_counts` solo agrega votos de eventos
   // PUBLISHED, así que en un evento CANCELLED o PAST el contador quedaría
@@ -229,6 +232,7 @@ export default async function EventPage({ params, searchParams }: EventPageProps
         origin={origin}
         cantidadesAsistencia={cantidadesAsistencia}
         marcaAsistencia={marcaAsistencia}
+        seguimiento={seguimiento}
         haySesion={!!user}
       />
     </>
