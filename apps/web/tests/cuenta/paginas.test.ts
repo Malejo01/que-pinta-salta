@@ -47,8 +47,16 @@ describe("/eliminar-cuenta (pública)", () => {
     expect(archivo).not.toContain("redirect(")
   })
 
-  it("nombra el mail de contacto a completar", () => {
-    expect(archivo).toContain("[COMPLETAR: mail de contacto]")
+  it("usa la casilla de contacto de @qps/core/contacto, no un literal a completar", () => {
+    expect(archivo).toContain("@qps/core/contacto")
+    expect(archivo).toContain("CONTACTO_EMAIL")
+    expect(archivo).toContain("mailtoContacto(")
+    expect(archivo).not.toContain("[COMPLETAR")
+    expect(archivo).not.toContain("@quepintasalta.com.ar")
+  })
+
+  it("nombra el historial de avisos entre lo que se borra", () => {
+    expect(archivo).toContain("El historial de los avisos que te mandamos.")
   })
 
   it("usa el helper whatsappUrl y no el número literal", () => {
@@ -65,6 +73,17 @@ describe("/perfil/eliminar-cuenta (con sesión)", () => {
   it("redirige sin sesión a login con next=/perfil/eliminar-cuenta", () => {
     expect(archivo).toContain("redirect(")
     expect(archivo).toContain("/auth/login?next=/perfil/eliminar-cuenta")
+  })
+
+  it("usa la casilla de contacto de @qps/core/contacto, no un literal a completar", () => {
+    expect(archivo).toContain("@qps/core/contacto")
+    expect(archivo).toContain("CONTACTO_EMAIL")
+    expect(archivo).not.toContain("[COMPLETAR")
+    expect(archivo).not.toContain("@quepintasalta.com.ar")
+  })
+
+  it("nombra el historial de avisos entre lo que se borra", () => {
+    expect(archivo).toContain("El historial de los avisos que te mandamos.")
   })
 })
 
@@ -89,6 +108,17 @@ describe("eliminar-cuenta-form.tsx (cliente)", () => {
   it("el camino de éxito muestra una confirmación en la pantalla, no solo navega", () => {
     expect(archivo).toContain("eliminada")
     expect(archivo).toContain("Tu cuenta fue eliminada")
+  })
+
+  it("no navega a la portada con el parámetro viejo ?cuenta=eliminada", () => {
+    expect(archivo).not.toContain("?cuenta=eliminada")
+  })
+
+  it("usa la casilla de contacto de @qps/core/contacto en el mensaje de error, no un literal", () => {
+    expect(archivo).toContain("@qps/core/contacto")
+    expect(archivo).toContain("CONTACTO_EMAIL")
+    expect(archivo).not.toContain("[COMPLETAR")
+    expect(archivo).not.toContain("@quepintasalta.com.ar")
   })
 })
 

@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { AlertCircle, CheckCircle2, Loader2, Trash2 } from "lucide-react"
+import { CONTACTO_EMAIL } from "@qps/core/contacto"
 
 /**
  * Compara lo que escribió la persona contra "ELIMINAR". Acepta espacios de
@@ -45,12 +46,18 @@ export function EliminarCuentaForm() {
         throw new Error("No se pudo eliminar la cuenta")
       }
 
-      // La cuenta ya no existe en el servidor: limpiamos solo el
-      // almacenamiento local del navegador (scope "local"), sin pedirle al
-      // servidor de Supabase que revoque la sesión, porque el usuario que
-      // la tenía ya no existe y esa llamada podría fallar. Si de todos
-      // modos falla, no tiramos la pantalla de éxito: lo peor que queda es
-      // una sesión vieja en el navegador.
+      // Con scope "local" (@supabase/auth-js 2.106.0, método `_signOut` de
+      // GoTrueClient), el cliente igual llama al servidor de Supabase a
+      // cerrar esta sesión puntual (no las de todos los dispositivos). La
+      // cuenta ya no existe en el servidor, así que esa llamada puede
+      // responder 401, 403 o 404: en esos tres casos la librería ignora el
+      // error y borra la sesión guardada en el navegador igual. Con
+      // cualquier otro error, la librería devuelve { error } sin tirar y no
+      // borra la sesión local; como no tira, el catch de abajo no se entera
+      // y ese valor de retorno se descarta a propósito (QPS-186, fuera de
+      // esta ronda): la cuenta ya está borrada en el servidor, no hay nada
+      // que reintentar. En los dos casos mostramos la pantalla de éxito
+      // igual.
       try {
         const supabase = createClient()
         await supabase.auth.signOut({ scope: "local" })
@@ -60,7 +67,7 @@ export function EliminarCuentaForm() {
 
       setEliminada(true)
     } catch {
-      setError("No pudimos eliminar tu cuenta. Probá de nuevo en unos minutos o escribinos.")
+      setError(`No pudimos eliminar tu cuenta. Probá de nuevo en unos minutos o escribinos a ${CONTACTO_EMAIL}.`)
       setEnviando(false)
     }
   }
@@ -74,7 +81,7 @@ export function EliminarCuentaForm() {
           Esto fue para siempre y no se puede deshacer.
         </p>
         <Button asChild className="mt-2">
-          <Link href="/?cuenta=eliminada">Volver a la portada</Link>
+          <Link href="/">Volver a la portada</Link>
         </Button>
       </div>
     )

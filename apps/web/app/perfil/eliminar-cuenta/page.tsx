@@ -5,6 +5,9 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button"
 import { AlertTriangle, ArrowLeft } from "lucide-react"
 import { EliminarCuentaForm } from "./eliminar-cuenta-form"
+import { CONTACTO_EMAIL, mailtoContacto } from "@qps/core/contacto"
+
+const linkClass = "text-primary underline underline-offset-4 hover:text-primary/80"
 
 export const revalidate = 0 // Evitar caché estática para esta página privada
 
@@ -47,6 +50,7 @@ export default async function EliminarCuentaPage() {
                   <li>Tus marcas de &quot;Voy&quot; y &quot;Me interesa&quot;.</li>
                   <li>Las preferencias de Mi Radar y de notificaciones.</li>
                   <li>Los avisos que tenés activados.</li>
+                  <li>El historial de los avisos que te mandamos.</li>
                   <li>Los tokens de aviso de tu celular.</li>
                   <li>La cuenta misma, con tu email y tu contraseña.</li>
                 </ul>
@@ -61,6 +65,14 @@ export default async function EliminarCuentaPage() {
             </div>
 
             <EliminarCuentaForm />
+
+            <p className="text-sm text-muted-foreground">
+              ¿Algo no anda? Escribinos a{" "}
+              <a href={mailtoContacto()} className={linkClass}>
+                {CONTACTO_EMAIL}
+              </a>
+              .
+            </p>
           </CardContent>
         </Card>
       </main>
