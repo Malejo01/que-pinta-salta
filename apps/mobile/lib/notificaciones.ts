@@ -21,6 +21,26 @@ export const MENSAJE_ERROR = 'No pudimos cargar tus notificaciones. Probá de nu
 export const MENSAJE_ERROR_GUARDAR = 'No pudimos guardar tus notificaciones. Probá de nuevo.'
 export const MENSAJE_NO_DISPONIBLE = 'Pronto vas a poder elegir tus notificaciones.'
 
+// Ronda 41, tarea 41-e: `quiet_start`/`quiet_end` son columnas `time` y
+// PostgREST las devuelve como `"HH:MM:SS"` (no `"HH:MM"`). Sin esta
+// normalización, el campo mostraba `23:00:00` y "Guardar" fallaba contra
+// `HORA_RE` de `@qps/core/notificaciones/preferencias` (exige exactamente
+// `HH:MM`, dos dígitos en cada parte).
+const HORA_CORTA_RE = /^([01]\d|2[0-3]):([0-5]\d)(?::[0-5]\d)?$/
+
+/**
+ * `"23:00:00"` -> `"23:00"`, `"09:05"` -> `"09:05"` (ya está corta, se
+ * devuelve igual). Cualquier otro formato (`"9:5"`, `""`, `null`, etc.) cae
+ * a `porDefecto`: no se "arregla" un formato ambiguo (dos dígitos exactos en
+ * cada parte, igual que `HORA_RE` de core). Pura.
+ */
+export function horaCorta(valor: unknown, porDefecto: string): string {
+  if (typeof valor !== 'string') return porDefecto
+  const coincidencia = HORA_CORTA_RE.exec(valor)
+  if (!coincidencia) return porDefecto
+  return `${coincidencia[1]}:${coincidencia[2]}`
+}
+
 export type ResultadoNotificaciones =
   | { tipo: 'ok'; preferencias: PreferenciasNotificacion }
   | { tipo: 'no-disponible' }
@@ -64,8 +84,8 @@ export async function obtenerNotificaciones(userId: string): Promise<ResultadoNo
         favorite_reminders: data.favorite_reminders,
         follow_news: data.follow_news,
         announcements: data.announcements,
-        quiet_start: data.quiet_start,
-        quiet_end: data.quiet_end,
+        quiet_start: horaCorta(data.quiet_start, PREFERENCIAS_POR_DEFECTO.quiet_start),
+        quiet_end: horaCorta(data.quiet_end, PREFERENCIAS_POR_DEFECTO.quiet_end),
       },
     }
   } catch (excepcion) {

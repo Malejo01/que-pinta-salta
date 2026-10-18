@@ -38,6 +38,7 @@ import { useColoresQPS } from '@/lib/colores'
 import { codigoErrorGoogle, mensajeErrorGoogle, registrarErrorGoogle } from '@/lib/google'
 import { leerEnv } from '@/lib/env'
 import { urlSitio } from '@/lib/links'
+import { borrarTokenDeEsteTelefono } from '@/lib/push/registro'
 import { supabase } from '@/lib/supabase'
 import { useSession } from '@/lib/session'
 import { textoVersion } from '@/lib/version'
@@ -316,6 +317,11 @@ export default function Cuenta() {
     setAccionEnCurso('salir')
     try {
       const entroConGoogle = session?.user.app_metadata.provider === 'google'
+      // Ronda 41, 41-e: borra la fila del token de este teléfono antes de
+      // cerrar la sesión. `borrarTokenDeEsteTelefono` (41-c) nunca tira, así
+      // que no se envuelve en su propio try/catch (eso ocultaría si algún
+      // día empieza a tirar).
+      await borrarTokenDeEsteTelefono()
       await supabase.auth.signOut()
       if (entroConGoogle) {
         try {
