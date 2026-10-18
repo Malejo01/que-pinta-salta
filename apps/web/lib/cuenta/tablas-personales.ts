@@ -208,6 +208,21 @@ export const COLUMNAS_A_DESVINCULAR: readonly EntradaTablaPersonal[] = [
       "que esta columna referencia auth.users: es falso, referencia profiles.",
   },
   {
+    tabla: "events",
+    columna: "featured_set_by",
+    comentario:
+      "Etapa 2: quién destacó el evento (admin). FK a auth.users(id) ON DELETE SET NULL, nullable. La base " +
+      "la deja en null sola cuando corre deleteUser(); se pone en null a mano igual (también lo hace " +
+      "delete_my_account()).",
+  },
+  {
+    tabla: "sponsored_campaigns",
+    columna: "created_by",
+    comentario:
+      "Etapa 2: quién cargó la campaña patrocinada (admin). FK a auth.users(id) ON DELETE SET NULL, " +
+      "nullable. Mismo criterio que events.featured_set_by.",
+  },
+  {
     tabla: "aliases",
     columna: "created_by",
     comentario:
