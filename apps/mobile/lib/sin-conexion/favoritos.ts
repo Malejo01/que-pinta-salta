@@ -34,12 +34,30 @@
 // tramo que llama a `paraMostrarFavoritos` en un `try/catch`: si `datos` no
 // es un array de ítems válidos, se trata exactamente igual que "no hay
 // caché" (el error de siempre, o `null`), nunca se escapa la excepción.
+//
+// Vuelta 2 de la revisión de 43-b (seguridad, el bloqueante): una carga
+// puede quedar esperando `obtener(userId)` justo cuando llega un cierre de
+// sesión, un cambio de cuenta o una eliminación de cuenta — ese borrado
+// (`borrarCacheFavoritos`/`borrarTodaLaCache`, `lib/session/index.tsx`) es
+// fire-and-forget y no cancela la petición en vuelo. Sin nada más,
+// `cargarFavoritosConCache` podía volver a escribir en el disco, DESPUÉS
+// del borrado, la lista de una cuenta que ya no es la actual (y la cuenta
+// siguiente, sin red, la vería). Por eso captura `epocaDeCacheFavoritos()`
+// (`./cache`) antes de `await obtener(userId)` y la vuelve a comparar
+// cuando la respuesta llega: si cambió, ni escribe (rama `ok`) ni lee
+// (rama de error por red) la caché — ver el detalle en cada rama, abajo.
+// `leerFavoritosGuardados` NO necesita este chequeo: sus dos llamadores
+// (43-d, pantalla de Favoritos y `app/(tabs)/_layout.tsx`, fuera de los
+// archivos permitidos de esta tarea) ya hacen `await esperarBorradoDeCache()`
+// antes de llamarla, así que cuando se ejecuta no hay ningún borrado en
+// vuelo que invalidar.
 import { formatDateInSalta } from '@qps/core/home/transform'
 import type { DisplayEvent } from '@qps/core/home/types'
 import { obtenerFavoritos, type ResultadoFavoritos } from '@/lib/favoritos'
 import type { Almacen } from './almacen'
 import {
   CLAVE_FAVORITOS,
+  epocaDeCacheFavoritos,
   guardarCache,
   leerCache,
   recortarDescripcion,
@@ -76,6 +94,12 @@ export async function cargarFavoritosConCache(
   deps: DepsCargarFavoritos = {},
 ): Promise<ResultadoCargaFavoritos> {
   const { obtener = obtenerFavoritos, ahora = new Date(), almacen } = deps
+
+  // Capturada ANTES del `await`: si cambia mientras `obtener` está en
+  // vuelo, es porque llegó un cierre de sesión, un cambio de cuenta o una
+  // eliminación de cuenta antes de que la respuesta volviera (el
+  // bloqueante de la vuelta 2, ver el comentario de cabecera).
+  const epoca = epocaDeCacheFavoritos()
   const resultado = await obtener(userId)
 
   if (resultado.ok) {
@@ -87,7 +111,12 @@ export async function cargarFavoritosConCache(
 
     // Igual que en la agenda: si el recorte no da nada válido, se deja la
     // caché vieja; si `guardarCache` falla, ya devuelve `false` sin tirar.
-    if (recortados !== null) {
+    // Si la época cambió, esta lista es de una sesión que ya no es la
+    // actual: no se escribe (lo que la pantalla muestra en este render no
+    // cambia por esto; el cambio de sesión ya la va a reemplazar cuando
+    // llegue al estado de React) — lo único que se evita es dejarla en el
+    // disco.
+    if (recortados !== null && epocaDeCacheFavoritos() === epoca) {
       await guardarCache(CLAVE_FAVORITOS, recortados, { ahora, almacen })
     }
 
@@ -95,6 +124,13 @@ export async function cargarFavoritosConCache(
   }
 
   if (!resultado.sinConexion) {
+    return { tipo: 'error', error: resultado.error }
+  }
+
+  // Mismo chequeo del otro lado: si la época cambió mientras `obtener`
+  // fallaba por red, la caché en disco (si quedó alguna) es de una sesión
+  // que ya no es la actual — se devuelve el error de siempre, no la caché.
+  if (epocaDeCacheFavoritos() !== epoca) {
     return { tipo: 'error', error: resultado.error }
   }
 

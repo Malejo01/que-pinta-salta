@@ -90,6 +90,39 @@ export function reiniciarBanderaDeLimpieza(): void {
   versionesViejasLimpiadas = false
 }
 
+/**
+ * "Época" de la caché de favoritos (vuelta 2 de revisión de 43-b, pedido de
+ * seguridad): un contador de módulo, igual que `versionesViejasLimpiadas`
+ * arriba — un solo almacén y un solo proceso de app, así que no hace falta
+ * nada más elaborado. Arranca en 0 y sube cada vez que
+ * `borrarCacheFavoritos`/`borrarTodaLaCache` DECIDEN borrar (ver el
+ * comentario de cada una: el incremento va antes de cualquier `await`).
+ *
+ * El bloqueante que esto tapa: una carga de favoritos puede quedar
+ * esperando `obtener(userId)` (hasta 15 s con red lenta, `TIMEOUT_RED_MS`
+ * de `lib/favoritos.ts`) justo cuando llega un cierre de sesión, un cambio
+ * de cuenta o una eliminación de cuenta. Ese borrado es fire-and-forget y
+ * no cancela la petición en vuelo: sin esta época, la respuesta que llega
+ * DESPUÉS del borrado podía volver a escribir en el disco la lista de la
+ * cuenta que ya no es la actual (y una cuenta siguiente, sin red, la vería).
+ * `cargarFavoritosConCache` (lib/sin-conexion/favoritos.ts) captura la
+ * época antes de `await obtener(userId)` y la compara con la época actual
+ * cuando la respuesta llega: si cambió, no escribe (ni lee) la caché.
+ *
+ * Memoria del proceso, nunca viaja al sobre ni al disco (no es parte de
+ * `SobreCache`): si la app se reinicia no queda ninguna carga en vuelo que
+ * invalidar, así que no hace falta persistirla. Monótona creciente: no hay
+ * una función para bajarla ni para reiniciarla (ni siquiera "solo para
+ * tests", como `reiniciarBanderaDeLimpieza"): los tests pueden leerla antes
+ * y después de cada borrado, y eso alcanza.
+ */
+let epocaCacheFavoritos = 0
+
+/** La época actual de la caché de favoritos. Ver el comentario de `epocaCacheFavoritos`. */
+export function epocaDeCacheFavoritos(): number {
+  return epocaCacheFavoritos
+}
+
 function esClaveDeCache(clave: string): boolean {
   return clave.startsWith(PREFIJO_CACHE)
 }
@@ -304,8 +337,17 @@ const PATRON_CLAVE_FAVORITOS = /^qps:cache:v\d+:favoritos$/
  * vuelve a tener una carga buena de Favoritos antes de cerrar sesión o
  * cambiar de cuenta (lo que va a usar 43-d), la lista de favoritos de la
  * versión vieja quedaba en el disco sin que nada la alcanzara. Nunca tira.
+ *
+ * Primero sube `epocaCacheFavoritos` (vuelta 2 de revisión, seguridad): ANTES
+ * de cualquier `await`, para que invalide una carga de favoritos en vuelo
+ * desde el instante en que se decide borrar, no desde que el borrado (que
+ * sigue, debajo, siendo best-effort y asíncrono) termina. Si se
+ * incrementara al final, la ventana seguiría abierta justo mientras el
+ * borrado corre. Esto no puede fallar (es un entero en memoria), así que
+ * queda fuera del `try`/`catch` de abajo.
  */
 export async function borrarCacheFavoritos(almacen: Almacen = almacenPorDefecto): Promise<void> {
+  epocaCacheFavoritos += 1
   try {
     const claves = await almacen.claves()
     const propias = claves.filter((clave) => PATRON_CLAVE_FAVORITOS.test(clave))
@@ -315,8 +357,15 @@ export async function borrarCacheFavoritos(almacen: Almacen = almacenPorDefecto)
   }
 }
 
-/** Borra todas las claves que empiezan con `PREFIJO_CACHE`, de cualquier versión (incluida la actual). Nunca tira. */
+/**
+ * Borra todas las claves que empiezan con `PREFIJO_CACHE`, de cualquier
+ * versión (incluida la actual). Nunca tira. Sube `epocaCacheFavoritos`
+ * primero, por la misma razón que `borrarCacheFavoritos` (es el camino de
+ * eliminar la cuenta, que también puede llegar con una carga de favoritos
+ * en vuelo).
+ */
 export async function borrarTodaLaCache(almacen: Almacen = almacenPorDefecto): Promise<void> {
+  epocaCacheFavoritos += 1
   try {
     const claves = await almacen.claves()
     const propias = claves.filter(esClaveDeCache)
