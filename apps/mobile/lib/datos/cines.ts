@@ -9,6 +9,7 @@
 import type { MovieShowings } from '@qps/core/types'
 import { esUuid } from '@/lib/links'
 import { MENSAJE_SIN_CONFIGURACION } from '@/lib/mensajes'
+import { esErrorDeRed } from '@/lib/red'
 import { supabase } from '@/lib/supabase'
 
 export { MENSAJE_SIN_CONFIGURACION }
@@ -29,7 +30,11 @@ export interface Pelicula {
   created_at?: string
 }
 
-export type ResultadoCines = { ok: true; peliculas: Pelicula[] } | { ok: false; error: string }
+// R43, 43-b: `sinConexion` se suma cuando `esErrorDeRed` (lib/red.ts) la
+// reconoce sobre la RESPUESTA COMPLETA de la consulta (no solo el `error`) o,
+// en el `catch`, sobre la excepción. El mensaje no cambia. La caché vive en
+// `lib/sin-conexion/agenda.ts` (43-b): este archivo no toca AsyncStorage.
+export type ResultadoCines = { ok: true; peliculas: Pelicula[] } | { ok: false; error: string; sinConexion?: boolean }
 
 /** Películas en cartelera hoy, ordenadas por título (igual que la web). */
 export async function obtenerCines(): Promise<ResultadoCines> {
@@ -38,21 +43,21 @@ export async function obtenerCines(): Promise<ResultadoCines> {
   }
 
   try {
-    const { data, error } = await supabase
+    const respuesta = await supabase
       .from('cinema_movies')
       .select('id, slug, title, poster_url, showings')
       .eq('is_currently_showing', true)
       .order('title', { ascending: true })
 
-    if (error) {
-      return { ok: false, error: MENSAJE_ERROR_RED }
+    if (respuesta.error) {
+      return { ok: false, error: MENSAJE_ERROR_RED, sinConexion: esErrorDeRed(respuesta) || undefined }
     }
 
     // `showings` es jsonb (Json en los tipos generados): se castea a la forma
     // concreta MovieShowings, igual que `CinemaMovie` en packages/core/src/types.ts.
-    return { ok: true, peliculas: (data ?? []) as unknown as Pelicula[] }
-  } catch {
-    return { ok: false, error: MENSAJE_ERROR_RED }
+    return { ok: true, peliculas: (respuesta.data ?? []) as unknown as Pelicula[] }
+  } catch (e) {
+    return { ok: false, error: MENSAJE_ERROR_RED, sinConexion: esErrorDeRed(e) || undefined }
   }
 }
 
