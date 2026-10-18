@@ -35,6 +35,7 @@ import { Cargando, ErrorCarga, Vacio } from '@/components/EstadoCarga'
 import { Icono } from '@/components/Icono'
 import { Texto } from '@/components/Texto'
 import { useColoresQPS } from '@/lib/colores'
+import { datosTarjetaCompartir } from '@/lib/compartir'
 import { obtenerEventoPorId, type ResultadoEvento } from '@/lib/datos/eventos'
 import { textoPrecio, type PrecioEvento } from '@/lib/formato'
 import { esUuid } from '@/lib/links'
@@ -161,7 +162,16 @@ export default function EventoPorId() {
         </Texto>
         <View style={estilos.accionesTitulo}>
           <BotonFavorito eventId={evento.id} tamanio={40} fondo="muted" />
-          <BotonCompartir eventId={evento.id} titulo={evento.title} fecha={fecha} hora={hora} lugar={lugar} tamanio={40} fondo="muted" />
+          <BotonCompartir
+            eventId={evento.id}
+            titulo={evento.title}
+            fecha={fecha}
+            hora={hora}
+            lugar={lugar}
+            tamanio={40}
+            fondo="muted"
+            tarjeta={datosTarjetaCompartir(evento) ?? undefined}
+          />
         </View>
       </View>
 

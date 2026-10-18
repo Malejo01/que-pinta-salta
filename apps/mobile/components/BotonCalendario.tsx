@@ -83,14 +83,20 @@ export function BotonCalendario({ evento }: BotonCalendarioProps) {
       </Pressable>
 
       {mensaje ? (
-        <Texto tono="secundario" style={estilos.mensaje}>
+        <Texto tono="secundario" style={estilos.mensaje} accessibilityLiveRegion="polite">
           {mensaje}
         </Texto>
       ) : null}
 
       {puedeAbrirAjustes ? (
-        <Pressable onPress={() => Linking.openSettings()} accessibilityRole="button" accessibilityLabel="Abrir Ajustes">
-          <Texto tono="secundario" style={[estilos.mensaje, estilos.subrayado]}>
+        <Pressable
+          onPress={() => Linking.openSettings()}
+          accessibilityRole="button"
+          accessibilityLabel="Abrir Ajustes"
+          hitSlop={10}
+          style={estilos.botonAjustes}
+        >
+          <Texto peso="semibold" style={{ color: colores.primary }}>
             Abrir Ajustes
           </Texto>
         </Pressable>
@@ -102,5 +108,5 @@ export function BotonCalendario({ evento }: BotonCalendarioProps) {
 const estilos = StyleSheet.create({
   ctaOutline: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 10, paddingVertical: 14, borderWidth: 1 },
   mensaje: { marginTop: 6, fontSize: 13 },
-  subrayado: { textDecorationLine: 'underline' },
+  botonAjustes: { marginTop: 6, paddingVertical: 10, alignSelf: 'flex-start' },
 })
