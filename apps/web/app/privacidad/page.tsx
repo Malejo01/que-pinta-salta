@@ -1,199 +1,307 @@
 import type { Metadata } from "next"
+import Link from "next/link"
 import { ShieldCheck } from "lucide-react"
-import { Navbar } from "@/components/navbar"
-import { MobileNav } from "@/components/mobile-nav"
-import { ADS_ENABLED } from "@/lib/config/monetization"
+import { CONTACTO_EMAIL, mailtoContacto } from "@qps/core/contacto"
 import { whatsappUrl } from "@/lib/contacto"
+import { ADS_ENABLED } from "@/lib/config/monetization"
+import { PaginaLegal, SeccionLegal, Marca, claseLink } from "@/components/legal/pagina-legal"
 
 export const metadata: Metadata = {
   title: "Política de Privacidad | Qué Pinta Salta",
-  description: "Qué datos recopila Qué Pinta Salta, para qué los usa, con quién los comparte y cómo ejercer tus derechos.",
+  description:
+    "Qué datos personales trata Qué Pinta Salta —el sitio quepintasalta.com.ar y la app Qué Pinta Salta para Android— para qué los usa, con quién los comparte y cómo ejercer tus derechos.",
   alternates: { canonical: "/privacidad" },
 }
 
-const LAST_UPDATED = "8 de octubre de 2026"
-
 const contactoWhatsappUrl = whatsappUrl("Hola! Tengo una consulta sobre mis datos en Que Pinta Salta.")
-
-const linkClass = "text-primary underline underline-offset-4 hover:text-primary/80"
-
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <section className="space-y-3">
-      <h2 className="text-xl font-bold text-foreground">{title}</h2>
-      <div className="space-y-3 text-sm leading-relaxed text-muted-foreground">{children}</div>
-    </section>
-  )
-}
 
 export default function PrivacidadPage() {
   return (
-    <div className="min-h-screen bg-background pb-page sm:pb-0">
-      <Navbar />
+    <PaginaLegal
+      titulo="Política de Privacidad"
+      icono={ShieldCheck}
+      ultimaActualizacion="[COMPLETAR: fecha de publicación]"
+      borrador
+    >
+      <SeccionLegal titulo="Quiénes somos y a qué se aplica" id="quienes-somos">
+        <p>
+          Qué Pinta Salta es el sitio quepintasalta.com.ar y la app &quot;Qué Pinta Salta&quot; para Android. Esta
+          política explica qué datos personales tratamos cuando los usás, conforme a la Ley 25.326 de Protección de
+          los Datos Personales de la República Argentina.
+        </p>
+        <p>
+          <strong className="text-foreground">Responsable del tratamiento:</strong>{" "}
+          <Marca>[COMPLETAR: nombre o razón social del responsable, CUIT y domicilio]</Marca>{" "}
+          <Marca>[REVISIÓN LEGAL]</Marca>.
+        </p>
+        <p>
+          <strong className="text-foreground">La base de datos:</strong> <Marca>[REVISIÓN LEGAL]</Marca> sobre si
+          hace falta inscribirla en el Registro Nacional de Bases de Datos de la Agencia de Acceso a la Información
+          Pública.
+        </p>
+      </SeccionLegal>
 
-      <main className="container mx-auto max-w-3xl px-4 py-12">
-        <div className="mb-10 flex flex-col items-center space-y-3 text-center">
-          <div className="mb-1 flex size-14 items-center justify-center rounded-2xl border border-primary/20 bg-primary/10 text-primary">
-            <ShieldCheck className="size-7" />
-          </div>
-          <h1 className="text-3xl font-extrabold tracking-tight sm:text-4xl">Política de Privacidad</h1>
-          <p className="text-sm text-muted-foreground">Última actualización: {LAST_UPDATED}</p>
-        </div>
+      <SeccionLegal titulo="Qué datos tratamos">
+        <ul className="list-disc space-y-3 pl-5">
+          <li>
+            <strong className="text-foreground">Sin cuenta:</strong> podés usar la agenda, la búsqueda y las fichas
+            de evento sin crear una cuenta, tanto en el sitio como en la app.
+          </li>
+          <li>
+            <strong className="text-foreground">Tu cuenta:</strong> tu email, con contraseña o con Google; si entrás
+            con Google, también el nombre y la foto de perfil que Google comparte. La contraseña la gestiona nuestro
+            proveedor de autenticación (Supabase) y nosotros no la vemos. Los campos <code>contact_type</code> y{" "}
+            <code>contact_value</code> de tu perfil:{" "}
+            <Marca>[COMPLETAR: ¿se piden en algún lado? Hoy ningún archivo de la web los usa]</Marca>.
+          </li>
+          <li>
+            <strong className="text-foreground">Lo que hacés con tu cuenta:</strong> tus favoritos; tus marcas de
+            &quot;Voy&quot; y &quot;Me interesa&quot; en cada evento (el total de cada uno se muestra recién desde 3
+            personas, y nunca se muestra quién marcó cada tipo); las categorías, los lugares y las cuentas de
+            Instagram que seguís; las preferencias de Mi Radar (incluido el email al que llegan los avisos) y las de
+            notificaciones (el horario de silencio y el tope de avisos por día); y los eventos que cargás.
+          </li>
+          <li>
+            <strong className="text-foreground">Notificaciones en la app:</strong> solo si las activás: el permiso
+            del teléfono se pide recién cuando tocás &quot;Activar notificaciones&quot;. Guardamos el token de
+            notificaciones de tu teléfono, la plataforma y la última vez que se usó, y un registro de los avisos que
+            te mandamos, para no repetirte uno y para respetar el tope diario. Al cerrar sesión, el token de ese
+            teléfono se borra.
+          </li>
+          <li>
+            <strong className="text-foreground">Lo que la app guarda en tu teléfono:</strong> la sesión, en el
+            almacenamiento seguro del teléfono; y, para verla sin conexión, una copia de la última agenda y de tu
+            lista de favoritos, sin tu email, tu contraseña ni ningún token. Esa copia vence a las 48 horas (la
+            agenda) o a los 7 días (los favoritos) —{" "}
+            <Marca>[COMPLETAR: confirmar estos plazos, propuesta sin confirmar de la R43]</Marca>— y se borra al
+            cerrar sesión, al cambiar de cuenta y al eliminar la cuenta.
+          </li>
+          <li>
+            <strong className="text-foreground">Calendario:</strong> solo cuando tocás &quot;Agregar al
+            calendario&quot;: la app te pide permiso al calendario de tu teléfono. Con ese permiso mira qué
+            calendarios tenés para saber en cuál puede escribir y guarda ahí el evento. No leemos los eventos de tu
+            calendario ni los mandamos a ningún lado: todo queda en el teléfono.{" "}
+            <Marca>[REVISIÓN LEGAL]</Marca> sobre cómo se informa este permiso en el momento de pedirlo.
+          </li>
+          <li>
+            <strong className="text-foreground">Fallas de la app:</strong> si la app se cierra o falla, mandamos un
+            reporte técnico a Sentry sin datos personales (sin tu email ni tokens).{" "}
+            <Marca>
+              [COMPLETAR: qué datos técnicos incluye (modelo del teléfono, versión de Android y de la app) y cuánto
+              tiempo los guarda Sentry]
+            </Marca>
+            .
+          </li>
+          <li>
+            <strong className="text-foreground">Métricas propias:</strong> cuántas veces se vio cada ficha y cuántos
+            clics recibió el botón &quot;Comprar&quot;, sumados por evento y por día, sin usuario. Lo mismo para las
+            vistas desde la app.
+          </li>
+          <li>
+            <strong className="text-foreground">Navegación en el sitio:</strong> lo de siempre: Vercel Analytics y,
+            solo con tu consentimiento, Google Analytics (ver &quot;Cookies y almacenamiento local&quot;).
+          </li>
+          <li>
+            <strong className="text-foreground">Lo que no tratamos:</strong> tu ubicación (&quot;Cómo llegar&quot;
+            abre el mapa de tu teléfono con la dirección del lugar), tus contactos, las fotos de tu teléfono ni un
+            historial de búsquedas por usuario. La app no tiene analítica de terceros ni anuncios.
+          </li>
+        </ul>
+      </SeccionLegal>
 
-        <div className="space-y-10">
-          <Section title="Quiénes somos">
-            <p>
-              Qué Pinta Salta (quepintasalta.com.ar) es una agenda de eventos culturales, peñas, boliches, teatro y
-              cine de Salta Capital. Esta política explica qué datos personales tratamos cuando usás el sitio, conforme
-              a la Ley 25.326 de Protección de los Datos Personales de la República Argentina.
-            </p>
-          </Section>
+      <SeccionLegal titulo="Para qué los usamos">
+        <ul className="list-disc space-y-2 pl-5">
+          <li>Mantener tu sesión, tus favoritos y los eventos que publicás.</li>
+          <li>Mandarte los avisos que activaste en la app, respetando el horario de silencio y el tope por día.</li>
+          <li>Mostrarte la agenda sin conexión cuando no tenés señal.</li>
+          <li>Arreglar fallas de la app.</li>
+          <li>Enviarte por email las novedades de Mi Radar, solo si lo activás.</li>
+          <li>Moderar los eventos cargados por usuarios antes de publicarlos.</li>
+          <li>Entender qué secciones se usan, para mejorar el sitio y la app.</li>
+          <li>
+            Mostrar publicidad en el sitio, que es lo que sostiene el servicio gratuito (ver &quot;Cookies y
+            almacenamiento local&quot;).
+          </li>
+        </ul>
+        <p>No vendemos tus datos personales.</p>
+      </SeccionLegal>
 
-          <Section title="Qué datos recopilamos">
-            <ul className="list-disc space-y-2 pl-5">
-              <li>
-                <strong className="text-foreground">Cuenta:</strong> si te registrás, tu email y, si entrás con Google,
-                el nombre y la foto de perfil que Google comparte. La contraseña nunca la vemos: la gestiona nuestro
-                proveedor de autenticación.
-              </li>
-              <li>
-                <strong className="text-foreground">Actividad en tu cuenta:</strong> los eventos que guardás como
-                favoritos, los eventos que cargás y las preferencias de &quot;Mi Radar&quot; (categorías, lugares y
-                cuentas que seguís).
-              </li>
-              <li>
-                <strong className="text-foreground">Navegación:</strong> datos técnicos y de uso (páginas visitadas,
-                dispositivo, navegador, ubicación aproximada por IP) recogidos por la analítica de Vercel y por
-                Google AdSense, descritos abajo.
-              </li>
-            </ul>
-            <p>Navegar la agenda no requiere cuenta.</p>
-          </Section>
+      <SeccionLegal titulo="Cookies y almacenamiento local">
+        <p>
+          En el sitio usamos cookies propias para mantener tu sesión y el almacenamiento local del navegador para
+          recordar tu tema claro u oscuro. Ninguna de las dos necesita tu consentimiento.
+        </p>
+        <p>
+          Para saber qué secciones del sitio se usan, usamos Google Analytics, que se carga a través de Google Tag
+          Manager. Esa carga, y la cookie <code>_ga</code> que trae,{" "}
+          <strong className="text-foreground">solo ocurre si lo aceptás</strong> en el aviso que aparece la primera
+          vez que entrás al sitio. Si rechazás, o todavía no elegís, Google Analytics no se carga y esa cookie no se
+          pone. Podés cambiar tu elección cuando quieras con el botón &quot;Cookies&quot; del pie de página, que
+          vuelve a mostrar el aviso.
+        </p>
+        <p>
+          La analítica propia de Vercel (páginas vistas, rendimiento del sitio) no usa cookies ni necesita tu
+          consentimiento.
+        </p>
+        {ADS_ENABLED ? (
+          <p>
+            Mostramos publicidad de Google AdSense, que usa cookies de terceros para mostrarte anuncios según tu
+            navegación en este y otros sitios. Podés desactivar la publicidad personalizada en la{" "}
+            <a
+              href="https://adssettings.google.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              className={claseLink}
+            >
+              Configuración de anuncios de Google
+            </a>{" "}
+            o, para otros proveedores, en{" "}
+            <a href="https://www.aboutads.info/choices" target="_blank" rel="noopener noreferrer" className={claseLink}>
+              aboutads.info
+            </a>
+            . Más información sobre{" "}
+            <a
+              href="https://policies.google.com/technologies/partner-sites"
+              target="_blank"
+              rel="noopener noreferrer"
+              className={claseLink}
+            >
+              cómo usa Google los datos de los sitios que usan sus servicios
+            </a>
+            .
+          </p>
+        ) : (
+          <p>
+            Hoy no mostramos publicidad en el sitio. Si en el futuro mostramos anuncios, vamos a actualizar esta
+            sección antes de activarlos para explicar qué cookies agregan y cómo desactivarlas.
+          </p>
+        )}
+        <p>
+          También podés bloquear o borrar cookies desde la configuración de tu navegador; si bloqueás las propias,
+          no vas a poder iniciar sesión en el sitio.
+        </p>
+        <p>
+          La app no usa cookies: la sesión se guarda en el almacenamiento seguro del teléfono (ver &quot;Qué datos
+          tratamos&quot;).
+        </p>
+      </SeccionLegal>
 
-          <Section title="Para qué los usamos">
-            <ul className="list-disc space-y-2 pl-5">
-              <li>Mantener tu sesión, tus favoritos y los eventos que publicás.</li>
-              <li>Enviarte por email las novedades de &quot;Mi Radar&quot;, solo si lo activás. Podés desactivarlo cuando quieras desde esa misma página.</li>
-              <li>Moderar los eventos cargados por usuarios antes de publicarlos.</li>
-              <li>Entender qué secciones se usan para mejorar el sitio.</li>
-              <li>Mostrar publicidad, que es lo que sostiene el sitio gratuito.</li>
-            </ul>
-            <p>No vendemos tus datos personales.</p>
-          </Section>
+      <SeccionLegal titulo="Con quién los compartimos">
+        <p>Solo con los proveedores que hacen funcionar el sitio y la app, y únicamente para esa función:</p>
+        <ul className="list-disc space-y-2 pl-5">
+          <li>
+            <strong className="text-foreground">Supabase:</strong> base de datos y autenticación.
+          </li>
+          <li>
+            <strong className="text-foreground">Vercel:</strong> alojamiento del sitio y analítica anónima.
+          </li>
+          <li>
+            <strong className="text-foreground">Google:</strong> inicio de sesión con Google y, solo si lo aceptás,
+            Google Analytics a través de Google Tag Manager
+            {ADS_ENABLED ? " y AdSense, para mostrar publicidad." : "."}
+          </li>
+          <li>
+            <strong className="text-foreground">Resend:</strong> envío de los emails de Mi Radar.
+          </li>
+          <li>
+            <strong className="text-foreground">Expo:</strong> el servicio que entrega las notificaciones de la app
+            a tu teléfono.
+          </li>
+          <li>
+            <strong className="text-foreground">Google (Firebase Cloud Messaging):</strong> lleva esas
+            notificaciones a los teléfonos Android.
+          </li>
+          <li>
+            <strong className="text-foreground">Sentry:</strong> recibe los reportes de fallas de la app.
+          </li>
+        </ul>
+        <p>
+          Algunos de estos proveedores procesan datos fuera de Argentina <Marca>[REVISIÓN LEGAL]</Marca> sobre la
+          transferencia internacional de datos. La región del proyecto de Supabase:{" "}
+          <Marca>[COMPLETAR: región del proyecto de Supabase]</Marca>. También podemos revelar datos si una autoridad
+          competente lo exige legalmente.
+        </p>
+      </SeccionLegal>
 
-          <Section title="Cookies y publicidad">
-            <p>
-              Usamos cookies propias para mantener tu sesión y el almacenamiento local del navegador para recordar tu
-              tema claro u oscuro. Ninguna de las dos necesita tu consentimiento.
-            </p>
-            <p>
-              Para saber qué secciones del sitio se usan, usamos Google Analytics, que se carga a través de Google
-              Tag Manager. Esa carga, y la cookie <code>_ga</code> que trae, <strong className="text-foreground">
-              solo ocurre si lo aceptás</strong> en el aviso que aparece la primera vez que entrás al sitio. Si
-              rechazás, o todavía no elegís, Google Analytics no se carga y esa cookie no se pone. Podés cambiar tu
-              elección cuando quieras con el botón &quot;Cookies&quot; del pie de página, que vuelve a mostrar el
-              aviso.
-            </p>
-            <p>
-              La analítica propia de Vercel (páginas vistas, rendimiento del sitio) no usa cookies ni necesita tu
-              consentimiento.
-            </p>
-            {ADS_ENABLED ? (
-              <p>
-                Mostramos publicidad de Google AdSense, que usa cookies de terceros para mostrarte anuncios según tu
-                navegación en este y otros sitios. Podés desactivar la publicidad personalizada en la{" "}
-                <a href="https://adssettings.google.com" target="_blank" rel="noopener noreferrer" className={linkClass}>
-                  Configuración de anuncios de Google
-                </a>{" "}
-                o, para otros proveedores, en{" "}
-                <a href="https://www.aboutads.info/choices" target="_blank" rel="noopener noreferrer" className={linkClass}>
-                  aboutads.info
-                </a>
-                . Más información sobre{" "}
-                <a
-                  href="https://policies.google.com/technologies/partner-sites"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className={linkClass}
-                >
-                  cómo usa Google los datos de los sitios que usan sus servicios
-                </a>
-                .
-              </p>
-            ) : (
-              <p>
-                Hoy no mostramos publicidad en el sitio. Si en el futuro mostramos anuncios, vamos a actualizar esta
-                sección antes de activarlos para explicar qué cookies agregan y cómo desactivarlas.
-              </p>
-            )}
-            <p>También podés bloquear o borrar cookies desde la configuración de tu navegador; si bloqueás las propias, no vas a poder iniciar sesión.</p>
-          </Section>
+      <SeccionLegal titulo="Contenido público">
+        <p>
+          La información de eventos (títulos, flyers, lugares, horarios y precios) viene de ticketeras, de cuentas
+          públicas de Instagram de locales y productores, y de lo que cargan los usuarios.{" "}
+          <Marca>[REVISIÓN LEGAL]</Marca> sobre los afiches de terceros. Si sos titular de un contenido publicado y
+          querés corregirlo o que lo quitemos, escribinos.
+        </p>
+      </SeccionLegal>
 
-          <Section title="Con quién los compartimos">
-            <p>Solo con los proveedores que hacen funcionar el sitio, y únicamente para esa función:</p>
-            <ul className="list-disc space-y-2 pl-5">
-              <li><strong className="text-foreground">Supabase:</strong> base de datos y autenticación.</li>
-              <li><strong className="text-foreground">Vercel:</strong> alojamiento del sitio y analítica anónima.</li>
-              <li>
-                <strong className="text-foreground">Google:</strong> inicio de sesión con Google y, solo si lo
-                aceptás, Google Analytics a través de Google Tag Manager
-                {ADS_ENABLED ? " y AdSense, para mostrar publicidad." : "."}
-              </li>
-              <li><strong className="text-foreground">Resend:</strong> envío de los emails de &quot;Mi Radar&quot;.</li>
-            </ul>
-            <p>
-              Algunos de estos proveedores procesan datos fuera de Argentina. También podemos revelar datos si una
-              autoridad competente lo exige legalmente.
-            </p>
-          </Section>
+      <SeccionLegal titulo="Cuánto tiempo los guardamos">
+        <p>
+          Los datos de tu cuenta se conservan mientras la cuenta exista. La copia que la app guarda en tu teléfono
+          dura hasta que vence o hasta que se borra, como contamos arriba. El registro de los avisos enviados se
+          conserva <Marca>[COMPLETAR: plazo]</Marca>. Lo que debamos conservar por una obligación legal:{" "}
+          <Marca>[REVISIÓN LEGAL]</Marca>.
+        </p>
+      </SeccionLegal>
 
-          <Section title="Contenido público">
-            <p>
-              La información de eventos (títulos, flyers, lugares, horarios y precios) proviene de ticketeras, cuentas
-              públicas de Instagram de locales y productores, y de lo que cargan los usuarios. Si sos titular de un
-              contenido publicado y querés corregirlo o que lo quitemos, escribinos.
-            </p>
-          </Section>
+      <SeccionLegal titulo="Eliminar tu cuenta" id="eliminar-cuenta">
+        <p>
+          En la app: Cuenta → &quot;Eliminar mi cuenta&quot;. En el sitio, con tu cuenta iniciada:{" "}
+          <Link href="/perfil/eliminar-cuenta" className={claseLink}>
+            Mi perfil → Eliminar mi cuenta
+          </Link>
+          . Sin sesión iniciada:{" "}
+          <Link href="/eliminar-cuenta" className={claseLink}>
+            esta página
+          </Link>
+          , que explica qué se borra y qué no.
+        </p>
+      </SeccionLegal>
 
-          <Section title="Cuánto tiempo los guardamos">
-            <p>
-              Los datos de tu cuenta se conservan mientras la cuenta exista. Si pedís eliminarla, borramos tus datos
-              personales, salvo lo que debamos conservar por obligación legal.
-            </p>
-          </Section>
+      <SeccionLegal titulo="Tus derechos">
+        <p>
+          Podés pedir acceso, rectificación, actualización o supresión de tus datos personales. El acceso es
+          gratuito en intervalos no menores a seis meses, salvo que acredites un interés legítimo (art. 14, inc. 3,
+          Ley 25.326). Los plazos para responder estos pedidos: <Marca>[REVISIÓN LEGAL]</Marca>.
+        </p>
+        <p>
+          La Agencia de Acceso a la Información Pública, en su carácter de Órgano de Control de la Ley 25.326, tiene
+          la atribución de atender las denuncias y los reclamos de quienes resulten afectados en sus derechos por
+          incumplimiento de las normas vigentes en materia de protección de datos personales.
+        </p>
+      </SeccionLegal>
 
-          <Section title="Tus derechos">
-            <p>
-              Podés pedir acceso, rectificación, actualización o supresión de tus datos personales. El acceso es
-              gratuito en intervalos no menores a seis meses, salvo interés legítimo (art. 14, inc. 3, Ley 25.326).
-            </p>
-            <p>
-              La Agencia de Acceso a la Información Pública, en su carácter de Órgano de Control de la Ley 25.326,
-              tiene la atribución de atender las denuncias y reclamos que interpongan quienes resulten afectados en sus
-              derechos por incumplimiento de las normas vigentes en materia de protección de datos personales.
-            </p>
-          </Section>
+      <SeccionLegal titulo="Menores de edad">
+        <p>
+          <Marca>[REVISIÓN LEGAL]</Marca> sobre si la app y el sitio pueden usarse a partir de cierta edad. La edad
+          mínima para crear una cuenta: <Marca>[COMPLETAR: edad mínima para crear una cuenta]</Marca>.
+        </p>
+      </SeccionLegal>
 
-          <Section title="Contacto">
-            <p>
-              Para ejercer tus derechos o hacer cualquier consulta sobre esta política, escribinos por{" "}
-              <a href={contactoWhatsappUrl} target="_blank" rel="noopener noreferrer" className={linkClass}>
-                WhatsApp
-              </a>
-              .
-            </p>
-          </Section>
+      <SeccionLegal titulo="Seguridad">
+        <p>
+          Toda la información viaja cifrada (HTTPS) y cada cuenta solo puede leer lo suyo. Ningún sistema es
+          perfecto: trabajamos para protegerla, pero no podemos garantizar una seguridad absoluta.
+        </p>
+      </SeccionLegal>
 
-          <Section title="Cambios a esta política">
-            <p>
-              Si cambiamos esta política, vamos a actualizar la fecha de arriba. Si el cambio es importante, lo
-              avisaremos en el sitio.
-            </p>
-          </Section>
-        </div>
-      </main>
+      <SeccionLegal titulo="Contacto">
+        <p>
+          Para ejercer tus derechos o hacer cualquier consulta sobre esta política, escribinos a{" "}
+          <a href={mailtoContacto("Consulta sobre mis datos")} className={claseLink}>
+            {CONTACTO_EMAIL}
+          </a>{" "}
+          o por{" "}
+          <a href={contactoWhatsappUrl} target="_blank" rel="noopener noreferrer" className={claseLink}>
+            WhatsApp
+          </a>
+          .
+        </p>
+      </SeccionLegal>
 
-      <MobileNav />
-    </div>
+      <SeccionLegal titulo="Cambios a esta política">
+        <p>
+          Si cambiamos esta política, vamos a actualizar la fecha de arriba. Si el cambio es importante, lo vamos a
+          avisar en el sitio y en la app.
+        </p>
+      </SeccionLegal>
+    </PaginaLegal>
   )
 }
