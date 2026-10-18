@@ -20,6 +20,7 @@
 import { useState } from 'react'
 import { ActivityIndicator, Pressable, ScrollView, View } from 'react-native'
 import { Stack, useRouter } from 'expo-router'
+import { CONTACTO_EMAIL } from '@qps/core/contacto'
 import { CampoTexto } from '@/components/CampoTexto'
 import { Cargando } from '@/components/EstadoCarga'
 import { Texto } from '@/components/Texto'
@@ -94,6 +95,7 @@ export default function EliminarCuenta() {
         <Texto>• Tus marcas de &quot;Voy&quot; y &quot;Me interesa&quot;.</Texto>
         <Texto>• Las preferencias de Mi Radar y de notificaciones.</Texto>
         <Texto>• Los avisos que tenés activados.</Texto>
+        <Texto>• El historial de los avisos que te mandamos.</Texto>
         <Texto>• Los tokens de aviso de tu celular.</Texto>
         <Texto>• La cuenta misma, con tu email y tu contraseña.</Texto>
       </View>
@@ -103,6 +105,11 @@ export default function EliminarCuenta() {
         <Texto tono="secundario">
           Los eventos que cargaste siguen publicados, pero quedan sin tu nombre: pasan a figurar sin autor.
         </Texto>
+      </View>
+
+      <View style={estilos.bloque}>
+        <Texto tono="secundario">Si no podés eliminarla desde acá, escribinos a</Texto>
+        <Texto selectable>{CONTACTO_EMAIL}</Texto>
       </View>
 
       <CampoTexto

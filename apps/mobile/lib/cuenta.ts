@@ -90,11 +90,28 @@ export async function eliminarMiCuenta(accessToken: string): Promise<ResultadoEl
  * borra la bandera (solo la pone) y `lib/bienvenida.ts` no está entre los
  * archivos permitidos de la tarea 37-d — por eso se hace acá, con
  * `SecureStore` directo y la clave importada de ese módulo.
+ *
+ * QPS-193: `signOut({ scope: 'local' })`, igual que la web, no el `global`
+ * por defecto. Mirando `_signOut` de `@supabase/auth-js` 2.106.0
+ * (`node_modules/@supabase/auth-js/dist/module/GoTrueClient.js`): con
+ * cualquier `scope` la llamada sigue yendo al servidor (`POST
+ * /logout?scope=local`); lo que cambia `local` es que revoca solo esta
+ * sesión, no las de los otros dispositivos de la cuenta. Si el servidor
+ * responde 401, 403 o 404 (la cuenta ya no existe, que es justo este caso)
+ * la librería ignora ese error y borra la sesión local igual. Con cualquier
+ * otro error (sin red, un 500) la librería devuelve `{ error }` y NO borra
+ * la sesión local — pero no tira, así que ese caso no cae en el `try/catch`
+ * de abajo: acá ese valor de retorno se descarta a propósito, porque la
+ * cuenta ya está borrada en el servidor y no hay nada que reintentar ni que
+ * mostrarle a la persona. Esa sesión local que queda obsoleta es QPS-186,
+ * fuera de esta tarea. El `try/catch` de abajo es para otra cosa: una
+ * excepción de verdad (por ejemplo, el almacenamiento fallando adentro de
+ * `_removeSession`), no para el error que puede devolver el servidor.
  */
 export async function limpiarTrasEliminarCuenta(entroConGoogle: boolean): Promise<void> {
   if (supabase) {
     try {
-      await supabase.auth.signOut()
+      await supabase.auth.signOut({ scope: 'local' })
     } catch {
       // La cuenta ya no existe en el servidor: no hay nada que deshacer.
     }
