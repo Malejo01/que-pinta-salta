@@ -24,7 +24,6 @@ import { Redirect, useLocalSearchParams, useRouter, useTheme } from 'expo-router
 import { formatEventDate } from '@qps/core/date-format'
 import { capitalizeFirst, cleanDescription, formatEventTimeDisplay } from '@qps/core/event-display'
 import { urlComoLlegar, urlGo } from '@qps/core/metricas/links'
-import { ticketUrlsOf } from '@qps/core/scraper/dedup-key'
 import { vibeLabels } from '@qps/core/types'
 import { Afiche } from '@/components/Afiche'
 import { BotonCalendario } from '@/components/BotonCalendario'
@@ -39,6 +38,7 @@ import { datosTarjetaCompartir } from '@/lib/compartir'
 import { obtenerEventoPorId, type ResultadoEvento } from '@/lib/datos/eventos'
 import { textoPrecio, type PrecioEvento } from '@/lib/formato'
 import { esUuid } from '@/lib/links'
+import { useVistaEvento } from '@/lib/metricas-hook'
 
 type Estado = { tipo: 'cargando' } | ResultadoEvento
 
@@ -91,6 +91,11 @@ export default function EventoPorId() {
     setIntento((valor) => valor + 1)
   }, [])
 
+  // La vista de la ficha, con origen `app` (43-e): una sola vez por montaje
+  // y por evento, solo cuando cargó bien. Arriba de los `return` tempranos
+  // de abajo, por las reglas de los hooks.
+  useVistaEvento(estado.tipo === 'ok' ? estado.evento.id : null)
+
   if (!valido) {
     return <Redirect href="/" />
   }
@@ -133,7 +138,11 @@ export default function EventoPorId() {
   const precioEvento: PrecioEvento = evento.is_free ? 'gratis' : evento.price_min === 0 ? 'confirmar' : evento.price_min
   const precioTexto = precioEvento === 'gratis' ? 'Entrada Gratuita' : textoPrecio(precioEvento)
 
-  const tieneTicket = ticketUrlsOf({ ticket_url: evento.ticket_url, ticket_sources: evento.ticket_sources }).size > 0
+  // Como la web (`displayEvent.ticketUrl &&`, en `event-detail-page.tsx`):
+  // `/go/<id>` solo redirige a `events.ticket_url` (`urlGo`/`urlCompra` de
+  // abajo); con solo `ticket_sources` el botón llevaba a la ficha web, que
+  // no cuenta el clic.
+  const tieneTicket = Boolean(evento.ticket_url?.trim())
   const urlCompra = urlGo(evento.id, 'app')
   const urlLlegar = urlComoLlegar({ address: evento.venue?.address, venue: evento.venue?.name })
 

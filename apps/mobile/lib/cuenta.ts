@@ -13,6 +13,7 @@ import { GoogleSignin } from '@react-native-google-signin/google-signin'
 import { SITIO } from '@qps/core/metricas/links'
 import { CLAVE_BIENVENIDA_VISTA } from '@/lib/bienvenida'
 import { supabase } from '@/lib/supabase'
+import { borrarTodaLaCache } from '@/lib/sin-conexion/cache'
 
 const RUTA_ELIMINAR = `${SITIO}/api/cuenta/eliminar`
 
@@ -72,18 +73,23 @@ export async function eliminarMiCuenta(accessToken: string): Promise<ResultadoEl
 }
 
 /**
- * Limpieza del lado del teléfono después de un borrado exitoso: cerrar la
- * sesión de Supabase, cerrar también la sesión nativa de Google si la
- * persona entró con ese proveedor (si no se hace esto, el próximo toque en
- * "Continuar con Google" vuelve a entrar sin preguntar nada y crea una
- * cuenta nueva en silencio — mismo criterio que `salir()` en
- * `app/(tabs)/cuenta.tsx`) y borrar la bandera de "ya se vio la Bienvenida"
- * para que, si alguna vez se vuelve a crear una cuenta en este teléfono, se
- * vuelva a mostrar.
+ * Limpieza del lado del teléfono después de un borrado exitoso: borrar toda
+ * la caché sin conexión (R43, 43-d, plan §8 — además del borrado que
+ * dispara el propio `signOut()` de ahí abajo al emitir `SIGNED_OUT`, por si
+ * ese cambio de sesión nunca llega a correr), cerrar la sesión de Supabase,
+ * cerrar también la sesión nativa de Google si la persona entró con ese
+ * proveedor (si no se hace esto, el próximo toque en "Continuar con Google"
+ * vuelve a entrar sin preguntar nada y crea una cuenta nueva en silencio —
+ * mismo criterio que `salir()` en `app/(tabs)/cuenta.tsx`) y borrar la
+ * bandera de "ya se vio la Bienvenida" para que, si alguna vez se vuelve a
+ * crear una cuenta en este teléfono, se vuelva a mostrar.
  *
- * Ninguno de los tres pasos tira: la cuenta ya está borrada para siempre en
- * el servidor en el momento en que se llama a esta función, así que no hay
- * nada que reintentar ni ningún error que mostrar si algo de esto falla.
+ * Ninguno de los cuatro pasos tira: la cuenta ya está borrada para siempre
+ * en el servidor en el momento en que se llama a esta función, así que no
+ * hay nada que reintentar ni ningún error que mostrar si algo de esto
+ * falla. `borrarTodaLaCache` (`lib/sin-conexion/cache.ts`) ya nunca tira por
+ * su cuenta, pero igual se envuelve en su propio `try/catch`, como los
+ * otros tres pasos.
  *
  * NOTA: el borrado de la bandera de la Bienvenida debería vivir en
  * `lib/bienvenida.ts`, junto a `marcarBienvenidaVista`, pero esa función no
@@ -92,6 +98,13 @@ export async function eliminarMiCuenta(accessToken: string): Promise<ResultadoEl
  * `SecureStore` directo y la clave importada de ese módulo.
  */
 export async function limpiarTrasEliminarCuenta(entroConGoogle: boolean): Promise<void> {
+  try {
+    await borrarTodaLaCache()
+  } catch {
+    // Best-effort (ver el comentario de cabecera): la cuenta ya está
+    // borrada en el servidor, no hay nada que reintentar.
+  }
+
   if (supabase) {
     try {
       await supabase.auth.signOut()

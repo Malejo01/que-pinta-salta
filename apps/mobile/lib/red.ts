@@ -39,3 +39,51 @@ export function fetchConTimeout(fetchBase: Fetch, ms: number): Fetch {
     }
   }) as Fetch
 }
+
+/**
+ * Detecta "sin conexión" sin `netinfo` (R43, plan §1): se mira el resultado
+ * de la llamada, nunca el estado del dispositivo. Pura, y nunca tira —
+ * recibe `unknown` a propósito porque `lib/favoritos.ts` tiene ramas
+ * `Promise.resolve({ data: [], error: null })` sin `status`, y cualquier
+ * excepción atrapada con `catch` puede ser cualquier cosa.
+ *
+ * `true` si:
+ * - es una respuesta con `error` presente y `status === 0`: la forma que
+ *   devuelve postgrest-js 2.106 cuando el `fetch` rechaza (modo avión, DNS)
+ *   o se corta por el timeout de `fetchConTimeout` — nunca hay respuesta
+ *   HTTP real;
+ * - o es (o tiene la forma de) un `TypeError` cuyo mensaje matchea
+ *   `/Network request failed/i` (el `fetch` de React Native en modo avión);
+ * - o tiene `name === 'AbortError'` (el `AbortController` de
+ *   `fetchConTimeout`, o cualquier otro abort).
+ *
+ * `false` si: el `status` es HTTP (>= 100, cualquier 2xx a 5xx — un 5xx de
+ * Supabase es "propuesta sin confirmar", R43: muestra el error de siempre,
+ * no la caché), si el error trae un `code` de PostgREST no vacío
+ * (`PGRST116`, `42501`, `PGRST205`...), o si `valor` es `null`, `undefined`,
+ * un string, un número o un objeto sin ninguna de las formas de arriba
+ * (`{}` incluido).
+ */
+export function esErrorDeRed(valor: unknown): boolean {
+  if (typeof valor !== 'object' || valor === null) return false
+
+  const objeto = valor as Record<string, unknown>
+
+  if (objeto.name === 'AbortError') return true
+
+  const mensaje = typeof objeto.message === 'string' ? objeto.message : null
+  const pareceTypeErrorDeRed =
+    (valor instanceof TypeError || objeto.name === 'TypeError') &&
+    mensaje !== null &&
+    /Network request failed/i.test(mensaje)
+  if (pareceTypeErrorDeRed) return true
+
+  if ('error' in objeto && objeto.error && typeof objeto.error === 'object') {
+    const error = objeto.error as Record<string, unknown>
+    const codigoPostgrest = typeof error.code === 'string' ? error.code : ''
+    if (codigoPostgrest.length > 0) return false
+    return objeto.status === 0
+  }
+
+  return false
+}
