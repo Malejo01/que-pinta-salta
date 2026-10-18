@@ -155,7 +155,7 @@ export default function EventoPorId() {
       </View>
 
       <View style={estilos.filaTitulo}>
-        <Texto peso="bold" style={estilos.titulo}>
+        <Texto peso="bold" accessibilityRole="header" style={estilos.titulo}>
           {evento.title}
         </Texto>
         <View style={estilos.accionesTitulo}>
@@ -212,7 +212,7 @@ export default function EventoPorId() {
 
       <View style={estilos.ctas}>
         {urlLlegar ? (
-          <Pressable onPress={comoLlegar} style={[estilos.ctaPrimario, { backgroundColor: colores.primary }]}>
+          <Pressable onPress={comoLlegar} accessibilityRole="link" style={[estilos.ctaPrimario, { backgroundColor: colores.primary }]}>
             <Icono nombre="Navigation" tamanio={18} color={colores.primaryForeground} />
             <Texto peso="semibold" style={{ color: colores.primaryForeground }}>
               Como llegar
@@ -221,7 +221,7 @@ export default function EventoPorId() {
         ) : null}
 
         {tieneTicket && urlCompra ? (
-          <Pressable onPress={comprar} style={[estilos.ctaOutline, { borderColor: colores.border }]}>
+          <Pressable onPress={comprar} accessibilityRole="link" style={[estilos.ctaOutline, { borderColor: colores.border }]}>
             <Icono nombre="ExternalLink" tamanio={18} color={colores.foreground} />
             <Texto peso="semibold">Comprar tickets</Texto>
           </Pressable>

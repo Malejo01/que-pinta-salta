@@ -96,7 +96,7 @@ function Ficha({ flyer, colores }: { flyer: FlyerFicha; colores: ColoresQPS }) {
 
       {urlSegura ? (
         <Pressable
-          accessibilityRole="button"
+          accessibilityRole="link"
           onPress={() => abrirPostDeInstagram(flyer.ig_post_url)}
           style={({ pressed }) => [estilos.boton, { borderColor: colores.primary, opacity: pressed ? 0.6 : 1 }]}
         >
