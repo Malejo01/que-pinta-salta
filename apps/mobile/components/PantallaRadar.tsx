@@ -330,7 +330,7 @@ export function PantallaRadar() {
                   key={opcion.valor}
                   onPress={() => actualizarOk((previo) => ({ ...previo, frecuencia: opcion.valor }))}
                   accessibilityRole="radio"
-                  accessibilityState={{ selected: seleccionada }}
+                  accessibilityState={{ checked: seleccionada }}
                   style={[
                     estilos.filaFrecuencia,
                     { borderColor: seleccionada ? colores.primary : colores.border },

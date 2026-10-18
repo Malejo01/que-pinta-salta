@@ -115,11 +115,27 @@ export function cumpleContraste(ratio: number, uso: UsoContraste): boolean {
 
 /**
  * Tope de `maxFontSizeMultiplier` para textos dentro de cajas de tamaño
- * fijo, donde un texto muy agrandado se corta o desborda: la tarjeta de
- * evento (`TarjetaEvento`), el Hero de portada, los badges (destacado,
- * categoría), las pills (filtros) y las pestañas de abajo. En el resto de
- * la app (párrafos, títulos de pantalla, formularios) no hay tope: el texto
- * escala libre con la fuente del sistema.
+ * fijo, donde un texto muy agrandado se corta o desborda. Aplicado hoy en:
+ * - la tarjeta de evento (`TarjetaEvento`): todos sus textos, incluidos los
+ *   dos badges (categoría y destacado).
+ * - el Hero de portada (`Hero`): todos sus textos, incluido el badge de
+ *   categoría (el Hero no tiene badge de destacado).
+ * - el badge de categoría de la ficha de evento (`app/evento/[id].tsx`).
+ *
+ * A propósito, SIN tope:
+ * - las pills de atajos (`PillsAtajos`): la fila es un scroll horizontal
+ *   donde el ancho de cada pill se adapta al texto, y el resaltado animado
+ *   mide el layout real de cada pill con `onLayout`, así que acompaña un
+ *   texto más grande sin romperse. Un tope ahí sería una barrera sin
+ *   beneficio.
+ *
+ * Pendiente (no es un atributo, necesita otro mecanismo): las pestañas de
+ * abajo (`app/(tabs)/_layout.tsx`) usan `tabBarLabelStyle`, que es un
+ * objeto de estilo y no acepta `maxFontSizeMultiplier`; haría falta un
+ * `tabBarLabel` propio que devuelva un `<Text maxFontSizeMultiplier={…}>`.
+ *
+ * En el resto de la app (párrafos, títulos de pantalla, formularios) no hay
+ * tope a propósito: el texto escala libre con la fuente del sistema.
  */
 export const ESCALA_MAXIMA_COMPACTA = 1.4
 

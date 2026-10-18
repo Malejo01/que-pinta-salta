@@ -22,6 +22,7 @@ import { Afiche } from '@/components/Afiche'
 import { Cargando, ErrorCarga, Vacio } from '@/components/EstadoCarga'
 import { Icono } from '@/components/Icono'
 import { Texto } from '@/components/Texto'
+import { hitSlopPara } from '@/lib/accesibilidad'
 import { useColoresQPS, type ColoresQPS } from '@/lib/colores'
 import {
   cantidadDeSalas,
@@ -115,7 +116,7 @@ export default function Cines() {
             onPress={() => setBusqueda('')}
             accessibilityRole="button"
             accessibilityLabel="Limpiar búsqueda"
-            hitSlop={8}
+            hitSlop={hitSlopPara(18)}
           >
             <Icono nombre="X" tamanio={18} color={colores.mutedForeground} />
           </Pressable>
