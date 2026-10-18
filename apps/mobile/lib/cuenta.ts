@@ -84,18 +84,37 @@ export async function eliminarMiCuenta(accessToken: string): Promise<ResultadoEl
  * bandera de "ya se vio la Bienvenida" para que, si alguna vez se vuelve a
  * crear una cuenta en este teléfono, se vuelva a mostrar.
  *
- * Ninguno de los cuatro pasos tira: la cuenta ya está borrada para siempre
- * en el servidor en el momento en que se llama a esta función, así que no
- * hay nada que reintentar ni ningún error que mostrar si algo de esto
- * falla. `borrarTodaLaCache` (`lib/sin-conexion/cache.ts`) ya nunca tira por
- * su cuenta, pero igual se envuelve en su propio `try/catch`, como los
- * otros tres pasos.
+ * Los cuatro pasos van cada uno en su `try/catch` porque cualquiera **puede**
+ * tirar (`SecureStore` tira en `deleteItemAsync`, y `signOut` puede tirar por
+ * una excepción de verdad: ver el párrafo de QPS-193 más abajo).
+ * `borrarTodaLaCache` (`lib/sin-conexion/cache.ts`) ya nunca tira por su
+ * cuenta, pero igual se envuelve, como los otros tres. Esta función no
+ * propaga ninguna: la cuenta ya está borrada para siempre en el servidor en
+ * el momento en que se la llama, así que no hay nada que reintentar ni
+ * ningún error que mostrarle a la persona si algo de esto falla.
  *
  * NOTA: el borrado de la bandera de la Bienvenida debería vivir en
  * `lib/bienvenida.ts`, junto a `marcarBienvenidaVista`, pero esa función no
  * borra la bandera (solo la pone) y `lib/bienvenida.ts` no está entre los
  * archivos permitidos de la tarea 37-d — por eso se hace acá, con
  * `SecureStore` directo y la clave importada de ese módulo.
+ *
+ * QPS-193: `signOut({ scope: 'local' })`, igual que la web, no el `global`
+ * por defecto. Mirando `_signOut` de `@supabase/auth-js` 2.106.0
+ * (`node_modules/@supabase/auth-js/dist/module/GoTrueClient.js`): con
+ * cualquier `scope` la llamada sigue yendo al servidor (`POST
+ * /logout?scope=local`); lo que cambia `local` es que revoca solo esta
+ * sesión, no las de los otros dispositivos de la cuenta. Si el servidor
+ * responde 401, 403 o 404 (la cuenta ya no existe, que es justo este caso)
+ * la librería ignora ese error y borra la sesión local igual. Con cualquier
+ * otro error (sin red, un 500) la librería devuelve `{ error }` y NO borra
+ * la sesión local — pero no tira, así que ese caso no cae en el `try/catch`
+ * de abajo: acá ese valor de retorno se descarta a propósito, porque la
+ * cuenta ya está borrada en el servidor y no hay nada que reintentar ni que
+ * mostrarle a la persona. Esa sesión local que queda obsoleta es QPS-186,
+ * fuera de esta tarea. El `try/catch` de abajo es para otra cosa: una
+ * excepción de verdad (por ejemplo, el almacenamiento fallando adentro de
+ * `_removeSession`), no para el error que puede devolver el servidor.
  */
 export async function limpiarTrasEliminarCuenta(entroConGoogle: boolean): Promise<void> {
   try {
@@ -107,7 +126,7 @@ export async function limpiarTrasEliminarCuenta(entroConGoogle: boolean): Promis
 
   if (supabase) {
     try {
-      await supabase.auth.signOut()
+      await supabase.auth.signOut({ scope: 'local' })
     } catch {
       // La cuenta ya no existe en el servidor: no hay nada que deshacer.
     }
