@@ -7,8 +7,210 @@ import type { SupabaseClient, User } from "@supabase/supabase-js"
 import { buildRadarEmail, radarEnvLabel } from "@/lib/radar/email"
 import { getRadarEvents } from "@/lib/radar/events"
 import { normalizarPreferenciasRadar, type EmailFrequency } from "@qps/core/radar/preferencias"
+import {
+  cuentaParaSeguir,
+  TABLA_SEGUIMIENTO,
+  validarSeguimiento,
+  type FilaFlyerConCuenta,
+} from "@qps/core/radar/seguimiento"
+import type { Database } from "@qps/db"
+
+/**
+ * `TABLA_SEGUIMIENTO` (de `@qps/core/radar/seguimiento`) tipa `tabla` como
+ * `string`: core no depende de los tipos generados de la base (los
+ * comparten web y app). Esta función solo re-angosta ese `string` al tipo
+ * que pide `supabase.from(...)`, sin repetir el mapeo de tabla/columna.
+ */
+function tablaDeSeguimiento(tabla: string): keyof Database["public"]["Tables"] {
+  return tabla as keyof Database["public"]["Tables"]
+}
 
 export type { EmailFrequency }
+
+/**
+ * "+ Seguir" (R47, tarea 47-b, QPS-197): seguir/dejar de seguir un lugar,
+ * una categoría o una cuenta de Instagram. Las escrituras sobre
+ * `user_followed_*` viven solo acá, en `apps/mobile/lib/radar.ts` y en
+ * `apps/web/lib/cuenta/tablas-personales.ts` (lo exige un test de "una sola
+ * copia", 47-q): no se repite este mapeo ni esta lógica en otro archivo.
+ *
+ * La entrada se valida ANTES de autenticar (y antes de crear el cliente de
+ * Supabase): un tipo desconocido, un id que no es uuid o un `seguir` que no
+ * sea un booleano de verdad dan `INVALID` sin tocar la sesión ni la base.
+ */
+export async function cambiarSeguimiento(
+  entrada: unknown,
+): Promise<{ ok: true; siguiendo: boolean } | { ok: false; error: "AUTH_REQUIRED" | "INVALID" | "DB_ERROR" }> {
+  const validado = validarSeguimiento(entrada)
+  if (!validado.ok) {
+    return { ok: false, error: "INVALID" }
+  }
+  const { tipo, id, seguir } = validado
+
+  const supabase = await createClient()
+  const { data: { user }, error: authError } = await supabase.auth.getUser()
+
+  if (!user || authError) {
+    return { ok: false, error: "AUTH_REQUIRED" }
+  }
+
+  const { tabla, columna } = TABLA_SEGUIMIENTO[tipo]
+
+  if (seguir) {
+    const { error } = await supabase.from(tablaDeSeguimiento(tabla)).insert({ user_id: user.id, [columna]: id })
+    // La PK es (user_id, <columna>): un 23505 significa que ya lo seguía, éxito.
+    if (error && error.code !== "23505") {
+      console.error("[cambiarSeguimiento] Error al seguir:", error)
+      return { ok: false, error: "DB_ERROR" }
+    }
+  } else {
+    const { error } = await supabase.from(tablaDeSeguimiento(tabla)).delete().eq("user_id", user.id).eq(columna, id)
+    if (error) {
+      console.error("[cambiarSeguimiento] Error al dejar de seguir:", error)
+      return { ok: false, error: "DB_ERROR" }
+    }
+  }
+
+  revalidatePath("/radar")
+  revalidatePath("/perfil")
+  return { ok: true, siguiendo: seguir }
+}
+
+/**
+ * El lugar y la cuenta de Instagram que la ficha de un evento puede ofrecer
+ * seguir. Sin sesión, `siguiendo` es siempre `false` y no se consulta
+ * ninguna tabla `user_followed_*`. Si algo falla, `{ lugar: null, cuenta:
+ * null }`: la ficha sigue andando, solo sin el botón.
+ *
+ * El lugar sale de `events.venue_id` (join a `venues`).
+ *
+ * La cuenta sale de `instagram_flyers` filtrando por
+ * `ai_metadata->>event_id` (no por `events.ai_metadata.flyer_id`): ese
+ * vínculo lo escribe el procesamiento de flyers con el id que devolvió la
+ * deduplicación, así que vale también cuando el flyer se fusionó con un
+ * evento de ticketera; `events.ai_metadata.flyer_id` solo existe en los
+ * eventos *creados* desde un flyer. `cuentaParaSeguir` (de core) elige la
+ * cuenta activa del flyer más reciente.
+ *
+ * Limitación aceptada: `instagram_flyers` es pública solo con `status =
+ * 'ACTIVE'`, así que un flyer archivado no va a aparecer acá (no se
+ * intenta rodear).
+ */
+export async function obtenerSeguimientoDeEvento(eventId: string): Promise<{
+  lugar: { id: string; nombre: string; siguiendo: boolean } | null
+  cuenta: { id: string; username: string; siguiendo: boolean } | null
+}> {
+  try {
+    const supabase = await createClient()
+
+    const [{ data: filaEvento, error: errorEvento }, { data: filasFlyers, error: errorFlyers }] = await Promise.all([
+      supabase.from("events").select("venue_id, venue:venues(id, name)").eq("id", eventId).maybeSingle(),
+      supabase
+        .from("instagram_flyers")
+        .select("published_at, account:instagram_accounts(id, username, is_active)")
+        .eq("ai_metadata->>event_id", eventId),
+    ])
+
+    if (errorEvento) {
+      console.error("[obtenerSeguimientoDeEvento] Error al leer el evento:", errorEvento)
+      return { lugar: null, cuenta: null }
+    }
+    if (errorFlyers) {
+      console.error("[obtenerSeguimientoDeEvento] Error al leer los flyers:", errorFlyers)
+    }
+
+    const venue = filaEvento?.venue as { id: string; name: string } | null | undefined
+    const cuentaCandidata = cuentaParaSeguir((filasFlyers ?? []) as unknown as FilaFlyerConCuenta[])
+
+    const { data: { user } } = await supabase.auth.getUser()
+
+    if (!user) {
+      return {
+        lugar: venue ? { id: venue.id, nombre: venue.name, siguiendo: false } : null,
+        cuenta: cuentaCandidata ? { id: cuentaCandidata.id, username: cuentaCandidata.username, siguiendo: false } : null,
+      }
+    }
+
+    const [respuestaLugar, respuestaCuenta] = await Promise.all([
+      venue
+        ? supabase.from("user_followed_venues").select("venue_id").eq("user_id", user.id).eq("venue_id", venue.id).maybeSingle()
+        : Promise.resolve({ data: null, error: null }),
+      cuentaCandidata
+        ? supabase
+            .from("user_followed_instagram_accounts")
+            .select("instagram_account_id")
+            .eq("user_id", user.id)
+            .eq("instagram_account_id", cuentaCandidata.id)
+            .maybeSingle()
+        : Promise.resolve({ data: null, error: null }),
+    ])
+
+    if (respuestaLugar.error) {
+      console.error("[obtenerSeguimientoDeEvento] Error al leer si sigue el lugar:", respuestaLugar.error)
+    }
+    if (respuestaCuenta.error) {
+      console.error("[obtenerSeguimientoDeEvento] Error al leer si sigue la cuenta:", respuestaCuenta.error)
+    }
+
+    return {
+      lugar: venue ? { id: venue.id, nombre: venue.name, siguiendo: respuestaLugar.data !== null } : null,
+      cuenta: cuentaCandidata
+        ? { id: cuentaCandidata.id, username: cuentaCandidata.username, siguiendo: respuestaCuenta.data !== null }
+        : null,
+    }
+  } catch (excepcion) {
+    console.error("[obtenerSeguimientoDeEvento] Excepción inesperada:", excepcion)
+    return { lugar: null, cuenta: null }
+  }
+}
+
+/**
+ * Todo lo que sigue el usuario de la sesión: lugares, cuentas de Instagram
+ * y categorías. `null` sin sesión. Si una de las tres listas falla, se
+ * registra el error y esa lista queda vacía, sin afectar a las otras dos.
+ */
+export async function obtenerLoQueSeguis(): Promise<{
+  lugares: { id: string; nombre: string }[]
+  cuentas: { id: string; username: string }[]
+  categorias: { id: string; nombre: string }[]
+} | null> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return null
+
+  const [respuestaLugares, respuestaCuentas, respuestaCategorias] = await Promise.all([
+    supabase.from("user_followed_venues").select("venue:venues(id, name)").eq("user_id", user.id),
+    supabase.from("user_followed_instagram_accounts").select("account:instagram_accounts(id, username)").eq("user_id", user.id),
+    supabase.from("user_followed_categories").select("category:categories(id, name)").eq("user_id", user.id),
+  ])
+
+  if (respuestaLugares.error) {
+    console.error("[obtenerLoQueSeguis] Error al leer los lugares seguidos:", respuestaLugares.error)
+  }
+  if (respuestaCuentas.error) {
+    console.error("[obtenerLoQueSeguis] Error al leer las cuentas seguidas:", respuestaCuentas.error)
+  }
+  if (respuestaCategorias.error) {
+    console.error("[obtenerLoQueSeguis] Error al leer las categorías seguidas:", respuestaCategorias.error)
+  }
+
+  const lugares = ((respuestaLugares.data ?? []) as unknown as Array<{ venue: { id: string; name: string } | null }>)
+    .map((fila) => fila.venue)
+    .filter((venue): venue is { id: string; name: string } => venue !== null)
+    .map((venue) => ({ id: venue.id, nombre: venue.name }))
+
+  const cuentas = ((respuestaCuentas.data ?? []) as unknown as Array<{ account: { id: string; username: string } | null }>)
+    .map((fila) => fila.account)
+    .filter((account): account is { id: string; username: string } => account !== null)
+    .map((account) => ({ id: account.id, username: account.username }))
+
+  const categorias = ((respuestaCategorias.data ?? []) as unknown as Array<{ category: { id: string; name: string } | null }>)
+    .map((fila) => fila.category)
+    .filter((category): category is { id: string; name: string } => category !== null)
+    .map((category) => ({ id: category.id, nombre: category.name }))
+
+  return { lugares, cuentas, categorias }
+}
 
 export interface RadarSettingsData {
   email_frequency: EmailFrequency
