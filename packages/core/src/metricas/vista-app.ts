@@ -38,18 +38,27 @@ export function cuerpoVista(eventId: string): string | null {
   return isUuid(eventId) ? JSON.stringify({ eventId, origin: 'app' }) : null
 }
 
-const VERSION_SANEADA_RE = /[^0-9A-Za-z.-]/g
+const PREFIJO_NUMERICO_RE = /^[0-9]+(?:\.[0-9]+)*/
 const TOPE_VERSION = 20
 
 /**
- * `QuePintaSaltaApp/<versión>`, saneada a `[0-9A-Za-z.-]` y con un tope de
- * 20 caracteres (`0` si queda vacía). El saneado es lo único que separa "se
- * cuenta" de "se descarta en silencio": `BOT_UA_RE` matchea, entre otras,
- * `bot`, `preview`, `monitor`, `java/`, `vercel` y `apify` — una versión sin
- * sanear podría meter alguna de esas palabras en el `User-Agent` y perder
- * la vista sin ningún error.
+ * `QuePintaSaltaApp/<versión>`, donde `<versión>` es el prefijo numérico con
+ * puntos (`PREFIJO_NUMERICO_RE`: uno o más dígitos, con grupos de dígitos
+ * separados por puntos) del principio de `version`, recortado a 20
+ * caracteres (`0` si no hay prefijo, por ejemplo con `''` o con algo que
+ * empieza con letra). No es una lista negra de palabras: no puede serlo,
+ * porque siempre se queda corta cuando `BOT_UA_RE` crece. En cambio, la
+ * propiedad que garantiza es que la salida **nunca contiene una letra
+ * después de la barra** — ni las que `BOT_UA_RE` ya tiene (`bot`, `preview`,
+ * `monitor`, `java/`, `vercel`, `apify`) ni las que se agreguen mañana —, así
+ * que ninguna versión puede hacer que `isBotOrPrefetch`
+ * (`apps/web/lib/metricas/bots.ts`) marque la vista como bot y la descarte
+ * en silencio. El sufijo no numérico (por ejemplo, el `-preview` de
+ * `1.0.0-preview`) simplemente se tira: la parte útil de la versión se
+ * conserva.
  */
 export function userAgentApp(version: string): string {
-  const saneada = version.replace(VERSION_SANEADA_RE, '').slice(0, TOPE_VERSION)
+  const prefijo = PREFIJO_NUMERICO_RE.exec(version)?.[0] ?? ''
+  const saneada = prefijo.slice(0, TOPE_VERSION)
   return `QuePintaSaltaApp/${saneada || '0'}`
 }
