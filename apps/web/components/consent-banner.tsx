@@ -5,6 +5,7 @@ import { useEffect, useRef, useSyncExternalStore } from 'react'
 import { motion } from 'framer-motion'
 import { Button } from '@/components/ui/button'
 import { CONSENT_EVENT, dispatchConsentEvent, readConsent, writeConsent, type ConsentValue } from '@/lib/consent'
+import { ADS_ENABLED } from '@/lib/config/monetization'
 
 /** Durante el render del servidor (y la hidratación) nunca leemos `localStorage`: no existe. */
 type Snapshot = ConsentValue | 'unknown'
@@ -122,7 +123,9 @@ export function ConsentBanner() {
     >
       <div className="flex flex-col gap-2 rounded-2xl border border-border bg-card/95 p-3 shadow-lg backdrop-blur supports-[backdrop-filter]:bg-card/80 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-sm text-muted-foreground">
-          Usamos Google Analytics para saber qué se usa del sitio. Solo si aceptás.{' '}
+          {ADS_ENABLED
+            ? 'Usamos Google Analytics y anuncios de Google. Si aceptás, los anuncios pueden ser personalizados.'
+            : 'Usamos Google Analytics para saber qué se usa del sitio. Solo si aceptás.'}{' '}
           <Link
             href="/privacidad"
             aria-label="Más información sobre cookies en la Política de Privacidad"
