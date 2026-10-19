@@ -1,8 +1,16 @@
 import { createClient } from '@supabase/supabase-js'
-import { buildDedupKey, dedupKeyOf, sameTicketEvent, ticketUrlsOf, hasRealTime, isAutoDescription } from './dedup-key'
+import {
+  buildDedupKey,
+  dedupKeyOf,
+  sameTicketEvent,
+  ticketUrlsOf,
+  hasRealTime,
+  horasCompatibles,
+  isAutoDescription,
+} from './dedup-key'
 import { mergeEvents, appendAudit, type DiscardedValue, type MergeAuditEntry } from './merge-events'
 import { getSourcePriority, describeSource, resolveEventSource } from './source-priority'
-import { formatSaltaDayKey } from '../date-format'
+import { formatSaltaDayKey, formatSaltaClock } from '../date-format'
 import { mergedIntoId } from '../events/merged'
 
 /**
@@ -15,6 +23,13 @@ import { mergedIntoId } from '../events/merged'
  *
  * Usa exactamente el mismo mergeEvents() que la ingesta, así que lo que el
  * dry-run informa es literalmente lo que va a pasar, no una aproximación.
+ *
+ * Desde QPS-209, agrupar por clave (título + día) ya no alcanza: dentro de
+ * cada grupo de venues compatibles también se exige hora compatible
+ * (splitByFunction), para no volver a juntar en la limpieza dos funciones
+ * reales del mismo show (16:00 y 21:00) que la ingesta separa desde la R40.
+ * Lo que queda partido por hora se reporta en `functionSplits`, nunca se
+ * fusiona a ciegas.
  *
  * Qué hace al aplicar, por grupo:
  *   1. UPDATE sobre el registro que se conserva, con el resultado de fusionar
@@ -105,6 +120,19 @@ export interface DedupCleanupReport {
    * dos eventos con el mismo título genérico.
    */
   venueConflicts: Array<{ dedupKey: string; events: PlannedEvent[] }>
+  /**
+   * Por bucket (misma clave): `events` son las filas, CON hora real, de los
+   * grupos de venue que se partieron en dos o más funciones por hora
+   * (horas no compatibles entre sí, QPS-209) — nunca las de un venueGroup que
+   * no se partió, aunque comparta dedupKey (ese venueGroup, si no coincide
+   * con los demás, ya aparece en venueConflicts por su cuenta). NO se
+   * fusionan: cada función sigue siendo su propia fila. `sinHoraExcluidos`
+   * son las filas sin hora real que, dentro de esos mismos venueGroups
+   * partidos, no se pudieron asignar a ninguna función (no hay forma de
+   * saber a cuál pertenecen: del lado conservador, se reportan en vez de
+   * adivinar).
+   */
+  functionSplits: Array<{ dedupKey: string; events: PlannedEvent[]; sinHoraExcluidos: PlannedEvent[] }>
   applied: {
     keepersUpdated: number
     eventsDeleted: number
@@ -232,6 +260,83 @@ export function splitByVenue(
   }
 }
 
+/**
+ * Dentro de un grupo de misma clave y venues compatibles (lo que sale de
+ * splitByVenue), separa las funciones reales distintas del mismo show
+ * (QPS-209). La clave de dedup es título + día, sin hora: sin esto, la
+ * limpieza volvía a juntar la función de las 16:00 con la de las 21:00 que
+ * la ingesta ya separa desde la R40.
+ *
+ * Las filas CON hora real (hasRealTime) se ordenan por start_date y se
+ * parten en funciones por enlace completo: una fila entra en la función
+ * actual si horasCompatibles() da true contra todas las filas que ya están
+ * ahí. La tolerancia es la de la ingesta (TOLERANCIA_HORA_DEDUP_MIN, en
+ * dedup-key.ts): se usa el default de horasCompatibles(), nunca un número
+ * escrito a mano acá. Como las filas están ordenadas y horasCompatibles
+ * compara instantes, ese chequeo "contra todas" es equivalente a comparar
+ * sólo contra la PRIMERA fila de la función (es la que está más lejos en el
+ * tiempo de una fila nueva que llega ordenada después): por eso alcanza con
+ * compararla a ella. Así, una cadena 16:00 · 17:30 · 19:00 no colapsa en un
+ * solo evento por transitividad (16:00-17:30 compatibles, 17:30-19:00
+ * compatibles, pero 16:00-19:00 no).
+ *
+ * Las filas SIN hora real (00:00 de Salta, null o fecha inválida) son el
+ * caso ambiguo:
+ *   - si terminó habiendo una sola función, entran en ella (como antes de
+ *     esta regla);
+ *   - si no hay ninguna función (todas las filas son sin hora), forman su
+ *     propio grupo entre ellas (como antes);
+ *   - si hay dos o más funciones, no entran en NINGUNA: no hay forma de
+ *     saber a cuál pertenecen, y del lado conservador eso significa dejarlas
+ *     afuera y reportarlas (`ambiguousNoTime`), no adivinar. Un falso
+ *     negativo deja un duplicado visible que el admin fusiona a mano; un
+ *     falso positivo borraría una función real.
+ *
+ * Casos de borde: un grupo de 0 o 1 fila devuelve `{ groups: [group],
+ * ambiguousNoTime: [] }` (mismo criterio borde que splitByVenue). No muta el
+ * argumento.
+ */
+export function splitByFunction(
+  group: Record<string, unknown>[]
+): { groups: Record<string, unknown>[][]; ambiguousNoTime: Record<string, unknown>[] } {
+  if (group.length < 2) return { groups: [group], ambiguousNoTime: [] }
+
+  const withTime = group.filter((row) => hasRealTime(row.start_date as string | Date | null | undefined))
+  const withoutTime = group.filter((row) => !hasRealTime(row.start_date as string | Date | null | undefined))
+
+  const sorted = [...withTime].sort((a, b) => {
+    const diff =
+      new Date(a.start_date as string | Date).getTime() - new Date(b.start_date as string | Date).getTime()
+    if (diff !== 0) return diff
+    return String(a.id).localeCompare(String(b.id))
+  })
+
+  const functions: Record<string, unknown>[][] = []
+  for (const row of sorted) {
+    const current = functions[functions.length - 1]
+    const firstOfCurrent = current?.[0]
+    if (
+      current &&
+      horasCompatibles(
+        firstOfCurrent!.start_date as string | Date,
+        row.start_date as string | Date
+      )
+    ) {
+      current.push(row)
+    } else {
+      functions.push([row])
+    }
+  }
+
+  if (functions.length === 0) {
+    return { groups: [[...withoutTime]], ambiguousNoTime: [] }
+  }
+  if (functions.length === 1) {
+    return { groups: [[...functions[0], ...withoutTime]], ambiguousNoTime: [] }
+  }
+  return { groups: functions, ambiguousNoTime: withoutTime }
+}
+
 /** Agrupa las filas por clave de dedup recalculada en memoria. */
 export function groupByDedupKey(rows: Record<string, unknown>[]): Map<string, Record<string, unknown>[]> {
   const groups = new Map<string, Record<string, unknown>[]>()
@@ -252,25 +357,47 @@ export function groupByDedupKey(rows: Record<string, unknown>[]): Map<string, Re
 /**
  * Arma los grupos de duplicados. Dos filas son el mismo evento si:
  *
- *   a) tienen la misma clave (título + día) y venues compatibles
- *      (ver splitByVenue), o
+ *   a) tienen la misma clave (título + día), venues compatibles
+ *      (ver splitByVenue) Y horas compatibles (ver splitByFunction, QPS-209:
+ *      sin esto, dos funciones reales del mismo show, separadas por la
+ *      ingesta desde la R40, volvían a juntarse acá por compartir clave), o
  *   b) comparten un link de compra, el mismo día y a la misma hora
  *      (ver sameTicketEvent), aunque los venues o los títulos difieran.
  *
  * Las relaciones se cierran transitivamente (union-find): si A y B comparten
  * link y B y C comparten clave, los tres son un grupo.
  *
- * venueConflicts son los buckets de misma clave que, aun después de aplicar la
- * regla del link, quedan partidos en más de un grupo.
+ * venueConflicts son los buckets de misma clave que, aun después de aplicar
+ * la regla del link, quedan partidos en más de un grupo de venue — y que,
+ * efectivamente, el splitByVenue de ese bucket partió por venue (si el
+ * bucket sólo se partió por hora, no entra acá: entra en functionSplits).
+ *
+ * functionSplits son los buckets que tienen AL MENOS UN grupo de venue
+ * (splitByVenue) partido en dos o más funciones por hora (splitByFunction);
+ * sin el link de compra de por medio (sameTicketEvent ya exige hora exacta o
+ * ausente, así que el link nunca vuelve a juntar dos funciones distintas).
+ * Las `rows` que se reportan son sólo las de ESE/ESOS grupo(s) de venue
+ * partidos, no las del bucket entero: un venueGroup de una sola fila que no
+ * se partió (su único motivo para no fusionar es el venue, no la hora) no
+ * aparece ahí, aunque comparta dedupKey con el que sí se partió. Un bucket
+ * puede aparecer en venueConflicts y en functionSplits a la vez: son dos
+ * motivos distintos para no fusionar, con conjuntos de filas disjuntos.
  */
 export function buildDuplicateGroups(rows: Record<string, unknown>[]): {
   groups: Array<{ rows: Record<string, unknown>[]; byTicketUrl: boolean }>
   venueConflicts: Array<{ dedupKey: string; rows: Record<string, unknown>[] }>
+  functionSplits: Array<{
+    dedupKey: string
+    rows: Record<string, unknown>[]
+    sinHoraExcluidas: Record<string, unknown>[]
+  }>
 } {
   const index = new Map<unknown, number>(rows.map((row, i) => [row, i]))
   const parent = rows.map((_, i) => i)
-  // Segundo union-find sólo con la regla de clave: si un grupo final abarca
-  // más de una raíz de éste, existe gracias al link de compra.
+  // Segundo union-find sólo con la regla de clave (venue, no hora): si un
+  // grupo final abarca más de una raíz de éste, existe gracias al link de
+  // compra. No cambia con QPS-209: usa los mismos grupos que splitByVenue,
+  // antes de partir por función.
   const keyParent = rows.map((_, i) => i)
   const find = (p: number[], i: number): number => (p[i] === i ? i : (p[i] = find(p, p[i])))
   const union = (p: number[], a: number, b: number) => {
@@ -279,14 +406,65 @@ export function buildDuplicateGroups(rows: Record<string, unknown>[]): {
     if (ra !== rb) p[rb] = ra
   }
 
+  // Por bucket (dedupKey), si splitByVenue lo partió en más de un grupo de
+  // venue (o dejó filas en `excluded`): es la condición extra que exige
+  // venueConflicts más abajo, para no reportar ahí un bucket que sólo se
+  // partió por hora.
+  const partidoPorVenueByKey = new Map<string, boolean>()
+  const functionSplits: Array<{
+    dedupKey: string
+    rows: Record<string, unknown>[]
+    sinHoraExcluidas: Record<string, unknown>[]
+  }> = []
+
   const buckets = groupByDedupKey(rows)
-  for (const bucket of buckets.values()) {
+  for (const [dedupKey, bucket] of buckets) {
     if (bucket.length < 2) continue
-    for (const group of splitByVenue(bucket).groups) {
-      for (const row of group.slice(1)) {
-        union(parent, index.get(group[0])!, index.get(row)!)
-        union(keyParent, index.get(group[0])!, index.get(row)!)
+
+    const venueSplit = splitByVenue(bucket)
+    partidoPorVenueByKey.set(dedupKey, venueSplit.groups.length > 1 || venueSplit.excluded.length > 0)
+
+    // Sólo las filas de los venueGroups que SÍ se partieron por hora: un
+    // venueGroup con una sola fila sin venue en común no tiene nada que ver
+    // con la partición por hora, aunque comparta dedupKey (ese motivo ya lo
+    // cubre venueConflicts). `ambiguousNoTime` únicamente sale no vacío
+    // cuando `groups.length > 1` (con una sola función las filas sin hora
+    // entran en ella, ver splitByFunction), así que alcanza con mirar
+    // `groups.length > 1` para decidir si el venueGroup partió por hora.
+    const rowsPartidasPorHora: Record<string, unknown>[] = []
+    const sinHoraExcluidas: Record<string, unknown>[] = []
+
+    for (const venueGroup of venueSplit.groups) {
+      // keyParent se une por venue nomás, sin mirar la hora: byTicketUrl
+      // sigue significando exactamente lo mismo que antes de QPS-209.
+      for (const row of venueGroup.slice(1)) {
+        union(keyParent, index.get(venueGroup[0])!, index.get(row)!)
       }
+
+      const functionSplit = splitByFunction(venueGroup)
+      if (functionSplit.groups.length > 1) {
+        rowsPartidasPorHora.push(...functionSplit.groups.flat())
+        sinHoraExcluidas.push(...functionSplit.ambiguousNoTime)
+      }
+
+      // parent se une sólo dentro de cada función: las filas ambiguas sin
+      // hora (ambiguousNoTime) no se unen con nada acá.
+      for (const func of functionSplit.groups) {
+        for (const row of func.slice(1)) {
+          union(parent, index.get(func[0])!, index.get(row)!)
+        }
+      }
+    }
+
+    if (rowsPartidasPorHora.length > 0) {
+      functionSplits.push({
+        dedupKey,
+        rows: rowsPartidasPorHora.sort(
+          (a, b) =>
+            new Date(a.start_date as string | Date).getTime() - new Date(b.start_date as string | Date).getTime()
+        ),
+        sinHoraExcluidas,
+      })
     }
   }
 
@@ -328,11 +506,17 @@ export function buildDuplicateGroups(rows: Record<string, unknown>[]): {
   const venueConflicts: Array<{ dedupKey: string; rows: Record<string, unknown>[] }> = []
   for (const [dedupKey, bucket] of buckets) {
     if (bucket.length < 2) continue
+    // La condición "más de una raíz" se conserva porque el link de compra
+    // puede volver a unir dos venues (y en ese caso no se reporta: eso no
+    // cambia). Lo que sí se agrega es `partidoPorVenueByKey`: sin esto, un
+    // bucket partido SÓLO por hora (ningún conflicto de venue) caería acá,
+    // que es exactamente lo que functionSplits ya cubre por su cuenta.
+    if (!partidoPorVenueByKey.get(dedupKey)) continue
     const roots = new Set(bucket.map((row) => find(parent, index.get(row)!)))
     if (roots.size > 1) venueConflicts.push({ dedupKey, rows: bucket })
   }
 
-  return { groups, venueConflicts }
+  return { groups, venueConflicts, functionSplits }
 }
 
 /** Un grupo contiene alguno de los ids pedidos (completo o prefijo >= 8). */
@@ -470,6 +654,7 @@ export async function runDedupCleanup(options: DedupCleanupOptions = {}): Promis
     eventsAfter: 0,
     groups: [],
     venueConflicts: [],
+    functionSplits: [],
     applied: {
       keepersUpdated: 0,
       eventsDeleted: 0,
@@ -488,6 +673,15 @@ export async function runDedupCleanup(options: DedupCleanupOptions = {}): Promis
   for (const conflict of built.venueConflicts) {
     if (onlyIds.length > 0 && !groupMatchesIds(conflict.rows, onlyIds)) continue
     report.venueConflicts.push({ dedupKey: conflict.dedupKey, events: conflict.rows.map(toPlannedEvent) })
+  }
+
+  for (const split of built.functionSplits) {
+    if (onlyIds.length > 0 && !groupMatchesIds([...split.rows, ...split.sinHoraExcluidas], onlyIds)) continue
+    report.functionSplits.push({
+      dedupKey: split.dedupKey,
+      events: split.rows.map(toPlannedEvent),
+      sinHoraExcluidos: split.sinHoraExcluidas.map(toPlannedEvent),
+    })
   }
 
   for (const group of built.groups) {
@@ -641,6 +835,29 @@ export function formatReport(report: DedupCleanupReport): string {
       lines.push(conflict.dedupKey)
       for (const ev of conflict.events) {
         lines.push(`  ${ev.id}  ${describeSource(ev.source)}  inicio=${ev.start_date}  venue=${ev.venue_id ?? '-'}  "${ev.title}"`)
+      }
+    }
+  }
+
+  if (report.functionSplits.length > 0) {
+    lines.push('')
+    lines.push('='.repeat(72))
+    lines.push(`DOS FUNCIONES EL MISMO DÍA (no se fusionan): ${report.functionSplits.length} buckets`)
+    for (const split of report.functionSplits) {
+      lines.push('-'.repeat(72))
+      const day = split.events[0] ? formatSaltaDayKey(split.events[0].start_date) : '-'
+      lines.push(`[${day}] ${split.dedupKey}`)
+      for (const ev of split.events) {
+        lines.push(
+          `  ${ev.id}  ${describeSource(ev.source)}  inicio=${ev.start_date} (${formatSaltaClock(ev.start_date)} Salta)  ` +
+          `venue=${ev.venue_id ?? '-'}  "${ev.title}"`
+        )
+      }
+      if (split.sinHoraExcluidos.length > 0) {
+        lines.push('  sin hora, no se pudieron asignar a ninguna función:')
+        for (const ev of split.sinHoraExcluidos) {
+          lines.push(`    ${ev.id}  ${describeSource(ev.source)}  inicio=${ev.start_date}  venue=${ev.venue_id ?? '-'}  "${ev.title}"`)
+        }
       }
     }
   }

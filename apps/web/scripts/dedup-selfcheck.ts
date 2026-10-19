@@ -336,6 +336,10 @@ const report: DedupCleanupReport = {
   eventsAfter: 3,
   groups: [plan1, plan2, plan3],
   venueConflicts: [],
+  // Vacío a propósito: los tres casos del reporte de ejemplo son de una sola
+  // función cada uno. Las dos funciones del mismo día (QPS-209) se cubren en
+  // tests/scraper/dedup-cleanup-hora.test.ts, que sí ejercita splitByFunction.
+  functionSplits: [],
   applied: { keepersUpdated: 0, eventsDeleted: 0, favoritesRepointed: 0, keysBackfilled: 0 },
   errors: [],
   range: { from: '2026-09-01', to: null },
