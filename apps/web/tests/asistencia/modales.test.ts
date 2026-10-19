@@ -215,8 +215,15 @@ describe('botones-asistencia-diferidos.tsx: detector estático', () => {
 describe('modal interceptado (app/@modal/(.)evento/[id]/page.tsx)', () => {
   const codigo = sinComentarios(leer(RUTA_MODAL_INTERCEPTADO))
 
-  it('importa obtenerAsistencia de "@/lib/asistencia"', () => {
-    expect(codigo).toMatch(/import\s*\{[^}]*\bobtenerAsistencia\b[^}]*\}\s*from\s*['"]@\/lib\/asistencia['"]/)
+  // R56 (tarea 56-a, QPS-196): el modal pasó de llamar a la server action
+  // `obtenerAsistencia` (que creaba SU PROPIO cliente y volvía a llamar a
+  // Auth) a `leerAsistencia` de `@/lib/asistencia-lectura`, con el mismo
+  // cliente y el mismo `auth.getUser()` que ya usa el resto de la página.
+  // Estas dos aserciones se actualizaron para seguir ese cambio real (no se
+  // aflojó ninguna: siguen exigiendo un import y una condición exactos,
+  // solo que ahora apuntan a la función nueva).
+  it('importa leerAsistencia de "@/lib/asistencia-lectura"', () => {
+    expect(codigo).toMatch(/import\s*\{[^}]*\bleerAsistencia\b[^}]*\}\s*from\s*['"]@\/lib\/asistencia-lectura['"]/)
   })
 
   it('importa debenMostrarseBotonesAsistencia de "@/lib/asistencia-visibilidad"', () => {
@@ -225,8 +232,8 @@ describe('modal interceptado (app/@modal/(.)evento/[id]/page.tsx)', () => {
     )
   })
 
-  it('la llamada a obtenerAsistencia está condicionada por debenMostrarseBotonesAsistencia(', () => {
-    expect(codigo).toMatch(/debenMostrarseBotonesAsistencia\([^)]*\)\s*\?\s*await\s+obtenerAsistencia\(/)
+  it('la llamada a leerAsistencia está condicionada por debenMostrarseBotonesAsistencia(', () => {
+    expect(codigo).toMatch(/debenMostrarseBotonesAsistencia\([^)]*\)\s*\?\s*await\s+leerAsistencia\(/)
   })
 
   it('importa y llama a obtenerSeguimientoDeEvento, en el mismo Promise.all que ya existía', () => {

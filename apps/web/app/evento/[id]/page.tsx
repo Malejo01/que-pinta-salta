@@ -8,7 +8,7 @@ import { createClient, createAdminClient } from "@/lib/supabase/server"
 import { formatSaltaSchemaDate } from "@/lib/date-format"
 import { parseOrigin } from "@/lib/metricas/links"
 import { esEventoFavorito } from "@/lib/favoritos/es-favorito"
-import { obtenerAsistencia } from "@/lib/asistencia"
+import { leerAsistencia } from "@/lib/asistencia-lectura"
 import { debenMostrarseBotonesAsistencia } from "@/lib/asistencia-visibilidad"
 import { obtenerSeguimientoDeEvento } from "@/lib/actions/radar"
 import type { Metadata } from "next"
@@ -64,17 +64,21 @@ export default async function EventPage({ params, searchParams }: EventPageProps
   const origin = parseOrigin(Array.isArray(sp.o) ? sp.o[0] : sp.o)
   const supabase = await createClient()
 
-  const [event, categories, userResult, resultadoAsistencia, seguimiento] = await Promise.all([
+  const [event, categories, userResult, seguimiento] = await Promise.all([
     getEventById(id),
     getCategories(),
     supabase.auth.getUser(),
-    obtenerAsistencia(id),
     obtenerSeguimientoDeEvento(id),
   ])
 
   let isAdmin = false
   let isFavorite = false
   const user = userResult.data.user
+
+  // R56 (56-a, QPS-196): el MISMO cliente y el MISMO auth.getUser() de
+  // arriba, sin crear un segundo cliente ni volver a autenticar (antes,
+  // `obtenerAsistencia(id)` hacía las dos cosas de nuevo).
+  const resultadoAsistencia = await leerAsistencia(supabase, user?.id ?? null, id)
 
   if (user) {
     const [profileRes, favoriteResult] = await Promise.all([
@@ -109,7 +113,7 @@ export default async function EventPage({ params, searchParams }: EventPageProps
   // "Voy" (bloqueante 2, vuelta 1): si la lectura de asistencia falla, la
   // ficha sigue funcionando: no se muestra el botón de Voy, pero la fila de
   // ♥ Guardar/Compartir se dibuja igual (el `console.error` ya quedó
-  // dentro de `obtenerAsistencia`).
+  // dentro de `leerAsistencia`).
   // Además, solo se pasan las cantidades si el evento está PUBLISHED: la
   // vista `event_attendance_counts` solo agrega votos de eventos
   // PUBLISHED, así que en un evento CANCELLED o PAST el contador quedaría
