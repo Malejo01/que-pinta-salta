@@ -34,9 +34,12 @@ import { URL_POLITICA, USER_AGENT } from '../lib/venues/geocodificacion/consulta
 import { crearClienteNominatim } from '../lib/venues/geocodificacion/nominatim'
 import { leerOpciones } from '../lib/venues/geocodificacion/opciones'
 import {
+  contarEventosProximos,
   filtroDeActualizacion,
   geocodificarLugares,
   lugaresAGeocodificar,
+  ordenarPorEventosProximos,
+  quedanParaCargarAMano,
   type FilaReporteGeocodificacion,
   type VenueParaGeocodificar,
 } from '../lib/venues/geocodificacion/plan'
@@ -159,15 +162,38 @@ async function main() {
     return
   }
 
-  const { elegibles, paraRevisarPrevios } = lugaresAGeocodificar(venues, { rehacerNominatim })
-  const recortados = elegibles.slice(0, limite)
+  // Eventos publicados que todavía no empezaron, por lugar: ordenan la corrida
+  // (con --limite se miran primero los que más importan) y el reporte.
+  let eventosProximos: Array<{ venue_id: string | null }>
+  try {
+    const ahoraISO = new Date().toISOString()
+    eventosProximos = await traerTodasLasFilas<{ venue_id: string | null }>((desde, hasta) =>
+      supabase
+        .from('events')
+        .select('venue_id')
+        .eq('status', 'PUBLISHED')
+        .gte('start_date', ahoraISO)
+        .not('venue_id', 'is', null)
+        .order('id')
+        .range(desde, hasta)
+    )
+  } catch (error) {
+    console.error(`[geocodificar-lugares] Error consultando eventos próximos: ${error instanceof Error ? error.message : String(error)}`)
+    process.exit(1)
+    return
+  }
+  const conteoEventos = contarEventosProximos(eventosProximos, venues)
+
+  const { elegibles, paraRevisarPrevios: previosSinOrden } = lugaresAGeocodificar(venues, { rehacerNominatim })
+  const paraRevisarPrevios = ordenarPorEventosProximos(previosSinOrden, conteoEventos)
+  const recortados = ordenarPorEventosProximos(elegibles, conteoEventos).slice(0, limite)
   const descartadosPorTope = elegibles.length - recortados.length
 
-  const tiempoEstimadoSeg = Math.ceil(recortados.length * 3 * 1.1)
+  const tiempoEstimadoSeg = Math.ceil(recortados.length * 4 * 1.1)
   console.log(
-    `[geocodificar-lugares] lugares a mirar: ${recortados.length} de ${elegibles.length} elegibles` +
+    `[geocodificar-lugares] lugares a mirar: ${recortados.length} de ${elegibles.length} elegibles, de más a menos eventos próximos` +
       (descartadosPorTope > 0 ? ` (${descartadosPorTope} quedaron afuera por --limite ${limite})` : '') +
-      `. Tiempo estimado: hasta ${tiempoEstimadoSeg}s (hasta 3 consultas por lugar, 1,1s entre pedidos).`
+      `. Tiempo estimado: hasta ${tiempoEstimadoSeg}s (hasta 4 consultas por lugar, 1,1s entre pedidos).`
   )
 
   const cliente = crearClienteNominatim({
@@ -255,22 +281,28 @@ async function main() {
     mirados: recortados.length,
     descartadosPorTope,
     resumen: resumen(filas),
+    quedanParaCargarAMano: quedanParaCargarAMano(filas),
     filas,
     previosSinOrigen,
   }
   writeFileSync(rutaJson, JSON.stringify(reporte, null, 2), 'utf8')
 
-  // `aCsv` toma cualquier objeto plano (FilaCsv = Record<string, ...>): el
-  // spread es solo para satisfacer esa firma, no cambia los valores. Lleva
+  // `aCsv` toma cualquier objeto plano (FilaCsv = Record<string, ...>). Lleva
   // primero las filas de la corrida y después los previos sin geocode_source
-  // (mismas claves en ambos: ver filaParaRevisarPrevio).
-  const filasCsv: FilaCsv[] = todasLasFilas.map((fila) => ({ ...fila }))
+  // (mismas claves en ambos: ver filaParaRevisarPrevio), cada grupo de más a
+  // menos eventos próximos, con esa cantidad en la primera columna,
+  // `eventos_proximos`: Mauro carga a mano empezando por los que más importan.
+  const filasCsv: FilaCsv[] = todasLasFilas.map((fila) => ({ eventos_proximos: conteoEventos.get(fila.id) ?? 0, ...fila }))
   writeFileSync(rutaCsv, aCsv(filasCsv), 'utf8')
 
   console.log('[geocodificar-lugares] resumen de esta corrida:', resumen(filas))
   console.log(
     `[geocodificar-lugares] para revisar a mano por no tener geocode_source (coordenadas cargadas antes de esa ` +
       `columna, no se tocan solas): ${previosSinOrigen.length} — van al reporte como 'para-revisar'`
+  )
+  console.log(
+    `[geocodificar-lugares] ${quedanParaCargarAMano(filas)} quedan para cargar a mano` +
+      (apply ? '' : ' (modo consulta: con --apply se guardarían solo los de confianza alta)')
   )
   console.log(`[geocodificar-lugares] reporte: ${rutaJson}`)
   console.log(`[geocodificar-lugares] reporte: ${rutaCsv}`)
