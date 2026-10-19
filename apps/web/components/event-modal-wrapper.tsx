@@ -29,6 +29,7 @@ import { ViewBeacon } from "@/components/view-beacon"
 import { goHref, urlComoLlegar, type MetricOrigin } from "@/lib/metricas/links"
 import { FlyerImage } from "@/components/flyer-image"
 import { ShareButton } from "@/components/share-button"
+import { VerEnElMapa } from "@/components/ver-en-el-mapa"
 import { FilaAccionesEvento } from "@/components/fila-acciones-evento"
 import { BotonSeguir } from "@/components/boton-seguir"
 import { InsigniaDestacado } from "@/components/insignia-destacado"
@@ -370,6 +371,8 @@ export function EventModalWrapper({
                 </a>
               </Button>
             )}
+
+            <VerEnElMapa venue={event.venue} startDate={startDate} />
 
             {displayEvent.ticketUrl && (
               <Button variant="outline" className="flex-1" asChild>

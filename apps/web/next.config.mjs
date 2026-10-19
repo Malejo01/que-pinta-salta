@@ -3,6 +3,15 @@
 const ADS_ENABLED = process.env.NEXT_PUBLIC_ADS_ENABLED === 'true'
 const ifAds = (sources) => (ADS_ENABLED ? sources : [])
 
+// Origen de los tiles del mapa (R54, tarea 54-c). Repetido acá a mano: la
+// fuente de verdad real es `ORIGEN_TILES` de `@qps/core/mapa/estilos`, pero
+// este archivo lo ejecuta Node en crudo al levantar el build (no pasa por el
+// resolver de `paths` de TypeScript ni por el transform de Next, que es como
+// se resuelve `@qps/core/*` en el resto del repo), así que no puede
+// `import`-ar un `.ts` del paquete. Una divergencia entre las dos constantes
+// la agarra `tests/mapa/csp.test.ts`, que sí importa `@qps/core/mapa/estilos`.
+const ORIGEN_TILES_MAPA = 'https://tiles.openfreemap.org'
+
 const csp = {
   'default-src': ["'self'"],
   'script-src': [
@@ -37,6 +46,8 @@ const csp = {
       : ['https://stats.g.doubleclick.net']),
     'https://*.google.com', 'https://*.google.com.ar',
     ...ifAds(['https://*.googleadservices.com', 'https://*.merchant-center-analytics.goog', 'https://*.adtrafficquality.google']),
+    // El mapa (R54): los tiles de OpenFreeMap se piden como imágenes.
+    ORIGEN_TILES_MAPA,
   ],
   'font-src': ["'self'", 'data:', 'https://fonts.gstatic.com'],
   'connect-src': [
@@ -50,6 +61,9 @@ const csp = {
       : ['https://stats.g.doubleclick.net']),
     'https://*.googletagmanager.com', 'https://*.google.com', 'https://*.google.com.ar',
     ...ifAds(['https://*.googleadservices.com', 'https://*.merchant-center-analytics.goog']),
+    // El mapa (R54): MapLibre pide el estilo, los tiles, las fuentes y los
+    // sprites de OpenFreeMap con `fetch`.
+    ORIGEN_TILES_MAPA,
   ],
   'frame-src': [
     'https://*.googletagmanager.com',
@@ -60,6 +74,10 @@ const csp = {
     'https://*.google.com', 'https://*.google.com.ar',
   ],
   'frame-ancestors': ["'none'"],
+  // El mapa (R54): MapLibre crea su worker (para componer los tiles) a
+  // partir de un `blob:`, que antes caía en `script-src` (sin `blob:`, así
+  // que el worker no arrancaba).
+  'worker-src': ["'self'", 'blob:'],
 }
 
 /** @type {import('next').NextConfig} */
