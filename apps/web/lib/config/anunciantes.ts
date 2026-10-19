@@ -34,10 +34,10 @@ export const ANUNCIANTES: AnunciantesConfig = {
       // [COMPLETAR: nombre comercial definitivo del paquete; "Evento destacado" es un nombre de trabajo]
       nombre: "Evento destacado",
       queIncluye: [
-        "Tu evento como primera opción en la fila de su categoría en la portada.",
-        "Un lugar en el carrusel principal (hero) de la portada, sujeto a disponibilidad.",
-        "Rótulo de contenido patrocinado, igual que el resto de los destacados del sitio.",
-        // [COMPLETAR: cuántos días de vigencia se venden por defecto (hoy el campo is_featured no tiene fecha de fin automática)]
+        'La insignia "★ Destacado" en la tarjeta, en la ficha y en el carrusel principal (Hero) de la portada.',
+        "Un lugar en el carrusel principal (Hero) de la portada, sujeto a disponibilidad: son 6 cupos.",
+        'Primero en la fila de su categoría en la portada. Vale en la portada sin filtro y en "semana", "mes" y fecha exacta; con el filtro "Hoy" las filas se ordenan por hora de inicio, así que ese orden no aplica ahí.',
+        "Vigencia hasta la fecha que elijas: lo destacamos hasta ese día y después vence solo, sin que tengas que avisarnos.",
       ],
       precio: null, // [COMPLETAR: precio en ARS]
       periodo: null, // [COMPLETAR: unidad del precio, p. ej. "por evento" o "por semana"]
@@ -66,5 +66,7 @@ export const ANUNCIANTES: AnunciantesConfig = {
       precio: null, // [COMPLETAR: precio en ARS]
       periodo: null, // [COMPLETAR: unidad del precio]
     },
+    // R51: sumar el paquete de "Aviso patrocinado" (un aviso push por semana,
+    // con la etiqueta "Patrocinado") cuando la R51 esté en main.
   ],
 }

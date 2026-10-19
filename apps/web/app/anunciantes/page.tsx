@@ -1,5 +1,5 @@
 import type { Metadata } from "next"
-import { Sparkles, Eye, Radio, Calendar, MessageCircle, CheckCircle2 } from "lucide-react"
+import { Sparkles, Eye, Radio, Calendar, MessageCircle, Mail, CheckCircle2 } from "lucide-react"
 import { Navbar } from "@/components/navbar"
 import { MobileNav } from "@/components/mobile-nav"
 import { createAdminClient } from "@/lib/supabase/server"
@@ -12,6 +12,7 @@ import {
 } from "@/lib/anunciantes/metricas"
 import { ANUNCIANTES } from "@/lib/config/anunciantes"
 import { whatsappUrl } from "@/lib/contacto"
+import { CONTACTO_EMAIL, mailtoContacto } from "@qps/core/contacto"
 
 /**
  * Página 100% estática desde el punto de vista de Next: ningún componente
@@ -32,7 +33,7 @@ const SIN_METRICAS: AdvertiserMetrics = {
 }
 
 export const metadata: Metadata = {
-  title: "Anunciá en Qué Pinta Salta | Qué Pinta Salta",
+  title: "Publicitá tu evento | Qué Pinta Salta",
   description:
     "Llegá al público que ya está buscando salidas en Salta Capital: evento destacado en la portada, presencia en el Radar y reporte de vistas y clics.",
   alternates: { canonical: "/anunciantes" },
@@ -85,6 +86,7 @@ export default async function AnunciantesPage() {
   const radarLabel = formatRadarSubscribers(metrics.radarSubscribers)
 
   const whatsappHref = whatsappUrl("Hola! Me interesa anunciar en Que Pinta Salta.")
+  const mailtoHref = mailtoContacto("Quiero destacar mi evento")
 
   return (
     <div className="min-h-screen bg-background pb-20 sm:pb-0">
@@ -95,7 +97,7 @@ export default async function AnunciantesPage() {
           <div className="mb-1 flex size-14 items-center justify-center rounded-2xl border border-primary/20 bg-primary/10 text-primary">
             <Sparkles className="size-7" />
           </div>
-          <h1 className="text-3xl font-extrabold tracking-tight sm:text-4xl">Anunciá en Qué Pinta Salta</h1>
+          <h1 className="text-3xl font-extrabold tracking-tight sm:text-4xl">Publicitá tu evento</h1>
           <p className="max-w-2xl text-sm leading-relaxed text-muted-foreground sm:text-base">
             Una agenda pensada para quien ya decidió salir y está buscando dónde: peñas, boliches, teatro, recitales,
             ferias y cine de Salta Capital, todo en un solo lugar.
@@ -169,20 +171,51 @@ export default async function AnunciantesPage() {
           </div>
         </section>
 
+        <section className="mb-12 space-y-4">
+          <h2 className="text-xl font-bold text-foreground">Cómo funciona</h2>
+          <div className="grid gap-4 sm:grid-cols-3">
+            <div className="flex flex-col gap-2 rounded-2xl border border-border bg-card p-5 text-card-foreground shadow-sm">
+              <p className="text-2xl font-extrabold text-primary">1</p>
+              <p className="text-sm text-foreground">Nos escribís, nos contás tu evento y elegís el paquete y la fecha hasta la que querés destacarlo.</p>
+            </div>
+            <div className="flex flex-col gap-2 rounded-2xl border border-border bg-card p-5 text-card-foreground shadow-sm">
+              <p className="text-2xl font-extrabold text-primary">2</p>
+              <p className="text-sm text-foreground">Pagás por transferencia o Mercado Pago, como prefieras.</p>
+            </div>
+            <div className="flex flex-col gap-2 rounded-2xl border border-border bg-card p-5 text-card-foreground shadow-sm">
+              <p className="text-2xl font-extrabold text-primary">3</p>
+              <p className="text-sm text-foreground">
+                Lo destacamos hasta la fecha que elegiste. Llegado ese día, vence solo: no tenés que avisarnos ni
+                sacarlo vos.
+              </p>
+            </div>
+          </div>
+        </section>
+
         <section className="flex flex-col items-center gap-3 rounded-2xl border border-border bg-card p-8 text-center">
           <h2 className="text-xl font-bold text-foreground">¿Te interesa?</h2>
           <p className="max-w-md text-sm text-muted-foreground">
-            Contanos tu caso por WhatsApp y vemos qué paquete se ajusta mejor a tu evento o tu marca.
+            Contanos tu caso por WhatsApp o por mail y vemos qué paquete se ajusta mejor a tu evento o tu marca.
           </p>
-          <a
-            href={whatsappHref}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-primary px-6 text-sm font-bold text-primary-foreground transition-all hover:scale-[1.02] hover:bg-primary/90"
-          >
-            <MessageCircle className="size-4" />
-            Hablar por WhatsApp
-          </a>
+          <div className="flex flex-col gap-3 sm:flex-row">
+            <a
+              href={whatsappHref}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-primary px-6 text-sm font-bold text-primary-foreground transition-all hover:scale-[1.02] hover:bg-primary/90"
+            >
+              <MessageCircle className="size-4" />
+              Hablar por WhatsApp
+            </a>
+            <a
+              href={mailtoHref}
+              className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-border bg-card px-6 text-sm font-bold text-foreground transition-all hover:scale-[1.02] hover:bg-muted"
+            >
+              <Mail className="size-4" />
+              Escribinos por mail
+            </a>
+          </div>
+          <p className="text-xs text-muted-foreground">{CONTACTO_EMAIL}</p>
         </section>
       </main>
 
