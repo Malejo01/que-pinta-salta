@@ -8,8 +8,17 @@ import { getCategoryPriority, sortCategories, selectCarouselEvents } from '@/lib
 import type { DisplayEvent } from '@/lib/home/types'
 import type { Category } from '@/lib/types'
 import { saltaWallClockToDate } from '@/lib/date-format'
+import { estaDestacado } from '@qps/core/events/destacados'
 
 const salta = (wallClock: string) => saltaWallClockToDate(wallClock)
+
+// `now` único para todo el archivo (todas las describe lo usaban con el
+// mismo valor): hace falta un solo punto de referencia para que
+// `makeDisplayEvent` pueda derivar `isFeatured` de `featuredUntil` por
+// default, igual que hace `transformEvent` en la app real (QPS-239, R50).
+// La regla del carrusel no cambia: `selectCarouselEvents` sigue leyendo
+// `isFeatured` tal cual, solo cambia de dónde sale ese valor en los fixtures.
+const now = salta('2030-10-10T12:00:00')
 
 function makeCategory(slug: string, name: string): Category {
   return { id: `cat-${slug}`, slug, name, color: null, icon: null, created_at: null }
@@ -18,6 +27,7 @@ function makeCategory(slug: string, name: string): Category {
 let autoId = 0
 function makeDisplayEvent(overrides: Partial<DisplayEvent> = {}): DisplayEvent {
   autoId += 1
+  const featuredUntil = overrides.featuredUntil ?? null
   return {
     id: overrides.id ?? `evento-de-prueba-${autoId}`,
     slug: overrides.slug ?? `evento-de-prueba-${autoId}`,
@@ -32,7 +42,8 @@ function makeDisplayEvent(overrides: Partial<DisplayEvent> = {}): DisplayEvent {
     description: overrides.description ?? '',
     address: overrides.address ?? '',
     startDateTime: overrides.startDateTime ?? salta('2030-10-10T21:00:00').toISOString(),
-    isFeatured: overrides.isFeatured ?? false,
+    featuredUntil,
+    isFeatured: overrides.isFeatured ?? estaDestacado(featuredUntil, now),
     ...overrides,
   }
 }
@@ -92,7 +103,7 @@ describe('selectCarouselEvents', () => {
     const destacados = Array.from({ length: 8 }, (_, i) =>
       makeDisplayEvent({
         id: `destacado-${i}`,
-        isFeatured: true,
+        featuredUntil: salta('2030-11-01T00:00:00').toISOString(),
         startDateTime: salta(`2030-10-${11 + i}T21:00:00`).toISOString(),
       }),
     )
@@ -103,8 +114,9 @@ describe('selectCarouselEvents', () => {
   })
 
   it('destacados pasados no cuentan: solo los futuros entran por esa vía', () => {
-    const pasado = makeDisplayEvent({ id: 'destacado-pasado', isFeatured: true, startDateTime: salta('2030-09-01T21:00:00').toISOString() })
-    const futuro = makeDisplayEvent({ id: 'destacado-futuro', isFeatured: true, startDateTime: salta('2030-10-15T21:00:00').toISOString() })
+    const vigente = salta('2030-11-01T00:00:00').toISOString()
+    const pasado = makeDisplayEvent({ id: 'destacado-pasado', featuredUntil: vigente, startDateTime: salta('2030-09-01T21:00:00').toISOString() })
+    const futuro = makeDisplayEvent({ id: 'destacado-futuro', featuredUntil: vigente, startDateTime: salta('2030-10-15T21:00:00').toISOString() })
 
     const result = selectCarouselEvents([pasado, futuro], [], now)
     expect(result.map((e) => e.id)).toEqual(['destacado-futuro'])
@@ -120,7 +132,7 @@ describe('selectCarouselEvents', () => {
     const destacadoTeatro = makeDisplayEvent({
       id: 'destacado-teatro',
       category: 'teatro',
-      isFeatured: true,
+      featuredUntil: salta('2030-11-01T00:00:00').toISOString(),
       startDateTime: salta('2030-10-11T21:00:00').toISOString(),
     })
     const bolichesEvento = makeDisplayEvent({ id: 'relleno-boliches', category: 'boliches', startDateTime: salta('2030-10-12T21:00:00').toISOString() })
@@ -142,7 +154,7 @@ describe('selectCarouselEvents', () => {
     // 4 destacados (quedan 2 cupos) + 5 categorías candidatas a relleno:
     // solo entran las 2 primeras en el orden de sortedCategories.
     const destacados = Array.from({ length: 4 }, (_, i) =>
-      makeDisplayEvent({ id: `destacado-${i}`, category: 'cine', isFeatured: true, startDateTime: salta(`2030-10-${11 + i}T21:00:00`).toISOString() }),
+      makeDisplayEvent({ id: `destacado-${i}`, category: 'cine', featuredUntil: salta('2030-11-01T00:00:00').toISOString(), startDateTime: salta(`2030-10-${11 + i}T21:00:00`).toISOString() }),
     )
     const categoriasRelleno = ['a', 'b', 'c', 'd', 'e'].map((slug) => makeCategory(slug, `Categoría ${slug.toUpperCase()} de Prueba`))
     const eventosRelleno = categoriasRelleno.map((cat) =>

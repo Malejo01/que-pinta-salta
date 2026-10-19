@@ -57,6 +57,10 @@ interface FilaCruda {
   ticket_url: null
   age_restriction: number
   is_featured: boolean
+  // QPS-239 (R50): "destacado" es `featured_until` vigente, no `is_featured`
+  // (que quedó como legado y ya no lo mira la interfaz). Los fixtures de
+  // abajo lo fijan por eso.
+  featured_until: string | null
   category: { slug: string; name: string } | null
   venue: { name: string; address: string } | null
 }
@@ -74,6 +78,7 @@ function filaDeEvento(over: Partial<FilaCruda> & { id: string; start_date: strin
     ticket_url: null,
     age_restriction: 0,
     is_featured: false,
+    featured_until: null,
     category: { slug: 'teatro', name: 'Teatro' },
     venue: { name: 'Venue de Prueba', address: 'Calle de Prueba 123' },
     ...over,
@@ -88,12 +93,25 @@ const CATEGORIAS: Category[] = [
 // tests/portada-atajos.test.ts (equivalencia de fechas ya validada ahí).
 const AHORA = new Date('2026-10-13T20:00:00-03:00')
 
+// QPS-239 (R50): "destacado" se expresa con `featured_until` vigente y NO
+// con `is_featured` (que queda en `false`, su default): así, si alguien
+// volviera la regla a `is_featured`, estos tests se ponen en rojo.
+//
+// Ojo con la asimetría de relojes, que es real y no se puede evitar acá:
+// `start_date` se compara contra `AHORA` (el parámetro explícito que recibe
+// `eventoEnAtajo`/`selectCarouselEvents`), pero `featured_until` lo compara
+// `transformEvent` contra el reloj del sistema (su único `new Date()` sin
+// argumento, ver `packages/core/src/home/transform.ts`). Por eso la vigencia
+// se construye relativa a `Date.now()`: una fecha fija de 2026 dejaría de
+// ser "futuro" con el paso del tiempo real y el test se caería solo.
+const DESTACADO_VIGENTE = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
+
 // F1: hoy a las 21:00, destacado — entra en "hoy" y "semana", no en "finde".
-const F1 = filaDeEvento({ id: 'f1-hoy-destacado', start_date: '2026-10-13T21:00:00-03:00', is_featured: true })
+const F1 = filaDeEvento({ id: 'f1-hoy-destacado', start_date: '2026-10-13T21:00:00-03:00', featured_until: DESTACADO_VIGENTE })
 
 // F2: el viernes que viene (16/10) a las 20:00, destacado — entra en "finde"
 // y "semana", no en "hoy" (mismo día que E4 de portada-atajos.test.ts).
-const F2 = filaDeEvento({ id: 'f2-finde-destacado', start_date: '2026-10-16T20:00:00-03:00', is_featured: true })
+const F2 = filaDeEvento({ id: 'f2-finde-destacado', start_date: '2026-10-16T20:00:00-03:00', featured_until: DESTACADO_VIGENTE })
 
 // Los dos únicos eventos de la categoría "teatro": al ser los dos
 // destacados, `selectCarouselEvents` los toma en el primer paso (destacados

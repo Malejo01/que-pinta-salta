@@ -65,6 +65,8 @@ export interface Event {
   tags: string[]
   status: EventStatus
   is_featured: boolean
+  /** QPS-239: opcional por los mismos fixtures que obligan a `featuredUntil` a ser opcional en `DisplayEvent` (ver `home/types.ts`). */
+  featured_until?: string | null
   view_count: number
   created_by?: string | null
   created_at: string

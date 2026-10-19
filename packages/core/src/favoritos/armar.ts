@@ -22,6 +22,7 @@ import type { Category, CinemaMovie, Event, Venue } from '../types'
 import type { FlyerWithAccount } from '../instagram-config'
 import { ageChip, cleanDescription, formatEventTimeDisplay } from '../event-display'
 import { isVigente } from '../events/vigencia'
+import { estaDestacado } from '../events/destacados'
 import { formatDateInSalta, transformEvent, transformFlyer } from '../home/transform'
 import type { DisplayEvent, EventWithRelations } from '../home/types'
 import { SITIO } from '../metricas/links'
@@ -109,7 +110,11 @@ function transformEventoFavorito(event: EventoFavorito): DisplayEvent {
     startDateTime: event.start_date,
     ticketUrl: event.ticket_url || undefined,
     vibe: ageChip(event.age_restriction),
-    isFeatured: event.is_featured,
+    // QPS-239: las dos ramas de esta función tienen que devolver el mismo
+    // `DisplayEvent` salvo en la categoría, así que `featuredUntil` también
+    // se copia acá (la rama de arriba lo hace vía `transformEvent`).
+    featuredUntil: event.featured_until ?? null,
+    isFeatured: estaDestacado(event.featured_until, new Date()),
   }
 }
 
