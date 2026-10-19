@@ -26,6 +26,8 @@ function makeVenue(overrides: Partial<Venue> = {}): Venue {
     canonical_venue_id: overrides.canonical_venue_id ?? null,
     capacity: overrides.capacity ?? null,
     created_at: overrides.created_at ?? null,
+    geocode_source: overrides.geocode_source ?? null,
+    geocoded_at: overrides.geocoded_at ?? null,
     google_maps_url: overrides.google_maps_url ?? null,
     is_placeholder: overrides.is_placeholder ?? false,
     latitude: overrides.latitude ?? null,

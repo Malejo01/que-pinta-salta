@@ -68,7 +68,7 @@ export default function EliminarCuentaPublicaPage() {
           <Section title="Qué se borra">
             <ul className="list-disc space-y-2 pl-5">
               <li>Tus favoritos.</li>
-              <li>Tus marcas de &quot;Voy&quot; y &quot;Me interesa&quot;.</li>
+              <li>Tus marcas de &quot;Voy&quot;.</li>
               <li>Las preferencias de Mi Radar y de notificaciones.</li>
               <li>Los avisos que tenés activados.</li>
               <li>El historial de los avisos que te mandamos.</li>

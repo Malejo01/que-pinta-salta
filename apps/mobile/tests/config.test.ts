@@ -6,8 +6,12 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import fs from 'node:fs'
 import path from 'node:path'
 import config, {
+  ADMOB_ANDROID_APP_ID_PRUEBA,
+  ADMOB_IOS_APP_ID_PRUEBA,
   COLOR_NOTIFICACION,
   TEXTO_PERMISO_CALENDARIO,
+  TEXTO_PERMISO_UBICACION,
+  admobAppIds,
   googleServicesFile,
   plugins,
 } from '../app.config'
@@ -101,6 +105,9 @@ describe('app.config.ts para EAS (QPS-143)', () => {
       '@react-native-google-signin/google-signin',
       'expo-notifications',
       'expo-calendar',
+      '@maplibre/maplibre-react-native',
+      'expo-location',
+      'react-native-google-mobile-ads',
     ])
   })
 
@@ -194,3 +201,76 @@ describe('app.config.ts: dependencias de la v1 (push, calendario, compartir)', (
   })
 })
 
+
+// chore/deps-etapa-2 (18/10): los plugins del mapa (MapLibre), de la
+// ubicación ("Cerca mío", solo mientras se usa) y de AdMob (con los ID de
+// prueba de Google mientras no estén los reales en EAS).
+describe('app.config.ts: dependencias de la etapa 2 (mapa, ubicación, AdMob)', () => {
+  const opciones = (env: Record<string, string | undefined>, nombre: string) => {
+    const p = plugins(env).find((x) => (typeof x === 'string' ? x : x[0]) === nombre)
+    return typeof p === 'string' || p === undefined ? undefined : p[1]
+  }
+
+  it('MapLibre entra con su plugin y sin opciones (motor de ubicación por defecto)', () => {
+    expect(plugins({})).toContain('@maplibre/maplibre-react-native')
+  })
+
+  it('expo-location pide solo "mientras se usa", con el texto en español', () => {
+    const o = opciones({}, 'expo-location')
+    expect(o?.locationWhenInUsePermission).toBe(TEXTO_PERMISO_UBICACION)
+    expect(TEXTO_PERMISO_UBICACION).toMatch(/Cerca mío/)
+    expect(TEXTO_PERMISO_UBICACION).toMatch(/tocás/)
+  })
+
+  it('expo-location no pide ubicación en segundo plano (ni "siempre", ni servicio en primer plano, ni movimiento)', () => {
+    const o = opciones({}, 'expo-location')
+    // false (no undefined): con undefined el plugin pone el texto en inglés
+    // por defecto; con false lo borra del Info.plist.
+    expect(o?.locationAlwaysAndWhenInUsePermission).toBe(false)
+    expect(o?.locationAlwaysPermission).toBe(false)
+    expect(o?.motionUsagePermission).toBe(false)
+    expect(o?.isIosBackgroundLocationEnabled).toBe(false)
+    expect(o?.isAndroidBackgroundLocationEnabled).toBe(false)
+    expect(o?.isAndroidForegroundServiceEnabled).toBe(false)
+  })
+
+  it('sin las variables, AdMob usa los ID de app de prueba oficiales de Google', () => {
+    expect(ADMOB_ANDROID_APP_ID_PRUEBA).toBe('ca-app-pub-3940256099942544~3347511713')
+    expect(ADMOB_IOS_APP_ID_PRUEBA).toBe('ca-app-pub-3940256099942544~1458002511')
+    expect(admobAppIds({})).toEqual({
+      androidAppId: ADMOB_ANDROID_APP_ID_PRUEBA,
+      iosAppId: ADMOB_IOS_APP_ID_PRUEBA,
+    })
+    expect(admobAppIds({ EXPO_PUBLIC_ADMOB_ANDROID_APP_ID: '   ', EXPO_PUBLIC_ADMOB_IOS_APP_ID: '' })).toEqual({
+      androidAppId: ADMOB_ANDROID_APP_ID_PRUEBA,
+      iosAppId: ADMOB_IOS_APP_ID_PRUEBA,
+    })
+    expect(opciones({}, 'react-native-google-mobile-ads')).toMatchObject({
+      androidAppId: ADMOB_ANDROID_APP_ID_PRUEBA,
+      iosAppId: ADMOB_IOS_APP_ID_PRUEBA,
+    })
+  })
+
+  it('con EXPO_PUBLIC_ADMOB_*_APP_ID, AdMob usa los ID reales (recortados)', () => {
+    const env = {
+      EXPO_PUBLIC_ADMOB_ANDROID_APP_ID: ' ca-app-pub-1111111111111111~2222222222 ',
+      EXPO_PUBLIC_ADMOB_IOS_APP_ID: 'ca-app-pub-1111111111111111~3333333333',
+    }
+    expect(opciones(env, 'react-native-google-mobile-ads')).toMatchObject({
+      androidAppId: 'ca-app-pub-1111111111111111~2222222222',
+      iosAppId: 'ca-app-pub-1111111111111111~3333333333',
+    })
+  })
+
+  it('AdMob demora la medición hasta inicializar el SDK (después del consentimiento UMP)', () => {
+    expect(opciones({}, 'react-native-google-mobile-ads')?.delayAppMeasurementInit).toBe(true)
+  })
+
+  it('AdMob solo recibe opciones que su plugin conoce', () => {
+    expect(Object.keys(opciones({}, 'react-native-google-mobile-ads') ?? {}).sort()).toEqual([
+      'androidAppId',
+      'delayAppMeasurementInit',
+      'iosAppId',
+    ])
+  })
+})
