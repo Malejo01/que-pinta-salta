@@ -31,6 +31,8 @@ import { FlyerImage } from "@/components/flyer-image"
 import { ShareButton } from "@/components/share-button"
 import { FilaAccionesEvento } from "@/components/fila-acciones-evento"
 import { BotonSeguir } from "@/components/boton-seguir"
+import { InsigniaDestacado } from "@/components/insignia-destacado"
+import { estaDestacado } from "@qps/core/events/destacados"
 import type { CantidadesAsistencia } from "@/lib/asistencia"
 import { debenMostrarseBotonesAsistencia } from "@/lib/asistencia-visibilidad"
 import type { TipoAsistencia } from "@qps/core/asistencia"
@@ -187,6 +189,18 @@ export function EventModalWrapper({
             {createElement(iconComponent, { className: "mr-1 size-3" })}
             {displayEvent.categoryName}
           </Badge>
+          {/*
+            `event` es la fila cruda (`EventWithRelations`), no pasa por
+            `transformEvent`: no trae `isFeatured` calculado, así que acá sí
+            se llama a `estaDestacado()` (`@qps/core/events/destacados`) con
+            `event.featured_until` y la hora actual. `event-card.tsx` y
+            `hero-carousel.tsx` reciben un `DisplayEvent` con `isFeatured` ya
+            resuelto por `transformEvent`, así que ahí no hace falta.
+          */}
+          <InsigniaDestacado
+            visible={estaDestacado(event.featured_until, new Date())}
+            className="absolute left-4 top-14"
+          />
         </div>
 
         <div className="p-6">

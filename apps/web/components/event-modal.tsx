@@ -34,6 +34,7 @@ import {
 } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { InsigniaDestacado } from "@/components/insignia-destacado"
 import { getCategoryIcon } from "@/lib/category-icons"
 import { formatEventDate } from "@/lib/date-format"
 import { capitalizeFirst, cleanDescription } from "@/lib/event-display"
@@ -82,6 +83,15 @@ export function EventModal({ event, open, onClose, origin = "directo", isFavorit
             {createElement(iconComponent, { className: "mr-1 size-3" })}
             {event.categoryName || event.category}
           </Badge>
+          {/*
+            Acá SÍ alcanza con `event.isFeatured` tal cual (no se llama a
+            `estaDestacado`): este `event` es el `DisplayEvent` local del
+            modal (línea 8), lo arma `/buscar` con `isFeatured` ya resuelto
+            (y, para flyers/películas, fijado en `false` a mano — ver
+            `app/buscar/buscar-content.tsx`), igual que en `event-card.tsx` y
+            `hero-carousel.tsx`.
+          */}
+          <InsigniaDestacado visible={!!event.isFeatured} className="absolute left-4 top-14" />
         </div>
 
         <div className="p-6">
