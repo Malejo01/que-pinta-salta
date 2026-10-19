@@ -20,6 +20,15 @@ vi.mock("@/lib/cuenta/eliminar", () => ({
   eliminarCuenta: (...a: unknown[]) => eliminarCuenta(...a),
 }))
 
+// El cliente que arma el endpoint para el camino Bearer (paso 7 de
+// route.ts): `createClient` de `@supabase/supabase-js`, nunca la service
+// role. Se renombra el doble para no chocar con el `createClient` de
+// `@/lib/supabase/server` (el de cookies), mockeado arriba.
+const createClienteBearer = vi.fn()
+vi.mock("@supabase/supabase-js", () => ({
+  createClient: (...a: unknown[]) => createClienteBearer(...a),
+}))
+
 import { POST } from "@/app/api/cuenta/eliminar/route"
 
 const URL_ENDPOINT = "http://localhost:3000/api/cuenta/eliminar"
@@ -87,10 +96,29 @@ function crearClienteSesion(
 const USUARIO_SESION = { id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" }
 const OTRO_USUARIO = { id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb" }
 
+// Variables de entorno que el camino Bearer (paso 7) necesita para armar el
+// cliente del RPC con `@supabase/supabase-js` + la anon key. Se guardan los
+// valores originales para restaurarlos en `afterEach` y no filtrar hacia
+// otros archivos de test.
+const URL_ORIGINAL = process.env.NEXT_PUBLIC_SUPABASE_URL
+const ANON_KEY_ORIGINAL = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+const URL_DE_PRUEBA = "https://proyecto-de-prueba.supabase.co"
+const ANON_KEY_DE_PRUEBA = "anon-key-de-prueba"
+
 beforeEach(() => {
   vi.clearAllMocks()
   createAdminClient.mockReturnValue({ marcador: "admin-falso" })
   eliminarCuenta.mockResolvedValue({ ok: true })
+  createClienteBearer.mockReturnValue({ marcador: "bearer-cliente-falso" })
+  process.env.NEXT_PUBLIC_SUPABASE_URL = URL_DE_PRUEBA
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = ANON_KEY_DE_PRUEBA
+})
+
+afterEach(() => {
+  if (URL_ORIGINAL === undefined) delete process.env.NEXT_PUBLIC_SUPABASE_URL
+  else process.env.NEXT_PUBLIC_SUPABASE_URL = URL_ORIGINAL
+  if (ANON_KEY_ORIGINAL === undefined) delete process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  else process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = ANON_KEY_ORIGINAL
 })
 
 describe("content-type: capa adicional (no la defensa principal contra CSRF), se evalúa antes que nada", () => {
@@ -328,21 +356,24 @@ describe("errores: nunca se devuelve el detalle del esquema ni de la excepción"
     createClient.mockResolvedValue(crearClienteSesion({ usuarioCookie: USUARIO_SESION }))
   })
 
-  it("si eliminarCuenta falla, el cuerpo de la respuesta no contiene la tabla ni el mensaje de la excepción", async () => {
+  it("si eliminarCuenta falla (paso rpc), el cuerpo de la respuesta no contiene el detalle ni el código del error del RPC", async () => {
     eliminarCuenta.mockResolvedValueOnce({
       ok: false,
-      paso: "borrar",
-      tabla: "favorites",
-      detalle: "mensaje secreto de la excepción con detalle del esquema",
+      paso: "rpc",
+      // Simula justo el caso que motiva no logear/devolver "details" de un
+      // PostgrestError: una violación de FK mete el uuid de la persona ahí.
+      detalle: `mensaje secreto de la excepción con detalle del esquema (uuid ${USUARIO_SESION.id})`,
+      codigo: "23503",
     })
 
     const res = await POST(crearRequest())
     expect(res.status).toBeGreaterThanOrEqual(400)
 
     const texto = await res.text()
-    expect(texto).not.toContain("favorites")
     expect(texto).not.toContain("mensaje secreto")
     expect(texto).not.toContain("esquema")
+    expect(texto).not.toContain(USUARIO_SESION.id)
+    expect(texto).not.toContain("23503")
   })
 
   it("si eliminarCuenta tira una excepción, el cuerpo tampoco contiene el mensaje de la excepción", async () => {
@@ -386,6 +417,112 @@ describe("éxito: cierra la sesión del lado del servidor con scope local", () =
     const res = await POST(crearRequest({ authorization: "Bearer token-de-prueba" }))
     expect(res.status).toBe(200)
     expect(cliente.llamadasSignOut).toEqual([])
+  })
+})
+
+describe("el cliente del RPC: Bearer vs. cookie, y el caso cruzado (QPS-190, tarea 48-e)", () => {
+  it("con Bearer, el cliente del RPC se arma con @supabase/supabase-js, la URL y la anon key de las env vars, y el token del header en Authorization — nunca con la service role", async () => {
+    createClient.mockResolvedValue(
+      crearClienteSesion({ usuarioCookie: null, usuarioBearer: USUARIO_SESION, tokenValidoBearer: "token-de-prueba" }),
+    )
+    const res = await POST(crearRequest({ authorization: "Bearer token-de-prueba" }))
+    expect(res.status).toBe(200)
+
+    expect(createClienteBearer).toHaveBeenCalledTimes(1)
+    const [url, key, opciones] = createClienteBearer.mock.calls[0] as [
+      string,
+      string,
+      { global?: { headers?: Record<string, string> } },
+    ]
+    expect(url).toBe(URL_DE_PRUEBA)
+    expect(key).toBe(ANON_KEY_DE_PRUEBA)
+    // La clave nunca es la service role: ni siquiera se leyó
+    // SUPABASE_SERVICE_ROLE_KEY en este camino (si se hubiera leído, "key"
+    // seguiría siendo la anon key de todos modos, porque el código no la
+    // usa; esta aserción fija justo eso).
+    expect(key).not.toBe(process.env.SUPABASE_SERVICE_ROLE_KEY)
+    expect(opciones?.global?.headers?.Authorization).toBe("Bearer token-de-prueba")
+
+    expect(eliminarCuenta).toHaveBeenCalledWith({ marcador: "bearer-cliente-falso" }, USUARIO_SESION.id)
+  })
+
+  it("con cookie y sin Bearer, se usa createClient() de @/lib/supabase/server y NO se arma ningún cliente con header (createClienteBearer no se llama)", async () => {
+    const cliente = crearClienteSesion({ usuarioCookie: USUARIO_SESION })
+    createClient.mockResolvedValue(cliente)
+
+    const res = await POST(crearRequest())
+    expect(res.status).toBe(200)
+    expect(createClienteBearer).not.toHaveBeenCalled()
+    expect(eliminarCuenta).toHaveBeenCalledWith(cliente, USUARIO_SESION.id)
+  })
+
+  it(
+    "el caso cruzado que protege este archivo: con un Bearer de la persona A Y una cookie de sesión de la persona B " +
+      "a la vez, el RPC se llama con el cliente del BEARER (mismo criterio que usuarioDeRequest en el paso 3) — " +
+      "nunca con el cliente de cookies de B. Si esto fallara, un Bearer de A con una cookie de B borraría la cuenta " +
+      "de B en vez de la de A.",
+    async () => {
+      const clienteBearerDeA = { marcador: "bearer-de-A" }
+      createClienteBearer.mockReturnValue(clienteBearerDeA)
+      createClient.mockResolvedValue(
+        crearClienteSesion({ usuarioCookie: OTRO_USUARIO, usuarioBearer: USUARIO_SESION, tokenValidoBearer: "token-de-a" }),
+      )
+
+      const res = await POST(crearRequest({ authorization: "Bearer token-de-a" }))
+      expect(res.status).toBe(200)
+      expect(eliminarCuenta).toHaveBeenCalledTimes(1)
+      expect(eliminarCuenta).toHaveBeenCalledWith(clienteBearerDeA, USUARIO_SESION.id)
+      expect(eliminarCuenta).not.toHaveBeenCalledWith(expect.anything(), OTRO_USUARIO.id)
+    },
+  )
+
+  it("si faltan las env vars de la anon key en el camino Bearer: 500 genérico, sin armar el cliente del RPC ni llamar a eliminarCuenta", async () => {
+    delete process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    createClient.mockResolvedValue(
+      crearClienteSesion({ usuarioCookie: null, usuarioBearer: USUARIO_SESION, tokenValidoBearer: "token-de-prueba" }),
+    )
+
+    const res = await POST(crearRequest({ authorization: "Bearer token-de-prueba" }))
+    expect(res.status).toBe(500)
+    expect(createClienteBearer).not.toHaveBeenCalled()
+    expect(eliminarCuenta).not.toHaveBeenCalled()
+  })
+})
+
+describe("si el RPC falla, el mensaje es específico (\"No se borró nada\"); el resto de los caminos de error siguen con el genérico", () => {
+  it('eliminarCuenta con paso "rpc": 500 "No se borró nada"', async () => {
+    createClient.mockResolvedValue(crearClienteSesion({ usuarioCookie: USUARIO_SESION }))
+    eliminarCuenta.mockResolvedValueOnce({ ok: false, paso: "rpc", detalle: "detalle interno", codigo: "42501" })
+
+    const res = await POST(crearRequest())
+    expect(res.status).toBe(500)
+    expect(await res.json()).toEqual({ error: "No se borró nada" })
+  })
+
+  it("una excepción (no un resultado ok:false) sigue respondiendo el genérico, no \"No se borró nada\"", async () => {
+    createClient.mockResolvedValue(crearClienteSesion({ usuarioCookie: USUARIO_SESION }))
+    eliminarCuenta.mockRejectedValueOnce(new Error("boom"))
+
+    const res = await POST(crearRequest())
+    expect(res.status).toBe(500)
+    expect(await res.json()).toEqual({ error: "No se pudo eliminar la cuenta" })
+  })
+})
+
+describe("el endpoint (route.ts) nunca menciona createAdminClient ni la service role", () => {
+  const RUTA_ENDPOINT = resolve(process.cwd(), "app", "api", "cuenta", "eliminar", "route.ts")
+  const contenido = readFileSync(RUTA_ENDPOINT, "utf8")
+
+  it("el archivo existe y no está vacío", () => {
+    expect(contenido.trim().length).toBeGreaterThan(0)
+  })
+
+  it("no importa ni menciona createAdminClient", () => {
+    expect(contenido).not.toMatch(/createAdminClient/)
+  })
+
+  it("no menciona SUPABASE_SERVICE_ROLE_KEY", () => {
+    expect(contenido).not.toMatch(/SUPABASE_SERVICE_ROLE_KEY/)
   })
 })
 
