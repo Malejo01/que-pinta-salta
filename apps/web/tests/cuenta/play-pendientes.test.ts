@@ -324,6 +324,13 @@ describe('las tres listas de "Qué se borra" son iguales (QPS-191)', () => {
     expect(listaApp).toContain("El historial de los avisos que te mandamos.")
   })
 
+  it('las tres dicen "Voy" y ya no "Me interesa" (R47)', () => {
+    for (const lista of [listaPublica, listaPerfil, listaApp]) {
+      expect(lista).toContain('Tus marcas de "Voy".')
+      expect(lista.join(" ")).not.toMatch(/me interesa/i)
+    }
+  })
+
   it("la pública y la de perfil son exactamente iguales", () => {
     expect(listaPublica).toEqual(listaPerfil)
   })

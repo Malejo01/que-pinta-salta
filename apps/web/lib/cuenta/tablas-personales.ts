@@ -122,7 +122,7 @@ export const TABLAS_A_BORRAR: readonly EntradaTablaPersonal[] = [
   {
     tabla: "event_attendance",
     columna: "user_id",
-    comentario: "\"Voy\" / \"Me interesa\" del usuario (FK a auth.users, ON DELETE CASCADE).",
+    comentario: "\"Voy\" del usuario (FK a auth.users, ON DELETE CASCADE). Desde la R47 no hay \"Me interesa\".",
   },
   {
     tabla: "push_tokens",

@@ -48,7 +48,7 @@ export default async function EliminarCuentaPage() {
                 <p className="font-semibold text-foreground">Qué se borra:</p>
                 <ul className="list-disc space-y-1 pl-5">
                   <li>Tus favoritos.</li>
-                  <li>Tus marcas de &quot;Voy&quot; y &quot;Me interesa&quot;.</li>
+                  <li>Tus marcas de &quot;Voy&quot;.</li>
                   <li>Las preferencias de Mi Radar y de notificaciones.</li>
                   <li>Los avisos que tenés activados.</li>
                   <li>El historial de los avisos que te mandamos.</li>

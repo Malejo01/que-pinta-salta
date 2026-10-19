@@ -20,7 +20,13 @@
 --   evento_b    = d5555555-5555-4555-8555-555555555555 (PUBLISHED, donde
 --                 marca solo B, aislado del resto)
 --   evento_seis = d6666666-6666-4666-8666-666666666666 (PUBLISHED, destino
---                 del UPDATE que cambia event_id y kind a la vez)
+--                 del segundo cambio de event_id)
+--
+-- R47 (migración 20261018120000_r47_guardar_voy.sql): "Me interesa" ya no
+-- existe y el CHECK de kind solo acepta 'voy'. Los casos que antes marcaban o
+-- pasaban a 'me_interesa' ahora prueban que el CHECK lo rechaza (23514), y el
+-- UPDATE combinado de event_id y kind pasa a ser un UPDATE de event_id solo.
+-- La columna me_interesa de los totales sigue existiendo y queda en 0.
 --
 -- Todo dentro de una transacción con rollback; nada de esto queda en la base.
 begin;
@@ -86,28 +92,29 @@ select throws_ok(
   '3. event_attendance/A: un segundo "voy" (INSERT) al mismo evento se rechaza por el unique'
 );
 
--- 4. Un "me_interesa" de A al mismo evento, como INSERT, también falla por
---    el mismo unique (es user_id+event_id, no user_id+event_id+kind).
+-- 4. Un "me_interesa" de A, como INSERT en otro evento, falla por el CHECK
+--    de kind (R47: solo 'voy').
 select throws_ok(
   $$insert into public.event_attendance (user_id, event_id, kind)
-    values ('d0000000-0000-4000-8000-000000000001', 'd1111111-1111-4111-8111-111111111111', 'me_interesa')$$,
-  '23505', NULL,
-  '4. event_attendance/A: un "me_interesa" (INSERT) al mismo evento también se rechaza por el unique'
+    values ('d0000000-0000-4000-8000-000000000001', 'd2222222-2222-4222-8222-222222222222', 'me_interesa')$$,
+  '23514', NULL,
+  '4. event_attendance/A: un "me_interesa" (INSERT) se rechaza por el CHECK de kind (R47)'
 );
 
--- 5. A cambia a "me_interesa" con un UPDATE (sí es el camino válido).
-select lives_ok(
+-- 5. A tampoco puede pasar su marca a "me_interesa" con un UPDATE (R47).
+select throws_ok(
   $$update public.event_attendance set kind = 'me_interesa'
     where user_id = 'd0000000-0000-4000-8000-000000000001'
       and event_id = 'd1111111-1111-4111-8111-111111111111'$$,
-  '5. event_attendance/A: el UPDATE a "me_interesa" no se rechaza'
+  '23514', NULL,
+  '5. event_attendance/A: el UPDATE a "me_interesa" se rechaza por el CHECK de kind (R47)'
 );
 
--- 6. Los totales bajan voy a 0 y suben me_interesa a 1.
+-- 6. Los totales no cambian: voy=1, me_interesa=0.
 select ok(
-  (select voy = 0 and me_interesa = 1 from public.event_attendance_totals
+  (select voy = 1 and me_interesa = 0 from public.event_attendance_totals
    where event_id = 'd1111111-1111-4111-8111-111111111111'),
-  '6. event_attendance_totals/evento_uno: voy=0, me_interesa=1 tras el UPDATE de kind'
+  '6. event_attendance_totals/evento_uno: voy=1, me_interesa=0 tras los intentos rechazados'
 );
 
 -- 7. A desmarca (DELETE).
@@ -170,42 +177,38 @@ select is(
 );
 
 -- ===========================================================================
--- UPDATE que cambia event_id Y kind a la vez: el trigger entra en la rama de
--- event_id (resta con old.kind en el evento viejo, suma con new.kind en el
--- nuevo) sin chequear el kind por separado. Es el camino que de verdad
--- importa: si alguien "simplifica" esa rama para que solo mire event_id y
--- siga sumando con old.kind (en vez de new.kind) en el destino, este caso
--- tiene que fallar.
+-- Un segundo cambio de event_id. Antes de la R47 este UPDATE cambiaba también
+-- el kind (a 'me_interesa'); desde la R47 el único kind es 'voy', así que el
+-- UPDATE combinado ya no puede existir.
 -- ===========================================================================
 
 -- 13a. Como postgres: la marca de A (ahora en evento_dos, kind "voy") pasa a
---      evento_seis Y a "me_interesa" en el mismo UPDATE.
+--      evento_seis.
 select lives_ok(
-  $$update public.event_attendance set event_id = 'd6666666-6666-4666-8666-666666666666', kind = 'me_interesa'
+  $$update public.event_attendance set event_id = 'd6666666-6666-4666-8666-666666666666'
     where user_id = 'd0000000-0000-4000-8000-000000000001'
       and event_id = 'd2222222-2222-4222-8222-222222222222'$$,
-  '13a. event_attendance: el UPDATE que cambia event_id y kind a la vez no se rechaza'
+  '13a. event_attendance: el segundo UPDATE de event_id no se rechaza'
 );
 
--- 13b. evento_dos vuelve a voy=0 (se restó 1 de "voy", el kind viejo).
+-- 13b. evento_dos vuelve a voy=0 (se restó 1 de "voy").
 select is(
   (select voy from public.event_attendance_totals where event_id = 'd2222222-2222-4222-8222-222222222222'),
   0,
-  '13b. event_attendance_totals/evento_dos: voy=0 después del UPDATE combinado (se restó con el kind viejo)'
+  '13b. event_attendance_totals/evento_dos: voy=0 después del segundo UPDATE (se restó)'
 );
 
--- 13c. evento_seis queda en voy=0, me_interesa=1 (se sumó 1 a "me_interesa",
---      el kind NUEVO, no a "voy").
+-- 13c. evento_seis queda en voy=1, me_interesa=0 (se sumó).
 select ok(
-  (select voy = 0 and me_interesa = 1 from public.event_attendance_totals
+  (select voy = 1 and me_interesa = 0 from public.event_attendance_totals
    where event_id = 'd6666666-6666-4666-8666-666666666666'),
-  '13c. event_attendance_totals/evento_seis: voy=0, me_interesa=1 (se sumó con el kind nuevo, no con el viejo)'
+  '13c. event_attendance_totals/evento_seis: voy=1, me_interesa=0 (se sumó)'
 );
 
 -- 13d. Un UPDATE que no cambia ni event_id ni kind (acá, el mismo valor que
 --      ya tenía) no entra en ninguna de las dos ramas del trigger.
 select lives_ok(
-  $$update public.event_attendance set kind = 'me_interesa'
+  $$update public.event_attendance set kind = 'voy'
     where user_id = 'd0000000-0000-4000-8000-000000000001'
       and event_id = 'd6666666-6666-4666-8666-666666666666'$$,
   '13d. event_attendance: el UPDATE que no cambia event_id ni kind no se rechaza'
@@ -214,7 +217,7 @@ select lives_ok(
 -- 13e. Los totales de evento_seis quedan igual (ninguna rama del trigger se
 --      disparó).
 select ok(
-  (select voy = 0 and me_interesa = 1 from public.event_attendance_totals
+  (select voy = 1 and me_interesa = 0 from public.event_attendance_totals
    where event_id = 'd6666666-6666-4666-8666-666666666666'),
   '13e. event_attendance_totals/evento_seis: sin cambios tras el UPDATE que no toca event_id ni kind'
 );
@@ -300,8 +303,8 @@ delete from public.event_attendance
 where event_id = 'd5555555-5555-4555-8555-555555555555'
   and user_id = 'd0000000-0000-4000-8000-000000000002';
 
--- A intenta cambiarla: mismo filtrado en silencio.
-update public.event_attendance set kind = 'me_interesa'
+-- A intenta moverla a otro evento: mismo filtrado en silencio.
+update public.event_attendance set event_id = 'd1111111-1111-4111-8111-111111111111'
 where event_id = 'd5555555-5555-4555-8555-555555555555'
   and user_id = 'd0000000-0000-4000-8000-000000000002';
 

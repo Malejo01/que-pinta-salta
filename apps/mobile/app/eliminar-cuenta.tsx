@@ -92,7 +92,7 @@ export default function EliminarCuenta() {
       <View style={estilos.bloque}>
         <Texto peso="semibold">Qué se borra:</Texto>
         <Texto>• Tus favoritos.</Texto>
-        <Texto>• Tus marcas de &quot;Voy&quot; y &quot;Me interesa&quot;.</Texto>
+        <Texto>• Tus marcas de &quot;Voy&quot;.</Texto>
         <Texto>• Las preferencias de Mi Radar y de notificaciones.</Texto>
         <Texto>• Los avisos que tenés activados.</Texto>
         <Texto>• El historial de los avisos que te mandamos.</Texto>
