@@ -67,10 +67,32 @@ const PARES: ParContraste[] = [
     a: token('mutedForeground'),
     b: token('background'),
     // Ronda 49 (QPS-241, grupo 1): desde esta ronda este par también cubre
-    // el texto y el borde del botón "Eliminar mi cuenta para siempre"
-    // (`app/eliminar-cuenta.tsx`) cuando está DESHABILITADO — ya no hace
-    // falta un par nuevo para eso (ver el comentario de FIJOS más abajo).
-    nota: 'desde la ronda 49 también cubre el texto/borde deshabilitado de app/eliminar-cuenta.tsx',
+    // el TEXTO (y el `ActivityIndicator`) del botón "Eliminar mi cuenta para
+    // siempre" (`app/eliminar-cuenta.tsx`) cuando está DESHABILITADO.
+    //
+    // SOLO el texto. El BORDE deshabilitado NO es `mutedForeground`: es
+    // `colores.border`, otro token (`app/eliminar-cuenta.tsx:142`,
+    // `estilos.boton(habilitado ? COLOR_ERROR : colores.border)`). La
+    // primera versión de esta nota decía "texto/borde" y era falsa; lo
+    // encontraron el revisor y ux-ui de 49-r, los dos por separado. El par
+    // del borde deshabilitado está abajo, con su propia excepción.
+    nota: 'desde la ronda 49 también cubre el texto deshabilitado de app/eliminar-cuenta.tsx (el borde, no: ver border/background)',
+  },
+  {
+    // Ronda 49 (QPS-241, grupo 1): el borde del botón "Eliminar mi cuenta
+    // para siempre" cuando está deshabilitado. Es un par real en pantalla y
+    // no llega a 3: va con excepción, no se omite. WCAG 1.4.11 exime a los
+    // controles deshabilitados, así que no es una violación — pero medirlo y
+    // documentarlo es la diferencia entre "decidido" y "nadie lo miró", y lo
+    // que se ve en el teléfono es que el contorno del botón deshabilitado
+    // casi desaparece contra el fondo. El valor `colores.border` lo fijó el
+    // plan de la ronda; si Mauro quiere que el contorno se vea, el cambio es
+    // usar `mutedForeground` también en el borde.
+    nombre: 'border (borde del botón "Eliminar mi cuenta", deshabilitado)/background',
+    uso: 'componente',
+    a: token('border'),
+    b: token('background'),
+    archivos: ['app/eliminar-cuenta.tsx'],
   },
   { nombre: 'mutedForeground/card', uso: 'texto', a: token('mutedForeground'), b: token('card') },
   { nombre: 'mutedForeground/muted', uso: 'texto', a: token('mutedForeground'), b: token('muted') },
@@ -236,11 +258,13 @@ const TODOS: ParContraste[] = [...PARES, ...FIJOS]
 // sale de EXCEPCIONES porque sale de PARES como "texto" — pasa a
 // "texto-grande" (ver el comentario de PARES), y ahí los dos ratios ya
 // cumplen el mínimo de 3, sin necesitar excepción. El blanco sobre WhatsApp
-// sale porque `#047857` ya cumple. El botón "Eliminar mi cuenta" no gana
-// ninguna excepción nueva: los tres pares que lo cubren ahora
-// (`#f87171 (texto de error)/background`, `#f87171 (borde del aviso de
-// error)/background`, `mutedForeground/background`) ya cumplían su mínimo
-// en los dos esquemas desde antes de esta ronda.
+// sale porque `#047857` ya cumple. Del botón "Eliminar mi cuenta", tres de
+// sus cuatro pares ya estaban en la tabla y ya cumplían su mínimo en los dos
+// esquemas desde antes de esta ronda (`#f87171 (texto de error)/background`
+// y `#f87171 (borde del aviso de error)/background` para el habilitado,
+// `mutedForeground/background` para el texto deshabilitado); el cuarto, el
+// BORDE deshabilitado, sí gana excepción, porque `colores.border` sobre
+// `background` no llega a 3 en ningún esquema.
 // ---------------------------------------------------------------------------
 interface ExcepcionContraste {
   ratio: number
@@ -249,12 +273,24 @@ interface ExcepcionContraste {
 
 const MOTIVO_FIJO_PENSADO_PARA_OSCURO =
   'Color decorativo fijo, elegido mirando solo el fondo oscuro (D1, la app arranca siempre oscura); decide Mauro.'
+const MOTIVO_COMPONENTE_DESHABILITADO =
+  'Contorno de un control DESHABILITADO: WCAG 1.4.11 lo exime, pero queda medido porque se ve (o no se ve) en pantalla; decide Mauro.'
 
 const EXCEPCIONES: Record<string, ExcepcionContraste> = {
   '#f87171 (texto de error)/background::claro': { ratio: 2.6, motivo: MOTIVO_FIJO_PENSADO_PARA_OSCURO },
   '#f87171 (borde del aviso de error)/background::claro': { ratio: 2.6, motivo: MOTIVO_FIJO_PENSADO_PARA_OSCURO },
   '#34d399 (texto del chip "Lugar")/background::claro': { ratio: 1.81, motivo: MOTIVO_FIJO_PENSADO_PARA_OSCURO },
   '#f472b6 (texto del chip "Instagram")/background::claro': { ratio: 2.49, motivo: MOTIVO_FIJO_PENSADO_PARA_OSCURO },
+  // Ronda 49 (QPS-241, grupo 1). Los dos esquemas, porque `border` y
+  // `background` están cerca en los dos (gris muy claro sobre blanco, gris
+  // muy oscuro sobre casi negro). WCAG 1.4.11 exime a los controles
+  // deshabilitados, así que no es una violación — pero en el teléfono el
+  // contorno del botón deshabilitado casi no se ve, y eso es una decisión,
+  // no un olvido: el plan de la ronda fijó `colores.border` para ese borde.
+  // Si Mauro quiere que se vea, el arreglo es usar `mutedForeground` también
+  // en el borde (5,22 en oscuro) y sacar estas dos entradas.
+  'border (borde del botón "Eliminar mi cuenta", deshabilitado)/background::claro': { ratio: 1.27, motivo: MOTIVO_COMPONENTE_DESHABILITADO },
+  'border (borde del botón "Eliminar mi cuenta", deshabilitado)/background::oscuro': { ratio: 1.3, motivo: MOTIVO_COMPONENTE_DESHABILITADO },
 }
 
 type VeredictoPar = { ok: true } | { ok: false; motivo: string }
@@ -361,12 +397,15 @@ describe('EXCEPCIONES: todas las claves corresponden a un par declarado', () => 
 // 'blanco/#f87171 (botón "Eliminar mi cuenta", habilitado)' y
 // 'blanco/border (botón "Eliminar mi cuenta", deshabilitado)' — los cinco
 // dejaron de tener excepciones (ver el comentario de EXCEPCIONES). Quedan
-// los cuatro decorativos del Radar en claro (grupo 4, sin cambios).
+// los cuatro decorativos del Radar en claro (grupo 4, sin cambios) y entra
+// uno nuevo: el borde del botón deshabilitado, que antes no se medía porque
+// una nota afirmaba —falsamente— que otro par ya lo cubría.
 const PARES_DEL_INFORME_DE_LA_RONDA = [
   '#f87171 (texto de error)/background',
   '#f87171 (borde del aviso de error)/background',
   '#34d399 (texto del chip "Lugar")/background',
   '#f472b6 (texto del chip "Instagram")/background',
+  'border (borde del botón "Eliminar mi cuenta", deshabilitado)/background',
 ]
 
 describe('EXCEPCIONES: los nombres (sin esquema) están todos en la lista que el informe de la ronda le lleva a Mauro', () => {
