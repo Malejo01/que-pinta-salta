@@ -320,7 +320,7 @@ export function PantallaRadar() {
           </Texto>
 
           <Texto peso="semibold" style={estilos.etiquetaCampo}>
-            ¿Cada cuánto quieres recibir novedades?
+            ¿Cada cuánto querés recibir novedades?
           </Texto>
           <View style={estilos.listaFrecuencias}>
             {OPCIONES_FRECUENCIA.map((opcion) => {
@@ -405,13 +405,13 @@ export function PantallaRadar() {
             </Texto>
           </View>
           <Texto tono="secundario" style={estilos.textoChico}>
-            Sigue locales físicos o directamente a organizadores/boliches de Instagram (ej: La Metro, Sex Us Machina)
+            Seguí locales físicos o directamente a organizadores/boliches de Instagram (ej: La Metro, Sex Us Machina)
             para enterarte de sus novedades.
           </Texto>
 
           <CampoTexto
             label="Buscar"
-            placeholder="Busca locales físicos o cuentas de Instagram (ej: Usina, Metro, Sex Us...)"
+            placeholder="Buscá locales físicos o cuentas de Instagram (ej: Usina, Metro, Sex Us...)"
             value={busqueda}
             onChangeText={(texto) => {
               setBusqueda(texto)
@@ -500,7 +500,7 @@ export function PantallaRadar() {
             </View>
           ) : (
             <Texto tono="secundario" style={estilos.textoChico}>
-              No estás siguiendo ningún local ni cuenta de Instagram aún. Escribe arriba para buscarlos y agregarlos.
+              No estás siguiendo ningún local ni cuenta de Instagram aún. Escribí arriba para buscarlos y agregarlos.
             </Texto>
           )}
         </View>
@@ -575,8 +575,8 @@ export function PantallaRadar() {
           Mi Radar Salteño
         </Texto>
         <Texto tono="secundario" style={estilos.subtituloEncabezado}>
-          Tú decides qué eventos ver y recibir. Suscríbete a tus categorías, locales u organizadores favoritos de
-          Instagram y recibe alertas a tu correo sin spam.
+          Vos decidís qué eventos ver y recibir. Suscribite a tus categorías, locales u organizadores favoritos de
+          Instagram y recibí alertas a tu correo sin spam.
         </Texto>
       </View>
 

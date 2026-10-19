@@ -100,7 +100,11 @@ function Ficha({ flyer, colores }: { flyer: FlyerFicha; colores: ColoresQPS }) {
           onPress={() => abrirPostDeInstagram(flyer.ig_post_url)}
           style={({ pressed }) => [estilos.boton, { borderColor: colores.primary, opacity: pressed ? 0.6 : 1 }]}
         >
-          <Texto tono="primario" peso="semibold">
+          {/* Ronda 49 (QPS-241, grupo 2): `primary` da 3,83 sobre `background`
+              como texto chico, abajo del mínimo de "texto" (4,5) — se deja de
+              usar ahí. El borde del botón (`estilos.boton`, arriba) sigue en
+              `colores.primary`: ahí es un componente (mínimo 3), no texto. */}
+          <Texto peso="semibold">
             Ver en Instagram
           </Texto>
         </Pressable>

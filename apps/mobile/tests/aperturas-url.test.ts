@@ -210,6 +210,18 @@ describe('urlSitio: solo abre rutas propias conocidas', () => {
     expect(urlSitio('/auth/recuperar')).toBe('https://www.quepintasalta.com.ar/auth/recuperar')
   })
 
+  // 49-a (QPS-237): los dos legales. /privacidad se abre igual que
+  // /auth/recuperar; /terminos está en la lista cerrada pero la guarda de
+  // TERMINOS_PUBLICADOS (lib/legales.ts, hoy false) lo rechaza igual — ver
+  // tests/legales.test.ts, que prueba lib/legales.ts en detalle.
+  it('/privacidad da la URL absoluta con SITIO', () => {
+    expect(urlSitio('/privacidad')).toBe('https://www.quepintasalta.com.ar/privacidad')
+  })
+
+  it('/terminos: null mientras TERMINOS_PUBLICADOS sea false', () => {
+    expect(urlSitio('/terminos')).toBeNull()
+  })
+
   it('una ruta fuera de la lista: null', () => {
     expect(urlSitio('/auth/otra-cosa')).toBeNull()
     expect(urlSitio('/admin')).toBeNull()

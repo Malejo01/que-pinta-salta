@@ -29,7 +29,11 @@ describe('app/evento/[id].tsx: el orden de la ficha (ops/paridad-web-app.md §3.
   const content = quitarComentarios(readFileSync(FICHA_PATH, 'utf8'))
 
   const idxFilaFecha = content.indexOf('nombre="Calendar"')
-  const idxComoLlegar = content.indexOf('Como llegar')
+  // 49-d (QPS-244): se ancla en `onPress={comoLlegar}` (el handler, mismo
+  // patrón que `tests/a11y-pantallas.test.ts:76`), no en la cadena del texto
+  // visible — así el índice no depende de si el CTA dice "Como llegar" o
+  // "Cómo llegar". El texto con tilde se verifica aparte, abajo.
+  const idxComoLlegar = content.indexOf('onPress={comoLlegar}')
   const idxComprarTickets = content.indexOf('Comprar tickets')
   const idxFilaAccionesEvento = content.indexOf('<FilaAccionesEvento')
 
@@ -40,8 +44,13 @@ describe('app/evento/[id].tsx: el orden de la ficha (ops/paridad-web-app.md §3.
     expect(idxFilaAccionesEvento).toBeGreaterThan(-1)
   })
 
-  it('"Como llegar" está antes que "Comprar tickets"', () => {
+  it('el CTA de "Cómo llegar" está antes que "Comprar tickets"', () => {
     expect(idxComoLlegar).toBeLessThan(idxComprarTickets)
+  })
+
+  it('49-d (QPS-244): el texto visible del CTA es "Cómo llegar", con tilde', () => {
+    expect(content).toContain('Cómo llegar')
+    expect(content).not.toContain('Como llegar')
   })
 
   it('FilaAccionesEvento (Guardar/Voy/Compartir) está después de los dos CTAs', () => {

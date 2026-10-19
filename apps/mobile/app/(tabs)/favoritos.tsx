@@ -435,7 +435,13 @@ export default function Favoritos() {
                     { backgroundColor: `${colores.primary}0D`, borderColor: `${colores.primary}1A` },
                   ]}
                 >
-                  <Texto peso="bold" style={[estilos.tituloSeccionDia, { color: colores.primary }]}>
+                  {/* Ronda 49 (QPS-241, grupo 2): `primary` da 3,83 sobre
+                      `background` como texto chico, abajo de 4,5 — el título
+                      pasa a `foreground` (tono por defecto de `Texto`, sin
+                      estilo de color propio). El fondo/borde de la píldora
+                      (arriba) sigue en `primary`: ahí es un componente
+                      decorativo, no texto. */}
+                  <Texto peso="bold" style={estilos.tituloSeccionDia}>
                     {section.titulo}
                   </Texto>
                 </View>
@@ -506,17 +512,28 @@ const estilos = StyleSheet.create({
   subtitulo: { fontSize: 13 },
   // bg-emerald-600 de la web: color fijo (no es un token de ColoresQPS),
   // igual que el verde de "gratis" en components/TarjetaEvento.tsx.
-  // 46-d: el contraste (3,77) queda como excepción documentada en
-  // tests/contraste.test.ts (decisión de Mauro) — acá solo se suma
+  // 46-d: el contraste (3,77) quedó como excepción documentada en
+  // tests/contraste.test.ts (decisión de Mauro) — acá solo se sumó
   // `minHeight: 48` (paddingVertical 12 + el ícono/texto de adentro daban
   // ~42dp de alto real, por debajo del mínimo táctil).
+  // Ronda 49 (QPS-241, grupo 3, decisión de Mauro): pasa a `#047857`, que da
+  // ≈5,48 con blanco (`contraste`, en tests/contraste.test.ts), arriba de 4,5
+  // — la excepción de 46-d se saca. Ojo con la paridad: el botón equivalente
+  // de la web sigue en `bg-emerald-600`
+  // (`apps/web/app/favoritos/favoritos-list.tsx`), así que a partir de acá los
+  // dos verdes DIFIEREN a propósito: la decisión de QPS-241 alcanza solo a la
+  // app, y los textos y estilos de la web quedaron fuera de esta ronda. Si
+  // algún día se quiere la paridad, el cambio es del lado de la web.
+  // Después de este cambio `#059669` no queda en ningún otro lugar del código
+  // de producción de la app (verificado con Grep sobre app/, components/ y
+  // lib/); lo que aparece en `tests/colores-texto.test.ts` es una fixture.
   botonWhatsApp: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
     alignSelf: 'flex-start',
-    backgroundColor: '#059669',
+    backgroundColor: '#047857',
     paddingHorizontal: 20,
     paddingVertical: 12,
     minHeight: 48,
