@@ -12,7 +12,8 @@
 
 import { CONTACTO_EMAIL } from '@qps/core/contacto'
 import { coordenadasEnSalta } from '@qps/core/mapa/zona'
-import { REFERER, urlDeBusqueda, USER_AGENT } from './consultas'
+import { REFERER, urlDeBusqueda, USER_AGENT, type ConsultaGeocodificacion } from './consultas'
+import { enZona } from './localidades'
 
 /** Un resultado de Nominatim ya validado (forma correcta, `lat`/`lon` numéricos y finitos). */
 export interface ResultadoNominatim {
@@ -23,6 +24,8 @@ export interface ResultadoNominatim {
   importance: number
   category: string
   type: string
+  /** `address.house_number` (con `addressdetails=1`), si vino como texto. Opcional: la caché de la R53 no lo tiene. */
+  house_number?: string | null
 }
 
 export type ResultadoBusqueda =
@@ -65,7 +68,7 @@ export interface OpcionesClienteNominatim {
 }
 
 export interface ClienteNominatim {
-  buscar(q: string): Promise<ResultadoBusqueda>
+  buscar(consulta: ConsultaGeocodificacion): Promise<ResultadoBusqueda>
 }
 
 /**
@@ -92,6 +95,9 @@ function validarResultados(cuerpo: unknown): ResultadoNominatim[] {
     if (typeof o.category !== 'string') continue
     if (typeof o.type !== 'string') continue
 
+    const direccion = typeof o.address === 'object' && o.address !== null ? (o.address as Record<string, unknown>) : null
+    const houseNumber = typeof direccion?.house_number === 'string' ? direccion.house_number : null
+
     resultados.push({
       lat,
       lon,
@@ -100,6 +106,7 @@ function validarResultados(cuerpo: unknown): ResultadoNominatim[] {
       importance: o.importance,
       category: o.category,
       type: o.type,
+      house_number: houseNumber,
     })
   }
   return resultados
@@ -133,9 +140,17 @@ export function distanciaMetros(a: { lat: number; lon: number }, b: { lat: numbe
  * Primero se filtra a los que caen adentro de `ZONA_SALTA`; si no queda
  * ninguno, no hay nada que ofrecer (`null`). Del resto, se toma el primero
  * (se respeta el orden que mandó Nominatim, no se reordena por ningún
- * criterio propio). Confianza alta si el primero es de nivel calle, número o
- * edificio (`place_rank >= 26`; 16 es la ciudad) y además pasa alguna de
- * estas señales de que no hay ambigüedad real:
+ * criterio propio).
+ *
+ * R53-b: nunca es alta si la consulta fue en toda la provincia, ni si el
+ * primero cae fuera del rectángulo de la ciudad de la consulta. En una
+ * búsqueda estructurada (calle + número), sin el número de puerta exacto es
+ * `'revisar'`, y con el número exacto en un punto de dirección
+ * (`place/house`) o un edificio (`building`) es alta.
+ *
+ * Si no, la regla de la R53: confianza alta si el primero es de nivel calle,
+ * número o edificio (`place_rank >= 26`; 16 es la ciudad) y además pasa
+ * alguna de estas señales de que no hay ambigüedad real:
  *   - es el único resultado en la zona, o
  *   - el segundo está a menos de `DISTANCIA_ACUERDO_METROS` (da lo mismo
  *     cuál de los dos se use), o
@@ -146,29 +161,46 @@ export function distanciaMetros(a: { lat: number; lon: number }, b: { lat: numbe
  *     verdadero, así que no hay nada real que comparar y esta señal no
  *     cuenta (`--apply` escribe en producción: ante la duda, se va por el
  *     lado conservador).
- * Cualquier otro caso: `'revisar'`.
+ * Cualquier otro caso: `'revisar'`, con el `motivo` para el reporte.
  */
 export function evaluarResultados(
-  resultados: ResultadoNominatim[]
-): { elegido: ResultadoNominatim; confianza: 'alta' | 'revisar' } | null {
-  const enZona = resultados.filter((r) => coordenadasEnSalta(r.lat, r.lon))
-  if (enZona.length === 0) return null
+  resultados: ResultadoNominatim[],
+  consulta: ConsultaGeocodificacion
+): { elegido: ResultadoNominatim; confianza: 'alta' | 'revisar'; motivo: string | null } | null {
+  const enLaProvincia = resultados.filter((r) => coordenadasEnSalta(r.lat, r.lon))
+  if (enLaProvincia.length === 0) return null
 
-  const [primero, segundo] = enZona
-  const esCalleONumeroOEdificio = primero.place_rank >= 26
+  const [primero, segundo] = enLaProvincia
+  const revisar = (motivo: string) => ({ elegido: primero, confianza: 'revisar' as const, motivo })
+  const alta = { elegido: primero, confianza: 'alta' as const, motivo: null }
 
-  let confianza: 'alta' | 'revisar' = 'revisar'
-  if (esCalleONumeroOEdificio) {
-    if (!segundo) {
-      confianza = 'alta'
-    } else {
-      const deAcuerdo = distanciaMetros(primero, segundo) < DISTANCIA_ACUERDO_METROS
-      const importanciaClara = segundo.importance > 0 && primero.importance >= segundo.importance * FACTOR_IMPORTANCIA_CLARA
-      if (deAcuerdo || importanciaClara) confianza = 'alta'
-    }
+  // R53-b: fuera del rectángulo de la ciudad que corresponde, nunca alta.
+  if (consulta.alcance === 'provincia') return revisar('búsqueda en toda la provincia: confirmar que sea la ciudad correcta')
+  if (!enZona(consulta.zona, primero.lat, primero.lon)) return revisar(`fuera de ${consulta.donde}`)
+
+  if (consulta.tipo === 'estructurada') {
+    // Sin el número de puerta exacto, Nominatim devolvió la calle (o algo cercano): el pin puede quedar a cuadras.
+    if (!numeroDePuertaExacto(primero.house_number, consulta.numero)) return revisar('sin el número de puerta exacto')
+    if (esCasaOEdificio(primero)) return alta
   }
 
-  return { elegido: primero, confianza }
+  if (primero.place_rank < 26) return revisar('resultado poco preciso (no es calle, número ni edificio)')
+  if (!segundo) return alta
+  const deAcuerdo = distanciaMetros(primero, segundo) < DISTANCIA_ACUERDO_METROS
+  const importanciaClara = segundo.importance > 0 && primero.importance >= segundo.importance * FACTOR_IMPORTANCIA_CLARA
+  return deAcuerdo || importanciaClara ? alta : revisar('más de un resultado posible')
+}
+
+/** `true` si el primer número de `houseNumber` ("719", "719-721", "719 A") es `numero`. */
+export function numeroDePuertaExacto(houseNumber: string | null | undefined, numero: string): boolean {
+  if (!houseNumber) return false
+  const primerNumero = houseNumber.match(/\d+/)?.[0]
+  return primerNumero !== undefined && Number(primerNumero) === Number(numero)
+}
+
+/** Un punto de dirección (`place/house`) o un edificio (`building/*`): el resultado más preciso que da Nominatim. */
+function esCasaOEdificio(r: ResultadoNominatim): boolean {
+  return r.category === 'building' || (r.category === 'place' && r.type === 'house')
 }
 
 type IntentoResultado =
@@ -212,13 +244,13 @@ export function crearClienteNominatim(opciones: OpcionesClienteNominatim): Clien
     ultimoInicio = ahora()
   }
 
-  async function unIntento(q: string): Promise<IntentoResultado> {
+  async function unIntento(consulta: ConsultaGeocodificacion): Promise<IntentoResultado> {
     await esperarTurno()
 
     const controller = new AbortController()
     const timer = programarTimeout(() => controller.abort(), timeoutMs)
     try {
-      const url = urlDeBusqueda(q, { email: CONTACTO_EMAIL })
+      const url = urlDeBusqueda(consulta, { email: CONTACTO_EMAIL })
 
       let respuesta: Response
       try {
@@ -258,10 +290,10 @@ export function crearClienteNominatim(opciones: OpcionesClienteNominatim): Clien
     }
   }
 
-  async function buscarSinCola(q: string): Promise<ResultadoBusqueda> {
+  async function buscarSinCola(consulta: ConsultaGeocodificacion): Promise<ResultadoBusqueda> {
     let ultimoMotivo = 'sin intentos'
     for (let intento = 0; intento <= maxReintentos; intento++) {
-      const resultado = await unIntento(q)
+      const resultado = await unIntento(consulta)
       if (resultado.tipo === 'ok') return resultado
       if (resultado.tipo === 'bloqueado') return resultado
 
@@ -275,7 +307,7 @@ export function crearClienteNominatim(opciones: OpcionesClienteNominatim): Clien
     return { tipo: 'error', motivo: ultimoMotivo }
   }
 
-  async function buscar(q: string): Promise<ResultadoBusqueda> {
+  async function buscar(consulta: ConsultaGeocodificacion): Promise<ResultadoBusqueda> {
     const turnoPrevio = colaMutex
     let liberar: () => void = () => {}
     colaMutex = new Promise((resolve) => {
@@ -283,7 +315,7 @@ export function crearClienteNominatim(opciones: OpcionesClienteNominatim): Clien
     })
     await turnoPrevio
     try {
-      return await buscarSinCola(q)
+      return await buscarSinCola(consulta)
     } finally {
       liberar()
     }

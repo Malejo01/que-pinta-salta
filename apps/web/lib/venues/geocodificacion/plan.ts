@@ -6,7 +6,7 @@
  * (cómo se persiste una coordenada) se inyectan.
  */
 
-import { consultasParaLugar, normalizarConsulta } from './consultas'
+import { claveDeConsulta, consultasParaLugar, describirConsulta, type ConsultaGeocodificacion } from './consultas'
 import { evaluarResultados, type ResultadoBusqueda } from './nominatim'
 import { urlOpenStreetMap } from './reporte'
 
@@ -49,7 +49,7 @@ interface CacheGeocodificacion {
 }
 
 interface ClienteGeocodificacion {
-  buscar(q: string): Promise<ResultadoBusqueda>
+  buscar(consulta: ConsultaGeocodificacion): Promise<ResultadoBusqueda>
 }
 
 /**
@@ -109,7 +109,7 @@ export function filtroDeActualizacion({
 /**
  * Geocodifica una lista de lugares. Por lugar, prueba las consultas de
  * `consultasParaLugar` en orden; para cada una mira la caché primero (por
- * `normalizarConsulta`) y solo si no está ahí llama a `cliente.buscar`.
+ * `claveDeConsulta`: el texto y dónde se busca) y solo si no está ahí llama a `cliente.buscar`.
  * Solo se guarda en la caché un resultado `{ tipo: 'ok' }`: un `'error'` o
  * un `'bloqueado'` no se persisten (la caché es un archivo en disco entre
  * corridas; cachear un 403 lo deja "bloqueado" para siempre sin volver a
@@ -152,12 +152,12 @@ export async function geocodificarLugares({
 
   for (const lugar of lugares) {
     const consultas = consultasParaLugar({ nombre: lugar.name, direccion: lugar.address })
-    let consultaUsada = consultas[0] ?? ''
+    let consultaUsada = consultas[0] ? describirConsulta(consultas[0]) : ''
     let filaDelLugar: FilaReporteGeocodificacion | null = null
 
     for (const consulta of consultas) {
-      consultaUsada = consulta
-      const clave = normalizarConsulta(consulta)
+      consultaUsada = describirConsulta(consulta)
+      const clave = claveDeConsulta(consulta)
 
       let resultadoBusqueda = cache.obtener<ResultadoBusqueda>(clave)
       if (resultadoBusqueda === undefined) {
@@ -193,12 +193,12 @@ export async function geocodificarLugares({
         break
       }
 
-      const evaluado = evaluarResultados(resultadoBusqueda.resultados)
+      const evaluado = evaluarResultados(resultadoBusqueda.resultados, consulta)
       if (evaluado === null) continue
 
       const { elegido, confianza } = evaluado
       let estado: EstadoFilaGeocodificacion
-      let motivo: string | null = null
+      let motivo: string | null = evaluado.motivo
 
       if (apply && confianza === 'alta') {
         const actualizado = await guardar(lugar.id, elegido.lat, elegido.lon)
@@ -256,4 +256,48 @@ export async function geocodificarLugares({
   }
 
   return filas
+}
+
+/**
+ * Eventos próximos por lugar canónico (R53-b): cada evento suma a su
+ * `venue_id` o, si ese venue es un alias ya fusionado, a su canónico
+ * (`canonical_venue_id`). Los eventos sin lugar no cuentan.
+ */
+export function contarEventosProximos(
+  eventos: Array<{ venue_id: string | null }>,
+  venues: Array<Pick<VenueParaGeocodificar, 'id' | 'canonical_venue_id'>>
+): Map<string, number> {
+  const canonicoDe = new Map(venues.map((v) => [v.id, v.canonical_venue_id ?? v.id]))
+  const conteo = new Map<string, number>()
+  for (const evento of eventos) {
+    if (!evento.venue_id) continue
+    const id = canonicoDe.get(evento.venue_id) ?? evento.venue_id
+    conteo.set(id, (conteo.get(id) ?? 0) + 1)
+  }
+  return conteo
+}
+
+/**
+ * Los lugares de más a menos eventos próximos (los que no están en `conteo`
+ * cuentan 0); a igual cantidad, por nombre. Así `--limite 20` mira primero
+ * los que más importan, y el reporte sale en el orden en que conviene
+ * cargarlos a mano. No modifica `lugares`.
+ */
+export function ordenarPorEventosProximos<T extends { id: string; nombre?: string; name?: string }>(
+  lugares: T[],
+  conteo: Map<string, number>
+): T[] {
+  const nombreDe = (l: T) => l.nombre ?? l.name ?? ''
+  return [...lugares].sort(
+    (a, b) => (conteo.get(b.id) ?? 0) - (conteo.get(a.id) ?? 0) || nombreDe(a).localeCompare(nombreDe(b), 'es')
+  )
+}
+
+/**
+ * Cuántas filas de la corrida quedan para cargar a mano: todas menos las que
+ * `--apply` guarda (o guardó) solas, que son las de confianza alta. Una de
+ * confianza alta que no se pisó porque cambió mientras corría también queda.
+ */
+export function quedanParaCargarAMano(filas: Array<Pick<FilaReporteGeocodificacion, 'confianza' | 'estado'>>): number {
+  return filas.filter((f) => f.confianza !== 'alta' || f.estado === 'no-se-pisó').length
 }
