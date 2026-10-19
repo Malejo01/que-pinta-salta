@@ -1,7 +1,8 @@
 /**
- * tests/anunciantes/publicita.test.ts (R50, tarea 50-d): verifica que
- * `/anunciantes` ("Publicitá tu evento") no promete nada que el producto no
- * tenga hoy y que el mail de contacto sale de `CONTACTO_EMAIL`
+ * tests/anunciantes/publicita.test.ts (R50): verifica que `/anunciantes`
+ * ("Publicitá tu evento") muestra el tarifario final de
+ * `@qps/core/publicidad/precios` (Mauro, 19/10 16:10), que no queda ningún
+ * pendiente a la vista, y que el mail de contacto sale de `CONTACTO_EMAIL`
  * (`@qps/core/contacto`), nunca de un literal repetido en la página.
  *
  * Igual que `tests/asistencia/sin-me-interesa.test.ts`, `page.tsx` se lee
@@ -11,13 +12,21 @@
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
-import { ANUNCIANTES, type PaqueteAnunciante } from '@/lib/config/anunciantes'
+import { ANUNCIANTES } from '@/lib/config/anunciantes'
+import {
+  PIE_TARIFARIO,
+  TARIFARIO,
+  textoPrecioFundador,
+  textoPrecioLista,
+  textoUsdAprox,
+} from '@qps/core/publicidad/precios'
 
 // apps/web/tests/anunciantes -> apps/web/tests -> apps/web -> apps -> raíz del worktree
 const ROOT = fileURLToPath(new URL('../../../../', import.meta.url))
 
 const RUTA_PAGINA = 'apps/web/app/anunciantes/page.tsx'
 const RUTA_CONFIG = 'apps/web/lib/config/anunciantes.ts'
+const RUTA_PRECIOS = 'packages/core/src/publicidad/precios.ts'
 
 function leer(rutaRelativa: string): string {
   return readFileSync(ROOT + rutaRelativa, 'utf8')
@@ -25,12 +34,7 @@ function leer(rutaRelativa: string): string {
 
 const paginaFuente = leer(RUTA_PAGINA)
 const configFuente = leer(RUTA_CONFIG)
-
-function paquete(id: string): PaqueteAnunciante {
-  const encontrado = ANUNCIANTES.paquetes.find((p) => p.id === id)
-  if (!encontrado) throw new Error(`No existe el paquete "${id}" en ANUNCIANTES.paquetes`)
-  return encontrado
-}
+const preciosFuente = leer(RUTA_PRECIOS)
 
 describe('/anunciantes: mail de contacto desde CONTACTO_EMAIL, nunca un literal', () => {
   it('importa mailtoContacto y CONTACTO_EMAIL de @qps/core/contacto', () => {
@@ -61,101 +65,125 @@ describe('/anunciantes: título "Publicitá tu evento"', () => {
   })
 })
 
-describe('/anunciantes: ningún paquete tiene un precio inventado', () => {
-  it('todos los paquetes tienen precio y periodo en null (nunca un número ni un string de plata)', () => {
-    expect(ANUNCIANTES.paquetes.length).toBeGreaterThan(0)
-    for (const p of ANUNCIANTES.paquetes) {
-      expect(p.precio).toBeNull()
-      expect(p.periodo).toBeNull()
-    }
+describe('/anunciantes: sin pendientes a la vista', () => {
+  it.each([
+    [RUTA_CONFIG, configFuente],
+    [RUTA_PAGINA, paginaFuente],
+    [RUTA_PRECIOS, preciosFuente],
+  ])('%s no contiene "[COMPLETAR"', (_ruta, fuente) => {
+    expect(fuente).not.toContain('[COMPLETAR')
   })
 
-  it('cada paquete deja un [COMPLETAR: precio…] y un [COMPLETAR: …unidad del precio…] junto a precio/periodo', () => {
-    // Una ocurrencia de cada marca por paquete: 3 paquetes hoy (destacado,
-    // radar, reporte). Si se agrega o se saca un paquete, este número tiene
-    // que moverse junto con ANUNCIANTES.paquetes.length.
-    const precioCompletar = configFuente.match(/precio:\s*null,\s*\/\/\s*\[COMPLETAR: precio/g) ?? []
-    const periodoCompletar = configFuente.match(/periodo:\s*null,\s*\/\/\s*\[COMPLETAR:[^\n]*unidad del precio/g) ?? []
-    expect(precioCompletar.length).toBe(ANUNCIANTES.paquetes.length)
-    expect(periodoCompletar.length).toBe(ANUNCIANTES.paquetes.length)
-  })
-
-  it('ningún texto visible (nombre ni queIncluye) contiene un monto en pesos ("$" seguido de un dígito)', () => {
-    for (const p of ANUNCIANTES.paquetes) {
-      for (const texto of [p.nombre, ...p.queIncluye]) {
-        expect(texto).not.toMatch(/\$\s*\d/)
-        expect(texto).not.toMatch(/\bARS\b/)
-      }
+  it('ningún texto del tarifario ni el pie contiene "[COMPLETAR"', () => {
+    for (const p of TARIFARIO) {
+      const texto = `${p.nombre} ${p.queIncluye} ${textoPrecioLista(p.precio)} ${textoPrecioFundador(p.precio)}`
+      expect(texto).not.toContain('[COMPLETAR')
     }
+    expect(PIE_TARIFARIO).not.toContain('[COMPLETAR')
   })
 })
 
-describe('/anunciantes: publicada en false -> noindex, sin tocar esa lógica', () => {
-  it('ANUNCIANTES.publicada sigue en false', () => {
-    expect(ANUNCIANTES.publicada).toBe(false)
+describe('/anunciantes: publicada en true -> se indexa, y la lógica de noindex sigue', () => {
+  it('ANUNCIANTES.publicada es true', () => {
+    expect(ANUNCIANTES.publicada).toBe(true)
   })
 
-  it('page.tsx condiciona robots a ANUNCIANTES.publicada (noindex mientras sea false)', () => {
+  it('page.tsx condiciona robots a ANUNCIANTES.publicada (noindex si algún día vuelve a false)', () => {
     expect(paginaFuente).toMatch(
       /\.\.\.\(ANUNCIANTES\.publicada\s*\?\s*\{\}\s*:\s*\{\s*robots:\s*\{\s*index:\s*false,\s*follow:\s*false\s*\}\s*\}\)/,
     )
   })
 })
 
-describe('/anunciantes: el paquete "destacado" promete solo lo que existe hoy', () => {
-  const destacado = paquete('destacado')
-  const texto = destacado.queIncluye.join(' \n ')
+describe('/anunciantes: el TARIFARIO es exactamente la "Tabla final" del estudio de precios', () => {
+  const ESPERADO = [
+    { id: 'basica', nombre: 'Publicación básica', lista: 'Gratis', fundador: 'Gratis', usd: null },
+    { id: 'destacado-3', nombre: 'Destacado fin de semana (3 días)', lista: '$ 8.500', fundador: '$ 6.000', usd: 'USD 5,6' },
+    { id: 'destacado-7', nombre: 'Destacado semana (7 días)', lista: '$ 14.000', fundador: '$ 10.000', usd: 'USD 9,2' },
+    { id: 'destacado-14', nombre: 'Destacado hasta tu fecha (hasta 14 días)', lista: '$ 24.000', fundador: '$ 17.000', usd: 'USD 15,7' },
+    { id: 'pack-lanzamiento', nombre: 'Pack Lanzamiento de Evento', lista: '$ 20.000', fundador: '$ 14.000', usd: 'USD 13,1' },
+    { id: 'plan-mensual', nombre: 'Plan Mensual Organizador/Venue', lista: '$ 42.000/mes', fundador: '$ 29.500/mes', usd: 'USD 27,5' },
+    { id: 'plan-rrpp', nombre: 'Plan RRPP', lista: '$ 14.500/mes', fundador: '$ 10.000/mes', usd: 'USD 9,5' },
+    { id: 'push', nombre: 'Push patrocinado', lista: 'Próximamente', fundador: 'Reservá prioridad', usd: null },
+  ]
 
-  it('no promete "Patrocinado": la insignia real dice "Destacado"', () => {
-    expect(texto).not.toMatch(/patrocinad/i)
+  it('tiene 8 productos, en el orden de la tabla', () => {
+    expect(TARIFARIO).toHaveLength(8)
+    expect(TARIFARIO.map((p) => p.id)).toEqual(ESPERADO.map((e) => e.id))
+    expect(TARIFARIO.map((p) => p.nombre)).toEqual(ESPERADO.map((e) => e.nombre))
   })
 
-  it('promete la insignia "★ Destacado" en la tarjeta, la ficha y el Hero', () => {
-    expect(texto).toMatch(/★ Destacado/)
-    expect(texto).toMatch(/tarjeta/i)
-    expect(texto).toMatch(/ficha/i)
-    expect(texto).toMatch(/hero/i)
+  it.each(ESPERADO)('$nombre: lista $lista, fundador $fundador, USD $usd', (e) => {
+    const p = TARIFARIO.find((x) => x.id === e.id)!
+    expect(textoPrecioLista(p.precio)).toBe(e.lista)
+    expect(textoPrecioFundador(p.precio)).toBe(e.fundador)
+    expect(textoUsdAprox(p.precio)).toBe(e.usd)
   })
 
-  it('promete un lugar en el carrusel principal, sujeto a disponibilidad (6 cupos)', () => {
-    expect(texto).toMatch(/carrusel principal/i)
-    expect(texto).toMatch(/sujeto a disponibilidad/i)
-    expect(texto).toMatch(/6 cupos/i)
+  it('la publicación básica es gratis y el push es "Próximamente"', () => {
+    expect(TARIFARIO[0].precio.tipo).toBe('gratis')
+    expect(TARIFARIO[7].precio.tipo).toBe('proximamente')
   })
 
-  it('promete ser primero en la fila de su categoría', () => {
-    expect(texto).toMatch(/primero en la fila de su categoría/i)
+  it('solo los dos planes llevan periodo mensual', () => {
+    const mensuales = TARIFARIO.filter((p) => p.precio.tipo === 'pesos' && p.precio.periodo === 'mes').map((p) => p.id)
+    expect(mensuales).toEqual(['plan-mensual', 'plan-rrpp'])
   })
 
-  it('incluye la salvedad del filtro "Hoy": ahí el orden por hora de inicio pisa el "destacados primero"', () => {
-    expect(texto).toMatch(/"Hoy"/)
-    expect(texto).toMatch(/hora de inicio/i)
+  it('el push se vende como producto "Próximamente" y el config ya no guarda paquetes ni el comentario viejo (R51)', () => {
+    const push = TARIFARIO.find((p) => /push patrocinado/i.test(p.nombre))
+    expect(push?.precio.tipo).toBe('proximamente')
+    expect(textoPrecioLista(push!.precio)).toBe('Próximamente')
+    expect(configFuente).not.toMatch(/Aviso patrocinado/)
+    expect(configFuente).not.toMatch(/paquetes/)
   })
 
-  it('promete la vigencia real (vence solo en la fecha elegida) y no un número de días inventado', () => {
-    expect(texto).toMatch(/vigencia/i)
-    expect(texto).toMatch(/vence solo/i)
-    expect(texto).not.toMatch(/\[COMPLETAR/)
-  })
-
-  it('no deja ningún [COMPLETAR] en queIncluye (los únicos pendientes son precio y periodo)', () => {
-    for (const item of destacado.queIncluye) {
-      expect(item).not.toContain('[COMPLETAR')
-    }
+  it('los productos que incluyen push aclaran que es "cuando lance la app" / "con la app"', () => {
+    expect(TARIFARIO.find((p) => p.id === 'pack-lanzamiento')!.queIncluye).toMatch(/cuando lance la app/)
+    expect(TARIFARIO.find((p) => p.id === 'plan-mensual')!.queIncluye).toMatch(/con la app/)
   })
 })
 
-describe('/anunciantes: el paquete de "Aviso patrocinado" (R51) no está, solo el comentario', () => {
-  it('ANUNCIANTES.paquetes no tiene ningún paquete con id "aviso-patrocinado" ni nombre que diga "Aviso patrocinado"', () => {
-    const porNombre = ANUNCIANTES.paquetes.find((p) => /aviso patrocinado/i.test(p.nombre))
-    const porId = ANUNCIANTES.paquetes.find((p) => /aviso.?patrocinado/i.test(p.id))
-    expect(porNombre).toBeUndefined()
-    expect(porId).toBeUndefined()
+describe('/anunciantes: la página usa el tarifario de core y los botones de contacto', () => {
+  it('importa TARIFARIO y PIE_TARIFARIO de @qps/core/publicidad/precios', () => {
+    expect(paginaFuente).toMatch(/import\s*\{[^}]*\bTARIFARIO\b[^}]*\}\s*from\s*["']@qps\/core\/publicidad\/precios["']/)
+    expect(paginaFuente).toMatch(/import\s*\{[^}]*\bPIE_TARIFARIO\b[^}]*\}\s*from\s*["']@qps\/core\/publicidad\/precios["']/)
   })
 
-  it('el archivo de config deja el comentario que marca cuándo sumarlo (R51 en main)', () => {
-    expect(configFuente).toMatch(/R51:.*Aviso patrocinado/)
-    expect(configFuente).toMatch(/cuando la R51 esté en main/)
+  it('recorre el TARIFARIO y muestra el pie', () => {
+    expect(paginaFuente).toMatch(/TARIFARIO\.map\(/)
+    expect(paginaFuente).toMatch(/\{PIE_TARIFARIO\}/)
+  })
+
+  it('no repite montos en pesos como literal: salen todos de core', () => {
+    expect(paginaFuente).not.toMatch(/\$\s*\d/)
+  })
+
+  it('mantiene el botón de WhatsApp (whatsappUrl) y el de mail', () => {
+    expect(paginaFuente).toMatch(/import\s*\{[^}]*whatsappUrl[^}]*\}\s*from\s*["']@\/lib\/contacto["']/)
+    expect(paginaFuente).toMatch(/whatsappUrl\(/)
+    expect(paginaFuente).toContain('Hablar por WhatsApp')
+    expect(paginaFuente).toContain('Escribinos por mail')
+  })
+})
+
+describe('/anunciantes: precios finales, sin IVA aparte', () => {
+  it.each([
+    [RUTA_PAGINA, paginaFuente],
+    [RUTA_CONFIG, configFuente],
+    [RUTA_PRECIOS, preciosFuente],
+  ])('%s: la única mención de IVA es "no se les suma IVA"', (_ruta, fuente) => {
+    const sinPermitido = fuente.replace(/no se les suma IVA/g, '')
+    expect(sinPermitido).not.toMatch(/\bIVA\b/i)
+  })
+
+  it('la página avisa que los precios son finales', () => {
+    expect(paginaFuente).toContain('Precios finales: no se les suma IVA')
+  })
+
+  it('ningún texto del tarifario ni del pie habla de IVA', () => {
+    const todo = [PIE_TARIFARIO, ...TARIFARIO.flatMap((p) => [p.nombre, p.queIncluye])].join(' ')
+    expect(todo).not.toMatch(/\bIVA\b/i)
   })
 })
 
