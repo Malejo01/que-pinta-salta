@@ -30,6 +30,7 @@ import WORDMARK from '@/assets/titulo-horizontal.png'
 import PATRON_MARCA from '@/assets/patron-claro.png'
 import { BotonGoogle } from '@/components/BotonGoogle'
 import { CampoTexto } from '@/components/CampoTexto'
+import { EnlacesLegales } from '@/components/EnlacesLegales'
 import { Cargando } from '@/components/EstadoCarga'
 import { Icono, type NombreIcono } from '@/components/Icono'
 import { LoQueSeguis } from '@/components/LoQueSeguis'
@@ -369,13 +370,16 @@ export default function Cuenta() {
 
         {/* F9: volver a ver la Bienvenida, al pie de Cuenta. */}
         <Pressable onPress={() => router.push('/bienvenida')} accessibilityRole="button" style={estilos.linkBienvenida}>
-          <Texto peso="semibold" tono="primario" style={{ fontSize: 13, textDecorationLine: 'underline' }}>
+          <Texto peso="semibold" style={{ fontSize: 13, textDecorationLine: 'underline' }}>
             Ver la bienvenida
           </Texto>
         </Pressable>
         <Texto tono="secundario" style={estilos.version}>
           {version}
         </Texto>
+
+        {/* QPS-237: los links legales, al pie, antes de "Cerrar sesión". */}
+        <EnlacesLegales />
 
         {/* "Cerrar sesión" al final, chico: nunca el botón principal. */}
         <Pressable
@@ -428,7 +432,7 @@ export default function Cuenta() {
 
         <View style={estilos.card}>
           <Texto peso="bold" accessibilityRole="header" style={{ fontSize: 20 }}>
-            Iniciar Sesion
+            Iniciar sesión
           </Texto>
 
           <CampoTexto
@@ -457,7 +461,7 @@ export default function Cuenta() {
               agrega 15dp arriba/abajo (300 asegura 0 horizontal: el texto ya
               es mucho más ancho que 48). */}
           <Pressable onPress={abrirRecuperarContrasenia} accessibilityRole="link" hitSlop={hitSlopPara(300, 18)}>
-            <Texto tono="primario" style={{ fontSize: 13, textDecorationLine: 'underline' }}>
+            <Texto style={{ fontSize: 13, textDecorationLine: 'underline' }}>
               ¿Olvidaste tu contraseña?
             </Texto>
           </Pressable>
@@ -514,11 +518,15 @@ export default function Cuenta() {
             cargando={accionEnCurso === 'google'}
             disabled={accionEnCurso !== null}
           />
+
+          {/* QPS-237: la línea de aceptación y los links legales, al crear
+              cuenta o continuar con Google. */}
+          <EnlacesLegales conAceptacion />
         </View>
 
         {/* F9: volver a ver la Bienvenida, al pie de Cuenta. */}
         <Pressable onPress={() => router.push('/bienvenida')} accessibilityRole="button" style={estilos.linkBienvenida}>
-          <Texto peso="semibold" tono="primario" style={{ fontSize: 13, textDecorationLine: 'underline' }}>
+          <Texto peso="semibold" style={{ fontSize: 13, textDecorationLine: 'underline' }}>
             Ver la bienvenida
           </Texto>
         </Pressable>

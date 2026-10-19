@@ -141,6 +141,39 @@ describe('cuenta.tsx: texto secundario en mutedForeground, nunca en border', () 
   })
 })
 
+// 49-a (QPS-244): "Iniciar Sesion" (sin tilde) pasa a "Iniciar sesión".
+describe('cuenta.tsx: "Iniciar sesión" con tilde', () => {
+  it('tiene el texto con tilde', () => {
+    expect(SRC_CUENTA).toContain('Iniciar sesión')
+  })
+
+  it('no queda "Iniciar Sesion" sin tilde', () => {
+    expect(SRC_CUENTA).not.toContain('Iniciar Sesion')
+  })
+})
+
+// 49-a (QPS-241): `primary` deja de usarse para texto chico en esta
+// pantalla. Los tres `Texto tono="primario"` ("Ver la bienvenida" x2 y
+// "¿Olvidaste tu contraseña?") pasan a foreground (sin tono); conservan el
+// subrayado.
+describe('cuenta.tsx: QPS-241, sin tono="primario" para texto chico', () => {
+  it('no queda ningún tono="primario"', () => {
+    expect(CODIGO_CUENTA).not.toMatch(/tono="primario"/)
+  })
+
+  it('"Ver la bienvenida" sigue subrayado (las dos ramas)', () => {
+    const apariciones = [...CODIGO_CUENTA.matchAll(/Ver la bienvenida/g)]
+    expect(apariciones).toHaveLength(2)
+  })
+
+  it('"¿Olvidaste tu contraseña?" sigue subrayado', () => {
+    const idx = CODIGO_CUENTA.indexOf('¿Olvidaste tu contraseña?')
+    expect(idx).toBeGreaterThan(-1)
+    const antes = CODIGO_CUENTA.slice(Math.max(0, idx - 150), idx)
+    expect(antes).toContain("textDecorationLine: 'underline'")
+  })
+})
+
 // 33-b (QPS-150): el teclado abierto no tiene que tapar los toques, en las
 // dos ramas de Cuenta (con sesión y sin sesión). Se separan los dos bloques
 // con anclas únicas del archivo ("if (session) {" hasta el arranque de la

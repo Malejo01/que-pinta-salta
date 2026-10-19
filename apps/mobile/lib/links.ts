@@ -13,6 +13,7 @@
  * `urlComoLlegar`) para no escribir el dominio a mano.
  */
 import { SITIO } from '@qps/core/metricas/links'
+import { RUTA_TERMINOS, TERMINOS_PUBLICADOS } from './legales'
 
 const UUID = '[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}'
 const UUID_RE = new RegExp(`^${UUID}$`)
@@ -53,10 +54,13 @@ export function eventoIdDesdeLink(url: string): string | null {
   return coincidencia[1].toLowerCase()
 }
 
-// Lista cerrada de rutas propias que `urlSitio` puede abrir. Hoy, solo
-// "¿Olvidaste tu contraseña?" del login (R29-e la dejó armada en la web:
-// `/auth/recuperar`); cualquier otra ruta, relativa o no, da `null`.
-const RUTAS_SITIO_PERMITIDAS = ['/auth/recuperar'] as const
+// Lista cerrada de rutas propias que `urlSitio` puede abrir: "¿Olvidaste tu
+// contraseña?" del login (R29-e la dejó armada en la web: `/auth/recuperar`)
+// y los dos legales de QPS-237 (ronda 49), `/privacidad` y `/terminos`.
+// Cualquier otra ruta, relativa o no, da `null`. `/terminos` además pasa por
+// la guarda explícita de abajo: estar en esta lista no alcanza para abrirla
+// mientras `TERMINOS_PUBLICADOS` sea `false`.
+const RUTAS_SITIO_PERMITIDAS = ['/auth/recuperar', '/privacidad', RUTA_TERMINOS] as const
 
 /**
  * Link absoluto a una ruta propia del sitio (`SITIO` de
@@ -64,7 +68,14 @@ const RUTAS_SITIO_PERMITIDAS = ['/auth/recuperar'] as const
  * arriba. Mismo patrón que `urlGo`/`urlComoLlegar` (core) y
  * `urlCompraCineSegura` (`lib/datos/cines.ts`): valida y devuelve `null` si
  * no pasa; quien la usa hace `Linking.openURL(...).catch(() => {})`.
+ *
+ * Guarda aparte para `/terminos` (QPS-237): aunque esté en la lista cerrada
+ * de arriba (para que esa lista siga siendo la única fuente de rutas),
+ * mientras `TERMINOS_PUBLICADOS` sea `false` (`/terminos` vive en el #74,
+ * sin mergear) esta función la rechaza igual — así ningún componente puede
+ * abrir un 404 por error, aunque la pida.
  */
 export function urlSitio(ruta: string): string | null {
+  if (ruta === RUTA_TERMINOS && !TERMINOS_PUBLICADOS) return null
   return (RUTAS_SITIO_PERMITIDAS as readonly string[]).includes(ruta) ? `${SITIO}${ruta}` : null
 }
