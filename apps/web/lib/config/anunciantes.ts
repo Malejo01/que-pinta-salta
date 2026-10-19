@@ -1,72 +1,19 @@
 /**
- * Configuración de la página pública `/anunciantes` (QPS Ronda 20, tarea 20-a).
+ * Configuración de la página pública `/anunciantes` ("Publicitá tu evento").
  *
- * `publicada` es el interruptor de indexación: mientras haya precios sin
- * completar (`precio: null` abajo, a propósito, por "no inventar datos") la
- * página sigue existiendo y respondiendo 200, pero no se indexa ni entra al
- * sitemap, y el link "Anunciantes" del footer no se muestra (ver
- * app/anunciantes/page.tsx, app/sitemap.ts y components/footer.tsx). Cuando Mauro fije
- * los precios reales, pasar esto a `true`.
+ * `publicada` es el interruptor de indexación: con `false` la página responde
+ * 200 pero no se indexa ni entra al sitemap, y el link del footer no se
+ * muestra (ver app/anunciantes/page.tsx, app/sitemap.ts y
+ * components/footer.tsx).
+ *
+ * Desde el 19/10 (Mauro, 16:10) la página tiene el tarifario final, con
+ * precios finales: está publicada. Los precios no viven acá sino en
+ * `@qps/core/publicidad/precios` (después, en la tabla `ad_prices` de la R58).
  */
-export interface PaqueteAnunciante {
-  id: string
-  nombre: string
-  /** Qué incluye el paquete, en frases cortas. Solo cosas que el producto ya tiene hoy. */
-  queIncluye: string[]
-  /** En ARS, sin IVA/impuestos. `null` mientras no haya precio fijado: se muestra "Consultar". */
-  precio: number | null
-  /** Unidad del precio ("por evento", "por semana", etc.). `null` si `precio` es `null`. */
-  periodo: string | null
-  /** Resalta la tarjeta en la grilla de paquetes. */
-  destacado?: boolean
-}
-
 export interface AnunciantesConfig {
   publicada: boolean
-  paquetes: PaqueteAnunciante[]
 }
 
 export const ANUNCIANTES: AnunciantesConfig = {
-  publicada: false,
-  paquetes: [
-    {
-      id: "destacado",
-      // [COMPLETAR: nombre comercial definitivo del paquete; "Evento destacado" es un nombre de trabajo]
-      nombre: "Evento destacado",
-      queIncluye: [
-        'La insignia "★ Destacado" en la tarjeta, en la ficha y en el carrusel principal (Hero) de la portada.',
-        "Un lugar en el carrusel principal (Hero) de la portada, sujeto a disponibilidad: son 6 cupos.",
-        'Primero en la fila de su categoría en la portada. Vale en la portada sin filtro y en "semana", "mes" y fecha exacta; con el filtro "Hoy" las filas se ordenan por hora de inicio, así que ese orden no aplica ahí.',
-        "Vigencia hasta la fecha que elijas: lo destacamos hasta ese día y después vence solo, sin que tengas que avisarnos.",
-      ],
-      precio: null, // [COMPLETAR: precio en ARS]
-      periodo: null, // [COMPLETAR: unidad del precio, p. ej. "por evento" o "por semana"]
-      destacado: true,
-    },
-    {
-      id: "radar",
-      // [COMPLETAR: nombre comercial definitivo]
-      nombre: "Presencia en el Radar",
-      queIncluye: [
-        "Tu evento entre los que se recomiendan a quienes siguen esa categoría o ese lugar en Mi Radar.",
-        "Llega por el mail semanal, quincenal o mensual, según la frecuencia que haya elegido cada persona.",
-      ],
-      precio: null, // [COMPLETAR: precio en ARS]
-      periodo: null, // [COMPLETAR: unidad del precio]
-    },
-    {
-      id: "reporte",
-      // [COMPLETAR: nombre comercial definitivo]
-      nombre: "Reporte de vistas y clics",
-      queIncluye: [
-        "Cuántas veces se abrió la ficha de tu evento en el sitio.",
-        "Cuántos clics se hicieron al botón de comprar entradas.",
-        "Los números, no estimaciones ni proyecciones.",
-      ],
-      precio: null, // [COMPLETAR: precio en ARS]
-      periodo: null, // [COMPLETAR: unidad del precio]
-    },
-    // R51: sumar el paquete de "Aviso patrocinado" (un aviso push por semana,
-    // con la etiqueta "Patrocinado") cuando la R51 esté en main.
-  ],
+  publicada: true,
 }

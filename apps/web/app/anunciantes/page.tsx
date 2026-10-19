@@ -7,12 +7,19 @@ import {
   getAdvertiserMetrics,
   formatPublicCount,
   formatRadarSubscribers,
-  precioVisible,
   type AdvertiserMetrics,
 } from "@/lib/anunciantes/metricas"
 import { ANUNCIANTES } from "@/lib/config/anunciantes"
 import { whatsappUrl } from "@/lib/contacto"
 import { CONTACTO_EMAIL, mailtoContacto } from "@qps/core/contacto"
+import {
+  PIE_TARIFARIO,
+  TARIFARIO,
+  VIGENCIA_TARIFARIO,
+  textoPrecioFundador,
+  textoPrecioLista,
+  textoUsdAprox,
+} from "@qps/core/publicidad/precios"
 
 /**
  * Página 100% estática desde el punto de vista de Next: ningún componente
@@ -35,10 +42,10 @@ const SIN_METRICAS: AdvertiserMetrics = {
 export const metadata: Metadata = {
   title: "Publicitá tu evento | Qué Pinta Salta",
   description:
-    "Llegá al público que ya está buscando salidas en Salta Capital: evento destacado en la portada, presencia en el Radar y reporte de vistas y clics.",
+    "Llegá al público que ya está buscando salidas en Salta Capital: destacados en la portada, packs para organizadores y RRPP, con precios publicados y reporte de clics.",
   alternates: { canonical: "/anunciantes" },
-  // Mientras ANUNCIANTES.publicada sea false (precios sin completar) la
-  // página no se indexa ni entra al sitemap (ver app/sitemap.ts).
+  // Si ANUNCIANTES.publicada fuera false, la página no se indexa ni entra
+  // al sitemap (ver app/sitemap.ts).
   ...(ANUNCIANTES.publicada ? {} : { robots: { index: false, follow: false } }),
 }
 
@@ -112,11 +119,10 @@ export default async function AnunciantesPage() {
           </p>
           <p>
             Para un anunciante, eso significa aparecer donde la gente ya está decidiendo qué hacer ese fin de semana,
-            en vez de interrumpir con un anuncio genérico. Hoy el sitio ofrece tres formas concretas de sumar tu
-            evento o tu marca, todas ya construidas y en funcionamiento.
+            en vez de interrumpir con un anuncio genérico.
           </p>
           <p>
-            Más abajo, los números reales del sitio (actualizados cada una hora) y los paquetes disponibles.
+            Más abajo, los números reales del sitio (actualizados cada una hora) y los precios, publicados y finales.
           </p>
         </section>
 
@@ -145,30 +151,41 @@ export default async function AnunciantesPage() {
         </section>
 
         <section className="mb-12 space-y-4">
-          <h2 className="text-xl font-bold text-foreground">Paquetes</h2>
-          <div className="grid gap-4 sm:grid-cols-3">
-            {ANUNCIANTES.paquetes.map((paquete) => (
-              <div
-                key={paquete.id}
-                className={`flex flex-col gap-3 rounded-2xl border p-5 shadow-sm ${
-                  paquete.destacado
-                    ? "border-primary/40 bg-primary/5"
-                    : "border-border bg-card"
-                }`}
-              >
-                <h3 className="text-lg font-bold text-foreground">{paquete.nombre}</h3>
-                <ul className="space-y-2 text-sm text-muted-foreground">
-                  {paquete.queIncluye.map((item) => (
-                    <li key={item} className="flex items-start gap-2">
-                      <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-primary" />
-                      <span>{item}</span>
-                    </li>
-                  ))}
-                </ul>
-                <p className="mt-auto pt-2 text-xl font-extrabold text-foreground">{precioVisible(paquete)}</p>
-              </div>
-            ))}
+          <div className="space-y-1">
+            <h2 className="text-xl font-bold text-foreground">Precios</h2>
+            <p className="text-sm text-muted-foreground">
+              Vigentes {VIGENCIA_TARIFARIO}. Precios finales: no se les suma IVA.
+            </p>
           </div>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {TARIFARIO.map((producto) => {
+              const usd = textoUsdAprox(producto.precio)
+              return (
+                <div
+                  key={producto.id}
+                  className={`flex flex-col gap-3 rounded-2xl border p-5 shadow-sm ${
+                    producto.destacado ? "border-primary/40 bg-primary/5" : "border-border bg-card"
+                  }`}
+                >
+                  <h3 className="text-lg font-bold text-foreground">{producto.nombre}</h3>
+                  <p className="flex items-start gap-2 text-sm text-muted-foreground">
+                    <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-primary" />
+                    <span>{producto.queIncluye}</span>
+                  </p>
+                  <div className="mt-auto space-y-1 pt-2">
+                    <p className="text-xl font-extrabold text-foreground">{textoPrecioLista(producto.precio)}</p>
+                    {producto.precio.tipo !== "gratis" && (
+                      <p className="text-sm font-medium text-primary">
+                        Precio fundador: {textoPrecioFundador(producto.precio)}
+                      </p>
+                    )}
+                    {usd && <p className="text-xs text-muted-foreground">Aprox. {usd}</p>}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+          <p className="text-xs leading-relaxed text-muted-foreground">{PIE_TARIFARIO}</p>
         </section>
 
         <section className="mb-12 space-y-4">
