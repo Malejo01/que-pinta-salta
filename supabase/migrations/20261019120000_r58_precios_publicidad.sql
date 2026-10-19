@@ -18,6 +18,9 @@
 --      push), con un token para la página compartible.
 --   6. sponsored_campaigns: destinatarios y bajas en las 48 h posteriores al
 --      envío (solo cantidades, nunca quién).
+--   7. delete_my_account(): la misma función de QPS-190, que además pone en
+--      null las tres columnas *_by nuevas (approved_by, updated_by y
+--      created_by), como pide su contrato con tablas-personales.ts.
 --
 -- Escriben el cron (service key, bypassea RLS) y el admin (is_admin()). Nada
 -- de esto es dato personal: solo cantidades y precios. anon solo lee los
