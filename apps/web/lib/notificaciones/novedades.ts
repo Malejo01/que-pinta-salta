@@ -44,11 +44,17 @@
  * ventana no avanza (no se graba `novedadesHasta`) y la corrida siguiente
  * reintenta desde el mismo punto.
  *
- * QPS-201, sin resolver en esta tarea (está fuera del alcance aprobado):
- * ninguna consulta de acá pagina, igual que la de `push_tokens` ya existente
- * en la ruta. Con más de 1000 filas en `job_runs`, `user_followed_*`,
- * `events` o `instagram_flyers`, PostgREST corta en la fila 1000 sin avisar
- * y esta función no se entera. Queda para el backlog.
+ * QPS-201 (D2/Ronda 51, tarea 51-b): los tres `user_followed_*` se leen en
+ * LOTES de `TAMANIO_LOTE_IN` ids (el largo de la URL del `.in`) y, dentro de
+ * cada lote, en PÁGINAS de `TAMANIO_PAGINA_TOKENS` filas (`leerPaginado`,
+ * `./paginado`: el `max_rows` de PostgREST — un lote de 200 usuarios que
+ * sigan varias cosas cada uno puede devolver más de 1000 filas). El orden de
+ * cada página es estable y total: estas tres tablas no tienen columna `id`
+ * (la PK es compuesta), así que se ordena por `user_id` y, como segunda
+ * columna, la otra mitad de la PK (`category_id`/`venue_id`/`instagram_account_id`).
+ * `job_runs` y `events` quedan sin tocar: `job_runs` no filtra por usuario
+ * (nada que lotear) y `events` está acotada por la ventana de `created_at`
+ * (fuera del alcance de esta tarea, ver el comentario del paso 4 más abajo).
  */
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { isVigente } from '@qps/core/events/vigencia'
@@ -59,8 +65,21 @@ import {
   type EventoParaNovedades,
   type SigueParaNovedades,
 } from '@qps/core/notificaciones/novedades'
+import { enLotes, TAMANIO_LOTE_IN, TAMANIO_PAGINA_TOKENS } from '@qps/core/notificaciones/lotes'
 import type { PreferenciasNotificacion } from '@qps/core/notificaciones/preferencias'
 import type { NovedadParaTanda } from '@qps/core/notificaciones/tanda'
+import { leerPaginado, type RespuestaDePagina } from './paginado'
+
+/**
+ * Adapta el resultado de un `.range(...)` de supabase-js a la forma que pide
+ * `leerPaginado`/`RespuestaDePagina<T>`: ver el mismo helper, con el mismo
+ * motivo, en `app/api/cron/notificaciones/route.ts`.
+ */
+function comoPagina<T>(
+  consulta: PromiseLike<{ data: unknown; error: { message: string } | null }>,
+): PromiseLike<RespuestaDePagina<T>> {
+  return consulta as unknown as PromiseLike<RespuestaDePagina<T>>
+}
 
 /** Igual criterio que `lib/radar/events.ts`: el `event_id` de `ai_metadata` es una columna JSON libre, se valida como uuid antes de confiar en ella. */
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -117,6 +136,43 @@ function eventIdDelFlyer(ai_metadata: unknown): string | null {
   return typeof eventId === 'string' && UUID_RE.test(eventId) ? eventId : null
 }
 
+/**
+ * Lee TODAS las filas de una tabla `user_followed_*` para `userIds` (QPS-201,
+ * ver el comentario de arriba del archivo): en LOTES de `TAMANIO_LOTE_IN`
+ * ids, y dentro de cada lote, en PÁGINAS de `TAMANIO_PAGINA_TOKENS` filas con
+ * `leerPaginado`. Estas tres tablas no tienen columna `id` (la PK es
+ * compuesta `(user_id, segundaColumna)`), así que el orden estable y total
+ * que pide la paginación es la PK completa: `.order('user_id').order(segundaColumna)`.
+ * Si falla cualquier lote o cualquier página, se corta ahí (no se devuelve
+ * una lista a medias): el `error` que devuelve ya viene con el nombre de
+ * `tabla`, para que quien llama use `errorDeTabla` tal cual.
+ */
+async function leerSeguidosEnLotesYPaginas<T>(
+  supabase: SupabaseClient,
+  tabla: string,
+  columnas: string,
+  segundaColumna: string,
+  userIds: string[],
+): Promise<{ ok: true; filas: T[] } | { ok: false; tabla: string; mensaje: string }> {
+  const filas: T[] = []
+  for (const loteIds of enLotes(userIds, TAMANIO_LOTE_IN)) {
+    const resultado = await leerPaginado<T>(TAMANIO_PAGINA_TOKENS, (desde, hasta) =>
+      comoPagina(
+        supabase
+          .from(tabla)
+          .select(columnas)
+          .in('user_id', loteIds)
+          .order('user_id')
+          .order(segundaColumna)
+          .range(desde, hasta),
+      ),
+    )
+    if (!resultado.ok) return { ok: false, tabla, mensaje: resultado.error }
+    filas.push(...resultado.filas)
+  }
+  return { ok: true, filas }
+}
+
 export async function cargarNovedades(
   supabase: SupabaseClient,
   { userIds, preferenciasPorUsuario, ahora }: CargarNovedadesInput,
@@ -154,19 +210,40 @@ export async function cargarNovedades(
   if (desdeMinimo === null) return { ok: true, porUsuario: new Map() } // userIds vacío: la ruta ya corta antes de llegar acá, pero no se divide por cero.
 
   // 3. Lo que cada usuario sigue. Si nadie sigue nada, se termina acá: un
-  // mapa vacío y ninguna lectura de `events`.
+  // mapa vacío y ninguna lectura de `events`. QPS-201: cada una en lotes de
+  // ids y, dentro de cada lote, paginada (ver `leerSeguidosEnLotesYPaginas`
+  // más arriba): un solo lote de 200 usuarios puede devolver más de 1000
+  // filas si cada uno sigue varias cosas.
   const [categorias, venues, cuentas] = await Promise.all([
-    supabase.from('user_followed_categories').select('user_id, category_id').in('user_id', userIds),
-    supabase.from('user_followed_venues').select('user_id, venue_id').in('user_id', userIds),
-    supabase.from('user_followed_instagram_accounts').select('user_id, instagram_account_id').in('user_id', userIds),
+    leerSeguidosEnLotesYPaginas<{ user_id: string; category_id: string }>(
+      supabase,
+      'user_followed_categories',
+      'user_id, category_id',
+      'category_id',
+      userIds,
+    ),
+    leerSeguidosEnLotesYPaginas<{ user_id: string; venue_id: string }>(
+      supabase,
+      'user_followed_venues',
+      'user_id, venue_id',
+      'venue_id',
+      userIds,
+    ),
+    leerSeguidosEnLotesYPaginas<{ user_id: string; instagram_account_id: string }>(
+      supabase,
+      'user_followed_instagram_accounts',
+      'user_id, instagram_account_id',
+      'instagram_account_id',
+      userIds,
+    ),
   ])
-  if (categorias.error) return errorDeTabla('user_followed_categories', categorias.error)
-  if (venues.error) return errorDeTabla('user_followed_venues', venues.error)
-  if (cuentas.error) return errorDeTabla('user_followed_instagram_accounts', cuentas.error)
+  if (!categorias.ok) return errorDeTabla(categorias.tabla, { message: categorias.mensaje })
+  if (!venues.ok) return errorDeTabla(venues.tabla, { message: venues.mensaje })
+  if (!cuentas.ok) return errorDeTabla(cuentas.tabla, { message: cuentas.mensaje })
 
-  const sigueCategorias = (categorias.data ?? []) as Array<{ user_id: string; category_id: string }>
-  const sigueVenues = (venues.data ?? []) as Array<{ user_id: string; venue_id: string }>
-  const sigueCuentas = (cuentas.data ?? []) as Array<{ user_id: string; instagram_account_id: string }>
+  const sigueCategorias = categorias.filas
+  const sigueVenues = venues.filas
+  const sigueCuentas = cuentas.filas
 
   if (sigueCategorias.length === 0 && sigueVenues.length === 0 && sigueCuentas.length === 0) {
     return { ok: true, porUsuario: new Map() }
