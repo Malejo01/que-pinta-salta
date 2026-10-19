@@ -30,6 +30,12 @@ const adminSections = [
     description: 'Revisá y corregí a mano la ubicación de los lugares que el geocodificador no pudo resolver.',
     icon: MapPin,
   },
+  {
+    href: '/admin/destacados',
+    title: 'Destacados',
+    description: 'Destacá eventos por un tiempo elegido (7, 14 o 30 días, o una fecha a mano) y quitales el destacado cuando corresponda.',
+    icon: Sparkles,
+  },
 ]
 
 export default async function AdminHomePage() {
