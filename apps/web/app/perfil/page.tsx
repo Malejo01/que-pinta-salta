@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
 import { formatEventDateShort, formatEventTime } from "@/lib/date-format"
 import { ChangePasswordForm } from "@/components/change-password-form"
+import { tipoDeCuenta } from "@qps/core/auth/cuenta"
 import { LoQueSeguis } from "./lo-que-seguis"
 import { obtenerLoQueSeguis } from "@/lib/actions/radar"
 import { Button } from "@/components/ui/button"
@@ -231,7 +232,7 @@ export default async function PerfilPage() {
               />
             )}
 
-            <ChangePasswordForm />
+            <ChangePasswordForm modo={tipoDeCuenta(user)} />
 
             <Button
               asChild

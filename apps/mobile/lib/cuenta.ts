@@ -10,6 +10,7 @@
 // `fetch`) — una sola fuente de verdad para el dominio.
 import * as SecureStore from 'expo-secure-store'
 import { GoogleSignin } from '@react-native-google-signin/google-signin'
+import { CONTACTO_EMAIL } from '@qps/core/contacto'
 import { SITIO } from '@qps/core/metricas/links'
 import { CLAVE_BIENVENIDA_VISTA } from '@/lib/bienvenida'
 import { supabase } from '@/lib/supabase'
@@ -23,7 +24,10 @@ const RUTA_ELIMINAR = `${SITIO}/api/cuenta/eliminar`
 const CONFIRMACION_ESPERADA = 'ELIMINAR'
 
 const MENSAJE_SIN_RED = 'No pudimos eliminar la cuenta. Revisá tu conexión.'
-const MENSAJE_GENERICO = 'No pudimos eliminar la cuenta. Probá de nuevo en unos minutos.'
+// QPS-190: el borrado entero corre en una sola transacción del lado del
+// servidor (`public.delete_my_account()`), así que si el pedido no salió
+// bien, no se borró nada — este mensaje ya puede prometerlo.
+const MENSAJE_GENERICO = `No se borró nada. Probá de nuevo en unos minutos o escribinos a ${CONTACTO_EMAIL}.`
 
 /**
  * Compara lo que escribió la persona contra "ELIMINAR". Mismo criterio que

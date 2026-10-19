@@ -42,6 +42,13 @@ const FORMAS_TUTEO_SACADAS: { archivo: string; texto: string }[] = [
   { archivo: 'app/auth/sign-up/page.tsx', texto: '¿Ya tienes cuenta?' },
   // Cambiar contraseña (components/change-password-form.tsx)
   { archivo: 'components/change-password-form.tsx', texto: 'Cambia tu contraseña' },
+  // Alta (app/auth/sign-up-success/page.tsx, tarea 48-b): título y cuerpo
+  // tuteaban y faltaban tildes ("Revisa", "confirmacion", "por favor",
+  // "haz click").
+  { archivo: 'app/auth/sign-up-success/page.tsx', texto: 'Revisa tu email para confirmar' },
+  { archivo: 'app/auth/sign-up-success/page.tsx', texto: 'Te hemos enviado un email de confirmacion' },
+  { archivo: 'app/auth/sign-up-success/page.tsx', texto: 'Por favor revisa tu' },
+  { archivo: 'app/auth/sign-up-success/page.tsx', texto: 'haz click en el enlace' },
   // Toasts de favoritos (components/favorite-button.tsx, tarea 33-e, ronda 33)
   { archivo: 'components/favorite-button.tsx', texto: 'Inténtalo de nuevo' },
   { archivo: 'components/favorite-button.tsx', texto: 'invitamos un cafecito' },

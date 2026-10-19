@@ -3,6 +3,12 @@
 // QPS-124) y nunca devuelve el `message` original del error del alta (eso
 // confirmaría, para un email ya existente, que la cuenta existe). Sin red:
 // `mensajeErrorAlta` es pura.
+//
+// R48, tarea 48-d: `crearCuenta` pasó a clasificar la respuesta de `signUp`
+// con `resultadoAlta` (QPS-124, 48-a) en vez de mirar `errorCrear` directo —
+// así el alta nunca distingue, en el mensaje que ve la persona, un email que
+// ya tenía cuenta de cualquier otro alta sin error. El `catch` sigue en
+// `mensajeErrorAlta`, sin cambios.
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
@@ -81,14 +87,15 @@ describe('mensajeErrorAlta (@qps/core/auth/mensajes, mismo módulo que usa la we
   })
 })
 
-describe('app/(tabs)/cuenta.tsx: el camino del alta usa mensajeErrorAlta, no error.message crudo', () => {
+describe('app/(tabs)/cuenta.tsx: el camino del alta usa resultadoAlta/mensajeErrorAlta, no error.message crudo', () => {
   const src = readFileSync(CUENTA_TSX, 'utf8')
 
-  it('importa mensajeErrorAlta de @qps/core/auth/mensajes', () => {
-    expect(src).toMatch(/import\s*\{\s*mensajeErrorAlta\s*\}\s*from\s*['"]@qps\/core\/auth\/mensajes['"]/)
+  it('importa mensajeErrorAlta y resultadoAlta de @qps/core/auth/mensajes', () => {
+    expect(src).toMatch(/import\s*\{[^}]*\bmensajeErrorAlta\b[^}]*\}\s*from\s*['"]@qps\/core\/auth\/mensajes['"]/)
+    expect(src).toMatch(/import\s*\{[^}]*\bresultadoAlta\b[^}]*\}\s*from\s*['"]@qps\/core\/auth\/mensajes['"]/)
   })
 
-  it('crearCuenta (la función del alta) llama a mensajeErrorAlta en su manejo de error, no a mensajeDeError', () => {
+  it('crearCuenta (la función del alta) clasifica la respuesta de signUp con resultadoAlta, nunca mira errorCrear/mensajeDeError directo', () => {
     const inicio = src.indexOf('async function crearCuenta')
     expect(inicio).toBeGreaterThan(-1)
     // Corta en la siguiente función async del archivo (entrarConGoogle), para
@@ -97,12 +104,18 @@ describe('app/(tabs)/cuenta.tsx: el camino del alta usa mensajeErrorAlta, no err
     expect(fin).toBeGreaterThan(inicio)
     const cuerpo = src.slice(inicio, fin)
 
-    expect(cuerpo).toContain('mensajeErrorAlta(errorCrear)')
+    // R48, 48-d: la respuesta de signUp pasa por resultadoAlta (QPS-124,
+    // 48-a) — no se mira `errorCrear` suelto.
+    expect(cuerpo).toContain('resultadoAlta(')
+    // El catch (una excepción, no un error de la API) sigue en mensajeErrorAlta.
     expect(cuerpo).toContain('mensajeErrorAlta(excepcion)')
     // Ni un solo uso del mensaje crudo de la API en este camino.
     expect(cuerpo).not.toMatch(/errorCrear\.message/)
     expect(cuerpo).not.toMatch(/excepcion\.message/)
-    expect(cuerpo).not.toContain('mensajeDeError(errorCrear)')
     expect(cuerpo).not.toContain('mensajeDeError(excepcion)')
+    // QPS-124: el alta nunca puede delatar, con un texto distinto, que el
+    // email ya tenía cuenta — ese texto (el de MENSAJES_ERROR, usado solo
+    // por entrar/Google) no tiene que aparecer en el camino del alta.
+    expect(cuerpo).not.toContain('Ya existe una cuenta')
   })
 })

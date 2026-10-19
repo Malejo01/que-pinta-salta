@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
-import { createAdminClient, createClient } from "@/lib/supabase/server"
+import { createClient as createSupabaseClient } from "@supabase/supabase-js"
+import { createClient } from "@/lib/supabase/server"
 import { usuarioDeRequest } from "@/lib/auth/usuario-de-request"
 import { eliminarCuenta } from "@/lib/cuenta/eliminar"
 
@@ -29,11 +30,13 @@ const pedidosEnCurso = new Set<string>()
  *    comentario de esa guarda).
  * 2. Origen (si viene `Origin`, que coincida con el propio sitio: junto con
  *    el `SameSite=Lax` de la cookie de sesión, es la defensa real contra CSRF).
- * 3. Usuario autenticado — **con el cliente admin todavía sin crear**.
+ * 3. Usuario autenticado — **con el cliente del RPC todavía sin crear**.
  * 4. Confirmación explícita (`"ELIMINAR"` literal).
  * 5. El `user_id` sale únicamente del usuario del paso 3 (nunca del body).
  * 6. Candado por usuario (evita doble clic).
- * 7. Recién acá, `createAdminClient()` y el borrado de verdad.
+ * 7. Recién acá se arma el cliente del RPC y corre el borrado de verdad
+ *    (QPS-190: `public.delete_my_account()`, en una sola transacción —
+ *    nunca la service role).
  */
 export async function POST(request: Request) {
   // 1. Content-Type exacto: NO es la defensa principal contra CSRF de este
@@ -56,9 +59,27 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "No se pudo eliminar la cuenta" }, { status: 415 })
   }
 
-  // Se lee una sola vez acá; el paso 8 lo reutiliza para decidir si hay una
-  // cookie de sesión que cerrar (ver el comentario de ese paso).
+  // Se lee una sola vez acá; el paso 7 (elegir el cliente del RPC) y el paso
+  // 8 (decidir si hay una cookie de sesión que cerrar) reutilizan la lectura
+  // y el criterio de abajo.
   const encabezadoAuth = request.headers.get("authorization")
+
+  // Mismo criterio que `usuarioDeRequest` (`lib/auth/usuario-de-request.ts`)
+  // para elegir Bearer vs. cookie, calculado UNA sola vez y reutilizado en
+  // los dos lugares de abajo (paso 7 y paso 8) en vez de repetir la
+  // expresión. Esto no es un detalle de estilo: tiene que ser EXACTAMENTE
+  // el mismo criterio que usó `usuarioDeRequest` en el paso 3, porque si no,
+  // se abre un agujero real. Ejemplo concreto: un pedido con un Bearer de la
+  // persona A **y** una cookie de sesión de la persona B a la vez.
+  // `usuarioDeRequest` devuelve A (gana el Bearer), así que el paso 3 y el
+  // candado del paso 6 evalúan a A. Si el cliente del RPC se armara con otro
+  // criterio (por ejemplo, "si hay cookie, usar cookie"), ese cliente
+  // correría con `auth.uid()` = B, y el RPC borraría la cuenta de B en vez
+  // de la de A — exactamente lo opuesto de lo que el endpoint acaba de
+  // autenticar. Calculando `vinoPorBearer` una sola vez y usándolo para las
+  // dos decisiones, el cliente del RPC siempre representa a la misma
+  // persona que `usuarioDeRequest` eligió.
+  const vinoPorBearer = Boolean(encabezadoAuth?.startsWith("Bearer ") && encabezadoAuth.slice(7).trim())
 
   // 2. Origen: si viene `Origin` (lo manda el navegador en same-origin y en
   // cross-site), tiene que coincidir con el origen de este mismo sitio. La
@@ -71,8 +92,8 @@ export async function POST(request: Request) {
     }
   }
 
-  // 3. Usuario autenticado. OJO: el cliente admin todavía NO se creó. Si no
-  // hay usuario, se corta aquí con 401 y la service role ni se toca.
+  // 3. Usuario autenticado. OJO: el cliente del RPC todavía NO se creó. Si
+  // no hay usuario, se corta aquí con 401.
   const usuario = await usuarioDeRequest(request)
   if (!usuario) {
     return NextResponse.json({ error: "No autenticado" }, { status: 401 })
@@ -110,28 +131,55 @@ export async function POST(request: Request) {
   pedidosEnCurso.add(userId)
 
   try {
-    // 7. Recién ahora, el cliente admin (service role) y el borrado de verdad.
-    const admin = createAdminClient()
-    const resultado = await eliminarCuenta(admin, userId)
+    // 7. Recién ahora se arma el cliente del RPC y corre el borrado de
+    // verdad. Nunca la service role: el RPC `delete_my_account()` tiene el
+    // EXECUTE revocado para `service_role` (y, con esa clave, `auth.uid()`
+    // sería `null` del lado de Postgres, así que no tendría a quién
+    // borrar). El cliente se elige con el MISMO criterio (`vinoPorBearer`,
+    // calculado arriba) que usó `usuarioDeRequest` en el paso 3, para que
+    // represente exactamente a la misma persona.
+    let clienteDeLaPersona: Parameters<typeof eliminarCuenta>[0]
+    if (vinoPorBearer) {
+      // Patrón exacto de `app/api/radar/prueba/route.ts`: anon key + el
+      // Bearer de la persona en los headers globales, nunca la service key.
+      const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+      const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+      if (!url || !anonKey) {
+        console.error("[EliminarCuenta] Faltan NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY.")
+        return NextResponse.json({ error: "No se pudo eliminar la cuenta" }, { status: 500 })
+      }
+      const token = encabezadoAuth!.slice("Bearer ".length).trim()
+      clienteDeLaPersona = createSupabaseClient(url, anonKey, {
+        auth: { persistSession: false, autoRefreshToken: false },
+        global: { headers: { Authorization: `Bearer ${token}` } },
+      })
+    } else {
+      clienteDeLaPersona = await createClient()
+    }
+
+    const resultado = await eliminarCuenta(clienteDeLaPersona, userId)
 
     if (!resultado.ok) {
-      // El detalle (tabla, paso, mensaje de la excepción) se queda en el
-      // log del servidor. Nunca sale en la respuesta al cliente.
+      // Se logea únicamente `paso` y el `código`/`mensaje` que extrajo
+      // `eliminarCuenta` del error del RPC — nunca `details` ni `hint` de
+      // un `PostgrestError`: un error de FK de Postgres mete el valor de la
+      // clave (acá, el uuid de la persona) en `details`, y la regla de la
+      // ronda es que ni la respuesta ni el log lleven el `userId` ni el
+      // email.
       console.error("[EliminarCuenta] Falló el borrado de cuenta:", {
         paso: resultado.paso,
-        tabla: resultado.tabla,
-        detalle: resultado.detalle,
+        codigo: resultado.codigo,
+        mensaje: resultado.detalle,
       })
-      return NextResponse.json({ error: "No se pudo eliminar la cuenta" }, { status: 500 })
+      const mensaje = resultado.paso === "rpc" ? "No se borró nada" : "No se pudo eliminar la cuenta"
+      return NextResponse.json({ error: mensaje }, { status: 500 })
     }
 
     // 8. Si la sesión era por cookie (la web), cerrarla del lado del
     // servidor. Si era por Bearer (la app), no hay cookie que cerrar: no
-    // tiene sentido tocar el cliente de cookies. El mismo criterio que usa
-    // `usuarioDeRequest` para elegir el camino Bearer (header presente y
-    // con contenido después de "Bearer "), repetido acá nada más que para
-    // decidir si corresponde este paso.
-    const vinoPorBearer = Boolean(encabezadoAuth?.startsWith("Bearer ") && encabezadoAuth.slice(7).trim())
+    // tiene sentido tocar el cliente de cookies. Mismo `vinoPorBearer` que
+    // el paso 7, calculado arriba una sola vez. Más correcto que antes de
+    // esta tarea: después del RPC, el usuario ya no existe en `auth.users`.
     if (!vinoPorBearer) {
       // Con scope "local" alcanza: limpia las cookies de esta respuesta sin
       // pedirle nada al servidor de Supabase, que podría fallar porque el

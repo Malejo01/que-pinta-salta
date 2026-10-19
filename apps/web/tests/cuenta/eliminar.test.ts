@@ -1,214 +1,91 @@
-// Sin red ni base: un doble en memoria del cliente admin que registra cada
-// llamada (update / delete / deleteUser) en el orden en que ocurre. Las
-// tablas y columnas se derivan de COLUMNAS_A_DESVINCULAR / TABLAS_A_BORRAR
-// (37-a), nunca de una lista copiada a mano, para que una tabla nueva quede
-// cubierta sola.
+// QPS-190 (tarea 48-e): `eliminarCuenta` ya no hace llamadas sucesivas con
+// la service key — llama a un único RPC transaccional
+// (`public.delete_my_account()`, sin ningún argumento) con el cliente de la
+// sesión de la persona. Sin red ni base: un doble en memoria que registra
+// cómo se llamó a `.rpc(...)`.
 import { describe, expect, it } from "vitest"
 import { eliminarCuenta } from "@/lib/cuenta/eliminar"
-import { COLUMNAS_A_DESVINCULAR, TABLAS_A_BORRAR } from "@/lib/cuenta/tablas-personales"
-
-type Llamada =
-  | { tipo: "update"; tabla: string; columna: string; valor: unknown }
-  | { tipo: "delete"; tabla: string; columna: string }
-  | { tipo: "deleteUser" }
 
 const USUARIO_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
 
 /**
- * Doble del cliente admin. `admin.from(tabla).update({...}).eq(columna, id)`
- * y `admin.from(tabla).delete().eq(columna, id)` registran la llamada antes
- * de devolver el resultado; `opts.errorEnUpdateTabla` / `opts.errorEnDeleteTabla`
- * permiten simular que una tabla puntual falla.
+ * Doble del cliente de la sesión de la persona. `rpc(...)` registra con
+ * cuántos y cuáles argumentos se lo llamó (no solo el nombre), para poder
+ * asertar que `eliminarCuenta` nunca manda un segundo argumento (ni el
+ * `userId`, ni nada).
  */
-function crearAdminFalso(
-  opts: {
-    errorEnUpdateTabla?: string
-    errorEnDeleteTabla?: string
-    errorEnDeleteUser?: boolean
-  } = {},
-) {
-  const llamadas: Llamada[] = []
-
-  const admin = {
-    from(tabla: string) {
-      return {
-        update(valores: Record<string, unknown>) {
-          return {
-            eq: async (columna: string) => {
-              llamadas.push({ tipo: "update", tabla, columna, valor: valores[columna] })
-              if (opts.errorEnUpdateTabla === tabla) {
-                return { error: { message: `error de prueba al desvincular ${tabla}` } }
-              }
-              return { error: null }
-            },
-          }
-        },
-        delete() {
-          return {
-            eq: async (columna: string) => {
-              llamadas.push({ tipo: "delete", tabla, columna })
-              if (opts.errorEnDeleteTabla === tabla) {
-                return { error: { message: `error de prueba al borrar ${tabla}` } }
-              }
-              return { error: null }
-            },
-          }
-        },
-      }
-    },
-    auth: {
-      admin: {
-        deleteUser: async () => {
-          llamadas.push({ tipo: "deleteUser" })
-          if (opts.errorEnDeleteUser) {
-            return { error: { message: "error de prueba en deleteUser" } }
-          }
-          return { error: null }
-        },
-      },
+function crearClienteFalso(opts: { error?: { message: string; code?: string } } = {}) {
+  const llamadasRpc: unknown[][] = []
+  const cliente = {
+    rpc: async (...argumentos: unknown[]) => {
+      llamadasRpc.push(argumentos)
+      return { error: opts.error ?? null }
     },
   }
-
-  return { admin: admin as unknown as Parameters<typeof eliminarCuenta>[0], llamadas }
+  return { cliente: cliente as unknown as Parameters<typeof eliminarCuenta>[0], llamadasRpc }
 }
 
 describe("eliminarCuenta: camino feliz", () => {
-  it("desvincula, después borra (en el orden de TABLAS_A_BORRAR) y por último elimina el usuario de auth", async () => {
-    const { admin, llamadas } = crearAdminFalso()
+  it('llama al RPC "delete_my_account" sin ningún argumento, con el cliente que se le pasó', async () => {
+    const { cliente, llamadasRpc } = crearClienteFalso()
 
-    const resultado = await eliminarCuenta(admin, USUARIO_ID)
+    const resultado = await eliminarCuenta(cliente, USUARIO_ID)
 
     expect(resultado).toEqual({ ok: true })
-
-    const esperado: Llamada[] = [
-      ...COLUMNAS_A_DESVINCULAR.map((e) => ({ tipo: "update" as const, tabla: e.tabla, columna: e.columna, valor: null })),
-      ...TABLAS_A_BORRAR.map((e) => ({ tipo: "delete" as const, tabla: e.tabla, columna: e.columna })),
-      { tipo: "deleteUser" as const },
-    ]
-    expect(llamadas).toEqual(esperado)
+    expect(llamadasRpc.length).toBe(1)
+    // No solo el nombre: también la CANTIDAD de argumentos. Si alguien
+    // agregara un segundo argumento (p. ej. { user_id: userId }, "por si
+    // acaso"), este test se pone en rojo: el RPC no tiene parámetros.
+    expect(llamadasRpc[0]).toEqual(["delete_my_account"])
   })
 
-  it("desvincula exactamente las columnas de COLUMNAS_A_DESVINCULAR, ni una más ni una menos", async () => {
-    const { admin, llamadas } = crearAdminFalso()
-    await eliminarCuenta(admin, USUARIO_ID)
-
-    const updatesRegistrados = llamadas.filter((l) => l.tipo === "update") as Array<{ tabla: string; columna: string }>
-    expect(updatesRegistrados.map((u) => `${u.tabla}.${u.columna}`).sort()).toEqual(
-      COLUMNAS_A_DESVINCULAR.map((e) => `${e.tabla}.${e.columna}`).sort(),
-    )
-  })
-
-  it("borra exactamente las tablas de TABLAS_A_BORRAR, ni una más ni una menos", async () => {
-    const { admin, llamadas } = crearAdminFalso()
-    await eliminarCuenta(admin, USUARIO_ID)
-
-    const deletesRegistrados = llamadas.filter((l) => l.tipo === "delete") as Array<{ tabla: string; columna: string }>
-    expect(deletesRegistrados.map((d) => `${d.tabla}.${d.columna}`).sort()).toEqual(
-      TABLAS_A_BORRAR.map((e) => `${e.tabla}.${e.columna}`).sort(),
-    )
-  })
-
-  it("duplicate_dismissals se borra antes que profiles", async () => {
-    const { admin, llamadas } = crearAdminFalso()
-    await eliminarCuenta(admin, USUARIO_ID)
-
-    const deletes = llamadas.filter((l) => l.tipo === "delete") as Array<{ tabla: string }>
-    const indiceDuplicateDismissals = deletes.findIndex((d) => d.tabla === "duplicate_dismissals")
-    const indiceProfiles = deletes.findIndex((d) => d.tabla === "profiles")
-
-    expect(indiceDuplicateDismissals).toBeGreaterThanOrEqual(0)
-    expect(indiceProfiles).toBeGreaterThanOrEqual(0)
-    expect(indiceDuplicateDismissals).toBeLessThan(indiceProfiles)
-  })
-
-  it("todos los update son anteriores a todos los delete, y todos los delete son anteriores a deleteUser", async () => {
-    const { admin, llamadas } = crearAdminFalso()
-    await eliminarCuenta(admin, USUARIO_ID)
-
-    const indiceUltimoUpdate = llamadas.reduce((acc, l, i) => (l.tipo === "update" ? i : acc), -1)
-    const indicePrimerDelete = llamadas.findIndex((l) => l.tipo === "delete")
-    const indiceDeleteUser = llamadas.findIndex((l) => l.tipo === "deleteUser")
-
-    expect(indiceUltimoUpdate).toBeLessThan(indicePrimerDelete)
-    const indiceUltimoDelete = llamadas.reduce((acc, l, i) => (l.tipo === "delete" ? i : acc), -1)
-    expect(indiceUltimoDelete).toBeLessThan(indiceDeleteUser)
+  it("se llama exactamente una vez, nunca más", async () => {
+    const { cliente, llamadasRpc } = crearClienteFalso()
+    await eliminarCuenta(cliente, USUARIO_ID)
+    expect(llamadasRpc.length).toBe(1)
   })
 })
 
-describe("eliminarCuenta: se corta apenas falla un paso", () => {
-  it("si falla un update, no se hace ningún delete y deleteUser no se llama", async () => {
-    const tablaQueFalla = COLUMNAS_A_DESVINCULAR[0].tabla
-    const { admin, llamadas } = crearAdminFalso({ errorEnUpdateTabla: tablaQueFalla })
+describe("eliminarCuenta: si el RPC devuelve error", () => {
+  it('el resultado es { ok: false, paso: "rpc" }, con el mensaje y el código del error', async () => {
+    const { cliente } = crearClienteFalso({ error: { message: "mensaje de prueba", code: "42501" } })
 
-    const resultado = await eliminarCuenta(admin, USUARIO_ID)
+    const resultado = await eliminarCuenta(cliente, USUARIO_ID)
 
-    expect(resultado.ok).toBe(false)
-    if (!resultado.ok) {
-      expect(resultado.paso).toBe("desvincular")
-      expect(resultado.tabla).toBe(tablaQueFalla)
-    }
-    expect(llamadas.some((l) => l.tipo === "delete")).toBe(false)
-    expect(llamadas.some((l) => l.tipo === "deleteUser")).toBe(false)
+    expect(resultado).toEqual({ ok: false, paso: "rpc", detalle: "mensaje de prueba", codigo: "42501" })
   })
 
-  it("si falla un update que no es el primero, los anteriores a él ya se hicieron, pero ninguno posterior ni los delete", async () => {
-    const tablaQueFalla = COLUMNAS_A_DESVINCULAR[COLUMNAS_A_DESVINCULAR.length - 1].tabla
-    const { admin, llamadas } = crearAdminFalso({ errorEnUpdateTabla: tablaQueFalla })
+  it("ningún resultado (ni de éxito ni de error) contiene el userId", async () => {
+    const { cliente: clienteOk } = crearClienteFalso()
+    const resultadoOk = await eliminarCuenta(clienteOk, USUARIO_ID)
+    expect(JSON.stringify(resultadoOk)).not.toContain(USUARIO_ID)
 
-    const resultado = await eliminarCuenta(admin, USUARIO_ID)
-
-    expect(resultado.ok).toBe(false)
-    const updates = llamadas.filter((l) => l.tipo === "update") as Array<{ tabla: string }>
-    expect(updates.length).toBe(COLUMNAS_A_DESVINCULAR.length)
-    expect(llamadas.some((l) => l.tipo === "delete")).toBe(false)
-    expect(llamadas.some((l) => l.tipo === "deleteUser")).toBe(false)
-  })
-
-  it("si falla un delete, deleteUser no se llama (y los delete posteriores a él tampoco se hacen)", async () => {
-    const tablaQueFalla = TABLAS_A_BORRAR[0].tabla
-    const { admin, llamadas } = crearAdminFalso({ errorEnDeleteTabla: tablaQueFalla })
-
-    const resultado = await eliminarCuenta(admin, USUARIO_ID)
-
-    expect(resultado.ok).toBe(false)
-    if (!resultado.ok) {
-      expect(resultado.paso).toBe("borrar")
-      expect(resultado.tabla).toBe(tablaQueFalla)
-    }
-    const deletes = llamadas.filter((l) => l.tipo === "delete") as Array<{ tabla: string }>
-    expect(deletes.length).toBe(1)
-    expect(llamadas.some((l) => l.tipo === "deleteUser")).toBe(false)
-  })
-
-  it("si falla deleteUser, el resultado es ok: false (todo lo anterior ya se había hecho)", async () => {
-    const { admin, llamadas } = crearAdminFalso({ errorEnDeleteUser: true })
-
-    const resultado = await eliminarCuenta(admin, USUARIO_ID)
-
-    expect(resultado.ok).toBe(false)
-    if (!resultado.ok) {
-      expect(resultado.paso).toBe("eliminar_usuario")
-    }
-    expect(llamadas.filter((l) => l.tipo === "deleteUser").length).toBe(1)
+    const { cliente: clienteError } = crearClienteFalso({ error: { message: "error", code: "XXYYY" } })
+    const resultadoError = await eliminarCuenta(clienteError, USUARIO_ID)
+    expect(JSON.stringify(resultadoError)).not.toContain(USUARIO_ID)
   })
 })
 
-describe("eliminarCuenta: el userId se valida antes de tocar la base", () => {
+describe("eliminarCuenta: el userId se valida antes de llamar al RPC", () => {
   it.each([[""], ["*"], ["no-es-un-uuid"], [null], [undefined], [123], [{}], ["  "]])(
-    "rechaza %j sin llamar a la base",
+    "rechaza %j sin llamar al RPC ni una sola vez",
     async (valorInvalido) => {
-      const { admin, llamadas } = crearAdminFalso()
+      const { cliente, llamadasRpc } = crearClienteFalso()
 
-      const resultado = await eliminarCuenta(admin, valorInvalido as unknown as string)
+      const resultado = await eliminarCuenta(cliente, valorInvalido as unknown as string)
 
       expect(resultado).toEqual({ ok: false, paso: "uuid_invalido" })
-      expect(llamadas).toEqual([])
+      expect(llamadasRpc.length).toBe(0)
     },
   )
 
   it("acepta un uuid válido en mayúsculas", async () => {
-    const { admin } = crearAdminFalso()
-    const resultado = await eliminarCuenta(admin, USUARIO_ID.toUpperCase())
+    const { cliente } = crearClienteFalso()
+    const resultado = await eliminarCuenta(cliente, USUARIO_ID.toUpperCase())
     expect(resultado).toEqual({ ok: true })
+  })
+
+  it("un userId inválido tampoco aparece en el resultado de rechazo", () => {
+    expect(JSON.stringify({ ok: false, paso: "uuid_invalido" })).not.toContain("no-es-un-uuid")
   })
 })

@@ -69,7 +69,7 @@ export function EliminarCuentaForm() {
 
       setEliminada(true)
     } catch {
-      setError(`No pudimos eliminar tu cuenta. Probá de nuevo en unos minutos o escribinos a ${CONTACTO_EMAIL}.`)
+      setError(`No se borró nada. Probá de nuevo en unos minutos o escribinos a ${CONTACTO_EMAIL}.`)
       setEnviando(false)
     }
   }
