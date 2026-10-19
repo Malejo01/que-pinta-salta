@@ -6,7 +6,7 @@
 //
 // Orden de la web real (apéndice del plan de la R29, decisión 2): imagen →
 // título → filas de datos → descripción → caja de precio → CTAs apilados
-// ("Como llegar" primero, "Comprar tickets" después) → fila de acciones
+// ("Cómo llegar" primero, "Comprar tickets" después) → fila de acciones
 // (debajo de los CTAs). El armado del mensaje de compartir vive en
 // `BotonCompartir` (ver `tests/compartir-ficha.test.ts`).
 //
@@ -272,7 +272,7 @@ export default function EventoPorId() {
           <Pressable onPress={comoLlegar} accessibilityRole="link" style={[estilos.ctaPrimario, { backgroundColor: colores.primary }]}>
             <Icono nombre="Navigation" tamanio={18} color={colores.primaryForeground} />
             <Texto peso="semibold" style={{ color: colores.primaryForeground }}>
-              Como llegar
+              Cómo llegar
             </Texto>
           </Pressable>
         ) : null}

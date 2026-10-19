@@ -223,7 +223,16 @@ describe('components/Hero.tsx: el autoplay limpia su setInterval al desmontar', 
     expect(contenido).toMatch(new RegExp(`return\\s*\\(\\)\\s*=>\\s*clearInterval\\(\\s*${nombre}\\s*\\)`))
   })
 
-  it('el efecto del intervalo depende de "indice" (se reinicia al deslizar) y de "slides.length"', () => {
-    expect(contenido).toMatch(/\}, \[indice, slides\.length\]\)/)
+  // 49-f (QPS-246): se suma "lectorActivo" a los deps. No alcanza con un
+  // `useRef` para esquivar este chequeo: un `ref` no dispara una nueva
+  // corrida del efecto, así que cuando alguien prende TalkBack con el Hero
+  // ya montado, el `setInterval` que ya estaba corriendo seguiría disparando
+  // (el `if (lectorActivo) return` de más arriba en el cuerpo del efecto
+  // nunca llegaría a ejecutarse de nuevo). Tiene que ser `useState`, y ese
+  // estado tiene que estar en los deps para que React vuelva a correr el
+  // efecto (y recién ahí salga antes de armar el temporizador) en el momento
+  // exacto en que cambia.
+  it('el efecto del intervalo depende de "indice" (se reinicia al deslizar), "slides.length" y "lectorActivo" (si no, al prender TalkBack el intervalo que ya corría no se frena: WCAG 2.2.2)', () => {
+    expect(contenido).toMatch(/\}, \[indice, slides\.length, lectorActivo\]\)/)
   })
 })

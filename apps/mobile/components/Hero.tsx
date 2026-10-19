@@ -42,6 +42,7 @@
 // falta dibujarla dos veces superpuesta.
 import { useEffect, useRef, useState } from 'react'
 import {
+  AccessibilityInfo,
   FlatList,
   Image,
   Pressable,
@@ -61,6 +62,7 @@ import { Texto } from '@/components/Texto'
 import { AREA_TACTIL_MINIMA, ESCALA_MAXIMA_COMPACTA, hitSlopPara } from '@/lib/accesibilidad'
 import { useColoresQPS } from '@/lib/colores'
 import { textoPrecio } from '@/lib/formato'
+import { ACCIONES_HERO, etiquetaDiapositiva, indiceTrasAccion } from '@/lib/hero-accesible'
 import LOGO_MARCA from '@/assets/logo-circular.png'
 
 const PORCENTAJE_ALTO_HERO = 0.6
@@ -110,13 +112,41 @@ export function Hero({ eventos }: HeroProps) {
   const { width: ancho, height: altoVentana } = useWindowDimensions()
   const alto = altoHero(altoVentana)
   const [indice, setIndice] = useState(0)
+  const [lectorActivo, setLectorActivo] = useState(false)
 
   const slides = eventosHero(eventos)
 
+  // WCAG 2.2.2 ("Pausa, detener, ocultar"): con el lector de pantalla
+  // prendido el Hero no tiene que avanzar solo, porque quien lo usa necesita
+  // su propio tiempo para escuchar cada diapositiva. Se consulta el estado
+  // al montar (la promesa puede resolver después del desmonte — por eso el
+  // chequeo de `montado` antes de aplicar el resultado) y se escucha el
+  // evento `'screenReaderChanged'` para reaccionar si se prende o se apaga
+  // mientras el Hero ya está en pantalla. El `remove()` del suscriptor vive
+  // en el cleanup de ESTE `useEffect` (no en el del intervalo, que es otro).
+  useEffect(() => {
+    let montado = true
+    AccessibilityInfo.isScreenReaderEnabled().then((habilitado) => {
+      if (montado) setLectorActivo(habilitado)
+    })
+    const suscripcion = AccessibilityInfo.addEventListener('screenReaderChanged', (habilitado) => {
+      setLectorActivo(habilitado)
+    })
+    return () => {
+      montado = false
+      suscripcion.remove()
+    }
+  }, [])
+
   // Avanza cada 5 s; se reinicia cada vez que `indice` cambia (timer propio o
-  // un deslizamiento manual) y se limpia al desmontar.
+  // un deslizamiento manual) y se limpia al desmontar. `lectorActivo` tiene
+  // que estar en los deps: si no, cuando alguien prende TalkBack con el Hero
+  // ya montado este efecto no se vuelve a ejecutar, y el `return` de abajo
+  // (que hoy evita armar el `setInterval`) nunca llega a correr — el timer
+  // que ya estaba corriendo sigue disparando, y el carrusel no se frena.
   useEffect(() => {
     if (slides.length <= 1) return undefined
+    if (lectorActivo) return undefined
 
     const temporizador = setInterval(() => {
       setIndice((actual) => {
@@ -127,7 +157,7 @@ export function Hero({ eventos }: HeroProps) {
     }, INTERVALO_MS)
 
     return () => clearInterval(temporizador)
-  }, [indice, slides.length])
+  }, [indice, slides.length, lectorActivo])
 
   if (slides.length === 0) return null
 
@@ -155,8 +185,16 @@ export function Hero({ eventos }: HeroProps) {
         keyExtractor={(item) => item.id}
         onMomentumScrollEnd={alTerminarDeDeslizar}
         getItemLayout={(_data, index) => ({ length: ancho, offset: ancho * index, index })}
-        renderItem={({ item }) => (
-          <DiapositivaHero evento={item} ancho={ancho} alto={alto} onPress={() => router.push(`/evento/${item.id}`)} />
+        renderItem={({ item, index }) => (
+          <DiapositivaHero
+            evento={item}
+            ancho={ancho}
+            alto={alto}
+            indice={index}
+            total={slides.length}
+            alCambiarIndice={irA}
+            onPress={() => router.push(`/evento/${item.id}`)}
+          />
         )}
       />
 
@@ -187,10 +225,13 @@ interface DiapositivaHeroProps {
   evento: DisplayEvent
   ancho: number
   alto: number
+  indice: number
+  total: number
+  alCambiarIndice: (nuevoIndice: number) => void
   onPress: () => void
 }
 
-function DiapositivaHero({ evento, ancho, alto, onPress }: DiapositivaHeroProps) {
+function DiapositivaHero({ evento, ancho, alto, indice, total, alCambiarIndice, onPress }: DiapositivaHeroProps) {
   const colores = useColoresQPS()
   const fecha = capitalizeFirst(formatEventDate(evento.date))
   const precio = textoPrecio(evento.price)
@@ -199,7 +240,9 @@ function DiapositivaHero({ evento, ancho, alto, onPress }: DiapositivaHeroProps)
     <Pressable
       onPress={onPress}
       accessibilityRole="button"
-      accessibilityLabel={`${evento.title}, ver detalles`}
+      accessibilityLabel={etiquetaDiapositiva(evento.title, indice, total)}
+      accessibilityActions={total > 1 ? ACCIONES_HERO : undefined}
+      onAccessibilityAction={(accion) => alCambiarIndice(indiceTrasAccion(accion.nativeEvent.actionName, indice, total))}
       style={[estilos.diapositiva, { width: ancho, height: alto }]}
     >
       {/* Dos `<Afiche llenar>` con la MISMA url (misma cadena de fuentes y
