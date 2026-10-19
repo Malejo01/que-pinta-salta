@@ -443,7 +443,13 @@ function candidatoPatrocinado(
     body: campania.cuerpo,
     categoryId: CATEGORIA_PATROCINADO,
     campaignId: campania.id,
-    data: { url, tipo: 'patrocinado' },
+    // `tipo` con la MISMA constante que `categoryId`, no con el string
+    // literal: `esAvisoPatrocinado` (`apps/mobile/lib/push/tap.ts`) usa
+    // `data.tipo` como respaldo de `categoryIdentifier` para cuando
+    // `registrarCategoriasPush` falla en silencio, así que si los dos
+    // valores se separaran, ese respaldo dejaría de reconocer el aviso sin
+    // que nada se pusiera en rojo.
+    data: { url, tipo: CATEGORIA_PATROCINADO },
   }
 }
 
