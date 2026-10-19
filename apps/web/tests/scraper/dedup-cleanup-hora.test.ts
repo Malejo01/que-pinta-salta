@@ -161,7 +161,17 @@ describe('buildDuplicateGroups: integración con splitByFunction', () => {
     expect(groups).toHaveLength(0)
     expect(venueConflicts).toHaveLength(1) // partido por venue (A vs B)
     expect(functionSplits).toHaveLength(1) // partido por hora dentro de cada venue
+
+    // venueConflicts.rows es siempre el bucket COMPLETO (nunca se filtra por grupo de venue),
+    // mientras que functionSplits.rows es sólo de los grupos de venue que se partieron por hora.
+    // Acá los DOS grupos de venue (A y B) se partieron por hora, así que los dos conjuntos
+    // terminan siendo iguales: las mismas 4 filas aparecen en el reporte por dos motivos
+    // distintos, los dos ciertos. Si algún día venueConflicts.rows se filtrara por grupo de venue,
+    // esta aserción se pone en rojo y obliga a actualizar el docstring de buildDuplicateGroups en
+    // el mismo cambio.
+    expect(venueConflicts[0].rows.map((r) => r.id).sort()).toEqual([uid(1), uid(2), uid(3), uid(4)].sort())
     expect(functionSplits[0].rows.map((r) => r.id).sort()).toEqual([uid(1), uid(2), uid(3), uid(4)].sort())
+    expect(new Set(venueConflicts[0].rows.map((r) => r.id))).toEqual(new Set(functionSplits[0].rows.map((r) => r.id)))
   })
 
   it('venue A con dos funciones (16:00/21:00) + venue B con una sola fila (20:00): functionSplits.rows trae SÓLO las de A', () => {

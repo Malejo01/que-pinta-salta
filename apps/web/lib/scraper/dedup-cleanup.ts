@@ -379,9 +379,16 @@ export function groupByDedupKey(rows: Record<string, unknown>[]): Map<string, Re
  * Las `rows` que se reportan son sólo las de ESE/ESOS grupo(s) de venue
  * partidos, no las del bucket entero: un venueGroup de una sola fila que no
  * se partió (su único motivo para no fusionar es el venue, no la hora) no
- * aparece ahí, aunque comparta dedupKey con el que sí se partió. Un bucket
- * puede aparecer en venueConflicts y en functionSplits a la vez: son dos
- * motivos distintos para no fusionar, con conjuntos de filas disjuntos.
+ * aparece ahí, aunque comparta dedupKey con el que sí se partió.
+ *
+ * Un bucket puede aparecer en venueConflicts y en functionSplits a la vez:
+ * son dos motivos distintos para no fusionar. Las filas de las dos listas NO
+ * son disjuntas, y conviene saberlo antes de leer el reporte: el `rows` de
+ * venueConflicts es siempre el bucket COMPLETO (no se filtra por grupo de
+ * venue), así que con dos venues y dos funciones en cada uno las dos listas
+ * traen exactamente las mismas filas. Cada lista es cierta por su cuenta —
+ * una dice "estas comparten clave y no se fusionan por el venue", la otra
+ * "estas no se fusionan por la hora"—, pero una fila puede estar en las dos.
  */
 export function buildDuplicateGroups(rows: Record<string, unknown>[]): {
   groups: Array<{ rows: Record<string, unknown>[]; byTicketUrl: boolean }>
