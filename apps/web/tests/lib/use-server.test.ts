@@ -12,6 +12,29 @@
  * (`primeraSentenciaEsUseServer`, `violacionesUseServer`) para poder
  * probarlas con fixtures en memoria antes de confiar en ellas sobre el
  * código real.
+ *
+ * ## El punto ciego cerrado (R56, QPS-253): `export * from` / `export { x } from`
+ *
+ * Hasta la R54, `violacionesUseServer` evaluaba la forma del export que
+ * sigue a la palabra `export`, pero cuando esa forma era un re-export con
+ * módulo (`export * from '...'` o `export { x } from '...'`) el detector no
+ * sabía qué hacer: en el caso de `export * from` el regex de formas
+ * (`FORMA_RE`) directamente no matcheaba nada y el `continue` del loop lo
+ * dejaba pasar sin evaluar — el comentario de esa rama lo decía
+ * explícitamente ("forma no reconocida (p. ej. 'export * from ...'): no se
+ * evalúa acá"). Esto importa porque desde ESTE archivo no hay forma de saber
+ * si lo que se reexporta de otro módulo es `async` o no, y Next.js hace
+ * fallar el build igual si no lo es.
+ *
+ * Ahora `FORMA_RE` también reconoce el `*` suelto, así que:
+ *   - `export * from '...'` y `export { x } from '...'` (ESTE último ya
+ *     fallaba antes del cierre de este punto ciego, porque `{` sin `type`
+ *     adelante caía en la rama genérica de violación — se deja como fixture
+ *     igual, para que el refactor de `FORMA_RE` no lo rompa de rebote):
+ *     **violación**.
+ *   - `export type * from '...'` y `export type { ... } from '...'` (ya
+ *     pasaban antes: el `type` adelante los manda a la rama permitida):
+ *     **permitidos**, porque `export type` nunca exporta un valor.
  */
 import { readFileSync, readdirSync } from 'node:fs'
 import { relative } from 'node:path'
@@ -50,14 +73,14 @@ export function violacionesUseServer(contenido: string): string[] {
   const violaciones: string[] = []
 
   const FORMA_RE =
-    /^\s*(type\s*\{|type\b|interface\b|default\s+async\s+function\b|default\s+function\b|default\s+class\b|default\s+\S|async\s+function\b|function\b|const\b|let\b|var\b|class\b|enum\b|\{)/
+    /^\s*(type\s*\{|type\b|interface\b|default\s+async\s+function\b|default\s+function\b|default\s+class\b|default\s+\S|async\s+function\b|function\b|const\b|let\b|var\b|class\b|enum\b|\*|\{)/
 
   const exportRegex = /\bexport\b/g
   let m: RegExpExecArray | null
   while ((m = exportRegex.exec(limpio))) {
     const resto = limpio.slice(m.index + 'export'.length)
     const match = FORMA_RE.exec(resto)
-    if (!match) continue // forma no reconocida (p. ej. "export * from ..."): no se evalúa acá
+    if (!match) continue // forma no reconocida (siguen sin cubrirse formas exóticas que no aparecen en el repo)
 
     const forma = match[1]
 
@@ -169,6 +192,24 @@ describe('violacionesUseServer: cada forma prohibida se detecta', () => {
   })
 })
 
+describe('violacionesUseServer: el punto ciego cerrado (R56, QPS-253) — re-exports con módulo', () => {
+  it('export * from \'...\' (sin type): violación — desde acá no se sabe si lo reexportado es async', () => {
+    expect(violacionesUseServer(`"use server"\nexport * from './otro-modulo'`)).not.toEqual([])
+  })
+
+  it('export { x } from \'...\' (sin type): violación (mismo motivo)', () => {
+    expect(violacionesUseServer(`"use server"\nexport { x } from './otro-modulo'`)).not.toEqual([])
+  })
+
+  it('export type * from \'...\': sin violaciones (export type nunca exporta un valor)', () => {
+    expect(violacionesUseServer(`"use server"\nexport type * from './otro-modulo'`)).toEqual([])
+  })
+
+  it('export type { Bar } from \'...\': sin violaciones', () => {
+    expect(violacionesUseServer(`"use server"\nexport type { Bar } from './otro-modulo'`)).toEqual([])
+  })
+})
+
 describe('violacionesUseServer: los falsos positivos conocidos del repo pasan limpio', () => {
   it('export type FavoriteType = \'event\' | \'cinema\' | \'flyer\' (favorites.ts)', () => {
     expect(violacionesUseServer(`export type FavoriteType = 'event' | 'cinema' | 'flyer'`)).toEqual([])
@@ -236,6 +277,11 @@ describe('barrido real de apps/web: archivos "use server" encontrados', () => {
     for (const esperado of esperados) {
       expect(relativos.has(esperado), `no se encontró ${esperado}`).toBe(true)
     }
+  })
+
+  it('lib/asistencia-lectura.ts (R56, tarea 56-a) NO es "use server": no tiene que aparecer en la lista', () => {
+    const relativos = new Set(ARCHIVOS_USE_SERVER.map((a) => relative(WEB_ROOT, a).split('\\').join('/')))
+    expect(relativos.has('lib/asistencia-lectura.ts')).toBe(false)
   })
 })
 
