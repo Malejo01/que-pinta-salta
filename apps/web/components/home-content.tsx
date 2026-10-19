@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState, useEffect } from "react"
+import { Fragment, useMemo, useState, useEffect } from "react"
 import { useSearchParams } from "next/navigation"
 import Image from "next/image"
 import dynamic from "next/dynamic"
@@ -258,50 +258,57 @@ export function HomeContent({
         {showCategoryRows && (
           <div className="py-4 space-y-6">
             {eventsByCategory.map(({ category: catSlug, title, events }, index) => (
-              <motion.div
-                key={catSlug}
-                initial={{ opacity: 0, y: 30 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true, margin: "-80px" }}
-                transition={{ duration: 0.5, ease: "easeOut" }}
-                className="space-y-6"
-              >
-                <CategoryRow
-                  category={catSlug}
-                  title={title}
-                  events={events}
-                  userFavorites={userFavorites}
-                  onOpenMovie={setSelectedMovie}
-                  onSeeAll={setCategory}
-                  origin="fila"
-                />
+              <Fragment key={catSlug}>
+                <motion.div
+                  initial={{ opacity: 0, y: 30 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true, margin: "-80px" }}
+                  transition={{ duration: 0.5, ease: "easeOut" }}
+                  className="space-y-6"
+                >
+                  <CategoryRow
+                    category={catSlug}
+                    title={title}
+                    events={events}
+                    userFavorites={userFavorites}
+                    onOpenMovie={setSelectedMovie}
+                    onSeeAll={setCategory}
+                    origin="fila"
+                  />
 
-                {/* 1. Banner de Radar después de la segunda categoría */}
-                {index === 1 && !hasFilters && (
-                  <div className="container mx-auto px-4 py-2">
-                    <div className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl p-6 flex flex-col sm:flex-row justify-between items-center gap-4 shadow-lg">
-                      <div className="space-y-1 text-center sm:text-left">
-                        <h3 className="text-xl font-bold text-white">¡No te pierdas ningún evento!</h3>
-                        <p className="text-sm text-zinc-400">
-                          Elegí tus categorías favoritas y recibí la agenda del fin de semana directamente en tu correo.
-                        </p>
+                  {/* 1. Banner de Radar después de la segunda categoría */}
+                  {index === 1 && !hasFilters && (
+                    <div className="container mx-auto px-4 py-2">
+                      <div className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl p-6 flex flex-col sm:flex-row justify-between items-center gap-4 shadow-lg">
+                        <div className="space-y-1 text-center sm:text-left">
+                          <h3 className="text-xl font-bold text-white">¡No te pierdas ningún evento!</h3>
+                          <p className="text-sm text-zinc-400">
+                            Elegí tus categorías favoritas y recibí la agenda del fin de semana directamente en tu correo.
+                          </p>
+                        </div>
+                        <Button asChild className="bg-primary hover:bg-primary/95 text-primary-foreground font-bold px-6 py-4 rounded-xl shadow-md transition-transform duration-200 hover:scale-105 cursor-pointer">
+                          <Link href="/radar" className="flex items-center gap-2">
+                            Configurar mi Radar 📡
+                          </Link>
+                        </Button>
                       </div>
-                      <Button asChild className="bg-primary hover:bg-primary/95 text-primary-foreground font-bold px-6 py-4 rounded-xl shadow-md transition-transform duration-200 hover:scale-105 cursor-pointer">
-                        <Link href="/radar" className="flex items-center gap-2">
-                          Configurar mi Radar 📡
-                        </Link>
-                      </Button>
                     </div>
-                  </div>
-                )}
+                  )}
+                </motion.div>
 
-                {/* 2. Banner de Publicidad/Anunciar después de la cuarta categoría */}
+                {/*
+                  2. Banner de Publicidad/Anunciar después de la cuarta
+                  categoría. Fuera del motion.div de arriba a propósito
+                  (52-b, regla (b) del 19/10): ese motion.div anima opacity/y
+                  con whileInView, y el alto reservado del banner (CLS 0) no
+                  puede depender de una animación.
+                */}
                 {index === 3 && !hasFilters && (
                   <div className="container mx-auto px-4 py-2">
-                    <AdSenseBanner slot="home-middle-banner" />
+                    <AdSenseBanner lugar="portada" />
                   </div>
                 )}
-              </motion.div>
+              </Fragment>
             ))}
           </div>
         )}
