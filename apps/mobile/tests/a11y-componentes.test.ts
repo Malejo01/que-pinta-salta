@@ -85,8 +85,15 @@ describe('Hero.tsx: la superposición de la diapositiva usa ESCALA_MAXIMA_COMPAC
     expect(SRC_HERO).not.toMatch(/maxFontSizeMultiplier=\{\s*-?\d/)
   })
 
-  it('la diapositiva (DiapositivaHero) lleva accessibilityRole="button" y una etiqueta con el título del evento', () => {
-    expect(SRC_HERO).toMatch(/accessibilityRole="button"[\s\S]{0,80}accessibilityLabel=\{`\$\{evento\.title\}, ver detalles`\}/)
+  // 49-f (QPS-246): la etiqueta ya no es un template literal fijo, sale de
+  // `etiquetaDiapositiva` (lib/hero-accesible.ts) con el título del evento.
+  // Lo que esa función produce en cada caso (con total 1, 2 y 5) se prueba
+  // sobre la función pura en `hero-accesible.test.ts`; acá solo se confirma
+  // que `Hero.tsx` la usa de verdad, con `evento.title` como primer
+  // argumento — si esto quedara en `accessibilityLabel={etiquetaDiapositiva}`
+  // sin invocar o con otro argumento, el `toMatch` fallaría.
+  it('la diapositiva (DiapositivaHero) lleva accessibilityRole="button" y su etiqueta sale de etiquetaDiapositiva(evento.title, ...)', () => {
+    expect(SRC_HERO).toMatch(/accessibilityRole="button"[\s\S]{0,160}accessibilityLabel=\{etiquetaDiapositiva\(\s*evento\.title/)
   })
 
   it('los puntos de paginación siguen con su propia etiqueta ("Ir al evento N")', () => {
