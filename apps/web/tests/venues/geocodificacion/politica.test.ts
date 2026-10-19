@@ -18,7 +18,8 @@
  */
 import { beforeAll, describe, expect, it, vi } from 'vitest'
 import { crearCache } from '@/lib/venues/geocodificacion/cache'
-import { consultasParaLugar, normalizarConsulta } from '@/lib/venues/geocodificacion/consultas'
+import { CONTACTO_EMAIL } from '@qps/core/contacto'
+import { consultasParaLugar, urlDeBusqueda, type ConsultaGeocodificacion } from '@/lib/venues/geocodificacion/consultas'
 import { crearClienteNominatim, type FetchInyectado, type ResultadoNominatim } from '@/lib/venues/geocodificacion/nominatim'
 import { geocodificarLugares, lugaresAGeocodificar, type VenueParaGeocodificar } from '@/lib/venues/geocodificacion/plan'
 
@@ -68,6 +69,12 @@ const RESULTADOS_REVISAR: ResultadoNominatim[] = [
 type Respuesta = { status: number; headers?: Record<string, string>; body?: unknown }
 
 const OK_BUENO: Respuesta = { status: 200, body: [resultadoBueno()] }
+/** Para una búsqueda estructurada: el número de puerta exacto, que es lo que la vuelve alta. */
+const okConPuerta = (numero: string): Respuesta => ({
+  status: 200,
+  // Nominatim manda el número adentro de address (addressdetails=1).
+  body: [{ ...resultadoBueno({ category: 'building', type: 'yes' }), address: { house_number: numero } }],
+})
 const OK_VACIO: Respuesta = { status: 200, body: [] }
 const OK_FUERA_DE_ZONA: Respuesta = { status: 200, body: [RESULTADO_FUERA_DE_ZONA] }
 const OK_REVISAR: Respuesta = { status: 200, body: RESULTADOS_REVISAR }
@@ -201,8 +208,9 @@ function construirRespuestas(lugares: VenueParaGeocodificar[]) {
   const mapaRespuestas = new Map<string, () => Respuesta>()
   const claveAVenues = new Map<string, string[]>()
 
-  function registrar(venueId: string, consulta: string, generador: () => Respuesta) {
-    const clave = normalizarConsulta(consulta)
+  function registrar(venueId: string, consulta: ConsultaGeocodificacion, generador: () => Respuesta) {
+    // La clave es la URL exacta que va a pedir el cliente: así el guión sigue a la consulta (tipo, texto y alcance), no solo al q.
+    const clave = urlDeBusqueda(consulta, { email: CONTACTO_EMAIL })
     // Si dos lugares arman la MISMA consulta (el caso D), el generador ya está:
     // no se pisa, así los dos comparten la misma respuesta cacheable una sola vez.
     if (!mapaRespuestas.has(clave)) mapaRespuestas.set(clave, generador)
@@ -213,7 +221,9 @@ function construirRespuestas(lugares: VenueParaGeocodificar[]) {
 
   function unaSolaConsultaBuena(v: VenueParaGeocodificar) {
     const [consulta] = consultasParaLugar({ nombre: v.name, direccion: v.address })
-    registrar(v.id, consulta, generadorDeSecuencia([OK_BUENO]))
+    // Con calle + número la primera es estructurada y necesita el número exacto para ser alta.
+    const numero = v.address?.match(/(\d+)$/)?.[1]
+    registrar(v.id, consulta, generadorDeSecuencia([consulta.tipo === 'estructurada' && numero ? okConPuerta(numero) : OK_BUENO]))
   }
 
   for (const id of ['a1', 'a2', 'a3', 'a4', 'a5', 'a6', 'a7', 'a8', 'b1', 'b2', 'b3', 'b4', 'c1', 'c2', 'd1', 'd2']) {
@@ -224,17 +234,19 @@ function construirRespuestas(lugares: VenueParaGeocodificar[]) {
   for (const id of ['e1', 'e2', 'e3']) {
     const v = lugares.find((x) => x.id === id)!
     const consultas = consultasParaLugar({ nombre: v.name, direccion: v.address })
-    expect(consultas).toHaveLength(3) // sanity: si direccionUtil cambiara, este fixture dejaría de probar lo que dice probar
+    expect(consultas).toHaveLength(4) // sanity: estructurada, nombre+ciudad, nombre, provincia
+    expect(consultas[0].tipo).toBe('estructurada')
     registrar(id, consultas[0], generadorDeSecuencia([OK_VACIO]))
     registrar(id, consultas[1], generadorDeSecuencia([OK_VACIO]))
     registrar(id, consultas[2], generadorDeSecuencia([OK_BUENO]))
+    // consultas[3] (provincia) no se registra: si el plan la pidiera igual, el fetch falso revienta.
   }
 
   // F: las 3 consultas vacías.
   for (const id of ['f1', 'f2']) {
     const v = lugares.find((x) => x.id === id)!
     const consultas = consultasParaLugar({ nombre: v.name, direccion: v.address })
-    expect(consultas).toHaveLength(3)
+    expect(consultas).toHaveLength(4)
     for (const consulta of consultas) registrar(id, consulta, generadorDeSecuencia([OK_VACIO]))
   }
 
@@ -252,25 +264,32 @@ function construirRespuestas(lugares: VenueParaGeocodificar[]) {
     registrar('h1', consulta, generadorDeSecuencia([{ status: 503 }, { status: 503 }, OK_BUENO]))
   }
 
-  // I: fuera de zona.
+  // I: fuera de zona en las 3 consultas (sin dirección: nombre+ciudad, nombre, provincia).
   {
     const v = lugares.find((x) => x.id === 'i1')!
-    const [consulta] = consultasParaLugar({ nombre: v.name, direccion: v.address })
-    registrar('i1', consulta, generadorDeSecuencia([OK_FUERA_DE_ZONA]))
+    const consultas = consultasParaLugar({ nombre: v.name, direccion: v.address })
+    expect(consultas).toHaveLength(3)
+    for (const consulta of consultas) registrar('i1', consulta, generadorDeSecuencia([OK_FUERA_DE_ZONA]))
   }
 
-  // J: confianza "revisar".
+  // J: confianza "revisar". Un "revisar" en la ciudad no corta: se prueban las
+  // otras consultas de la ciudad (acá vacías) y, con un candidato, la de la
+  // provincia ya no se pide (por eso no se registra).
   for (const id of ['j1', 'j2']) {
     const v = lugares.find((x) => x.id === id)!
-    const [consulta] = consultasParaLugar({ nombre: v.name, direccion: v.address })
-    registrar(id, consulta, generadorDeSecuencia([OK_REVISAR]))
+    const [primera, ...resto] = consultasParaLugar({ nombre: v.name, direccion: v.address })
+    registrar(id, primera, generadorDeSecuencia([OK_REVISAR]))
+    for (const consulta of resto.filter((c) => c.alcance === 'ciudad')) {
+      registrar(id, consulta, generadorDeSecuencia([OK_VACIO]))
+    }
   }
 
   return { mapaRespuestas, claveAVenues }
 }
 
 // ===========================================================================
-// El `fetch` falso: una sola cola, mira el guión por el parámetro `q`, y
+// El `fetch` falso: una sola cola, mira el guión por la URL pedida (que lleva
+// q o street/city, el viewbox y bounded), y
 // registra cuándo empezó cada pedido y cuántos hay "en vuelo" a la vez.
 // ===========================================================================
 function construirFetchFalso(
@@ -286,8 +305,9 @@ function construirFetchFalso(
     enVuelo++
     maxEnVuelo = Math.max(maxEnVuelo, enVuelo)
     const t = ahora()
-    const q = new URL(url).searchParams.get('q') ?? ''
-    const clave = normalizarConsulta(q)
+    const params = new URL(url).searchParams
+    const q = params.get('q') ?? `${params.get('street')} / ${params.get('city')}`
+    const clave = url
     llamadas.push({ t, clave })
 
     const generador = mapaRespuestas.get(clave)
@@ -296,7 +316,7 @@ function construirFetchFalso(
       // Si geocodificarLugares probara una consulta que no está en el guión
       // (por ejemplo, seguir probando después de un resultado aceptable, o
       // no cortar al primer "ok"), este fetch revienta: así se nota.
-      throw new Error(`consulta no scripteada en la corrida de prueba: "${q}" (clave "${clave}")`)
+      throw new Error(`consulta no scripteada en la corrida de prueba: "${q}" (bounded=${params.get('bounded')}, viewbox=${params.get('viewbox')})`)
     }
 
     // Latencia de red simulada: si el cliente dejara dos pedidos en vuelo a
@@ -376,7 +396,7 @@ describe('política de uso de Nominatim: corrida completa con 30 lugares (--appl
     expect(escenario.maxEnVuelo()).toBe(1)
   })
 
-  it('como mucho 3 consultas distintas por lugar', () => {
+  it('como mucho 4 consultas distintas por lugar', () => {
     const distintasPorVenue = new Map<string, Set<string>>()
     for (const llamada of escenario.llamadas) {
       const venues = escenario.claveAVenues.get(llamada.clave) ?? []
@@ -388,7 +408,7 @@ describe('política de uso de Nominatim: corrida completa con 30 lugares (--appl
     }
     expect(distintasPorVenue.size).toBeGreaterThan(0) // sanity: se registró algo
     for (const [id, claves] of distintasPorVenue) {
-      expect(claves.size, `el lugar "${id}" disparó ${claves.size} consultas distintas`).toBeLessThanOrEqual(3)
+      expect(claves.size, `el lugar "${id}" disparó ${claves.size} consultas distintas`).toBeLessThanOrEqual(4)
     }
   })
 
@@ -397,7 +417,7 @@ describe('política de uso de Nominatim: corrida completa con 30 lugares (--appl
     // misma consulta. Si la caché no fuera compartida entre lugares (por
     // ejemplo, una caché por lugar), esto daría 2 en vez de 1.
     const [consultaCompartida] = consultasParaLugar({ nombre: NOMBRE_COMPARTIDO, direccion: null })
-    const claveCompartida = normalizarConsulta(consultaCompartida)
+    const claveCompartida = urlDeBusqueda(consultaCompartida, { email: CONTACTO_EMAIL })
 
     expect(escenario.claveAVenues.get(claveCompartida)?.sort()).toEqual(['d1', 'd2'])
     const vecesPedida = escenario.llamadas.filter((l) => l.clave === claveCompartida).length
