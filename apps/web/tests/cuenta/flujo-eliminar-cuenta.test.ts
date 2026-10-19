@@ -1,35 +1,23 @@
-// tests/cuenta/flujo-eliminar-cuenta.test.ts (R37, tarea 37-q): tests que
-// cruzan tareas, sin red ni base, con dobles.
+// tests/cuenta/flujo-eliminar-cuenta.test.ts (tarea 48-e, QPS-190/185/187):
+// tests que cruzan tareas, sin red ni base, con dobles.
 //
-// Dos cosas que este archivo hace y que ningún otro test de la ronda hace:
+// Desde el 48-e, `eliminarCuenta` ya no hace llamadas sucesivas con la
+// service key: llama a un único RPC transaccional
+// (`public.delete_my_account()`, sin ningún argumento). Este archivo
+// reemplaza el doble "FK simulada" de 37-q (que modelaba violaciones de FK
+// tabla por tabla, porque `eliminarCuenta` llamaba a update/delete por
+// tabla) por un doble que modela el RPC como UNA SOLA unidad atómica:
+// o aplica TODO lo que hace la migración (desvincular + borrar + borrar
+// auth.users) de una vez, o no toca absolutamente nada. Esa es justo la
+// garantía nueva (antes, si una llamada fallaba a mitad de camino, lo
+// anterior ya había quedado aplicado).
 //
-// 1. El doble del cliente admin no solo REGISTRA llamadas (como el de
-//    tests/cuenta/eliminar.test.ts, de 37-b): mantiene un estado real en
-//    memoria (una fila por tabla) y lo MUTA de verdad con cada update/delete,
-//    y además simula la violación de FK que Postgres tiraría si se borrara
-//    `profiles` mientras todavía queda algo sin resolver (duplicate_dismissals
-//    sin borrar, o events/aliases.created_by sin desvincular) — ver
-//    `detectarBloqueoDeFkAlBorrarProfiles` más abajo, que chequea TODAS las
-//    entradas relevantes, no solo las que estén antes de "profiles" en el
-//    array en este momento, así que detecta la violación sin importar en qué
-//    posición relativa quedaran duplicate_dismissals y profiles.
-//    IMPORTANTE, para no sobre-prometer: esto cubre la relación FK real entre
-//    duplicate_dismissals/events/aliases y profiles, y que profiles vaya
-//    antes que `deleteUser()` (ver el test de ese nombre). NO cubre el orden
-//    arbitrario de las demás entradas de TABLAS_A_BORRAR entre sí (p. ej.
-//    push_tokens vs. notification_preferences): no hay ninguna FK real entre
-//    ellas, así que invertirlas no causaría ningún error ni en Postgres ni
-//    acá. El invariante "duplicate_dismissals/el resto va antes que profiles,
-//    y profiles es la última entrada del array" como propiedad ESTÁTICA del
-//    array ya lo prueba `tests/cuenta/tablas-personales.test.ts` (37-a), con
-//    aserciones de índice sobre el array mismo — esa cobertura no es
-//    redundante con esta: esa prueba la forma del array, esta prueba la
-//    CONSECUENCIA en tiempo de ejecución de violarla.
+// Lo que este archivo SIGUE haciendo igual que 37-q:
 // 2. Deriva la ruta del endpoint y el literal de confirmación de las DOS
 //    fuentes reales (el cliente de la app, `apps/mobile/lib/cuenta.ts`, y lo
 //    que usa la web) y las cruza entre sí y contra lo que exige el propio
 //    endpoint — nunca hardcodeando "ELIMINAR" ni "/api/cuenta/eliminar" como
-//    único juez.
+//    único juez. Ver la sección final del archivo.
 import { describe, expect, it } from "vitest"
 import { readFileSync, readdirSync, statSync } from "node:fs"
 import { join, relative } from "node:path"
@@ -51,147 +39,125 @@ const MINIMO_TABLAS_A_BORRAR_DE_HOY = 12
 const MINIMO_COLUMNAS_A_DESVINCULAR_DE_HOY = 5
 
 type Fila = Record<string, unknown>
-type Llamada =
-  | { tipo: "update"; tabla: string; columna: string }
-  | { tipo: "delete"; tabla: string; columna: string }
-  | { tipo: "deleteUser" }
 
 /**
- * Doble del cliente admin con estado real: cada tabla es un array de filas
- * en memoria, y `update`/`delete` las mutan de verdad (no solo registran que
- * se llamó). Además de los dos campos de fixture (`id`/`columna`), cada fila
- * lleva una marca `_fixture` para poder encontrarla de nuevo después de que
- * `eliminarCuenta` haya corrido, incluso si la columna que le interesa a la
- * aserción terminó en `null`.
+ * Doble del cliente de la sesión de la persona, con estado real en memoria
+ * (una tabla por array de filas, igual que el doble de 37-q). La diferencia
+ * con 37-q es que acá `rpc('delete_my_account')` es la ÚNICA operación que
+ * expone el doble (como en la producción real: `eliminarCuenta` ya no toca
+ * tablas una por una) y la aplica TODA DE UNA, simulando una transacción:
  *
- * `delete()` sobre la tabla `profiles` simula la violación de FK que tiraría
- * Postgres de verdad si todavía queda algo sin resolver (ver
- * `detectarBloqueoDeFk` más abajo): así, si `eliminarCuenta` invirtiera el
- * orden de los pasos, este doble lo delata solo, sin que haga falta una
- * aserción de índices escrita a mano.
+ * - Si `opciones.sinSesion` está presente (equivalente a que `auth.uid()` sea
+ *   `null` del lado de la migración real, código `42501`) o si lo está
+ *   `opciones.forzarError`, NO se toca absolutamente nada: el "borrador" del
+ *   estado se descarta entero, nunca se pisa el estado real con cambios
+ *   parciales.
+ *
+ *   **Ojo con un error fácil, que este doble tuvo mientras se escribía:
+ *   "no hay sesión" NO es lo mismo que "la fila de `auth.users` ya no
+ *   existe".** `auth.uid()` se define como el claim `sub` del JWT
+ *   (`request.jwt.claims`), así que lo lee del token, no de la base: borrar
+ *   la fila de `auth.users` no hace que `auth.uid()` pase a ser `null`
+ *   mientras el token siga sin vencer. Por eso `authUsers` **no** condiciona
+ *   el `42501`: un reintento con el mismo token sobre una cuenta ya borrada
+ *   vuelve a correr la función, no encuentra ninguna fila para bloquear,
+ *   desvincular ni borrar, y sale bien sin tocar nada (ver el describe de
+ *   QPS-187). `opciones.sinSesion` modela el caso de verdad: la service key
+ *   (donde no hay claim `sub`) o un pedido sin token.
+ * - Si no, aplica de una sola vez, sobre un clon del estado, exactamente lo
+ *   que hace la migración
+ *   (`supabase/migrations/20261018130300_qps_190_delete_my_account.sql`):
+ *   pone en `null` las columnas de `COLUMNAS_A_DESVINCULAR` (importadas de
+ *   producción, nunca copiadas a mano) donde coincidan con `usuarioId`,
+ *   borra las filas de `TABLAS_A_BORRAR` que sean de `usuarioId`, y borra a
+ *   `usuarioId` de `authUsers`. Recién ahí reemplaza el estado real por el
+ *   clon modificado, todo junto.
+ *
+ * `opciones.eventoConcurrenteDeLaMismaPersona` modela el escenario de
+ * QPS-185 (ver el describe de ese nombre, más abajo): se trata como una
+ * variante más de "el RPC falla sin tocar nada", con su propio mensaje para
+ * que el test pueda documentar de qué se trata.
+ *
+ * IMPORTANTE, para no sobre-prometer: esto es un MODELO del comportamiento
+ * documentado de la migración (comentario de cabecera de
+ * `20261018130300_qps_190_delete_my_account.sql` y el propio cuerpo de la
+ * función), no una prueba contra Postgres real — no hay ninguna base en
+ * este archivo. En particular, no reproduce el locking de verdad de
+ * `FOR UPDATE` (eso lo prueba, si existiera, un test de pgTAP contra la
+ * base local; no es lo que mide este archivo).
  */
-function crearAdminConEstadoReal(
+function crearRpcTransaccional(
+  usuarioId: string,
   opciones: {
-    tablaQueFallaAlDesvincular?: string
-    tablaQueFallaAlBorrar?: string
-    /** Ver el comentario junto a `deleteUser` más abajo: supuesto no verificado contra la red real. */
-    usuarioYaNoExisteEnAuth?: boolean
+    sinSesion?: boolean
+    forzarError?: { message: string; code?: string }
+    eventoConcurrenteDeLaMismaPersona?: boolean
   } = {},
 ) {
   const dbState: Record<string, Fila[]> = {}
   const authUsers = new Set<string>()
-  const llamadas: Llamada[] = []
+  let llamadasRpc = 0
 
   function filas(tabla: string): Fila[] {
     if (!dbState[tabla]) dbState[tabla] = []
     return dbState[tabla]
   }
 
-  // NO depende de la posición de cada entrada dentro de TABLAS_A_BORRAR: se
-  // revisan TODAS (salvo profiles misma), sin "break" al cruzar "profiles" en
-  // el array. Si dependiera de la posición (como la versión anterior de esta
-  // función, que cortaba al llegar a "profiles"), invertir duplicate_dismissals
-  // y profiles dentro del array haría que el chequeo nunca llegara a mirar
-  // duplicate_dismissals (porque ahora queda "después" del break) y el bug
-  // real que eso representa —violar la FK NOT NULL/NO ACTION de
-  // duplicate_dismissals.decided_by— quedaría sin detectar. Por eso se
-  // recorre el array entero siempre.
-  //
-  // Entradas de TABLAS_A_BORRAR que bloquean el borrado de profiles: se
-  // identifican por el propio COMENTARIO de producción, buscando que
-  // mencione a la vez "profiles" y "NO ACTION" (hoy, exactamente
-  // duplicate_dismissals: "su FK a profiles es NO ACTION"). Las demás
-  // entradas (favorites, user_favorites, etc.) tienen "ON DELETE CASCADE" en
-  // su comentario, no "NO ACTION", así que no bloquean. No es una lista de
-  // tablas copiada a mano: si se agrega una tabla nueva con esa misma FK y
-  // se documenta igual, este doble la cubre sola.
-  //
-  // Entradas de COLUMNAS_A_DESVINCULAR cuyo COMENTARIO documenta una FK NO
-  // ACTION hacia profiles(id) (hoy events.created_by y aliases.created_by):
-  // se detectan buscando el texto "profiles(id)" en el propio comentario del
-  // módulo de producción, mismo criterio.
-  function detectarBloqueoDeFkAlBorrarProfiles(userId: unknown): string | null {
-    for (const entrada of TABLAS_A_BORRAR) {
-      if (entrada.tabla === "profiles") continue
-      const bloqueaBorradoDeProfiles = entrada.comentario.includes("NO ACTION") && entrada.comentario.includes("profiles")
-      if (!bloqueaBorradoDeProfiles) continue
-      if (filas(entrada.tabla).some((f) => f[entrada.columna] === userId)) {
-        return `fk simulada: ${entrada.tabla}.${entrada.columna} todavía referencia a profiles(${String(userId)})`
-      }
-    }
-    for (const entrada of COLUMNAS_A_DESVINCULAR) {
-      if (!entrada.comentario.includes("profiles(id)")) continue
-      if (filas(entrada.tabla).some((f) => f[entrada.columna] === userId)) {
-        return `fk simulada: ${entrada.tabla}.${entrada.columna} todavía referencia a profiles(${String(userId)})`
-      }
-    }
-    return null
-  }
+  const cliente = {
+    rpc: async () => {
+      llamadasRpc++
 
-  const admin = {
-    from(tabla: string) {
-      return {
-        update(valores: Record<string, unknown>) {
-          return {
-            eq: async (columna: string, valor: unknown) => {
-              llamadas.push({ tipo: "update", tabla, columna })
-              if (opciones.tablaQueFallaAlDesvincular === tabla) {
-                return { error: { message: `error de prueba al desvincular ${tabla}` } }
-              }
-              for (const fila of filas(tabla)) {
-                if (fila[columna] === valor) Object.assign(fila, valores)
-              }
-              return { error: null }
-            },
-          }
-        },
-        delete() {
-          return {
-            eq: async (columna: string, valor: unknown) => {
-              llamadas.push({ tipo: "delete", tabla, columna })
-              if (opciones.tablaQueFallaAlBorrar === tabla) {
-                return { error: { message: `error de prueba al borrar ${tabla}` } }
-              }
-              if (tabla === "profiles") {
-                const bloqueo = detectarBloqueoDeFkAlBorrarProfiles(valor)
-                if (bloqueo) return { error: { message: bloqueo } }
-              }
-              dbState[tabla] = filas(tabla).filter((fila) => fila[columna] !== valor)
-              return { error: null }
-            },
-          }
-        },
+      if (opciones.sinSesion) {
+        // Mismo código (42501) que tira la migración real cuando
+        // auth.uid() es null: no hay claim `sub` en el token (o no hay
+        // token). No se deriva de `authUsers`: ver el comentario de arriba.
+        return { error: { message: "No autenticado", code: "42501" } }
       }
-    },
-    auth: {
-      admin: {
-        deleteUser: async (id: string) => {
-          llamadas.push({ tipo: "deleteUser" })
-          // SUPUESTO sobre la API real de Supabase, NO verificado contra la
-          // red (no se puede, en este repo): se asume que
-          // `admin.auth.admin.deleteUser(id)` devuelve un error si `id` ya
-          // no existe en `auth.users` (p. ej. "User not found"). Con ese
-          // supuesto, `opciones.usuarioYaNoExisteEnAuth` simula justo ese
-          // caso, para dejar documentado qué hace `eliminarCuenta` si
-          // alguien reintenta DESPUÉS de un borrado ya 100% exitoso (no el
-          // corte a mitad de camino de la idempotencia de más abajo, que no
-          // depende de este supuesto).
-          if (opciones.usuarioYaNoExisteEnAuth || !authUsers.has(id)) {
-            return { error: { message: "User not found" } }
-          }
-          authUsers.delete(id)
-          return { error: null }
-        },
-      },
+
+      if (opciones.forzarError) {
+        return { error: opciones.forzarError }
+      }
+
+      if (opciones.eventoConcurrenteDeLaMismaPersona) {
+        // Ver el comentario de la opción, arriba: se modela como que el
+        // borrado "pierde la carrera" contra el createEvent concurrente y
+        // se aborta entero, sin tocar nada.
+        return {
+          error: { message: "fk simulada: createEvent concurrente de la misma persona en vuelo", code: "23503" },
+        }
+      }
+
+      // "Transacción": se calcula TODO sobre un clon del estado, y solo al
+      // final se reemplaza el estado real de una sola vez. Nunca queda, ni
+      // siquiera transitoriamente dentro de este test, un estado a medio
+      // camino.
+      const borrador: Record<string, Fila[]> = {}
+      for (const tabla of Object.keys(dbState)) borrador[tabla] = dbState[tabla].map((f) => ({ ...f }))
+
+      for (const { tabla, columna } of COLUMNAS_A_DESVINCULAR) {
+        for (const fila of borrador[tabla] ?? []) {
+          if (fila[columna] === usuarioId) fila[columna] = null
+        }
+      }
+      for (const { tabla, columna } of TABLAS_A_BORRAR) {
+        borrador[tabla] = (borrador[tabla] ?? []).filter((f) => f[columna] !== usuarioId)
+      }
+
+      for (const tabla of Object.keys(borrador)) dbState[tabla] = borrador[tabla]
+      authUsers.delete(usuarioId)
+
+      return { error: null }
     },
   }
 
   return {
-    admin: admin as unknown as Parameters<typeof eliminarCuenta>[0],
+    cliente: cliente as unknown as Parameters<typeof eliminarCuenta>[0],
     filas,
     dbState,
     authUsers,
-    llamadas,
+    get llamadasRpc() {
+      return llamadasRpc
+    },
   }
 }
 
@@ -199,7 +165,8 @@ function crearAdminConEstadoReal(
  * Siembra, para `TABLAS_A_BORRAR` y `COLUMNAS_A_DESVINCULAR`, una fila de
  * `usuarioId` y otra de `otraCuentaId` en cada tabla — la segunda es la que
  * prueba selectividad: si el borrado no filtrara por usuario, también la
- * tocaría.
+ * tocaría. (Idéntica a la de 37-q: no depende de cómo `eliminarCuenta`
+ * llame al RPC, solo de las listas de producción.)
  */
 function sembrarFixtureDeCuenta(filas: (tabla: string) => Fila[], usuarioId: string, otraCuentaId: string): void {
   for (const entrada of [...TABLAS_A_BORRAR, ...COLUMNAS_A_DESVINCULAR]) {
@@ -208,20 +175,24 @@ function sembrarFixtureDeCuenta(filas: (tabla: string) => Fila[], usuarioId: str
   }
 }
 
-describe("eliminarCuenta: de punta a punta, con un doble que mantiene estado real (no solo registra llamadas)", () => {
+describe("eliminarCuenta: de punta a punta, con un doble que modela el RPC como transacción (todo o nada)", () => {
   it("TABLAS_A_BORRAR y COLUMNAS_A_DESVINCULAR no vinieron vacías ni se achicaron por debajo de lo de hoy (si no, el resto de este archivo recorrería listas vacías y pasaría sin probar nada)", () => {
     expect(TABLAS_A_BORRAR.length).toBeGreaterThanOrEqual(MINIMO_TABLAS_A_BORRAR_DE_HOY)
     expect(COLUMNAS_A_DESVINCULAR.length).toBeGreaterThanOrEqual(MINIMO_COLUMNAS_A_DESVINCULAR_DE_HOY)
   })
 
-  it("la cuenta queda sin ninguna fila en TABLAS_A_BORRAR, sus eventos/alias quedan con autor en null, el usuario de auth se borra, y la cuenta ajena no se toca", async () => {
-    const { admin, filas, authUsers } = crearAdminConEstadoReal()
+  it("camino feliz: la cuenta queda sin ninguna fila en TABLAS_A_BORRAR, sus eventos/alias quedan con autor en null, el usuario de auth se borra, y la cuenta ajena no se toca", async () => {
+    const doble = crearRpcTransaccional(USUARIO_ID)
+    const { cliente, filas, authUsers } = doble
     sembrarFixtureDeCuenta(filas, USUARIO_ID, OTRA_CUENTA_ID)
     authUsers.add(USUARIO_ID)
     authUsers.add(OTRA_CUENTA_ID)
 
-    const resultado = await eliminarCuenta(admin, USUARIO_ID)
+    const resultado = await eliminarCuenta(cliente, USUARIO_ID)
     expect(resultado).toEqual({ ok: true })
+    // El doble cuenta las llamadas; si nadie lo mira, un reintento interno
+    // mal puesto (dos `rpc` por pedido) pasaría sin que nada lo note.
+    expect(doble.llamadasRpc).toBe(1)
 
     for (const entrada of TABLAS_A_BORRAR) {
       const filasDeLaTabla = filas(entrada.tabla)
@@ -254,197 +225,131 @@ describe("eliminarCuenta: de punta a punta, con un doble que mantiene estado rea
     expect(authUsers.has(OTRA_CUENTA_ID), "se borró por error el usuario de auth de la OTRA cuenta").toBe(true)
   })
 
-  it("el conjunto de tablas tocadas por update es EXACTAMENTE el de COLUMNAS_A_DESVINCULAR (ni una más, ni una menos)", async () => {
-    const { admin, filas, authUsers, llamadas } = crearAdminConEstadoReal()
+  it("si el RPC falla por cualquier motivo (ej. una violación de FK), NO se toca absolutamente nada: todo o nada", async () => {
+    const { cliente, filas, authUsers } = crearRpcTransaccional(USUARIO_ID, {
+      forzarError: { message: "violación de FK simulada (estado ya corrupto)", code: "23503" },
+    })
     sembrarFixtureDeCuenta(filas, USUARIO_ID, OTRA_CUENTA_ID)
     authUsers.add(USUARIO_ID)
 
-    await eliminarCuenta(admin, USUARIO_ID)
+    const resultado = await eliminarCuenta(cliente, USUARIO_ID)
 
-    const tablasTocadas = new Set(llamadas.filter((l): l is Extract<Llamada, { tipo: "update" }> => l.tipo === "update").map((l) => l.tabla))
-    const tablasEsperadas = new Set(COLUMNAS_A_DESVINCULAR.map((e) => e.tabla))
-    expect(tablasTocadas.size).toBeGreaterThan(0)
-    expect(tablasTocadas).toEqual(tablasEsperadas)
-  })
+    expect(resultado.ok).toBe(false)
+    if (!resultado.ok) {
+      expect(resultado.paso).toBe("rpc")
+      expect(resultado.codigo).toBe("23503")
+    }
 
-  it("el conjunto de tablas tocadas por delete (sin contar deleteUser) es EXACTAMENTE el de TABLAS_A_BORRAR (ni una más, ni una menos)", async () => {
-    const { admin, filas, authUsers, llamadas } = crearAdminConEstadoReal()
-    sembrarFixtureDeCuenta(filas, USUARIO_ID, OTRA_CUENTA_ID)
-    authUsers.add(USUARIO_ID)
-
-    await eliminarCuenta(admin, USUARIO_ID)
-
-    const tablasTocadas = new Set(llamadas.filter((l): l is Extract<Llamada, { tipo: "delete" }> => l.tipo === "delete").map((l) => l.tabla))
-    const tablasEsperadas = new Set(TABLAS_A_BORRAR.map((e) => e.tabla))
-    expect(tablasTocadas.size).toBeGreaterThan(0)
-    expect(tablasTocadas).toEqual(tablasEsperadas)
-  })
-
-  it('"profiles" (no "la que haya quedado última", sea cual sea) se borra ANTES de deleteUser, no después', async () => {
-    const { admin, filas, authUsers, llamadas } = crearAdminConEstadoReal()
-    sembrarFixtureDeCuenta(filas, USUARIO_ID, OTRA_CUENTA_ID)
-    authUsers.add(USUARIO_ID)
-
-    await eliminarCuenta(admin, USUARIO_ID)
-
-    const ultimaTabla = TABLAS_A_BORRAR[TABLAS_A_BORRAR.length - 1].tabla
-    // Sin esto, el test de abajo es tautológico: `ultimaTabla` sería "la que
-    // haya quedado última" en el array, y como `eliminarCuenta` siempre
-    // procesa TABLAS_A_BORRAR en orden, esa entrada SIEMPRE se borra antes
-    // que deleteUser (que corre después de todo el bucle), sin importar qué
-    // tabla sea. Esta línea exige además que esa última entrada sea
-    // "profiles" específicamente — si alguien la desplaza de la última
-    // posición, este test (no solo tablas-personales.test.ts) se pone en
-    // rojo.
-    expect(ultimaTabla).toBe("profiles")
-
-    const indiceUltimoBorrado = llamadas.findIndex((l) => l.tipo === "delete" && l.tabla === ultimaTabla)
-    const indiceDeleteUser = llamadas.findIndex((l) => l.tipo === "deleteUser")
-
-    expect(indiceUltimoBorrado).toBeGreaterThanOrEqual(0)
-    expect(indiceDeleteUser).toBeGreaterThan(indiceUltimoBorrado)
+    // Todo exactamente como antes del pedido: ni una columna desvinculada,
+    // ni una fila borrada.
+    for (const entrada of [...TABLAS_A_BORRAR, ...COLUMNAS_A_DESVINCULAR]) {
+      expect(
+        filas(entrada.tabla).some((f) => f[entrada.columna] === USUARIO_ID),
+        `${entrada.tabla}.${entrada.columna} se tocó a pesar de que el RPC falló`,
+      ).toBe(true)
+    }
+    expect(authUsers.has(USUARIO_ID)).toBe(true)
   })
 })
 
-describe("el detector de FK simulada del doble funciona de verdad (no es un chequeo vacío que siempre da \"sin bloqueo\")", () => {
-  it('encuentra, por comentario de producción, al menos una entrada de TABLAS_A_BORRAR con una FK "NO ACTION" hacia "profiles" (hoy duplicate_dismissals) — si esto no encuentra nada, los dos tests de abajo no estarían probando nada', () => {
-    const entradaBloqueante = TABLAS_A_BORRAR.find(
-      (e) => e.tabla !== "profiles" && e.comentario.includes("NO ACTION") && e.comentario.includes("profiles"),
-    )
-    expect(entradaBloqueante).toBeTruthy()
-  })
-
-  it("si esa entrada todavía tiene una fila del usuario, borrar profiles (llamado DIRECTAMENTE sobre el doble, sin pasar por eliminarCuenta) falla — sin importar la posición de esa entrada en el array", async () => {
-    const entradaBloqueante = TABLAS_A_BORRAR.find(
-      (e) => e.tabla !== "profiles" && e.comentario.includes("NO ACTION") && e.comentario.includes("profiles"),
-    )!
-    const { admin, filas } = crearAdminConEstadoReal()
-    // Se siembra SOLO la fila bloqueante, sin pasar por
-    // sembrarFixtureDeCuenta ni por eliminarCuenta: esta prueba no depende
-    // en absoluto del orden real de TABLAS_A_BORRAR, solo de que la fila
-    // exista en el momento de intentar borrar profiles — que es exactamente
-    // lo que pasaría si el array quedara mal ordenado (p. ej. profiles antes
-    // que duplicate_dismissals).
-    filas(entradaBloqueante.tabla).push({ [entradaBloqueante.columna]: USUARIO_ID })
-
-    const { error } = await admin.from("profiles").delete().eq("id", USUARIO_ID)
-
-    expect(error, "el doble tendría que haber devuelto un error: la fila bloqueante todavía existe").toBeTruthy()
-  })
-
-  it("si esa misma fila ya no existe, borrar profiles (llamado directamente) no da error", async () => {
-    const { admin } = crearAdminConEstadoReal()
-
-    const { error } = await admin.from("profiles").delete().eq("id", USUARIO_ID)
-
-    expect(error).toBeNull()
-  })
-})
-
-describe("eliminarCuenta: idempotencia tras un corte a mitad de camino", () => {
-  it('si un intento anterior ya había desvinculado y borrado todo (incluida "profiles") pero se cortó antes de deleteUser, un segundo intento no falla', async () => {
-    const { admin, authUsers } = crearAdminConEstadoReal()
-    // A propósito no se siembra ninguna fila: todas las tablas ya están
-    // vacías para este usuario, como si el intento anterior ya hubiera
-    // completado los pasos de desvincular y borrar. El usuario de auth
-    // SÍ sigue existiendo: el corte fue justo antes de deleteUser (p. ej.
-    // un error de red momentáneo en esa llamada puntual).
-    authUsers.add(USUARIO_ID)
-
-    const resultado = await eliminarCuenta(admin, USUARIO_ID)
-
-    expect(resultado).toEqual({ ok: true })
-    expect(authUsers.has(USUARIO_ID)).toBe(false)
-  })
-
+describe("eliminarCuenta: QPS-185, un createEvent concurrente de la MISMA persona", () => {
   it(
-    "SUPUESTO sobre la API real de Supabase, NO verificado contra la red: si el reintento es DESPUÉS de un borrado " +
-      "100% exitoso (el usuario ya no existe en auth.users), eliminarCuenta NO es idempotente en el tramo de " +
-      'deleteUser — hoy devuelve ok:false con paso "eliminar_usuario". Este test documenta ese comportamiento tal ' +
-      "como está escrito en lib/cuenta/eliminar.ts; no afirma que sea lo deseable, deja el contrato escrito para " +
-      "que alguien con acceso a la API real lo confirme o lo cambie.",
+    "el resultado es la cuenta SIN borrar y SIN datos perdidos — nunca 'a medio borrar' como antes de la migración. " +
+      "La garantía real sale del FOR UPDATE sobre profiles de " +
+      "supabase/migrations/20261018130300_qps_190_delete_my_account.sql más la transacción (ver el comentario de " +
+      "cabecera de esa migración): el createEvent concurrente queda esperando el lock de la fila de profiles, así " +
+      "que nunca puede intercalarse a mitad de camino del borrado. Este doble NO reproduce ese locking (no hay " +
+      "base real en este archivo): directamente MODELA la consecuencia observable como el RPC perdiendo la carrera " +
+      "y abortando sin tocar nada.",
     async () => {
-      const { admin, authUsers } = crearAdminConEstadoReal({ usuarioYaNoExisteEnAuth: true })
-      // Ni siquiera se agrega USUARIO_ID a authUsers: ya no existe, como si
-      // un intento anterior hubiera completado los tres pasos.
+      const { cliente, filas, authUsers } = crearRpcTransaccional(USUARIO_ID, {
+        eventoConcurrenteDeLaMismaPersona: true,
+      })
+      sembrarFixtureDeCuenta(filas, USUARIO_ID, OTRA_CUENTA_ID)
+      authUsers.add(USUARIO_ID)
+      // La fila de events.created_by sembrada por sembrarFixtureDeCuenta
+      // hace de "testigo" del createEvent concurrente: si el borrado
+      // tocara algo, esta fila cambiaría o desaparecería.
+      const filaEventoConcurrenteAntes = filas("events").find((f) => f.created_by === USUARIO_ID)
+      expect(filaEventoConcurrenteAntes).toBeTruthy()
 
-      const resultado = await eliminarCuenta(admin, USUARIO_ID)
+      const resultado = await eliminarCuenta(cliente, USUARIO_ID)
 
       expect(resultado.ok).toBe(false)
-      if (!resultado.ok) {
-        expect(resultado.paso).toBe("eliminar_usuario")
+      if (!resultado.ok) expect(resultado.paso).toBe("rpc")
+
+      // La cuenta sigue viva...
+      expect(authUsers.has(USUARIO_ID), "la cuenta no se tendría que haber borrado").toBe(true)
+      // ...y nada se perdió: ni el evento concurrente ni ninguna otra fila
+      // de la cuenta (nada quedó a medio camino).
+      expect(filas("events").find((f) => f.created_by === USUARIO_ID)).toEqual(filaEventoConcurrenteAntes)
+      for (const entrada of [...TABLAS_A_BORRAR, ...COLUMNAS_A_DESVINCULAR]) {
+        expect(
+          filas(entrada.tabla).some((f) => f[entrada.columna] === USUARIO_ID),
+          `${entrada.tabla}.${entrada.columna} se perdió a pesar de que el borrado se abortó`,
+        ).toBe(true)
       }
-      expect(authUsers.has(USUARIO_ID)).toBe(false)
     },
   )
 })
 
-describe('eliminarCuenta: si una tabla del medio falla al "borrar", se corta ahí y no sigue', () => {
-  it("devuelve ok:false con el paso y la tabla, no llega a deleteUser, lo anterior a la tabla que falló ya se había borrado y lo posterior queda intacto", async () => {
-    // Elegida del medio (ni la primera ni la última) para además poder
-    // comprobar qué pasó antes y qué pasó después del corte.
-    const indiceTablaQueFalla = Math.floor(TABLAS_A_BORRAR.length / 2)
-    expect(indiceTablaQueFalla).toBeGreaterThan(0)
-    expect(indiceTablaQueFalla).toBeLessThan(TABLAS_A_BORRAR.length - 1)
-    const tablaQueFalla = TABLAS_A_BORRAR[indiceTablaQueFalla].tabla
-
-    const { admin, filas, authUsers, llamadas } = crearAdminConEstadoReal({ tablaQueFallaAlBorrar: tablaQueFalla })
-    sembrarFixtureDeCuenta(filas, USUARIO_ID, OTRA_CUENTA_ID)
-    authUsers.add(USUARIO_ID)
-
-    const resultado = await eliminarCuenta(admin, USUARIO_ID)
-
-    expect(resultado.ok).toBe(false)
-    if (!resultado.ok) {
-      // Comportamiento real leído en lib/cuenta/eliminar.ts antes de escribir
-      // esta aserción: el paso que falla es "borrar" y se devuelve la tabla.
-      expect(resultado.paso).toBe("borrar")
-      expect(resultado.tabla).toBe(tablaQueFalla)
+describe("eliminarCuenta: QPS-187, el reintento es trivialmente idempotente (justo porque todo es una transacción)", () => {
+  it("si un intento anterior ya completó el borrado entero, un reintento con el mismo token sale BIEN sin tocar nada (no falla con 42501: auth.uid() sale del JWT, no de auth.users)", async () => {
+    const { cliente, filas, authUsers, dbState } = crearRpcTransaccional(USUARIO_ID)
+    // Solo la otra cuenta queda sembrada y en authUsers: como si un intento
+    // anterior ya hubiera corrido la transacción completa, incluido el
+    // DELETE FROM auth.users de USUARIO_ID. Como el borrado es una sola
+    // transacción, no hay ningún estado intermedio real en el que el
+    // usuario exista "a medias": o esto, o el caso de abajo.
+    for (const entrada of [...TABLAS_A_BORRAR, ...COLUMNAS_A_DESVINCULAR]) {
+      filas(entrada.tabla).push({ [entrada.columna]: OTRA_CUENTA_ID, _fixture: "de-otra-cuenta" })
     }
+    authUsers.add(OTRA_CUENTA_ID)
+    const antes = JSON.stringify(dbState)
 
-    expect(llamadas.some((l) => l.tipo === "deleteUser"), "no tiene que llegar a deleteUser").toBe(false)
-    expect(authUsers.has(USUARIO_ID), "el usuario de auth no se tiene que haber borrado").toBe(true)
+    const resultado = await eliminarCuenta(cliente, USUARIO_ID)
 
-    for (let i = 0; i < indiceTablaQueFalla; i++) {
-      const entrada = TABLAS_A_BORRAR[i]
-      expect(
-        filas(entrada.tabla).some((f) => f[entrada.columna] === USUARIO_ID),
-        `${entrada.tabla}.${entrada.columna} (anterior a la que falló) tendría que haberse borrado`,
-      ).toBe(false)
-    }
-    for (let i = indiceTablaQueFalla + 1; i < TABLAS_A_BORRAR.length; i++) {
-      const entrada = TABLAS_A_BORRAR[i]
-      expect(
-        filas(entrada.tabla).some((f) => f[entrada.columna] === USUARIO_ID),
-        `${entrada.tabla}.${entrada.columna} (posterior a la que falló) no se tendría que haber tocado`,
-      ).toBe(true)
-    }
+    // Esto es QPS-187 de verdad: el segundo intento responde lo mismo que el
+    // primero, así que quien reintenta (por un timeout del lado del cliente,
+    // por ejemplo) ve "listo", no un error que diga que no se borró nada
+    // cuando en realidad se borró todo.
+    expect(resultado).toEqual({ ok: true })
+    expect(JSON.stringify(dbState)).toBe(antes)
+    expect(authUsers.has(OTRA_CUENTA_ID)).toBe(true)
   })
 
-  it('si falla un paso de "desvincular", no se borra absolutamente nada y no se llega a deleteUser', async () => {
-    const tablaQueFalla = COLUMNAS_A_DESVINCULAR[0].tabla
-    const { admin, filas, authUsers, llamadas } = crearAdminConEstadoReal({ tablaQueFallaAlDesvincular: tablaQueFalla })
+  it("el 42501 de verdad es el pedido SIN sesión (service key o sin token), y ahí tampoco se toca nada", async () => {
+    const { cliente, filas, authUsers, dbState } = crearRpcTransaccional(USUARIO_ID, { sinSesion: true })
     sembrarFixtureDeCuenta(filas, USUARIO_ID, OTRA_CUENTA_ID)
     authUsers.add(USUARIO_ID)
+    const antes = JSON.stringify(dbState)
 
-    const resultado = await eliminarCuenta(admin, USUARIO_ID)
+    const resultado = await eliminarCuenta(cliente, USUARIO_ID)
 
     expect(resultado.ok).toBe(false)
     if (!resultado.ok) {
-      expect(resultado.paso).toBe("desvincular")
-      expect(resultado.tabla).toBe(tablaQueFalla)
+      expect(resultado.paso).toBe("rpc")
+      expect(resultado.codigo).toBe("42501")
     }
-    expect(llamadas.some((l) => l.tipo === "delete")).toBe(false)
-    expect(llamadas.some((l) => l.tipo === "deleteUser")).toBe(false)
+    expect(JSON.stringify(dbState)).toBe(antes)
     expect(authUsers.has(USUARIO_ID)).toBe(true)
-    for (const entrada of TABLAS_A_BORRAR) {
-      expect(filas(entrada.tabla).some((f) => f[entrada.columna] === USUARIO_ID)).toBe(true)
-    }
+  })
+
+  it("si un intento anterior falló entero (todo-o-nada, sin cambios de por medio), un reintento corre igual que la primera vez y sale bien", async () => {
+    const { cliente, filas, authUsers } = crearRpcTransaccional(USUARIO_ID)
+    sembrarFixtureDeCuenta(filas, USUARIO_ID, OTRA_CUENTA_ID)
+    authUsers.add(USUARIO_ID)
+
+    const resultado = await eliminarCuenta(cliente, USUARIO_ID)
+    expect(resultado).toEqual({ ok: true })
   })
 })
 
 // ---------------------------------------------------------------------------
 // La web y la app llaman al mismo endpoint, con la misma confirmación.
+// (Sin cambios respecto de 37-q: nada de esto depende de cómo eliminarCuenta
+// llame internamente al RPC, solo de los literales de route.ts, de
+// apps/mobile/lib/cuenta.ts y del formulario web.)
 //
 // Nada de esto hardcodea "ELIMINAR" ni "/api/cuenta/eliminar" como juez
 // único: los tres valores (web, app, endpoint) se extraen de los archivos de

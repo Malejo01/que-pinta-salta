@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import Link from "next/link"
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { PasswordInput } from "@/components/ui/password-input"
@@ -8,26 +9,40 @@ import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Loader2, KeyRound, CheckCircle2, AlertCircle } from "lucide-react"
 import { notify } from '@/hooks/notify'
+import {
+  LARGO_MINIMO_CONTRASENA,
+  textosContrasena,
+  validarContrasenaNueva,
+  type ModoContrasena,
+} from "@qps/core/auth/cuenta"
+import { mensajeErrorContrasena } from "@qps/core/auth/mensajes"
 
-export function ChangePasswordForm() {
+interface ChangePasswordFormProps {
+  /**
+   * De dónde viene la cuenta (R48, tarea 48-c): decide los textos
+   * (`textosContrasena`) que ve la persona. Por defecto `'email'`, el caso
+   * de siempre (cambiar una contraseña que ya existía).
+   */
+  modo?: ModoContrasena
+}
+
+export function ChangePasswordForm({ modo = "email" }: ChangePasswordFormProps) {
   const [password, setPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
 
+  const { titulo, descripcion, boton } = textosContrasena(modo)
+
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     setError(null)
     setSuccess(false)
 
-    if (password.length < 6) {
-      setError("La contraseña debe tener al menos 6 caracteres.")
-      return
-    }
-
-    if (password !== confirmPassword) {
-      setError("Las contraseñas no coinciden.")
+    const validacion = validarContrasenaNueva(password, confirmPassword)
+    if (!validacion.ok) {
+      setError(validacion.mensaje)
       return
     }
 
@@ -35,8 +50,16 @@ export function ChangePasswordForm() {
     const supabase = createClient()
 
     try {
+      // No se pide la contraseña actual (decisión del plan de la R48): una
+      // cuenta creada con Google no tiene una contraseña previa que pedir
+      // (ver `textosContrasena('google')`). Riesgo aceptado: alcanza con la
+      // sesión vigente para fijar una contraseña nueva, así que una sesión
+      // robada (p. ej. un token filtrado) también podría hacerlo. Si en el
+      // dashboard de Supabase está prendido "Secure password change",
+      // `updateUser` devuelve `reauthentication_needed` y
+      // `mensajeErrorContrasena` ya traduce eso a pedir volver a entrar.
       const { error: updateError } = await supabase.auth.updateUser({
-        password: password,
+        password,
       })
 
       if (updateError) {
@@ -46,17 +69,15 @@ export function ChangePasswordForm() {
       setSuccess(true)
       setPassword("")
       setConfirmPassword("")
-      notify.success("Contraseña actualizada con éxito")
-    } catch (err: any) {
-      // QPS-155: nunca el objeto de error crudo a la consola (puede traer
-      // datos de la cuenta) — mismo criterio que /auth/recuperar (R29):
-      // solo un código o un mensaje genérico, nunca el cuerpo de la
-      // respuesta de Supabase. El usuario sigue viendo err.message igual
-      // que antes; eso no cambia.
-      const codigo = typeof err?.code === "string" ? err.code : err instanceof Error ? err.name : "error_desconocido"
-      console.error("Error al actualizar la contraseña:", codigo)
-      setError(err.message || "Ocurrió un error al actualizar la contraseña.")
-      notify.error("Error al actualizar la contraseña")
+      notify.success("Contraseña guardada")
+    } catch (err) {
+      // QPS-155: nunca el objeto de error crudo (ni su .message) a la
+      // consola ni a la pantalla — puede traer datos de la cuenta. Un texto
+      // fijo al log (sin el error ni nada derivado de él) y, a la pantalla,
+      // el texto que traduce `mensajeErrorContrasena` según el código.
+      console.error("Error al guardar la contraseña")
+      setError(mensajeErrorContrasena(err))
+      notify.error("Error al guardar la contraseña")
     } finally {
       setIsSubmitting(false)
     }
@@ -67,11 +88,9 @@ export function ChangePasswordForm() {
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-lg">
           <KeyRound className="size-5 text-primary" />
-          Seguridad de la Cuenta
+          {titulo}
         </CardTitle>
-        <CardDescription>
-          Cambiá tu contraseña actual por una nueva para asegurar tu cuenta.
-        </CardDescription>
+        <CardDescription>{descripcion}</CardDescription>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -85,31 +104,44 @@ export function ChangePasswordForm() {
           {success && (
             <div className="flex items-start gap-2 rounded-lg border border-green-500/20 bg-green-500/10 p-3 text-sm text-green-600 dark:text-green-400">
               <CheckCircle2 className="size-4 shrink-0 mt-0.5" />
-              <span>Contraseña actualizada correctamente.</span>
+              <span>
+                {modo === "restablecer" ? (
+                  <>
+                    Listo, ya podés entrar con tu email y esta contraseña.{" "}
+                    <Link href="/" className="font-medium underline">
+                      Ir a la portada
+                    </Link>
+                  </>
+                ) : (
+                  "Contraseña guardada."
+                )}
+              </span>
             </div>
           )}
 
           <div className="space-y-2">
-            <Label htmlFor="new-password">Nueva Contraseña</Label>
+            <Label htmlFor="new-password">Contraseña nueva</Label>
             <PasswordInput
               id="new-password"
               placeholder="••••••••"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
+              minLength={LARGO_MINIMO_CONTRASENA}
               disabled={isSubmitting}
               className="bg-background/50 focus-visible:ring-primary/50"
             />
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="confirm-password">Confirmar Nueva Contraseña</Label>
+            <Label htmlFor="confirm-password">Confirmar contraseña nueva</Label>
             <PasswordInput
               id="confirm-password"
               placeholder="••••••••"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               required
+              minLength={LARGO_MINIMO_CONTRASENA}
               disabled={isSubmitting}
               className="bg-background/50 focus-visible:ring-primary/50"
             />
@@ -119,10 +151,10 @@ export function ChangePasswordForm() {
             {isSubmitting ? (
               <>
                 <Loader2 className="mr-2 size-4 animate-spin" />
-                Actualizando...
+                Guardando...
               </>
             ) : (
-              "Actualizar Contraseña"
+              boton
             )}
           </Button>
         </form>

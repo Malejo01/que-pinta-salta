@@ -95,6 +95,92 @@ describe('cuenta.tsx: "Cerrar sesión" es lo último del bloque con sesión', ()
   })
 })
 
+// R48, tarea 48-d: la fila de acceso a "Contraseña"/"Cambiar contraseña",
+// antes de "Cerrar sesión" (como pide la tarea), con el mismo componente
+// `FilaAcceso` que ya usan "Mi Radar Salteño"/"Mis Favoritos" (no uno nuevo).
+describe('cuenta.tsx: la fila "Contraseña" (textosContrasena), antes de "Cerrar sesión"', () => {
+  it('importa textosContrasena y tipoDeCuenta de @qps/core/auth/cuenta', () => {
+    expect(SRC_CUENTA).toMatch(
+      /import\s*\{[^}]*\btextosContrasena\b[^}]*\}\s*from\s*['"]@qps\/core\/auth\/cuenta['"]/,
+    )
+    expect(SRC_CUENTA).toMatch(
+      /import\s*\{[^}]*\btipoDeCuenta\b[^}]*\}\s*from\s*['"]@qps\/core\/auth\/cuenta['"]/,
+    )
+  })
+
+  it('el texto de la fila sale de textosContrasena(tipoDeCuenta(session.user)).titulo', () => {
+    expect(SRC_CUENTA).toMatch(/textosContrasena\(tipoDeCuenta\(session\.user\)\)\.titulo/)
+  })
+
+  it('al tocarla, navega a /contrasena', () => {
+    expect(SRC_CUENTA).toMatch(/router\.push\(\s*['"]\/contrasena['"]\s*\)/)
+  })
+
+  it('aparece después de "Mi Radar Salteño"/"Mis Favoritos" y ANTES de "Cerrar sesión" (lastIndexOf, lo último del bloque con sesión)', () => {
+    const idxFavoritos = SRC_CUENTA.indexOf('Mis Favoritos')
+    const idxContrasena = SRC_CUENTA.indexOf("router.push('/contrasena')")
+    const idxCerrarSesion = SRC_CUENTA.lastIndexOf('Cerrar sesión')
+
+    expect(idxFavoritos).toBeGreaterThan(-1)
+    expect(idxContrasena).toBeGreaterThan(idxFavoritos)
+    expect(idxCerrarSesion).toBeGreaterThan(idxContrasena)
+  })
+
+  it('reusa el componente FilaAcceso (no escribe otra fila/Pressable propio para esto)', () => {
+    const idxContrasena = SRC_CUENTA.indexOf("router.push('/contrasena')")
+    expect(idxContrasena).toBeGreaterThan(-1)
+    const inicioEtiqueta = SRC_CUENTA.lastIndexOf('<FilaAcceso', idxContrasena)
+    expect(inicioEtiqueta).toBeGreaterThan(-1)
+    // Entre el inicio de la etiqueta <FilaAcceso y el onPress no hay otra
+    // apertura de Pressable/FilaAcceso de por medio: es la misma etiqueta.
+    const entreMedio = SRC_CUENTA.slice(inicioEtiqueta, idxContrasena)
+    expect(entreMedio).not.toMatch(/<Pressable\b/)
+  })
+})
+
+// R48, tarea 48-d (vuelta 2, decisión de Mauro): `entrar` pasa a usar
+// `mensajeErrorIngreso` de core en vez de `mensajeDeError`/`MENSAJES_ERROR` —
+// el plan de la ronda ya fijaba esos textos (QPS-124/48-a); la única
+// diferencia real es que `invalid_credentials` pierde el salto de línea que
+// tenía acá (ver el comentario que queda en `MENSAJES_ERROR`, en el propio
+// cuenta.tsx). `MENSAJES_ERROR` sigue existiendo para `entrarConGoogle`/
+// `salir()` (no se borra nada acá).
+describe('cuenta.tsx: entrar() usa mensajeErrorIngreso de core, no mensajeDeError/los literales a mano', () => {
+  it('importa mensajeErrorIngreso de @qps/core/auth/mensajes', () => {
+    expect(SRC_CUENTA).toMatch(
+      /import\s*\{[^}]*\bmensajeErrorIngreso\b[^}]*\}\s*from\s*['"]@qps\/core\/auth\/mensajes['"]/,
+    )
+  })
+
+  it('el cuerpo de entrar() llama a mensajeErrorIngreso en los dos manejos de error, nunca a mensajeDeError', () => {
+    const inicio = SRC_CUENTA.indexOf('async function entrar()')
+    // Corta en la siguiente función async del archivo (crearCuenta), para
+    // mirar solo el cuerpo de entrar() — mismo patrón que
+    // tests/mensaje-alta.test.ts con crearCuenta/entrarConGoogle.
+    const fin = SRC_CUENTA.indexOf('async function crearCuenta')
+    expect(inicio).toBeGreaterThan(-1)
+    expect(fin).toBeGreaterThan(inicio)
+    const cuerpo = SRC_CUENTA.slice(inicio, fin)
+
+    expect(cuerpo).toContain('mensajeErrorIngreso(errorEntrar)')
+    expect(cuerpo).toContain('mensajeErrorIngreso(excepcion)')
+    expect(cuerpo).not.toContain('mensajeDeError(')
+  })
+
+  it('los tres literales que el plan fijó en core ya no están escritos a mano en el cuerpo de entrar()', () => {
+    const inicio = SRC_CUENTA.indexOf('async function entrar()')
+    const fin = SRC_CUENTA.indexOf('async function crearCuenta')
+    const cuerpo = SRC_CUENTA.slice(inicio, fin)
+
+    // Los tres textos pasaron a @qps/core/auth/mensajes (mensajeErrorIngreso/
+    // mensajeErrorAlta): si alguno volviera a escribirse a mano acá, sería
+    // una segunda definición divergente de un texto que ya vive en core.
+    expect(cuerpo).not.toContain('Probá de nuevo en un rato')
+    expect(cuerpo).not.toContain('No se pudo completar la operación')
+    expect(cuerpo).not.toContain('Si entraste con Google, usá el botón de Google')
+  })
+})
+
 describe('cuenta.tsx: usa BotonGoogle (no GoogleSigninButton directo)', () => {
   it('importa BotonGoogle de @/components/BotonGoogle', () => {
     expect(SRC_CUENTA).toMatch(/import\s*\{\s*BotonGoogle\s*\}\s*from\s*['"]@\/components\/BotonGoogle['"]/)

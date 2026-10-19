@@ -1,7 +1,6 @@
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
@@ -24,14 +23,12 @@ export default function SignUpSuccessPage() {
               <Mail className="size-6 text-primary" />
             </div>
             <CardTitle className="text-2xl">
-              ¡Gracias por registrarte!
+              Revisá tu email para confirmar
             </CardTitle>
-            <CardDescription>Revisa tu email para confirmar</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <p className="text-center text-sm text-muted-foreground">
-              Te hemos enviado un email de confirmacion. Por favor revisa tu
-              bandeja de entrada y haz click en el enlace para activar tu cuenta.
+              Te mandamos un correo de confirmación. Revisá tu bandeja de entrada (y el spam) y tocá el link para activar la cuenta. Si ese email ya tenía cuenta, iniciá sesión o recuperá tu contraseña.
             </p>
             <Button asChild className="w-full" variant="outline">
               <Link href="/">Volver a inicio</Link>

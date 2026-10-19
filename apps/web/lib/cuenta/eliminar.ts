@@ -1,19 +1,9 @@
-import type { createAdminClient } from "@/lib/supabase/server"
-import { COLUMNAS_A_DESVINCULAR, TABLAS_A_BORRAR } from "@/lib/cuenta/tablas-personales"
-
-/**
- * Cliente admin tal como lo devuelve `createAdminClient()` (service role).
- * Esta función nunca lo crea: lo recibe de quien la llama (el route handler),
- * para que esa creación quede después de todas las guardas de autenticación.
- */
-type AdminClient = ReturnType<typeof createAdminClient>
-
 /** En qué paso del borrado falló, para que el endpoint lo loguee (nunca al cliente). */
-type PasoFallido = "uuid_invalido" | "desvincular" | "borrar" | "eliminar_usuario"
+type PasoFallido = "uuid_invalido" | "rpc"
 
 export type ResultadoEliminarCuenta =
   | { ok: true }
-  | { ok: false; paso: PasoFallido; tabla?: string; detalle?: string }
+  | { ok: false; paso: PasoFallido; detalle?: string; codigo?: string }
 
 /**
  * Acepta cualquier UUID con el formato estándar (8-4-4-4-12 en hexadecimal).
@@ -28,59 +18,84 @@ function esUuidValido(valor: unknown): valor is string {
 }
 
 /**
- * Borra para siempre todos los datos personales de una cuenta, en el orden
- * de `ORDEN_BORRADO_DE_CUENTA` (ver el comentario completo en
- * `lib/cuenta/tablas-personales.ts`, que explica por qué el orden importa):
- *
- * 1. **Desvincular**: cada entrada de `COLUMNAS_A_DESVINCULAR` se pone en
- *    `null` donde la columna sea `userId`.
- * 2. **Borrar**: cada entrada de `TABLAS_A_BORRAR`, **en el orden del
- *    array** (no se reordena acá: ese orden es carga útil, lo decide
- *    `lib/cuenta/tablas-personales.ts`).
- * 3. **`admin.auth.admin.deleteUser(userId)`**: lo irreversible, siempre al
- *    final.
- *
- * Si cualquier paso falla, se corta ahí mismo: en particular, si falla un
- * `update` o un `delete`, `deleteUser` directamente no se llama.
- *
- * `userId` se valida como UUID antes de armar ninguna consulta: un valor que
- * no lo sea (vacío, `null`, `undefined`, `"*"`, lo que sea) se rechaza sin
- * tocar la base, porque un `DELETE`/`UPDATE` sin un filtro válido borraría o
- * desvincularía la tabla entera.
+ * Tipo estructural mínimo: lo único que esta función necesita de un cliente
+ * de Supabase es poder llamar al RPC `delete_my_account` y leer el `error`
+ * de la respuesta. No se usa el tipo completo de `SupabaseClient` a
+ * propósito, para que acepte por igual el cliente de cookies de
+ * `@/lib/supabase/server` (la web) y el que el endpoint arma a mano con el
+ * Bearer de la app (`@supabase/supabase-js` + anon key + header
+ * `Authorization`), y para que el doble que usan los tests no tenga que
+ * fingir un cliente entero.
  */
-export async function eliminarCuenta(admin: AdminClient, userId: string): Promise<ResultadoEliminarCuenta> {
+type ClienteDeLaPersona = {
+  rpc(nombre: "delete_my_account"): PromiseLike<{ error: { message: string; code?: string } | null }>
+}
+
+/**
+ * Borra para siempre la cuenta de quien está detrás de `clienteDeLaPersona`,
+ * llamando al RPC `public.delete_my_account()`
+ * (`supabase/migrations/20261018130300_qps_190_delete_my_account.sql`,
+ * QPS-190).
+ *
+ * Todo el borrado — desvincular el contenido público, borrar las filas
+ * personales y borrar la fila de `auth.users` — corre adentro de **una sola
+ * transacción** de Postgres, dentro del propio RPC: si el RPC falla, no se
+ * borró ni se desvinculó absolutamente nada (por eso el mensaje que ve la
+ * persona puede prometerlo). Antes (37-b) esta función hacía los mismos
+ * pasos con llamadas sucesivas desde Node con la service key; si una fallaba
+ * a mitad de camino, lo anterior ya había quedado aplicado. Ese código ya no
+ * existe.
+ *
+ * El RPC **no recibe ningún id como argumento**: trabaja sobre `auth.uid()`,
+ * es decir, sobre la sesión con la que se armó `clienteDeLaPersona` (la
+ * cookie en la web, el Bearer en la app — ver el comentario del paso 7 de
+ * `app/api/cuenta/eliminar/route.ts` sobre por qué ese cliente tiene que
+ * representar exactamente al mismo usuario que ya validó el endpoint).
+ * `userId` se sigue validando como UUID antes de llamar a nada: es la señal
+ * de que hubo un usuario autenticado, y el endpoint lo usa para el candado
+ * en memoria — pero **nunca se lo pasa al RPC**, que no tiene parámetros.
+ *
+ * `clienteDeLaPersona` **nunca** puede ser el cliente de service role
+ * (`createAdminClient()`): con la service key, `auth.uid()` es `null` del
+ * lado de Postgres y el RPC falla con `42501` ("No autenticado") — y además
+ * está `revoke`ado explícitamente para `service_role` en la migración, así
+ * que ni siquiera llegaría a ejecutarse. Por eso ya no hace falta
+ * `admin.auth.admin.deleteUser(userId)`: el RPC borra la fila de
+ * `auth.users` en la misma transacción que todo lo demás.
+ *
+ * QPS-187: el reintento de este pedido es trivialmente idempotente y
+ * seguro. Como todo el borrado es una sola transacción, después de llamar a
+ * esta función solo hay dos estados posibles: o se borró absolutamente todo,
+ * o no se borró nada en absoluto. Nunca puede quedar "a medio borrar".
+ *
+ * Qué pasa exactamente al reintentar después de un borrado exitoso: el JWT
+ * que ya emitió Supabase **sigue siendo válido hasta que vence** (lo dice el
+ * comentario de la propia migración), y `auth.uid()` lo lee de los claims del
+ * token, no de la base. Así que el RPC **no** falla con `42501`: vuelve a
+ * correr sobre un uuid que ya no existe, no encuentra ninguna fila para
+ * bloquear, desvincular ni borrar, y devuelve `void` sin tocar nada. O sea
+ * que el segundo intento responde `{ ok: true }` igual que el primero, que es
+ * lo que hace que reintentar sea seguro.
+ *
+ * En el endpoint real, además, ese reintento casi nunca llega hasta acá:
+ * `usuarioDeRequest` llama a `supabase.auth.getUser(token)`, que valida el
+ * token contra el servidor de Auth y no solo su firma, así que para una
+ * cuenta que ya no existe devuelve `null` y el endpoint corta en el 401 del
+ * paso 3. Las dos salidas son aceptables (un 401 o un 200 vacío, nunca un
+ * "no se borró nada" sobre una cuenta que sí se borró); cuál de las dos sale
+ * lo confirma Mauro en la prueba con las cuentas de prueba.
+ */
+export async function eliminarCuenta(
+  clienteDeLaPersona: ClienteDeLaPersona,
+  userId: string,
+): Promise<ResultadoEliminarCuenta> {
   if (!esUuidValido(userId)) {
     return { ok: false, paso: "uuid_invalido" }
   }
 
-  // 1. Desvincular contenido público (eventos, alias, etc.) antes de borrar nada.
-  for (const { tabla, columna } of COLUMNAS_A_DESVINCULAR) {
-    const { error } = await admin
-      .from(tabla)
-      .update({ [columna]: null })
-      .eq(columna, userId)
-
-    if (error) {
-      return { ok: false, paso: "desvincular", tabla, detalle: error.message }
-    }
-  }
-
-  // 2. Borrar las filas personales, en el orden exacto de TABLAS_A_BORRAR.
-  for (const { tabla, columna } of TABLAS_A_BORRAR) {
-    const { error } = await admin
-      .from(tabla)
-      .delete()
-      .eq(columna, userId)
-
-    if (error) {
-      return { ok: false, paso: "borrar", tabla, detalle: error.message }
-    }
-  }
-
-  // 3. Lo irreversible: recién si todo lo anterior salió bien.
-  const { error: errorDeleteUser } = await admin.auth.admin.deleteUser(userId)
-  if (errorDeleteUser) {
-    return { ok: false, paso: "eliminar_usuario", detalle: errorDeleteUser.message }
+  const { error } = await clienteDeLaPersona.rpc("delete_my_account")
+  if (error) {
+    return { ok: false, paso: "rpc", detalle: error.message, codigo: error.code }
   }
 
   return { ok: true }
