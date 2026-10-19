@@ -61,9 +61,12 @@ describe('TarjetaEvento.tsx: la superposición usa ESCALA_MAXIMA_COMPACTA (lib/a
     )
   })
 
-  it('badge, destacado, título, lugar, fecha, "más fechas" y precio llevan maxFontSizeMultiplier={ESCALA_MAXIMA_COMPACTA}', () => {
+  // 50-e: el badge de "destacado" se mudó a components/InsigniaDestacado.tsx
+  // (ya no se dibuja a mano acá, así que su maxFontSizeMultiplier ya no
+  // cuenta en este archivo — se verifica en tests/insignia-destacado.test.ts).
+  it('badge, título, lugar, fecha, "más fechas" y precio llevan maxFontSizeMultiplier={ESCALA_MAXIMA_COMPACTA}', () => {
     const usos = SRC_TARJETA_EVENTO.match(/maxFontSizeMultiplier=\{ESCALA_MAXIMA_COMPACTA\}/g) ?? []
-    expect(usos.length).toBeGreaterThanOrEqual(7)
+    expect(usos.length).toBeGreaterThanOrEqual(6)
   })
 
   it('no usa un número literal en maxFontSizeMultiplier', () => {

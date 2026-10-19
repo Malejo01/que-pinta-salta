@@ -58,6 +58,7 @@ import { capitalizeFirst } from '@qps/core/event-display'
 import type { DisplayEvent } from '@qps/core/home/types'
 import { Afiche } from '@/components/Afiche'
 import { Icono } from '@/components/Icono'
+import { InsigniaDestacado } from '@/components/InsigniaDestacado'
 import { Texto } from '@/components/Texto'
 import { AREA_TACTIL_MINIMA, ESCALA_MAXIMA_COMPACTA, hitSlopPara } from '@/lib/accesibilidad'
 import { useColoresQPS } from '@/lib/colores'
@@ -280,10 +281,13 @@ function DiapositivaHero({ evento, ancho, alto, indice, total, alCambiarIndice, 
       </View>
 
       <View style={estilos.contenido}>
-        <View style={[estilos.badge, { backgroundColor: colores.primary }]}>
-          <Texto peso="bold" style={estilos.textoBadge} numberOfLines={1} maxFontSizeMultiplier={ESCALA_MAXIMA_COMPACTA}>
-            {evento.categoryName}
-          </Texto>
+        <View style={estilos.filaBadges}>
+          <View style={[estilos.badge, { backgroundColor: colores.primary }]}>
+            <Texto peso="bold" style={estilos.textoBadge} numberOfLines={1} maxFontSizeMultiplier={ESCALA_MAXIMA_COMPACTA}>
+              {evento.categoryName}
+            </Texto>
+          </View>
+          <InsigniaDestacado visible={evento.isFeatured} />
         </View>
 
         <Texto peso="bold" style={estilos.titulo} numberOfLines={2} maxFontSizeMultiplier={ESCALA_MAXIMA_COMPACTA}>
@@ -332,6 +336,7 @@ const estilos = StyleSheet.create({
   degrade: { position: 'absolute', left: 0, right: 0, bottom: 0, top: '35%', flexDirection: 'column' },
   franja: { flex: 1, backgroundColor: '#000' },
   contenido: { padding: 12, gap: 4 },
+  filaBadges: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   badge: { alignSelf: 'flex-start', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3, maxWidth: '70%' },
   textoBadge: { color: '#fff', fontSize: 11 },
   titulo: { color: '#fff', fontSize: 15, lineHeight: 19 },

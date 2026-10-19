@@ -116,10 +116,13 @@ export function cumpleContraste(ratio: number, uso: UsoContraste): boolean {
 /**
  * Tope de `maxFontSizeMultiplier` para textos dentro de cajas de tamaño
  * fijo, donde un texto muy agrandado se corta o desborda. Aplicado hoy en:
- * - la tarjeta de evento (`TarjetaEvento`): todos sus textos, incluidos los
- *   dos badges (categoría y destacado).
+ * - la tarjeta de evento (`TarjetaEvento`): todos sus textos, incluido el
+ *   badge de categoría.
+ * - la insignia de destacado (`InsigniaDestacado`), que desde la R50 es un
+ *   componente propio y es la única copia de ese badge: la dibujan la
+ *   tarjeta, el Hero y la ficha.
  * - el Hero de portada (`Hero`): todos sus textos, incluido el badge de
- *   categoría (el Hero no tiene badge de destacado).
+ *   categoría.
  * - el badge de categoría de la ficha de evento (`app/evento/[id].tsx`).
  *
  * A propósito, SIN tope:
