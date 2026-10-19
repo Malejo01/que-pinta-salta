@@ -76,10 +76,15 @@ describe("public.delete_my_account(): cubre cada tabla de TABLAS_A_BORRAR, con s
     expect(TABLAS_A_BORRAR.length).toBeGreaterThan(0)
   })
 
+  // El patrón exige el `= v_uid` del otro lado, no solo que haya un `where`:
+  // sin eso, un `delete from public.favorites where user_id = user_id` (que
+  // es siempre verdadero y borra la tabla entera) pasaría este test en verde.
+  // Lo encontró el revisor de la ronda, y es la diferencia entre un detector
+  // que mira la forma y uno que mira QUÉ compara.
   for (const { tabla, columna } of TABLAS_A_BORRAR) {
-    it(`"delete from public.${tabla} where ${columna} = ..." aparece en el cuerpo de la función`, () => {
-      const patron = new RegExp(`delete\\s+from\\s+public\\.${tabla}\\s+where\\s+${columna}\\s*=`, "i")
-      expect(patron.test(SQL), `No se encontró un DELETE de public.${tabla} filtrando por ${columna} en la migración`).toBe(
+    it(`"delete from public.${tabla} where ${columna} = v_uid" aparece en el cuerpo de la función`, () => {
+      const patron = new RegExp(`delete\\s+from\\s+public\\.${tabla}\\s+where\\s+${columna}\\s*=\\s*v_uid\\b`, "i")
+      expect(patron.test(SQL), `No se encontró un DELETE de public.${tabla} filtrando por ${columna} = v_uid en la migración`).toBe(
         true,
       )
     })
@@ -91,12 +96,20 @@ describe("public.delete_my_account(): cubre cada tabla.columna de COLUMNAS_A_DES
     expect(COLUMNAS_A_DESVINCULAR.length).toBeGreaterThan(0)
   })
 
+  // Igual que el describe de arriba, y acá es más grave todavía: el patrón
+  // exige el `where <columna> = v_uid`. Sin esa parte, un
+  // `update public.events set created_by = null;` SIN `where` —que pisa el
+  // autor de TODOS los eventos del sitio, no solo los de quien se borra—
+  // pasaría este test en verde.
   for (const { tabla, columna } of COLUMNAS_A_DESVINCULAR) {
-    it(`"update public.${tabla} set ${columna} = null ..." aparece en el cuerpo de la función`, () => {
-      const patron = new RegExp(`update\\s+public\\.${tabla}\\s+set\\s+${columna}\\s*=\\s*null`, "i")
+    it(`"update public.${tabla} set ${columna} = null where ${columna} = v_uid" aparece en el cuerpo de la función`, () => {
+      const patron = new RegExp(
+        `update\\s+public\\.${tabla}\\s+set\\s+${columna}\\s*=\\s*null\\s+where\\s+${columna}\\s*=\\s*v_uid\\b`,
+        "i",
+      )
       expect(
         patron.test(SQL),
-        `No se encontró un UPDATE de public.${tabla} poniendo ${columna} en null en la migración`,
+        `No se encontró un UPDATE de public.${tabla} poniendo ${columna} en null SOLO donde ${columna} = v_uid en la migración`,
       ).toBe(true)
     })
   }

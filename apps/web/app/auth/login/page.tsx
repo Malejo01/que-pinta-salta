@@ -125,7 +125,7 @@ function LoginForm() {
           <CardHeader>
             <CardTitle className="text-2xl">Iniciar sesión</CardTitle>
             <CardDescription>
-              Ingresa tu email y contraseña para acceder
+              Ingresá tu email y contraseña para entrar
             </CardDescription>
           </CardHeader>
           <CardContent>

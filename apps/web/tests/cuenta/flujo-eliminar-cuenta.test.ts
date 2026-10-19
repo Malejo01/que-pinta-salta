@@ -182,13 +182,17 @@ describe("eliminarCuenta: de punta a punta, con un doble que modela el RPC como 
   })
 
   it("camino feliz: la cuenta queda sin ninguna fila en TABLAS_A_BORRAR, sus eventos/alias quedan con autor en null, el usuario de auth se borra, y la cuenta ajena no se toca", async () => {
-    const { cliente, filas, authUsers } = crearRpcTransaccional(USUARIO_ID)
+    const doble = crearRpcTransaccional(USUARIO_ID)
+    const { cliente, filas, authUsers } = doble
     sembrarFixtureDeCuenta(filas, USUARIO_ID, OTRA_CUENTA_ID)
     authUsers.add(USUARIO_ID)
     authUsers.add(OTRA_CUENTA_ID)
 
     const resultado = await eliminarCuenta(cliente, USUARIO_ID)
     expect(resultado).toEqual({ ok: true })
+    // El doble cuenta las llamadas; si nadie lo mira, un reintento interno
+    // mal puesto (dos `rpc` por pedido) pasaría sin que nada lo note.
+    expect(doble.llamadasRpc).toBe(1)
 
     for (const entrada of TABLAS_A_BORRAR) {
       const filasDeLaTabla = filas(entrada.tabla)

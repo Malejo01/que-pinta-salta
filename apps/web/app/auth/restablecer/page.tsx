@@ -17,12 +17,10 @@ export const revalidate = 0 // Evitar caché estática para esta página privada
 // fuente: así no hay dos lugares con el texto escrito a mano que puedan
 // divergir, ni un duplicado visual.
 //
-// Tensión con tests/auth/recuperar.test.ts (tarea 48-c, no se puede tocar
-// ese archivo): una de sus aserciones espera que el componente se monte sin
-// ningún prop y busca, además, el título como literal en este archivo. Acá
-// se le agrega el prop `modo` (imprescindible para que el formulario sepa
-// qué textos mostrar) y el título deja de estar escrito a mano, así que esa
-// aserción puntual queda desactualizada — reportado al lead, decisión suya.
+// `tests/auth/recuperar.test.ts` exigía antes `<ChangePasswordForm />` sin
+// props y el título como literal acá; el lead lo actualizó en el mismo
+// commit a las dos aserciones nuevas (el `modo` exacto y el título sacado de
+// core), que son más fuertes que las viejas.
 
 export default async function RestablecerPage() {
   const supabase = await createClient()

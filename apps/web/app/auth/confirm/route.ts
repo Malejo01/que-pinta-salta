@@ -14,7 +14,15 @@ import { NextRequest, NextResponse } from 'next/server'
 // abre el link en otro navegador — ahí el PKCE falla. Un link de un solo
 // uso por `token_hash` (`verifyOtp`) no depende de qué navegador lo abra.
 
-const TIPOS_VALIDOS = ['recovery', 'signup', 'email', 'email_change', 'invite'] as const
+// Solo los tipos que el producto usa de verdad. `invite` y `email_change`
+// salieron de la lista por recomendación de seguridad en la R48: no hay en
+// todo el repo ningún `inviteUserByEmail` ni ningún `updateUser({ email })`,
+// así que eran superficie muerta. No era una vulnerabilidad —un `token_hash`
+// lo emite solo el servidor de Auth y no se puede forjar— pero si algún día
+// alguien manda una invitación desde el dashboard, o se activa un flujo de
+// cambio de email, esa sesión se abriría por acá sin que nadie lo haya
+// decidido. Para volver a aceptarlos hay que agregarlos a propósito.
+const TIPOS_VALIDOS = ['recovery', 'signup', 'email'] as const
 type TipoValido = (typeof TIPOS_VALIDOS)[number]
 
 // Largo máximo del `token_hash`: un valor razonable para el hash que manda

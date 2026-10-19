@@ -48,6 +48,21 @@ describe('GET /auth/confirm: type fuera de la lista cerrada', () => {
     expect(location(res)).toBe('/auth/error')
     expect(verifyOtp).not.toHaveBeenCalled()
   })
+
+  // `invite` y `email_change` son tipos REALES de `verifyOtp` y estaban en la
+  // lista del plan; salieron en la revisión de seguridad de la R48 porque el
+  // producto no tiene invitaciones ni cambio de email (no hay ningún
+  // `inviteUserByEmail` ni `updateUser({ email })` en el repo). Este test
+  // existe para que volver a aceptarlos sea una decisión explícita y no un
+  // descuido: si alguien los reagrega, se pone en rojo.
+  it.each(['invite', 'email_change'])(
+    'type=%s -> /auth/error: el producto no usa ese flujo, así que no abre sesión por acá',
+    async (tipo) => {
+      const res = await GET(req(`?token_hash=${TOKEN}&type=${tipo}`))
+      expect(location(res)).toBe('/auth/error')
+      expect(verifyOtp).not.toHaveBeenCalled()
+    },
+  )
 })
 
 describe('GET /auth/confirm: token_hash inválido', () => {
