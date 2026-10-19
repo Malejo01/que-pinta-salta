@@ -155,16 +155,20 @@ describe('buildDuplicateGroups', () => {
     expect(groups).toHaveLength(0)
   })
 
-  it('HALLAZGO: dos funciones el mismo día (16:00 y 21:00) con el MISMO título y venue SÍ se agrupan por clave', () => {
-    // La clave es título+día, sin hora: dedup-cleanup no distingue dos funciones del mismo
-    // espectáculo. Esto es examinado también a nivel de ingesta en
-    // tests/scraper/dos-funciones-mismo-dia.test.ts (ahí se confirma que upsertEventWithDeduplication
-        // termina fusionando ambas filas en una sola, perdiendo una de las dos funciones).
+  it('QPS-209: dos funciones el mismo día (16:00 y 21:00) con el MISMO título y venue YA NO se agrupan por clave', () => {
+    // Antes de QPS-209 esto era el HALLAZGO de esta suite: la clave es título+día, sin hora, y
+    // dedup-cleanup no distinguía dos funciones del mismo espectáculo (las fusionaba). Desde
+    // QPS-209, buildDuplicateGroups también exige horas compatibles dentro de cada grupo de venue
+    // (splitByFunction): con 4 horas de diferencia (> TOLERANCIA_HORA_DEDUP_MIN), cada función
+    // queda sola y se reporta en functionSplits en lugar de fusionarse. Esto es examinado también
+    // a nivel de ingesta en tests/scraper/dos-funciones-mismo-dia.test.ts.
     const funcion16 = row(1, { start_date: '2026-11-20T19:00:00.000Z' }) // 16:00 Salta
     const funcion21 = row(2, { start_date: START }) // 20:00 Salta
-    const { groups, venueConflicts } = buildDuplicateGroups([funcion16, funcion21])
-    expect(groups).toHaveLength(1)
+    const { groups, venueConflicts, functionSplits } = buildDuplicateGroups([funcion16, funcion21])
+    expect(groups).toHaveLength(0)
     expect(venueConflicts).toHaveLength(0)
+    expect(functionSplits).toHaveLength(1)
+    expect(functionSplits[0].rows.map((r) => r.id).sort()).toEqual([uid(1), uid(2)])
   })
 })
 

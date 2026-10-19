@@ -31,6 +31,7 @@ import { resolve } from 'node:path'
 import { createClient } from '@supabase/supabase-js'
 import { INSTAGRAM_ENGINE_CONFIG } from '../lib/instagram-config'
 import { runBackfill, runRecache, type BackfillStorageClient } from '../lib/images/backfill'
+import { avisoDeModo } from '../lib/images/modo-script'
 
 /**
  * Carga .env.local sin dependencias, igual que scripts/dedup-events.ts. Sólo
@@ -75,9 +76,14 @@ function getOption(name: string): string | undefined {
 }
 
 async function main() {
-  console.log('[imagenes-variantes] DRY-RUN por defecto: sin --apply no se escribe nada en Storage.')
-
   const recache = getFlag('recache')
+  const apply = getFlag('apply')
+  const limitOption = getOption('limit')
+  const limit = limitOption ? Number(limitOption) : undefined
+  const cuenta = getOption('cuenta')
+
+  console.log(avisoDeModo('imagenes-variantes', apply))
+
   loadEnvLocal()
 
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -89,11 +95,6 @@ async function main() {
     )
     process.exit(1)
   }
-
-  const apply = getFlag('apply')
-  const limitOption = getOption('limit')
-  const limit = limitOption ? Number(limitOption) : undefined
-  const cuenta = getOption('cuenta')
 
   const supabase = createClient(url, key, {
     auth: { persistSession: false, autoRefreshToken: false },

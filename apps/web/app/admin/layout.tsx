@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Tag, Users, Home, Instagram, Sparkles, ClipboardList, Copy } from "lucide-react"
+import { Tag, Users, Home, Instagram, Sparkles, ClipboardList, Copy, MapPin } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { ScraperButton } from "@/components/scraper-button"
 
@@ -13,6 +13,7 @@ const navItems = [
   { href: "/admin/instagram", label: "Instagram", icon: Instagram },
   { href: "/admin/revision", label: "Borradores (IA)", icon: Sparkles },
   { href: "/admin/duplicados", label: "Posibles duplicados", icon: Copy },
+  { href: "/admin/lugares", label: "Lugares", icon: MapPin },
 ]
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
