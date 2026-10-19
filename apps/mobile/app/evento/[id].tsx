@@ -34,6 +34,7 @@ import { capitalizeFirst, cleanDescription, formatEventTimeDisplay } from '@qps/
 import { urlComoLlegar, urlGo } from '@qps/core/metricas/links'
 import { vibeLabels } from '@qps/core/types'
 import { Afiche } from '@/components/Afiche'
+import { AvisoPatrocinado } from '@/components/AvisoPatrocinado'
 import { BotonCalendario } from '@/components/BotonCalendario'
 import { BotonSeguir } from '@/components/BotonSeguir'
 import { Cargando, ErrorCarga, Vacio } from '@/components/EstadoCarga'
@@ -53,7 +54,13 @@ import { useVistaEvento } from '@/lib/metricas-hook'
 type Estado = { tipo: 'cargando' } | ResultadoEvento
 
 export default function EventoPorId() {
-  const { id } = useLocalSearchParams<{ id: string }>()
+  // Ronda 51, tarea 51-e: `?patrocinado=1`, el parámetro de ruta que manda
+  // `ManejadorTapPush.tsx` al abrir un aviso push patrocinado — monta la
+  // franja `AvisoPatrocinado` arriba del contenido. `useLocalSearchParams`
+  // puede entregar un parámetro repetido como array (`?patrocinado=1&patrocinado=1`,
+  // por ejemplo); se toma el primer valor en ese caso, nunca se asume string.
+  const { id, patrocinado } = useLocalSearchParams<{ id: string; patrocinado?: string | string[] }>()
+  const esAvisoPatrocinado = (Array.isArray(patrocinado) ? patrocinado[0] : patrocinado) === '1'
   const { colors } = useTheme()
   const colores = useColoresQPS()
   const router = useRouter()
@@ -188,6 +195,8 @@ export default function EventoPorId() {
 
   return (
     <ScrollView style={{ backgroundColor: colores.background }} contentContainerStyle={estilos.contenido}>
+      {esAvisoPatrocinado ? <AvisoPatrocinado /> : null}
+
       <View style={[estilos.contenedorImagen, { width: anchoAfiche, aspectRatio: 3 / 4, borderRadius: 16 }]}>
         <Afiche url={evento.image_url} llenar ancho={800} />
         <View style={[estilos.badgeCategoria, { backgroundColor: colores.primary }]}>
