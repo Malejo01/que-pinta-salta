@@ -7,7 +7,8 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { PasswordInput } from "@/components/ui/password-input"
 import { Label } from "@/components/ui/label"
-import { mensajeErrorAlta } from "@/lib/auth/mensajes"
+import { mensajeErrorAlta, mensajeErrorIngreso, resultadoAlta, MENSAJE_ALTA_ENVIADA } from "@/lib/auth/mensajes"
+import { validarContrasenaNueva } from "@qps/core/auth/cuenta"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useToast } from "@/hooks/use-toast"
@@ -50,8 +51,8 @@ export function AuthModalProvider({ children }: { children: ReactNode }) {
     try {
       const { error } = await signInWithGoogle()
       if (error) throw error
-    } catch (error: any) {
-      setError(error?.message || "Ocurrió un error inesperado al iniciar sesión con Google")
+    } catch {
+      setError("Ocurrió un error al iniciar sesión con Google. Probá de nuevo.")
       setIsLoading(false)
     }
   }
@@ -80,31 +81,48 @@ export function AuthModalProvider({ children }: { children: ReactNode }) {
           email,
           password,
         })
-        if (error) throw error
-        
+        if (error) {
+          setError(mensajeErrorIngreso(error))
+          return
+        }
+
         toast({
           title: "¡Bienvenido de nuevo!",
           description: "Sesión iniciada correctamente.",
         })
       } else {
-        const { error } = await supabase.auth.signUp({
+        // El modal no pide confirmación de contraseña (un solo campo): se
+        // valida igual contra sí misma para reusar el chequeo de largo
+        // mínimo de `validarContrasenaNueva` (la comparación de coincidencia
+        // nunca falla al comparar un valor contra sí mismo).
+        const validacion = validarContrasenaNueva(password, password)
+        if (!validacion.ok) {
+          setError(validacion.mensaje)
+          return
+        }
+
+        const respuesta = await supabase.auth.signUp({
           email,
           password,
           options: {
             emailRedirectTo: `${window.location.origin}/auth/callback`,
           }
         })
-        if (error) throw error
-        
+        const resultado = resultadoAlta(respuesta)
+        if (resultado.tipo === "error") {
+          setError(resultado.mensaje)
+          return
+        }
+
         toast({
-          title: "Registro exitoso",
-          description: "Revisa tu correo electrónico para confirmar tu cuenta.",
+          title: "Revisá tu email",
+          description: MENSAJE_ALTA_ENVIADA,
         })
       }
       close()
       router.refresh()
-    } catch (error: any) {
-      setError(mode === "signup" ? mensajeErrorAlta(error) : error?.message || "Ocurrió un error inesperado")
+    } catch (error: unknown) {
+      setError(mode === "signup" ? mensajeErrorAlta(error) : mensajeErrorIngreso(error))
     } finally {
       setIsLoading(false)
     }
