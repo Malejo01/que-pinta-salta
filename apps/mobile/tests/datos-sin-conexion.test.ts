@@ -15,11 +15,13 @@ const estado = vi.hoisted(() => ({
   categories: { data: [] as unknown, error: null, status: 200 } as RespuestaFalsa,
   cinemaMovies: { data: [] as unknown, error: null, status: 200 } as RespuestaFalsa,
   userFavorites: { data: [] as unknown, error: null, status: 200 } as RespuestaFalsa,
+  eventAttendance: { data: [] as unknown, error: null, status: 200 } as RespuestaFalsa,
   arrojar: {
     events: null as unknown,
     categories: null as unknown,
     cinemaMovies: null as unknown,
     userFavorites: null as unknown,
+    eventAttendance: null as unknown,
   },
 }))
 
@@ -51,6 +53,11 @@ vi.mock('@/lib/supabase', () => ({
         if (tabla === 'user_favorites') {
           if (estado.arrojar.userFavorites) return Promise.reject(estado.arrojar.userFavorites).catch(reject)
           return Promise.resolve(estado.userFavorites).then(resolve, reject)
+        }
+        if (tabla === 'event_attendance') {
+          // R47: obtenerFavoritos también lee los Voy (con su propio .then(ok, err)).
+          if (estado.arrojar.eventAttendance) return Promise.reject(estado.arrojar.eventAttendance).catch(reject)
+          return Promise.resolve(estado.eventAttendance).then(resolve, reject)
         }
         throw new Error(`tabla inesperada en el doble de datos-sin-conexion: ${tabla}`)
       }
@@ -88,7 +95,8 @@ beforeEach(() => {
   estado.categories = { data: [], error: null, status: 200 }
   estado.cinemaMovies = { data: [], error: null, status: 200 }
   estado.userFavorites = { data: [], error: null, status: 200 }
-  estado.arrojar = { events: null, categories: null, cinemaMovies: null, userFavorites: null }
+  estado.eventAttendance = { data: [], error: null, status: 200 }
+  estado.arrojar = { events: null, categories: null, cinemaMovies: null, userFavorites: null, eventAttendance: null }
 })
 
 afterEach(() => {
@@ -218,6 +226,31 @@ describe('sinConexion: true cuando se atrapa una excepción TypeError("Network r
 
   it('obtenerFavoritos', async () => {
     estado.arrojar.userFavorites = new TypeError('Network request failed')
+    const resultado = await obtenerFavoritos(USER_ID)
+    expect(resultado).toEqual({ ok: false, error: expect.any(String), sinConexion: true })
+  })
+})
+
+describe('R47: la lectura de event_attendance (Voy) no tira la pantalla de Favoritos', () => {
+  it('sin ningún favorito ni Voy: { ok: true, voy: [], eventos: [] }', async () => {
+    const resultado = await obtenerFavoritos(USER_ID)
+    expect(resultado).toEqual({ ok: true, voy: [], eventos: [] })
+  })
+
+  it('si event_attendance responde con error de red, no es sinConexion: sigue con idsVoy vacío', async () => {
+    estado.eventAttendance = respuestaDeRed()
+    const resultado = await obtenerFavoritos(USER_ID)
+    expect(resultado).toEqual({ ok: true, voy: [], eventos: [] })
+  })
+
+  it('si event_attendance arroja TypeError("Network request failed"), tampoco tira abajo la pantalla', async () => {
+    estado.arrojar.eventAttendance = new TypeError('Network request failed')
+    const resultado = await obtenerFavoritos(USER_ID)
+    expect(resultado).toEqual({ ok: true, voy: [], eventos: [] })
+  })
+
+  it('si user_favorites falla por red, sigue siendo sinConexion aunque event_attendance ande', async () => {
+    estado.userFavorites = respuestaDeRed()
     const resultado = await obtenerFavoritos(USER_ID)
     expect(resultado).toEqual({ ok: false, error: expect.any(String), sinConexion: true })
   })

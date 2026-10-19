@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from "react"
 import Link from "next/link"
-import { ArrowLeft, Heart, MessageCircle } from "lucide-react"
+import { ArrowLeft, CheckCircle2, Heart, MessageCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { EventCard } from "@/components/event-card"
 import { MovieModal } from "@/components/movie-modal"
@@ -18,8 +18,35 @@ interface GrupoPorDia {
 }
 
 interface FavoritosListProps {
+  /** ✓ Voy (R47, QPS-197): ya viene separado y ordenado por `separarMisEventos` (core). No se reordena acá. */
+  voy: DisplayEvent[]
   flexibles: DisplayEvent[]
   porDia: GrupoPorDia[]
+}
+
+/**
+ * Une dos listas de `DisplayEvent` sin repetir `id` (conserva el orden:
+ * primero `a`, después lo nuevo de `b`). La usan tanto el total como el
+ * mensaje de WhatsApp (`initialFavorites`), así que un evento que estuviera
+ * en las dos listas (no debería pasar: `separarMisEventos` ya las deja
+ * disjuntas) no se cuenta ni se comparte dos veces.
+ *
+ * Exportada para el test (`tests/favoritos/mis-eventos.test.ts`): no hay
+ * `window` en Node puro, así que no se puede probar clickeando el botón de
+ * "Compartir agenda" (mismo límite que documenta
+ * `tests/core/favoritos-whatsapp-applink.test.ts` sobre
+ * `window.location.origin`); se prueba esta función directamente, que es la
+ * que arma la lista de la que sale el mensaje.
+ */
+export function unirSinRepetir(a: DisplayEvent[], b: DisplayEvent[]): DisplayEvent[] {
+  const vistos = new Set<string>()
+  const resultado: DisplayEvent[] = []
+  for (const item of [...a, ...b]) {
+    if (vistos.has(item.id)) continue
+    vistos.add(item.id)
+    resultado.push(item)
+  }
+  return resultado
 }
 
 // Formatea fechas locales como "Viernes 10 de Julio" para los encabezados de la agenda
@@ -40,19 +67,29 @@ function formatHeaderDate(dateStr: string): string {
   }
 }
 
-export function FavoritosList({ flexibles, porDia }: FavoritosListProps) {
+export function FavoritosList({ voy, flexibles, porDia }: FavoritosListProps) {
   const [selectedMovie, setSelectedMovie] = useState<DisplayEvent | null>(null)
   const { openDonationModal } = useDonation()
 
+  const hayVoy = voy.length > 0
+  const hayGuardados = flexibles.length > 0 || porDia.length > 0
+
   // El total y la lista plana (para compartir) se derivan del resultado ya
-  // armado por `armarFavoritos`: ni el orden ni el agrupado se recalculan acá.
+  // armado por `armarFavoritos` + `separarMisEventos`: ni el orden ni el
+  // agrupado se recalculan acá. En el flujo normal "Voy" y "Guardados" son
+  // disjuntos (`separarMisEventos` ya sacó los eventos con Voy de
+  // `flexibles`/`porDia`), pero `unirSinRepetir` deduplica por `id` igual,
+  // por las dudas, para que el total y el mensaje de WhatsApp nunca cuenten
+  // dos veces el mismo evento.
   const { totalFavoritos, initialFavorites } = useMemo(() => {
     const datedItems = porDia.flatMap(grupo => grupo.items)
+    const guardados = [...datedItems, ...flexibles]
+    const todos = unirSinRepetir(voy, guardados)
     return {
-      totalFavoritos: flexibles.length + datedItems.length,
-      initialFavorites: [...datedItems, ...flexibles],
+      totalFavoritos: todos.length,
+      initialFavorites: todos,
     }
-  }, [flexibles, porDia])
+  }, [voy, flexibles, porDia])
 
   // Lógica para compilar y compartir la agenda por WhatsApp con enlaces a cada evento
   const handleShareWhatsApp = () => {
@@ -112,9 +149,9 @@ export function FavoritosList({ flexibles, porDia }: FavoritosListProps) {
               Volver
             </Link>
           </Button>
-          <h1 className="text-3xl font-bold text-foreground">Mis Favoritos</h1>
+          <h1 className="text-3xl font-bold text-foreground">Mis eventos</h1>
           <p className="mt-2 text-muted-foreground">
-            Los eventos que guardaste para ver después
+            Los eventos que marcaste con ✓ Voy o ♥ Guardaste para ver después
           </p>
         </div>
 
@@ -123,10 +160,10 @@ export function FavoritosList({ flexibles, porDia }: FavoritosListProps) {
             <Heart className="size-8 text-muted-foreground" />
           </div>
           <h2 className="mb-2 text-xl font-semibold text-foreground">
-            Todavía no tenés favoritos
+            Todavía no tenés eventos
           </h2>
           <p className="mb-6 max-w-sm text-sm text-muted-foreground px-4">
-            Explorá la cartelera de eventos, peñas, boliches o cines y tocá el corazón para guardarlos en tu agenda personal.
+            Explorá la cartelera de eventos, peñas, boliches o cines y tocá el corazón para guardarlos, o marcá ✓ Voy para contarle a los demás.
           </p>
           <Button asChild className="bg-primary text-primary-foreground hover:bg-primary/90 font-semibold">
             <Link href="/">Explorar eventos</Link>
@@ -147,9 +184,9 @@ export function FavoritosList({ flexibles, porDia }: FavoritosListProps) {
               Volver al inicio
             </Link>
           </Button>
-          <h1 className="text-3xl font-bold text-foreground tracking-tight">Mi Agenda de Eventos</h1>
+          <h1 className="text-3xl font-bold text-foreground tracking-tight">Mis eventos</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Tenés {totalFavoritos} {totalFavoritos === 1 ? 'guardado' : 'guardados'}
+            Tenés {totalFavoritos} {totalFavoritos === 1 ? 'evento' : 'eventos'}
           </p>
         </div>
 
@@ -162,19 +199,18 @@ export function FavoritosList({ flexibles, porDia }: FavoritosListProps) {
         </Button>
       </div>
 
-      {/* 1. Planes Flexibles / Sin fecha definida */}
-      {flexibles.length > 0 && (
+      {/* 1. Voy (✓, social): primero, en el orden que ya viene de core (sin reordenar). */}
+      {hayVoy && (
         <div className="space-y-4">
-          <div className="flex items-center gap-3">
-            <div className="h-px bg-zinc-800 flex-1" />
-            <h3 className="text-xs font-bold text-zinc-500 uppercase tracking-widest px-2">
-              Plan flexible / Sin fecha definida ({flexibles.length})
-            </h3>
-            <div className="h-px bg-zinc-800 flex-1" />
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="size-5 text-emerald-500" />
+            <h2 className="text-lg font-bold text-foreground tracking-tight">
+              Voy ({voy.length})
+            </h2>
           </div>
 
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
-            {flexibles.map((event) => (
+            {voy.map((event) => (
               <EventCard
                 key={event.id}
                 event={event}
@@ -188,33 +224,67 @@ export function FavoritosList({ flexibles, porDia }: FavoritosListProps) {
         </div>
       )}
 
-      {/* 2. Agenda Cronológica */}
-      {porDia.map(({ dia, items }) => {
-        return (
-          <div key={dia} className="space-y-4">
-            <div className="flex items-center gap-3">
-              <div className="h-px bg-primary/20 flex-1" />
-              <h3 className="text-xs font-extrabold text-primary uppercase tracking-widest px-2 bg-primary/5 py-1 rounded-md border border-primary/10">
-                {formatHeaderDate(dia)} ({items.length})
-              </h3>
-              <div className="h-px bg-primary/20 flex-1" />
-            </div>
-
-            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
-              {items.map((event) => (
-                <EventCard
-                  key={event.id}
-                  event={event}
-                  isFavorite={true}
-                  onOpenMovie={setSelectedMovie}
-                  origin="favoritos"
-                  className="w-full sm:w-full max-w-[200px] mx-auto"
-                />
-              ))}
-            </div>
+      {/* 2. Guardados (♥, privado): Plan flexible / Sin fecha definida + agenda cronológica. */}
+      {hayGuardados && (
+        <div className="space-y-8">
+          <div className="flex items-center gap-2">
+            <Heart className="size-5 text-red-500 fill-red-500/10" />
+            <h2 className="text-lg font-bold text-foreground tracking-tight">Guardados</h2>
           </div>
-        )
-      })}
+
+          {flexibles.length > 0 && (
+            <div className="space-y-4">
+              <div className="flex items-center gap-3">
+                <div className="h-px bg-zinc-800 flex-1" />
+                <h3 className="text-xs font-bold text-zinc-500 uppercase tracking-widest px-2">
+                  Plan flexible / Sin fecha definida ({flexibles.length})
+                </h3>
+                <div className="h-px bg-zinc-800 flex-1" />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+                {flexibles.map((event) => (
+                  <EventCard
+                    key={event.id}
+                    event={event}
+                    isFavorite={true}
+                    onOpenMovie={setSelectedMovie}
+                    origin="favoritos"
+                    className="w-full sm:w-full max-w-[200px] mx-auto"
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {porDia.map(({ dia, items }) => {
+            return (
+              <div key={dia} className="space-y-4">
+                <div className="flex items-center gap-3">
+                  <div className="h-px bg-primary/20 flex-1" />
+                  <h3 className="text-xs font-extrabold text-primary uppercase tracking-widest px-2 bg-primary/5 py-1 rounded-md border border-primary/10">
+                    {formatHeaderDate(dia)} ({items.length})
+                  </h3>
+                  <div className="h-px bg-primary/20 flex-1" />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+                  {items.map((event) => (
+                    <EventCard
+                      key={event.id}
+                      event={event}
+                      isFavorite={true}
+                      onOpenMovie={setSelectedMovie}
+                      origin="favoritos"
+                      className="w-full sm:w-full max-w-[200px] mx-auto"
+                    />
+                  ))}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
 
       {/* Modal para visualizar los horarios de las películas de cine */}
       {selectedMovie && (

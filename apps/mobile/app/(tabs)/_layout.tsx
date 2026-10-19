@@ -61,7 +61,7 @@ export default function TabsLayout() {
       />
       <Tabs.Screen
         name="favoritos"
-        options={{ title: 'Favoritos', tabBarIcon: crearTabBarIcon(ICONOS.favoritos, colores.primary) }}
+        options={{ title: 'Mis eventos', tabBarIcon: crearTabBarIcon(ICONOS.favoritos, colores.primary) }}
       />
       {/* Cuenta sale de la barra (decisión A de Mauro) pero conserva su ruta: se
           llega desde el header, nunca desde acá. */}

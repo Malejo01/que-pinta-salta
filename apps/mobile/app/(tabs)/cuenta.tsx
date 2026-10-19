@@ -32,6 +32,7 @@ import { BotonGoogle } from '@/components/BotonGoogle'
 import { CampoTexto } from '@/components/CampoTexto'
 import { Cargando } from '@/components/EstadoCarga'
 import { Icono, type NombreIcono } from '@/components/Icono'
+import { LoQueSeguis } from '@/components/LoQueSeguis'
 import { SeccionNotificaciones } from '@/components/SeccionNotificaciones'
 import { Texto } from '@/components/Texto'
 import { hitSlopPara } from '@/lib/accesibilidad'
@@ -358,7 +359,13 @@ export default function Cuenta() {
         <SeccionNotificaciones />
 
         <FilaAcceso icono="Radio" texto="Mi Radar Salteño" onPress={() => router.push('/radar')} />
-        <FilaAcceso icono="Heart" texto="Mis Favoritos" onPress={() => router.push('/favoritos')} />
+        <FilaAcceso icono="Heart" texto="Mis eventos" onPress={() => router.push('/favoritos')} />
+
+        {/* R47, tarea 47-g (QPS-197): lo que el usuario sigue (lugares,
+            cuentas de Instagram y categorías), debajo de los accesos. El
+            `userId` lo lee esta pantalla (useSession, más arriba), no
+            LoQueSeguis. */}
+        <LoQueSeguis userId={session.user.id} />
 
         {/* F9: volver a ver la Bienvenida, al pie de Cuenta. */}
         <Pressable onPress={() => router.push('/bienvenida')} accessibilityRole="button" style={estilos.linkBienvenida}>

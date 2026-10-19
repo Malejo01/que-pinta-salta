@@ -9,7 +9,6 @@ import { Navbar } from "@/components/navbar"
 import { MobileNav } from "@/components/mobile-nav"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { FavoriteButton } from "@/components/favorite-button"
 import { ShareButton } from "@/components/share-button"
 import {
   Select,
@@ -31,15 +30,20 @@ import { useToast } from "@/hooks/use-toast"
 import { ViewBeacon } from "@/components/view-beacon"
 import { goHref, urlComoLlegar, type MetricOrigin } from "@/lib/metricas/links"
 import { FlyerImage } from "@/components/flyer-image"
-import { BotonesAsistencia } from "@/components/botones-asistencia"
+import { FilaAccionesEvento } from "@/components/fila-acciones-evento"
+import { BotonSeguir } from "@/components/boton-seguir"
 import type { CantidadesAsistencia } from "@/lib/asistencia"
 import { debenMostrarseBotonesAsistencia } from "@/lib/asistencia-visibilidad"
 import type { TipoAsistencia } from "@qps/core/asistencia"
+import type { obtenerSeguimientoDeEvento } from "@/lib/actions/radar"
 
-type EventWithRelations = Event & { 
-  category: Category | null; 
-  venue: Venue | null; 
+type EventWithRelations = Event & {
+  category: Category | null;
+  venue: Venue | null;
 }
+
+/** Lo que devuelve `obtenerSeguimientoDeEvento` (lugar y, si hay, cuenta de Instagram a seguir). */
+type SeguimientoEvento = Awaited<ReturnType<typeof obtenerSeguimientoDeEvento>>
 
 interface EventDetailPageProps {
   event: EventWithRelations
@@ -49,11 +53,14 @@ interface EventDetailPageProps {
   /** Origen de la visita (`?o=`), ya validado en el servidor. */
   origin?: MetricOrigin
   /**
-   * "Voy" / "Me interesa" (R38, tarea 38-b): opcionales para no romper otros
-   * call sites. Si falta alguno, los botones no se muestran.
+   * "Voy" (R38, reescrito en la R47, QPS-197): opcionales para no romper
+   * otros call sites. Si falta `cantidadesAsistencia`, la fila igual
+   * muestra ♥ y Compartir, solo sin el botón de Voy (`mostrarVoy: false`).
    */
   cantidadesAsistencia?: CantidadesAsistencia
   marcaAsistencia?: TipoAsistencia | null
+  /** "+ Seguir" (lugar y, si hay, cuenta de Instagram): `null` si no se pudo leer o no hay nada que seguir. */
+  seguimiento?: SeguimientoEvento | null
   haySesion?: boolean
 }
 
@@ -65,6 +72,7 @@ export function EventDetailPage({
   origin = "directo",
   cantidadesAsistencia,
   marcaAsistencia = null,
+  seguimiento = null,
   haySesion = false,
 }: EventDetailPageProps) {
   const router = useRouter()
@@ -210,23 +218,18 @@ export function EventDetailPage({
           </div>
 
           <div className="flex flex-col">
+            {/*
+              Ancla del bloque del título (QPS-199): este es el único <h1>
+              de la ficha, y antes el ♥ y Compartir vivían pegados a él. El
+              detector estático de `tests/asistencia/orden-ficha.test.ts`
+              busca este bloque (no la palabra "FavoriteButton" ni
+              "ShareButton" sueltas, que también aparecen más abajo, dentro
+              de la fila nueva) para confirmar que salieron de acá.
+            */}
             <div className="flex items-start justify-between gap-4 mb-4">
               <h1 className="text-3xl font-bold text-foreground lg:text-4xl flex-1 leading-tight">
                 {displayEvent.title}
               </h1>
-              <div className="flex items-center gap-2 flex-shrink-0">
-                <ShareButton
-                  eventId={event.id}
-                  title={event.title}
-                  className="size-10 bg-muted/40 hover:bg-muted text-foreground"
-                />
-                <FavoriteButton
-                  itemId={event.id}
-                  type="event"
-                  initialIsFavorite={isFavorite}
-                  className="size-10 bg-muted/40 hover:bg-muted text-foreground"
-                />
-              </div>
             </div>
 
             {isAdmin && (
@@ -346,11 +349,32 @@ export function EventDetailPage({
               
               <div className="flex items-center gap-3 text-muted-foreground">
                 <MapPin className="size-5 text-primary" />
-                <div>
-                  <p className="font-medium text-foreground">{displayEvent.venue}</p>
-                  <p className="text-sm">{displayEvent.address}</p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <div>
+                    <p className="font-medium text-foreground">{displayEvent.venue}</p>
+                    <p className="text-sm">{displayEvent.address}</p>
+                  </div>
+                  {seguimiento?.lugar && (
+                    <BotonSeguir
+                      tipo="lugar"
+                      id={seguimiento.lugar.id}
+                      etiqueta={seguimiento.lugar.nombre}
+                      siguiendoInicial={seguimiento.lugar.siguiendo}
+                      haySesion={haySesion}
+                    />
+                  )}
                 </div>
               </div>
+
+              {seguimiento?.cuenta && (
+                <BotonSeguir
+                  tipo="cuenta"
+                  id={seguimiento.cuenta.id}
+                  etiqueta={seguimiento.cuenta.username}
+                  siguiendoInicial={seguimiento.cuenta.siguiendo}
+                  haySesion={haySesion}
+                />
+              )}
 
               {displayEvent.vibe && (
                 <div className="flex items-center gap-3 text-muted-foreground">
@@ -403,25 +427,36 @@ export function EventDetailPage({
             </div>
 
             {/*
-              Bloqueante 2, vuelta 1: la fuente de verdad real es
-              `app/evento/[id]/page.tsx`, que ya no pasa `cantidadesAsistencia`
-              para eventos que no son PUBLISHED (la vista
-              `event_attendance_counts` solo agrega votos PUBLISHED, así que
-              en CANCELLED/PAST el contador quedaría clavado en 0). Este
-              chequeo repite la MISMA función (`debenMostrarseBotonesAsistencia`,
-              una sola fuente de verdad) como defensa en profundidad, para que
-              ningún otro call site futuro de este componente pueda dibujar
-              los botones fuera de PUBLISHED.
+              Bloqueante 2, vuelta 1 (sigue vigente en la R47): la fuente de
+              verdad real es `app/evento/[id]/page.tsx`, que ya no pasa
+              `cantidadesAsistencia` para eventos que no son PUBLISHED (la
+              vista `event_attendance_counts` solo agrega votos PUBLISHED,
+              así que en CANCELLED/PAST el contador quedaría clavado en 0).
+              Este chequeo repite la MISMA función
+              (`debenMostrarseBotonesAsistencia`, una sola fuente de verdad)
+              como defensa en profundidad, para que ningún otro call site
+              futuro de este componente pueda dibujar el botón de Voy fuera
+              de PUBLISHED. Sin `cantidadesAsistencia` la fila IGUAL se
+              dibuja (♥ y Compartir), solo sin el botón de Voy
+              (`mostrarVoy: false`): es un cambio buscado de esta tarea.
             */}
-            {cantidadesAsistencia && debenMostrarseBotonesAsistencia(event.status) && (
-              <BotonesAsistencia
-                eventId={event.id}
-                cantidadesIniciales={cantidadesAsistencia}
-                marcaInicial={marcaAsistencia}
-                haySesion={haySesion}
-                className="mt-6"
-              />
-            )}
+            <FilaAccionesEvento
+              eventId={event.id}
+              titulo={event.title}
+              guardadoInicial={isFavorite}
+              voyInicial={marcaAsistencia === "voy"}
+              cantidadesIniciales={cantidadesAsistencia ?? { voy: 0 }}
+              haySesion={haySesion}
+              mostrarVoy={Boolean(cantidadesAsistencia) && debenMostrarseBotonesAsistencia(event.status)}
+              compartir={
+                <ShareButton
+                  eventId={event.id}
+                  title={event.title}
+                  className="size-10 bg-muted/40 hover:bg-muted text-foreground"
+                />
+              }
+              className="mt-6"
+            />
           </div>
         </div>
 

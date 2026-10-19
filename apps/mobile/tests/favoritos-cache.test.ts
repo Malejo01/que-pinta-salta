@@ -80,26 +80,26 @@ describe('cargarFavoritosConCache: la carga sale bien', () => {
     const eventos = [crearFavorito({ id: 'evento-1' }), crearFavorito({ id: 'evento-2' })]
 
     const resultado = await cargarFavoritosConCache(USER_ID_UUID_INVENTADO, {
-      obtener: async () => ({ ok: true, eventos }),
+      obtener: async () => ({ ok: true, voy: [], eventos }),
       ahora: AHORA,
       almacen,
     })
 
-    expect(resultado).toEqual({ tipo: 'ok', eventos, desdeCache: null })
+    expect(resultado).toEqual({ tipo: 'ok', voy: [], eventos, desdeCache: null })
     expect(almacen.mapa.has(CLAVE_FAVORITOS)).toBe(true)
   })
 
   it('una lista vacía (sin favoritos) también sobreescribe la caché', async () => {
     const almacen = crearAlmacenEnMemoria()
-    await guardarCache(CLAVE_FAVORITOS, [crearFavorito({ id: 'evento-viejo' })], { ahora: AHORA, almacen })
+    await guardarCache(CLAVE_FAVORITOS, { voy: [], eventos: [crearFavorito({ id: 'evento-viejo' })] }, { ahora: AHORA, almacen })
 
     const resultado = await cargarFavoritosConCache(USER_ID_UUID_INVENTADO, {
-      obtener: async () => ({ ok: true, eventos: [] }),
+      obtener: async () => ({ ok: true, voy: [], eventos: [] }),
       ahora: AHORA,
       almacen,
     })
 
-    expect(resultado).toEqual({ tipo: 'ok', eventos: [], desdeCache: null })
+    expect(resultado).toEqual({ tipo: 'ok', voy: [], eventos: [], desdeCache: null })
 
     const leido = await leerFavoritosGuardados({ ahora: AHORA, almacen })
     expect(leido?.eventos).toEqual([])
@@ -110,7 +110,7 @@ describe('cargarFavoritosConCache: la carga sale bien', () => {
     const eventos = [crearFavorito({ id: 'evento-1' })]
 
     await cargarFavoritosConCache(USER_ID_UUID_INVENTADO, {
-      obtener: async () => ({ ok: true, eventos }),
+      obtener: async () => ({ ok: true, voy: [], eventos }),
       ahora: AHORA,
       almacen,
     })
@@ -128,7 +128,7 @@ describe('cargarFavoritosConCache: falla por red', () => {
     const almacen = crearAlmacenEnMemoria()
     const guardadoEn = new Date('2026-10-17T10:00:00-03:00')
     const eventos = [crearFavorito({ id: 'evento-1' })]
-    await guardarCache(CLAVE_FAVORITOS, eventos, { ahora: guardadoEn, almacen })
+    await guardarCache(CLAVE_FAVORITOS, { voy: [], eventos }, { ahora: guardadoEn, almacen })
 
     const resultado = await cargarFavoritosConCache(USER_ID_UUID_INVENTADO, {
       obtener: async () => ({ ok: false, error: 'No pudimos cargar tus favoritos.', sinConexion: true }),
@@ -138,6 +138,7 @@ describe('cargarFavoritosConCache: falla por red', () => {
 
     expect(resultado).toEqual({
       tipo: 'ok',
+      voy: [],
       eventos,
       desdeCache: { guardadoEn },
     })
@@ -158,7 +159,7 @@ describe('cargarFavoritosConCache: falla por red', () => {
   it('con la caché vencida (TTL_FAVORITOS_MS superado): da error, no la caché', async () => {
     const almacen = crearAlmacenEnMemoria()
     const guardadoEn = new Date('2026-10-17T10:00:00-03:00')
-    await guardarCache(CLAVE_FAVORITOS, [crearFavorito()], { ahora: guardadoEn, almacen })
+    await guardarCache(CLAVE_FAVORITOS, { voy: [], eventos: [crearFavorito()] }, { ahora: guardadoEn, almacen })
 
     const muchoDespues = new Date(guardadoEn.getTime() + TTL_FAVORITOS_MS + 1)
     const resultado = await cargarFavoritosConCache(USER_ID_UUID_INVENTADO, {
@@ -175,7 +176,7 @@ describe('cargarFavoritosConCache: falla por otra cosa (no es de red)', () => {
   it('da error aunque haya caché válida: no la lee', async () => {
     const almacen = crearAlmacenEnMemoria()
     const guardadoEn = new Date('2026-10-17T10:00:00-03:00')
-    await guardarCache(CLAVE_FAVORITOS, [crearFavorito()], { ahora: guardadoEn, almacen })
+    await guardarCache(CLAVE_FAVORITOS, { voy: [], eventos: [crearFavorito()] }, { ahora: guardadoEn, almacen })
 
     const resultado = await cargarFavoritosConCache(USER_ID_UUID_INVENTADO, {
       obtener: async () => ({ ok: false, error: 'La app no tiene la configuración de datos: avisá al equipo.' }),
@@ -191,7 +192,7 @@ describe('cargarFavoritosConCache: mientras se muestra la caché, no se escribe 
   it('leer de la caché (carga por red) no dispara ningún guardarCache', async () => {
     const almacen = crearAlmacenEnMemoria()
     const guardadoEn = new Date('2026-10-17T10:00:00-03:00')
-    await guardarCache(CLAVE_FAVORITOS, [crearFavorito()], { ahora: guardadoEn, almacen })
+    await guardarCache(CLAVE_FAVORITOS, { voy: [], eventos: [crearFavorito()] }, { ahora: guardadoEn, almacen })
     const crudoAntes = almacen.mapa.get(CLAVE_FAVORITOS)
 
     await cargarFavoritosConCache(USER_ID_UUID_INVENTADO, {
@@ -209,11 +210,11 @@ describe('leerFavoritosGuardados', () => {
     const almacen = crearAlmacenEnMemoria()
     const guardadoEn = new Date('2026-10-17T10:00:00-03:00')
     const eventos = [crearFavorito({ id: 'evento-1' })]
-    await guardarCache(CLAVE_FAVORITOS, eventos, { ahora: guardadoEn, almacen })
+    await guardarCache(CLAVE_FAVORITOS, { voy: [], eventos }, { ahora: guardadoEn, almacen })
 
     const resultado = await leerFavoritosGuardados({ ahora: AHORA, almacen })
 
-    expect(resultado).toEqual({ guardadoEn, eventos })
+    expect(resultado).toEqual({ guardadoEn, voy: [], eventos })
   })
 
   it('sin caché: null', async () => {

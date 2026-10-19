@@ -140,12 +140,12 @@ export function Navbar() {
                   <Button asChild variant="ghost" className="text-muted-foreground hover:text-red-500 transition-colors mr-1 gap-2 font-semibold text-sm">
                     <Link href="/favoritos">
                       <Heart className="size-4.5 text-red-500 fill-red-500/10" />
-                      <span className="hidden sm:inline">Tus Favoritos</span>
+                      <span className="hidden sm:inline">Mis eventos</span>
                     </Link>
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>
-                  <p>Tus Favoritos</p>
+                  <p>Mis eventos</p>
                 </TooltipContent>
               </Tooltip>
 
@@ -202,7 +202,7 @@ export function Navbar() {
                     <DropdownMenuItem asChild>
                       <Link href="/favoritos">
                         <Heart className="mr-2 size-4 text-red-500" />
-                        Mis Favoritos
+                        Mis eventos
                       </Link>
                     </DropdownMenuItem>
                     <DropdownMenuItem asChild>
@@ -218,7 +218,7 @@ export function Navbar() {
                     <DropdownMenuItem asChild>
                       <Link href="/mis-eventos">
                         <Calendar className="mr-2 size-4" />
-                        Mis Eventos
+                        Eventos que cargaste
                       </Link>
                     </DropdownMenuItem>
 

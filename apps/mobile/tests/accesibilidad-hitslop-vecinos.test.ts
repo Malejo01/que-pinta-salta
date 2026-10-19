@@ -117,19 +117,30 @@ function gapDe(valorEstilo: string): number | null {
   return m ? Number(m[1]) : null
 }
 
-describe('ficha del evento (app/evento/[id].tsx, estilos.accionesTitulo, tamanio 40): la suma de los dos hitSlop laterales no supera el gap', () => {
-  it('gap leído del archivo + hitSlop de los dos botones enfrentados: no se pisan', () => {
-    const contenido = quitarComentarios(readFileSync(join(MOBILE_ROOT, 'app', 'evento', '[id].tsx'), 'utf8'))
-    const valorEstilo = valorDeClaveDeEstilo(contenido, 'accionesTitulo')
-    expect(valorEstilo, 'no se encontró estilos.accionesTitulo en app/evento/[id].tsx').not.toBeNull()
+// R47: el ♥ y Compartir ya no están junto al título (se sacó `accionesTitulo`);
+// el par enfrentado ahora es, en `FilaAccionesEvento`, el botón de texto
+// "Voy" (un Pressable sin hitSlop propio) y `BotonCompartir` con tamanio 44.
+// Se exige que el hitSlop lateral de Compartir (el único con hitSlop) no
+// supere el `gap` de `estilos.fila`, y que el tamanio leído sea el 44 que
+// se usa acá para calcularlo.
+describe('ficha del evento (components/FilaAccionesEvento.tsx, estilos.fila, BotonCompartir tamanio 44): el hitSlop lateral no supera el gap', () => {
+  it('gap leído del archivo + hitSlop de Compartir y del vecino (sin hitSlop): no se pisan', () => {
+    const contenido = quitarComentarios(readFileSync(join(MOBILE_ROOT, 'components', 'FilaAccionesEvento.tsx'), 'utf8'))
+    const valorEstilo = valorDeClaveDeEstilo(contenido, 'fila')
+    expect(valorEstilo, 'no se encontró estilos.fila en components/FilaAccionesEvento.tsx').not.toBeNull()
     const gap = gapDe(valorEstilo as string)
-    expect(gap, 'estilos.accionesTitulo no tiene un gap numérico directo').not.toBeNull()
+    expect(gap, 'estilos.fila no tiene un gap numérico directo').not.toBeNull()
 
-    const hs = hitSlopBotonAccionEsperado(40)
+    const tamanio = contenido.match(/<BotonCompartir[^>]*?tamanio=\{(\d+)\}/s)
+    expect(tamanio, 'no se encontró <BotonCompartir tamanio={N}> en FilaAccionesEvento.tsx').not.toBeNull()
+
+    const hs = hitSlopBotonAccionEsperado(Number((tamanio as RegExpMatchArray)[1]))
+    // El vecino (Pressable de texto, minHeight 48) no declara hitSlop: solo cuenta el de Compartir.
+    expect(contenido).not.toMatch(/<Pressable[^>]*hitSlop/s)
     const sumaLateral = hs.left + hs.right
     expect(
       sumaLateral,
-      `BotonFavorito (left ${hs.left}) + BotonCompartir (right ${hs.right}) = ${sumaLateral}, gap real = ${gap}`,
+      `BotonCompartir (left ${hs.left} + right ${hs.right}) = ${sumaLateral}, gap real = ${gap}`,
     ).toBeLessThanOrEqual(gap as number)
   })
 })

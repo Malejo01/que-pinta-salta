@@ -245,12 +245,12 @@ describe('El ciclo de Favoritos: sesión A, SIGNED_OUT real, y la carga de despu
     const cargaA = await cargarFavoritosConCache(USUARIO_A, {
       obtener: async (userId) => {
         expect(userId).toBe(USUARIO_A)
-        return { ok: true, eventos }
+        return { ok: true, voy: [], eventos }
       },
       ahora: AHORA,
     })
-    expect(cargaA).toEqual({ tipo: 'ok', eventos, desdeCache: null })
-    expect(await leerFavoritosGuardados({ ahora: AHORA })).toEqual({ guardadoEn: AHORA, eventos })
+    expect(cargaA).toEqual({ tipo: 'ok', voy: [], eventos, desdeCache: null })
+    expect(await leerFavoritosGuardados({ ahora: AHORA })).toEqual({ guardadoEn: AHORA, voy: [], eventos })
 
     // Cierre de sesión real: `reducirSesion` dice que hay que borrar, y el
     // borrado de verdad (sin mock) deja la caché de favoritos vacía.
@@ -284,7 +284,7 @@ describe('Eliminar cuenta: después del camino de éxito, no queda ninguna clave
   it('borra la agenda y los favoritos guardados antes, con AsyncStorage real', async () => {
     await cargarAgendaConCache({ cargar: () => cargarInicio(AHORA), ahora: AHORA })
     await cargarFavoritosConCache('99999999-8888-7777-6666-555555555555', {
-      obtener: async () => ({ ok: true, eventos: [favoritoFixture('evento-cuenta-1')] }),
+      obtener: async () => ({ ok: true, voy: [], eventos: [favoritoFixture('evento-cuenta-1')] }),
       ahora: AHORA,
     })
 
@@ -321,7 +321,7 @@ describe('Nada personal en el almacén sin conexión (recorrido exhaustivo del d
     await cargarFavoritosConCache(USUARIO_DE_PRUEBA, {
       obtener: async (userId) => {
         expect(userId).toBe(USUARIO_DE_PRUEBA) // de verdad se usa, no un uuid que viaja sin propósito
-        return { ok: true, eventos: favoritos }
+        return { ok: true, voy: [], eventos: favoritos }
       },
       ahora: AHORA,
     })

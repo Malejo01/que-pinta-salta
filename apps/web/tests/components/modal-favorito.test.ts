@@ -1,14 +1,18 @@
-// El corazón en los dos modales de evento (tarea 30-b):
-//  - `lib/favoritos/es-favorito.ts` (`esEventoFavorito`): la misma consulta que
-//    usaba la ficha (`app/evento/[id]/page.tsx`), compartida ahora con la ruta
+// El ♥ en los dos modales de evento (tarea 30-b; reescrito en la R47, tarea
+// 47-q, porque 47-c — QPS-197/QPS-199 — movió el ♥ del encabezado del modal
+// a la fila de acciones, debajo de "Comprar tickets"):
+//  - `lib/favoritos/es-favorito.ts` (`esEventoFavorito`): la misma consulta
+//    que usaba la ficha (`app/evento/[id]/page.tsx`), compartida con la ruta
 //    interceptada (`app/@modal/(.)evento/[id]/page.tsx`). Tres casos: sin
 //    sesión, favorito, no favorito. Nunca mezcla favoritos de otro usuario.
-//  - Las dos páginas de evento llaman a la consulta compartida (detector
-//    estático sobre el archivo real), no la reimplementan.
+//    Esto NO cambió con la R47 y sigue siendo la fuente del `isFavorite` de
+//    los dos modales.
 //  - Los dos modales (`event-modal-wrapper.tsx` de la ruta interceptada y
-//    `event-modal.tsx` de `/buscar`) renderizan `FavoriteButton` junto al
-//    título con el `isFavorite` que reciben; la ruta interceptada también
-//    el `ShareButton` (30-a).
+//    `event-modal.tsx` de `/buscar`) YA NO dibujan `FavoriteButton` en el
+//    encabezado: delegan el ♥ en la fila de acciones (`FilaAccionesEvento`
+//    directo en la ruta interceptada, que ya tiene los datos server-side;
+//    `BotonesAsistenciaDiferidos` en `/buscar`, que los pide al abrir), con
+//    `isFavorite` como el valor inicial del ♥.
 //  - `/buscar` le pasa al modal el favorito ya traído en la lista de ids
 //    (sin una consulta por evento).
 //
@@ -125,28 +129,35 @@ describe('la ficha y la ruta interceptada usan la consulta compartida (no la rei
   })
 })
 
-describe('los dos modales de evento renderizan el corazón (FavoriteButton)', () => {
-  it('components/event-modal-wrapper.tsx (ruta interceptada): FavoriteButton junto al título, más ShareButton (30-a)', () => {
+// ---------------------------------------------------------------------------
+// R47 (47-c, QPS-197/QPS-199): el ♥ ya NO vive en el encabezado de ningún
+// modal. Los dos delegan en la fila de acciones, con `isFavorite` como el
+// valor inicial del ♥ (`guardadoInicial` en la ruta interceptada,
+// `isFavorite` pasado tal cual a `BotonesAsistenciaDiferidos` en /buscar).
+// ---------------------------------------------------------------------------
+describe('los dos modales de evento delegan el ♥ en la fila (ya no dibujan FavoriteButton en el encabezado)', () => {
+  it('components/event-modal-wrapper.tsx (ruta interceptada): sin FavoriteButton, el ♥ es guardadoInicial de FilaAccionesEvento', () => {
     const src = read('components/event-modal-wrapper.tsx')
 
-    expect(src).toContain('import { FavoriteButton } from "@/components/favorite-button"')
-    expect(src).toContain('import { ShareButton } from "@/components/share-button"')
+    expect(src).not.toContain('from "@/components/favorite-button"')
+    expect(src).not.toContain('<FavoriteButton')
     expect(src).toContain('isFavorite?: boolean')
-    expect(src).toMatch(/<FavoriteButton[\s\S]*?itemId={event\.id}[\s\S]*?type="event"[\s\S]*?initialIsFavorite={isFavorite}/)
-    expect(src).toMatch(/<ShareButton[\s\S]*?eventId={event\.id}/)
+    expect(src).toMatch(/<FilaAccionesEvento[\s\S]*?guardadoInicial={isFavorite}/)
+    // El ShareButton que antes vivía suelto junto al título ahora entra por
+    // la prop `compartir` de la fila, no dibujado aparte.
+    expect(src).toMatch(/compartir=\{[\s\S]*?<ShareButton/)
   })
 
-  it('components/event-modal.tsx (/buscar): FavoriteButton junto al título', () => {
+  it('components/event-modal.tsx (/buscar): sin FavoriteButton, el ♥ es isFavorite de BotonesAsistenciaDiferidos', () => {
     const src = read('components/event-modal.tsx')
 
-    expect(src).toContain('import { FavoriteButton } from "@/components/favorite-button"')
+    expect(src).not.toContain('from "@/components/favorite-button"')
+    expect(src).not.toContain('<FavoriteButton')
     expect(src).toContain('isFavorite?: boolean')
-    expect(src).toMatch(/<FavoriteButton[\s\S]*?itemId={event\.id}[\s\S]*?type="event"[\s\S]*?initialIsFavorite={isFavorite}/)
+    expect(src).toMatch(/<BotonesAsistenciaDiferidos[\s\S]*?isFavorite={isFavorite}/)
   })
 
-  it('favorite-button.tsx no se tocó (lo compara otra ronda)', () => {
-    // No podemos diffear git desde el test; sólo nos aseguramos de no haberlo
-    // tocado nosotros: el archivo sigue sin ninguna marca de esta tarea.
+  it('favorite-button.tsx no reimplementa esEventoFavorito (sigue siendo solo la tarjeta)', () => {
     const src = read('components/favorite-button.tsx')
     expect(src).not.toContain('esEventoFavorito')
   })

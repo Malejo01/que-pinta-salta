@@ -3,11 +3,10 @@
 // Punto 4 del plan (TTL y topes, propuesta sin confirmar): la lista vive bajo
 // `CLAVE_FAVORITOS` con `TTL_FAVORITOS_MS` (7 días), recortada a
 // `TOPE_ITEMS_FAVORITOS` ítems (200) y `TOPE_CARACTERES_FAVORITOS` (300.000)
-// de JSON. Acá `datos` SÍ es el array pelado (`DisplayEvent[]`, lo que
-// devuelve `obtenerFavoritos` — decisión 2 del plan), así que
-// `recortarParaCache` no necesita `margenCaracteres` (default 0): a
-// diferencia de la agenda (`./agenda.ts`), no hay nada más al lado del array
-// dentro de `datos`.
+// de JSON. En la R43 `datos` era el array pelado (`DisplayEvent[]`, lo que
+// devolvía `obtenerFavoritos` — decisión 2 del plan); desde QPS-262 es
+// `{ voy, eventos }` (ver más abajo), y por eso el recorte deja un margen de
+// caracteres para el objeto.
 //
 // Punto 5: la caché solo se muestra si la carga falló por red
 // (`sinConexion: true`) y hay una caché válida (TTL no vencido). Cualquier
@@ -23,6 +22,15 @@
 // películas ni flyers) cuyo `date` (día de Salta, `'YYYY-MM-DD'`, ya puesto
 // por `transformEvent`) ya pasó, comparado contra el día de Salta de
 // `ahora`. Mantiene el orden.
+//
+// QPS-262 (decisión de Mauro, 18/10): desde la R47 la carga trae dos listas,
+// `voy` (la sección "Voy" de Mis eventos) y `eventos` (Guardados, sin los
+// Voy). La caché guarda las dos, `{ voy, eventos }`, así sin conexión se ve
+// igual que con red. Una caché de antes (`datos` como array pelado, el
+// formato de la R43) se lee como `{ voy: [], eventos: <ese array> }`: no
+// hace falta subir `VERSION_CACHE`. El recorte (`recortarParaCache`) se
+// aplica a las dos listas juntas, Voy primero: si hay que sacar ítems, salen
+// los últimos Guardados antes que un Voy.
 //
 // El `userId` nunca se guarda: solo se usa para llamar a `obtener`.
 //
@@ -77,8 +85,51 @@ export interface DepsCargarFavoritos {
 }
 
 export type ResultadoCargaFavoritos =
-  | { tipo: 'ok'; eventos: DisplayEvent[]; desdeCache: { guardadoEn: Date } | null }
+  | { tipo: 'ok'; voy: DisplayEvent[]; eventos: DisplayEvent[]; desdeCache: { guardadoEn: Date } | null }
   | { tipo: 'error'; error: string }
+
+/** Lo que se guarda en `CLAVE_FAVORITOS` desde QPS-262 (antes, el array pelado de `eventos`). */
+export interface DatosCacheFavoritos {
+  voy: DisplayEvent[]
+  eventos: DisplayEvent[]
+}
+
+/** Lo que agrega el objeto `{ voy, eventos }` alrededor de los ítems, para el tope de caracteres. */
+const MARGEN_CARACTERES_DOS_LISTAS = 32
+
+/**
+ * Pura. Las dos listas recortadas para la caché, con el mismo tope de ítems y
+ * de caracteres que antes pero sobre las dos juntas (Voy primero). `null` si
+ * el recorte no da nada válido (como `recortarParaCache`).
+ */
+export function recortarFavoritosParaCache(voy: DisplayEvent[], eventos: DisplayEvent[]): DatosCacheFavoritos | null {
+  const juntos = recortarParaCache([...voy, ...eventos], {
+    topeCaracteres: TOPE_CARACTERES_FAVORITOS,
+    topeItems: TOPE_ITEMS_FAVORITOS,
+    margenCaracteres: MARGEN_CARACTERES_DOS_LISTAS,
+    sinDescripcionLarga: sinDescripcionLargaFavoritos,
+  })
+  if (juntos === null) return null
+  // `recortarParaCache` solo corta la cola, así que los primeros `voy.length`
+  // (o menos) siguen siendo los Voy, en su orden.
+  const cuantosVoy = Math.min(voy.length, juntos.length)
+  return { voy: juntos.slice(0, cuantosVoy), eventos: juntos.slice(cuantosVoy) }
+}
+
+/**
+ * Pura. Lee `datos` de la caché en cualquiera de los dos formatos: el de
+ * QPS-262 (`{ voy, eventos }`) o el viejo de la R43 (el array de `eventos`,
+ * que se lee con `voy: []`). Con cualquier otra forma tira, y quien la llama
+ * lo trata como "no hay caché" (ver la vuelta 1 de la revisión, arriba).
+ */
+export function datosDeCacheFavoritos(datos: unknown): DatosCacheFavoritos {
+  if (Array.isArray(datos)) return { voy: [], eventos: datos as DisplayEvent[] }
+  if (datos !== null && typeof datos === 'object') {
+    const { voy, eventos } = datos as Record<string, unknown>
+    if (Array.isArray(voy) && Array.isArray(eventos)) return { voy: voy as DisplayEvent[], eventos: eventos as DisplayEvent[] }
+  }
+  throw new Error('caché de favoritos con una forma inesperada')
+}
 
 /** La descripción de `DisplayEvent` vive plana (a diferencia de la agenda, donde está anidada en `evento.description`). */
 function sinDescripcionLargaFavoritos(item: DisplayEvent): DisplayEvent {
@@ -105,11 +156,7 @@ export async function cargarFavoritosConCache(
   const resultado = await obtener(userId)
 
   if (resultado.ok) {
-    const recortados = recortarParaCache(resultado.eventos, {
-      topeCaracteres: TOPE_CARACTERES_FAVORITOS,
-      topeItems: TOPE_ITEMS_FAVORITOS,
-      sinDescripcionLarga: sinDescripcionLargaFavoritos,
-    })
+    const recortados = recortarFavoritosParaCache(resultado.voy, resultado.eventos)
 
     // Igual que en la agenda: si el recorte no da nada válido, se deja la
     // caché vieja; si `guardarCache` falla, ya devuelve `false` sin tirar.
@@ -122,7 +169,7 @@ export async function cargarFavoritosConCache(
       await guardarCache(CLAVE_FAVORITOS, recortados, { ahora, almacen })
     }
 
-    return { tipo: 'ok', eventos: resultado.eventos, desdeCache: null }
+    return { tipo: 'ok', voy: resultado.voy, eventos: resultado.eventos, desdeCache: null }
   }
 
   if (!resultado.sinConexion) {
@@ -136,7 +183,7 @@ export async function cargarFavoritosConCache(
     return { tipo: 'error', error: resultado.error }
   }
 
-  const cache = await leerCache<DisplayEvent[]>(CLAVE_FAVORITOS, { ahora, ttlMs: TTL_FAVORITOS_MS, almacen })
+  const cache = await leerCache<unknown>(CLAVE_FAVORITOS, { ahora, ttlMs: TTL_FAVORITOS_MS, almacen })
   if (cache === null) {
     return { tipo: 'error', error: resultado.error }
   }
@@ -146,8 +193,13 @@ export async function cargarFavoritosConCache(
   // un ítem que no es un objeto): ver el comentario de cabecera. Una caché
   // así se trata igual que si no existiera.
   try {
-    const eventos = paraMostrarFavoritos(cache.datos, ahora)
-    return { tipo: 'ok', eventos, desdeCache: { guardadoEn: cache.guardadoEn } }
+    const { voy, eventos } = datosDeCacheFavoritos(cache.datos)
+    return {
+      tipo: 'ok',
+      voy: paraMostrarFavoritos(voy, ahora),
+      eventos: paraMostrarFavoritos(eventos, ahora),
+      desdeCache: { guardadoEn: cache.guardadoEn },
+    }
   } catch {
     return { tipo: 'error', error: resultado.error }
   }
@@ -165,15 +217,16 @@ export interface DepsLeerFavoritos {
  */
 export async function leerFavoritosGuardados(
   deps: DepsLeerFavoritos = {},
-): Promise<{ guardadoEn: Date; eventos: DisplayEvent[] } | null> {
+): Promise<{ guardadoEn: Date; voy: DisplayEvent[]; eventos: DisplayEvent[] } | null> {
   const { ahora = new Date(), almacen } = deps
-  const cache = await leerCache<DisplayEvent[]>(CLAVE_FAVORITOS, { ahora, ttlMs: TTL_FAVORITOS_MS, almacen })
+  const cache = await leerCache<unknown>(CLAVE_FAVORITOS, { ahora, ttlMs: TTL_FAVORITOS_MS, almacen })
   if (cache === null) return null
 
   // Mismo resguardo que en `cargarFavoritosConCache`: una caché con `datos`
   // de forma inesperada se trata igual que "no hay caché" (`null`), no tira.
   try {
-    return { guardadoEn: cache.guardadoEn, eventos: paraMostrarFavoritos(cache.datos, ahora) }
+    const { voy, eventos } = datosDeCacheFavoritos(cache.datos)
+    return { guardadoEn: cache.guardadoEn, voy: paraMostrarFavoritos(voy, ahora), eventos: paraMostrarFavoritos(eventos, ahora) }
   } catch {
     return null
   }

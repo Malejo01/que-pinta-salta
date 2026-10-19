@@ -1,33 +1,33 @@
 /**
- * "Voy" / "Me interesa" en la ficha de la web (R38, tarea 38-b):
- * `lib/asistencia.ts` y `components/botones-asistencia.tsx`. Sin red ni
- * base: `@/lib/supabase/server` va mockeado (mismo patrón que
- * `tests/radar/update-settings-invalida.test.ts`).
+ * "✓ Voy" en la ficha de la web (R38, tarea 38-b; reescrito en la R47,
+ * tarea 47-b, QPS-197, al modelo de un solo tipo de asistencia): `lib/asistencia.ts`
+ * y `components/botones-asistencia.tsx`. Sin red ni base: `@/lib/supabase/server`
+ * va mockeado (mismo patrón que `tests/radar/update-settings-invalida.test.ts`).
  *
- * Cuatro bloques:
- *  1. Sin sesión no se escribe nada (ni se llama a `from()`).
+ * El modelo cambió de dos marcas ("Voy" / "Me interesa") a un solo tipo
+ * (`'voy'`); "Me interesa" desapareció. El detalle del orden de escrituras
+ * entre Guardar (♥) y Voy (que ahora están contenidos uno en el otro) está
+ * en `tests/asistencia/guardar-voy.test.ts`: este archivo se queda con lo
+ * que no cambió de la R38 (el invariante de "nunca ok:false si la
+ * escritura salió bien", la visibilidad de los botones, los detectores de
+ * "solo cantidades, nunca quién" y de "sin copia local").
+ *
+ * Bloques:
+ *  1. Sin sesión no se escribe nada (ni se llama a `from()`), y un tipo
+ *     inválido (incluido 'me_interesa', el valor viejo) ni siquiera crea el
+ *     cliente de Supabase.
  *  2. El `user_id` del upsert siempre sale de `auth.getUser()`, nunca de un
- *     argumento (la firma de `marcarAsistencia` no tiene un tercer
- *     parámetro; aunque se lo pase, JS lo ignora).
- *  3. Detector estático, recorriendo el código real de `apps/web`: ningún
- *     `select` sobre `event_attendance` pide `user_id` ni `*`, y la única
- *     tabla/vista que expone "voy"/"me_interesa" es
- *     `event_attendance_counts`.
- *  4. Detector estático: `lib/asistencia.ts` y
- *     `components/botones-asistencia.tsx` importan la lógica de
- *     `@qps/core/asistencia` y no tienen su propia copia (mismo criterio
- *     que `apps/mobile/tests/asistencia.test.ts`).
- *
- * Vuelta 1 (dos revisores, tres bloqueantes sobre 76cd928):
- *  - Bloqueante 1: si la escritura (upsert/delete) sale bien, `marcarAsistencia`
- *    nunca devuelve `ok: false`, aunque falle la relectura de cantidades de
- *    DESPUÉS de escribir (ver el describe "si la escritura sale bien...").
- *  - Bloqueante 2: los botones solo se muestran para eventos PUBLISHED
- *    (`debenMostrarseBotonesAsistencia`, ver el describe de ese nombre).
- *  - Bloqueante 3: el barrido de "copia local" ahora recorre TODO el código
- *    de `apps/web` (no solo los dos archivos vigilados), con el mismo
- *    criterio que `apps/mobile/tests/asistencia.test.ts` después de
- *    `e73e0f2` (ver el describe "barrido recursivo...").
+ *     argumento.
+ *  3. Si la escritura sale bien, `marcarAsistencia` nunca devuelve
+ *     `ok: false` (bloqueante 1 de la R38, sigue vigente).
+ *  4. Detector estático: ningún `select` sobre `event_attendance` pide
+ *     `user_id` ni `*`, la única tabla/vista que expone cantidades es
+ *     `event_attendance_counts`, y ningún `select` de todo `apps/web` pide
+ *     la columna `me_interesa` (desapareció del modelo).
+ *  5. Los botones solo se muestran para eventos PUBLISHED
+ *     (`debenMostrarseBotonesAsistencia`).
+ *  6. `lib/asistencia.ts` y `components/botones-asistencia.tsx` importan la
+ *     lógica de `@qps/core/asistencia` y no tienen su propia copia.
  */
 import { readFileSync, readdirSync } from 'node:fs'
 import { relative } from 'node:path'
@@ -38,6 +38,7 @@ const createClient = vi.fn()
 vi.mock('@/lib/supabase/server', () => ({
   createClient: (...a: unknown[]) => createClient(...a),
 }))
+vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }))
 
 import { marcarAsistencia, obtenerAsistencia } from '../../lib/asistencia'
 import { debenMostrarseBotonesAsistencia } from '../../lib/asistencia-visibilidad'
@@ -51,10 +52,13 @@ afterEach(() => {
 })
 
 // ---------------------------------------------------------------------------
-// Doble de Supabase para `event_attendance` / `event_attendance_counts`.
+// Doble de Supabase para `event_attendance` / `event_attendance_counts` /
+// `user_favorites` (necesaria desde la R47: `marcarAsistencia` también lee
+// y escribe el favorito cuando hace falta — el detalle de ESE orden está en
+// `guardar-voy.test.ts`; acá alcanza con un doble simple que no falle).
 // ---------------------------------------------------------------------------
 interface RespuestaCounts {
-  data?: { voy: number; me_interesa: number } | null
+  data?: { voy: number } | null
   error?: unknown
   /** Si es `true`, el `maybeSingle()` tira una excepción en vez de devolver `{ data, error }`. */
   lanzar?: unknown
@@ -66,16 +70,19 @@ interface ConfigDoble {
   propiaError?: unknown
   upsertError?: unknown
   deleteError?: unknown
-  countsData?: { voy: number; me_interesa: number } | null
+  countsData?: { voy: number } | null
   /**
    * Respuestas sucesivas para `event_attendance_counts`.select(...).maybeSingle():
    * la primera llamada usa `countsSecuencia[0]`, la segunda `countsSecuencia[1]`,
    * etc. (si se agotan, se repite la última). Si no se da, se usa siempre
-   * `countsData` (comportamiento previo, sin distinguir llamadas).
-   * Existe para el bloqueante 1: simular "la relectura de DESPUÉS de
-   * escribir falla, pero la de ANTES de escribir anduvo bien".
+   * `countsData`. Existe para el bloqueante 1: simular "la relectura de
+   * DESPUÉS de escribir falla, pero la de ANTES de escribir anduvo bien".
    */
   countsSecuencia?: RespuestaCounts[]
+  /** Si ya estaba guardado (♥) antes de tocar "voy". Por defecto, no. */
+  guardadoData?: { id: string } | null
+  guardadoError?: unknown
+  insertFavoritoError?: unknown
 }
 
 function construirCliente(config: ConfigDoble) {
@@ -83,6 +90,7 @@ function construirCliente(config: ConfigDoble) {
     tablas: [] as string[],
     selects: [] as Array<{ tabla: string; columnas: string }>,
     upserts: [] as unknown[],
+    inserts: [] as unknown[],
     deletes: 0,
   }
 
@@ -131,10 +139,29 @@ function construirCliente(config: ConfigDoble) {
                   if (respuesta.lanzar) throw respuesta.lanzar
                   return { data: respuesta.data ?? null, error: respuesta.error ?? null }
                 }
-                return { data: config.countsData ?? { voy: 0, me_interesa: 0 }, error: null }
+                return { data: config.countsData ?? { voy: 0 }, error: null }
               },
             }),
           }
+        },
+      }
+    }
+
+    if (tabla === 'user_favorites') {
+      return {
+        select: (columnas: string) => {
+          llamadas.selects.push({ tabla, columnas })
+          return {
+            eq: () => ({
+              eq: () => ({
+                maybeSingle: async () => ({ data: config.guardadoData ?? null, error: config.guardadoError ?? null }),
+              }),
+            }),
+          }
+        },
+        insert: async (valores: unknown) => {
+          llamadas.inserts.push(valores)
+          return { error: config.insertFavoritoError ?? null }
         },
       }
     }
@@ -163,7 +190,7 @@ function clienteQueNuncaDeberiaLlamarFrom(user: { id: string } | null) {
 }
 
 // ---------------------------------------------------------------------------
-// 1. Sin sesión no se escribe nada.
+// 1. Sin sesión no se escribe nada. Tipo inválido ni siquiera crea el cliente.
 // ---------------------------------------------------------------------------
 describe('marcarAsistencia: sin sesión no se escribe nada', () => {
   it('AUTH_REQUIRED, y from() no se llama ni una vez', async () => {
@@ -185,35 +212,39 @@ describe('marcarAsistencia: sin sesión no se escribe nada', () => {
       from,
     })
 
-    const resultado = await marcarAsistencia('evento-de-prueba-1', 'me_interesa')
+    const resultado = await marcarAsistencia('evento-de-prueba-1', 'voy')
 
     expect(resultado).toEqual({ ok: false, error: 'AUTH_REQUIRED' })
     expect(from).not.toHaveBeenCalled()
   })
 })
 
-// ---------------------------------------------------------------------------
-// tipo inválido: no escribe nada, ni siquiera llega a pedir sesión.
-// ---------------------------------------------------------------------------
-describe('marcarAsistencia: un tipo que no es de core no escribe nada', () => {
-  it('"bailar" (no es "voy" ni "me_interesa"): INVALID, sin llamar a from()', async () => {
-    const { cliente, from } = clienteQueNuncaDeberiaLlamarFrom({ id: 'usuario-de-prueba' })
-    createClient.mockResolvedValue(cliente)
+describe('marcarAsistencia: un tipo que no es "voy" no escribe nada, y ni siquiera crea el cliente de Supabase', () => {
+  it('"me_interesa" (el valor viejo, ya desaparecido del modelo): INVALID, sin llamar a createClient()', async () => {
+    const resultado = await marcarAsistencia('evento-de-prueba-1', 'me_interesa' as unknown as 'voy')
 
+    expect(resultado).toEqual({ ok: false, error: 'INVALID' })
+    expect(createClient).not.toHaveBeenCalled()
+  })
+
+  it('"bailar" (cualquier otro string): INVALID, sin llamar a createClient()', async () => {
     const resultado = await marcarAsistencia('evento-de-prueba-1', 'bailar' as unknown as 'voy')
 
     expect(resultado).toEqual({ ok: false, error: 'INVALID' })
-    expect(from).not.toHaveBeenCalled()
+    expect(createClient).not.toHaveBeenCalled()
   })
 
-  it('cadena vacía: INVALID', async () => {
-    const { cliente, from } = clienteQueNuncaDeberiaLlamarFrom({ id: 'usuario-de-prueba' })
-    createClient.mockResolvedValue(cliente)
-
+  it('cadena vacía: INVALID, sin llamar a createClient()', async () => {
     const resultado = await marcarAsistencia('evento-de-prueba-1', '' as unknown as 'voy')
 
     expect(resultado).toEqual({ ok: false, error: 'INVALID' })
-    expect(from).not.toHaveBeenCalled()
+    expect(createClient).not.toHaveBeenCalled()
+  })
+
+  it('null/undefined: INVALID, sin llamar a createClient()', async () => {
+    expect(await marcarAsistencia('evento-de-prueba-1', null as unknown as 'voy')).toEqual({ ok: false, error: 'INVALID' })
+    expect(await marcarAsistencia('evento-de-prueba-1', undefined as unknown as 'voy')).toEqual({ ok: false, error: 'INVALID' })
+    expect(createClient).not.toHaveBeenCalled()
   })
 })
 
@@ -232,26 +263,29 @@ describe('marcarAsistencia: el user_id siempre sale de auth.getUser()', () => {
     expect(firma![1]).not.toMatch(/user_?id/i)
   })
 
-  it('primera marca (actual null): el upsert usa el id de getUser(), con el kind pedido', async () => {
+  it('sin Voy ni Guardado previos: marcar "voy" hace upsert (y guarda el favorito) con el id de getUser()', async () => {
     const { cliente, llamadas } = construirCliente({
       user: { id: 'usuario-sesion-1' },
       propiaData: null,
-      countsData: { voy: 1, me_interesa: 0 },
+      guardadoData: null,
+      countsData: { voy: 1 },
     })
     createClient.mockResolvedValue(cliente)
 
     const resultado = await marcarAsistencia('evento-de-prueba-1', 'voy')
 
-    expect(resultado).toEqual({ ok: true, cantidades: { voy: 1, meInteresa: 0 }, propia: 'voy' })
+    expect(resultado).toEqual({ ok: true, cantidades: { voy: 1 }, propia: 'voy', guardado: true })
     expect(llamadas.upserts).toEqual([{ user_id: 'usuario-sesion-1', event_id: 'evento-de-prueba-1', kind: 'voy' }])
+    expect(llamadas.inserts).toEqual([{ user_id: 'usuario-sesion-1', event_id: 'evento-de-prueba-1' }])
     expect(llamadas.deletes).toBe(0)
   })
 
-  it('pasar un tercer argumento ("otro user_id") no cambia nada: el upsert sigue usando el id de la sesión', async () => {
+  it('pasar un tercer argumento ("otro user_id") no cambia nada: las escrituras siguen usando el id de la sesión', async () => {
     const { cliente, llamadas } = construirCliente({
       user: { id: 'usuario-sesion-2' },
       propiaData: null,
-      countsData: { voy: 1, me_interesa: 0 },
+      guardadoData: null,
+      countsData: { voy: 1 },
     })
     createClient.mockResolvedValue(cliente)
 
@@ -268,48 +302,35 @@ describe('marcarAsistencia: el user_id siempre sale de auth.getUser()', () => {
     expect(llamadas.upserts).toEqual([
       { user_id: 'usuario-sesion-2', event_id: 'evento-de-prueba-1', kind: 'voy' },
     ])
+    expect(llamadas.inserts).toEqual([{ user_id: 'usuario-sesion-2', event_id: 'evento-de-prueba-1' }])
   })
 
-  it('actual === tipo: borra la fila propia (nunca upsert), y el delete no filtra por user_id (lo acota la RLS)', async () => {
+  it('ya tenía "voy": marcarAsistencia("voy") lo saca (delete), nunca upsert; el delete no filtra por user_id (lo acota la RLS)', async () => {
     const { cliente, llamadas } = construirCliente({
       user: { id: 'usuario-sesion-3' },
       propiaData: { kind: 'voy' },
-      countsData: { voy: 0, me_interesa: 0 },
+      guardadoData: { id: 'fav-1' },
+      countsData: { voy: 0 },
     })
     createClient.mockResolvedValue(cliente)
 
     const resultado = await marcarAsistencia('evento-de-prueba-1', 'voy')
 
-    expect(resultado).toEqual({ ok: true, cantidades: { voy: 0, meInteresa: 0 }, propia: null })
+    expect(resultado).toEqual({ ok: true, cantidades: { voy: 0 }, propia: null, guardado: true })
     expect(llamadas.deletes).toBe(1)
     expect(llamadas.upserts).toHaveLength(0)
+    expect(llamadas.inserts).toHaveLength(0)
   })
 
-  it('actual !== tipo: upsert cambia el kind (no hace delete)', async () => {
-    const { cliente, llamadas } = construirCliente({
-      user: { id: 'usuario-sesion-4' },
-      propiaData: { kind: 'voy' },
-      countsData: { voy: 0, me_interesa: 1 },
-    })
-    createClient.mockResolvedValue(cliente)
-
-    const resultado = await marcarAsistencia('evento-de-prueba-1', 'me_interesa')
-
-    expect(resultado).toEqual({ ok: true, cantidades: { voy: 0, meInteresa: 1 }, propia: 'me_interesa' })
-    expect(llamadas.upserts).toEqual([
-      { user_id: 'usuario-sesion-4', event_id: 'evento-de-prueba-1', kind: 'me_interesa' },
-    ])
-    expect(llamadas.deletes).toBe(0)
-  })
-
-  it('la marca actual se lee de la base, no la decide el cliente: si la base dice "voy" y se toca "voy", borra, aunque nadie le dijera la marca previa', async () => {
+  it('la marca actual se lee de la base, no la decide el cliente: si la base dice "voy", tocar "voy" lo saca', async () => {
     // No hay ningún argumento de "marca previa" en marcarAsistencia(eventId,
     // tipo): la única fuente es la lectura a `event_attendance` que hace la
     // propia función.
     const { cliente, llamadas } = construirCliente({
       user: { id: 'usuario-sesion-5' },
       propiaData: { kind: 'voy' },
-      countsData: { voy: 0, me_interesa: 0 },
+      guardadoData: { id: 'fav-1' },
+      countsData: { voy: 0 },
     })
     createClient.mockResolvedValue(cliente)
 
@@ -331,17 +352,15 @@ describe('marcarAsistencia: el user_id siempre sale de auth.getUser()', () => {
     expect(resultado).toEqual({ ok: false, error: 'DB_ERROR' })
     expect(JSON.stringify(resultado)).not.toContain('detalle interno de postgres')
     expect(llamadas.upserts).toHaveLength(0)
+    expect(llamadas.inserts).toHaveLength(0)
     expect(llamadas.deletes).toBe(0)
   })
 })
 
 // ---------------------------------------------------------------------------
-// Bloqueante 1 (vuelta 1, revisor): si la escritura salió bien, la función
-// NUNCA devuelve `ok: false`, aunque falle la relectura de cantidades de
-// DESPUÉS de escribir. El bug original: el upsert/delete andaba, la
-// relectura de después fallaba -> DB_ERROR con la marca ya guardada; la
-// pantalla seguía mostrando "sin marca" y, al tocar otra vez, se borraba la
-// marca que acababa de quedar sin que nadie se enterara.
+// Bloqueante 1 (vuelta 1, revisor, R38; sigue vigente en la R47): si la
+// escritura salió bien, la función NUNCA devuelve `ok: false`, aunque falle
+// la relectura de cantidades de DESPUÉS de escribir.
 // ---------------------------------------------------------------------------
 describe('marcarAsistencia: si la escritura sale bien, nunca devuelve error (bloqueante 1)', () => {
   it(
@@ -350,9 +369,10 @@ describe('marcarAsistencia: si la escritura sale bien, nunca devuelve error (blo
     async () => {
       const { cliente, llamadas } = construirCliente({
         user: { id: 'usuario-sesion-7' },
-        propiaData: null, // sin marca: "voy" -> upsert
+        propiaData: null, // sin marca: "voy" -> guarda + upsert
+        guardadoData: null,
         countsSecuencia: [
-          { data: { voy: 5, me_interesa: 2 } }, // antes de escribir: anda
+          { data: { voy: 5 } }, // antes de escribir: anda
           { error: { code: '42501', message: 'detalle interno de postgres (segundo select)' } }, // después: falla
         ],
       })
@@ -363,7 +383,7 @@ describe('marcarAsistencia: si la escritura sale bien, nunca devuelve error (blo
       // Si este test falla con `{ ok: false, error: 'DB_ERROR' }`, es
       // exactamente el bug del revisor: la escritura quedó hecha (ver el
       // upsert más abajo) pero la función igual reporta error.
-      expect(resultado).toEqual({ ok: true, cantidades: { voy: 5, meInteresa: 2 }, propia: 'voy' })
+      expect(resultado).toEqual({ ok: true, cantidades: { voy: 5 }, propia: 'voy', guardado: true })
       expect(llamadas.upserts).toEqual([
         { user_id: 'usuario-sesion-7', event_id: 'evento-de-prueba-1', kind: 'voy' },
       ])
@@ -373,14 +393,15 @@ describe('marcarAsistencia: si la escritura sale bien, nunca devuelve error (blo
   )
 
   it(
-    'variante con delete: actual ya era "voy", se vuelve a tocar "voy" (borra); la relectura de ' +
+    'variante con delete: actual ya tenía "voy", se vuelve a tocar "voy" (lo saca); la relectura de ' +
       'después falla igual: ok:true, propia: null, con las cantidades de antes de escribir',
     async () => {
       const { cliente, llamadas } = construirCliente({
         user: { id: 'usuario-sesion-8' },
         propiaData: { kind: 'voy' },
+        guardadoData: { id: 'fav-1' },
         countsSecuencia: [
-          { data: { voy: 3, me_interesa: 1 } },
+          { data: { voy: 3 } },
           { error: { code: '42501', message: 'falla la segunda lectura' } },
         ],
       })
@@ -388,7 +409,7 @@ describe('marcarAsistencia: si la escritura sale bien, nunca devuelve error (blo
 
       const resultado = await marcarAsistencia('evento-de-prueba-1', 'voy')
 
-      expect(resultado).toEqual({ ok: true, cantidades: { voy: 3, meInteresa: 1 }, propia: null })
+      expect(resultado).toEqual({ ok: true, cantidades: { voy: 3 }, propia: null, guardado: true })
       expect(llamadas.deletes).toBe(1)
     },
   )
@@ -400,27 +421,27 @@ describe('marcarAsistencia: si la escritura sale bien, nunca devuelve error (blo
       const { cliente } = construirCliente({
         user: { id: 'usuario-sesion-9' },
         propiaData: null,
-        countsSecuencia: [{ data: { voy: 1, me_interesa: 0 } }, { lanzar: new Error('red caída') }],
+        guardadoData: null,
+        countsSecuencia: [{ data: { voy: 1 } }, { lanzar: new Error('red caída') }],
       })
       createClient.mockResolvedValue(cliente)
 
       const resultado = await marcarAsistencia('evento-de-prueba-1', 'voy')
 
-      expect(resultado).toEqual({ ok: true, cantidades: { voy: 1, meInteresa: 0 }, propia: 'voy' })
+      expect(resultado).toEqual({ ok: true, cantidades: { voy: 1 }, propia: 'voy', guardado: true })
     },
   )
 
   it(
-    'propiedad general: con la escritura exitosa (upsert o delete sin error), ningún camino de ' +
-      'fallas en las lecturas de cantidades (antes, después, ambas, ninguna, o una excepción) ' +
-      'devuelve `ok: false`',
+    'propiedad general: con la escritura exitosa, ningún camino de fallas en las lecturas de cantidades ' +
+      '(antes, después, ambas, ninguna, o una excepción) devuelve `ok: false`',
     async () => {
       const escenarios: Array<{ etiqueta: string; countsSecuencia?: RespuestaCounts[] }> = [
-        { etiqueta: 'las dos lecturas de cantidades andan', countsSecuencia: [{ data: { voy: 1, me_interesa: 0 } }, { data: { voy: 1, me_interesa: 0 } }] },
-        { etiqueta: 'antes falla, después anda', countsSecuencia: [{ error: { code: '42501', message: 'x' } }, { data: { voy: 1, me_interesa: 0 } }] },
-        { etiqueta: 'antes anda, después falla', countsSecuencia: [{ data: { voy: 1, me_interesa: 0 } }, { error: { code: '42501', message: 'x' } }] },
+        { etiqueta: 'las dos lecturas de cantidades andan', countsSecuencia: [{ data: { voy: 1 } }, { data: { voy: 1 } }] },
+        { etiqueta: 'antes falla, después anda', countsSecuencia: [{ error: { code: '42501', message: 'x' } }, { data: { voy: 1 } }] },
+        { etiqueta: 'antes anda, después falla', countsSecuencia: [{ data: { voy: 1 } }, { error: { code: '42501', message: 'x' } }] },
         { etiqueta: 'las dos lecturas de cantidades fallan', countsSecuencia: [{ error: { code: '42501', message: 'x' } }, { error: { code: '42501', message: 'y' } }] },
-        { etiqueta: 'antes anda, después tira una excepción', countsSecuencia: [{ data: { voy: 1, me_interesa: 0 } }, { lanzar: new Error('boom') }] },
+        { etiqueta: 'antes anda, después tira una excepción', countsSecuencia: [{ data: { voy: 1 } }, { lanzar: new Error('boom') }] },
         { etiqueta: 'sin countsSecuencia (comportamiento por defecto)' },
       ]
 
@@ -428,6 +449,7 @@ describe('marcarAsistencia: si la escritura sale bien, nunca devuelve error (blo
         const { cliente } = construirCliente({
           user: { id: 'usuario-sesion-propiedad' },
           propiaData: null,
+          guardadoData: null,
           countsSecuencia: escenario.countsSecuencia,
         })
         createClient.mockResolvedValue(cliente)
@@ -441,17 +463,17 @@ describe('marcarAsistencia: si la escritura sale bien, nunca devuelve error (blo
 })
 
 // ---------------------------------------------------------------------------
-// obtenerAsistencia: sin sesión no consulta event_attendance.
+// obtenerAsistencia: sin sesión no consulta event_attendance ni user_favorites.
 // ---------------------------------------------------------------------------
 describe('obtenerAsistencia: sin sesión', () => {
-  it('cantidades públicas, propia null, y event_attendance nunca se consulta', async () => {
+  it('cantidades públicas, propia null, guardado false, y ni event_attendance ni user_favorites se consultan', async () => {
     const llamadasTabla: string[] = []
     const from = vi.fn((tabla: string) => {
       llamadasTabla.push(tabla)
       if (tabla === 'event_attendance_counts') {
         return {
           select: () => ({
-            eq: () => ({ maybeSingle: async () => ({ data: { voy: 4, me_interesa: 1 }, error: null }) }),
+            eq: () => ({ maybeSingle: async () => ({ data: { voy: 4 }, error: null }) }),
           }),
         }
       }
@@ -461,28 +483,62 @@ describe('obtenerAsistencia: sin sesión', () => {
 
     const resultado = await obtenerAsistencia('evento-de-prueba-1')
 
-    expect(resultado).toEqual({ ok: true, cantidades: { voy: 4, meInteresa: 1 }, propia: null })
+    expect(resultado).toEqual({ ok: true, cantidades: { voy: 4 }, propia: null, guardado: false })
     expect(llamadasTabla).toEqual(['event_attendance_counts'])
   })
 })
 
+describe('obtenerAsistencia: con sesión', () => {
+  it('lee la marca propia y si está guardado, en paralelo (las dos tablas se consultan)', async () => {
+    const { cliente, llamadas } = construirCliente({
+      user: { id: 'usuario-lectura-1' },
+      propiaData: { kind: 'voy' },
+      guardadoData: { id: 'fav-1' },
+      countsData: { voy: 5 },
+    })
+    createClient.mockResolvedValue(cliente)
+
+    const resultado = await obtenerAsistencia('evento-de-prueba-1')
+
+    expect(resultado).toEqual({ ok: true, cantidades: { voy: 5 }, propia: 'voy', guardado: true })
+    expect(llamadas.tablas).toContain('event_attendance')
+    expect(llamadas.tablas).toContain('user_favorites')
+  })
+
+  it('una fila vieja con kind "me_interesa" se lee como propia: null (ya no es un tipo válido)', async () => {
+    const { cliente } = construirCliente({
+      user: { id: 'usuario-lectura-2' },
+      propiaData: { kind: 'me_interesa' },
+      guardadoData: null,
+      countsData: { voy: 0 },
+    })
+    createClient.mockResolvedValue(cliente)
+
+    const resultado = await obtenerAsistencia('evento-de-prueba-1')
+
+    expect(resultado).toEqual({ ok: true, cantidades: { voy: 0 }, propia: null, guardado: false })
+  })
+
+  it('si falla SOLO la lectura de user_favorites, no es ok:false: guardado queda en false y el resto de la fila sigue andando', async () => {
+    const { cliente } = construirCliente({
+      user: { id: 'usuario-lectura-3' },
+      propiaData: { kind: 'voy' },
+      guardadoError: { code: '42501', message: 'detalle interno' },
+      countsData: { voy: 2 },
+    })
+    createClient.mockResolvedValue(cliente)
+
+    const resultado = await obtenerAsistencia('evento-de-prueba-1')
+
+    expect(resultado).toEqual({ ok: true, cantidades: { voy: 2 }, propia: 'voy', guardado: false })
+    expect(console.error).toHaveBeenCalled()
+  })
+})
+
 // ---------------------------------------------------------------------------
-// Bloqueante 2 (vuelta 1, revisor): los botones solo tienen sentido en
+// Bloqueante 2 (vuelta 1, revisor, R38): los botones solo tienen sentido en
 // eventos PUBLISHED, porque `event_attendance_counts` solo agrega votos de
-// eventos PUBLISHED. En CANCELLED/PAST el contador quedaba clavado en 0
-// aunque los botones se mostraran y se pudieran tocar.
-//
-// No se puede renderizar `app/evento/[id]/page.tsx` ni
-// `components/event-detail-page.tsx` en este test (no hay
-// `@testing-library/react` en el proyecto y son Server/Client Components con
-// Supabase, Next.js, etc. de por medio). En su lugar: (a) se prueba
-// directamente la función pura `debenMostrarseBotonesAsistencia`, que es la
-// ÚNICA fuente de verdad que deciden ambos archivos, y (b) un detector
-// estático sobre el código fuente de esos dos archivos que confirma que
-// efectivamente LLAMAN a esa función en el lugar que importa (si alguno de
-// los dos dejara de llamarla, este detector lo marca en rojo, que es
-// exactamente el bug original: contador clavado en 0 en eventos
-// CANCELLED/PAST porque los botones se siguen mostrando).
+// eventos PUBLISHED.
 // ---------------------------------------------------------------------------
 describe('debenMostrarseBotonesAsistencia: solo PUBLISHED', () => {
   it('PUBLISHED: true', () => {
@@ -525,13 +581,32 @@ describe('detector estático: page.tsx y event-detail-page.tsx usan debenMostrar
     )
   })
 
+  // 47-c reemplazó los dos botones por una fila de acciones
+  // (`<FilaAccionesEvento>`, QPS-199): la fila SIEMPRE se dibuja (♥ Guardar
+  // y Compartir tienen que verse incluso fuera de PUBLISHED, o si falló la
+  // lectura de la asistencia). Lo que sigue condicionado por
+  // `debenMostrarseBotonesAsistencia` ya no es "toda la fila" sino SOLO el
+  // botón de Voy, por la prop `mostrarVoy`. Lo que había que seguir
+  // protegiendo (y lo que protegen los dos tests de abajo) es que esa
+  // decisión pase por la función de core y no por una comparación de
+  // `status` escrita a mano en el componente.
   it(
-    'components/event-detail-page.tsx: la condición que dibuja <BotonesAsistencia /> llama a ' +
-      'debenMostrarseBotonesAsistencia (defensa en profundidad)',
+    'components/event-detail-page.tsx: el prop `mostrarVoy` de <FilaAccionesEvento> sale de ' +
+      'debenMostrarseBotonesAsistencia (defensa en profundidad: ahora es el único botón que depende de ' +
+      'PUBLISHED, Guardar y Compartir se dibujan siempre)',
     () => {
       expect(contenidoEventDetail).toMatch(
-        /\{\s*cantidadesAsistencia\s*&&\s*debenMostrarseBotonesAsistencia\s*\([^)]*\)\s*&&[\s\S]{0,80}?<BotonesAsistencia/,
+        /<FilaAccionesEvento\b[\s\S]{0,400}?mostrarVoy=\{[^}]*\bdebenMostrarseBotonesAsistencia\s*\([^)]*\)[^}]*\}/,
       )
+    },
+  )
+
+  it(
+    'components/event-detail-page.tsx: no decide por su cuenta con un `status === "PUBLISHED"` escrito a mano ' +
+      '(si alguien reemplazara la llamada a debenMostrarseBotonesAsistencia por esa comparación suelta, este ' +
+      'test lo marca: es exactamente el bug que esa función centraliza)',
+    () => {
+      expect(contenidoEventDetail).not.toMatch(/status\s*===\s*['"]PUBLISHED['"]/)
     },
   )
 
@@ -541,13 +616,14 @@ describe('detector estático: page.tsx y event-detail-page.tsx usan debenMostrar
     )
   })
 
-  // Vuelta 2: la función se mudó de `lib/asistencia.ts` a
+  // Vuelta 2 (R38): la función se mudó de `lib/asistencia.ts` a
   // `lib/asistencia-visibilidad.ts` porque el primero es un módulo
   // `"use server"` y ahí todos los exports tienen que ser `async` (Next hace
   // fallar el build, y ni `tsc` ni Vitest lo ven). Esta guarda deja en rojo
   // el día que alguien vuelva a exportar algo que no sea una función `async`
-  // desde ese archivo.
-  it('lib/asistencia.ts ("use server"): todos sus exports son funciones async (si no, falla el build de Next)', () => {
+  // desde ese archivo. Ver `tests/lib/use-server.test.ts` (47-b) para el
+  // detector general sobre TODOS los archivos "use server" de apps/web.
+  it('lib/asistencia.ts ("use server"): todos sus exports de valor son funciones async (si no, falla el build de Next)', () => {
     const contenidoLib = readFileSync(`${WEB_ROOT_LOCAL}/lib/asistencia.ts`, 'utf8')
     expect(contenidoLib.startsWith('"use server"')).toBe(true)
 
@@ -560,12 +636,13 @@ describe('detector estático: page.tsx y event-detail-page.tsx usan debenMostrar
 })
 
 // ===========================================================================
-// 3. Detector estático: "solo cantidades, nunca quién".
+// 4. Detector estático: "solo cantidades, nunca quién", y "me_interesa"
+// desapareció del modelo (ningún select de todo apps/web lo pide).
 //
 // Recorre el código real de apps/web (no los tests) y verifica que ningún
-// `select` sobre `event_attendance` pida `user_id` (ni `*`), y que la única
-// tabla/vista de la que se leen "voy"/"me_interesa" sea
-// `event_attendance_counts`.
+// `select` sobre `event_attendance` pida `user_id` (ni `*`), que la única
+// tabla/vista de la que se lee "voy" sea `event_attendance_counts`, y que
+// ningún `select` mencione la columna vieja "me_interesa".
 // ===========================================================================
 
 /** Comentarios de línea y de bloque vaciados, conservando el resto del texto. */
@@ -609,9 +686,14 @@ function selectProblematicoSobreAsistencia(tabla: string, columnas: string): str
   return null
 }
 
-/** `true` si el string de columnas trae tanto "voy" como "me_interesa" (en cualquier orden/espaciado). */
-function tieneColumnasDeCantidades(columnas: string): boolean {
-  return /\bvoy\b/.test(columnas) && /\bme_interesa\b/.test(columnas)
+/** `true` si el string de columnas pide "voy". */
+function tieneColumnaVoy(columnas: string): boolean {
+  return /\bvoy\b/.test(columnas)
+}
+
+/** `true` si el string de columnas pide la columna vieja "me_interesa" (desapareció del modelo en la R47). */
+function tieneColumnaMeInteresa(columnas: string): boolean {
+  return /\bme_interesa\b/.test(columnas)
 }
 
 /** Recorre recursivamente .ts/.tsx bajo `dir`, sin node_modules/.next/tests. */
@@ -628,7 +710,7 @@ function listarArchivosDeCodigo(dir: string, acumulado: string[] = []): string[]
   return acumulado
 }
 
-describe('extraerFromSelect / selectProblematicoSobreAsistencia / tieneColumnasDeCantidades (fixtures en memoria: el detector tiene que fallar de verdad)', () => {
+describe('extraerFromSelect / selectProblematicoSobreAsistencia / tieneColumnaVoy / tieneColumnaMeInteresa (fixtures en memoria: el detector tiene que fallar de verdad)', () => {
   it('detecta select("user_id, kind") sobre event_attendance', () => {
     const [r] = extraerFromSelect(`supabase.from('event_attendance').select('user_id, kind').eq('event_id', id)`)
     expect(selectProblematicoSobreAsistencia(r.tabla, r.columnas!)).not.toBeNull()
@@ -649,34 +731,35 @@ describe('extraerFromSelect / selectProblematicoSobreAsistencia / tieneColumnasD
     expect(selectProblematicoSobreAsistencia(r.tabla, r.columnas!)).toBeNull()
   })
 
-  it('evasión: cantidades leídas de otra tabla (event_attendance_totals) con las mismas columnas: lo detecta tieneColumnasDeCantidades, y la tabla no es la vista pública', () => {
-    const [r] = extraerFromSelect(`supabase.from('event_attendance_totals').select('voy, me_interesa').eq('event_id', id)`)
-    expect(tieneColumnasDeCantidades(r.columnas!)).toBe(true)
+  it('evasión: cantidades leídas de otra tabla (event_attendance_totals) con la misma columna: lo detecta tieneColumnaVoy, y la tabla no es la vista pública', () => {
+    const [r] = extraerFromSelect(`supabase.from('event_attendance_totals').select('voy').eq('event_id', id)`)
+    expect(tieneColumnaVoy(r.columnas!)).toBe(true)
     expect(r.tabla).not.toBe('event_attendance_counts')
   })
 
   it('cantidades leídas de event_attendance_counts: la tabla es exactamente la vista pública', () => {
     const [r] = extraerFromSelect(
-      `supabase.from('event_attendance_counts').select('voy, me_interesa').eq('event_id', id).maybeSingle()`,
+      `supabase.from('event_attendance_counts').select('voy').eq('event_id', id).maybeSingle()`,
     )
-    expect(tieneColumnasDeCantidades(r.columnas!)).toBe(true)
+    expect(tieneColumnaVoy(r.columnas!)).toBe(true)
     expect(r.tabla).toBe('event_attendance_counts')
   })
 
-  it('evasión: orden invertido ("me_interesa, voy") sigue contando como columnas de cantidades', () => {
-    const [r] = extraerFromSelect(`supabase.from('otratabla').select('me_interesa, voy')`)
-    expect(tieneColumnasDeCantidades(r.columnas!)).toBe(true)
+  it('tieneColumnaMeInteresa detecta la columna vieja en cualquier tabla', () => {
+    expect(tieneColumnaMeInteresa('voy, me_interesa')).toBe(true)
+    expect(tieneColumnaMeInteresa('me_interesa')).toBe(true)
+    expect(tieneColumnaMeInteresa('voy')).toBe(false)
   })
 
   it('dos .from() distintos en el mismo archivo no se confunden entre sí', () => {
     const fixture = `
       a.from('event_attendance').select('kind').eq('event_id', id).maybeSingle()
-      b.from('event_attendance_counts').select('voy, me_interesa').eq('event_id', id).maybeSingle()
+      b.from('event_attendance_counts').select('voy').eq('event_id', id).maybeSingle()
     `
     const resultados = extraerFromSelect(fixture)
     expect(resultados).toEqual([
       { tabla: 'event_attendance', columnas: 'kind' },
-      { tabla: 'event_attendance_counts', columnas: 'voy, me_interesa' },
+      { tabla: 'event_attendance_counts', columnas: 'voy' },
     ])
   })
 
@@ -714,30 +797,30 @@ describe('detector estático: ningún select sobre event_attendance pide user_id
   })
 })
 
-describe('detector estático: la única tabla/vista de la que se leen "voy"/"me_interesa" es event_attendance_counts', () => {
+describe('detector estático: la única tabla/vista de la que se lee "voy" es event_attendance_counts', () => {
   const WEB_ROOT = fileURLToPath(new URL('../../', import.meta.url))
   const archivos = listarArchivosDeCodigo(WEB_ROOT)
 
-  it('ningún select de columnas de cantidades aparece sobre otra tabla', () => {
+  it('ningún select de la columna voy aparece sobre otra tabla', () => {
     const violaciones: string[] = []
     for (const archivo of archivos) {
       const contenido = readFileSync(archivo, 'utf8')
       for (const { tabla, columnas } of extraerFromSelect(contenido)) {
         if (columnas === null) continue
-        if (tieneColumnasDeCantidades(columnas) && tabla !== 'event_attendance_counts') {
-          violaciones.push(`${archivo}: select de cantidades sobre "${tabla}" (columnas: "${columnas}")`)
+        if (tieneColumnaVoy(columnas) && tabla !== 'event_attendance_counts') {
+          violaciones.push(`${archivo}: select de "voy" sobre "${tabla}" (columnas: "${columnas}")`)
         }
       }
     }
     expect(violaciones).toEqual([])
   })
 
-  it('al menos un archivo real sí lee cantidades de event_attendance_counts (si esto da 0, el detector de arriba pasaría por no mirar nada)', () => {
+  it('al menos un archivo real sí lee "voy" de event_attendance_counts (si esto da 0, el detector de arriba pasaría por no mirar nada)', () => {
     let encontrado = false
     for (const archivo of archivos) {
       const contenido = readFileSync(archivo, 'utf8')
       for (const { tabla, columnas } of extraerFromSelect(contenido)) {
-        if (columnas && tieneColumnasDeCantidades(columnas) && tabla === 'event_attendance_counts') {
+        if (columnas && tieneColumnaVoy(columnas) && tabla === 'event_attendance_counts') {
           encontrado = true
         }
       }
@@ -746,19 +829,32 @@ describe('detector estático: la única tabla/vista de la que se leen "voy"/"me_
   })
 })
 
+describe('detector estático: "me_interesa" desapareció del modelo, ningún select de apps/web la pide', () => {
+  const WEB_ROOT = fileURLToPath(new URL('../../', import.meta.url))
+  const archivos = listarArchivosDeCodigo(WEB_ROOT)
+
+  it('ningún select, en ninguna tabla, pide la columna "me_interesa"', () => {
+    const violaciones: string[] = []
+    for (const archivo of archivos) {
+      const contenido = readFileSync(archivo, 'utf8')
+      for (const { tabla, columnas } of extraerFromSelect(contenido)) {
+        if (columnas === null) continue
+        if (tieneColumnaMeInteresa(columnas)) {
+          violaciones.push(`${archivo}: select de "me_interesa" sobre "${tabla}" (columnas: "${columnas}")`)
+        }
+      }
+    }
+    expect(violaciones).toEqual([])
+  })
+})
+
 // ---------------------------------------------------------------------------
-// No bloqueante (vuelta 1, revisor): dos huecos conocidos del detector de
-// arriba. Hoy ningún archivo real de apps/web usa este patrón (ni
+// No bloqueante (vuelta 1, revisor, R38): dos huecos conocidos del detector
+// de arriba. Hoy ningún archivo real de apps/web usa este patrón (ni
 // `const TABLA = 'event_attendance'; supabase.from(TABLA)…` ni
 // `const COLUMNAS = 'user_id, kind'; …select(COLUMNAS)…`), así que no hay
 // ningún falso negativo real ahora mismo — pero si algún día alguien
 // escribe el código así, el detector de arriba NO lo va a agarrar.
-//
-// Estos dos tests documentan el límite a propósito: afirman que HOY no se
-// detecta. El día que se cierre el hueco (resolviendo identificadores a su
-// valor constante en `extraerFromSelect`), estos dos tests se van a romper
-// a propósito — hay que ACTUALIZARLOS para que esperen la detección, no
-// revertir el cierre del hueco.
 // ---------------------------------------------------------------------------
 describe('límite conocido del detector (no bloqueante): nombre de tabla en una constante', () => {
   it('"const TABLA = \'event_attendance\'; supabase.from(TABLA).select(\'user_id, kind\')" no se detecta hoy: el regex de .from() exige un literal entre comillas, así que ni siquiera genera una entrada', () => {
@@ -776,20 +872,9 @@ describe('límite conocido del detector (no bloqueante): columnas en una constan
 })
 
 // ===========================================================================
-// 4. Detector estático: lib/asistencia.ts y components/botones-asistencia.tsx
+// 5. Detector estático: lib/asistencia.ts y components/botones-asistencia.tsx
 // importan la lógica de @qps/core/asistencia y no tienen su propia copia.
 // Mismo criterio que apps/mobile/tests/asistencia.test.ts.
-//
-// Evasiones consideradas (y por qué este detector las agarra):
-//   a) Alias de import: el regex de `importaAsistenciaDeCore` no depende de
-//      los nombres importados, solo del origen del import — pero un import
-//      correcto con una copia local al lado sigue fallando por los otros
-//      chequeos.
-//   b) Lógica escrita con otros nombres de variable: `tieneComparacionManualDeMarca`
-//      busca la FORMA (dos identificadores sueltos comparados con
-//      `===`/`!==`, ninguno literal ni resultado de llamada), no nombres
-//      fijos; `tieneUnionTipoAsistenciaLocal` busca la forma del valor
-//      ('voy' | 'me_interesa'), no el nombre del tipo.
 // ===========================================================================
 
 /** `true` si el contenido tiene un `import { ... } from '@qps/core/asistencia'` (cualquier nombre, con o sin alias). */
@@ -820,8 +905,8 @@ function tieneUmbralNumericoLocal(content: string): boolean {
 /**
  * `true` si hay una comparación "a mano" de dos identificadores sueltos
  * (ninguno literal, ninguno resultado de una llamada) con `===`/`!==`: la
- * forma de `actual === tipo` decidiendo el borrado sin pasar por
- * `siguienteMarca`, sea cual sea el nombre de las variables.
+ * forma de `actual === tipo` decidiendo el borrado sin pasar por core, sea
+ * cual sea el nombre de las variables.
  */
 function tieneComparacionManualDeMarca(content: string): boolean {
   const limpio = quitarComentarios(content)
@@ -839,15 +924,9 @@ function tieneComparacionManualDeMarca(content: string): boolean {
 /**
  * `true` si `content` tiene los CUATRO patrones de "copia local" A LA VEZ
  * (unión de tipo, etiquetas, umbral numérico y comparación manual): la
- * señal de que un archivo —sea cual sea su nombre, y esté o no en la lista
- * fija `ARCHIVOS_ASISTENCIA`— tiene la lógica de asistencia copiada entera,
- * y no solo una coincidencia aislada de uno de los cuatro patrones (que por
- * separado puede aparecer en código sin ninguna relación con asistencia:
- * por ejemplo un `>= 3` de paginación, o un `===` cualquiera). Es el
- * chequeo que usa el barrido recursivo de más abajo (bloqueante 3, vuelta
- * 1), donde no hay una lista fija de archivos "sospechosos": tiene que
- * evitar falsos positivos en el resto del código de la app. Mismo criterio
- * que `apps/mobile/tests/asistencia.test.ts` después de `e73e0f2`.
+ * señal de que un archivo tiene la lógica de asistencia copiada entera, y
+ * no solo una coincidencia aislada de uno de los cuatro patrones. Mismo
+ * criterio que `apps/mobile/tests/asistencia.test.ts`.
  */
 function tieneCopiaLocalCompleta(content: string): boolean {
   return (
@@ -861,7 +940,7 @@ function tieneCopiaLocalCompleta(content: string): boolean {
 describe('detector de copia local (fixtures en memoria: tiene que fallar de verdad)', () => {
   describe('importaAsistenciaDeCore', () => {
     it('detecta el import real (con alias, evasión a)', () => {
-      expect(importaAsistenciaDeCore(`import { siguienteMarca as calcular } from '@qps/core/asistencia'`)).toBe(true)
+      expect(importaAsistenciaDeCore(`import { textoBotonVoy as calcular } from '@qps/core/asistencia'`)).toBe(true)
     })
 
     it('un comentario que menciona el módulo no cuenta como import real', () => {
@@ -886,8 +965,8 @@ describe('detector de copia local (fixtures en memoria: tiene que fallar de verd
       expect(tieneComparacionManualDeMarca(`if (previo === nuevo) { borrar() } else { upsert() }`)).toBe(true)
     })
 
-    it('el resultado de una llamada contra null (la forma correcta, con siguienteMarca) no cuenta: false', () => {
-      expect(tieneComparacionManualDeMarca(`if (siguienteMarca(actual, tipo) === null) { borrar() }`)).toBe(false)
+    it('el resultado de una llamada contra null (la forma correcta, pasando por core) no cuenta: false', () => {
+      expect(tieneComparacionManualDeMarca(`if (siguienteEstado(actual, tipo) === null) { borrar() }`)).toBe(false)
     })
 
     it('comparar un campo contra un literal de texto no cuenta: false', () => {
@@ -903,12 +982,7 @@ describe('detector de copia local (fixtures en memoria: tiene que fallar de verd
   })
 
   describe('tieneCopiaLocalCompleta', () => {
-    it('evasión c (bloqueante 3, vuelta 1): un TERCER archivo con la copia completa, con otros nombres de variable y de tipo, se marca', () => {
-      // La forma que probó el revisor: `lib/asistencia-interno.ts` con el
-      // mismo tipo, las mismas etiquetas, el mismo umbral `>= 3` y la misma
-      // regla de marcar, con otros nombres, sin importar nada de
-      // `@qps/core/asistencia` (aunque el import de core siga puesto en
-      // `lib/asistencia.ts`, solo para el tipo).
+    it('evasión c (bloqueante 3, R38): un TERCER archivo con la copia completa, con otros nombres de variable y de tipo, se marca', () => {
       const asistenciaInterno = `
         export type MarcaInterna = 'voy' | 'me_interesa'
 
@@ -930,9 +1004,9 @@ describe('detector de copia local (fixtures en memoria: tiene que fallar de verd
 
     it('un archivo que solo importa de core y lo usa, sin ninguno de los cuatro patrones: false', () => {
       const archivoLimpio = `
-        import { siguienteMarca, textoBoton, type TipoAsistencia } from '@qps/core/asistencia'
+        import { textoBotonVoy, type TipoAsistencia } from '@qps/core/asistencia'
         export function usar(tipo: TipoAsistencia, cantidad: number) {
-          return textoBoton(tipo, cantidad)
+          return textoBotonVoy(cantidad)
         }
       `
       expect(tieneCopiaLocalCompleta(archivoLimpio)).toBe(false)
@@ -987,28 +1061,16 @@ describe.each(ARCHIVOS_ASISTENCIA)('$etiqueta: importa de @qps/core/asistencia y
   })
 
   if (caso.chequearComparacionManual) {
-    it('no decide el borrado comparando dos identificadores sueltos a mano (tiene que pasar por siguienteMarca)', () => {
+    it('no decide el borrado comparando dos identificadores sueltos a mano (tiene que pasar por core)', () => {
       expect(tieneComparacionManualDeMarca(contenido)).toBe(false)
     })
   }
 })
 
 // ---------------------------------------------------------------------------
-// Bloqueante 3 (vuelta 1, revisor): la evasión real era poner la copia
-// completa en un TERCER archivo (`lib/asistencia-interno.ts`) y delegar ahí
-// desde los dos archivos de `ARCHIVOS_ASISTENCIA` — esos dos seguían "limpios"
-// porque el detector de arriba solo miraba esos dos nombres fijos. El
-// arreglo: barrer TODO el código de `apps/web` (reutilizando
-// `listarArchivosDeCodigo`, ya definida arriba para el detector 3 — no se
-// escribe una función nueva) y aplicar `tieneCopiaLocalCompleta` a cada
-// archivo. `listarArchivosDeCodigo` ya excluye `tests/`, `node_modules`,
-// `.next` y `.git` por nombre de directorio en cualquier profundidad, así
-// que cubre `lib/`, `components/` y `app/` (y no da falsos positivos por
-// mirar fixtures de los propios tests).
-//
-// Si alguien reintrodujera la evasión (un tercer archivo cualquiera con la
-// copia completa), el `it.each` de abajo lo marca en rojo nombrando el
-// archivo exacto.
+// Bloqueante 3 (vuelta 1, revisor, R38): la evasión real era poner la copia
+// completa en un TERCER archivo y delegar ahí desde los dos archivos de
+// ARCHIVOS_ASISTENCIA. El arreglo: barrer TODO el código de `apps/web`.
 // ---------------------------------------------------------------------------
 describe('barrido recursivo de apps/web (sin tests/): ninguna copia local completa de asistencia fuera de core', () => {
   const archivos = listarArchivosDeCodigo(WEB_ROOT)

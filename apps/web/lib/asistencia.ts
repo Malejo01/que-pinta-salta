@@ -1,71 +1,93 @@
 "use server"
 
-// "Voy" / "Me interesa" de la ficha de un evento (R38, tarea 38-b). La
-// lógica de dominio (unión de tipos, el umbral del contador, los textos y
-// la regla de marcar/desmarcar/cambiar) vive en `@qps/core/asistencia`: este
-// módulo solo habla con Supabase.
+// El botón "✓ Voy" de la ficha de un evento (R38, tareas 38-a/38-b;
+// reescrito en la R47, tarea 47-b, QPS-197). El modelo cambió de dos marcas
+// ("Voy" / "Me interesa") a un solo tipo de asistencia ("Voy", social,
+// contador público desde 3) más dos acciones que viven en otros archivos:
+// Guardar (♥, privado, en `lib/actions/favorites.ts`) y Seguir (en
+// `lib/actions/radar.ts`). "Me interesa" desapareció: ningún camino de este
+// archivo lo escribe ni lo lee.
 //
-// Qué lee: `obtenerAsistencia` lee las cantidades públicas de la vista
-// `event_attendance_counts` (solo `voy, me_interesa`, nunca `user_id`: la
-// vista ni la tiene) y, solo si hay sesión, la marca propia del usuario en
-// `event_attendance` (solo `kind`). Nunca se pide `user_id` en un `select`
-// ni se filtra por `user_id` a mano: la RLS de `event_attendance` ("lectura
-// del dueño") ya acota cualquier consulta sin filtro explícito a la fila
-// del usuario de la sesión, así que alcanza con filtrar por `event_id`.
+// Por qué marcar Voy también escribe acá: en el modelo nuevo, Voy está
+// CONTENIDO en Guardados (marcar Voy también guarda; sacar el ♥ de un
+// evento con Voy también saca el Voy, pero ESO lo maneja
+// `lib/actions/favorites.ts`, no este archivo). `marcarAsistencia` escribe
+// las dos cosas cuando hace falta: no hay una transacción que las una (dos
+// escrituras separadas contra Postgres), así que el ORDEN importa. La tabla
+// de pasos sale de `@qps/core/asistencia` (`pasosDeTocar`/`estadoTrasPasos`):
+// no se reescribe acá.
 //
-// Qué escribe: `marcarAsistencia` borra o hace upsert de la fila propia en
-// `event_attendance`, según lo que decida `siguienteMarca` (de core) a
-// partir de la marca leída de la base (nunca la que mande el cliente: el
-// cliente puede mentir o estar desactualizado). El `user_id` que se escribe
-// siempre sale de `auth.getUser()`, nunca de un argumento de la función.
+//   Marcar Voy:  1) insert en user_favorites (23505 = ya estaba = éxito)
+//                2) upsert en event_attendance con kind: "voy"
+//   Sacar Voy:   1) delete de la fila propia en event_attendance
 //
-// Regla de datos: acá solo se trabaja con cantidades y con la marca propia
-// del usuario de la sesión. Nunca con quién marcó cada tipo: eso no sale de
-// la base (la vista pública no tiene `user_id`, y `event_attendance` solo
-// se lee/escribe acotado al usuario de la sesión).
+// Por qué ese orden en "Marcar Voy": si se escribiera primero
+// event_attendance y después fallara el insert del favorito, quedaría un
+// Voy sin Guardado — el único estado que el modelo prohíbe
+// (`EstadoGuardarVoy`: la invariante es `voy ⇒ guardado`). Pedir "guardar"
+// primero es seguro aunque ya estuviera guardado (el `23505` de la unique
+// `(user_id, event_id)` cuenta como éxito), así que no hay costo en pedirlo
+// siempre, sin confiar en lo que la pantalla cree saber del ♥.
 //
-// Invariante de `marcarAsistencia` (bloqueante 1, vuelta 1): si la
-// escritura (el upsert o el delete) salió bien, la función NUNCA devuelve
-// `ok: false`. Antes, un error en la relectura de cantidades DESPUÉS de
-// escribir hacía que la función devolviera `DB_ERROR` con la marca ya
-// guardada: la pantalla mostraba "sin marca" sobre una escritura que sí
-// había quedado, y el siguiente toque la borraba sin que nadie se entere.
-// Por eso las cantidades también se leen ANTES de escribir (de respaldo) y
-// la relectura de después nunca puede convertir una escritura exitosa en
-// un error.
+// Si un paso falla, no se sigue con los que faltan: se devuelve `DB_ERROR`
+// con el `guardado` que corresponde al PREFIJO de pasos que sí se
+// ejecutaron (`estadoTrasPasos`), para que la pantalla pueda mostrar el
+// estado real (por ejemplo, "quedó guardado pero no se pudo marcar Voy").
 //
-// Qué NO vive acá (bloqueante 2 de la vuelta 1, movido en la vuelta 2):
-// `debenMostrarseBotonesAsistencia` —la decisión de mostrar los botones solo
-// en eventos PUBLISHED— está en `lib/asistencia-visibilidad.ts`. Este
-// archivo es un módulo `"use server"`, y ahí **todos** los exports tienen
-// que ser funciones `async`: una función común exportada desde acá hace
-// fallar el build de Next aunque el typecheck y los tests pasen. El motivo
-// completo está escrito en ese archivo.
+// Qué lee: las cantidades públicas de la vista `event_attendance_counts`
+// (solo `voy`, nunca `user_id`: la vista ni la tiene), la marca propia del
+// usuario en `event_attendance` (solo `kind`, filtrando solo por
+// `event_id`: la RLS del dueño ya acota cualquier consulta sin filtro
+// explícito a la fila del usuario de la sesión) y, solo con sesión, si el
+// evento está guardado en `user_favorites` (solo `id`, por `event_id` y
+// `user_id`).
+//
+// Invariante de `marcarAsistencia` (bloqueante 1 de la R38, sigue
+// vigente): si el ÚLTIMO paso de escritura salió bien, la función NUNCA
+// devuelve `ok: false`. La relectura de cantidades de DESPUÉS de escribir
+// tiene su propio `try/catch` y cae a las cantidades leídas ANTES de
+// escribir si falla: un número desactualizado por un instante es mucho
+// menos grave que decirle a la persona que su acción falló cuando en
+// realidad se guardó.
+//
+// Qué NO vive acá: `debenMostrarseBotonesAsistencia` (solo eventos
+// PUBLISHED) está en `lib/asistencia-visibilidad.ts`. Este archivo es un
+// módulo `"use server"`: TODOS los exports de valor tienen que ser
+// funciones `async` (`export async function`), nunca un `export const` ni
+// un `export function` común — Next hace fallar el build aunque el
+// typecheck y los tests pasen (le pasó al PR #62). Los tipos sí pueden
+// exportarse con `export type` / `export interface` / `export type { ... }`.
 
+import { revalidatePath } from "next/cache"
 import { createClient } from "@/lib/supabase/server"
-import { siguienteMarca, type TipoAsistencia } from "@qps/core/asistencia"
+import {
+  esTipoAsistencia,
+  estadoTrasPasos,
+  pasosDeTocar,
+  type CantidadesAsistencia,
+  type EstadoGuardarVoy,
+  type PasoEscritura,
+  type TipoAsistencia,
+} from "@qps/core/asistencia"
 
-function esTipoValido(tipo: unknown): tipo is TipoAsistencia {
-  return tipo === "voy" || tipo === "me_interesa"
-}
-
-export interface CantidadesAsistencia {
-  voy: number
-  meInteresa: number
-}
+export type { CantidadesAsistencia }
 
 export type ResultadoAsistencia =
-  | { ok: true; cantidades: CantidadesAsistencia; propia: TipoAsistencia | null }
+  | { ok: true; cantidades: CantidadesAsistencia; propia: TipoAsistencia | null; guardado: boolean }
   | { ok: false }
 
 export type ResultadoMarcarAsistencia =
-  | { ok: true; cantidades: CantidadesAsistencia; propia: TipoAsistencia | null }
-  | { ok: false; error: "AUTH_REQUIRED" | "INVALID" | "DB_ERROR" }
+  | { ok: true; cantidades: CantidadesAsistencia; propia: TipoAsistencia | null; guardado: boolean }
+  | { ok: false; error: "AUTH_REQUIRED" | "INVALID" | "DB_ERROR"; guardado?: boolean }
 
 /**
- * Cantidades públicas de `eventId` y, solo si hay sesión, la marca propia.
- * Sin sesión, `propia` es siempre `null` y nunca se consulta
- * `event_attendance` (ni siquiera para comprobar que no hay fila).
+ * Cantidades públicas de `eventId` y, solo si hay sesión, la marca propia y
+ * si está guardado. Sin sesión, `propia` es siempre `null`, `guardado`
+ * siempre `false`, y nunca se consulta `event_attendance` ni
+ * `user_favorites` (ni siquiera para comprobar que no hay fila).
+ *
+ * Una fila vieja con `kind = 'me_interesa'` (de antes de la R47) se lee
+ * como `propia: null`: `esTipoAsistencia` solo acepta `'voy'`.
  */
 export async function obtenerAsistencia(eventId: string): Promise<ResultadoAsistencia> {
   try {
@@ -73,7 +95,7 @@ export async function obtenerAsistencia(eventId: string): Promise<ResultadoAsist
 
     const { data: fila, error: errorCantidades } = await supabase
       .from("event_attendance_counts")
-      .select("voy, me_interesa")
+      .select("voy")
       .eq("event_id", eventId)
       .maybeSingle()
 
@@ -82,29 +104,44 @@ export async function obtenerAsistencia(eventId: string): Promise<ResultadoAsist
       return { ok: false }
     }
 
-    const cantidades: CantidadesAsistencia = { voy: fila?.voy ?? 0, meInteresa: fila?.me_interesa ?? 0 }
+    const cantidades: CantidadesAsistencia = { voy: fila?.voy ?? 0 }
 
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) {
-      return { ok: true, cantidades, propia: null }
+      return { ok: true, cantidades, propia: null, guardado: false }
     }
 
-    // Solo `kind`, nunca `user_id`: la RLS ya acota esta consulta a la fila
-    // propia con solo filtrar por `event_id`.
-    const { data: filaPropia, error: errorPropia } = await supabase
-      .from("event_attendance")
-      .select("kind")
-      .eq("event_id", eventId)
-      .maybeSingle()
+    const [respuestaPropia, respuestaGuardado] = await Promise.all([
+      // Solo `kind`, nunca `user_id`: la RLS ya acota esta consulta a la
+      // fila propia con solo filtrar por `event_id`.
+      supabase.from("event_attendance").select("kind").eq("event_id", eventId).maybeSingle(),
+      supabase.from("user_favorites").select("id").eq("event_id", eventId).eq("user_id", user.id).maybeSingle(),
+    ])
 
+    const { data: filaPropia, error: errorPropia } = respuestaPropia
     if (errorPropia) {
       console.error("[obtenerAsistencia] Error al leer la marca propia:", errorPropia)
       return { ok: false }
     }
 
-    const propia: TipoAsistencia | null = esTipoValido(filaPropia?.kind) ? filaPropia.kind : null
+    const propia: TipoAsistencia | null = esTipoAsistencia(filaPropia?.kind) ? filaPropia.kind : null
 
-    return { ok: true, cantidades, propia }
+    // Decisión de esta tarea (47-b), no cubierta por el encargo: si falla
+    // SOLO la lectura de `user_favorites`, no se devuelve `ok: false`. Con
+    // `ok: false` la fila entera de asistencia desaparece de la pantalla
+    // (incluida la cantidad pública, que sí se pudo leer bien); un ♥ que se
+    // ve vacío cuando en realidad está guardado, en cambio, solo hace que
+    // el siguiente toque reintente guardar — y guardar es idempotente (el
+    // `insert` de `marcarAsistencia` trata un `23505` como éxito). Es el
+    // lado más seguro para errar.
+    let guardado = false
+    if (respuestaGuardado.error) {
+      console.error("[obtenerAsistencia] Error al leer si está guardado (se asume false):", respuestaGuardado.error)
+    } else {
+      guardado = respuestaGuardado.data !== null
+    }
+
+    return { ok: true, cantidades, propia, guardado }
   } catch (excepcion) {
     // La ficha tiene que seguir funcionando aunque esto falle (tabla
     // todavía no disponible, cliente mal configurado, red caída): se
@@ -115,14 +152,32 @@ export async function obtenerAsistencia(eventId: string): Promise<ResultadoAsist
 }
 
 /**
- * Marca o desmarca `tipo` para `eventId`. Sin usuario, `AUTH_REQUIRED` y no
- * se escribe nada. Con usuario, lee la marca actual de la base (nunca la
- * recibe del cliente) y deja que `siguienteMarca` (de core) decida: si da
- * `null`, borra la fila propia; si no, hace upsert con el nuevo `kind`. El
- * `user_id` del upsert/delete siempre sale de `auth.getUser()`.
+ * Marca o desmarca "Voy" para `eventId`. `tipo` tiene que ser `'voy'`
+ * (único valor válido): cualquier otra cosa da `INVALID` antes de crear el
+ * cliente de Supabase y antes de autenticar. Sin usuario, `AUTH_REQUIRED` y
+ * no se escribe nada.
+ *
+ * Con usuario, lee de la base (nunca del cliente) la marca propia, las
+ * cantidades de antes de escribir (respaldo si la relectura de después
+ * falla) y si el evento ya estaba guardado, y deja que `pasosDeTocar` (de
+ * core) decida qué escrituras hacer y en qué orden. Cada paso se ejecuta
+ * uno a uno: si alguno falla, no se sigue con los que faltan.
+ *
+ * El `guardado` que se lee ANTES de escribir hace falta para el caso en que
+ * el PRIMER paso falle (el prefijo de pasos ya hechos queda vacío):
+ * `estadoTrasPasos` devuelve ahí el estado sin tocar, y ese estado tiene
+ * que salir de un dato real, no de un supuesto — es el caso de "falla el
+ * insert del favorito" (al marcar Voy) y el de "falla el delete de
+ * event_attendance" (al sacar el Voy, donde el favorito ni se toca). Un
+ * error en esta lectura no es crítico: se registra y se asume `false` (el
+ * peor caso es ofrecer guardar de nuevo algo que ya estaba guardado, y eso
+ * es idempotente).
+ *
+ * El `user_id` que se escribe siempre sale de `auth.getUser()`, nunca de un
+ * argumento de la función.
  */
-export async function marcarAsistencia(eventId: string, tipo: TipoAsistencia): Promise<ResultadoMarcarAsistencia> {
-  if (!esTipoValido(tipo)) {
+export async function marcarAsistencia(eventId: string, tipo: unknown): Promise<ResultadoMarcarAsistencia> {
+  if (!esTipoAsistencia(tipo)) {
     return { ok: false, error: "INVALID" }
   }
 
@@ -134,17 +189,13 @@ export async function marcarAsistencia(eventId: string, tipo: TipoAsistencia): P
       return { ok: false, error: "AUTH_REQUIRED" }
     }
 
-    // La marca actual se lee de la base, no del cliente: puede mentir o
-    // estar desactualizado. Se lee en la misma tanda (en paralelo) que las
-    // cantidades de ANTES de escribir: todavía no se escribió nada, así
-    // que acá sigue siendo seguro devolver un error si algo falla. Las
-    // cantidades de antes son el respaldo si la relectura de DESPUÉS de
-    // escribir falla (ver más abajo): un número desactualizado por un
-    // instante es mucho menos grave que decirle a la persona que su acción
-    // falló cuando en realidad se guardó.
-    const [respuestaPropia, respuestaCantidadesAntes] = await Promise.all([
+    // Las tres lecturas de ANTES de escribir, en paralelo: todavía no se
+    // escribió nada, así que acá sigue siendo seguro devolver un error si
+    // la lectura crítica (la marca propia) falla.
+    const [respuestaPropia, respuestaCantidadesAntes, respuestaGuardado] = await Promise.all([
       supabase.from("event_attendance").select("kind").eq("event_id", eventId).maybeSingle(),
-      supabase.from("event_attendance_counts").select("voy, me_interesa").eq("event_id", eventId).maybeSingle(),
+      supabase.from("event_attendance_counts").select("voy").eq("event_id", eventId).maybeSingle(),
+      supabase.from("user_favorites").select("id").eq("event_id", eventId).eq("user_id", user.id).maybeSingle(),
     ])
 
     const { data: filaPropia, error: errorPropia } = respuestaPropia
@@ -154,46 +205,76 @@ export async function marcarAsistencia(eventId: string, tipo: TipoAsistencia): P
     }
 
     if (respuestaCantidadesAntes.error) {
-      // No es crítico para decidir qué escribir (solo usa `filaPropia`): si
-      // esto falla, simplemente no hay respaldo si la relectura de después
-      // también falla (ver el `catch` interno más abajo).
+      // No es crítico para decidir qué escribir: si esto falla, simplemente
+      // no hay respaldo si la relectura de después también falla (ver el
+      // catch interno más abajo).
       console.error("[marcarAsistencia] Error al leer cantidades antes de escribir:", respuestaCantidadesAntes.error)
     }
-    const cantidadesAntes: CantidadesAsistencia = {
-      voy: respuestaCantidadesAntes.data?.voy ?? 0,
-      meInteresa: respuestaCantidadesAntes.data?.me_interesa ?? 0,
-    }
+    const cantidadesAntes: CantidadesAsistencia = { voy: respuestaCantidadesAntes.data?.voy ?? 0 }
 
-    const actual: TipoAsistencia | null = esTipoValido(filaPropia?.kind) ? filaPropia.kind : null
-    const nueva = siguienteMarca(actual, tipo)
-
-    if (nueva === null) {
-      // La RLS ("eliminación del dueño") ya acota esto a la fila propia.
-      const { error } = await supabase.from("event_attendance").delete().eq("event_id", eventId)
-      if (error) {
-        console.error("[marcarAsistencia] Error al borrar la marca:", error)
-        return { ok: false, error: "DB_ERROR" }
-      }
+    let guardadoAntes = false
+    if (respuestaGuardado.error) {
+      console.error("[marcarAsistencia] Error al leer si ya estaba guardado (se asume false):", respuestaGuardado.error)
     } else {
-      const { error } = await supabase
-        .from("event_attendance")
-        .upsert({ user_id: user.id, event_id: eventId, kind: nueva }, { onConflict: "user_id,event_id" })
-      if (error) {
-        console.error("[marcarAsistencia] Error al marcar:", error)
-        return { ok: false, error: "DB_ERROR" }
-      }
+      guardadoAntes = respuestaGuardado.data !== null
     }
 
-    // A partir de aquí la escritura YA quedó hecha: esta función no puede
-    // devolver `ok: false` por ningún motivo (bloqueante 1, vuelta 1). El
-    // `try/catch` es propio de este bloque (no del de la función entera)
-    // para que ni siquiera una excepción inesperada en la relectura escape
-    // como un error: si falla, se cae a las cantidades leídas antes de
-    // escribir.
+    const propiaAntes: TipoAsistencia | null = esTipoAsistencia(filaPropia?.kind) ? filaPropia.kind : null
+    const estadoAntes: EstadoGuardarVoy = { guardado: guardadoAntes, voy: propiaAntes === "voy" }
+    const pasos = pasosDeTocar("voy", estadoAntes)
+    const pasosHechos: PasoEscritura[] = []
+
+    for (const paso of pasos) {
+      if (paso === "guardar") {
+        const { error } = await supabase.from("user_favorites").insert({ user_id: user.id, event_id: eventId })
+        // Un 23505 (clave duplicada de la unique `(user_id, event_id)`)
+        // significa que ya estaba guardado: éxito, no error.
+        if (error && error.code !== "23505") {
+          console.error("[marcarAsistencia] Error al guardar el favorito:", error)
+          return { ok: false, error: "DB_ERROR", guardado: estadoTrasPasos(estadoAntes, pasosHechos).guardado }
+        }
+      } else if (paso === "marcar-voy") {
+        const { error } = await supabase
+          .from("event_attendance")
+          .upsert({ user_id: user.id, event_id: eventId, kind: "voy" }, { onConflict: "user_id,event_id" })
+        if (error) {
+          console.error("[marcarAsistencia] Error al marcar voy:", error)
+          return { ok: false, error: "DB_ERROR", guardado: estadoTrasPasos(estadoAntes, pasosHechos).guardado }
+        }
+      } else if (paso === "quitar-voy") {
+        // La RLS ("eliminación del dueño") ya acota esto a la fila propia.
+        const { error } = await supabase.from("event_attendance").delete().eq("event_id", eventId)
+        if (error) {
+          console.error("[marcarAsistencia] Error al sacar voy:", error)
+          return { ok: false, error: "DB_ERROR", guardado: estadoTrasPasos(estadoAntes, pasosHechos).guardado }
+        }
+      }
+      pasosHechos.push(paso)
+    }
+
+    const estadoFinal = estadoTrasPasos(estadoAntes, pasosHechos)
+    const propiaFinal: TipoAsistencia | null = estadoFinal.voy ? "voy" : null
+
+    // Cualquiera de los tres pasos cambia lo que muestra "Mis eventos"
+    // (47-d convierte /favoritos en esa página, con dos secciones: Voy y
+    // Guardados). "quitar-voy" no toca el favorito, pero muda el evento de
+    // la sección Voy a la de Guardados: el contenido de la página cambia
+    // igual. Por eso se revalida apenas se ejecutó algún paso, no solo
+    // cuando se ejecutó "guardar".
+    if (pasosHechos.length) {
+      revalidatePath("/favoritos")
+    }
+
+    // A partir de aquí TODOS los pasos planeados salieron bien: esta
+    // función no puede devolver `ok: false` por ningún motivo (bloqueante
+    // 1, R38). El `try/catch` es propio de este bloque (no del de la
+    // función entera) para que ni siquiera una excepción inesperada en la
+    // relectura escape como un error: si falla, se cae a las cantidades
+    // leídas antes de escribir.
     try {
       const { data: filaCantidades, error: errorCantidades } = await supabase
         .from("event_attendance_counts")
-        .select("voy, me_interesa")
+        .select("voy")
         .eq("event_id", eventId)
         .maybeSingle()
 
@@ -202,21 +283,17 @@ export async function marcarAsistencia(eventId: string, tipo: TipoAsistencia): P
           "[marcarAsistencia] Error al releer cantidades después de escribir (se usan las de antes de escribir):",
           errorCantidades,
         )
-        return { ok: true, cantidades: cantidadesAntes, propia: nueva }
+        return { ok: true, cantidades: cantidadesAntes, propia: propiaFinal, guardado: estadoFinal.guardado }
       }
 
-      const cantidades: CantidadesAsistencia = {
-        voy: filaCantidades?.voy ?? 0,
-        meInteresa: filaCantidades?.me_interesa ?? 0,
-      }
-
-      return { ok: true, cantidades, propia: nueva }
+      const cantidades: CantidadesAsistencia = { voy: filaCantidades?.voy ?? 0 }
+      return { ok: true, cantidades, propia: propiaFinal, guardado: estadoFinal.guardado }
     } catch (excepcionRelectura) {
       console.error(
         "[marcarAsistencia] Excepción al releer cantidades después de escribir (se usan las de antes de escribir):",
         excepcionRelectura,
       )
-      return { ok: true, cantidades: cantidadesAntes, propia: nueva }
+      return { ok: true, cantidades: cantidadesAntes, propia: propiaFinal, guardado: estadoFinal.guardado }
     }
   } catch (excepcion) {
     console.error("[marcarAsistencia] Excepción inesperada:", excepcion)

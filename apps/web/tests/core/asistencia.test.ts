@@ -1,17 +1,19 @@
 /**
- * `packages/core/src/asistencia/index.ts` (R38, tarea 38-a): la lógica
- * compartida de "Voy / Me interesa", sin red ni base. Umbral del contador,
- * las 6 combinaciones de `siguienteMarca` y `textoBoton` arriba y abajo del
- * umbral, para los dos tipos.
+ * `packages/core/src/asistencia/index.ts` (R38, tarea 38-a; reescrito en la
+ * R47, tarea 47-a para el tipo único "voy"). Umbral del contador,
+ * `cantidadVisible` arriba y abajo del umbral, y `textoBotonVoy`.
+ *
+ * Las 6 combinaciones de `siguienteMarca` y los casos de `me_interesa` se
+ * borraron en la R47: ese tipo y esa función ya no existen (ver
+ * `asistencia-reglas.test.ts` para `esTipoAsistencia`, `textoBotonVoy` y el
+ * invariante Guardar/Voy).
  */
 import { describe, expect, it } from 'vitest'
 import {
   ETIQUETAS_ASISTENCIA,
   UMBRAL_CONTADOR_ASISTENCIA,
   cantidadVisible,
-  siguienteMarca,
-  textoBoton,
-  type TipoAsistencia,
+  textoBotonVoy,
 } from '@qps/core/asistencia'
 
 describe('UMBRAL_CONTADOR_ASISTENCIA', () => {
@@ -69,62 +71,30 @@ describe('cantidadVisible', () => {
   })
 })
 
-describe('siguienteMarca: las 6 combinaciones (actual x tocado)', () => {
-  it('actual null, tocado "voy": primera marca, queda en "voy"', () => {
-    expect(siguienteMarca(null, 'voy')).toBe('voy')
-  })
-
-  it('actual null, tocado "me_interesa": primera marca, queda en "me_interesa"', () => {
-    expect(siguienteMarca(null, 'me_interesa')).toBe('me_interesa')
-  })
-
-  it('actual "voy", tocado "voy": la misma marca, se saca (null)', () => {
-    expect(siguienteMarca('voy', 'voy')).toBeNull()
-  })
-
-  it('actual "voy", tocado "me_interesa": cambia a "me_interesa"', () => {
-    expect(siguienteMarca('voy', 'me_interesa')).toBe('me_interesa')
-  })
-
-  it('actual "me_interesa", tocado "voy": cambia a "voy"', () => {
-    expect(siguienteMarca('me_interesa', 'voy')).toBe('voy')
-  })
-
-  it('actual "me_interesa", tocado "me_interesa": la misma marca, se saca (null)', () => {
-    expect(siguienteMarca('me_interesa', 'me_interesa')).toBeNull()
-  })
-})
-
 describe('ETIQUETAS_ASISTENCIA', () => {
   it('"voy" -> "Voy"', () => {
     expect(ETIQUETAS_ASISTENCIA.voy).toBe('Voy')
   })
-
-  it('"me_interesa" -> "Me interesa"', () => {
-    expect(ETIQUETAS_ASISTENCIA.me_interesa).toBe('Me interesa')
-  })
 })
 
-describe('textoBoton', () => {
-  const tipos: TipoAsistencia[] = ['voy', 'me_interesa']
-
-  it.each(tipos)('%s, debajo del umbral (0): sin número', (tipo) => {
-    expect(textoBoton(tipo, 0)).toBe(ETIQUETAS_ASISTENCIA[tipo])
+describe('textoBotonVoy', () => {
+  it('debajo del umbral (0): sin número', () => {
+    expect(textoBotonVoy(0)).toBe('Voy')
   })
 
-  it.each(tipos)('%s, justo debajo del umbral (2): sin número', (tipo) => {
-    expect(textoBoton(tipo, 2)).toBe(ETIQUETAS_ASISTENCIA[tipo])
+  it('justo debajo del umbral (2): sin número', () => {
+    expect(textoBotonVoy(2)).toBe('Voy')
   })
 
-  it.each(tipos)('%s, en el umbral (3): con número', (tipo) => {
-    expect(textoBoton(tipo, 3)).toBe(`${ETIQUETAS_ASISTENCIA[tipo]} · 3`)
+  it('en el umbral (3): con número', () => {
+    expect(textoBotonVoy(3)).toBe('Voy · 3 van')
   })
 
-  it.each(tipos)('%s, por arriba del umbral (5): con número', (tipo) => {
-    expect(textoBoton(tipo, 5)).toBe(`${ETIQUETAS_ASISTENCIA[tipo]} · 5`)
+  it('por arriba del umbral (5): con número', () => {
+    expect(textoBotonVoy(5)).toBe('Voy · 5 van')
   })
 
-  it('"voy" con 5: "Voy · 5" (el ejemplo exacto del enunciado)', () => {
-    expect(textoBoton('voy', 5)).toBe('Voy · 5')
+  it('con 12: "Voy · 12 van" (el ejemplo con dos cifras)', () => {
+    expect(textoBotonVoy(12)).toBe('Voy · 12 van')
   })
 })

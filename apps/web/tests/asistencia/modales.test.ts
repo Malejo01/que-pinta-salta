@@ -1,21 +1,31 @@
 /**
- * "Voy / Me interesa" en los dos modales de la web (R38-c, tarea 38c-a):
- * el modal de la ruta interceptada (`app/@modal/(.)evento/[id]/page.tsx` +
+ * "Voy" / "+ Seguir" en los dos modales de la web (R38-c, tarea 38c-a;
+ * adaptado en la R47, tarea 47-c, QPS-197/QPS-199 — ver también
+ * `fila-render.test.ts` y `orden-ficha.test.ts`): el modal de la ruta
+ * interceptada (`app/@modal/(.)evento/[id]/page.tsx` +
  * `components/event-modal-wrapper.tsx`) y el de Buscar
  * (`components/event-modal.tsx` + `components/botones-asistencia-diferidos.tsx`).
  *
  * Sin jsdom ni Testing Library (no hay en `apps/web`): funciones puras y
  * detectores estáticos sobre el código real, con el mismo estilo que
  * `web.test.ts`.
+ *
+ * Guardas del #65 que este archivo sigue fijando (no se pierden en esta
+ * adaptación): que el modal interceptado importe `obtenerAsistencia` de
+ * `"@/lib/asistencia"` y que la llamada esté condicionada por
+ * `debenMostrarseBotonesAsistencia(...)`.
  */
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it, vi } from 'vitest'
 
-// El componente diferido importa la server action y los botones: no hace
-// falta ni la base ni el árbol de React para probar la función pura.
+// El componente diferido importa la server action, la fila y los botones de
+// Seguir: no hace falta ni la base ni el árbol de React para probar la
+// función pura (`debeCargarAsistencia`).
 vi.mock('@/lib/asistencia', () => ({ obtenerAsistencia: vi.fn() }))
-vi.mock('@/components/botones-asistencia', () => ({ BotonesAsistencia: () => null }))
+vi.mock('@/lib/actions/radar', () => ({ obtenerSeguimientoDeEvento: vi.fn(), cambiarSeguimiento: vi.fn() }))
+vi.mock('@/components/fila-acciones-evento', () => ({ FilaAccionesEvento: () => null }))
+vi.mock('@/components/boton-seguir', () => ({ BotonSeguir: () => null }))
 
 import { debeCargarAsistencia } from '../../components/botones-asistencia-diferidos'
 import { transformEvent } from '@qps/core/home/transform'
@@ -29,6 +39,22 @@ function leer(ruta: string): string {
 /** Comentarios de línea y de bloque (también los de JSX) vaciados. */
 function sinComentarios(content: string): string {
   return content.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:"'])\/\/.*$/gm, '$1')
+}
+
+/**
+ * El recorte del código entre dos marcas (la segunda es opcional: hasta el
+ * final si falta). Sin `expect` acá adentro a propósito: se llama durante
+ * la ejecución del cuerpo de los `describe` (antes de cualquier `it`), y un
+ * `expect` ahí arriba de un `it` reporta un error de colección confuso en
+ * vez de una falla de test prolija. Si la marca no está, tira un `Error`
+ * común (lo que corresponde a un bug en el propio test, no en el código
+ * que se está probando).
+ */
+function recorte(codigo: string, desde: string, hasta?: string): string {
+  const inicio = codigo.indexOf(desde)
+  if (inicio < 0) throw new Error(`recorte: no se encontró "${desde}"`)
+  const fin = hasta ? codigo.indexOf(hasta, inicio + desde.length) : -1
+  return codigo.slice(inicio, fin === -1 ? codigo.length : fin)
 }
 
 const RUTA_MODAL_INTERCEPTADO = 'app/@modal/(.)evento/[id]/page.tsx'
@@ -81,45 +107,102 @@ describe('transformEvent copia status (lo que lee el modal de Buscar)', () => {
 
 describe('botones-asistencia-diferidos.tsx: detector estático', () => {
   const codigo = sinComentarios(leer(RUTA_DIFERIDOS))
-  const efecto = /useEffect\(\s*\(\)\s*=>\s*\{([\s\S]*?)\},\s*\[abierto,\s*eventId,\s*status\]\s*\)/.exec(codigo)
+  // Dos componentes en el archivo (47-c): la fila (♥/Voy/Compartir) y los
+  // botones de Seguir. Se recortan por separado para no mezclar sus efectos.
+  const bloqueFila = recorte(
+    codigo,
+    'export function BotonesAsistenciaDiferidos',
+    'export function BotonesSeguirDiferidos',
+  )
+  const bloqueSeguir = recorte(codigo, 'export function BotonesSeguirDiferidos')
 
   it('es un componente cliente', () => {
     expect(leer(RUTA_DIFERIDOS).startsWith('"use client"')).toBe(true)
   })
 
-  it('tiene un useEffect con dependencias [abierto, eventId, status]', () => {
-    expect(efecto, 'no se encontró el useEffect esperado').not.toBeNull()
+  it('exporta debeCargarAsistencia (el gate que comparten los dos componentes)', () => {
+    expect(codigo).toMatch(/export function debeCargarAsistencia/)
   })
 
-  it('el efecto sale temprano con debeCargarAsistencia, antes de cualquier llamada a obtenerAsistencia', () => {
-    const cuerpo = efecto![1]
-    const salida = cuerpo.search(/if\s*\(\s*!debeCargarAsistencia\s*\(/)
-    const llamada = cuerpo.search(/obtenerAsistencia\s*\(/)
-    expect(salida).toBeGreaterThanOrEqual(0)
-    expect(llamada).toBeGreaterThan(salida)
-  })
-
-  it('hay bandera de cancelación: se activa en el cleanup y se mira antes de guardar la respuesta', () => {
-    const cuerpo = efecto![1]
-    expect(cuerpo).toMatch(/let\s+cancelado\s*=\s*false/)
-    expect(cuerpo).toMatch(/return\s*\(\)\s*=>\s*\{[\s\S]*?cancelado\s*=\s*true/)
-    expect(cuerpo).toMatch(/if\s*\(\s*!cancelado\s*\)\s*setResultado/)
-  })
-
-  it('si la promesa tira, hace console.error con el prefijo del componente', () => {
-    expect(codigo).toMatch(/\.catch\([\s\S]*?console\.error\(\s*"\[BotonesAsistenciaDiferidos\]/)
-  })
-
-  it('no dibuja <BotonesAsistencia mientras carga ni con ok: false (retorna null antes)', () => {
-    const corte = codigo.search(/<BotonesAsistencia\b/)
-    expect(corte).toBeGreaterThan(0)
-    const antes = codigo.slice(0, corte)
-    // Sin resultado, con el de OTRO evento (el modal cambió de evento) o con
-    // ok: false, no se dibuja nada.
-    expect(antes).toMatch(
-      /if\s*\(\s*resultado\s*===\s*null\s*\|\|\s*resultado\.eventId\s*!==\s*eventId\s*\|\|\s*!resultado\.respuesta\.ok\s*\)\s*return\s+null/,
+  describe('BotonesAsistenciaDiferidos (la fila: ♥ Guardar / ✓ Voy / Compartir)', () => {
+    const efecto = /useEffect\(\s*\(\)\s*=>\s*\{([\s\S]*?)\},\s*\[abierto,\s*eventId,\s*status\]\s*\)/.exec(
+      bloqueFila,
     )
-    expect(antes).toMatch(/if\s*\(\s*!debeCargarAsistencia\([^)]*\)\s*\)\s*return\s+null/)
+
+    it('tiene un useEffect con dependencias [abierto, eventId, status]', () => {
+      expect(efecto, 'no se encontró el useEffect esperado').not.toBeNull()
+    })
+
+    it('el efecto sale temprano con debeCargarAsistencia, antes de cualquier llamada a obtenerAsistencia', () => {
+      const cuerpo = efecto![1]
+      const salida = cuerpo.search(/if\s*\(\s*!debeCargarAsistencia\s*\(/)
+      const llamada = cuerpo.search(/obtenerAsistencia\s*\(/)
+      expect(salida).toBeGreaterThanOrEqual(0)
+      expect(llamada).toBeGreaterThan(salida)
+    })
+
+    it('hay bandera de cancelación: se activa en el cleanup y se mira antes de guardar la respuesta', () => {
+      const cuerpo = efecto![1]
+      expect(cuerpo).toMatch(/let\s+cancelado\s*=\s*false/)
+      expect(cuerpo).toMatch(/return\s*\(\)\s*=>\s*\{[\s\S]*?cancelado\s*=\s*true/)
+      expect(cuerpo).toMatch(/if\s*\(\s*!cancelado\s*\)\s*setResultado/)
+    })
+
+    it('si la promesa tira, hace console.error con el prefijo del componente', () => {
+      expect(bloqueFila).toMatch(/\.catch\([\s\S]*?console\.error\(\s*"\[BotonesAsistenciaDiferidos\]/)
+    })
+
+    it('dibuja <FilaAccionesEvento SIEMPRE (nunca un return null): el ♥ y Compartir no esperan a la asistencia', () => {
+      expect(bloqueFila).toMatch(/<FilaAccionesEvento\b/)
+      expect(bloqueFila).not.toMatch(/return\s+null/)
+    })
+
+    it('mostrarVoy solo es true con el resultado del evento abierto y ok: true', () => {
+      expect(bloqueFila).toMatch(
+        /if\s*\(\s*resultado\s*!==\s*null\s*&&\s*resultado\.eventId\s*===\s*eventId\s*&&\s*resultado\.respuesta\.ok\s*\)/,
+      )
+      expect(bloqueFila).toMatch(/mostrarVoy\s*=\s*true/)
+    })
+  })
+
+  describe('BotonesSeguirDiferidos (+ Seguir, lugar y cuenta)', () => {
+    const efecto = /useEffect\(\s*\(\)\s*=>\s*\{([\s\S]*?)\},\s*\[abierto,\s*eventId,\s*status\]\s*\)/.exec(
+      bloqueSeguir,
+    )
+
+    it('tiene un useEffect con dependencias [abierto, eventId, status]', () => {
+      expect(efecto, 'no se encontró el useEffect esperado').not.toBeNull()
+    })
+
+    it('el efecto sale temprano con debeCargarAsistencia, antes de cualquier llamada a obtenerSeguimientoDeEvento', () => {
+      const cuerpo = efecto![1]
+      const salida = cuerpo.search(/if\s*\(\s*!debeCargarAsistencia\s*\(/)
+      const llamada = cuerpo.search(/obtenerSeguimientoDeEvento\s*\(/)
+      expect(salida).toBeGreaterThanOrEqual(0)
+      expect(llamada).toBeGreaterThan(salida)
+    })
+
+    it('hay bandera de cancelación: se activa en el cleanup y se mira antes de guardar la respuesta', () => {
+      const cuerpo = efecto![1]
+      expect(cuerpo).toMatch(/let\s+cancelado\s*=\s*false/)
+      expect(cuerpo).toMatch(/return\s*\(\)\s*=>\s*\{[\s\S]*?cancelado\s*=\s*true/)
+      expect(cuerpo).toMatch(/if\s*\(\s*!cancelado\s*\)\s*setResultado/)
+    })
+
+    it('si la promesa tira, hace console.error con el prefijo del componente', () => {
+      expect(bloqueSeguir).toMatch(/\.catch\([\s\S]*?console\.error\(\s*"\[BotonesSeguirDiferidos\]/)
+    })
+
+    it('no dibuja <BotonSeguir mientras carga, sin resultado del evento abierto, ni sin lugar y sin cuenta (retorna null antes)', () => {
+      const corte = bloqueSeguir.search(/<BotonSeguir\b/)
+      expect(corte).toBeGreaterThan(0)
+      const antes = bloqueSeguir.slice(0, corte)
+      expect(antes).toMatch(/if\s*\(\s*!debeCargarAsistencia\([^)]*\)\s*\)\s*return\s+null/)
+      expect(antes).toMatch(
+        /if\s*\(\s*resultado\s*===\s*null\s*\|\|\s*resultado\.eventId\s*!==\s*eventId\s*\)\s*return\s+null/,
+      )
+      expect(antes).toMatch(/if\s*\(\s*!lugar\s*&&\s*!cuenta\s*\)\s*return\s+null/)
+    })
   })
 
   it('el gate sale de debenMostrarseBotonesAsistencia (import de "@/lib/asistencia-visibilidad")', () => {
@@ -146,20 +229,30 @@ describe('modal interceptado (app/@modal/(.)evento/[id]/page.tsx)', () => {
     expect(codigo).toMatch(/debenMostrarseBotonesAsistencia\([^)]*\)\s*\?\s*await\s+obtenerAsistencia\(/)
   })
 
-  it('pasa haySesion={!!user} (no un literal) y las cantidades y la marca', () => {
+  it('importa y llama a obtenerSeguimientoDeEvento, en el mismo Promise.all que ya existía', () => {
+    expect(codigo).toMatch(
+      /import\s*\{[^}]*\bobtenerSeguimientoDeEvento\b[^}]*\}\s*from\s*['"]@\/lib\/actions\/radar['"]/,
+    )
+    const promiseAll = /Promise\.all\(\s*\[([\s\S]*?)\]\s*\)/.exec(codigo)
+    expect(promiseAll, 'no se encontró el Promise.all').not.toBeNull()
+    expect(promiseAll![1]).toMatch(/obtenerSeguimientoDeEvento\(/)
+  })
+
+  it('pasa haySesion={!!user} (no un literal) y las cantidades, la marca y el seguimiento', () => {
     expect(codigo).toMatch(/haySesion=\{!!user\}/)
     expect(codigo).not.toMatch(/haySesion=\{true\}/)
     expect(codigo).toMatch(/cantidadesAsistencia=\{cantidadesAsistencia\}/)
     expect(codigo).toMatch(/marcaAsistencia=\{marcaAsistencia\}/)
+    expect(codigo).toMatch(/seguimiento=\{seguimiento\}/)
   })
 })
 
 describe('event-modal-wrapper.tsx', () => {
   const codigo = sinComentarios(leer(RUTA_WRAPPER))
 
-  it('misma condición que event-detail-page.tsx: cantidadesAsistencia && debenMostrarseBotonesAsistencia(...) && <BotonesAsistencia', () => {
+  it('misma función de visibilidad que event-detail-page.tsx: mostrarVoy sale de cantidadesAsistencia && debenMostrarseBotonesAsistencia(...)', () => {
     expect(codigo).toMatch(
-      /\{\s*cantidadesAsistencia\s*&&\s*debenMostrarseBotonesAsistencia\s*\([^)]*\)\s*&&[\s\S]{0,80}?<BotonesAsistencia/,
+      /mostrarVoy=\{Boolean\(cantidadesAsistencia\)\s*&&\s*debenMostrarseBotonesAsistencia\([^)]*\)\}/,
     )
   })
 
@@ -169,9 +262,13 @@ describe('event-modal-wrapper.tsx', () => {
     )
   })
 
-  it('los botones van DESPUÉS de "Comprar tickets"', () => {
+  it('la fila va DESPUÉS de "Comprar tickets"', () => {
     expect(codigo.indexOf('Comprar tickets')).toBeGreaterThan(0)
-    expect(codigo.indexOf('<BotonesAsistencia')).toBeGreaterThan(codigo.indexOf('Comprar tickets'))
+    expect(codigo.indexOf('<FilaAccionesEvento')).toBeGreaterThan(codigo.indexOf('Comprar tickets'))
+  })
+
+  it('le pasa el ShareButton a la fila por la prop compartir (no queda un ShareButton suelto en el encabezado)', () => {
+    expect(codigo).toMatch(/compartir=\{\s*<ShareButton/)
   })
 })
 
@@ -182,16 +279,24 @@ describe('event-modal.tsx (Buscar)', () => {
     expect(codigo).toMatch(/<BotonesAsistenciaDiferidos[\s\S]*?abierto=\{open\}[\s\S]*?haySesion=\{haySesion\}/)
   })
 
-  it('pasa el status del evento', () => {
-    expect(codigo).toMatch(/status=\{event\.status\}/)
+  it('usa <BotonesSeguirDiferidos con el status del evento', () => {
+    expect(codigo).toMatch(/<BotonesSeguirDiferidos[\s\S]*?status=\{event\.status\}/)
   })
 
-  it('los botones van DESPUÉS de "Comprar tickets"', () => {
+  it('pasa el status del evento a BotonesAsistenciaDiferidos', () => {
+    expect(codigo).toMatch(/<BotonesAsistenciaDiferidos[\s\S]*?status=\{event\.status\}/)
+  })
+
+  it('la fila va DESPUÉS de "Comprar tickets"', () => {
     expect(codigo.indexOf('<BotonesAsistenciaDiferidos')).toBeGreaterThan(codigo.indexOf('Comprar tickets'))
   })
 
   it('no importa obtenerAsistencia directo (lo hace el diferido)', () => {
     expect(codigo).not.toMatch(/\bobtenerAsistencia\b/)
+  })
+
+  it('no tiene FavoriteButton en el encabezado (el ♥ vive en la fila, vía el diferido)', () => {
+    expect(codigo).not.toMatch(/<FavoriteButton\b/)
   })
 })
 
@@ -208,9 +313,11 @@ describe('Buscar sabe si hay sesión', () => {
   })
 })
 
-describe('sin sesión no se escribe nada: ningún modal importa marcarAsistencia', () => {
+describe('sin sesión no se escribe nada: ningún modal importa marcarAsistencia ni cambiarSeguimiento', () => {
   it.each([RUTA_MODAL_INTERCEPTADO, RUTA_WRAPPER, RUTA_EVENT_MODAL, RUTA_DIFERIDOS])('%s', (ruta) => {
-    expect(sinComentarios(leer(ruta))).not.toMatch(/\bmarcarAsistencia\b/)
+    const codigo = sinComentarios(leer(ruta))
+    expect(codigo).not.toMatch(/\bmarcarAsistencia\b/)
+    expect(codigo).not.toMatch(/\bcambiarSeguimiento\b/)
   })
 })
 

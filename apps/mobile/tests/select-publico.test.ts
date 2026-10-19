@@ -82,8 +82,8 @@ describe('lib/asistencia.ts', () => {
     expect(src).not.toMatch(/\.select\(\s*['"`]\s*\*/)
   })
 
-  it('el select de event_attendance_counts pide columnas explícitas (voy, me_interesa)', () => {
-    expect(src).toMatch(/\.from\(['"]event_attendance_counts['"]\)\s*\.select\(['"]voy,\s*me_interesa['"]\)/)
+  it('el select de event_attendance_counts pide la columna explícita (voy) — R47, QPS-197: "me_interesa" ya no existe', () => {
+    expect(src).toMatch(/\.from\(['"]event_attendance_counts['"]\)\s*\.select\(['"]voy['"]\)/)
   })
 
   it('el select de event_attendance pide solo "kind" (nunca user_id, aunque la RLS ya acote a la fila propia)', () => {

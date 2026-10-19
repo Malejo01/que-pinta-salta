@@ -12,12 +12,23 @@ export type EmailFrequency = (typeof FRECUENCIAS_RADAR)[number]
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
+/**
+ * Si `valor` es un uuid válido (v4 o no: solo se chequea el formato con
+ * guiones de 8-4-4-4-12 hex, insensible a mayúsculas). La usa `limpiarIds`
+ * acá mismo y, desde la R47 (tarea 47-a), `radar/seguimiento.ts` para
+ * validar el `id` de `validarSeguimiento`: un solo lugar para esta regla,
+ * en vez de copiar la expresión regular.
+ */
+export function esUuid(valor: unknown): valor is string {
+  return typeof valor === 'string' && UUID_RE.test(valor)
+}
+
 /** Solo los uuids válidos, sin repetidos (conserva el orden de aparición). */
 function limpiarIds(ids: string[] | null | undefined): string[] {
   const vistos = new Set<string>()
   const limpios: string[] = []
   for (const id of ids || []) {
-    if (typeof id === 'string' && UUID_RE.test(id) && !vistos.has(id)) {
+    if (esUuid(id) && !vistos.has(id)) {
       vistos.add(id)
       limpios.push(id)
     }

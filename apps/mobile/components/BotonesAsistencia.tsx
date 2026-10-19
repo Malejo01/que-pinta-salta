@@ -1,11 +1,17 @@
-// "Voy" / "Me interesa" de la ficha (R26, 26-b). Sin sesión, los botones
-// invitan a entrar (van a Cuenta); con sesión, marcan/desmarcan con
-// `lib/asistencia.ts`. Si la tabla o la vista todavía no existen en este
-// entorno (producción hasta el jueves), se muestra "Pronto vas a poder
-// marcar si vas" y el resto de la ficha sigue andando. Nunca se muestra
-// quién marcó: solo las cantidades.
+// "Voy" de la ficha (R26, 26-b; reescrito en la R47, tarea 47-f, QPS-197:
+// el modelo pasó de dos marcas, "Voy"/"Me interesa", a una sola, "Voy" — ver
+// el informe de la tarea 47-e). Sin sesión, el botón invita a entrar (va a
+// Cuenta); con sesión, marca/desmarca con `lib/asistencia.ts`. Si la tabla o
+// la vista todavía no existen en este entorno (producción hasta el jueves),
+// se muestra "Pronto vas a poder marcar si vas" y el resto de la ficha sigue
+// andando. Nunca se muestra quién marcó: solo la cantidad.
 //
-// R38, tarea 38-a: el texto de cada botón sale de `textoBoton`
+// Este componente ya no se usa desde `app/evento/[id].tsx` (la R47 lo
+// reemplaza por `FilaAccionesEvento`, que trae su propio botón de Voy con el
+// mismo `textoBotonVoy`): queda sin uso en el árbol de pantallas, pero no se
+// borra — ver el informe de la tarea 47-f para el lead de día.
+//
+// R38, tarea 38-a: el texto del botón sale de `textoBotonVoy`
 // (`@qps/core/asistencia`): el contador recién aparece desde
 // `UMBRAL_CONTADOR_ASISTENCIA`, igual que en la web.
 //
@@ -17,7 +23,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native'
 import { useRouter, useTheme } from 'expo-router'
-import { cantidadVisible, ETIQUETAS_ASISTENCIA, TEXTO_ENTRAR_PARA_MARCAR, textoBoton, type TipoAsistencia } from '@qps/core/asistencia'
+import { cantidadVisible, ETIQUETAS_ASISTENCIA, TEXTO_ENTRAR_PARA_MARCAR, textoBotonVoy, type TipoAsistencia } from '@qps/core/asistencia'
 import { MENSAJE_NO_DISPONIBLE, marcarAsistencia, obtenerAsistencia, type EstadoAsistencia } from '@/lib/asistencia'
 import { useColoresQPS } from '@/lib/colores'
 import { useSession } from '@/lib/session'
@@ -61,12 +67,12 @@ export function BotonesAsistencia({ eventId }: BotonesAsistenciaProps) {
     return <Text style={{ color: colors.text }}>{estado.error}</Text>
   }
 
-  const { cantidades, propia } = estado
+  const { cantidades, propia, guardado } = estado
 
   async function marcar(tipo: TipoAsistencia) {
     if (!userId || marcando) return
     setMarcando(tipo)
-    const resultado = await marcarAsistencia(eventId, userId, tipo, propia)
+    const resultado = await marcarAsistencia(eventId, userId, tipo, { guardado, voy: propia === 'voy' })
     if (resultado.tipo === 'ok') {
       await cargar()
     } else if (resultado.tipo === 'no-disponible') {
@@ -88,7 +94,7 @@ export function BotonesAsistencia({ eventId }: BotonesAsistenciaProps) {
   function boton(tipo: TipoAsistencia, cantidad: number) {
     const marcado = propia === tipo
     // "Voy, 5 personas" (con la cantidad) desde el umbral de `cantidadVisible`;
-    // si no, solo la etiqueta ("Voy"/"Me interesa"), igual que `textoBoton`
+    // si no, solo la etiqueta ("Voy"), igual que `textoBotonVoy`
     // pero en voseo accesible, no en el formato compacto "Voy · 5" del texto
     // visible.
     const visible = cantidadVisible(cantidad)
@@ -107,7 +113,7 @@ export function BotonesAsistencia({ eventId }: BotonesAsistenciaProps) {
           <ActivityIndicator color={marcado ? '#fff' : colors.text} />
         ) : (
           <Text style={[estilos.textoBoton, { color: marcado ? '#fff' : colors.text }]}>
-            {textoBoton(tipo, cantidad)}
+            {textoBotonVoy(cantidad)}
           </Text>
         )}
       </Pressable>
@@ -116,10 +122,7 @@ export function BotonesAsistencia({ eventId }: BotonesAsistenciaProps) {
 
   return (
     <View style={estilos.contenedor}>
-      <View style={estilos.fila}>
-        {boton('voy', cantidades.voy)}
-        {boton('me_interesa', cantidades.meInteresa)}
-      </View>
+      <View style={estilos.fila}>{boton('voy', cantidades.voy)}</View>
       {!userId ? <Text style={{ color: colores.mutedForeground }}>{TEXTO_ENTRAR_PARA_MARCAR}</Text> : null}
     </View>
   )

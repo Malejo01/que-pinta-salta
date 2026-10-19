@@ -5,12 +5,20 @@
 // `ticket_url` directo — ese link no cuenta el clic ni valida el destino.
 //
 // Orden de la web real (apéndice del plan de la R29, decisión 2): imagen →
-// título con el corazón y Compartir a la derecha → filas de datos →
-// descripción → caja de precio → CTAs apilados ("Como llegar" primero,
-// "Comprar tickets" después) → "Voy / Me interesa" (de la app, debajo de
-// los CTAs). El armado del mensaje de compartir vive ahora en
-// `BotonCompartir` (antes estaba acá, inline en `compartir()`): ver
-// `tests/compartir-ficha.test.ts`.
+// título → filas de datos → descripción → caja de precio → CTAs apilados
+// ("Como llegar" primero, "Comprar tickets" después) → fila de acciones
+// (debajo de los CTAs). El armado del mensaje de compartir vive en
+// `BotonCompartir` (ver `tests/compartir-ficha.test.ts`).
+//
+// R47, tarea 47-f (QPS-197): el corazón y Compartir, que antes vivían
+// sueltos junto al título (`accionesTitulo`), y "Voy/Me interesa"
+// (`BotonesAsistencia`, debajo de los CTAs) se reemplazan por
+// `FilaAccionesEvento` (♥ Guardar · ✓ Voy · Compartir, en ese orden fijado
+// por `@qps/core/asistencia`), en el mismo lugar donde estaba
+// `BotonesAsistencia`. El lugar (ícono `MapPin`) suma "+ Seguir"
+// (`BotonSeguir`), y debajo, si el evento tiene una cuenta de Instagram
+// asociada, "Seguir @cuenta" — los dos con los datos de
+// `obtenerSeguimientoDeEvento` (`lib/radar.ts`).
 //
 // Integración de la tanda 2 de la R29: la imagen pide la variante WebP 800
 // (`<Afiche ancho={800} />`), como la web (`FlyerImage` con `variant={800}`
@@ -27,10 +35,9 @@ import { urlComoLlegar, urlGo } from '@qps/core/metricas/links'
 import { vibeLabels } from '@qps/core/types'
 import { Afiche } from '@/components/Afiche'
 import { BotonCalendario } from '@/components/BotonCalendario'
-import { BotonesAsistencia } from '@/components/BotonesAsistencia'
-import { BotonCompartir } from '@/components/BotonCompartir'
-import { BotonFavorito } from '@/components/BotonFavorito'
+import { BotonSeguir } from '@/components/BotonSeguir'
 import { Cargando, ErrorCarga, Vacio } from '@/components/EstadoCarga'
+import { FilaAccionesEvento } from '@/components/FilaAccionesEvento'
 import { Icono } from '@/components/Icono'
 import { Texto } from '@/components/Texto'
 import { ESCALA_MAXIMA_COMPACTA } from '@/lib/accesibilidad'
@@ -39,6 +46,8 @@ import { datosTarjetaCompartir } from '@/lib/compartir'
 import { obtenerEventoPorId, type ResultadoEvento } from '@/lib/datos/eventos'
 import { textoPrecio, type PrecioEvento } from '@/lib/formato'
 import { esUuid } from '@/lib/links'
+import { obtenerSeguimientoDeEvento, type SeguimientoDeEvento } from '@/lib/radar'
+import { useSession } from '@/lib/session'
 import { useVistaEvento } from '@/lib/metricas-hook'
 
 type Estado = { tipo: 'cargando' } | ResultadoEvento
@@ -48,6 +57,8 @@ export default function EventoPorId() {
   const { colors } = useTheme()
   const colores = useColoresQPS()
   const router = useRouter()
+  const { session } = useSession()
+  const userId = session?.user.id ?? null
   // El ancho de la ventana se lee con `useWindowDimensions()`, nunca con
   // `Dimensions` a nivel de módulo (QPS-132): así reacciona a una rotación o
   // a un cambio de tamaño sin reiniciar la app.
@@ -86,6 +97,26 @@ export default function EventoPorId() {
       cancelado = true
     }
   }, [id, valido, intento])
+
+  // El lugar y la cuenta de Instagram que esta ficha puede ofrecer seguir
+  // (R47, tarea 47-f, QPS-197), con `BotonSeguir`. `null` hasta que resuelva
+  // (y si falla: `obtenerSeguimientoDeEvento` nunca tira, devuelve
+  // `{ lugar: null, cuenta: null }`, así que la ficha sigue andando igual,
+  // solo sin esos botones).
+  const [seguimiento, setSeguimiento] = useState<SeguimientoDeEvento | null>(null)
+
+  useEffect(() => {
+    if (!valido) return
+    let cancelado = false
+
+    obtenerSeguimientoDeEvento(id, userId).then((resultado) => {
+      if (!cancelado) setSeguimiento(resultado)
+    })
+
+    return () => {
+      cancelado = true
+    }
+  }, [id, userId, valido])
 
   const cargar = useCallback(() => {
     setEstado({ tipo: 'cargando' })
@@ -166,24 +197,12 @@ export default function EventoPorId() {
         </View>
       </View>
 
-      <View style={estilos.filaTitulo}>
-        <Texto peso="bold" accessibilityRole="header" style={estilos.titulo}>
-          {evento.title}
-        </Texto>
-        <View style={estilos.accionesTitulo}>
-          <BotonFavorito eventId={evento.id} tamanio={40} fondo="muted" />
-          <BotonCompartir
-            eventId={evento.id}
-            titulo={evento.title}
-            fecha={fecha}
-            hora={hora}
-            lugar={lugar}
-            tamanio={40}
-            fondo="muted"
-            tarjeta={datosTarjetaCompartir(evento) ?? undefined}
-          />
-        </View>
-      </View>
+      {/* El corazón y Compartir se mudaron a FilaAccionesEvento (R47, 47-f,
+          QPS-197): ya no van sueltos junto al título (antes, acá, con
+          `estilos.accionesTitulo`). */}
+      <Texto peso="bold" accessibilityRole="header" style={estilos.titulo}>
+        {evento.title}
+      </Texto>
 
       <View style={estilos.filasDatos}>
         <View style={estilos.filaDato}>
@@ -208,7 +227,24 @@ export default function EventoPorId() {
               </Texto>
             ) : null}
           </View>
+          {seguimiento?.lugar ? (
+            <BotonSeguir
+              tipo="lugar"
+              id={seguimiento.lugar.id}
+              etiqueta={seguimiento.lugar.nombre}
+              siguiendoInicial={seguimiento.lugar.siguiendo}
+            />
+          ) : null}
         </View>
+
+        {seguimiento?.cuenta ? (
+          <BotonSeguir
+            tipo="cuenta"
+            id={seguimiento.cuenta.id}
+            etiqueta={seguimiento.cuenta.username}
+            siguiendoInicial={seguimiento.cuenta.siguiendo}
+          />
+        ) : null}
 
         {vibe ? (
           <View style={estilos.filaDato}>
@@ -251,7 +287,15 @@ export default function EventoPorId() {
         <BotonCalendario evento={evento} />
       </View>
 
-      <BotonesAsistencia eventId={evento.id} />
+      <FilaAccionesEvento
+        eventId={evento.id}
+        titulo={evento.title}
+        fecha={fecha}
+        hora={hora}
+        lugar={lugar}
+        status={evento.status}
+        tarjeta={datosTarjetaCompartir(evento) ?? undefined}
+      />
     </ScrollView>
   )
 }
@@ -262,9 +306,9 @@ const estilos = StyleSheet.create({
   contenedorImagen: { overflow: 'hidden', position: 'relative' },
   badgeCategoria: { position: 'absolute', left: 12, top: 12, borderRadius: 6, paddingHorizontal: 10, paddingVertical: 5, maxWidth: '70%' },
   textoBadge: { fontSize: 12 },
-  filaTitulo: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 },
-  titulo: { flex: 1, fontSize: 30, lineHeight: 36 },
-  accionesTitulo: { flexDirection: 'row', gap: 8 },
+  // `filaTitulo`/`accionesTitulo` (el corazón y Compartir junto al título)
+  // se sacaron en la R47 (47-f, QPS-197): se mudaron a FilaAccionesEvento.
+  titulo: { fontSize: 30, lineHeight: 36 },
   filasDatos: { gap: 12 },
   filaDato: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
   lugarTexto: { flex: 1, gap: 2 },

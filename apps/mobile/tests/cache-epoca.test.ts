@@ -176,7 +176,7 @@ describe('cargarFavoritosConCache: el borrado llega mientras obtener está en vu
         // El cierre de sesión (o cambio/eliminación de cuenta) que llega
         // ANTES de que la respuesta de red vuelva.
         await borrarCacheFavoritos(almacen)
-        return { ok: true, eventos }
+        return { ok: true, voy: [], eventos }
       },
       ahora: AHORA,
       almacen,
@@ -185,7 +185,7 @@ describe('cargarFavoritosConCache: el borrado llega mientras obtener está en vu
     // El render en curso sigue mostrando lo que ya tenía resuelto: el
     // cambio de sesión lo va a reemplazar cuando llegue al estado de
     // React, no acá.
-    expect(resultado).toEqual({ tipo: 'ok', eventos, desdeCache: null })
+    expect(resultado).toEqual({ tipo: 'ok', voy: [], eventos, desdeCache: null })
 
     // Lo que sí cambia con el arreglo: la clave de favoritos NO existe en
     // el disco (antes del arreglo, volvía con la lista de A).
@@ -196,7 +196,7 @@ describe('cargarFavoritosConCache: el borrado llega mientras obtener está en vu
     const almacen = crearAlmacenEnMemoria()
     const guardadoEn = new Date('2026-10-17T10:00:00-03:00')
     // Caché válida de ANTES de que arrancara esta carga.
-    await guardarCache(CLAVE_FAVORITOS, [crearFavorito({ id: 'evento-viejo' })], { ahora: guardadoEn, almacen })
+    await guardarCache(CLAVE_FAVORITOS, { voy: [], eventos: [crearFavorito({ id: 'evento-viejo' })] }, { ahora: guardadoEn, almacen })
 
     const mensaje = 'No pudimos cargar tus favoritos. Revisá tu conexión.'
     const resultado = await cargarFavoritosConCache(USER_ID_UUID_INVENTADO, {

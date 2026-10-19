@@ -149,16 +149,16 @@ describe('app/(tabs)/favoritos.tsx: carga con caché (detector estático)', () =
     expect(entre).toMatch(/await esperarBorradoDeCache\(\)/)
   })
 
-  it('el aviso en el encabezado se dibuja bajo una condición con desdeCache, arriba de "Mi Agenda de Eventos"', () => {
+  it('el aviso en el encabezado se dibuja bajo una condición con desdeCache, arriba de "Mis eventos"', () => {
     const idxUso = contenidoFavoritos.indexOf('<AvisoSinConexion')
     expect(idxUso).toBeGreaterThan(-1)
     const antes = contenidoFavoritos.slice(Math.max(0, idxUso - 80), idxUso)
     expect(antes).toMatch(/desdeCache/)
 
-    // "Mi Agenda de Eventos" también aparece en el comentario de cabecera
+    // "Mis eventos" también aparece en el comentario de cabecera
     // del archivo: se busca la ocurrencia real (la del <Texto>, en el JSX)
     // a partir del uso de <AvisoSinConexion, no la primera del archivo.
-    const idxTitulo = contenidoFavoritos.indexOf('Mi Agenda de Eventos', idxUso)
+    const idxTitulo = contenidoFavoritos.indexOf('Mis eventos', idxUso)
     expect(idxTitulo).toBeGreaterThan(idxUso)
   })
 

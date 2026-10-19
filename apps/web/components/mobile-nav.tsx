@@ -14,7 +14,7 @@ const navItems = [
   { href: "/", icon: Home, label: "Inicio" },
   { href: "/buscar", icon: Search, label: "Buscar" },
   { href: "/radar", icon: Radio, label: "Radar" },
-  { href: "/favoritos", icon: Heart, label: "Favoritos" },
+  { href: "/favoritos", icon: Heart, label: "Mis eventos" },
 ]
 
 export function MobileNav() {
