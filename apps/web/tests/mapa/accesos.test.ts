@@ -20,10 +20,24 @@ import { VerEnElMapa } from '@/components/ver-en-el-mapa'
 import { formatSaltaDayKey, saltaWallClockToDate } from '@qps/core/date-format'
 import type { Venue } from '@/lib/types'
 
+/**
+ * Área táctil mínima, en px (guía de Android, 48dp). El mismo número que
+ * `AREA_TACTIL_MINIMA` de `apps/mobile/lib/accesibilidad.ts`, repetido acá: la
+ * web no importa código de la app (son dos aplicaciones distintas) y ese valor
+ * todavía no vive en `packages/core`. Si alguna vez se muda a core, este
+ * literal se reemplaza por el import.
+ */
+const AREA_TACTIL_MINIMA = 48
+
 const WEB_ROOT = fileURLToPath(new URL('../../', import.meta.url))
 
 function readSource(relativePath: string): string {
   return readFileSync(path.join(WEB_ROOT, relativePath), 'utf8')
+}
+
+/** El código sin comentarios (`/* … *\/` y `// …`), para los detectores que no tienen que leer lo que explican los comentarios. */
+function sinComentarios(fuente: string): string {
+  return fuente.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^[^\S\n]*\/\/.*$/gm, '')
 }
 
 /** Un `Venue` mínimo pero completo (todas las columnas NOT NULL cubiertas), con overrides. */
@@ -179,6 +193,39 @@ describe('navbar.tsx y mobile-nav.tsx: "Mapa" con prefetch={false}', () => {
   it('mobile-nav.tsx: el <Link> le pasa prefetch={item.prefetch} (así /mapa es el único que lo apaga)', () => {
     const src = readSource('components/mobile-nav.tsx')
     expect(src).toMatch(/prefetch=\{item\.prefetch\}/)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// La barra inferior con 5 ítems: área táctil y escala de la letra.
+//
+// Las dos aserciones de abajo defienden un arreglo que ux-ui encontró sobre el
+// diff de esta ronda: al pasar de 4 a 5 ítems se bajó el padding y el cuerpo de
+// letra, y eso dejó al ítem más corto ("Mapa", 4 letras) con un ancho de ~36px
+// —por debajo del mínimo que el propio repo fija— y con el tamaño de fuente
+// congelado en píxeles. Sin estos tests, sacar cualquiera de las dos clases no
+// pone nada en rojo.
+// ---------------------------------------------------------------------------
+describe('mobile-nav.tsx: los 5 ítems respetan el área táctil mínima y escalan con la letra del sistema', () => {
+  // Las dos leen el archivo SIN COMENTARIOS, y no es un detalle: el comentario
+  // de `mobile-nav.tsx` nombra las dos clases (la nueva, para explicar por qué
+  // está, y la vieja `text-[11px]`, para explicar por qué se fue). Leyendo el
+  // texto crudo, el detector del `min-w` pasaba por el comentario incluso con
+  // la clase borrada del código —o sea que no podía fallar nunca— y el de la
+  // letra fallaba por la explicación en vez de por el código. Las dos roturas
+  // se corrieron después del arreglo y ponen su test en rojo.
+  it(`cada ítem tiene un piso de ancho de ${AREA_TACTIL_MINIMA}px (el mínimo de Android que ya fija apps/mobile/lib/accesibilidad.ts)`, () => {
+    const src = sinComentarios(readSource('components/mobile-nav.tsx'))
+    expect(src).toContain(`min-w-[${AREA_TACTIL_MINIMA}px]`)
+  })
+
+  it('el cuerpo de letra va en rem, no en px: un px literal no escala si la persona agrandó la letra del sistema', () => {
+    const src = sinComentarios(readSource('components/mobile-nav.tsx'))
+    const clasesDeTexto = src.match(/text-\[[^\]]+\]/g) ?? []
+    expect(clasesDeTexto.length).toBeGreaterThan(0)
+    for (const clase of clasesDeTexto) {
+      expect(clase).toMatch(/rem\]$/)
+    }
   })
 })
 

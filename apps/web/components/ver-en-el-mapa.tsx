@@ -38,8 +38,11 @@ export function VerEnElMapa({ venue, startDate, className = "flex-1", size = "de
   // evento a las 23:30 de Salta queda guardado con la fecha del día
   // siguiente en UTC, y el mapa tiene que abrir en el día que la gente
   // reconoce (el error ya se cometió dos veces en este repo).
+  // Los dos valores van codificados, no solo el id: hoy `formatSaltaDayKey`
+  // devuelve siempre `AAAA-MM-DD` y codificarlo no cambia nada, pero así el
+  // armado de la URL no depende de esa garantía.
   const dia = formatSaltaDayKey(startDate)
-  const href = `/mapa?cuando=fecha&dia=${dia}&lugar=${encodeURIComponent(venue.id)}`
+  const href = `/mapa?cuando=fecha&dia=${encodeURIComponent(dia)}&lugar=${encodeURIComponent(venue.id)}`
 
   return (
     <Button variant="outline" size={size} className={className} asChild>
