@@ -16,26 +16,33 @@
  * (39-a): este archivo no reimplementa ninguna, solo las combina con los
  * datos de cada usuario.
  *
- * Dos cosas quedan deliberadamente afuera de esta función:
- *   - `announcements` (los avisos del panel admin): QPS-166, a pedido de
- *     Mauro, para otra ronda. Aunque la preferencia esté en `true`, esta
- *     función no genera ningún mensaje de ese tipo.
- *   - El canal del Radar (`radar_channel`, semanal/email): lo arma otro
- *     proceso (R27, `radar/cadence.ts` y lo que lo rodea), no esta tanda.
+ * Una cosa queda deliberadamente afuera de esta función: `announcements`
+ * (los avisos del panel admin, QPS-166, a pedido de Mauro, para otra ronda).
+ * Aunque la preferencia esté en `true`, esta función no genera ningún
+ * mensaje de ese tipo. Los avisos PATROCINADOS (D2/Ronda 51, tarea 51-a) son
+ * otra cosa (campañas pagas con ventana de fechas, `sponsored_campaigns`) y
+ * sí entran acá: ver el paso 4-bis del docstring de `armarTanda`.
+ *
+ * El canal del Radar (`radar_channel`, semanal/email) tampoco entra: lo arma
+ * otro proceso (R27, `radar/cadence.ts` y lo que lo rodea), no esta tanda.
  */
 import {
   claveDedupe,
+  claveDedupePatrocinado,
   contarEnviosDelDiaSalta,
   debeEnviarRecordatorioFavorito,
+  esDedupeKeyPatrocinadoDeLaSemana,
   estaEnHorarioDeSilencio,
   hayLugarEnTopeDiario,
   MAX_NOVEDADES_POR_DIA,
   prepararNovedadesParaEnviar,
+  semanaSalta,
   type EnvioRegistradoParaTope,
   type EventoParaRecordatorioFavorito,
   type NovedadParaAgrupar,
   type TipoEnvioNotificacion,
 } from './reglas'
+import { CATEGORIA_PATROCINADO, tituloAvisoPatrocinado } from './patrocinados'
 import { PREFERENCIAS_POR_DEFECTO, type PreferenciasNotificacion } from './preferencias'
 import { urlEvento, type MetricOrigin } from '../metricas/links'
 
@@ -106,8 +113,26 @@ export interface UsuarioParaTanda {
   enviosRegistrados: EnvioRegistradoParaTanda[]
 }
 
+/**
+ * Campaña patrocinada vigente de esta corrida (D2/Ronda 51, tarea 51-a). La
+ * arma quien llama (51-b) con `campaniaVigente` de `./patrocinados`, y SOLO
+ * si el evento de la campaña está `PUBLISHED`: no es trabajo de esta función
+ * verificar el estado del evento (no tiene los datos del evento, solo el
+ * `eventId`), así que es un contrato con quien llama. Una sola campaña para
+ * toda la tanda (no una por usuario): a lo sumo una vigente por vez, ver el
+ * docstring de `campaniaVigente`.
+ */
+export interface CampaniaParaTanda {
+  id: string
+  titulo: string
+  cuerpo: string
+  eventId: string
+}
+
 export interface DatosParaTanda {
   usuarios: UsuarioParaTanda[]
+  /** `undefined`/`null` si no hay ninguna campaña patrocinada vigente en esta corrida. */
+  patrocinado?: CampaniaParaTanda | null
 }
 
 // ---------------------------------------------------------------------------
@@ -118,13 +143,17 @@ export interface DatosParaTanda {
  * Mismo contrato que `MensajePush` de
  * `apps/web/lib/notificaciones/expo-push.ts`. No se importa desde ahí:
  * `packages/core` no depende de `apps/web` (va en sentido contrario, por
- * `package.json`). Si esa forma cambia, hay que actualizar las dos.
+ * `package.json`). Si esa forma cambia, hay que actualizar las dos:
+ * `categoryId` lo suma la tarea 51-b en ese archivo, en el mismo sentido que
+ * acá (D2/Ronda 51, avisos patrocinados).
  */
 export interface MensajeTanda {
   to: string
   title?: string
   body?: string
   data?: Record<string, unknown>
+  /** Categoría de notificación de Expo (D2/Ronda 51): solo la llevan los avisos patrocinados, para la acción de baja rápida (`ACCION_BAJA_PATROCINADOS`, `./patrocinados`). */
+  categoryId?: string
 }
 
 /**
@@ -139,12 +168,14 @@ export interface MensajeTanda {
 export interface MensajeDeTanda extends MensajeTanda {
   /** `notification_sends.user_id`. */
   userId: string
-  /** `notification_sends.kind`: en esta tanda, siempre `'favorito'` o `'novedad'` (nunca `'radar'` ni `'anuncio'`: ver el comentario de arriba del archivo). */
+  /** `notification_sends.kind`: en esta tanda, `'favorito'`, `'novedad'` o `'patrocinado'` (nunca `'radar'` ni `'anuncio'`: ver el comentario de arriba del archivo). */
   kind: TipoEnvioNotificacion
   /** `notification_sends.event_id`. `null` cuando el envío no es de un solo evento (p. ej. un grupo de novedades con más de un evento adentro). */
   eventId: string | null
   /** `notification_sends.dedupe_key`. */
   dedupeKey: string
+  /** `notification_sends.campaign_id` (D2/Ronda 51): de qué campaña salió este envío. Solo en los de `kind: 'patrocinado'`. */
+  campaignId?: string
 }
 
 // ---------------------------------------------------------------------------
@@ -198,6 +229,17 @@ interface Candidato {
   dedupeKey: string
   title: string
   body: string
+  /** Solo en el candidato patrocinado: `MensajeTanda.categoryId` (categoría de notificación de Expo, no una columna de la base). */
+  categoryId?: string
+  /** Solo en el candidato patrocinado: `notification_sends.campaign_id`. */
+  campaignId?: string
+  /**
+   * `data` ya armado por quien construyó el candidato, en vez de derivarlo
+   * de `eventId` con `datosDelMensaje` (favoritos y novedades). Lo usa el
+   * candidato patrocinado: su `data` lleva además `tipo: 'patrocinado'` (ver
+   * `candidatoPatrocinado`), algo que `datosDelMensaje` no sabe armar.
+   */
+  data?: Record<string, unknown>
 }
 
 /** Un candidato por favorito cuyo momento de recordatorio ya llegó y no se mandó todavía (`debeEnviarRecordatorioFavorito`, 39-a). */
@@ -341,6 +383,70 @@ function candidatosDeNovedades(
   return candidatos
 }
 
+/**
+ * El candidato patrocinado de `usuario`, si corresponde (D2/Ronda 51, tarea
+ * 51-a), o `null` si no. A diferencia de favoritos/novedades, es UN SOLO
+ * candidato (a lo sumo una campaña vigente por corrida, `datos.patrocinado`
+ * ya viene resuelta por quien llama con `campaniaVigente` de
+ * `./patrocinados`), no una lista.
+ *
+ * El horario de silencio ya cortó antes para todo el usuario (paso 3 de
+ * `armarTanda`): esta función no lo vuelve a chequear. `prefs` llega ya
+ * resuelta por quien llama (`armarTanda`, mismo criterio que el silencio):
+ * la fila de `notification_preferences` si existe, si no
+ * `PREFERENCIAS_POR_DEFECTO`. No se vuelve a resolver acá adentro, para que
+ * el default se aplique en un solo lugar.
+ *
+ * Condiciones, todas necesarias:
+ *   - que haya una campaña vigente (`datos.patrocinado`);
+ *   - `prefs.sponsored` (el interruptor de la preferencia);
+ *   - que en `usuario.enviosRegistrados` no haya ya un envío patrocinado de
+ *     la MISMA semana de Salta (`esDedupeKeyPatrocinadoDeLaSemana`, con
+ *     igualdad exacta, no un prefijo: así nunca lo confunde con un envío de
+ *     otra semana ni de otro usuario);
+ *   - que `urlEvento` resuelva un link válido para `campania.eventId`. Si da
+ *     `null` (el `eventId` no es un uuid válido), NO hay candidato
+ *     patrocinado: es distinto de favoritos/novedades (`datosDelMensaje`),
+ *     que sí se mandan sin `data` cuando no hay link. Un aviso patrocinado
+ *     sin ficha a la que ir no tiene sentido mandarlo (es publicidad: si no
+ *     lleva a ningún lado, es puro ruido), así que se descarta el candidato
+ *     entero en vez de mandarlo sin `data`.
+ *
+ * El tope diario (paso 5 de `armarTanda`) no se aplica acá: lo aplica el
+ * mismo bucle que ya existe, sobre el array de candidatos completo.
+ */
+function candidatoPatrocinado(
+  datos: DatosParaTanda,
+  usuario: UsuarioParaTanda,
+  prefs: PreferenciasNotificacion,
+  ahora: Date,
+): Candidato | null {
+  const campania = datos.patrocinado
+  if (!campania) return null
+
+  if (!prefs.sponsored) return null
+
+  const semana = semanaSalta(ahora)
+  const yaEnviadoEstaSemana = usuario.enviosRegistrados.some((envio) =>
+    esDedupeKeyPatrocinadoDeLaSemana(envio.dedupe_key, usuario.userId, semana),
+  )
+  if (yaEnviadoEstaSemana) return null
+
+  const url = urlEvento(campania.eventId, ORIGEN_PUSH)
+  if (!url) return null
+
+  return {
+    kind: 'patrocinado',
+    eventId: campania.eventId,
+    dedupeKey: claveDedupePatrocinado(usuario.userId, semana),
+    title: tituloAvisoPatrocinado(campania.titulo),
+    body: campania.cuerpo,
+    categoryId: CATEGORIA_PATROCINADO,
+    campaignId: campania.id,
+    data: { url, tipo: 'patrocinado' },
+  }
+}
+
 // ---------------------------------------------------------------------------
 // armarTanda
 // ---------------------------------------------------------------------------
@@ -364,6 +470,13 @@ function candidatosDeNovedades(
  *      `enviosRegistrados`). Los de favoritos van primero, en el orden de
  *      entrada; los de novedades después, en orden cronológico (ya los da
  *      así `prepararNovedadesParaEnviar`).
+ *   4-bis. El candidato patrocinado (D2/Ronda 51, tarea 51-a, `candidatoPatrocinado`),
+ *      si hay una campaña vigente y `sponsored` está prendido, VA AL FINAL
+ *      de la lista de candidatos (después de favoritos y novedades): así el
+ *      tope diario (paso 5) le da prioridad siempre a lo propio de la
+ *      persona (lo que siguió, lo que marcó como favorito) sobre la
+ *      publicidad. A lo sumo un candidato patrocinado por usuario y por
+ *      semana de Salta (`esDedupeKeyPatrocinadoDeLaSemana`).
  *   5. Tope diario (`hayLugarEnTopeDiario`), sobre el TOTAL del usuario: el
  *      contador arranca en lo que `contarEnviosDelDiaSalta` cuenta de
  *      `enviosRegistrados` (lo ya mandado hoy) y sube de a uno por cada
@@ -389,9 +502,12 @@ export function armarTanda(datos: DatosParaTanda, ahora: Date): MensajeDeTanda[]
 
     const dedupeKeysYaEnviados = new Set(usuario.enviosRegistrados.map((envio) => envio.dedupe_key))
 
+    const candidatoSponsor = candidatoPatrocinado(datos, usuario, prefs, ahora)
+
     const candidatos: Candidato[] = [
       ...(prefs.favorite_reminders ? candidatosDeFavoritos(usuario, ahora, dedupeKeysYaEnviados) : []),
       ...(prefs.follow_news ? candidatosDeNovedades(usuario, ahora, dedupeKeysYaEnviados) : []),
+      ...(candidatoSponsor ? [candidatoSponsor] : []),
     ]
 
     let cantidadEnviosHoy = contarEnviosDelDiaSalta(usuario.enviosRegistrados, ahora)
@@ -400,7 +516,7 @@ export function armarTanda(datos: DatosParaTanda, ahora: Date): MensajeDeTanda[]
       if (!hayLugarEnTopeDiario(cantidadEnviosHoy, prefs.daily_cap)) continue
       cantidadEnviosHoy += 1
 
-      const data = datosDelMensaje(candidato.eventId)
+      const data = candidato.data ?? datosDelMensaje(candidato.eventId)
 
       for (const token of usuario.tokens) {
         mensajes.push({
@@ -408,10 +524,12 @@ export function armarTanda(datos: DatosParaTanda, ahora: Date): MensajeDeTanda[]
           title: candidato.title,
           body: candidato.body,
           ...(data ? { data } : {}),
+          ...(candidato.categoryId ? { categoryId: candidato.categoryId } : {}),
           userId: usuario.userId,
           kind: candidato.kind,
           eventId: candidato.eventId,
           dedupeKey: candidato.dedupeKey,
+          ...(candidato.campaignId ? { campaignId: candidato.campaignId } : {}),
         })
       }
     }

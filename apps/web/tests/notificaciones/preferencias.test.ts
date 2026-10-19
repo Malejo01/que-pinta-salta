@@ -6,7 +6,9 @@
  * `PREFERENCIAS_POR_DEFECTO` se compara contra los defaults reales de la
  * migración de la R23 (`supabase/migrations/20261013120000_app_notificaciones.sql`),
  * leída del disco: si alguno de los dos cambia sin el otro, este test lo
- * detecta.
+ * detecta. `sponsored` (D2/Ronda 51, tarea 51-a) se compara igual, pero
+ * contra la migración de D2
+ * (`supabase/migrations/20261018130200_etapa2_campanias_patrocinadas.sql`).
  */
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
@@ -23,6 +25,7 @@ function base(overrides: Partial<Record<keyof PreferenciasNotificacionEntrada, u
     favorite_reminders: true,
     follow_news: true,
     announcements: false,
+    sponsored: true,
     quiet_start: '23:00',
     quiet_end: '09:00',
     ...overrides,
@@ -64,6 +67,13 @@ describe('validarPreferenciasNotificacion: booleanos', () => {
   it('announcements no booleano (null) da error', () => {
     expect(validarPreferenciasNotificacion(base({ announcements: null })).ok).toBe(false)
   })
+  it('sponsored no booleano (string) da error', () => {
+    expect(validarPreferenciasNotificacion(base({ sponsored: 'si' })).ok).toBe(false)
+  })
+  it('sponsored ausente da error', () => {
+    const { sponsored, ...sinSponsored } = base()
+    expect(validarPreferenciasNotificacion(sinSponsored).ok).toBe(false)
+  })
 })
 
 describe('validarPreferenciasNotificacion: horario de silencio (HH:MM)', () => {
@@ -94,6 +104,16 @@ describe('validarPreferenciasNotificacion: resultado', () => {
     const result = validarPreferenciasNotificacion(datos)
     expect(result).toEqual({ ok: true, datos })
     if (result.ok) expect('daily_cap' in result.datos).toBe(false)
+  })
+
+  it('devuelve exactamente los 7 campos de PreferenciasNotificacionEntrada (incluido sponsored)', () => {
+    const result = validarPreferenciasNotificacion(base())
+    expect(result.ok).toBe(true)
+    if (result.ok) {
+      expect(Object.keys(result.datos).sort()).toEqual(
+        ['announcements', 'favorite_reminders', 'follow_news', 'quiet_end', 'quiet_start', 'radar_channel', 'sponsored'].sort(),
+      )
+    }
   })
 
   it('con datos inválidos, el resultado no tiene campo "datos"', () => {
@@ -142,5 +162,24 @@ describe('PREFERENCIAS_POR_DEFECTO === defaults de la migración de la R23', () 
   it('PREFERENCIAS_POR_DEFECTO pasa su propio validador (sin daily_cap)', () => {
     const { daily_cap, ...entrada } = PREFERENCIAS_POR_DEFECTO
     expect(validarPreferenciasNotificacion(entrada).ok).toBe(true)
+  })
+})
+
+describe('PREFERENCIAS_POR_DEFECTO.sponsored === default de la migración de D2 (Ronda 51)', () => {
+  const MIGRATION_PATH_D2 = new URL(
+    '../../../../supabase/migrations/20261018130200_etapa2_campanias_patrocinadas.sql',
+    import.meta.url,
+  )
+  const sqlD2 = readFileSync(MIGRATION_PATH_D2, 'utf8')
+
+  function extractDefaultD2(columna: string): string {
+    const re = new RegExp(`${columna}\\s+\\S+\\s+not\\s+null\\s+default\\s+([^;\\n]+)`, 'i')
+    const m = re.exec(sqlD2)
+    if (!m) throw new Error(`No se encontró el default de "${columna}" en la migración de D2`)
+    return m[1].trim()
+  }
+
+  it('sponsored: true (si la base cambia a false y PREFERENCIAS_POR_DEFECTO queda en true, este test se pone en rojo)', () => {
+    expect(extractDefaultD2('sponsored')).toBe(String(PREFERENCIAS_POR_DEFECTO.sponsored))
   })
 })
