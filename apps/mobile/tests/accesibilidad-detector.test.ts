@@ -31,6 +31,7 @@ import { readFileSync, readdirSync, statSync } from 'node:fs'
 import { join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
+import { resolverHitSlop } from './a11y/hitslop-medidas'
 import { PENDIENTES_COMPONENTES, type ReglaAccesibilidad } from './a11y/pendientes-componentes'
 import { PENDIENTES_PANTALLAS } from './a11y/pendientes-pantallas'
 
@@ -420,6 +421,127 @@ export function styleUsaClaveChica(styleTexto: string, clavesChicas: Set<string>
 }
 
 // ---------------------------------------------------------------------------
+// area-chica (QPS-245, 49-e): el agujero real era que un `Pressable` SIN
+// `style` no entraba NUNCA a esta regla — más abajo, en `hallazgosDeTocables`,
+// el chequeo viejo es `if (styleTexto && !excepcion && ...)`: sin `style`,
+// ese `if` ya daba falso, cero evaluación, pase silencioso. El caso real que
+// lo probó: `components/PantallaRadar.tsx:470`/`490`, un `Pressable` de
+// "quitar lugar/cuenta" sin `style`, cuyo único hijo es un `<Icono
+// tamanio={14}>` — el propio comentario de ese archivo ya dice "el detector
+// estático no ve este caso".
+//
+// Esta sección cubre ESE caso puntual (único hijo = un `<Icono
+// tamanio={N}>`), no cualquier `Pressable` sin `style`: uno sin `style` cuyo
+// hijo es otra cosa (un `View`, un `Texto`, varios hijos — por ejemplo
+// `components/Encabezado.tsx:39`, el logo, cuyo hijo es un `View`) sigue sin
+// evaluarse. No es un pase silencioso NUEVO: ya lo era desde 46-b, esta
+// sección no lo agrava ni lo arregla (documentado en el reporte de la
+// tarea, para quien lo quiera cerrar después).
+// ---------------------------------------------------------------------------
+
+/** El texto de los atributos de un `<Icono .../>` que es el ÚNICO hijo de
+ * `cuerpo` (nada de texto ni de otro elemento, antes o después): se exige
+ * que el cuerpo recortado (`trim`) tenga un solo "<" en TODO su texto (el de
+ * la apertura de `Icono`) — cualquier hermano (otro elemento, o un texto con
+ * un "<" literal) deja más de uno y esta función da `null`. `null` también
+ * si el único elemento no es un `Icono`, o no se cierra solo (un `Icono` con
+ * hijos propios no es un caso real hoy). */
+export function soloHijoIcono(cuerpo: string): string | null {
+  const trimmed = cuerpo.trim()
+  const aperturas = trimmed.match(/</g)
+  if (!aperturas || aperturas.length !== 1) return null
+  const m = trimmed.match(/^<Icono\b([\s\S]*)\/>$/)
+  return m ? m[1] : null
+}
+
+/**
+ * El valor numérico de `tamanio={N}` en los atributos de un `Icono` (lo que
+ * da `soloHijoIcono`). `null` si no hay `tamanio=`, o si no es un número
+ * literal.
+ *
+ * LÍMITE CONOCIDO (mismo espíritu que `clavesDeEstiloChicas` con los estilos
+ * armados como objeto plano, líneas ~384-389 de más arriba): si `tamanio`
+ * llega por una prop o por una expresión (`tamanio={tamanioIcono}`,
+ * `tamanio={Math.round(x * 0.45)}` — el patrón real de
+ * `components/BotonFavorito.tsx`/`BotonCompartir.tsx`, que además tienen
+ * `style` y no entran a esta sección por eso), esta función no lo resuelve,
+ * ni lo intenta: no tiene de dónde sacar el valor real (depende del padre, o
+ * de un cálculo). Este caso NO es un hallazgo ni un "no se pudo medir": es
+ * un silencio documentado — ver el test "LÍMITE CONOCIDO" más abajo, que
+ * prueba esto tal cual es, no lo que "debería" ser.
+ */
+export function tamanioDeIconoUnicoHijo(atributosIcono: string): number | null {
+  const m = atributosIcono.match(/\btamanio\s*=\s*\{\s*(-?\d+(?:\.\d+)?)\s*\}/)
+  return m ? Number(m[1]) : null
+}
+
+/**
+ * `true` si el eje (un par `ladoA`/`ladoB` — top/bottom o left/right, ya
+ * resueltos a números) llega a 48 sumando `tamanio` (el `N` del Icono): la
+ * medida es SIEMPRE `tamanio + ladoA + ladoB`, sin perdonar nada.
+ *
+ * LÍMITE AL REVÉS, A PROPÓSITO (vuelta 1 de 2 de 49-e: la primera versión de
+ * esta función tenía un caso especial acá, y era un pase silencioso —
+ * exactamente el agujero que QPS-245 vino a cerrar, ver el reporte): un
+ * tocable SIN `style` no tiene ningún tamaño propio más allá del `tamanio`
+ * del Icono — su layout ES el del hijo. `hitSlopPara(ancho, alto)` calcula
+ * su compensación asumiendo que el elemento YA mide `ancho`/`alto`; si ese
+ * argumento no coincide con `tamanio` (por ejemplo `hitSlopPara(48, 14)`
+ * sobre un Icono de 14: el 48 describe un elemento que no existe, el
+ * tocable real mide 14 de ancho, no 48), confiar en que ese eje "ya está
+ * lleno" porque la compensación da 0 es exactamente el error: el eje
+ * horizontal de ese caso mide 14 + 0 + 0 = 14, NO 48. Por eso esta función
+ * no mira de dónde salió `ladoA`/`ladoB` (no sabe, ni le importa, si vino de
+ * `hitSlopPara(...)`, de un objeto literal o de un número suelto): solo
+ * confía en los CUATRO INSETS YA RESUELTOS, nunca en el argumento que los
+ * produjo. La forma que sí funciona para un Icono sin `style` es
+ * `hitSlopPara(N)` (el PROPIO tamaño del ícono, no 48) — el patrón real de
+ * `components/PantallaRadar.tsx:470`/`490` y `app/cines.tsx:115`.
+ */
+function ejeDeIcono(tamanio: number, ladoA: number, ladoB: number): boolean {
+  return tamanio + ladoA + ladoB >= 48
+}
+
+/** El hallazgo "area-chica" de un `Pressable` SIN `style` cuyo único hijo es
+ * un `<Icono tamanio={N}>` — `null` si no corresponde (no es ese patrón, el
+ * tamaño no se pudo leer como número literal — LÍMITE CONOCIDO, ver
+ * `tamanioDeIconoUnicoHijo` — o el área alcanza). El `motivo` distingue "no
+ * se pudo medir" (el `hitSlop` está, pero no se pudo resolver: NUNCA un pase
+ * silencioso, ver el encargo de 49-e) de "no llega a 48" (se pudo medir,
+ * pero no alcanza, con o sin `hitSlop`) — para este último, `vertical` y
+ * `horizontal` llevan la medida real de cada eje, para que el mensaje diga
+ * POR QUÉ no alcanza (el caso más engañoso: un `hitSlop` que a simple vista
+ * parece correcto, como `hitSlopPara(48, 14)`, mide 14 en un eje porque el
+ * 48 que declara no es el tamaño real del tocable). */
+function hallazgoIconoSinStyle(
+  tocable: Tocable,
+  contenidoSinComentarios: string,
+): { motivo: 'no-se-pudo-medir' } | { motivo: 'no-llega'; vertical: number; horizontal: number } | null {
+  if (tocable.selfClosing) return null
+  const atributosIcono = soloHijoIcono(tocable.cuerpo)
+  if (atributosIcono === null) return null
+  const tamanio = tamanioDeIconoUnicoHijo(atributosIcono)
+  if (tamanio === null) return null // LÍMITE CONOCIDO: tamanio por prop, no se evalúa.
+
+  const hitSlopTexto = extraerAtributoBalanceado(tocable.apertura, 'hitSlop')
+  if (!hitSlopTexto) {
+    return tamanio >= 48 ? null : { motivo: 'no-llega', vertical: tamanio, horizontal: tamanio }
+  }
+
+  let hitSlop: { top: number; bottom: number; left: number; right: number }
+  try {
+    hitSlop = resolverHitSlop(hitSlopTexto, contenidoSinComentarios)
+  } catch {
+    return { motivo: 'no-se-pudo-medir' }
+  }
+
+  const vertical = tamanio + hitSlop.top + hitSlop.bottom
+  const horizontal = tamanio + hitSlop.left + hitSlop.right
+  if (ejeDeIcono(tamanio, hitSlop.top, hitSlop.bottom) && ejeDeIcono(tamanio, hitSlop.left, hitSlop.right)) return null
+  return { motivo: 'no-llega', vertical, horizontal }
+}
+
+// ---------------------------------------------------------------------------
 // sin-escalar / escala-suelta: a nivel de archivo completo, no por tocable.
 // ---------------------------------------------------------------------------
 
@@ -456,19 +578,38 @@ export interface Hallazgo {
   arreglo: string
 }
 
-/** Excepciones documentadas a `area-chica` (archivo relativo + línea del
- * tocable + motivo): un hallazgo que caería en la lista de abajo, pero que
- * no cuenta porque ya está cubierto de otra forma. Si el motivo deja de
- * valer (por ejemplo, alguien le baja el hitSlop), hay que sacarlo de esta
- * lista — el barrido real lo volvería a marcar solo. */
-export const EXCEPCIONES_AREA_CHICA: ReadonlyArray<{ archivo: string; linea: number; motivo: string }> = [
+/** La línea real del tocable cuya apertura contiene el texto `ancla`, en
+ * `archivoRelativo` — o `null` si no se encuentra. Resuelve
+ * `EXCEPCIONES_AREA_CHICA` por ANCLA DE TEXTO en vez de por número de línea
+ * (49-e, QPS-245): un número de línea se rompe en silencio apenas otra
+ * ronda agrega o saca una línea arriba (sigue siendo un número válido, pero
+ * ya no apunta al mismo tocable); un ancla de texto, no — si el texto deja
+ * de estar donde estaba, esto da `null`, la excepción deja de aplicarse (el
+ * hallazgo real vuelve a aparecer en el barrido general) y el test de más
+ * abajo falla explícito. */
+function lineaDeAncla(archivoRelativo: string, ancla: string): number | null {
+  const file = join(MOBILE_ROOT, ...archivoRelativo.split('/'))
+  const contenido = quitarComentarios(readFileSync(file, 'utf8'))
+  const tocable = tocablesDe(contenido).find((t) => t.apertura.includes(ancla))
+  return tocable ? tocable.linea : null
+}
+
+/** Excepciones documentadas a `area-chica` (archivo relativo + ANCLA DE
+ * TEXTO del tocable + motivo): un hallazgo que caería en la lista de abajo,
+ * pero que no cuenta porque ya está cubierto de otra forma. `linea` se
+ * calcula sola, de `ancla` (nunca se escribe a mano: `?? -1` si el ancla no
+ * se encuentra, un número que ningún tocable real tiene, así la excepción
+ * simplemente deja de aplicar en vez de apuntar a la línea equivocada). Si
+ * el motivo deja de valer (por ejemplo, alguien le baja el hitSlop), hay que
+ * sacarlo de esta lista — el barrido real lo volvería a marcar solo. */
+export const EXCEPCIONES_AREA_CHICA: ReadonlyArray<{ archivo: string; linea: number; ancla: string; motivo: string }> = [
   {
     archivo: 'app/(tabs)/buscar.tsx',
-    linea: 173,
+    ancla: 'accessibilityLabel="Limpiar búsqueda"',
     motivo:
       'hitSlop={8} en los dos ejes: 44 (estilos.botonLimpiar, minWidth/minHeight) + 2×8 = 60 ≥ 48 — llega, aunque el estilo por sí solo no.',
   },
-]
+].map((e) => ({ ...e, linea: lineaDeAncla(e.archivo, e.ancla) ?? -1 }))
 
 /** Todos los hallazgos de un archivo, sobre su contenido YA sin comentarios
  * (`quitarComentarios`): recorre sus tocables y aplica las cuatro reglas que
@@ -524,6 +665,22 @@ function hallazgosDeTocables(contenidoSinComentarios: string, archivoRelativo: s
           regla: 'area-chica',
           arreglo: 'usá hitSlopPara(...) de lib/accesibilidad.ts, o subí el tamaño mínimo a 48',
         })
+      } else if (!styleTexto && !excepcion) {
+        // QPS-245: el caso que el `if` de arriba nunca veía (sin `style`,
+        // daba falso) — ver la sección "area-chica (QPS-245, 49-e)" más
+        // arriba en este archivo.
+        const hallazgo = hallazgoIconoSinStyle(tocable, contenidoSinComentarios)
+        if (hallazgo) {
+          hallazgos.push({
+            archivo: archivoRelativo,
+            linea: tocable.linea,
+            regla: 'area-chica',
+            arreglo:
+              hallazgo.motivo === 'no-se-pudo-medir'
+                ? 'el hitSlop de este <Pressable> no se pudo medir (nunca un pase silencioso): resolvelo a mano, o si es un caso nuevo, sumalo a tests/a11y/hitslop-medidas.ts'
+                : `el <Icono> solo (sin style) no llega a 48: vertical ${hallazgo.vertical}, horizontal ${hallazgo.horizontal} — usá hitSlopPara(N) con el PROPIO tamaño del ícono, no con 48`,
+          })
+        }
       }
     } else {
       // Switch: solo importa accessibilityLabel.
@@ -839,6 +996,90 @@ describe('clavesDeEstiloChicas / styleUsaClaveChica (fixtures en memoria: tiene 
   })
 })
 
+describe('soloHijoIcono / tamanioDeIconoUnicoHijo (fixtures en memoria: tiene que fallar de verdad)', () => {
+  it('un Icono solo, self-closing: devuelve sus atributos', () => {
+    expect(soloHijoIcono('<Icono nombre="X" tamanio={14} />')).toBe(' nombre="X" tamanio={14} ')
+  })
+
+  it('con espacio/salto de línea alrededor: igual lo encuentra (se recorta antes con trim)', () => {
+    expect(soloHijoIcono('\n  <Icono tamanio={14} />\n  ')).not.toBeNull()
+  })
+
+  it('null si hay otro elemento hermano (no es "único hijo")', () => {
+    expect(soloHijoIcono('<Icono tamanio={14} /><Texto>Hola</Texto>')).toBeNull()
+  })
+
+  it('null si el único hijo no es un Icono', () => {
+    expect(soloHijoIcono('<View style={{ width: 10 }} />')).toBeNull()
+  })
+
+  it('tamanioDeIconoUnicoHijo: número literal', () => {
+    expect(tamanioDeIconoUnicoHijo(' nombre="X" tamanio={14} ')).toBe(14)
+  })
+
+  it('tamanioDeIconoUnicoHijo: LÍMITE CONOCIDO, una prop no se resuelve (null, nunca un número adivinado)', () => {
+    expect(tamanioDeIconoUnicoHijo(' nombre="X" tamanio={tamanioIcono} ')).toBeNull()
+  })
+})
+
+describe('area-chica (QPS-245, 49-e): un Pressable SIN style cuyo único hijo es un <Icono tamanio={N}> — antes de esta ronda, nunca se evaluaba (ver la cabecera de la sección, más arriba en este archivo)', () => {
+  function areaChicaDe(jsx: string): Hallazgo[] {
+    return hallazgosDeArchivo(jsx, 'fixture.tsx').filter((h) => h.regla === 'area-chica')
+  }
+
+  it('<Icono tamanio={14}/> SIN hitSlop: 14 no llega a 48 en ningún eje → hallazgo', () => {
+    const jsx = `<Pressable onPress={f} accessibilityRole="button" accessibilityLabel="X"><Icono nombre="X" tamanio={14} /></Pressable>`
+    expect(areaChicaDe(jsx)).toHaveLength(1)
+  })
+
+  it('EL CASO MÁS ENGAÑOSO: con hitSlop={hitSlopPara(48, 14)} → SIGUE SIENDO hallazgo. hitSlopPara(48, 14) da {left:0, right:0, top:17, bottom:17} (lib/accesibilidad.ts:39-45) — el 0 horizontal sale de que el PRIMER argumento ya es 48, pero ese 48 describe un elemento que no existe: el tocable, sin style, mide 14 de ancho (el del Icono), no 48. El área real es horizontal=14+0+0=14, vertical=14+17+17=48: el eje horizontal no llega. Confiar en el 0 era el pase silencioso que QPS-245 vino a cerrar (ver ejeDeIcono, más arriba en este archivo)', () => {
+    const jsx = `<Pressable onPress={f} accessibilityRole="button" accessibilityLabel="X" hitSlop={hitSlopPara(48, 14)}><Icono nombre="X" tamanio={14} /></Pressable>`
+    const hallazgos = areaChicaDe(jsx)
+    expect(hallazgos).toHaveLength(1)
+    expect(hallazgos[0].arreglo).toMatch(/vertical 48, horizontal 14/)
+  })
+
+  it('la forma que SÍ pasa: hitSlop={hitSlopPara(14)} (el PROPIO tamaño del ícono, no 48) — los cuatro lados en 17, 14+17+17=48 en los dos ejes. Es el patrón real de components/PantallaRadar.tsx:470/490 y app/cines.tsx:115', () => {
+    const jsx = `<Pressable onPress={f} accessibilityRole="button" accessibilityLabel="X" hitSlop={hitSlopPara(14)}><Icono nombre="X" tamanio={14} /></Pressable>`
+    expect(areaChicaDe(jsx)).toEqual([])
+  })
+
+  it('el mismo, con hitSlop={10}: 14+10+10=34 en los dos ejes → hallazgo', () => {
+    const jsx = `<Pressable onPress={f} accessibilityRole="button" accessibilityLabel="X" hitSlop={10}><Icono nombre="X" tamanio={14} /></Pressable>`
+    expect(areaChicaDe(jsx)).toHaveLength(1)
+  })
+
+  it('el mismo, con hitSlop={variable} (un identificador que el detector no puede resolver): hallazgo con motivo "no se pudo medir" — nunca un pase silencioso', () => {
+    const jsx = `<Pressable onPress={f} accessibilityRole="button" accessibilityLabel="X" hitSlop={variable}><Icono nombre="X" tamanio={14} /></Pressable>`
+    const hallazgos = areaChicaDe(jsx)
+    expect(hallazgos).toHaveLength(1)
+    expect(hallazgos[0].arreglo).toMatch(/no se pudo medir/)
+  })
+
+  it('con style={estilos.boton} y minHeight: 48: la mide la regla VIEJA (basada en estilo); esta sección no se activa porque SÍ hay style', () => {
+    const jsx = `const estilos = StyleSheet.create({ boton: { minHeight: 48 } })
+function X() {
+  return <Pressable onPress={f} accessibilityRole="button" accessibilityLabel="X" style={estilos.boton}><Icono nombre="X" tamanio={14} /></Pressable>
+}`
+    expect(areaChicaDe(jsx)).toEqual([])
+  })
+
+  it('LÍMITE CONOCIDO: tamanio por PROP (no un número literal) no se evalúa — ni hallazgo, ni "no se pudo medir" (ver tamanioDeIconoUnicoHijo)', () => {
+    const jsx = `<Pressable onPress={f} accessibilityRole="button" accessibilityLabel="X"><Icono nombre="X" tamanio={tamanioIcono} /></Pressable>`
+    expect(areaChicaDe(jsx)).toEqual([])
+  })
+
+  it('un Pressable sin style cuyo único hijo NO es un Icono (por ejemplo un View): fuera del alcance de esta sección, sigue sin evaluarse — no es un pase silencioso NUEVO (ya lo era desde 46-b)', () => {
+    const jsx = `<Pressable onPress={f} accessibilityRole="button" accessibilityLabel="X"><View style={{ width: 10 }} /></Pressable>`
+    expect(areaChicaDe(jsx)).toEqual([])
+  })
+
+  it('un Pressable sin style con el Icono Y OTRO hermano (por ejemplo un Texto): no es "único hijo", fuera del alcance de esta sección', () => {
+    const jsx = `<Pressable onPress={f} accessibilityRole="button" accessibilityLabel="X"><Icono nombre="X" tamanio={14} /><Texto>Hola</Texto></Pressable>`
+    expect(areaChicaDe(jsx)).toEqual([])
+  })
+})
+
 describe('discrepanciasDeArchivo: la línea de base tiene que fallar en las DOS direcciones (con un objeto inventado, no el real)', () => {
   it('sin diferencia: []', () => {
     expect(discrepanciasDeArchivo('x.tsx', { 'sin-rol': 1 }, { 'sin-rol': 1 })).toEqual([])
@@ -927,11 +1168,17 @@ describe('sin-escalar / escala-suelta: 0 en TODA la app, sin línea de base (46-
   })
 })
 
-describe('EXCEPCIONES_AREA_CHICA: cada excepción tiene que caer justo sobre un tocable real (si no, está mal escrita y no protege nada)', () => {
+describe('EXCEPCIONES_AREA_CHICA: cada excepción tiene que caer justo sobre un tocable real (ancla de texto, no número de línea — si el ancla ya no está en el archivo, esto falla)', () => {
   it.each(EXCEPCIONES_AREA_CHICA.map((e) => [e.archivo, e] as const))('%s', (_label, excepcion) => {
     const file = join(MOBILE_ROOT, ...excepcion.archivo.split('/'))
     const contenido = quitarComentarios(readFileSync(file, 'utf8'))
-    const lineas = tocablesDe(contenido).map((t) => t.linea)
-    expect(lineas).toContain(excepcion.linea)
+    const aperturas = tocablesDe(contenido).map((t) => t.apertura)
+    expect(
+      aperturas.some((a) => a.includes(excepcion.ancla)),
+      `no se encontró el ancla "${excepcion.ancla}" en ningún tocable de ${excepcion.archivo} (la excepción no protege nada)`,
+    ).toBe(true)
+    // La misma comprobación, del otro lado: la línea ya quedó resuelta (no
+    // en -1, el valor de "ancla no encontrada") al cargar el módulo.
+    expect(excepcion.linea).toBeGreaterThan(0)
   })
 })
