@@ -31,6 +31,40 @@ describe('aCsv', () => {
   })
 })
 
+describe('aCsv: neutraliza la inyección de fórmulas (CSV injection)', () => {
+  it('un string que arranca con "=", "@", "+", tab o "-" (que no es número): apóstrofo adelante', () => {
+    const csv = aCsv([
+      { nombre: '=1+1' },
+      { nombre: '@SUM(A1:A9)' },
+      { nombre: '+1' },
+      { nombre: '\t=1+1' },
+      { nombre: '-1+1' },
+    ])
+    const lineas = csv.split('\r\n').slice(1) // sin encabezado
+    expect(lineas).toEqual([`'=1+1`, `'@SUM(A1:A9)`, `'+1`, `'\t=1+1`, `'-1+1`])
+  })
+
+  it('lat y lon como number (el caso real del reporte) salen tal cual, sin apóstrofo', () => {
+    const csv = aCsv([{ lat: -24.7883, lon: -65.4106 }])
+    expect(csv.split('\r\n')[1]).toBe('-24.7883,-65.4106')
+  })
+
+  it('un "-24.7883" como string (número escrito como texto) también sale tal cual', () => {
+    const csv = aCsv([{ lat: '-24.7883' }])
+    expect(csv.split('\r\n')[1]).toBe('-24.7883')
+  })
+
+  it('un nombre con coma y comillas sigue escapado como antes (sin apóstrofo: no arranca con un carácter de fórmula)', () => {
+    const csv = aCsv([{ nombre: 'La Casona, "El Rincón"' }])
+    expect(csv.split('\r\n')[1]).toBe('"La Casona, ""El Rincón"""')
+  })
+
+  it('un nombre que arranca con "=" y tiene una coma: el apóstrofo queda adentro de las comillas', () => {
+    const csv = aCsv([{ nombre: '=1+1, boom' }])
+    expect(csv.split('\r\n')[1]).toBe(`"'=1+1, boom"`)
+  })
+})
+
 describe('resumen', () => {
   it('cuenta las filas por estado', () => {
     expect(
