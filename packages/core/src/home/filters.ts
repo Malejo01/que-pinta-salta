@@ -77,6 +77,11 @@ export function filterEvents(
           return eventDate >= today && eventDate <= monthFromNow
         }
         case "tendencias":
+          // QPS-239: `isFeatured` ya no sale de `is_featured` (legado) sino
+          // de si `featuredUntil` sigue vigente (ver `events/destacados.ts`),
+          // así que el significado de este filtro cambió sin tocar esta
+          // línea: antes era "marcado a mano como destacado", ahora es
+          // "con un destacado vigente en este momento".
           return event.isFeatured
         default:
           return true
@@ -110,6 +115,23 @@ export interface CategoryEventsRow {
   events: DisplayEvent[]
 }
 
+// Decisión 4 (R50): dentro de cada fila de categoría, los destacados van
+// primero (y entre ellos, por `startDateTime` ascendente); el resto
+// conserva el orden que ya traía `filteredEvents` (flyers de Instagram
+// primero, después por fecha: ver `filterEvents`, más arriba). No hace
+// falta reordenar "el resto": ya viene ordenado, y `Array.prototype.filter`
+// conserva el orden relativo de lo que deja pasar, así que separar en dos
+// grupos y pegarlos no lo toca. `Array.prototype.sort` es estable desde
+// ES2019, así que ordenar solo los destacados por fecha no desordena los
+// que tengan la misma fecha entre sí de forma arbitraria.
+function destacadosPrimero(events: DisplayEvent[]): DisplayEvent[] {
+  const destacados = [...events.filter((event) => event.isFeatured)].sort(
+    (a, b) => new Date(a.startDateTime).getTime() - new Date(b.startDateTime).getTime()
+  )
+  const resto = events.filter((event) => !event.isFeatured)
+  return [...destacados, ...resto]
+}
+
 // Cuerpo del useMemo `eventsByCategory` de `HomeContent`.
 export function groupByCategory(
   sortedCategories: Category[],
@@ -122,10 +144,17 @@ export function groupByCategory(
     sortedCategories.map((category, index) => [category.slug, index])
   )
 
+  // Trampa (R50): con el filtro "hoy" (sin fecha exacta), unas líneas más
+  // abajo `arrangeRowsForToday` reordena cada fila por hora y pisa este
+  // "destacados primero" (puede dejar un evento no destacado antes que uno
+  // destacado si empieza más temprano). La garantía de este bloque vale
+  // para el resto de los modos (sin filtro de fecha, "semana", "mes",
+  // "tendencias", fecha exacta); en "hoy" no. `event-display.ts` no es
+  // archivo propio de esta tarea, así que no se tocó `arrangeRowsForToday`.
   const cats = sortedCategories.map(cat => ({
     category: cat.slug,
     title: cat.name,
-    events: filteredEvents.filter(event => event.category === cat.slug)
+    events: destacadosPrimero(filteredEvents.filter(event => event.category === cat.slug))
   }))
 
   // Este es el orden que efectivamente se ve en la home: por cantidad de

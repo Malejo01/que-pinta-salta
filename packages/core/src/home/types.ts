@@ -28,6 +28,14 @@ export interface DisplayEvent {
   /** Solo con dato explícito (age_restriction >= 18); null/undefined = sin chip. */
   vibe?: "adultos" | "familiar" | "exterior" | null
   isFeatured: boolean
+  /**
+   * `events.featured_until` tal cual (QPS-239): opcional a propósito, no
+   * porque sea opcional en la base, sino porque decenas de fixtures de la
+   * web y de la app arman un `DisplayEvent` a mano sin este campo; si fuera
+   * obligatorio, el typecheck de esos fixtures quedaría en rojo. Flyers de
+   * Instagram y películas no lo tienen (nunca se destacan).
+   */
+  featuredUntil?: string | null
   /** Estado del evento (events.status): lo usa el modal de Buscar para el gate de "Voy / Me interesa". Flyers de Instagram y películas no lo tienen. */
   status?: string
   // Campos opcionales para flyers de Instagram

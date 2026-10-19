@@ -21,17 +21,17 @@ import { Input } from "@/components/ui/input"
 import { getCategoryIcon } from "@/lib/category-icons"
 import { formatEventDate, formatSaltaDayKey } from "@/lib/date-format"
 import { ageChip, capitalizeFirst, cleanDescription, formatEventTimeDisplay } from "@/lib/event-display"
-import { createCategory, updateEventCategory, toggleEventFeatured } from "@/lib/admin-actions"
+import { createCategory, updateEventCategory } from "@/lib/admin-actions"
 import { deferredRefresh } from "@/lib/deferred-refresh"
 import { AdSenseBanner } from "@/components/adsense-banner"
-import { Switch } from "@/components/ui/switch"
-import { Label } from "@/components/ui/label"
-import { useToast } from "@/hooks/use-toast"
 import { ViewBeacon } from "@/components/view-beacon"
 import { goHref, urlComoLlegar, type MetricOrigin } from "@/lib/metricas/links"
 import { FlyerImage } from "@/components/flyer-image"
 import { FilaAccionesEvento } from "@/components/fila-acciones-evento"
 import { BotonSeguir } from "@/components/boton-seguir"
+import { InsigniaDestacado } from "@/components/insignia-destacado"
+import { ControlDestacado } from "@/components/admin/control-destacado"
+import { estaDestacado } from "@qps/core/events/destacados"
 import type { CantidadesAsistencia } from "@/lib/asistencia"
 import { debenMostrarseBotonesAsistencia } from "@/lib/asistencia-visibilidad"
 import type { TipoAsistencia } from "@qps/core/asistencia"
@@ -84,32 +84,6 @@ export function EventDetailPage({
   const [currentCategoryId, setCurrentCategoryId] = useState<string>(event.category_id ?? "")
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>(event.category_id ?? "")
   const [newCategoryName, setNewCategoryName] = useState("")
-
-  const [isFeatured, setIsFeatured] = useState(event.is_featured)
-  const [isPendingFeatured, startFeaturedTransition] = useTransition()
-  const { toast } = useToast()
-
-  const handleToggleFeatured = (checked: boolean) => {
-    startFeaturedTransition(async () => {
-      const result = await toggleEventFeatured(event.id, checked)
-      if (result.error) {
-        toast({
-          title: "Error",
-          description: result.error,
-          variant: "destructive",
-        })
-        return
-      }
-      setIsFeatured(checked)
-      toast({
-        title: checked ? "Evento destacado" : "Evento quitado de destacados",
-        description: checked 
-          ? "El evento ahora se mostrará con prioridad en la página principal."
-          : "El evento ya no se mostrará como destacado.",
-      })
-      deferredRefresh(router.refresh)
-    })
-  }
 
   const currentCategory = useMemo(() => {
     if (!currentCategoryId) return null
@@ -215,6 +189,18 @@ export function EventDetailPage({
               {createElement(iconComponent, { className: "mr-1 size-3" })}
               {displayEvent.categoryName}
             </Badge>
+            {/*
+              `event` es la fila cruda (`EventWithRelations`), no pasa por
+              `transformEvent`: no trae `isFeatured` calculado, así que acá sí
+              se llama a `estaDestacado()` (`@qps/core/events/destacados`)
+              con `event.featured_until` y la hora actual. En `event-card.tsx`
+              y `hero-carousel.tsx` no hace falta: reciben un `DisplayEvent`
+              con `isFeatured` ya resuelto por `transformEvent`.
+            */}
+            <InsigniaDestacado
+              visible={estaDestacado(event.featured_until, new Date())}
+              className="absolute left-4 top-14"
+            />
           </div>
 
           <div className="flex flex-col">
@@ -307,21 +293,8 @@ export function EventDetailPage({
 
                 {categoryError && <p className="mt-2 text-xs text-destructive">{categoryError}</p>}
 
-                <div className="mt-4 border-t pt-3 flex items-center justify-between">
-                  <div className="space-y-0.5 pr-2">
-                    <Label htmlFor="featured-toggle" className="text-sm font-medium text-foreground cursor-pointer">
-                      Destacar Evento
-                    </Label>
-                    <p className="text-xs text-muted-foreground">
-                      Aparecerá en el carrusel de inicio y tendrá una etiqueta especial.
-                    </p>
-                  </div>
-                  <Switch
-                    id="featured-toggle"
-                    checked={isFeatured}
-                    onCheckedChange={handleToggleFeatured}
-                    disabled={isPendingFeatured}
-                  />
+                <div className="mt-4 border-t pt-3">
+                  <ControlDestacado eventId={event.id} featuredUntil={event.featured_until ?? null} />
                 </div>
 
                 <Link

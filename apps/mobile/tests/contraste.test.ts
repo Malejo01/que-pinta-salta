@@ -211,7 +211,12 @@ const FIJOS: ParContraste[] = [
     uso: 'texto',
     a: fijo('#000000'),
     b: fijo('#f59e0b'),
-    archivos: ['components/TarjetaEvento.tsx'],
+    // 50-e: la insignia se mudó a su propio componente (antes la dibujaba
+    // TarjetaEvento.tsx a mano, líneas 85-91 de esa ronda); ahora la
+    // comparten TarjetaEvento, Hero y la ficha, todas a través de
+    // InsigniaDestacado.tsx — el fondo y el texto siguen escritos ahí, una
+    // sola vez.
+    archivos: ['components/InsigniaDestacado.tsx'],
     nota: "escrito como '#000' (3 dígitos) en el código, no '#000000'",
   },
   {

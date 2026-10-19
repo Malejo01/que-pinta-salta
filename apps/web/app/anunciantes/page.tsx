@@ -1,5 +1,5 @@
 import type { Metadata } from "next"
-import { Sparkles, Eye, Radio, Calendar, MessageCircle, CheckCircle2 } from "lucide-react"
+import { Sparkles, Eye, Radio, Calendar, MessageCircle, Mail, CheckCircle2 } from "lucide-react"
 import { Navbar } from "@/components/navbar"
 import { MobileNav } from "@/components/mobile-nav"
 import { createAdminClient } from "@/lib/supabase/server"
@@ -7,11 +7,19 @@ import {
   getAdvertiserMetrics,
   formatPublicCount,
   formatRadarSubscribers,
-  precioVisible,
   type AdvertiserMetrics,
 } from "@/lib/anunciantes/metricas"
 import { ANUNCIANTES } from "@/lib/config/anunciantes"
 import { whatsappUrl } from "@/lib/contacto"
+import { CONTACTO_EMAIL, mailtoContacto } from "@qps/core/contacto"
+import {
+  PIE_TARIFARIO,
+  TARIFARIO,
+  VIGENCIA_TARIFARIO,
+  textoPrecioFundador,
+  textoPrecioLista,
+  textoUsdAprox,
+} from "@qps/core/publicidad/precios"
 
 /**
  * Página 100% estática desde el punto de vista de Next: ningún componente
@@ -32,12 +40,12 @@ const SIN_METRICAS: AdvertiserMetrics = {
 }
 
 export const metadata: Metadata = {
-  title: "Anunciá en Qué Pinta Salta | Qué Pinta Salta",
+  title: "Publicitá tu evento | Qué Pinta Salta",
   description:
-    "Llegá al público que ya está buscando salidas en Salta Capital: evento destacado en la portada, presencia en el Radar y reporte de vistas y clics.",
+    "Llegá al público que ya está buscando salidas en Salta Capital: destacados en la portada, packs para organizadores y RRPP, con precios publicados y reporte de clics.",
   alternates: { canonical: "/anunciantes" },
-  // Mientras ANUNCIANTES.publicada sea false (precios sin completar) la
-  // página no se indexa ni entra al sitemap (ver app/sitemap.ts).
+  // Si ANUNCIANTES.publicada fuera false, la página no se indexa ni entra
+  // al sitemap (ver app/sitemap.ts).
   ...(ANUNCIANTES.publicada ? {} : { robots: { index: false, follow: false } }),
 }
 
@@ -85,6 +93,7 @@ export default async function AnunciantesPage() {
   const radarLabel = formatRadarSubscribers(metrics.radarSubscribers)
 
   const whatsappHref = whatsappUrl("Hola! Me interesa anunciar en Que Pinta Salta.")
+  const mailtoHref = mailtoContacto("Quiero destacar mi evento")
 
   return (
     <div className="min-h-screen bg-background pb-20 sm:pb-0">
@@ -95,7 +104,7 @@ export default async function AnunciantesPage() {
           <div className="mb-1 flex size-14 items-center justify-center rounded-2xl border border-primary/20 bg-primary/10 text-primary">
             <Sparkles className="size-7" />
           </div>
-          <h1 className="text-3xl font-extrabold tracking-tight sm:text-4xl">Anunciá en Qué Pinta Salta</h1>
+          <h1 className="text-3xl font-extrabold tracking-tight sm:text-4xl">Publicitá tu evento</h1>
           <p className="max-w-2xl text-sm leading-relaxed text-muted-foreground sm:text-base">
             Una agenda pensada para quien ya decidió salir y está buscando dónde: peñas, boliches, teatro, recitales,
             ferias y cine de Salta Capital, todo en un solo lugar.
@@ -110,11 +119,10 @@ export default async function AnunciantesPage() {
           </p>
           <p>
             Para un anunciante, eso significa aparecer donde la gente ya está decidiendo qué hacer ese fin de semana,
-            en vez de interrumpir con un anuncio genérico. Hoy el sitio ofrece tres formas concretas de sumar tu
-            evento o tu marca, todas ya construidas y en funcionamiento.
+            en vez de interrumpir con un anuncio genérico.
           </p>
           <p>
-            Más abajo, los números reales del sitio (actualizados cada una hora) y los paquetes disponibles.
+            Más abajo, los números reales del sitio (actualizados cada una hora) y los precios, publicados y finales.
           </p>
         </section>
 
@@ -143,46 +151,88 @@ export default async function AnunciantesPage() {
         </section>
 
         <section className="mb-12 space-y-4">
-          <h2 className="text-xl font-bold text-foreground">Paquetes</h2>
+          <div className="space-y-1">
+            <h2 className="text-xl font-bold text-foreground">Precios</h2>
+            <p className="text-sm text-muted-foreground">
+              Vigentes {VIGENCIA_TARIFARIO}. Precios finales: no se les suma IVA.
+            </p>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {TARIFARIO.map((producto) => {
+              const usd = textoUsdAprox(producto.precio)
+              return (
+                <div
+                  key={producto.id}
+                  className={`flex flex-col gap-3 rounded-2xl border p-5 shadow-sm ${
+                    producto.destacado ? "border-primary/40 bg-primary/5" : "border-border bg-card"
+                  }`}
+                >
+                  <h3 className="text-lg font-bold text-foreground">{producto.nombre}</h3>
+                  <p className="flex items-start gap-2 text-sm text-muted-foreground">
+                    <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-primary" />
+                    <span>{producto.queIncluye}</span>
+                  </p>
+                  <div className="mt-auto space-y-1 pt-2">
+                    <p className="text-xl font-extrabold text-foreground">{textoPrecioLista(producto.precio)}</p>
+                    {producto.precio.tipo !== "gratis" && (
+                      <p className="text-sm font-medium text-primary">
+                        Precio fundador: {textoPrecioFundador(producto.precio)}
+                      </p>
+                    )}
+                    {usd && <p className="text-xs text-muted-foreground">Aprox. {usd}</p>}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+          <p className="text-xs leading-relaxed text-muted-foreground">{PIE_TARIFARIO}</p>
+        </section>
+
+        <section className="mb-12 space-y-4">
+          <h2 className="text-xl font-bold text-foreground">Cómo funciona</h2>
           <div className="grid gap-4 sm:grid-cols-3">
-            {ANUNCIANTES.paquetes.map((paquete) => (
-              <div
-                key={paquete.id}
-                className={`flex flex-col gap-3 rounded-2xl border p-5 shadow-sm ${
-                  paquete.destacado
-                    ? "border-primary/40 bg-primary/5"
-                    : "border-border bg-card"
-                }`}
-              >
-                <h3 className="text-lg font-bold text-foreground">{paquete.nombre}</h3>
-                <ul className="space-y-2 text-sm text-muted-foreground">
-                  {paquete.queIncluye.map((item) => (
-                    <li key={item} className="flex items-start gap-2">
-                      <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-primary" />
-                      <span>{item}</span>
-                    </li>
-                  ))}
-                </ul>
-                <p className="mt-auto pt-2 text-xl font-extrabold text-foreground">{precioVisible(paquete)}</p>
-              </div>
-            ))}
+            <div className="flex flex-col gap-2 rounded-2xl border border-border bg-card p-5 text-card-foreground shadow-sm">
+              <p className="text-2xl font-extrabold text-primary">1</p>
+              <p className="text-sm text-foreground">Nos escribís, nos contás tu evento y elegís el paquete y la fecha hasta la que querés destacarlo.</p>
+            </div>
+            <div className="flex flex-col gap-2 rounded-2xl border border-border bg-card p-5 text-card-foreground shadow-sm">
+              <p className="text-2xl font-extrabold text-primary">2</p>
+              <p className="text-sm text-foreground">Pagás por transferencia o Mercado Pago, como prefieras.</p>
+            </div>
+            <div className="flex flex-col gap-2 rounded-2xl border border-border bg-card p-5 text-card-foreground shadow-sm">
+              <p className="text-2xl font-extrabold text-primary">3</p>
+              <p className="text-sm text-foreground">
+                Lo destacamos hasta la fecha que elegiste. Llegado ese día, vence solo: no tenés que avisarnos ni
+                sacarlo vos.
+              </p>
+            </div>
           </div>
         </section>
 
         <section className="flex flex-col items-center gap-3 rounded-2xl border border-border bg-card p-8 text-center">
           <h2 className="text-xl font-bold text-foreground">¿Te interesa?</h2>
           <p className="max-w-md text-sm text-muted-foreground">
-            Contanos tu caso por WhatsApp y vemos qué paquete se ajusta mejor a tu evento o tu marca.
+            Contanos tu caso por WhatsApp o por mail y vemos qué paquete se ajusta mejor a tu evento o tu marca.
           </p>
-          <a
-            href={whatsappHref}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-primary px-6 text-sm font-bold text-primary-foreground transition-all hover:scale-[1.02] hover:bg-primary/90"
-          >
-            <MessageCircle className="size-4" />
-            Hablar por WhatsApp
-          </a>
+          <div className="flex flex-col gap-3 sm:flex-row">
+            <a
+              href={whatsappHref}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-primary px-6 text-sm font-bold text-primary-foreground transition-all hover:scale-[1.02] hover:bg-primary/90"
+            >
+              <MessageCircle className="size-4" />
+              Hablar por WhatsApp
+            </a>
+            <a
+              href={mailtoHref}
+              className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-border bg-card px-6 text-sm font-bold text-foreground transition-all hover:scale-[1.02] hover:bg-muted"
+            >
+              <Mail className="size-4" />
+              Escribinos por mail
+            </a>
+          </div>
+          <p className="text-xs text-muted-foreground">{CONTACTO_EMAIL}</p>
         </section>
       </main>
 

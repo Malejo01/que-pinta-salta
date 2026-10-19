@@ -8,6 +8,7 @@ import { formatEventDate } from "@/lib/date-format"
 import { capitalizeFirst, cleanDescription } from "@/lib/event-display"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { InsigniaDestacado } from "@/components/insignia-destacado"
 import { FlyerImage } from "@/components/flyer-image"
 import { eventHref } from "@/lib/metricas/links"
 import type { DisplayEvent } from "@/components/home-content"
@@ -133,7 +134,8 @@ export function HeroCarousel({ events }: HeroCarouselProps) {
           <Badge className="mb-1 bg-primary text-[10px] text-primary-foreground sm:mb-3 sm:text-xs">
             {currentEvent.categoryName}
           </Badge>
-          
+          <InsigniaDestacado visible={currentEvent.isFeatured} className="ml-2 mb-1 sm:mb-3" />
+
           <h2 className="mb-1 line-clamp-2 text-[15px] font-bold leading-tight text-white sm:mb-3 sm:line-clamp-none sm:text-3xl lg:text-[2rem] drop-shadow-md">
             {currentEvent.title}
           </h2>

@@ -5,6 +5,7 @@ import Link from "next/link"
 import { motion } from "framer-motion"
 import { Calendar, MapPin, Instagram, Film } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
+import { InsigniaDestacado } from "@/components/insignia-destacado"
 import { cn } from "@/lib/utils"
 import { formatEventDateShort } from "@/lib/date-format"
 import { FavoriteButton } from "@/components/favorite-button"
@@ -238,13 +239,7 @@ export function EventCard({ event, isFavorite, onToggleFavorite, onOpenMovie, cl
           </div>
         )}
 
-        {event.isFeatured && (
-          <Badge 
-            className="absolute left-2 top-8 bg-gradient-to-r from-amber-500 to-yellow-500 text-black font-bold flex items-center gap-0.5 shadow-md border-none text-[10px] py-0 px-1.5"
-          >
-            ★ Destacado
-          </Badge>
-        )}
+        <InsigniaDestacado visible={event.isFeatured} className="absolute left-2 top-8" />
 
         <div className="absolute bottom-0 left-0 right-0 p-3 text-white transition-all duration-300 group-hover/card:-translate-y-1">
           <h3 className="mb-1 line-clamp-2 text-sm font-semibold leading-tight">

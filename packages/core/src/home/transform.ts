@@ -11,6 +11,7 @@ import {
   formatEventTimeDisplay,
 } from "../event-display"
 import { isVigente } from "../events/vigencia"
+import { estaDestacado } from "../events/destacados"
 import type { DisplayEvent, EventWithRelations } from "./types"
 
 // Normalizar fechas y zonas horarias para Salta (America/Argentina/Salta)
@@ -47,7 +48,14 @@ export function transformEvent(event: EventWithRelations): DisplayEvent {
     startDateTime: event.start_date,
     ticketUrl: event.ticket_url || undefined,
     vibe: ageChip(event.age_restriction),
-    isFeatured: event.is_featured,
+    // QPS-239: el destacado ya no sale de `is_featured` (legado) sino de si
+    // `featured_until` sigue vigente. `new Date()` es el único reloj propio
+    // de este archivo: no se puede inyectar porque `transformEvent` se pasa
+    // directo a `.map` en tres lugares (este archivo, `apps/mobile/lib/datos/eventos.ts`
+    // y `apps/web/app/buscar/buscar-content.tsx`), y agregarle un segundo
+    // parámetro a la función recibiría ahí el índice del array, no un reloj.
+    featuredUntil: event.featured_until ?? null,
+    isFeatured: estaDestacado(event.featured_until, new Date()),
     status: event.status,
   }
 }

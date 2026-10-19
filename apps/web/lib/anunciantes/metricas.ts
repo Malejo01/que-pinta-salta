@@ -1,5 +1,4 @@
 import { formatSaltaDayKey, saltaWallClockToUtcISO } from "@/lib/date-format"
-import type { PaqueteAnunciante } from "@/lib/config/anunciantes"
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000
 
@@ -110,16 +109,6 @@ export async function sumViewsPaged(
   if (error) throw error
 
   return { total, truncated: (data ?? []).length > 0 }
-}
-
-/**
- * "Consultar" mientras no haya precio fijado (`precio: null`, a propósito:
- * ver lib/config/anunciantes.ts). Con precio, formato es-AR con el período.
- */
-export function precioVisible(paquete: Pick<PaqueteAnunciante, "precio" | "periodo">): string {
-  if (paquete.precio == null) return "Consultar"
-  const monto = `$ ${paquete.precio.toLocaleString("es-AR")}`
-  return paquete.periodo ? `${monto} / ${paquete.periodo}` : monto
 }
 
 export interface AdvertiserMetrics {

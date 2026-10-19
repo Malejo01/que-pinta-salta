@@ -12,6 +12,12 @@
  * - `dedup_key`: clave interna de deduplicación.
  * - `ai_metadata`: metadata cruda del modelo de clasificación.
  * - `created_by`: id del admin/usuario que creó la fila.
+ * - `featured_set_by` (QPS-239): igual que `created_by` pero para el
+ *   destacado — el id del admin que lo marcó. Auditoría del panel, no de la
+ *   UI pública: solo la lee `lib/admin/destacados-actions.ts`.
+ * - `featured_set_at` (QPS-239): igual que `created_by` pero para el
+ *   destacado — el momento en que un admin lo marcó. Auditoría del panel,
+ *   no de la UI pública: solo la lee `lib/admin/destacados-actions.ts`.
  *
  * Sin imports de Next ni de Supabase: lo reusa también la app móvil.
  */
@@ -41,6 +47,7 @@ export const PUBLIC_EVENT_COLUMNS = [
   'tags',
   'status',
   'is_featured',
+  'featured_until',
   'view_count',
   'created_at',
   'updated_at',
