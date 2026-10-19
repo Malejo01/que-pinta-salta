@@ -88,6 +88,8 @@ export interface ConsultaEstructurada extends ConsultaComun {
 export interface ConsultaLibre extends ConsultaComun {
   tipo: 'libre'
   q: string
+  /** La dirección sin número de puerta: a lo sumo da la calle, así que su resultado siempre va a revisar. */
+  soloCalle?: boolean
 }
 
 export type ConsultaGeocodificacion = ConsultaEstructurada | ConsultaLibre
@@ -104,8 +106,12 @@ function consultaProvincia(q: string): ConsultaLibre {
  *      número: búsqueda estructurada en la ciudad del lugar.
  *   2. "nombre, <ciudad>" en la ciudad ("La Metro, Salta Capital").
  *   3. "nombre" solo, en la ciudad.
- *   4. Último recurso, en toda la provincia: "dirección, Salta, Argentina"
+ *   4. Si la dirección sirve pero no tiene número ("Avenida John F.
+ *      Kennedy"): "dirección, <ciudad>" en la ciudad (`soloCalle`).
+ *   5. Último recurso, en toda la provincia: "dirección, Salta, Argentina"
  *      si la dirección sirve, si no "nombre, Salta, Argentina".
+ *
+ * La 1 y la 4 se excluyen entre sí: nunca son más de 4 consultas.
  *
  * La ciudad es Salta Capital salvo que el nombre o la dirección mencionen
  * otra localidad conocida (`localidadDelLugar`).
@@ -129,6 +135,9 @@ export function consultasParaLugar({
   }
   candidatas.push({ tipo: 'libre', q: `${nombre}, ${localidad.nombre}`, ...enCiudad })
   candidatas.push({ tipo: 'libre', q: nombre, ...enCiudad })
+  if (direccionNormalizada && !conNumero) {
+    candidatas.push({ tipo: 'libre', q: `${direccionNormalizada}, ${localidad.ciudad}`, soloCalle: true, ...enCiudad })
+  }
   candidatas.push(consultaProvincia(`${direccionNormalizada || nombre}, Salta, Argentina`))
 
   const vistas = new Set<string>()
@@ -158,7 +167,7 @@ export function claveDeConsulta(consulta: ConsultaGeocodificacion): string {
   const texto =
     consulta.tipo === 'estructurada'
       ? `street=${consulta.numero} ${consulta.calle}; city=${consulta.ciudad}`
-      : `q=${consulta.q}`
+      : `q=${consulta.q}${consulta.soloCalle ? '; solo calle' : ''}`
   return normalizarConsulta(`v2 | ${consulta.tipo} | ${texto} | ${consulta.alcance} ${viewbox(consulta.zona)}`)
 }
 
@@ -167,7 +176,7 @@ export function describirConsulta(consulta: ConsultaGeocodificacion): string {
   const texto =
     consulta.tipo === 'estructurada'
       ? `${consulta.calle} ${consulta.numero}, ${consulta.ciudad} (estructurada)`
-      : consulta.q
+      : `${consulta.q}${consulta.soloCalle ? ' (sin número)' : ''}`
   return consulta.alcance === 'ciudad' ? `${texto} [en ${consulta.donde}]` : `${texto} [toda la provincia]`
 }
 

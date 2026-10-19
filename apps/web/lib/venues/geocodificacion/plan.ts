@@ -48,6 +48,9 @@ interface CacheGeocodificacion {
   guardar<T>(clave: string, valor: T): void
 }
 
+/** Lo que devuelve `evaluarResultados` cuando hay algo que ofrecer. */
+type ResultadoEvaluado = NonNullable<ReturnType<typeof evaluarResultados>>
+
 interface ClienteGeocodificacion {
   buscar(consulta: ConsultaGeocodificacion): Promise<ResultadoBusqueda>
 }
@@ -116,8 +119,10 @@ export function filtroDeActualizacion({
  * pedir nada, y un 503 transitorio quedaría cacheado como error eterno
  * para ese lugar).
  *
- * Corta en la primera consulta con un resultado aceptable (la primera donde
- * `evaluarResultados` no da `null`). Si una consulta da `'error'` (los
+ * Corta en la primera consulta con confianza alta. Un resultado "revisar"
+ * queda como candidato (el primero) y se siguen probando las consultas de la
+ * ciudad; si ninguna da alta, la fila es ese candidato, y con un candidato no
+ * se hace la búsqueda en toda la provincia (R53-b). Si una consulta da `'error'` (los
  * reintentos de Nominatim ya se agotaron), el lugar corta ahí mismo con
  * `estado: 'error'` y no prueba las consultas que le quedaban, así que con
  * Nominatim caído un lugar gasta como mucho `1 + maxReintentos` pedidos y no
@@ -150,12 +155,54 @@ export async function geocodificarLugares({
 }): Promise<FilaReporteGeocodificacion[]> {
   const filas: FilaReporteGeocodificacion[] = []
 
+  /** La fila de un lugar con resultado: guarda si corresponde (apply + alta) y arma el reporte. */
+  async function filaConResultado(
+    lugar: VenueParaGeocodificar,
+    consulta: string,
+    { elegido, confianza, motivo: motivoEvaluacion }: ResultadoEvaluado
+  ): Promise<FilaReporteGeocodificacion> {
+    let estado: EstadoFilaGeocodificacion
+    let motivo: string | null = motivoEvaluacion
+
+    if (apply && confianza === 'alta') {
+      const actualizado = await guardar(lugar.id, elegido.lat, elegido.lon)
+      if (actualizado) {
+        estado = 'guardado'
+      } else {
+        estado = 'no-se-pisó'
+        motivo = 'cambió mientras corría'
+      }
+    } else {
+      estado = 'para-revisar'
+    }
+
+    return {
+      id: lugar.id,
+      nombre: lugar.name,
+      direccion: lugar.address,
+      consulta,
+      display_name: elegido.display_name,
+      lat: elegido.lat,
+      lon: elegido.lon,
+      category: elegido.category,
+      type: elegido.type,
+      place_rank: elegido.place_rank,
+      importance: elegido.importance,
+      confianza,
+      estado,
+      motivo,
+      openStreetMapUrl: urlOpenStreetMap(elegido.lat, elegido.lon),
+    }
+  }
+
   for (const lugar of lugares) {
     const consultas = consultasParaLugar({ nombre: lugar.name, direccion: lugar.address })
     let consultaUsada = consultas[0] ? describirConsulta(consultas[0]) : ''
     let filaDelLugar: FilaReporteGeocodificacion | null = null
+    let candidatoRevisar: { consulta: string; evaluado: ResultadoEvaluado } | null = null
 
     for (const consulta of consultas) {
+      if (candidatoRevisar && consulta.alcance === 'provincia') break
       consultaUsada = describirConsulta(consulta)
       const clave = claveDeConsulta(consulta)
 
@@ -173,6 +220,8 @@ export async function geocodificarLugares({
 
       if (resultadoBusqueda.tipo === 'error') {
         // Corta el lugar acá: no prueba las consultas que le quedaban (ver el docstring).
+        // Si ya había un candidato "revisar", la fila es ese candidato (abajo).
+        if (candidatoRevisar) break
         filaDelLugar = {
           id: lugar.id,
           nombre: lugar.name,
@@ -196,40 +245,21 @@ export async function geocodificarLugares({
       const evaluado = evaluarResultados(resultadoBusqueda.resultados, consulta)
       if (evaluado === null) continue
 
-      const { elegido, confianza } = evaluado
-      let estado: EstadoFilaGeocodificacion
-      let motivo: string | null = evaluado.motivo
-
-      if (apply && confianza === 'alta') {
-        const actualizado = await guardar(lugar.id, elegido.lat, elegido.lon)
-        if (actualizado) {
-          estado = 'guardado'
-        } else {
-          estado = 'no-se-pisó'
-          motivo = 'cambió mientras corría'
-        }
-      } else {
-        estado = 'para-revisar'
+      if (evaluado.confianza === 'revisar') {
+        // R53-b: un "revisar" en la ciudad (p. ej. la calle sin el número exacto)
+        // no corta: las consultas por nombre que siguen pueden dar uno alto.
+        // Se guarda el primero como candidato, y con un candidato ya no se
+        // busca en toda la provincia.
+        candidatoRevisar ??= { consulta: consultaUsada, evaluado }
+        continue
       }
 
-      filaDelLugar = {
-        id: lugar.id,
-        nombre: lugar.name,
-        direccion: lugar.address,
-        consulta: consultaUsada,
-        display_name: elegido.display_name,
-        lat: elegido.lat,
-        lon: elegido.lon,
-        category: elegido.category,
-        type: elegido.type,
-        place_rank: elegido.place_rank,
-        importance: elegido.importance,
-        confianza,
-        estado,
-        motivo,
-        openStreetMapUrl: urlOpenStreetMap(elegido.lat, elegido.lon),
-      }
+      filaDelLugar = await filaConResultado(lugar, consultaUsada, evaluado)
       break
+    }
+
+    if (!filaDelLugar && candidatoRevisar) {
+      filaDelLugar = await filaConResultado(lugar, candidatoRevisar.consulta, candidatoRevisar.evaluado)
     }
 
     if (!filaDelLugar) {

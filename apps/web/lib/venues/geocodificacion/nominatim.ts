@@ -146,7 +146,8 @@ export function distanciaMetros(a: { lat: number; lon: number }, b: { lat: numbe
  * primero cae fuera del rectángulo de la ciudad de la consulta. En una
  * búsqueda estructurada (calle + número), sin el número de puerta exacto es
  * `'revisar'`, y con el número exacto en un punto de dirección
- * (`place/house`) o un edificio (`building`) es alta.
+ * (`place/house`) o un edificio (`building`) es alta. Una consulta por una
+ * dirección sin número (`soloCalle`) siempre va a revisar.
  *
  * Si no, la regla de la R53: confianza alta si el primero es de nivel calle,
  * número o edificio (`place_rank >= 26`; 16 es la ciudad) y además pasa
@@ -182,6 +183,8 @@ export function evaluarResultados(
     // Sin el número de puerta exacto, Nominatim devolvió la calle (o algo cercano): el pin puede quedar a cuadras.
     if (!numeroDePuertaExacto(primero.house_number, consulta.numero)) return revisar('sin el número de puerta exacto')
     if (esCasaOEdificio(primero)) return alta
+  } else if (consulta.soloCalle) {
+    return revisar('dirección sin número: ubicar a mano sobre la calle')
   }
 
   if (primero.place_rank < 26) return revisar('resultado poco preciso (no es calle, número ni edificio)')
