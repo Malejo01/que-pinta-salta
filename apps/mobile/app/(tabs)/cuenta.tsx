@@ -24,7 +24,8 @@ import {
   isCancelledResponse,
   isSuccessResponse,
 } from '@react-native-google-signin/google-signin'
-import { mensajeErrorAlta } from '@qps/core/auth/mensajes'
+import { textosContrasena, tipoDeCuenta, validarContrasenaNueva } from '@qps/core/auth/cuenta'
+import { MENSAJE_ALTA_ENVIADA, mensajeErrorAlta, mensajeErrorIngreso, resultadoAlta } from '@qps/core/auth/mensajes'
 import LOGO_MARCA from '@/assets/logo-circular.png'
 import WORDMARK from '@/assets/titulo-horizontal.png'
 import PATRON_MARCA from '@/assets/patron-claro.png'
@@ -47,8 +48,21 @@ import { textoVersion } from '@/lib/version'
 
 // Mapeo corto de códigos conocidos de @supabase/auth-js a mensajes en
 // español. Nunca se muestra el texto crudo de la API.
+//
+// R48, 48-d (vuelta 2): `entrar` (el único camino que podía producir
+// `invalid_credentials`/`email_not_confirmed`) pasó a `mensajeErrorIngreso`
+// de `@qps/core/auth/mensajes` — decisión de Mauro, el plan de la ronda ya
+// fijaba esos textos. El mapa queda para `entrarConGoogle`/`salir()`, que
+// hoy no producen esos dos códigos: no se borran (quedan anotadas abajo)
+// para que el PR las vea.
 const MENSAJES_ERROR: Record<string, string> = {
+  // Sin uso real: ni `entrarConGoogle` ni `salir()` producen este código.
+  // El mensaje unificado de `mensajeErrorIngreso` quedó en UNA sola línea
+  // (perdió el `\n` + "Si entraste con Google…" que tenía acá, porque un
+  // `\n` no corta nada en HTML) — si hace falta recuperar el corte, hay que
+  // partirlo en core (`@qps/core/auth/mensajes`), no volver a escribirlo acá.
   invalid_credentials: 'El email o la contraseña no son correctos.',
+  // Sin uso real: `entrar` era el único camino que podía producir este código.
   email_not_confirmed: 'Todavía no confirmaste el email: revisá tu casilla.',
   user_already_exists: 'Ya existe una cuenta con ese email.',
   email_exists: 'Ya existe una cuenta con ese email.',
@@ -231,10 +245,14 @@ export default function Cuenta() {
     setAvisoConfirmacion(false)
     setAccionEnCurso('entrar')
     try {
+      // R48, 48-d (vuelta 2): `entrar` pasa a `mensajeErrorIngreso` de core
+      // (el plan de la ronda ya fijaba estos textos — ver los comentarios de
+      // `MENSAJES_ERROR`, arriba, sobre qué cambió para cada código): una
+      // sola definición de estos mensajes, compartida con la web.
       const { error: errorEntrar } = await supabase.auth.signInWithPassword({ email, password })
-      if (errorEntrar) setError(mensajeDeError(errorEntrar))
+      if (errorEntrar) setError(mensajeErrorIngreso(errorEntrar))
     } catch (excepcion) {
-      setError(mensajeDeError(excepcion))
+      setError(mensajeErrorIngreso(excepcion))
     } finally {
       setAccionEnCurso(null)
     }
@@ -245,15 +263,31 @@ export default function Cuenta() {
       setError(MENSAJE_SIN_CONFIG)
       return
     }
+    // R48, 48-d: el alta tiene un solo campo de contraseña (no dos, como la
+    // web) — se le pasa el mismo valor dos veces a `validarContrasenaNueva`
+    // para reusar su mensaje y su `LARGO_MINIMO_CONTRASENA` sin inventar un
+    // segundo campo; con los dos iguales, la única validación que puede
+    // fallar es el largo mínimo (la de coincidencia nunca, `password ===
+    // password`). Se valida ANTES de llamar a `signUp`.
+    const validacionContrasena = validarContrasenaNueva(password, password)
+    if (!validacionContrasena.ok) {
+      setError(validacionContrasena.mensaje)
+      setAvisoConfirmacion(false)
+      return
+    }
     setError(null)
     setAvisoConfirmacion(false)
     setAccionEnCurso('crear')
     try {
-      const { error: errorCrear } = await supabase.auth.signUp({ email, password })
-      if (errorCrear) {
-        // QPS-124: el error del alta nunca muestra el texto crudo de la API
-        // (confirmaría si el email ya existe); el mismo mensaje que la web.
-        setError(mensajeErrorAlta(errorCrear))
+      // QPS-124 (R48, 48-a): `resultadoAlta` clasifica la respuesta en
+      // "enviado" o "error" sin distinguir, dentro de "enviado", si el email
+      // ya tenía cuenta — así el alta nunca puede usarse para averiguar si
+      // un email está registrado. El error nunca muestra el texto crudo de
+      // la API.
+      const respuesta = await supabase.auth.signUp({ email, password })
+      const resultado = resultadoAlta(respuesta)
+      if (resultado.tipo === 'error') {
+        setError(resultado.mensaje)
       } else {
         setAvisoConfirmacion(true)
       }
@@ -360,6 +394,19 @@ export default function Cuenta() {
 
         <FilaAcceso icono="Radio" texto="Mi Radar Salteño" onPress={() => router.push('/radar')} />
         <FilaAcceso icono="Heart" texto="Mis eventos" onPress={() => router.push('/favoritos')} />
+        {/* R48, tarea 48-d: con Google dice "Contraseña" (crea la primera),
+            con email "Cambiar contraseña" — mismo componente de fila que
+            Radar/Favoritos, antes de "Cerrar sesión". El ícono "User" es el
+            más cercano de la lista cerrada de `Icono.tsx` (QPS-125): no hay
+            "Lock"/"KeyRound" (el que usa la web en
+            `components/change-password-form.tsx`) y ese archivo no está
+            entre los permitidos de esta tarea — reportado para una tarea
+            futura que sume el ícono correcto. */}
+        <FilaAcceso
+          icono="User"
+          texto={textosContrasena(tipoDeCuenta(session.user)).titulo}
+          onPress={() => router.push('/contrasena')}
+        />
 
         {/* R47, tarea 47-g (QPS-197): lo que el usuario sigue (lugares,
             cuentas de Instagram y categorías), debajo de los accesos. El
@@ -463,9 +510,7 @@ export default function Cuenta() {
           </Pressable>
 
           {error ? <Texto style={estilos.error}>{error}</Texto> : null}
-          {avisoConfirmacion ? (
-            <Texto tono="secundario">Te mandamos un email para confirmar la cuenta.</Texto>
-          ) : null}
+          {avisoConfirmacion ? <Texto tono="secundario">{MENSAJE_ALTA_ENVIADA}</Texto> : null}
 
           <Pressable
             onPress={entrar}
