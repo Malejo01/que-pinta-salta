@@ -65,6 +65,7 @@ const PREFERENCIAS_VALIDAS = {
   favorite_reminders: false,
   follow_news: true,
   announcements: true,
+  sponsored: true,
   quiet_start: '22:30',
   quiet_end: '08:15',
 }
@@ -109,7 +110,7 @@ describe('guardarNotificaciones: el upsert nunca manda daily_cap (no se edita de
     expect(Object.keys(estado.ultimoUpsert as object)).not.toContain('daily_cap')
   })
 
-  it('el payload del upsert es exactamente user_id + las 6 preferencias editables', async () => {
+  it('el payload del upsert es exactamente user_id + las 7 preferencias editables', async () => {
     await guardarNotificaciones(USER_ID_SESION, PREFERENCIAS_VALIDAS)
 
     expect(estado.ultimoUpsert).toEqual({
@@ -118,6 +119,7 @@ describe('guardarNotificaciones: el upsert nunca manda daily_cap (no se edita de
       favorite_reminders: false,
       follow_news: true,
       announcements: true,
+      sponsored: true,
       quiet_start: '22:30',
       quiet_end: '08:15',
     })
@@ -233,6 +235,7 @@ describe('obtenerNotificaciones: camino feliz', () => {
         favorite_reminders: true,
         follow_news: true,
         announcements: false,
+        sponsored: true,
         quiet_start: '23:00',
         quiet_end: '09:00',
         daily_cap: 4,
@@ -350,6 +353,7 @@ describe('obtenerNotificaciones: normaliza quiet_start/quiet_end "HH:MM:SS" a "H
         favorite_reminders: true,
         follow_news: true,
         announcements: false,
+        sponsored: true,
         quiet_start: '22:30:00',
         quiet_end: '08:00:00',
       },
@@ -371,6 +375,7 @@ describe('obtenerNotificaciones: normaliza quiet_start/quiet_end "HH:MM:SS" a "H
       favorite_reminders: resultado.preferencias.favorite_reminders,
       follow_news: resultado.preferencias.follow_news,
       announcements: resultado.preferencias.announcements,
+      sponsored: resultado.preferencias.sponsored,
       quiet_start: resultado.preferencias.quiet_start,
       quiet_end: resultado.preferencias.quiet_end,
     })
