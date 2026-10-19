@@ -136,3 +136,38 @@ describe('app/eliminar-cuenta.tsx (detector de texto): QPS-191, el mail de conta
     expect(sinAccessibilityHint.toLowerCase()).toMatch(/copiar/)
   })
 })
+
+// ---------------------------------------------------------------------------
+// Ronda 49 (QPS-241, grupo 1, decisión de Mauro): el botón "Eliminar mi
+// cuenta para siempre" pasa de relleno a contorno — blanco sobre
+// `COLOR_ERROR` daba 2,77, abajo del mínimo de "texto" (4,5), y es la
+// pantalla que Google mira para la ficha de Play. Detector de texto que fija
+// el nuevo estilo, para que un futuro cambio no vuelva a dejar texto blanco
+// ahí sin que algo lo note.
+// ---------------------------------------------------------------------------
+describe('app/eliminar-cuenta.tsx (detector de texto): QPS-241, el botón pasa a contorno', () => {
+  const ruta = fileURLToPath(new URL('../app/eliminar-cuenta.tsx', import.meta.url))
+  const codigo = readFileSync(ruta, 'utf8')
+
+  it('ya no queda texto blanco fijo en el botón (ni en el Texto ni en el ActivityIndicator)', () => {
+    expect(codigo).not.toMatch(/color:\s*'#ffffff'/)
+    expect(codigo).not.toMatch(/color="#ffffff"/)
+  })
+
+  it('el fondo del botón es siempre transparent (el contorno es lo que cambia)', () => {
+    expect(codigo).toMatch(/backgroundColor:\s*'transparent'/)
+  })
+
+  it('tiene borderWidth: 2, igual habilitado que deshabilitado', () => {
+    expect(codigo).toMatch(/borderWidth:\s*2\b/)
+  })
+
+  it('habilitado: borde y texto en COLOR_ERROR', () => {
+    expect(codigo).toMatch(/habilitado\s*\?\s*COLOR_ERROR\s*:\s*colores\.border/)
+    expect(codigo).toMatch(/habilitado\s*\?\s*COLOR_ERROR\s*:\s*colores\.mutedForeground/)
+  })
+
+  it('el borde llama a estilos.boton con el color habilitado/deshabilitado (no con el booleano "habilitado" como antes)', () => {
+    expect(codigo).toMatch(/style=\{estilos\.boton\(habilitado\s*\?\s*COLOR_ERROR\s*:\s*colores\.border\)\}/)
+  })
+})

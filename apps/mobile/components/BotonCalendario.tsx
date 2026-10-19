@@ -96,7 +96,11 @@ export function BotonCalendario({ evento }: BotonCalendarioProps) {
           hitSlop={10}
           style={estilos.botonAjustes}
         >
-          <Texto peso="semibold" style={{ color: colores.primary }}>
+          {/* Ronda 49 (QPS-241, grupo 2): `primary` da 3,83 sobre `background`
+              como texto chico, abajo de 4,5 — pasa a `foreground` (tono por
+              defecto de `Texto`), subrayado para no perder la señal de que
+              se toca (no tiene ícono ni borde propio). */}
+          <Texto peso="semibold" style={estilos.textoAjustes}>
             Abrir Ajustes
           </Texto>
         </Pressable>
@@ -109,4 +113,5 @@ const estilos = StyleSheet.create({
   ctaOutline: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 10, paddingVertical: 14, borderWidth: 1 },
   mensaje: { marginTop: 6, fontSize: 13 },
   botonAjustes: { marginTop: 6, paddingVertical: 10, alignSelf: 'flex-start' },
+  textoAjustes: { textDecorationLine: 'underline' },
 })

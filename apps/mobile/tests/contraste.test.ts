@@ -61,12 +61,35 @@ const PARES: ParContraste[] = [
   { nombre: 'foreground/background', uso: 'texto', a: token('foreground'), b: token('background') },
   { nombre: 'foreground/card', uso: 'texto', a: token('foreground'), b: token('card') },
   { nombre: 'foreground/muted', uso: 'texto', a: token('foreground'), b: token('muted') },
-  { nombre: 'mutedForeground/background', uso: 'texto', a: token('mutedForeground'), b: token('background') },
+  {
+    nombre: 'mutedForeground/background',
+    uso: 'texto',
+    a: token('mutedForeground'),
+    b: token('background'),
+    // Ronda 49 (QPS-241, grupo 1): desde esta ronda este par también cubre
+    // el texto y el borde del botón "Eliminar mi cuenta para siempre"
+    // (`app/eliminar-cuenta.tsx`) cuando está DESHABILITADO — ya no hace
+    // falta un par nuevo para eso (ver el comentario de FIJOS más abajo).
+    nota: 'desde la ronda 49 también cubre el texto/borde deshabilitado de app/eliminar-cuenta.tsx',
+  },
   { nombre: 'mutedForeground/card', uso: 'texto', a: token('mutedForeground'), b: token('card') },
   { nombre: 'mutedForeground/muted', uso: 'texto', a: token('mutedForeground'), b: token('muted') },
   { nombre: 'primaryForeground/primary', uso: 'texto', a: token('primaryForeground'), b: token('primary') },
-  { nombre: 'primary (texto)/background', uso: 'texto', a: token('primary'), b: token('background') },
-  { nombre: 'primary (texto)/card', uso: 'texto', a: token('primary'), b: token('card') },
+  // Ronda 49 (QPS-241, grupo 2, decisión de Mauro): `primary` daba 3,83
+  // sobre `background` y 3,65 sobre `card` como texto — abajo del mínimo de
+  // "texto" (4,5), y es copia del token de la web. En vez de aclararlo,
+  // Mauro decidió dejar de usarlo para texto chico ("Ver en Instagram", "Ver
+  // todos", el título de la sección del día y "Abrir Ajustes" pasaron a
+  // `foreground`; `app/(tabs)/cuenta.tsx` y la pestaña activa, en 49-a/49-c).
+  // Lo único que queda es texto GRANDE (si alguna vez aparece uno): el
+  // detector `tests/primario-texto.test.ts` es quien hace cumplir que
+  // `primary` no se use como texto chico; estos dos pares pasan a
+  // `'texto-grande'` (mínimo 3) porque los dos ratios ya lo cumplen, y
+  // pierden sus excepciones — no porque hoy haya texto grande de verdad en
+  // `primary` (no lo hay), sino porque ese es el único uso que le queda
+  // permitido al token como texto.
+  { nombre: 'primary (texto grande)/background', uso: 'texto-grande', a: token('primary'), b: token('background') },
+  { nombre: 'primary (texto grande)/card', uso: 'texto-grande', a: token('primary'), b: token('card') },
   {
     nombre: 'primary (componente: contorno/relleno de botón)/background',
     uso: 'componente',
@@ -84,18 +107,35 @@ const PARES: ParContraste[] = [
 // de portada) no se pueden calcular: el fondo es una foto, no un color
 // plano. Van "para el teléfono" (revisión visual, no en esta tabla).
 //
-// `app/eliminar-cuenta.tsx` también escribe `'#ffffff'` a mano (líneas 129 y
-// 131), pero NO está sobre `primary`: el botón "Eliminar mi cuenta para
-// siempre" tiene fondo `COLOR_ERROR` ('#f87171') cuando está habilitado, y
-// `colores.border` cuando no — nunca `colores.primary`. No se incluye acá
-// (ver el reporte de la tarea).
+// `app/eliminar-cuenta.tsx` (ronda 49, QPS-241 grupo 1): el botón "Eliminar
+// mi cuenta para siempre" dejó de tener texto blanco — es un botón con
+// contorno, nunca relleno. El texto y el `ActivityIndicator` van en
+// `COLOR_ERROR` ('#f87171') cuando está habilitado, y en
+// `colores.mutedForeground` cuando no; el borde (no el fondo, que ahora es
+// siempre `transparent`) usa los mismos dos colores. Esos tres pares ya
+// están cubiertos por FIJOS/PARES de más abajo: `COLOR_ERROR` sobre
+// `background` por "#f87171 (texto de error)/background" (que ya incluye
+// este archivo) y por "#f87171 (borde del aviso de error)/background" (como
+// componente), y `mutedForeground` sobre `background` por el par de arriba,
+// `mutedForeground/background`. No hace falta ningún par nuevo (ver el
+// reporte de la tarea 49-b).
 // ---------------------------------------------------------------------------
 const FIJOS: ParContraste[] = [
   {
-    nombre: 'blanco (botón de WhatsApp)/#059669',
+    // Ronda 49 (QPS-241, grupo 3, decisión de Mauro): `#059669` daba 3,77
+    // con blanco, abajo de 4,5 — se oscurece a `#047857`, que da ≈5,48
+    // (calculado con la función `contraste` de este mismo archivo): ya
+    // cumple, las dos excepciones salen. El `nombre` lleva el hex nuevo.
+    // El cambio es SOLO de la app: el botón equivalente de la web sigue en
+    // `bg-emerald-600` (`apps/web/app/favoritos/favoritos-list.tsx`), que es
+    // este mismo `#059669`, porque los estilos de la web quedaron fuera del
+    // alcance de la ronda. O sea que desde acá los dos verdes DIFIEREN a
+    // propósito. Después del cambio, `#059669` no queda en ningún otro lugar
+    // del código de producción de la app.
+    nombre: 'blanco (botón de WhatsApp)/#047857',
     uso: 'texto',
     a: fijo('#ffffff'),
-    b: fijo('#059669'),
+    b: fijo('#047857'),
     archivos: ['app/(tabs)/favoritos.tsx'],
     nota: "escrito como '#fff' (3 dígitos) en el código, no '#ffffff'",
   },
@@ -110,16 +150,25 @@ const FIJOS: ParContraste[] = [
       'app/eliminar-cuenta.tsx',
       'components/SeccionNotificaciones.tsx',
     ],
+    // Ronda 49 (QPS-241, grupo 1): `app/eliminar-cuenta.tsx` ya estaba en
+    // `archivos` desde 46-q (el error de validación, en rojo, arriba del
+    // formulario). Desde esta ronda este mismo par también cubre el texto
+    // y el `ActivityIndicator` del botón "Eliminar mi cuenta para siempre"
+    // cuando está HABILITADO (antes era blanco sobre `COLOR_ERROR`, un par
+    // que dejó de existir en pantalla: ver el comentario de abajo, donde
+    // estaban los dos FIJOS que se sacaron).
   },
   {
     nombre: '#f87171 (borde del aviso de error)/background',
     uso: 'componente',
     a: fijo('#f87171'),
     b: token('background'),
-    archivos: ['components/PantallaRadar.tsx'],
+    archivos: ['components/PantallaRadar.tsx', 'app/eliminar-cuenta.tsx'],
     nota:
       "en PantallaRadar.tsx #f87171 es el borde del aviso (`estilos.aviso`), no el color de texto: " +
-      'el encargo lo agrupaba con los otros 4 archivos como "texto de error", pero ahí es un componente',
+      'el encargo lo agrupaba con los otros 4 archivos como "texto de error", pero ahí es un componente. ' +
+      'Ronda 49 (QPS-241, grupo 1): desde esta ronda también cubre el borde (`borderColor`, `estilos.boton`) ' +
+      'del botón "Eliminar mi cuenta para siempre" cuando está habilitado.',
   },
   {
     nombre: '#34d399 (texto del chip "Lugar")/background',
@@ -151,32 +200,16 @@ const FIJOS: ParContraste[] = [
     archivos: ['components/BotonesAsistencia.tsx'],
     nota: "escrito como '#fff' (3 dígitos) en el código, no '#ffffff'",
   },
-  // 46-q, punto 4 del encargo (el revisor de la tanda 1 lo encontró
-  // faltante): el botón "Eliminar mi cuenta para siempre" de
-  // `app/eliminar-cuenta.tsx` SÍ es un par real en pantalla, aunque no
-  // use `colores.primary` (por eso no estaba en la tabla de arriba, ver el
-  // comentario del grupo "#f87171 (texto de error)/background"). Leído el
-  // código de verdad (no lo que decía el encargo): el texto siempre es
-  // '#ffffff' (ya escrito en 6 dígitos, no abreviado), tanto en
-  // `<ActivityIndicator color="#ffffff" />` (mientras envía) como en el
-  // `<Texto style={{ color: '#ffffff' }}>` — no cambia de color según el
-  // estado. El FONDO sí cambia con `estilos.boton(habilitado, colorDeshabilitado)`:
-  // `COLOR_ERROR` ('#f87171') si `habilitado`, `colores.border` (token) si
-  // no — los dos son pares reales, se agregan los dos.
-  {
-    nombre: 'blanco/#f87171 (botón "Eliminar mi cuenta", habilitado)',
-    uso: 'texto',
-    a: fijo('#ffffff'),
-    b: fijo('#f87171'),
-    archivos: ['app/eliminar-cuenta.tsx'],
-  },
-  {
-    nombre: 'blanco/border (botón "Eliminar mi cuenta", deshabilitado)',
-    uso: 'texto',
-    a: fijo('#ffffff'),
-    b: token('border'),
-    archivos: ['app/eliminar-cuenta.tsx'],
-  },
+  // 46-q, punto 4 del encargo: acá vivían los dos FIJOS del botón "Eliminar
+  // mi cuenta para siempre" (blanco sobre `COLOR_ERROR` habilitado, blanco
+  // sobre `colores.border` deshabilitado). Ronda 49 (QPS-241, grupo 1): ese
+  // par DEJÓ DE EXISTIR EN PANTALLA — el botón pasó de relleno a contorno y
+  // ya no hay texto blanco ahí (ver el comentario de `app/eliminar-cuenta.tsx`
+  // y el de los FIJOS "#f87171 (texto de error)/background",
+  // "#f87171 (borde del aviso de error)/background" y el PAR
+  // "mutedForeground/background", que son los que cubren el botón nuevo).
+  // Los dos FIJOS de acá y sus tres excepciones (habilitado en los dos
+  // esquemas, deshabilitado en claro) se sacan.
 ]
 
 const TODOS: ParContraste[] = [...PARES, ...FIJOS]
@@ -185,49 +218,43 @@ const TODOS: ParContraste[] = [...PARES, ...FIJOS]
 // EXCEPCIONES: pares que hoy no llegan a su mínimo, con el ratio (dos
 // decimales) y el motivo. Clave: `${nombre}::${esquema}`.
 //
-// El encargo de la tarea decía "hoy son tres" (primary como texto en
+// El encargo original (46-q) decía "hoy son tres" (primary como texto en
 // oscuro, sobre background y sobre card, y el blanco sobre #059669). Al
-// calcular los FIJOS en el esquema claro aparecen otras cuatro: los colores
+// calcular los FIJOS en el esquema claro aparecían otras cuatro: los colores
 // decorativos de PantallaRadar (#f87171, #34d399, #f472b6) se eligieron
 // mirando solo el fondo oscuro (ver sus comentarios en el código: "nunca
 // leído de useColorScheme() — la app arranca siempre oscura") y nunca se
-// probaron contra el fondo claro. No es que el plan esté mal en los
+// probaron contra el fondo claro. No es que el plan estuviera mal en los
 // números — los ratios que dio coinciden exactamente con los de acá—, sino
-// en el conteo: contando también los FIJOS en claro son siete pares, no
-// tres. Reportado en el informe final de la tarea.
+// en el conteo: contando también los FIJOS en claro eran siete pares, no
+// tres (reportado en el informe de 46-q).
+//
+// Ronda 49 (QPS-241, decisión de Mauro sobre las 4 recomendaciones de ux-ui
+// de la R46): grupos 1 a 3 cerrados, así que de las siete excepciones de
+// 46-q quedan cuatro (los decorativos del Radar en claro, grupo 4, "quedan
+// como están" hasta que exista el selector de tema). `primary` como texto
+// sale de EXCEPCIONES porque sale de PARES como "texto" — pasa a
+// "texto-grande" (ver el comentario de PARES), y ahí los dos ratios ya
+// cumplen el mínimo de 3, sin necesitar excepción. El blanco sobre WhatsApp
+// sale porque `#047857` ya cumple. El botón "Eliminar mi cuenta" no gana
+// ninguna excepción nueva: los tres pares que lo cubren ahora
+// (`#f87171 (texto de error)/background`, `#f87171 (borde del aviso de
+// error)/background`, `mutedForeground/background`) ya cumplían su mínimo
+// en los dos esquemas desde antes de esta ronda.
 // ---------------------------------------------------------------------------
 interface ExcepcionContraste {
   ratio: number
   motivo: string
 }
 
-const MOTIVO_TOKEN_WEB = 'El token es copia de los tokens de la web (apps/web/app/globals.css); decide Mauro.'
 const MOTIVO_FIJO_PENSADO_PARA_OSCURO =
   'Color decorativo fijo, elegido mirando solo el fondo oscuro (D1, la app arranca siempre oscura); decide Mauro.'
 
 const EXCEPCIONES: Record<string, ExcepcionContraste> = {
-  'primary (texto)/background::oscuro': { ratio: 3.83, motivo: MOTIVO_TOKEN_WEB },
-  'primary (texto)/card::oscuro': { ratio: 3.65, motivo: MOTIVO_TOKEN_WEB },
-  'blanco (botón de WhatsApp)/#059669::claro': { ratio: 3.77, motivo: MOTIVO_TOKEN_WEB },
-  'blanco (botón de WhatsApp)/#059669::oscuro': { ratio: 3.77, motivo: MOTIVO_TOKEN_WEB },
   '#f87171 (texto de error)/background::claro': { ratio: 2.6, motivo: MOTIVO_FIJO_PENSADO_PARA_OSCURO },
   '#f87171 (borde del aviso de error)/background::claro': { ratio: 2.6, motivo: MOTIVO_FIJO_PENSADO_PARA_OSCURO },
   '#34d399 (texto del chip "Lugar")/background::claro': { ratio: 1.81, motivo: MOTIVO_FIJO_PENSADO_PARA_OSCURO },
   '#f472b6 (texto del chip "Instagram")/background::claro': { ratio: 2.49, motivo: MOTIVO_FIJO_PENSADO_PARA_OSCURO },
-  // 46-q, punto 4 del encargo: el par que faltaba (revisor de la tanda 1).
-  // El texto es SIEMPRE '#ffffff' (no cambia con el esquema ni con
-  // habilitado/deshabilitado): lo que cambia es el FONDO. `COLOR_ERROR`
-  // ('#f87171', igual en los dos esquemas — ver su comentario en
-  // app/eliminar-cuenta.tsx) da 2.77, abajo de 4,5 en los dos esquemas.
-  'blanco/#f87171 (botón "Eliminar mi cuenta", habilitado)::claro': { ratio: 2.77, motivo: MOTIVO_FIJO_PENSADO_PARA_OSCURO },
-  'blanco/#f87171 (botón "Eliminar mi cuenta", habilitado)::oscuro': { ratio: 2.77, motivo: MOTIVO_FIJO_PENSADO_PARA_OSCURO },
-  // El fondo deshabilitado es `colores.border` (token, varía con el
-  // esquema): en claro (`oklch(0.9 0 0)`, gris muy claro) el blanco casi no
-  // contrasta — 1.35. Mismo motivo que el resto de esta tabla: decide
-  // Mauro si corresponde un color de texto distinto para el estado
-  // deshabilitado, o si no importa (el botón deshabilitado no es
-  // interactivo).
-  'blanco/border (botón "Eliminar mi cuenta", deshabilitado)::claro': { ratio: 1.35, motivo: MOTIVO_TOKEN_WEB },
 }
 
 type VeredictoPar = { ok: true } | { ok: false; motivo: string }
@@ -326,18 +353,20 @@ describe('EXCEPCIONES: todas las claves corresponden a un par declarado', () => 
 // Mauro) tiene que reflejar TODOS los pares de EXCEPCIONES — si se agrega
 // una excepción nueva sin sumarla también a esta lista (y, de verdad, al
 // informe), este test falla. La lista de abajo es la misma que el informe
-// de 46-q va a llevar: si el informe cambia, hay que actualizar esto (y
+// de la ronda va a llevar: si el informe cambia, hay que actualizar esto (y
 // viceversa).
+//
+// Ronda 49 (QPS-241): se sacan 'primary (texto)/background',
+// 'primary (texto)/card', 'blanco (botón de WhatsApp)/#059669',
+// 'blanco/#f87171 (botón "Eliminar mi cuenta", habilitado)' y
+// 'blanco/border (botón "Eliminar mi cuenta", deshabilitado)' — los cinco
+// dejaron de tener excepciones (ver el comentario de EXCEPCIONES). Quedan
+// los cuatro decorativos del Radar en claro (grupo 4, sin cambios).
 const PARES_DEL_INFORME_DE_LA_RONDA = [
-  'primary (texto)/background',
-  'primary (texto)/card',
-  'blanco (botón de WhatsApp)/#059669',
   '#f87171 (texto de error)/background',
   '#f87171 (borde del aviso de error)/background',
   '#34d399 (texto del chip "Lugar")/background',
   '#f472b6 (texto del chip "Instagram")/background',
-  'blanco/#f87171 (botón "Eliminar mi cuenta", habilitado)',
-  'blanco/border (botón "Eliminar mi cuenta", deshabilitado)',
 ]
 
 describe('EXCEPCIONES: los nombres (sin esquema) están todos en la lista que el informe de la ronda le lleva a Mauro', () => {

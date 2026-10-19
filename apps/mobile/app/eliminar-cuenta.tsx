@@ -139,12 +139,12 @@ export default function EliminarCuenta() {
         disabled={!habilitado}
         accessibilityRole="button"
         accessibilityLabel="Eliminar mi cuenta para siempre"
-        style={estilos.boton(habilitado, colores.border)}
+        style={estilos.boton(habilitado ? COLOR_ERROR : colores.border)}
       >
         {enviando ? (
-          <ActivityIndicator color="#ffffff" />
+          <ActivityIndicator color={habilitado ? COLOR_ERROR : colores.mutedForeground} />
         ) : (
-          <Texto peso="semibold" style={{ color: '#ffffff' }}>
+          <Texto peso="semibold" style={{ color: habilitado ? COLOR_ERROR : colores.mutedForeground }}>
             Eliminar mi cuenta para siempre
           </Texto>
         )}
@@ -157,13 +157,21 @@ const estilos = {
   centrado: { flex: 1, alignItems: 'center' as const, justifyContent: 'center' as const },
   contenedor: { flexGrow: 1, padding: 24, gap: 14 },
   bloque: { gap: 4 },
-  boton: (habilitado: boolean, colorDeshabilitado: string) => ({
+  // Ronda 49 (QPS-241, grupo 1): contorno en vez de relleno — blanco sobre
+  // COLOR_ERROR daba 2,77, abajo del mínimo de "texto" (4,5), y esta es la
+  // pantalla que Google mira para la ficha de Play. El fondo ya no cambia
+  // (siempre transparent): lo que cambia con el estado es el color del
+  // borde, que decide el llamador (`colorBorde`) — COLOR_ERROR habilitado,
+  // `colores.border` deshabilitado.
+  boton: (colorBorde: string) => ({
     width: '100%' as const,
     minHeight: 48,
     borderRadius: 8,
+    borderWidth: 2,
     padding: 12,
     alignItems: 'center' as const,
     justifyContent: 'center' as const,
-    backgroundColor: habilitado ? COLOR_ERROR : colorDeshabilitado,
+    backgroundColor: 'transparent',
+    borderColor: colorBorde,
   }),
 }
