@@ -7,6 +7,14 @@
 // (`estado.*`), cambiando la configuración entre pasos para simular el
 // estado real que va quedando en la base.
 //
+// R56, tarea 56-b (QPS-195): `marcarAsistencia` consulta `estadoPermiteAgregar`
+// (lib/estado-evento.ts) antes de "guardar"/"marcar-voy" — y el paso
+// "guardar" llama a `marcarFavorito` (lib/favoritos.ts), que hace lo mismo
+// antes de su `insert`. El doble suma un caso para `events`
+// (`select('status').eq('id', ...).maybeSingle()`), PUBLISHED por default:
+// la secuencia de punta a punta de este archivo es sobre Guardar/Voy, no
+// sobre ese chequeo (que tiene su propio archivo, tests/estado-evento.test.ts).
+//
 // Nunca el cliente real (ni red, ni .env, ni base).
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -21,12 +29,26 @@ const estado = vi.hoisted(() => ({
   asistenciaUpsertResultado: { error: null as unknown } as { error: unknown },
   // El delete de event_attendance en desmarcarFavorito trae `.select('kind')`.
   asistenciaDeleteResultado: { data: [] as unknown, error: null as unknown } as { data: unknown; error: unknown },
-  llamadas: { favoritoInsert: 0, favoritoDelete: 0, asistenciaUpsert: 0, asistenciaDelete: 0 },
+  // 56-b: `events` — PUBLISHED por default.
+  eventoFila: { data: { status: 'PUBLISHED' } as unknown, error: null as unknown } as { data: unknown; error: unknown },
+  llamadas: { favoritoInsert: 0, favoritoDelete: 0, asistenciaUpsert: 0, asistenciaDelete: 0, eventoSelect: 0 },
 }))
 
 vi.mock('@/lib/supabase', () => ({
   supabase: {
     from: (tabla: string) => {
+      if (tabla === 'events') {
+        return {
+          select: () => ({
+            eq: () => ({
+              maybeSingle: async () => {
+                estado.llamadas.eventoSelect++
+                return estado.eventoFila
+              },
+            }),
+          }),
+        }
+      }
       if (tabla === 'user_favorites') {
         const builder: Record<string, unknown> = {}
         builder.insert = async (_valores: unknown) => {
@@ -69,7 +91,8 @@ beforeEach(() => {
   estado.favoritoDeleteResultado = { error: null }
   estado.asistenciaUpsertResultado = { error: null }
   estado.asistenciaDeleteResultado = { data: [], error: null }
-  estado.llamadas = { favoritoInsert: 0, favoritoDelete: 0, asistenciaUpsert: 0, asistenciaDelete: 0 }
+  estado.eventoFila = { data: { status: 'PUBLISHED' }, error: null }
+  estado.llamadas = { favoritoInsert: 0, favoritoDelete: 0, asistenciaUpsert: 0, asistenciaDelete: 0, eventoSelect: 0 }
 })
 
 afterEach(() => {

@@ -15,6 +15,13 @@
 // `event_attendance` (el `select` de ids con Voy que usa `obtenerFavoritos`,
 // y el `delete().select('kind')` que ahora hace `desmarcarFavorito` antes
 // de borrar el favorito).
+//
+// R56, tarea 56-b (QPS-195): `marcarFavorito` ahora consulta
+// `estadoPermiteAgregar` (lib/estado-evento.ts, un `maybeSingle()` más sobre
+// la misma `builder` de `events` que ya arma `obtenerFavoritos`) antes del
+// `insert`; `desmarcarFavorito` NO lo consulta. `estado.eventoFila` queda en
+// PUBLISHED por default: ese chequeo en sí tiene su propio archivo
+// (tests/estado-evento.test.ts), acá solo hace falta que no estorbe.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const USER_ID_SESION = 'usuario-de-sesion-1'
@@ -31,6 +38,12 @@ const estado = vi.hoisted(() => ({
   moviesFilas: { data: [] as unknown, error: null as unknown } as { data: unknown; error: unknown },
   categoriasFilas: { data: [] as unknown, error: null as unknown } as { data: unknown; error: unknown },
   esFavoritoFila: { data: null as unknown, error: null as unknown } as { data: unknown; error: unknown },
+  // 56-b (QPS-195): `marcarFavorito` ahora consulta `estadoPermiteAgregar`
+  // (lib/estado-evento.ts, `select('status').eq('id', ...).maybeSingle()`)
+  // antes del `insert`. PUBLISHED por default: ese chequeo tiene su propio
+  // archivo (tests/estado-evento.test.ts), acá solo hace falta que no
+  // estorbe al resto de los tests de este archivo.
+  eventoFila: { data: { status: 'PUBLISHED' } as unknown, error: null as unknown } as { data: unknown; error: unknown },
   insertResultado: { error: null as unknown } as { error: unknown },
   deleteResultado: { error: null as unknown } as { error: unknown },
   // R47: ids con Voy (lectura de event_attendance que hace obtenerFavoritos)
@@ -55,6 +68,7 @@ const estado = vi.hoisted(() => ({
     delete: 0,
     voySelect: 0,
     asistenciaDelete: 0,
+    eventoSelect: 0,
   },
   ultimoInsert: null as unknown,
   ultimoFavoritosEqs: [] as Array<[string, unknown]>,
@@ -133,6 +147,14 @@ vi.mock('@/lib/supabase', () => ({
         // para seguir encadenando, el filtro exacto lo hace `isVigente` en
         // código (y eso sí lo prueban las fixtures).
         builder.or = () => builder
+        // 56-b (QPS-195): `estadoPermiteAgregar` (lib/estado-evento.ts) hace
+        // `select('status').eq('id', ...).maybeSingle()` sobre esta misma
+        // tabla — misma `builder`, un método más. `estado.eventoFila` queda
+        // en PUBLISHED por default (ver más arriba).
+        builder.maybeSingle = async () => {
+          estado.llamadas.eventoSelect++
+          return estado.eventoFila
+        }
         builder.then = (resolve: (v: unknown) => unknown, reject: (e: unknown) => unknown) => {
           estado.llamadas.eventosSelect++
           if (estado.arrojarEventos) return Promise.reject(estado.arrojarEventos).catch(reject)
@@ -259,6 +281,7 @@ beforeEach(() => {
   estado.moviesFilas = { data: [], error: null }
   estado.categoriasFilas = { data: [], error: null }
   estado.esFavoritoFila = { data: null, error: null }
+  estado.eventoFila = { data: { status: 'PUBLISHED' }, error: null }
   estado.insertResultado = { error: null }
   estado.deleteResultado = { error: null }
   estado.voyFilas = { data: [], error: null }
@@ -281,6 +304,7 @@ beforeEach(() => {
     delete: 0,
     voySelect: 0,
     asistenciaDelete: 0,
+    eventoSelect: 0,
   }
   estado.ultimoInsert = null
   estado.ultimoFavoritosEqs = []
@@ -761,6 +785,11 @@ describe('ciclo guardar → listar (doble en memoria)', () => {
             builder.in = () => builder
             builder.eq = () => builder
             builder.or = () => builder
+            // 56-b (QPS-195): `estadoPermiteAgregar` hace su propio
+            // `select('status').eq('id', ...).maybeSingle()` antes del
+            // `insert` de `marcarFavorito` — PUBLISHED, para que este ciclo
+            // completo siga marcando el favorito como antes.
+            builder.maybeSingle = async () => ({ data: { status: 'PUBLISHED' }, error: null })
             builder.then = (resolve: (v: unknown) => unknown) => Promise.resolve({ data: [eventoFila], error: null }).then(resolve)
             return builder
           }

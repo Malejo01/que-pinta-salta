@@ -37,6 +37,14 @@
 //     mismo `Promise.all` que la marca propia — el doble de Supabase
 //     necesita un caso para `user_favorites`), y `marcarAsistencia` recibe
 //     `actual: EstadoGuardarVoy` en vez de `TipoAsistencia | null`.
+//
+// R56, tarea 56-b (QPS-195): `marcarAsistencia` ahora consulta
+// `estadoPermiteAgregar` (lib/estado-evento.ts) antes de "guardar"/
+// "marcar-voy" — y `marcarFavorito` (lib/favoritos.ts) hace lo mismo antes de
+// su `insert`, así que el doble necesita un caso para `events` (el
+// `select('status')` de ese chequeo). `estado.evento` queda en `PUBLISHED`
+// por default: estos tests ya existían para probar el resto de la lógica, y
+// ese chequeo nuevo tiene su propio archivo (`tests/estado-evento.test.ts`).
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
@@ -53,16 +61,24 @@ const estado = vi.hoisted(() => ({
   cantidades: { data: null as unknown, error: null as unknown } as { data: unknown; error: unknown },
   propia: { data: null as unknown, error: null as unknown } as { data: unknown; error: unknown },
   esFavorito: { data: null as unknown, error: null as unknown } as { data: unknown; error: unknown },
+  // 56-b (QPS-195): el `select('status')` de `estadoPermiteAgregar`
+  // (lib/estado-evento.ts), que ahora consultan tanto `marcarAsistencia`
+  // (antes de "guardar"/"marcar-voy") como `marcarFavorito` (lib/favoritos.ts,
+  // usado acá para el paso "guardar"). PUBLISHED por default: estos tests son
+  // sobre el resto de la lógica, no sobre este chequeo (que tiene su propio
+  // archivo, tests/estado-evento.test.ts).
+  evento: { data: { status: 'PUBLISHED' } as unknown, error: null as unknown } as { data: unknown; error: unknown },
   delete: { error: null as unknown } as { error: unknown },
   upsert: { error: null as unknown } as { error: unknown },
   insertFavorito: { error: null as unknown } as { error: unknown },
   arrojarCantidades: null as unknown,
   arrojarPropia: null as unknown,
   arrojarEsFavorito: null as unknown,
+  arrojarEvento: null as unknown,
   arrojarDelete: null as unknown,
   arrojarUpsert: null as unknown,
   arrojarInsertFavorito: null as unknown,
-  llamadas: { counts: 0, propia: 0, esFavorito: 0, delete: 0, upsert: 0, insertFavorito: 0 },
+  llamadas: { counts: 0, propia: 0, esFavorito: 0, evento: 0, delete: 0, upsert: 0, insertFavorito: 0 },
   ultimoUpsert: null as unknown,
   ultimoInsertFavorito: null as unknown,
 }))
@@ -136,6 +152,20 @@ vi.mock('@/lib/supabase', () => ({
           },
         }
       }
+      // 56-b: estadoPermiteAgregar (lib/estado-evento.ts) — select('status').eq('id', ...).maybeSingle()
+      if (tabla === 'events') {
+        return {
+          select: () => ({
+            eq: () => ({
+              maybeSingle: async () => {
+                estado.llamadas.evento++
+                if (estado.arrojarEvento) throw estado.arrojarEvento
+                return estado.evento
+              },
+            }),
+          }),
+        }
+      }
       throw new Error(`tabla inesperada en el doble de asistencia: ${tabla}`)
     },
   },
@@ -145,16 +175,18 @@ beforeEach(() => {
   estado.cantidades = { data: { voy: 0 }, error: null }
   estado.propia = { data: null, error: null }
   estado.esFavorito = { data: null, error: null }
+  estado.evento = { data: { status: 'PUBLISHED' }, error: null }
   estado.delete = { error: null }
   estado.upsert = { error: null }
   estado.insertFavorito = { error: null }
   estado.arrojarCantidades = null
   estado.arrojarPropia = null
   estado.arrojarEsFavorito = null
+  estado.arrojarEvento = null
   estado.arrojarDelete = null
   estado.arrojarUpsert = null
   estado.arrojarInsertFavorito = null
-  estado.llamadas = { counts: 0, propia: 0, esFavorito: 0, delete: 0, upsert: 0, insertFavorito: 0 }
+  estado.llamadas = { counts: 0, propia: 0, esFavorito: 0, evento: 0, delete: 0, upsert: 0, insertFavorito: 0 }
   estado.ultimoUpsert = null
   estado.ultimoInsertFavorito = null
 })
