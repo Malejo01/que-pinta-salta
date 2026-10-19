@@ -290,17 +290,20 @@ describe('punta a punta (R40): límites conocidos, fuera de alcance a propósito
     expect(db.rows).toHaveLength(2) // quedan dos fichas de la misma función real
   })
 
-  it('LÍMITE CONOCIDO (plan.md, punto 3): buildDuplicateGroups (dedup-cleanup.ts) agrupa por título|día sin mirar la hora, y vuelve a juntar lo que la ingesta ahora separa', () => {
+  it('QPS-209 cerrado: buildDuplicateGroups (dedup-cleanup.ts) ya mira la hora y NO vuelve a juntar lo que la ingesta separa', () => {
     const TITULO = 'Show Limite Limpieza De Prueba'
     const VENUE = '50505050-5050-4505-8505-000000000005'
     const FUNCION_16 = '2026-11-20T19:00:00.000Z' // 16:00 Salta
     const FUNCION_21 = '2026-11-21T00:00:00.000Z' // 21:00 Salta (sigue siendo el 20 en Salta)
 
     // Mismo venue en las dos filas (a propósito): es el escenario más favorable para la ingesta
-    // (40-b las separa igual, por la tolerancia de hora) y, pese a eso, buildDuplicateGroups las
-    // junta: no es un problema de venue, es que groupByDedupKey (dedup-cleanup.ts) agrupa por
-    // dedupKeyOf (título + día) sin comparar ninguna hora, y splitByVenue sólo separa por venues
-    // DISTINTOS, no por horarios distintos dentro del mismo venue.
+    // (40-b las separa igual, por la tolerancia de hora). Antes de QPS-209 esto era el LÍMITE
+    // CONOCIDO documentado acá (plan.md, punto 3): buildDuplicateGroups agrupaba por
+    // dedupKeyOf (título + día) sin comparar ninguna hora, y splitByVenue sólo separaba por venues
+    // DISTINTOS, no por horarios distintos dentro del mismo venue, así que las dos funciones
+    // volvían a juntarse en la limpieza. QPS-209 agrega splitByFunction dentro de
+    // buildDuplicateGroups: ahora las horas no compatibles (más de
+    // TOLERANCIA_HORA_DEDUP_MIN aparte) tampoco se agrupan ahí.
     const show16 = {
       id: 'show-limite-limpieza-1',
       title: TITULO,
@@ -316,14 +319,13 @@ describe('punta a punta (R40): límites conocidos, fuera de alcance a propósito
       ticket_sources: [],
     }
 
-    const { groups } = buildDuplicateGroups([show16, show21])
+    const { groups, functionSplits } = buildDuplicateGroups([show16, show21])
 
-    // Es de solo lectura: no se toca dedup-cleanup.ts. Si esta aserción alguna vez cambiara sola
-    // (diera 2 grupos), sería porque alguien agregó la hora a buildDuplicateGroups — lo cual
-    // cerraría este límite, no lo rompería; hasta entonces, el PR de la ronda avisa "no aplicar
-    // la limpieza de duplicados del admin sobre días con dos funciones".
-    expect(groups).toHaveLength(1)
-    expect(groups[0].rows).toHaveLength(2)
+    // Es de solo lectura: no se toca dedup-cleanup.ts (ya lo tocó la tarea 57-a de QPS-209). Cada
+    // función queda sola: ningún grupo de duplicados, y el bucket aparece en functionSplits.
+    expect(groups).toHaveLength(0)
+    expect(functionSplits).toHaveLength(1)
+    expect(functionSplits[0].rows.map((r) => r.id).sort()).toEqual(['show-limite-limpieza-1', 'show-limite-limpieza-2'])
   })
 })
 

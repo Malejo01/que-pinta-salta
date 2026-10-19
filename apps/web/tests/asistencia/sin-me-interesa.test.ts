@@ -15,11 +15,13 @@
  *    `//`). Ahí vive, por ejemplo, la referencia legítima al nombre de la
  *    migración `20261013120100_voy_me_interesa.sql` en
  *    `apps/web/lib/asistencia-visibilidad.ts`.
- *  - Tres páginas de borrado de cuenta (`eliminar-cuenta`, web ×2 + app) y
- *    el inventario de `lib/cuenta/tablas-personales.ts`: mientras la
- *    migración que borra la columna vieja no se aplique, esas filas existen
- *    y hay que avisar que se borran con la cuenta. Las cambia el lead de
- *    día junto con la migración.
+ *  - (Hasta el #77) las tres páginas de borrado de cuenta y el inventario de
+ *    `lib/cuenta/tablas-personales.ts` decían "Me interesa" porque esas
+ *    filas existían. El #77 (migración de la R47) las borró y cambió los
+ *    textos a "Tus marcas de "Voy"": ya no son excepción, y el último test
+ *    de abajo verifica que no vuelvan. Queda `tablas-personales.ts`, cuyo
+ *    campo `comentario` (un string, no un comentario de código) dice
+ *    justamente que desde la R47 no hay "Me interesa".
  *  - `lib/contacto.ts` (`TEXTO_ANUNCIAR`) y `app/anunciantes/page.tsx`:
  *    "Me interesa anunciar…" no tiene nada que ver con la asistencia a un
  *    evento.
@@ -145,18 +147,15 @@ describe('"me_interesa" / "meInteresa" como código (sin comentarios): ninguna o
 
 // ---------------------------------------------------------------------------
 // El texto visible "Me interesa", con los comentarios ya vaciados. Las
-// excepciones de arriba (borrado de cuenta ×4, contacto/anunciantes ×2) son
+// excepciones de arriba (contacto/anunciantes, otro sentido, y la nota de tablas-personales) son
 // las ÚNICAS permitidas; cualquier otra es un bug (alguien reescribió el
 // texto a mano en vez de usar ETIQUETAS_ASISTENCIA/textoBotonVoy).
 // ---------------------------------------------------------------------------
 describe('"Me interesa" como texto visible (sin comentarios): solo en las excepciones documentadas', () => {
   const EXCEPCIONES = new Set([
-    'apps/web/app/eliminar-cuenta/page.tsx',
-    'apps/web/app/perfil/eliminar-cuenta/page.tsx',
-    'apps/mobile/app/eliminar-cuenta.tsx',
-    'apps/web/lib/cuenta/tablas-personales.ts',
     'apps/web/lib/contacto.ts',
     'apps/web/app/anunciantes/page.tsx',
+    'apps/web/lib/cuenta/tablas-personales.ts',
   ])
 
   it('ninguna ocurrencia fuera de las excepciones', () => {
@@ -183,14 +182,7 @@ describe('"Me interesa" como texto visible (sin comentarios): solo en las excepc
     // recorrido o el stripping de comentarios están rotos (pasaría en verde
     // sin haber comprobado nada de verdad).
     expect([...excepcionesEncontradas].sort()).toEqual(
-      [
-        'apps/web/app/eliminar-cuenta/page.tsx',
-        'apps/web/app/perfil/eliminar-cuenta/page.tsx',
-        'apps/mobile/app/eliminar-cuenta.tsx',
-        'apps/web/lib/cuenta/tablas-personales.ts',
-        'apps/web/lib/contacto.ts',
-        'apps/web/app/anunciantes/page.tsx',
-      ].sort(),
+      ['apps/web/app/anunciantes/page.tsx', 'apps/web/lib/contacto.ts', 'apps/web/lib/cuenta/tablas-personales.ts'].sort(),
     )
   })
 
@@ -205,8 +197,13 @@ describe('"Me interesa" como texto visible (sin comentarios): solo en las excepc
     expect(contacto).toContain('Me interesa anunciar')
   })
 
-  it('las páginas de eliminar-cuenta mencionan "Voy" y "Me interesa" juntas (la fila que se borra, no un botón nuevo)', () => {
-    const pagina = quitarComentarios(readFileSync(join(REPO_ROOT, 'apps/web/app/eliminar-cuenta/page.tsx'), 'utf8'))
-    expect(pagina).toMatch(/Voy[^]*Me interesa|Me interesa[^]*Voy/)
+  it.each([
+    'apps/web/app/eliminar-cuenta/page.tsx',
+    'apps/web/app/perfil/eliminar-cuenta/page.tsx',
+    'apps/mobile/app/eliminar-cuenta.tsx',
+  ])('%s: "Qué se borra" menciona las marcas de "Voy" y ya no "Me interesa" (#77)', (archivo) => {
+    const pagina = quitarComentarios(readFileSync(join(REPO_ROOT, archivo), 'utf8'))
+    expect(pagina).toContain('Voy')
+    expect(pagina).not.toContain('Me interesa')
   })
 })
