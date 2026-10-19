@@ -129,10 +129,11 @@ export function cumpleContraste(ratio: number, uso: UsoContraste): boolean {
  *   texto más grande sin romperse. Un tope ahí sería una barrera sin
  *   beneficio.
  *
- * Pendiente (no es un atributo, necesita otro mecanismo): las pestañas de
- * abajo (`app/(tabs)/_layout.tsx`) usan `tabBarLabelStyle`, que es un
- * objeto de estilo y no acepta `maxFontSizeMultiplier`; haría falta un
- * `tabBarLabel` propio que devuelva un `<Text maxFontSizeMultiplier={…}>`.
+ * Resuelto en `components/EtiquetaPestana.tsx` (QPS-243, 49-c): las
+ * pestañas de abajo (`app/(tabs)/_layout.tsx`) ya no usan
+ * `tabBarLabelStyle` (un objeto de estilo, que no acepta
+ * `maxFontSizeMultiplier`), sino un `tabBarLabel` propio que dibuja la
+ * etiqueta con ese componente.
  *
  * En el resto de la app (párrafos, títulos de pantalla, formularios) no hay
  * tope a propósito: el texto escala libre con la fuente del sistema.
