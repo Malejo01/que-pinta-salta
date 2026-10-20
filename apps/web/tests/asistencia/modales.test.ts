@@ -6,9 +6,12 @@
  * `components/event-modal-wrapper.tsx`) y el de Buscar
  * (`components/event-modal.tsx` + `components/botones-asistencia-diferidos.tsx`).
  *
- * Sin jsdom ni Testing Library (no hay en `apps/web`): funciones puras y
- * detectores estáticos sobre el código real, con el mismo estilo que
- * `web.test.ts`.
+ * Sin DOM: funciones puras y detectores estáticos sobre el código real, con
+ * el mismo estilo que `web.test.ts`. (Cuando se escribió, jsdom y Testing
+ * Library no estaban instalados en `apps/web`; desde la R61 sí lo están y
+ * hay tests con DOM real en `tests/dom/`. Para lo que fija este archivo —que
+ * el modal importe y condicione la llamada— el detector estático sigue
+ * siendo la herramienta correcta: un DOM no vería nada de eso.)
  *
  * Guardas del #65 que este archivo sigue fijando (no se pierden en esta
  * adaptación): que el modal interceptado importe `obtenerAsistencia` de

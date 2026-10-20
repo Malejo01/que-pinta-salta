@@ -9,9 +9,10 @@
  *     llama a la página como función y se inspeccionan las props que le
  *     pasa al elemento `<FavoritosList>` sin montarlo.
  *   - `app/favoritos/favoritos-list.tsx`, con `renderToStaticMarkup` (sin
- *     jsdom ni @testing-library/react, igual que
- *     `tests/components/password-input.test.ts`): el orden real del HTML y
- *     que un grupo vacío no dibuje su encabezado.
+ *     DOM, igual que `tests/components/password-input.test.ts`): el orden
+ *     real del HTML y que un grupo vacío no dibuje su encabezado. Desde la
+ *     R61 hay tests con DOM real en `tests/dom/`, pero para el HTML estático
+ *     `renderToStaticMarkup` sigue siendo más barato.
  *
  * El botón de "Compartir agenda" usa `window.location.origin`, que no
  * existe en Node puro (mismo límite que documenta

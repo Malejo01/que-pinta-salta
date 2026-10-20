@@ -1,10 +1,18 @@
 /**
  * `PasswordInput` (QPS-143-c): el ojito en los campos de contraseña.
  *
- * `apps/web` no tiene jsdom ni @testing-library/react instalados (vitest
- * corre con `environment: 'node'`, ver `apps/web/vitest.config.ts`), así que
- * no hay forma de montar el componente en un DOM real y disparar un click
- * sin agregar una dependencia nueva (no autorizado para esta tarea).
+ * Vitest corre con `environment: 'node'` en todo `apps/web`
+ * (`apps/web/vitest.config.ts`), así que este archivo no monta el componente
+ * en un DOM real. Cuando se escribió, además, jsdom y
+ * @testing-library/react no estaban instalados; **desde la R61 sí lo están**
+ * y hay tests con DOM real en `tests/dom/`, que piden jsdom con la directiva
+ * de entorno por archivo de Vitest en su primera línea (no se reproduce acá:
+ * basta con que el literal aparezca en un comentario para que Vitest cambie
+ * el entorno de ESTE archivo, ver `tests/dom/convencion-entorno.test.ts`).
+ * O sea que hoy esto es una decisión y no una limitación: el patrón de abajo sigue
+ * siendo más barato y más estable para lo que este archivo prueba, y
+ * `tests/dom/fila-acciones-evento.dom.test.ts` es el ejemplo a copiar si
+ * alguna vez hace falta el click de verdad.
  *
  * Por eso `PasswordInputField` (la parte sin estado de `password-input.tsx`)
  * recibe `visible`/`onToggleVisible` como props: se puede invocar como una
