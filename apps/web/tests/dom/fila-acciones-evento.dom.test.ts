@@ -153,7 +153,7 @@ describe('FilaAccionesEvento: el click con estado en un DOM real', () => {
 
     expect(botonGuardar().getAttribute('aria-pressed')).toBe('false')
     expect(botonVoy().getAttribute('aria-pressed')).toBe('false')
-    expect(botonVoy().textContent).toContain(textoBotonVoy(4))
+    expect(botonVoy().textContent).toBe(textoBotonVoy(4))
     expect(mockToast).toHaveBeenCalledWith(expect.objectContaining({ description: TEXTO_SACASTE_GUARDADO_CON_VOY }))
   })
 

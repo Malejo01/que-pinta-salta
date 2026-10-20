@@ -32,6 +32,8 @@ import { join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 
+import { quitarComentarios } from '@/lib/rondas/tests-que-leen'
+
 // apps/web/tests/dom -> apps/web
 const APPS_WEB_ROOT = fileURLToPath(new URL('../../', import.meta.url))
 const TESTS_DIR = join(APPS_WEB_ROOT, 'tests')
@@ -52,6 +54,9 @@ const RUTA_PREPARAR_DOM = 'tests/dom/preparar-dom.ts'
  */
 const PALABRA_DIRECTIVA = '@' + 'vitest-environment'
 const PATRON_DIRECTIVA = new RegExp(PALABRA_DIRECTIVA + '\\s+([A-Za-z0-9_-]+)')
+
+/** El `environment: 'node'` de `vitest.config.ts` (Regla 3). */
+const ENVIRONMENT_NODE = /environment:\s*'node'/
 
 interface Hallazgo {
   valor: string
@@ -82,14 +87,19 @@ function esValidoFueraDeTestsDom(contenido: string): boolean {
   return buscarDirectiva(contenido) === null
 }
 
-/** Recorre un directorio recursivamente y devuelve las rutas relativas (con "/") a baseAbsoluta. */
+/**
+ * Recorre un directorio recursivamente y devuelve las rutas relativas (con
+ * "/") a baseAbsoluta.
+ *
+ * SIN `try/catch`: si `readdirSync` falla, tiene que explotar. La primera
+ * versión se tragaba el error y devolvía `[]`, y eso es justo lo que un
+ * detector no puede hacer — una subcarpeta ilegible dejaba sus archivos
+ * afuera del barrido y las Reglas 1 y 2 pasaban en verde sin haberlos
+ * mirado. Con el error arriba, la rotura es ruidosa. (Lo encontró el revisor
+ * de la R61.)
+ */
 function listarArchivosRecursivo(dirAbsoluto: string, baseAbsoluta: string): string[] {
-  let entradas: string[] = []
-  try {
-    entradas = readdirSync(dirAbsoluto)
-  } catch {
-    return []
-  }
+  const entradas = readdirSync(dirAbsoluto)
   const resultado: string[] = []
   for (const entrada of entradas) {
     const rutaAbsoluta = join(dirAbsoluto, entrada)
@@ -119,8 +129,13 @@ const EXCEPCIONES_SIN_DIRECTIVA_EN_DOM = new Map<string, string>([
 // el resto de los chequeos pasaría en verde sin haber mirado nada.
 // ---------------------------------------------------------------------------
 describe('sanidad del recorrido', () => {
-  it('recorrió al menos 200 archivos fuera de tests/dom/', () => {
-    expect(ARCHIVOS_FUERA_DE_DOM.length).toBeGreaterThanOrEqual(200)
+  // El umbral va pegado al número real (222 archivos al escribir esto) y no
+  // 200: con un margen de 22 archivos, una subcarpeta chica que se cayera del
+  // barrido no bajaba el conteo por debajo del umbral y nadie se enteraba.
+  // Si la suite crece y esto molesta, se sube el número; lo que no se hace es
+  // agrandar el margen. (Lo encontró el revisor de la R61.)
+  it('recorrió al menos 215 archivos fuera de tests/dom/', () => {
+    expect(ARCHIVOS_FUERA_DE_DOM.length).toBeGreaterThanOrEqual(215)
   })
 
   it('encontró los archivos conocidos de tests/dom/ (si no, el recorrido no está mirando esa carpeta)', () => {
@@ -214,9 +229,38 @@ describe('Las excepciones de la Regla 2 siguen siendo ciertas', () => {
 // pierda el tiempo buscando un bug de rutas que no existe.
 // ---------------------------------------------------------------------------
 describe("Regla 3: apps/web/vitest.config.ts sigue con environment: 'node'", () => {
-  it("el environment configurado es 'node'", () => {
+  it("el environment configurado es 'node', leído SIN los comentarios del archivo", () => {
     const contenido = readFileSync(join(APPS_WEB_ROOT, 'vitest.config.ts'), 'utf8')
-    expect(contenido).toMatch(/environment:\s*'node'/)
+    expect(quitarComentarios(contenido)).toMatch(ENVIRONMENT_NODE)
+  })
+
+  // Por qué se quitan los comentarios, y por qué esto es un caso y no una
+  // nota: la primera versión hacía el `toMatch` sobre TODO el texto del
+  // archivo. O sea que si alguien pasaba el `environment` a 'jsdom' y dejaba
+  // dando vueltas un comentario que mencionara `environment: 'node'` —el
+  // comentario que explica la convención es justamente el candidato— la
+  // Regla 3 seguía en verde. Es la MISMA familia de bug que este archivo
+  // existe para cazar, y el detector no se cubría a sí mismo. Lo encontró el
+  // revisor de la R61.
+  it('un archivo con el environment en jsdom y un comentario que menciona "node" NO pasa la Regla 3', () => {
+    const configFalsa = [
+      "// ojo: antes esto era environment: 'node', se cambió en la R999",
+      'export default defineConfig({',
+      '  test: {',
+      "    environment: 'jsdom',",
+      '  },',
+      '})',
+    ].join('\n')
+
+    // Sobre el texto crudo pasaría (el comentario la salva): eso era el bug.
+    expect(configFalsa).toMatch(ENVIRONMENT_NODE)
+    // Sin los comentarios, no pasa.
+    expect(quitarComentarios(configFalsa)).not.toMatch(ENVIRONMENT_NODE)
+  })
+
+  it('un archivo con el environment en node de verdad SÍ pasa la Regla 3 (el caso seguro, para que el chequeo no sea imposible)', () => {
+    const configBuena = ['export default defineConfig({', '  test: {', "    environment: 'node',", '  },', '})'].join('\n')
+    expect(quitarComentarios(configBuena)).toMatch(ENVIRONMENT_NODE)
   })
 })
 
