@@ -24,9 +24,17 @@
 // que en la web.
 //
 // Lo que no se copia, a propósito (ops/paridad-web-app.md, inventario
-// "Portada" y la tarea 29-h): "Más filtros" (lugar/zona), el switch
-// "Mostrar flyers de redes" y AdSense — ninguno de los tres tiene un
-// equivalente de ronda en la app todavía.
+// "Portada" y la tarea 29-h): "Más filtros" (lugar/zona) y el switch
+// "Mostrar flyers de redes" — ninguno de los dos tiene un equivalente de
+// ronda en la app todavía.
+//
+// AdSense SÍ tiene equivalente ahora (R60, 52-d: AdMob en la app, fase 2 de
+// la R52): el banner (`components/BannerAnuncio.tsx`) va en esta pantalla
+// (después de la 4.ª fila de categorías, ver `seccionesPortada`) y en
+// Buscar — nunca arriba del pliegue (regla (a) de Mauro, 19/10: ningún
+// anuncio arriba del pliegue) y nunca en la ficha de un evento ni en el Hero
+// de esta misma pantalla. El detector que lo exige está en
+// `tests/anuncios-lugares.test.ts`.
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native'
 import { Redirect, useRouter } from 'expo-router'
@@ -37,6 +45,7 @@ import { eventoEnAtajo, type Atajo } from '@qps/core/home/atajos'
 import type { DisplayEvent } from '@qps/core/home/types'
 import type { Category } from '@qps/core/types'
 import { AvisoSinConexion } from '@/components/AvisoSinConexion'
+import { BannerAnuncio } from '@/components/BannerAnuncio'
 import { BannerRadar } from '@/components/BannerRadar'
 import { Cargando, ErrorCarga } from '@/components/EstadoCarga'
 import { FilaCategoria } from '@/components/FilaCategoria'
@@ -77,6 +86,17 @@ export type SeccionPortada =
   | { tipo: 'hoy'; eventos: DisplayEvent[] }
   | { tipo: 'categoria'; fila: CategoryEventsRow }
   | { tipo: 'banner-radar' }
+  | { tipo: 'anuncio' }
+
+/**
+ * Cuántas filas de categoría tienen que existir para que el anuncio se dibuje
+ * al final (cuando no se llegó al índice 3). Es una constante con nombre y no
+ * un `2` suelto porque lo que la fija es la regla (a) de Mauro y la cuenta de
+ * alturas que está en el docstring de `seccionesPortada`: bajarla a 0 o a 1
+ * devuelve el banner arriba del pliegue. `tests/portada.test.ts` exige por
+ * texto que este archivo la siga declarando en 2.
+ */
+export const FILAS_MINIMAS_PARA_ANUNCIO = 2
 
 /**
  * Arma la lista de secciones del cuerpo de la portada: "Hoy en Salta",
@@ -87,14 +107,45 @@ export type SeccionPortada =
  * las filas de `groupByCategory` (incluidas las que terminan sin eventos:
  * `FilaCategoria` ya no dibuja nada para esas, pero igual cuentan para la
  * posición, tal cual la web). Pura: sin React, para poder testearla sola.
+ *
+ * R60, 52-d: se suma el banner de AdMob (`tipo: 'anuncio'`), después de la
+ * 4.ª fila (índice 3), contando también sobre TODAS las filas (igual que el
+ * banner del Radar). Diferencia deliberada con la web (que no muestra el
+ * anuncio si hay menos de 4 filas, porque ahí el anuncio va "en medio" de un
+ * `.flatMap` fijo): acá, con 2 o 3 filas, el anuncio va al FINAL de la lista
+ * de secciones en vez de desaparecer.
+ *
+ * **Con menos de 2 filas no hay anuncio**, y eso es la regla (a) de Mauro
+ * ("ningún anuncio arriba del pliegue"), no una preferencia: la cuenta de
+ * alturas de ux-ui para un celular de 360×800 (la medida de referencia) da,
+ * con la caja vacía de "Hoy en Salta" (`estilos.vacioHoy`, ~188 dp) y
+ * `PillsAtajos` (~68 dp), el banner arrancando a los ~256 dp con 0 filas y a
+ * los ~582 dp con 1, contra un área visible de ~649 dp: en los dos casos
+ * asoma **sin scrollear**. Con 2 filas, las dos `FilaCategoria` (~326 dp cada
+ * una) más el banner del Radar lo empujan arriba de los 900 dp. O sea que el
+ * umbral es dónde empieza a haber contenido real que mirar antes del aviso.
+ *
+ * Ojo con el porqué de las filas, que es contraintuitivo: `groupByCategory`
+ * devuelve **una fila por cada categoría configurada en el admin**, con
+ * eventos o sin ellos, así que `filas.length` NO baja porque la agenda esté
+ * flojita — hoy en producción son bastantes más de 4. Llegar a menos de 2
+ * filas quiere decir que casi no quedan categorías cargadas, no que sea un
+ * día tranquilo.
  */
 export function seccionesPortada(filas: CategoryEventsRow[], hoyEventos: DisplayEvent[]): SeccionPortada[] {
   const secciones: SeccionPortada[] = [{ tipo: 'hoy', eventos: hoyEventos }]
+  let anuncioInsertado = false
 
   filas.forEach((fila, indice) => {
     secciones.push({ tipo: 'categoria', fila })
     if (indice === 1) secciones.push({ tipo: 'banner-radar' })
+    if (indice === 3) {
+      secciones.push({ tipo: 'anuncio' })
+      anuncioInsertado = true
+    }
   })
+
+  if (!anuncioInsertado && filas.length >= FILAS_MINIMAS_PARA_ANUNCIO) secciones.push({ tipo: 'anuncio' })
 
   return secciones
 }
@@ -312,7 +363,9 @@ export default function Inicio() {
               )
             }
 
-            return <BannerRadar key="banner-radar" />
+            if (seccion.tipo === 'banner-radar') return <BannerRadar key="banner-radar" />
+
+            return <BannerAnuncio key="anuncio" lugar="inicio" sinConexion={estado.desdeCache !== null} />
           })}
         </ScrollView>
       ) : null}

@@ -228,3 +228,90 @@ describe('buscar.tsx: lectura estática', () => {
     expect(SRC_BUSCAR).toMatch(/Explorar por categoria/)
   })
 })
+
+// ---------------------------------------------------------------------------
+// R60, 52-d: el banner de AdMob (BannerAnuncio) en el footer de las dos
+// FlatList — NUNCA en el header (no va entre el buscador y la lista).
+// ---------------------------------------------------------------------------
+describe('BannerAnuncio: ListFooterComponent de las dos FlatList, nunca ListHeaderComponent', () => {
+  it('importa BannerAnuncio de @/components/BannerAnuncio', () => {
+    expect(SRC_BUSCAR).toMatch(/import\s*\{\s*BannerAnuncio\s*\}\s*from\s*['"]@\/components\/BannerAnuncio['"]/)
+  })
+
+  it('aparece dos veces con lugar="buscar"', () => {
+    const apariciones = SRC_BUSCAR.match(/<BannerAnuncio\s+lugar="buscar"/g) ?? []
+    expect(apariciones).toHaveLength(2)
+  })
+
+  it('las dos apariciones están en ListFooterComponent (no en ListHeaderComponent)', () => {
+    const regexFooterConBanner = /ListFooterComponent=\{[^}]*BannerAnuncio[^}]*\}/g
+    const footersConBanner = SRC_BUSCAR.match(regexFooterConBanner) ?? []
+    expect(footersConBanner).toHaveLength(2)
+  })
+
+  it('ningún ListHeaderComponent de este archivo monta BannerAnuncio', () => {
+    // Cada bloque `ListHeaderComponent={...}` de buscar.tsx (hay dos, uno por
+    // FlatList) no contiene BannerAnuncio. Mismo estilo que
+    // `cantidadDeCamposDeTexto`: una regex que no cruza al siguiente prop
+    // (corta en el primer `}` de cierre del valor del prop, que en este
+    // archivo es JSX simple sin llaves anidadas dentro de ListHeaderComponent).
+    const regexHeader = /ListHeaderComponent=\{[\s\S]*?\n\s*\}\s*\n/g
+    let m: RegExpExecArray | null
+    let encontrados = 0
+    while ((m = regexHeader.exec(SRC_BUSCAR))) {
+      encontrados += 1
+      expect(m[0]).not.toContain('BannerAnuncio')
+    }
+    expect(encontrados).toBe(2)
+  })
+
+  it('no le pasa sinConexion (comentario que explica por qué: esta pantalla no tiene caché/sin-conexión propio)', () => {
+    expect(SRC_BUSCAR).not.toMatch(/<BannerAnuncio\s+lugar="buscar"\s+sinConexion/)
+    expect(SRC_BUSCAR).toMatch(/no tiene ningún estado de caché\/sin conexión propio/)
+  })
+
+  // El hallazgo de la R52 (ux-ui, sobre la web, y acá se repite en la app):
+  // una FlatList dibuja ListFooterComponent TAMBIÉN cuando `data` está
+  // vacía, justo debajo de ListEmptyComponent. Con una búsqueda sin
+  // resultados, el banner quedaría pegado abajo de "No se encontraron
+  // eventos para...", en el peor lugar posible — por eso el footer tiene que
+  // cortar a `null` cuando la lista está vacía.
+  //
+  // R60 (lead, segunda pasada de ux-ui): la lista vacía NO alcanzaba. La
+  // cuenta de alturas para 360×800 da el banner arrancando a los ~453 dp con
+  // 1 o 2 resultados (cabecera ~160 + título ~32 + una fila de la grilla de 2
+  // columnas, 237 dp por el `aspectRatio: 2/3` de TarjetaEvento), contra un
+  // área visible de ~649 dp: asoma sin scrollear igual que en la web de la
+  // R52. Con 3 resultados ya son dos filas y el banner se va a los ~702 dp.
+  // Por eso el corte es por CANTIDAD, con la constante con nombre.
+  it('el footer de la lista de RESULTADOS corta por cantidad, con el mínimo en 3 (regla (a): con 1 o 2 resultados el banner asoma sin scrollear)', () => {
+    expect(SRC_BUSCAR).toMatch(/RESULTADOS_MINIMOS_PARA_ANUNCIO\s*=\s*3\b/)
+    expect(SRC_BUSCAR).toMatch(
+      /ListFooterComponent=\{\s*resultadosMostrados\.length < RESULTADOS_MINIMOS_PARA_ANUNCIO \? null : <BannerAnuncio\s+lugar="buscar"\s*\/>\s*\}/
+    )
+  })
+
+  it('el footer de la lista de CATEGORÍAS corta a null cuando estado.categorias está vacío', () => {
+    expect(SRC_BUSCAR).toMatch(
+      /ListFooterComponent=\{estado\.categorias\.length === 0 \? null : <BannerAnuncio\s+lugar="buscar"\s*\/>\}/
+    )
+  })
+
+  // Prueba de rotura explícita: si alguien reescribe el footer sin la guarda
+  // (`ListFooterComponent={<BannerAnuncio lugar="buscar" />}` liso, sin el
+  // `? null :`), el banner queda SIEMPRE, también con la lista vacía — este
+  // caso demuestra que la aserción de arriba SÍ puede ponerse en rojo.
+  describe('(fixture: demuestra que el detector de la guarda puede fallar)', () => {
+    const REGEX_GUARDA =
+      /ListFooterComponent=\{\s*resultadosMostrados\.length < RESULTADOS_MINIMOS_PARA_ANUNCIO \? null : <BannerAnuncio\s+lugar="buscar"\s*\/>\s*\}/
+
+    it('un footer sin guarda no matchea la regex de la guarda', () => {
+      expect('ListFooterComponent={<BannerAnuncio lugar="buscar" />}').not.toMatch(REGEX_GUARDA)
+    })
+
+    it('la guarda vieja, que solo cortaba con la lista VACÍA, tampoco matchea (el arreglo de la R60 no se puede deshacer en silencio)', () => {
+      const guardaVieja = 'ListFooterComponent={resultadosMostrados.length === 0 ? null : <BannerAnuncio lugar="buscar" />}'
+      expect(guardaVieja).not.toMatch(REGEX_GUARDA)
+    })
+  })
+})
