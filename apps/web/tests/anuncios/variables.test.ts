@@ -125,27 +125,93 @@ describe('Regla (f): ningún archivo versionado fija el interruptor en "true"', 
 })
 
 // ---------------------------------------------------------------------------
-// Regla (e), la mitad de hoy: el interruptor de la Web no prende la app.
+// Regla (e): la Web y la app tienen interruptores DISTINTOS. Las dos mitades,
+// desde la R60 (la Fase 2 de la R52 trajo `EXPO_PUBLIC_ADS_ENABLED`).
 //
-// La otra mitad —que EXPO_PUBLIC_ADS_ENABLED no prenda la Web— TODAVÍA NO SE
-// PUEDE PROBAR: esa variable no existe en ningún lado del repo porque 52-c y
-// 52-d (apps/mobile/lib/anuncios/, components/BannerAnuncio.tsx) quedaron
-// para la Fase 2. Cuando se agregue esa mitad, sumar acá el barrido
-// simétrico: ningún archivo de apps/web/ debería nombrar
-// EXPO_PUBLIC_ADS_ENABLED.
+// R60 (lead): este barrido era `not.toContain('NEXT_PUBLIC_ADS_ENABLED')`
+// sobre el texto crudo, y se puso en rojo cuando la R60 escribió, en un
+// COMENTARIO de `apps/mobile/lib/env.ts`, "el interruptor es
+// EXPO_PUBLIC_ADS_ENABLED, separado del de la web (NEXT_PUBLIC_ADS_ENABLED)".
+// O sea: la regla (e) estaba intacta —nadie LEE la variable de la otra
+// plataforma— y el detector igual fallaba, porque mide la mención y no la
+// lectura. Peor: con ese criterio, la forma de dejarlo en verde era borrar la
+// explicación que dice por qué los interruptores están separados. Ahora las
+// dos mitades miden `process.env.<NOMBRE>`, que es lo que de verdad prendería
+// la plataforma equivocada, y los fixtures de abajo exigen que la diferencia
+// entre comentario y lectura esté cubierta.
 // ---------------------------------------------------------------------------
-describe('Regla (e) (parcial): NEXT_PUBLIC_ADS_ENABLED no aparece en apps/mobile/', () => {
-  it('ningún archivo de apps/mobile/ nombra NEXT_PUBLIC_ADS_ENABLED', () => {
-    const archivos = listarArchivos(path.join(REPO_ROOT, 'apps', 'mobile'), ['.ts', '.tsx', '.js', '.json'])
+
+/** `true` si `contenido` LEE `process.env.<nombre>` (no si solo lo nombra en un comentario o en un string). */
+export function leeVariableDeEntorno(contenido: string, nombre: string): boolean {
+  return new RegExp(`process\\s*\\.\\s*env\\s*(?:\\.\\s*${nombre}\\b|\\[\\s*['"\`]${nombre}['"\`]\\s*\\])`).test(contenido)
+}
+
+describe('leeVariableDeEntorno (fixtures en memoria: tiene que fallar de verdad)', () => {
+  it('detecta la lectura por punto', () => {
+    expect(leeVariableDeEntorno(`const x = process.env.NEXT_PUBLIC_ADS_ENABLED === 'true'`, 'NEXT_PUBLIC_ADS_ENABLED')).toBe(true)
+  })
+
+  it('detecta la lectura por corchetes', () => {
+    expect(leeVariableDeEntorno(`process.env['NEXT_PUBLIC_ADS_ENABLED']`, 'NEXT_PUBLIC_ADS_ENABLED')).toBe(true)
+  })
+
+  it('NO cuenta una mención en un comentario (el falso positivo que puso este test en rojo en la R60)', () => {
+    const fixture = '// separado del de la web (NEXT_PUBLIC_ADS_ENABLED, R52)\nconst x = 1'
+    expect(leeVariableDeEntorno(fixture, 'NEXT_PUBLIC_ADS_ENABLED')).toBe(false)
+  })
+
+  it('no confunde un nombre que empieza igual', () => {
+    expect(leeVariableDeEntorno(`process.env.NEXT_PUBLIC_ADS_ENABLED_VIEJO`, 'NEXT_PUBLIC_ADS_ENABLED')).toBe(false)
+  })
+})
+
+describe('Regla (e): cada plataforma lee solo su propio interruptor', () => {
+  const EXTENSIONES = ['.ts', '.tsx', '.js', '.json']
+
+  /**
+   * Los archivos de test quedan afuera de los dos barridos: un test de la
+   * regla (e) necesita, por definición, un fixture con `process.env.<la
+   * variable de la otra plataforma>` para probar que su propio detector
+   * funciona (`apps/mobile/tests/anuncios-variables.test.ts` tiene
+   * exactamente eso). Lo que la regla protege es el código que se empaqueta
+   * y corre; los tests no van ni al bundle de la app ni al build de la web.
+   */
+  function soloCodigo(archivos: string[]): string[] {
+    return archivos.filter((abs) => !/[\\/]tests?[\\/]/.test(abs))
+  }
+
+  it('ningún archivo de apps/mobile/ lee NEXT_PUBLIC_ADS_ENABLED', () => {
+    const archivos = soloCodigo(listarArchivos(path.join(REPO_ROOT, 'apps', 'mobile'), EXTENSIONES))
 
     // Sanity: apps/mobile/ tiene muchísimos archivos de código; si esto da 0
     // el barrido está mal apuntado.
     expect(archivos.length).toBeGreaterThan(50)
 
     for (const abs of archivos) {
-      expect(readFileSync(abs, 'utf8'), path.relative(REPO_ROOT, abs).replace(/\\/g, '/')).not.toContain(
-        'NEXT_PUBLIC_ADS_ENABLED',
-      )
+      const etiqueta = path.relative(REPO_ROOT, abs).replace(/\\/g, '/')
+      expect(leeVariableDeEntorno(readFileSync(abs, 'utf8'), 'NEXT_PUBLIC_ADS_ENABLED'), etiqueta).toBe(false)
     }
+  })
+
+  it('ningún archivo de apps/web/ lee EXPO_PUBLIC_ADS_ENABLED', () => {
+    const archivos = soloCodigo(listarArchivos(WEB_ROOT, EXTENSIONES))
+
+    expect(archivos.length).toBeGreaterThan(50)
+
+    for (const abs of archivos) {
+      const etiqueta = path.relative(REPO_ROOT, abs).replace(/\\/g, '/')
+      expect(leeVariableDeEntorno(readFileSync(abs, 'utf8'), 'EXPO_PUBLIC_ADS_ENABLED'), etiqueta).toBe(false)
+    }
+  })
+
+  it('el barrido sirve de algo: cada plataforma SÍ lee su propio interruptor', () => {
+    // Sin esto, los dos tests de arriba quedarían en verde el día que nadie
+    // leyera ninguna de las dos variables (o que el barrido apuntara mal), y
+    // afirmarían que la regla (e) se cumple sin probar nada.
+    const mobile = soloCodigo(listarArchivos(path.join(REPO_ROOT, 'apps', 'mobile'), EXTENSIONES))
+    const web = soloCodigo(listarArchivos(WEB_ROOT, EXTENSIONES))
+
+    expect(mobile.some((abs) => leeVariableDeEntorno(readFileSync(abs, 'utf8'), 'EXPO_PUBLIC_ADS_ENABLED'))).toBe(true)
+    expect(web.some((abs) => leeVariableDeEntorno(readFileSync(abs, 'utf8'), 'NEXT_PUBLIC_ADS_ENABLED'))).toBe(true)
   })
 })
