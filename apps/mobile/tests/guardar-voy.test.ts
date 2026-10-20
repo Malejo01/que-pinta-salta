@@ -6,6 +6,16 @@
 // (`lib/favoritos.ts`), con un único doble de `@/lib/supabase` que además
 // registra el ORDEN en que se llama a cada tabla/acción (`estado.orden`).
 //
+// R56, tarea 56-b (QPS-195): `marcarAsistencia` consulta `estadoPermiteAgregar`
+// (lib/estado-evento.ts) antes de "guardar"/"marcar-voy" — y el paso
+// "guardar" en sí llama a `marcarFavorito` (lib/favoritos.ts), que hace lo
+// mismo antes de su `insert`. El doble suma un caso para `events`
+// (`select('status').eq('id', ...).maybeSingle()`), PUBLISHED por default:
+// este archivo prueba el ORDEN y el invariante sin transacción, no ese
+// chequeo (que tiene su propio archivo, tests/estado-evento.test.ts).
+// `desmarcarFavorito` (sacar el ♥) no lo consulta, así que no hace falta
+// nada más para esos casos.
+//
 // Nunca el cliente real (ni red, ni .env, ni base).
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -27,12 +37,29 @@ const estado = vi.hoisted(() => ({
   // El delete de event_attendance en marcarAsistencia (paso "quitar-voy") NO
   // trae `.select()`: solo importa `error`, se reusa el mismo campo `error`
   // de `asistenciaDeleteResultado`.
-  llamadas: { favoritoInsert: 0, favoritoDelete: 0, asistenciaUpsert: 0, asistenciaDelete: 0 },
+  // 56-b: `events` — PUBLISHED por default (ver más arriba).
+  eventoFila: { data: { status: 'PUBLISHED' } as unknown, error: null as unknown } as { data: unknown; error: unknown },
+  llamadas: { favoritoInsert: 0, favoritoDelete: 0, asistenciaUpsert: 0, asistenciaDelete: 0, eventoSelect: 0 },
 }))
 
 vi.mock('@/lib/supabase', () => ({
   supabase: {
     from: (tabla: string) => {
+      if (tabla === 'events') {
+        // No se empuja a `estado.orden`: ese arreglo es específicamente el
+        // orden de las ESCRITURAS (la regla sin transacción que prueba este
+        // archivo) — esta consulta es una lectura, y no cambia ese orden.
+        return {
+          select: () => ({
+            eq: () => ({
+              maybeSingle: async () => {
+                estado.llamadas.eventoSelect++
+                return estado.eventoFila
+              },
+            }),
+          }),
+        }
+      }
       if (tabla === 'user_favorites') {
         const builder: Record<string, unknown> = {}
         builder.insert = async (_valores: unknown) => {
@@ -84,7 +111,8 @@ beforeEach(() => {
   estado.asistenciaUpsertResultado = { error: null }
   estado.arrojarAsistenciaUpsert = null
   estado.asistenciaDeleteResultado = { data: [], error: null }
-  estado.llamadas = { favoritoInsert: 0, favoritoDelete: 0, asistenciaUpsert: 0, asistenciaDelete: 0 }
+  estado.eventoFila = { data: { status: 'PUBLISHED' }, error: null }
+  estado.llamadas = { favoritoInsert: 0, favoritoDelete: 0, asistenciaUpsert: 0, asistenciaDelete: 0, eventoSelect: 0 }
 })
 
 afterEach(() => {

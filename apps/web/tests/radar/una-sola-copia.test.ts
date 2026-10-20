@@ -19,6 +19,50 @@
  * Mismo criterio que `tests/asistencia/sin-me-interesa.test.ts`: el test
  * afirma cuántos archivos recorrió y que los módulos permitidos SÍ
  * aparecen, para que no pase en verde por un glob roto.
+ *
+ * ## El punto ciego cerrado (R56, QPS-253): `.from(<algo que no es un literal>)`
+ *
+ * Hasta la R54 todo lo de arriba solo reconocía `.from('literal')`: un
+ * `.from(variable)` armado con una tabla resuelta en tiempo de ejecución
+ * esquivaba el detector entero (está probado abajo con el fixture
+ * `admin.from(tabla)`, que sigue dando `[]` A PROPÓSITO en el detector de
+ * escrituras sobre las tres tablas — ese detector sigue acotado a esas tres
+ * tablas por nombre). Lo que se agrega acá es OTRO detector, más general:
+ * busca TODA llamada `<identificador>.from(<argumento>)` en los mismos seis
+ * directorios donde el argumento NO es un literal simple (ni una cadena
+ * `'...'`/`"..."` sin concatenar, ni un template sin `${`), salvo que el
+ * identificador sea uno de los estáticos nativos de JS que también se
+ * llaman `.from` y no tienen nada que ver con Supabase: `Array.from`,
+ * `Buffer.from` y los `*Array.from` de los typed arrays (hay docenas en el
+ * repo, p. ej. para generar fixtures de test o decodificar buffers; ninguno
+ * toca una tabla).
+ *
+ * Cada `.from(no-literal)` real que sobrevive a esa exclusión entra en
+ * `ARCHIVOS_PERMITIDOS_PARA_FROM_NO_LITERAL`, con su archivo y su motivo. El
+ * inventario (hecho a mano sobre el código real, no supuesto) encontró dos
+ * familias:
+ *
+ *   - Los dos `radar.ts` (web y app): `.from(tablaDeSeguimiento(tabla))`,
+ *     el mapeo tipado que ya vigila el detector de arriba.
+ *   - Cinco módulos que suben a Supabase Storage con
+ *     `supabase.storage.from(INSTAGRAM_ENGINE_CONFIG.STORAGE_BUCKET)`: el
+ *     argumento es el nombre del BUCKET (una constante de configuración),
+ *     no una tabla de Postgres — no es del alcance de "una sola copia".
+ *
+ * Una `.from(variable)` nueva en cualquier otro archivo hace fallar el
+ * test, con un mensaje que dice: "si es una tabla `user_followed_*`, va en
+ * el módulo del Radar; si no, sumala a la lista con su motivo". Y cada
+ * entrada de la lista se vuelve a comprobar contra el archivo real: si
+ * alguien borra el `.from(...)` que la justificaba (o el archivo entero),
+ * el test queda en rojo en vez de pasar en verde por omisión.
+ *
+ * Evasiones conocidas que siguen abiertas (no las cierra este detector,
+ * porque dejan de ser texto que matchee `identificador.from(`):
+ *   - Acceso por corchete: `supabase['from'](tabla)`.
+ *   - Una referencia indirecta al método: `const f = supabase.from; f(tabla)`
+ *     o `supabase.from.bind(supabase)(tabla)`.
+ *   - Un método con otro nombre que delegue a `.from(...)` adentro (el
+ *     detector mira el TEXTO, no ejecuta el código).
  */
 import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { join, relative } from 'node:path'
@@ -95,6 +139,115 @@ function tieneTablaSeguimiento(contenidoSinComentarios: string): boolean {
   return /\bTABLA_SEGUIMIENTO\b/.test(contenidoSinComentarios)
 }
 
+// ---------------------------------------------------------------------------
+// El punto ciego cerrado (R56, QPS-253): TODA llamada `.from(<algo que no es
+// un literal>)`, no solo las tres tablas de seguimiento. Ver el comentario de
+// cabecera para el porqué de cada exclusión.
+// ---------------------------------------------------------------------------
+
+/** Estáticos nativos de JS que también se llaman `.from` y no tocan Supabase. */
+const RECEPTORES_FROM_NATIVOS_EXCLUIDOS = new Set([
+  'Array',
+  'Buffer',
+  'Uint8Array',
+  'Int8Array',
+  'Uint8ClampedArray',
+  'Int16Array',
+  'Uint16Array',
+  'Int32Array',
+  'Uint32Array',
+  'Float32Array',
+  'Float64Array',
+  'BigInt64Array',
+  'BigUint64Array',
+])
+
+/** `true` si `argumento` (el texto entre los paréntesis de un `.from(...)`) es un literal simple. */
+function esArgumentoDeFromLiteral(argumento: string): boolean {
+  const a = argumento.trim()
+  if (/^'(?:[^'\\]|\\.)*'$/.test(a)) return true
+  if (/^"(?:[^"\\]|\\.)*"$/.test(a)) return true
+  if (/^`[^`$]*`$/.test(a)) return true // template sin ${...}: también es un literal
+  return false
+}
+
+/**
+ * Busca toda llamada `<identificador>.from(<argumento>)` en `contenidoSinComentarios`
+ * cuyo `<identificador>` NO sea uno de los nativos de JS de arriba y cuyo
+ * `<argumento>` NO sea un literal simple. Devuelve el receptor y el
+ * argumento (recortado) de cada una encontrada.
+ */
+function llamadasFromNoLiteral(contenidoSinComentarios: string): { receptor: string; argumento: string }[] {
+  const resultado: { receptor: string; argumento: string }[] = []
+  const patronInicio = /([A-Za-z_$][\w$]*)\s*\.\s*from\s*\(/g
+  let m: RegExpExecArray | null
+  while ((m = patronInicio.exec(contenidoSinComentarios)) !== null) {
+    const receptor = m[1]
+    if (RECEPTORES_FROM_NATIVOS_EXCLUIDOS.has(receptor)) continue
+
+    // Balancear paréntesis para encontrar el cierre de ESTE .from(, sin
+    // confundirlo con el de una llamada anidada como tablaDeSeguimiento(tabla).
+    let profundidad = 1
+    let i = patronInicio.lastIndex
+    while (i < contenidoSinComentarios.length && profundidad > 0) {
+      const c = contenidoSinComentarios[i]
+      if (c === '(') profundidad++
+      else if (c === ')') profundidad--
+      i++
+    }
+    const argumento = contenidoSinComentarios.slice(patronInicio.lastIndex, i - 1).trim()
+    patronInicio.lastIndex = i
+
+    if (argumento && !esArgumentoDeFromLiteral(argumento)) {
+      resultado.push({ receptor, argumento })
+    }
+  }
+  return resultado
+}
+
+/**
+ * Lista de permitidos para `.from(no-literal)`: cada entrada es un
+ * `.from(...)` real del código (inventariado a mano, no supuesto) cuyo
+ * argumento no es un literal, con el motivo por el que no es una escritura
+ * nueva sobre una tabla fuera de control. Los dos `radar.ts` ya están
+ * cubiertos por el detector de TABLA_SEGUIMIENTO de arriba; los otros cinco
+ * son buckets de Storage, no tablas.
+ */
+const ARCHIVOS_PERMITIDOS_PARA_FROM_NO_LITERAL = [
+  {
+    archivo: 'apps/web/lib/actions/radar.ts',
+    motivo: '.from(tablaDeSeguimiento(tabla)): el mapeo tipado TABLA_SEGUIMIENTO, ya vigilado arriba.',
+  },
+  {
+    archivo: 'apps/mobile/lib/radar.ts',
+    motivo: '.from(tablaDeSeguimiento(tabla)): mismo mapeo, versión app, ya vigilado arriba.',
+  },
+  {
+    archivo: 'apps/web/lib/instagram/process-apify-payload.ts',
+    motivo:
+      '.storage.from(INSTAGRAM_ENGINE_CONFIG.STORAGE_BUCKET): nombre de un bucket de Storage (constante de ' +
+      'configuración), no una tabla de Postgres.',
+  },
+  {
+    archivo: 'apps/web/lib/recurrentes/generar.ts',
+    motivo: '.storage.from(INSTAGRAM_ENGINE_CONFIG.STORAGE_BUCKET): idem, bucket de Storage.',
+  },
+  {
+    archivo: 'apps/web/lib/scraper/save-to-supabase.ts',
+    motivo: '.storage.from(INSTAGRAM_ENGINE_CONFIG.STORAGE_BUCKET): idem, bucket de Storage.',
+  },
+  {
+    archivo: 'apps/web/lib/scraper/cinema-scraper.ts',
+    motivo: '.storage.from(INSTAGRAM_ENGINE_CONFIG.STORAGE_BUCKET): idem, bucket de Storage.',
+  },
+  {
+    archivo: 'apps/web/app/api/cron/scrape/run-scrape-job.ts',
+    motivo: '.storage.from(INSTAGRAM_ENGINE_CONFIG.STORAGE_BUCKET): idem, bucket de Storage.',
+  },
+] as const
+
+const RUTAS_PERMITIDAS_PARA_FROM_NO_LITERAL = new Set<string>(ARCHIVOS_PERMITIDOS_PARA_FROM_NO_LITERAL.map((e) => e.archivo))
+
 describe('sanidad del recorrido', () => {
   it('recorrió al menos 300 archivos .ts/.tsx de producción', () => {
     expect(ARCHIVOS.length).toBeGreaterThanOrEqual(300)
@@ -122,7 +275,7 @@ describe('el detector funciona de verdad (fixtures en memoria)', () => {
     expect(tieneEscrituraSobreTablasDeSeguimiento(fixture)).toEqual([])
   })
 
-  it('.from(tabla) con una variable (no un literal) no matchea: es el caso de lib/cuenta/eliminar.ts, que NO está en el alcance de este archivo', () => {
+  it('.from(tabla) con una variable (no un literal) no matchea EL DETECTOR DE LAS TRES TABLAS: es el caso de lib/cuenta/eliminar.ts, que NO está en el alcance de este archivo (sí lo atrapa el detector general de .from(no-literal) de más abajo)', () => {
     const fixture = `await admin.from(tabla).delete().eq(columna, userId)`
     expect(tieneEscrituraSobreTablasDeSeguimiento(fixture)).toEqual([])
   })
@@ -169,6 +322,76 @@ describe('TABLA_SEGUIMIENTO (el mapeo tabla/columna) se referencia solo en los d
     for (const archivo of ARCHIVOS_PERMITIDOS_PARA_TABLA_SEGUIMIENTO) {
       const limpio = quitarComentarios(readFileSync(join(REPO_ROOT, archivo), 'utf8'))
       expect(tieneTablaSeguimiento(limpio), `${archivo} debería referenciar TABLA_SEGUIMIENTO`).toBe(true)
+    }
+  })
+})
+
+describe('llamadasFromNoLiteral: el detector funciona de verdad (fixtures en memoria)', () => {
+  it('un .from(variable) con una tabla de seguimiento armada en una variable: lo detecta (el caso que evadía el detector de las tres tablas)', () => {
+    const fixture = `const t = 'user_followed_venues'\nsupabase.from(t).insert({ user_id, venue_id })`
+    expect(llamadasFromNoLiteral(fixture)).toEqual([{ receptor: 'supabase', argumento: 't' }])
+  })
+
+  it('un .from(\'literal\') SÍ es seguro: no lo marca (ya lo vigila, si corresponde, el detector de arriba)', () => {
+    expect(llamadasFromNoLiteral(`supabase.from('events').select()`)).toEqual([])
+  })
+
+  it('.from(tablaDeSeguimiento(tabla)) (llamada anidada): se detecta como no-literal, con el argumento completo', () => {
+    const fixture = `await supabase.from(tablaDeSeguimiento(tabla)).insert(fila)`
+    expect(llamadasFromNoLiteral(fixture)).toEqual([{ receptor: 'supabase', argumento: 'tablaDeSeguimiento(tabla)' }])
+  })
+
+  it('Array.from(...) NO se confunde con un .from() de Supabase (estático nativo de JS, excluido a propósito)', () => {
+    expect(llamadasFromNoLiteral(`const ids = Array.from(new Set(rows.map((r) => r.id)))`)).toEqual([])
+  })
+
+  it('Buffer.from(...) tampoco se confunde (otro estático nativo de JS)', () => {
+    expect(llamadasFromNoLiteral(`const buf = Buffer.from(arrayBuffer)`)).toEqual([])
+  })
+
+  it('Uint8Array.from(...) tampoco (typed array nativo)', () => {
+    expect(llamadasFromNoLiteral(`const bytes = Uint8Array.from([1, 2, 3])`)).toEqual([])
+  })
+
+  it('un .storage.from(constante) (bucket de Storage, no una tabla): el detector SÍ lo marca igual — la excepción vive en la lista de permitidos, no en el detector', () => {
+    const fixture = `await supabase.storage\n  .from(INSTAGRAM_ENGINE_CONFIG.STORAGE_BUCKET)\n  .upload(path, buffer)`
+    expect(llamadasFromNoLiteral(fixture)).toEqual([{ receptor: 'storage', argumento: 'INSTAGRAM_ENGINE_CONFIG.STORAGE_BUCKET' }])
+  })
+
+  it('un template sin ${...} es un literal (no lo marca)', () => {
+    expect(llamadasFromNoLiteral('supabase.from(`events`).select()')).toEqual([])
+  })
+
+  it('un template CON ${...} no es un literal (sí lo marca)', () => {
+    const fixture = 'supabase.from(`user_${tabla}`).select()'
+    expect(llamadasFromNoLiteral(fixture)).toEqual([{ receptor: 'supabase', argumento: '`user_${tabla}`' }])
+  })
+})
+
+describe('cualquier .from(<algo que no es un literal>) aparece solo en los módulos permitidos (R56, QPS-253)', () => {
+  it('ningún archivo fuera de la lista permitida tiene un .from(no-literal)', () => {
+    const hallazgos: string[] = []
+    for (const archivo of ARCHIVOS) {
+      if (RUTAS_PERMITIDAS_PARA_FROM_NO_LITERAL.has(archivo)) continue
+      const limpio = quitarComentarios(readFileSync(join(REPO_ROOT, archivo), 'utf8'))
+      const llamadas = llamadasFromNoLiteral(limpio)
+      if (llamadas.length > 0) {
+        for (const { receptor, argumento } of llamadas) {
+          hallazgos.push(
+            `${archivo}: ${receptor}.from(${argumento}) — si es una tabla user_followed_*, va en el módulo del ` +
+              `Radar; si no, sumala a ARCHIVOS_PERMITIDOS_PARA_FROM_NO_LITERAL con su motivo`,
+          )
+        }
+      }
+    }
+    expect(hallazgos, hallazgos.join('\n')).toEqual([])
+  })
+
+  it('cada archivo permitido SIGUE teniendo de verdad su .from(no-literal) (si lo perdiera, o se borrara el archivo, esto tiene que quedar en rojo, no en verde por omisión)', () => {
+    for (const { archivo, motivo } of ARCHIVOS_PERMITIDOS_PARA_FROM_NO_LITERAL) {
+      const limpio = quitarComentarios(readFileSync(join(REPO_ROOT, archivo), 'utf8'))
+      const llamadas = llamadasFromNoLiteral(limpio)
+      expect(llamadas.length, `${archivo} ya no tiene ningún .from(no-literal) — motivo registrado: "${motivo}"`).toBeGreaterThan(0)
     }
   })
 })

@@ -83,6 +83,14 @@ interface ConfigDoble {
   guardadoData?: { id: string } | null
   guardadoError?: unknown
   insertFavoritoError?: unknown
+  /**
+   * El `status` que devuelve `events`.select("status").eq("id", ...).maybeSingle()
+   * (QPS-195, tarea 56-a: `estadoPermiteAgregar` se consulta antes de
+   * AGREGAR una marca). Por defecto 'PUBLISHED', así los escenarios de este
+   * archivo (que no prueban ese chequeo) siguen escribiendo como antes.
+   */
+  eventsStatus?: string | null
+  eventsError?: unknown
 }
 
 function construirCliente(config: ConfigDoble) {
@@ -162,6 +170,26 @@ function construirCliente(config: ConfigDoble) {
         insert: async (valores: unknown) => {
           llamadas.inserts.push(valores)
           return { error: config.insertFavoritoError ?? null }
+        },
+      }
+    }
+
+    // QPS-195 (56-a): `estadoPermiteAgregar` (lib/asistencia-lectura.ts) se
+    // consulta antes del primer paso que AGREGUE una marca. Por defecto
+    // 'PUBLISHED', para no tener que tocar cada escenario de este archivo
+    // que no prueba ese chequeo (eso lo cubre tests/asistencia/estado-evento.test.ts).
+    if (tabla === 'events') {
+      return {
+        select: (columnas: string) => {
+          llamadas.selects.push({ tabla, columnas })
+          return {
+            eq: () => ({
+              maybeSingle: async () => ({
+                data: config.eventsError ? null : { status: config.eventsStatus ?? 'PUBLISHED' },
+                error: config.eventsError ?? null,
+              }),
+            }),
+          }
         },
       }
     }

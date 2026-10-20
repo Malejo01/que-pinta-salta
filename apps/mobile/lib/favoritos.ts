@@ -24,6 +24,7 @@ import type { DisplayEvent } from '@qps/core/home/types'
 import type { CinemaMovie } from '@qps/core/types'
 import type { FlyerWithAccount } from '@qps/core/instagram-config'
 import { obtenerCategorias } from '@/lib/datos/eventos'
+import { estadoPermiteAgregar } from '@/lib/estado-evento'
 import { MENSAJE_SIN_CONFIGURACION } from '@/lib/mensajes'
 import { esErrorDeRed } from '@/lib/red'
 import { supabase } from '@/lib/supabase'
@@ -31,6 +32,11 @@ import { supabase } from '@/lib/supabase'
 export { MENSAJE_SIN_CONFIGURACION }
 export const MENSAJE_ERROR_RED = 'No pudimos cargar tus favoritos. Revisá tu conexión.'
 export const MENSAJE_ERROR_GUARDAR = 'No pudimos guardar el favorito. Probá de nuevo.'
+// QPS-195 (56-b): `marcarFavorito` de un evento (nunca películas ni flyers,
+// que no tienen `status` de evento) chequea el estado ANTES del `insert`.
+// Mismo mensaje para un borrador que para un id inventado — nunca "es un
+// borrador" (ver `lib/estado-evento.ts`).
+export const MENSAJE_EVENTO_NO_DISPONIBLE = 'Ese evento ya no está disponible.'
 
 // R43, 43-b: `sinConexion` se suma cuando `esErrorDeRed` (lib/red.ts)
 // reconoce alguna de las consultas (incluida `obtenerCategorias`, que ya
@@ -200,9 +206,20 @@ export async function obtenerEsFavorito(eventId: string, userId: string): Promis
  * Marca `eventId` como favorito de `userId`: `insert({ user_id, event_id })`.
  * Un `23505` (la unique de `user_favorites` por `user_id` + `event_id`: ya
  * estaba marcado) cuenta como éxito.
+ *
+ * QPS-195 (56-b): esta función siempre marca un EVENTO (nunca una película ni
+ * un flyer — esos no pasan por acá), así que antes del `insert` se consulta
+ * `estadoPermiteAgregar(eventId)` (lib/estado-evento.ts). `'no'` (el evento
+ * ya no está disponible — borrador o id inexistente, nunca se distingue uno
+ * de otro) → error con `MENSAJE_EVENTO_NO_DISPONIBLE`, sin `insert`. `'error'`
+ * → `MENSAJE_ERROR_GUARDAR`, sin `insert`.
  */
 export async function marcarFavorito(eventId: string, userId: string): Promise<ResultadoMarcarFavorito> {
   if (!supabase) return { ok: false, error: MENSAJE_SIN_CONFIGURACION }
+
+  const estadoEvento = await estadoPermiteAgregar(eventId)
+  if (estadoEvento === 'no') return { ok: false, error: MENSAJE_EVENTO_NO_DISPONIBLE }
+  if (estadoEvento === 'error') return { ok: false, error: MENSAJE_ERROR_GUARDAR }
 
   try {
     const { error } = await supabase.from('user_favorites').insert({ user_id: userId, event_id: eventId })

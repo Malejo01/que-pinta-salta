@@ -35,6 +35,7 @@ import {
 } from '@qps/core/asistencia'
 import { obtenerEsFavorito, marcarFavorito } from './favoritos'
 import { clasificarErrorTabla } from './errores'
+import { estadoPermiteAgregar } from './estado-evento'
 import { MENSAJE_SIN_CONFIGURACION } from './mensajes'
 import { supabase } from './supabase'
 
@@ -44,6 +45,12 @@ export const MENSAJE_NO_DISPONIBLE = 'Pronto vas a poder marcar si vas.'
 // "Mensaje de la casa" para una entrada inválida en marcarAsistencia (nunca
 // un dato de Supabase: ni siquiera se llega a tocar la base en ese caso).
 export const MENSAJE_TIPO_INVALIDO = 'Esa acción no es válida.'
+// QPS-195 (56-b): el evento que recibió este `eventId` ya no está disponible
+// para agregar una marca nueva (no es `PUBLISHED`, o directamente no existe
+// — nunca se distingue un caso del otro, ver `lib/estado-evento.ts`). Mismo
+// mensaje para "el evento es un borrador" y para "ese id no es de ningún
+// evento": nunca "es un borrador".
+export const MENSAJE_EVENTO_NO_DISPONIBLE = 'Ese evento ya no está disponible.'
 
 export type { TipoAsistencia, CantidadesAsistencia, EstadoGuardarVoy }
 
@@ -165,6 +172,14 @@ export async function obtenerAsistencia(eventId: string, userId: string | null):
  * `estadoTrasPasos(actual, pasosYaHechos)`: el estado real después de los
  * pasos que SÍ se alcanzaron a escribir (puede ser distinto de `actual` aun
  * cuando el resultado es `'error'`, si el paso que falló no fue el primero).
+ *
+ * QPS-195 (56-b): si `pasos` agrega algo (`'guardar'` o `'marcar-voy'` están
+ * entre ellos), ANTES de la primera escritura se consulta
+ * `estadoPermiteAgregar(eventId)` (lib/estado-evento.ts). `'no'` → error con
+ * `MENSAJE_EVENTO_NO_DISPONIBLE` y el `guardado` de `actual` (nada se
+ * escribió); `'error'` → `MENSAJE_ERROR`, mismo `guardado`. Sacar Voy
+ * (`pasos` es solo `['quitar-voy']`) nunca pasa por este chequeo: si el
+ * evento ya estaba marcado, sacarle la marca tiene que funcionar siempre.
  */
 export async function marcarAsistencia(
   eventId: string,
@@ -182,6 +197,19 @@ export async function marcarAsistencia(
 
   const pasos = pasosDeTocar('voy', actual)
   const pasosHechos: PasoEscritura[] = []
+
+  // QPS-195 (56-b): solo los pasos que AGREGAN pasan por acá — "quitar-voy"
+  // nunca. El chequeo va antes de la primera escritura, y si da "no" o
+  // "error" no se intenta ninguna.
+  if (pasos.includes('guardar') || pasos.includes('marcar-voy')) {
+    const estadoEvento = await estadoPermiteAgregar(eventId)
+    if (estadoEvento === 'no') {
+      return { tipo: 'error', error: MENSAJE_EVENTO_NO_DISPONIBLE, guardado: actual.guardado }
+    }
+    if (estadoEvento === 'error') {
+      return { tipo: 'error', error: MENSAJE_ERROR, guardado: actual.guardado }
+    }
+  }
 
   try {
     for (const paso of pasos) {
