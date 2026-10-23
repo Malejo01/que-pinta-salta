@@ -58,7 +58,42 @@ function favoritoRow(userId: string, overrides: Row = {}): Row {
   }
 }
 
-type Writes = { inserts: Record<string, Row[]>; deletes: Record<string, unknown[]> }
+// D2/Ronda 51, 51-b: avisos patrocinados. Una campaña vigente durante AHORA
+// (20:00 de Salta del 2030-10-20), con su evento PUBLISHED por defecto.
+const EVENT_ID_PATROCINADO = '30000000-0000-4000-8000-000000000001'
+const CAMPANIA_ID = '30000000-0000-4000-8000-000000000002'
+
+function campaniaRow(overrides: Row = {}): Row {
+  return {
+    id: CAMPANIA_ID,
+    title: 'Campaña de Prueba',
+    body: 'Cuerpo de la campaña de prueba',
+    event_id: EVENT_ID_PATROCINADO,
+    starts_at: saltaWallClockToUtcISO('2030-10-19T00:00:00'),
+    ends_at: saltaWallClockToUtcISO('2030-10-25T00:00:00'),
+    sent_at: null,
+    event: { status: 'PUBLISHED' },
+    ...overrides,
+  }
+}
+
+function prefRow(userId: string, overrides: Row = {}): Row {
+  return {
+    user_id: userId,
+    radar_channel: 'email',
+    favorite_reminders: true,
+    follow_news: true,
+    announcements: false,
+    sponsored: true,
+    quiet_start: '23:00:00',
+    quiet_end: '09:00:00',
+    daily_cap: 4,
+    ...overrides,
+  }
+}
+
+type EntradaUpdate = { values: Row; llamadas: Llamada[] }
+type Writes = { inserts: Record<string, Row[]>; deletes: Record<string, unknown[]>; updates: Record<string, EntradaUpdate[]> }
 
 /** Una llamada a un método de filtro (`.eq()`, `.in()`, `.gt()`, ...) registrada por `fakeClient`, para los tests que necesitan afirmar QUÉ se pidió, no solo qué volvió. */
 type Llamada = { metodo: string; args: unknown[] }
@@ -73,6 +108,14 @@ type Queries = Record<string, RegistroTabla[]>
  * que esta función no tenía) es que registra, por tabla, las columnas
  * pedidas y cada filtro, en `queries` — y que una tabla puede devolver un
  * error a pedido (`errors`), para simular una lectura que falla.
+ *
+ * 51-b (QPS-201 + avisos patrocinados) suma `range`/`is` como filtros
+ * registrados más (se ignoran igual que los demás: cada fixture ya viene
+ * completa, y como todas son más chicas que una página, la paginación de la
+ * ruta corta siempre en la primera vuelta) y un `update(...)` de verdad
+ * (encadenable con `.eq()`/`.is()`), para el `sent_at` de la campaña
+ * patrocinada: `errors[\`${table}:update\`]` simula que ESE update falla,
+ * sin afectar las lecturas de la misma tabla.
  */
 function fakeClient(tables: Record<string, Row[]>, writes: Writes, queries: Queries = {}, errors: Record<string, string> = {}) {
   return {
@@ -98,12 +141,34 @@ function fakeClient(tables: Record<string, Row[]>, writes: Writes, queries: Quer
         gte: metodo('gte'),
         lte: metodo('lte'),
         order: metodo('order'),
+        range: metodo('range'),
+        is: metodo('is'),
         delete: () => ({
           in: (_col: string, vals: unknown[]) => {
             writes.deletes[table] = [...(writes.deletes[table] ?? []), ...vals]
             return Promise.resolve({ error: null })
           },
         }),
+        update: (values: Row) => {
+          const entradaUpdate: EntradaUpdate = { values, llamadas: [] }
+          writes.updates[table] = [...(writes.updates[table] ?? []), entradaUpdate]
+          const updateChain: Record<string, unknown> = {
+            eq: (...args: unknown[]) => {
+              entradaUpdate.llamadas.push({ metodo: 'eq', args })
+              return updateChain
+            },
+            is: (...args: unknown[]) => {
+              entradaUpdate.llamadas.push({ metodo: 'is', args })
+              return updateChain
+            },
+            then: (res: (v: unknown) => unknown, rej: (e: unknown) => unknown) => {
+              const mensaje = errors[`${table}:update`]
+              const resultado = mensaje ? { error: { message: mensaje } } : { error: null }
+              return Promise.resolve(resultado).then(res, rej)
+            },
+          }
+          return updateChain
+        },
         insert: (newRows: Row[]) => {
           writes.inserts[table] = [...(writes.inserts[table] ?? []), ...newRows]
           return Promise.resolve({ error: null })
@@ -146,10 +211,10 @@ let queries: Queries
 let fetchMock: ReturnType<typeof fetchFalso>
 
 function mockDb(tables: Partial<Record<string, Row[]>> = {}, errors: Record<string, string> = {}) {
-  writes = { inserts: {}, deletes: {} }
+  writes = { inserts: {}, deletes: {}, updates: {} }
   queries = {}
   const base: Record<string, Row[]> = {
-    push_tokens: [{ user_id: USER_ID, token: TOKEN_A }],
+    push_tokens: [{ id: '00000000-0000-4000-8000-000000000a01', user_id: USER_ID, token: TOKEN_A }],
     notification_preferences: [],
     user_favorites: [favoritoRow(USER_ID)],
     notification_sends: [],
@@ -162,6 +227,10 @@ function mockDb(tables: Partial<Record<string, Row[]>> = {}, errors: Record<stri
     user_followed_categories: [],
     user_followed_venues: [],
     user_followed_instagram_accounts: [],
+    // D2/Ronda 51, 51-b: sin campaña vigente por defecto, para que los tests
+    // de R39/R41 de más abajo (que no saben nada de avisos patrocinados)
+    // sigan pasando igual.
+    sponsored_campaigns: [],
     ...tables,
   }
   createAdminClient.mockReturnValue(fakeClient(base, writes, queries, errors))
@@ -635,5 +704,170 @@ describe('GET /api/cron/notificaciones: 41-q, de punta a punta (ruta + cargarNov
     expect(body.porTipo.novedad).toBeUndefined() // el tope de 3 novedades/día ya está agotado
     expect(body.porTipo.favorito).toBe(1) // 3 envíos hoy, daily_cap default 4: queda 1 lugar, y lo toma el favorito
     expect(body.mensajes).toBe(1)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// D2/Ronda 51, tarea 51-b: avisos push patrocinados.
+// ---------------------------------------------------------------------------
+describe('GET /api/cron/notificaciones: el arreglo del agujero de 51-a (notification_preferences.sponsored)', () => {
+  it('el select de notification_preferences pide la columna `sponsored`', async () => {
+    mockDb({ notification_preferences: [prefRow(USER_ID)] })
+
+    await call()
+
+    const columnas = queries.notification_preferences?.[0]?.columnas ?? ''
+    expect(columnas).toContain('sponsored')
+  })
+
+  it('con sponsored: true y campaña vigente, SÍ sale el aviso patrocinado (si el mapeo perdiera el campo, esto fallaría)', async () => {
+    mockDb({
+      user_favorites: [],
+      notification_preferences: [prefRow(USER_ID, { sponsored: true })],
+      sponsored_campaigns: [campaniaRow()],
+    })
+
+    const res = await call()
+    const body = await res.json()
+    expect(body.porTipo.patrocinado).toBe(1)
+  })
+
+  it('con sponsored: false, NO sale el aviso patrocinado', async () => {
+    mockDb({
+      user_favorites: [],
+      notification_preferences: [prefRow(USER_ID, { sponsored: false })],
+      sponsored_campaigns: [campaniaRow()],
+    })
+
+    const res = await call()
+    const body = await res.json()
+    expect(body.porTipo.patrocinado).toBeUndefined()
+  })
+})
+
+describe('GET /api/cron/notificaciones: avisos patrocinados (D2/Ronda 51, 51-b)', () => {
+  it('con campaña vigente y evento PUBLISHED: el dryRun cuenta 1 patrocinado por usuario, cero fetch y cero escrituras', async () => {
+    mockDb({
+      user_favorites: [], // aísla: solo el patrocinado.
+      sponsored_campaigns: [campaniaRow()],
+    })
+
+    const res = await call()
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    expect(body.dryRun).toBe(true)
+    expect(body.porTipo.patrocinado).toBe(1)
+    expect(body.patrocinados).toBe(1)
+    expect(body.campaniaId).toBe(CAMPANIA_ID)
+    expect(body.patrocinadoDescartado).toBeUndefined()
+    expect(fetchMock).not.toHaveBeenCalled()
+    expect(writes.inserts.notification_sends ?? []).toHaveLength(0)
+    expect(writes.deletes.push_tokens ?? []).toHaveLength(0)
+    expect(writes.updates.sponsored_campaigns ?? []).toHaveLength(0)
+  })
+
+  it('con el evento en DRAFT (no PUBLISHED): se descarta, 0 patrocinados y patrocinadoDescartado', async () => {
+    mockDb({
+      user_favorites: [],
+      sponsored_campaigns: [campaniaRow({ event: { status: 'DRAFT' } })],
+    })
+
+    const res = await call()
+    const body = await res.json()
+    expect(body.porTipo.patrocinado).toBeUndefined()
+    expect(body.patrocinados).toBe(0)
+    expect(body.patrocinadoDescartado).toBe(true)
+    expect(body.campaniaId).toBeNull()
+
+    const toOutcome = withJobRun.mock.calls[0][3] as (r: unknown) => { details?: Record<string, unknown> }
+    const outcome = toOutcome({ httpStatus: res.status, body })
+    expect(outcome.details?.patrocinadoDescartado).toBe(true)
+  })
+
+  it('en dryRun, con campaña vigente: cero escrituras de cualquier tipo (ni insert ni update)', async () => {
+    mockDb({
+      user_favorites: [],
+      sponsored_campaigns: [campaniaRow()],
+    })
+
+    await call()
+
+    expect(Object.keys(writes.inserts).every((tabla) => (writes.inserts[tabla] ?? []).length === 0)).toBe(true)
+    expect(Object.keys(writes.updates).every((tabla) => (writes.updates[tabla] ?? []).length === 0)).toBe(true)
+  })
+
+  it('PUSH_ENVIO_REAL="1": la fila de notification_sends lleva campaign_id, y se marca sent_at UNA sola vez, con .is("sent_at", null)', async () => {
+    process.env.PUSH_ENVIO_REAL = '1'
+    mockDb({
+      user_favorites: [],
+      sponsored_campaigns: [campaniaRow()],
+    })
+
+    const res = await call()
+    const body = await res.json()
+    expect(body.dryRun).toBe(false)
+    expect(body.mensajes).toBe(1)
+
+    expect(writes.inserts.notification_sends).toHaveLength(1)
+    expect(writes.inserts.notification_sends[0]).toMatchObject({
+      user_id: USER_ID,
+      kind: 'patrocinado',
+      channel: 'push',
+      status: 'SUCCESS',
+      campaign_id: CAMPANIA_ID,
+    })
+
+    expect(writes.updates.sponsored_campaigns).toHaveLength(1)
+    const update = writes.updates.sponsored_campaigns[0]
+    expect(update.values.sent_at).toBe(AHORA.toISOString())
+    expect(update.llamadas).toContainEqual({ metodo: 'eq', args: ['id', CAMPANIA_ID] })
+    expect(update.llamadas).toContainEqual({ metodo: 'is', args: ['sent_at', null] })
+  })
+
+  it('con la campaña ya con sent_at (no nulo): no hay update, aunque el envío salga bien', async () => {
+    process.env.PUSH_ENVIO_REAL = '1'
+    mockDb({
+      user_favorites: [],
+      sponsored_campaigns: [campaniaRow({ sent_at: saltaWallClockToUtcISO('2030-10-19T12:00:00') })],
+    })
+
+    const res = await call()
+    const body = await res.json()
+    expect(body.mensajes).toBe(1)
+    expect(writes.updates.sponsored_campaigns ?? []).toHaveLength(0)
+  })
+
+  it('sin event_id: la campaña se descarta igual que con el evento sin publicar', async () => {
+    mockDb({
+      user_favorites: [],
+      sponsored_campaigns: [campaniaRow({ event_id: null, event: null })],
+    })
+
+    const res = await call()
+    const body = await res.json()
+    expect(body.porTipo.patrocinado).toBeUndefined()
+    expect(body.patrocinadoDescartado).toBe(true)
+  })
+
+  it('si falla la lectura de sponsored_campaigns: 500, igual que las otras lecturas', async () => {
+    mockDb({}, { sponsored_campaigns: 'conexión perdida' })
+
+    const res = await call()
+    expect(res.status).toBe(500)
+    const body = await res.json()
+    expect(body.error).toBe('sponsored_campaigns query failed')
+  })
+
+  it('ni el título ni el cuerpo de la campaña aparecen en los logs', async () => {
+    mockDb({
+      user_favorites: [],
+      sponsored_campaigns: [campaniaRow({ title: 'TITULO-SENSIBLE-DE-PRUEBA', body: 'CUERPO-SENSIBLE-DE-PRUEBA' })],
+    })
+
+    await call()
+
+    const logueado = (console.error as ReturnType<typeof vi.fn>).mock.calls.flat().map((a) => JSON.stringify(a))
+    expect(logueado.some((t) => t.includes('TITULO-SENSIBLE-DE-PRUEBA'))).toBe(false)
+    expect(logueado.some((t) => t.includes('CUERPO-SENSIBLE-DE-PRUEBA'))).toBe(false)
   })
 })

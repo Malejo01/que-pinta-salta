@@ -30,6 +30,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   armarTanda,
+  type CampaniaParaTanda,
   type DatosParaTanda,
   type EnvioRegistradoParaTanda,
   type FavoritoParaTanda,
@@ -39,7 +40,7 @@ import {
 import { saltaWallClockToDate, saltaWallClockToUtcISO } from '@qps/core/date-format'
 import { urlEvento } from '@qps/core/metricas/links'
 import { PREFERENCIAS_POR_DEFECTO, type PreferenciasNotificacion } from '@qps/core/notificaciones/preferencias'
-import { claveDedupe } from '@qps/core/notificaciones/reglas'
+import { claveDedupe, claveDedupePatrocinado, semanaSalta } from '@qps/core/notificaciones/reglas'
 
 const salta = (wallClock: string) => saltaWallClockToDate(wallClock)
 
@@ -89,6 +90,16 @@ function envio(overrides: Partial<EnvioRegistradoParaTanda> = {}): EnvioRegistra
   return {
     sent_at: saltaWallClockToUtcISO('2026-10-20T10:00:00'),
     dedupe_key: 'lo-que-sea',
+    ...overrides,
+  }
+}
+
+function campania(overrides: Partial<CampaniaParaTanda> = {}): CampaniaParaTanda {
+  return {
+    id: uuid(),
+    titulo: 'Recital de Prueba',
+    cuerpo: 'Entrada gratis, no te lo pierdas.',
+    eventId: uuid(),
     ...overrides,
   }
 }
@@ -506,6 +517,150 @@ describe('dedupe entre usuarios distintos', () => {
     expect(mensajes).toHaveLength(2)
     expect(mensajes[0].dedupeKey).not.toBe(mensajes[1].dedupeKey)
     expect(mensajes[0].userId).not.toBe(mensajes[1].userId)
+  })
+})
+
+describe('avisos patrocinados (D2/Ronda 51, tarea 51-a)', () => {
+  const ahora = salta('2026-10-20T18:00:00') // fuera de silencio (23:00-09:00)
+
+  it('con una campaña vigente, la persona con sponsored: true recibe un aviso patrocinado', () => {
+    const datos: DatosParaTanda = {
+      usuarios: [usuario({ preferencias: prefs({ sponsored: true }) })],
+      patrocinado: campania(),
+    }
+    const mensajes = armarTanda(datos, ahora)
+    expect(mensajes).toHaveLength(1)
+    expect(mensajes[0].kind).toBe('patrocinado')
+  })
+
+  it('con sponsored: false, no recibe ninguno', () => {
+    const datos: DatosParaTanda = {
+      usuarios: [usuario({ preferencias: prefs({ sponsored: false }) })],
+      patrocinado: campania(),
+    }
+    expect(armarTanda(datos, ahora)).toHaveLength(0)
+  })
+
+  it('con un envío patrocinado de ESTA semana ya registrado, no se repite', () => {
+    const userId = uuid()
+    const semana = semanaSalta(ahora)
+    const datos: DatosParaTanda = {
+      usuarios: [
+        usuario({
+          userId,
+          enviosRegistrados: [envio({ dedupe_key: claveDedupePatrocinado(userId, semana) })],
+        }),
+      ],
+      patrocinado: campania(),
+    }
+    expect(armarTanda(datos, ahora)).toHaveLength(0)
+  })
+
+  it('con un envío patrocinado de la semana ANTERIOR, sí sale uno nuevo', () => {
+    const userId = uuid()
+    const semanaAnterior = semanaSalta(salta('2026-10-13T18:00:00')) // una semana antes
+    const datos: DatosParaTanda = {
+      usuarios: [
+        usuario({
+          userId,
+          enviosRegistrados: [envio({ dedupe_key: claveDedupePatrocinado(userId, semanaAnterior) })],
+        }),
+      ],
+      patrocinado: campania(),
+    }
+    const mensajes = armarTanda(datos, ahora)
+    expect(mensajes).toHaveLength(1)
+    expect(mensajes[0].kind).toBe('patrocinado')
+  })
+
+  it('en horario de silencio, no sale ningún patrocinado', () => {
+    const enSilencio = salta('2026-10-20T23:30:00')
+    const datos: DatosParaTanda = {
+      usuarios: [usuario()],
+      patrocinado: campania(),
+    }
+    expect(armarTanda(datos, enSilencio)).toHaveLength(0)
+  })
+
+  it('con el daily_cap lleno de favoritos, no entra el patrocinado', () => {
+    const datos: DatosParaTanda = {
+      usuarios: [
+        usuario({
+          preferencias: prefs({ daily_cap: 1 }),
+          favoritos: [favorito()],
+        }),
+      ],
+      patrocinado: campania(),
+    }
+    const mensajes = armarTanda(datos, ahora)
+    expect(mensajes).toHaveLength(1)
+    expect(mensajes[0].kind).toBe('favorito')
+  })
+
+  it('con lugar para uno solo (daily_cap 1) entre un favorito y el patrocinado, el que entra es el favorito', () => {
+    const datos: DatosParaTanda = {
+      usuarios: [
+        usuario({
+          preferencias: prefs({ daily_cap: 1 }),
+          favoritos: [favorito()],
+        }),
+      ],
+      patrocinado: campania(),
+    }
+    const mensajes = armarTanda(datos, ahora)
+    expect(mensajes).toHaveLength(1)
+    expect(mensajes[0].kind).toBe('favorito')
+    expect(mensajes.some((m) => m.kind === 'patrocinado')).toBe(false)
+  })
+
+  it('sin campaña vigente (undefined), no sale ningún patrocinado', () => {
+    const datos: DatosParaTanda = { usuarios: [usuario()] }
+    expect(armarTanda(datos, ahora)).toHaveLength(0)
+  })
+
+  it('con patrocinado: null, no sale ningún patrocinado', () => {
+    const datos: DatosParaTanda = { usuarios: [usuario()], patrocinado: null }
+    expect(armarTanda(datos, ahora)).toHaveLength(0)
+  })
+
+  it('el title del aviso patrocinado empieza con "Patrocinado · "', () => {
+    const datos: DatosParaTanda = { usuarios: [usuario()], patrocinado: campania({ titulo: 'Show en el Anfiteatro' }) }
+    const [mensaje] = armarTanda(datos, ahora)
+    expect(mensaje.title).toBe('Patrocinado · Show en el Anfiteatro')
+  })
+
+  it('categoryId, campaignId, dedupeKey y data.tipo están presentes', () => {
+    const userId = uuid()
+    const unaCampania = campania()
+    const datos: DatosParaTanda = { usuarios: [usuario({ userId })], patrocinado: unaCampania }
+    const [mensaje] = armarTanda(datos, ahora)
+    expect(mensaje.categoryId).toBe('patrocinado')
+    expect(mensaje.campaignId).toBe(unaCampania.id)
+    expect(mensaje.dedupeKey).toBe(claveDedupePatrocinado(userId, semanaSalta(ahora)))
+    expect(mensaje.data?.tipo).toBe('patrocinado')
+    expect(mensaje.data?.url).toBe(urlEvento(unaCampania.eventId, 'app'))
+  })
+
+  it('"anuncio" sigue sin aparecer, aunque haya campaña patrocinada vigente', () => {
+    const datos: DatosParaTanda = { usuarios: [usuario()], patrocinado: campania() }
+    const mensajes = armarTanda(datos, ahora)
+    expect(mensajes.every((m) => m.kind !== 'anuncio')).toBe(true)
+  })
+
+  it('un patrocinado por CADA token del usuario, con el mismo dedupeKey', () => {
+    const datos: DatosParaTanda = {
+      usuarios: [
+        usuario({
+          tokens: ['ExponentPushToken[celular-1]', 'ExponentPushToken[celular-2]'],
+        }),
+      ],
+      patrocinado: campania(),
+    }
+    const mensajes = armarTanda(datos, ahora)
+    expect(mensajes).toHaveLength(2)
+    expect(mensajes.every((m) => m.kind === 'patrocinado')).toBe(true)
+    expect(new Set(mensajes.map((m) => m.dedupeKey)).size).toBe(1)
+    expect(new Set(mensajes.map((m) => m.to)).size).toBe(2)
   })
 })
 

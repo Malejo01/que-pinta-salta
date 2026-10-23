@@ -20,15 +20,18 @@ import {
   MAX_NOVEDADES_POR_DIA,
   agruparNovedadesPorHora,
   claveDedupe,
+  claveDedupePatrocinado,
   contarEnviosDelDiaSalta,
   debeEnviarRecordatorioFavorito,
   debeMandarEmail,
   debeMandarPush,
+  esDedupeKeyPatrocinadoDeLaSemana,
   estaEnHorarioDeSilencio,
   hayLugarEnTopeDiario,
   limitarNovedadesPorDia,
   momentoRecordatorioFavorito,
   prepararNovedadesParaEnviar,
+  semanaSalta,
   type NovedadParaAgrupar,
 } from '@qps/core/notificaciones/reglas'
 import { saltaWallClockToDate, saltaWallClockToUtcISO } from '@qps/core/date-format'
@@ -267,5 +270,36 @@ describe('clave de dedupe', () => {
     const claveHora1 = claveDedupe({ kind: 'novedad', userId: 'usuario-a', extra: '2026-10-20T10' })
     const claveHora2 = claveDedupe({ kind: 'novedad', userId: 'usuario-a', extra: '2026-10-20T11' })
     expect(claveHora1).not.toBe(claveHora2)
+  })
+})
+
+describe('clave de dedupe de avisos patrocinados (D2/Ronda 51, tarea 51-a)', () => {
+  const semana = semanaSalta(new Date('2026-10-20T18:00:00-03:00'))
+  const otraSemana = semanaSalta(new Date('2026-10-27T18:00:00-03:00'))
+
+  it('claveDedupePatrocinado usa claveDedupe con kind "patrocinado" y extra la semana, no un string armado a mano', () => {
+    const clave = claveDedupePatrocinado('usuario-a', semana)
+    expect(clave).toBe(claveDedupe({ kind: 'patrocinado', userId: 'usuario-a', extra: semana }))
+  })
+
+  it('esDedupeKeyPatrocinadoDeLaSemana: true contra su propia clave', () => {
+    const clave = claveDedupePatrocinado('usuario-a', semana)
+    expect(esDedupeKeyPatrocinadoDeLaSemana(clave, 'usuario-a', semana)).toBe(true)
+  })
+
+  it('esDedupeKeyPatrocinadoDeLaSemana: false contra la clave de OTRO usuario, misma semana', () => {
+    const clave = claveDedupePatrocinado('usuario-a', semana)
+    expect(esDedupeKeyPatrocinadoDeLaSemana(clave, 'usuario-b', semana)).toBe(false)
+  })
+
+  it('esDedupeKeyPatrocinadoDeLaSemana: false contra la clave de OTRA semana, mismo usuario', () => {
+    const clave = claveDedupePatrocinado('usuario-a', semana)
+    expect(esDedupeKeyPatrocinadoDeLaSemana(clave, 'usuario-a', otraSemana)).toBe(false)
+  })
+
+  it('una clave patrocinada no matchea el prefijo de novedad ("novedad:")', () => {
+    const clave = claveDedupePatrocinado('usuario-a', semana)
+    const prefijoDeNovedad = claveDedupe({ kind: 'novedad', userId: '' })
+    expect(clave.startsWith(prefijoDeNovedad)).toBe(false)
   })
 })

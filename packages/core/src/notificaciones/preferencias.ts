@@ -12,17 +12,31 @@ export interface PreferenciasNotificacion {
   favorite_reminders: boolean
   follow_news: boolean
   announcements: boolean
+  /**
+   * Avisos patrocinados (Etapa 2/Ronda 51, columna
+   * `notification_preferences.sponsored`): si el usuario los recibe. El
+   * default (`true`) sale de la migración de D2
+   * (`supabase/migrations/20261018130200_etapa2_campanias_patrocinadas.sql`):
+   * prendido por decisión de Mauro del 18/10, porque la política de Google
+   * Play no exige un opt-in aparte para este tipo de aviso.
+   */
+  sponsored: boolean
   quiet_start: string
   quiet_end: string
   daily_cap: number
 }
 
-/** Mismos defaults que la columna de la base (migración de la R23). */
+/**
+ * Mismos defaults que la columna de la base (migración de la R23, y
+ * `sponsored` de la migración de D2 de la Ronda 51: ver el docstring de
+ * `PreferenciasNotificacion.sponsored`).
+ */
 export const PREFERENCIAS_POR_DEFECTO: PreferenciasNotificacion = {
   radar_channel: 'email',
   favorite_reminders: true,
   follow_news: true,
   announcements: false,
+  sponsored: true,
   quiet_start: '23:00',
   quiet_end: '09:00',
   daily_cap: 4,
@@ -61,6 +75,9 @@ export function validarPreferenciasNotificacion(
   if (typeof datos.announcements !== 'boolean') {
     return { ok: false, error: 'announcements tiene que ser un booleano.' }
   }
+  if (typeof datos.sponsored !== 'boolean') {
+    return { ok: false, error: 'sponsored tiene que ser un booleano.' }
+  }
   if (!esHoraValida(datos.quiet_start)) {
     return { ok: false, error: 'quiet_start tiene que tener formato HH:MM (00:00 a 23:59).' }
   }
@@ -75,6 +92,7 @@ export function validarPreferenciasNotificacion(
       favorite_reminders: datos.favorite_reminders,
       follow_news: datos.follow_news,
       announcements: datos.announcements,
+      sponsored: datos.sponsored,
       quiet_start: datos.quiet_start,
       quiet_end: datos.quiet_end,
     },

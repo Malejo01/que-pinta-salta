@@ -139,6 +139,15 @@ describe('claveRespuesta', () => {
 //    string (`const ruta = '/evento/' + id`), ni un objeto con otro
 //    `pathname`.
 //
+// Ronda 51, tarea 51-e: además de `pathname`, si el objeto trae un `params`,
+// ese `params` tiene que ser, literalmente, `{ id }`, `{ id, patrocinado:
+// '1' }`, o un ternario entre esas dos formas (`cond ? { id, patrocinado:
+// '1' } : { id }`, la forma que usa `ManejadorTapPush.tsx` para el aviso
+// patrocinado) — nunca un campo extra (`{ id, url }`) ni un valor de
+// `patrocinado` que no sea el string literal `'1'` (por ejemplo `{ id,
+// patrocinado: data.tipo }`, que dejaría que el payload del push, no
+// confiable, decida el valor del parámetro de ruta).
+//
 // Límite conocido (no cerrado por este detector, documentado para 41-q/seguridad):
 // una variable reasignada más de una vez, o el `pathname` pasado como
 // shorthand desde otra variable (`const pathname = '/evento/[id]'; ...
@@ -185,14 +194,81 @@ function leerObjetoBalanceado(content: string, indiceLlaveApertura: number): str
 
 const PATHNAME_SEGURO_RE = /pathname\s*:\s*['"]\/evento\/\[id\]['"]/
 
-/** `true` si `arg` (el texto completo del argumento de un `router.push(...)`) es, literalmente, `{ pathname: '/evento/[id]', ... }`. */
+/**
+ * El objeto `{ id }` o `{ id, patrocinado: '1' }` (shorthand `id`, espacios
+ * libres, coma final opcional). `patrocinado` solo vale con el STRING
+ * LITERAL `'1'`: cualquier otra cosa (una variable, `data.tipo`, `"1"` con
+ * comillas dobles — esta app usa comillas simples en todos lados) no
+ * matchea.
+ */
+const PARAMS_OBJETO_SEGURO_RE = /^\{\s*id\s*(,\s*patrocinado\s*:\s*'1'\s*)?,?\s*\}$/
+
+/**
+ * `cond ? { id, patrocinado: '1' } : { id }` (o al revés): un ternario entre
+ * dos objetos SIN llaves anidadas (ninguna de las dos formas seguras las
+ * tiene, así que `[^{}]*` alcanza). La condición (`cond`) no se valida acá
+ * — no decide el VALOR del parámetro, solo cuál de las dos formas seguras se
+ * usa.
+ */
+const PARAMS_TERNARIO_RE = /^[\w.]+\s*\?\s*(\{[^{}]*\})\s*:\s*(\{[^{}]*\})$/
+
+/**
+ * El valor asociado a la primera aparición TOP-LEVEL de `clave:` dentro de
+ * `objetoTexto` (un objeto `{...}` balanceado, con la llave de apertura
+ * incluida): desde justo después de los dos puntos hasta la coma top-level
+ * siguiente o el cierre del objeto que contiene a `clave`. Cuenta
+ * profundidad de llaves, así que un valor anidado (otro objeto, o las dos
+ * ramas de un ternario) no corta nada antes de tiempo. `null` si `clave` no
+ * aparece.
+ */
+function valorDeClaveTopLevel(objetoTexto: string, clave: string): string | null {
+  const reClave = new RegExp(`(^|[{,])\\s*${clave}\\s*:`)
+  const m = reClave.exec(objetoTexto)
+  if (!m) return null
+
+  let i = m.index + m[0].length
+  while (i < objetoTexto.length && /\s/.test(objetoTexto[i])) i++
+  const inicio = i
+
+  let profundidad = 0
+  let k = i
+  for (; k < objetoTexto.length; k++) {
+    const c = objetoTexto[k]
+    if (c === '{') profundidad++
+    else if (c === '}') {
+      if (profundidad === 0) break // el cierre del objeto que contiene a `clave`
+      profundidad--
+    } else if (c === ',' && profundidad === 0) break
+  }
+  return objetoTexto.slice(inicio, k).trim()
+}
+
+/** `true` si `valor` (el texto de un `params: ...`) es una de las formas seguras, directa o en ternario. */
+function paramsValido(valor: string): boolean {
+  if (PARAMS_OBJETO_SEGURO_RE.test(valor)) return true
+  const ternario = PARAMS_TERNARIO_RE.exec(valor)
+  if (!ternario) return false
+  return PARAMS_OBJETO_SEGURO_RE.test(ternario[1].trim()) && PARAMS_OBJETO_SEGURO_RE.test(ternario[2].trim())
+}
+
+/** `true` si `objetoTexto` no tiene `params`, o si lo tiene y es una de las formas seguras (ver `paramsValido`). */
+function paramsDeObjetoEsSeguro(objetoTexto: string): boolean {
+  const valor = valorDeClaveTopLevel(objetoTexto, 'params')
+  return valor === null || paramsValido(valor)
+}
+
+/**
+ * `true` si `arg` (el texto completo del argumento de un `router.push(...)`)
+ * es, literalmente, `{ pathname: '/evento/[id]', ... }`, con un `params` (si
+ * lo trae) de una de las formas seguras (ver `paramsValido`).
+ */
 function esObjetoSeguro(arg: string): boolean {
   const t = arg.trim()
   if (!(t.startsWith('{') && t.endsWith('}'))) return false
-  return PATHNAME_SEGURO_RE.test(t)
+  return PATHNAME_SEGURO_RE.test(t) && paramsDeObjetoEsSeguro(t)
 }
 
-/** Variables (`const`/`let`) cuyo valor declarado es, literalmente, el objeto `{ pathname: '/evento/[id]', ... }`. */
+/** Variables (`const`/`let`) cuyo valor declarado es, literalmente, el objeto `{ pathname: '/evento/[id]', ... }`, con un `params` de forma segura. */
 function variablesConPathnameSeguro(content: string): Set<string> {
   const vars = new Set<string>()
   const re = /\b(?:const|let)\s+(\w+)\s*=\s*(\{)/g
@@ -200,7 +276,7 @@ function variablesConPathnameSeguro(content: string): Set<string> {
   while ((m = re.exec(content))) {
     const indiceLlave = m.index + m[0].length - 1
     const objeto = leerObjetoBalanceado(content, indiceLlave)
-    if (PATHNAME_SEGURO_RE.test(objeto)) vars.add(m[1])
+    if (PATHNAME_SEGURO_RE.test(objeto) && paramsDeObjetoEsSeguro(objeto)) vars.add(m[1])
   }
   return vars
 }
@@ -303,6 +379,40 @@ describe('encontrarEvasionesTapPush (fixtures en memoria: tiene que fallar de ve
     const content = `Linking.openURL(url)\nrouter.push(\`/evento/\${id}\`)\n`
     const v = encontrarEvasionesTapPush(content)
     expect(v.map((x) => x.line)).toEqual([1, 2])
+  })
+
+  // -------------------------------------------------------------------------
+  // Ronda 51, tarea 51-e: `params` con `id` + `patrocinado: '1'` (el aviso
+  // patrocinado agrega ese parámetro de ruta para que `app/evento/[id].tsx`
+  // muestre la franja, `AvisoPatrocinado`) — se amplía el detector SIN
+  // aflojarlo: sigue rechazando cualquier otro `pathname`, cualquier
+  // `Linking.openURL` y cualquier `router.push` con un string (los tests de
+  // arriba, sin tocar), y ahora también cualquier `params` con un campo
+  // extra o un valor de `patrocinado` que no sea el string literal `'1'`.
+  // -------------------------------------------------------------------------
+  it('acepta router.push({ pathname: "/evento/[id]", params: { id, patrocinado: \'1\' } }) inline', () => {
+    const content = `router.push({ pathname: '/evento/[id]', params: { id, patrocinado: '1' } })`
+    expect(encontrarEvasionesTapPush(content)).toEqual([])
+  })
+
+  it('acepta el ternario que usa ManejadorTapPush.tsx: params: patrocinado ? { id, patrocinado: \'1\' } : { id }', () => {
+    const content = `router.push({ pathname: '/evento/[id]', params: patrocinado ? { id, patrocinado: '1' } : { id } })`
+    expect(encontrarEvasionesTapPush(content)).toEqual([])
+  })
+
+  it('detecta router.push con pathname: "/cuenta" (otra ruta, aunque los params sean válidos)', () => {
+    const content = `router.push({ pathname: '/cuenta', params: { id } })`
+    expect(encontrarEvasionesTapPush(content)).toHaveLength(1)
+  })
+
+  it('detecta router.push con params: { id, url } (un campo extra que no es patrocinado)', () => {
+    const content = `router.push({ pathname: '/evento/[id]', params: { id, url } })`
+    expect(encontrarEvasionesTapPush(content)).toHaveLength(1)
+  })
+
+  it('detecta router.push con params: { id, patrocinado: data.tipo } (el valor no es el string literal \'1\': dejaría que el payload del push, no confiable, decida el parámetro de ruta)', () => {
+    const content = `router.push({ pathname: '/evento/[id]', params: { id, patrocinado: data.tipo } })`
+    expect(encontrarEvasionesTapPush(content)).toHaveLength(1)
   })
 })
 
