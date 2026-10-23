@@ -41,6 +41,15 @@ export type MensajePush = {
   title?: string
   body?: string
   data?: Record<string, unknown>
+  /**
+   * Categoría de notificación de Expo (D2/Ronda 51, avisos patrocinados):
+   * solo la llevan los avisos patrocinados (`CATEGORIA_PATROCINADO` de
+   * `@qps/core/notificaciones/patrocinados`), para que la app pueda engachar
+   * la acción de baja rápida (`setNotificationCategoryAsync`, lado app,
+   * 51-c/51-d). Viaja tal cual en el body del `POST` a `/send`: Expo la pasa
+   * de largo a la notificación nativa.
+   */
+  categoryId?: string
 }
 
 export type ExpoPushTicket =

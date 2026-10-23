@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Tag, Users, Home, Instagram, Sparkles, ClipboardList, Copy, MapPin, Star } from "lucide-react"
+import { Tag, Users, Home, Instagram, Sparkles, ClipboardList, Copy, MapPin, Star, Megaphone } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { ScraperButton } from "@/components/scraper-button"
 
@@ -15,6 +15,7 @@ const navItems = [
   { href: "/admin/duplicados", label: "Posibles duplicados", icon: Copy },
   { href: "/admin/lugares", label: "Lugares", icon: MapPin },
   { href: "/admin/destacados", label: "Destacados", icon: Star },
+  { href: "/admin/avisos", label: "Avisos patrocinados", icon: Megaphone },
 ]
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {

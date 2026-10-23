@@ -7,6 +7,15 @@
 // backend, pero también lo puede mandar cualquiera con el token de otra
 // persona, o una prueba a mano desde https://expo.dev/notifications): nunca
 // se asume su forma. `eventoIdDesdeDatosPush` es el único filtro.
+//
+// Ronda 51, tarea 51-e: suma `interpretarRespuestaPush`, que decide además
+// qué hacer con el botón de baja rápida de los avisos patrocinados
+// (`ACCION_BAJA_PATROCINADOS`/`CATEGORIA_PATROCINADO`, de
+// `@qps/core/notificaciones/patrocinados`, las mismas constantes que usa el
+// servidor al armar el push, 51-a/51-c, y `lib/push/categorias.ts` al
+// registrar el botón). Sigue siendo pura: sin imports de React Native ni de
+// Expo.
+import { ACCION_BAJA_PATROCINADOS, CATEGORIA_PATROCINADO } from '@qps/core/notificaciones/patrocinados'
 import { esUuid, eventoIdDesdeLink } from '@/lib/links'
 
 // Tope prudente ANTES de aplicar cualquier expresión regular (`eventoIdDesdeLink`
@@ -56,11 +65,26 @@ export function eventoIdDesdeDatosPush(data: unknown): string | null {
   return idDesdeEventId(data.eventId)
 }
 
-/** La parte de `NotificationResponse` (expo-notifications) que necesita `claveRespuesta`. */
+/**
+ * La parte de `NotificationResponse` (expo-notifications) que necesitan
+ * `claveRespuesta` e `interpretarRespuestaPush`. `actionIdentifier` y
+ * `content` son opcionales a propósito: `claveRespuesta` no los usa (y los
+ * fixtures viejos de `tests/push-tap.test.ts`, de antes de la R51, no los
+ * traen), así que volverlos obligatorios rompería esos fixtures sin
+ * necesidad.
+ */
 export interface RespuestaPushMinima {
+  /** El botón tocado (`ACCION_BAJA_PATROCINADOS`, por ejemplo), o el identificador por defecto de Expo en un tap común. */
+  actionIdentifier?: string
   notification: {
     request: {
       identifier: string
+      content?: {
+        /** `null`/`undefined` si el aviso no tiene categoría registrada (ver `lib/push/categorias.ts`). */
+        categoryIdentifier?: string | null
+        /** Dato externo y no confiable, igual que en `eventoIdDesdeDatosPush`. */
+        data?: unknown
+      }
     }
   }
 }
@@ -73,4 +97,98 @@ export interface RespuestaPushMinima {
  */
 export function claveRespuesta(respuesta: RespuestaPushMinima): string {
   return respuesta.notification.request.identifier
+}
+
+/**
+ * `true` si la respuesta corresponde a un aviso patrocinado: la categoría de
+ * la notificación es `CATEGORIA_PATROCINADO` (lo que manda el servidor,
+ * 51-c) o — por si la categoría no llegó a registrarse (`registrarCategoriasPush`,
+ * `lib/push/categorias.ts`, que nunca propaga su error) — `data.tipo` es,
+ * EXACTAMENTE, esa misma categoría. `data` es un dato externo y no
+ * confiable: la comparación es con `===` contra el string, así que ni una
+ * mayúscula distinta (`'Patrocinado'`), ni un array (`['patrocinado']`), ni
+ * un espacio de más cuentan.
+ */
+function esAvisoPatrocinado(respuesta: RespuestaPushMinima): boolean {
+  const content = respuesta.notification.request.content
+  if (content?.categoryIdentifier === CATEGORIA_PATROCINADO) return true
+  const data = content?.data
+  return esObjetoPlano(data) && data.tipo === CATEGORIA_PATROCINADO
+}
+
+/** Lo que hay que hacer al recibir una respuesta de push (un tap, o el botón de una acción). */
+export type ResultadoInterpretacionPush =
+  | { accion: 'abrir'; id: string; patrocinado: boolean }
+  | { accion: 'baja-patrocinados' }
+  | { accion: 'nada' }
+
+/**
+ * Pura (sin `expo-notifications` ni `expo-router`): a partir de una
+ * respuesta de push, qué hay que hacer. `ManejadorTapPush.tsx` es quien
+ * EJECUTA esto (navegar, guardar la preferencia, avisar) — esta función solo
+ * decide.
+ *
+ * Orden (especificado, no incidental):
+ * 1. Si tocaron el botón de baja rápida (`actionIdentifier === ACCION_BAJA_PATROCINADOS`)
+ *    Y el aviso es patrocinado (`esAvisoPatrocinado`): `{ accion: 'baja-patrocinados' }`.
+ *    Ese mismo botón en un aviso que NO es patrocinado (no debería pasar
+ *    nunca — solo el patrocinado registra ese botón — pero el payload de un
+ *    push no es confiable) NO entra acá: cae al paso 2, como cualquier tap.
+ * 2. Si no, `eventoIdDesdeDatosPush(data)`: con un id válido, `{ accion:
+ *    'abrir', id, patrocinado }` — `patrocinado` es `data.tipo ===
+ *    CATEGORIA_PATROCINADO` con comparación EXACTA (ver `esAvisoPatrocinado`
+ *    arriba sobre por qué `===` y no una comparación floja o insensible a
+ *    mayúsculas).
+ * 3. Cualquier otra cosa (sin id válido, un `actionIdentifier` desconocido
+ *    sin id, un `data.url` de otro host): `{ accion: 'nada' }`.
+ *
+ * Nunca devuelve una ruta ni una url que vengan tal cual del push: `id` ya
+ * pasó por el filtro de `eventoIdDesdeDatosPush` (uuid válido, normalizado).
+ */
+export function interpretarRespuestaPush(respuesta: RespuestaPushMinima): ResultadoInterpretacionPush {
+  if (respuesta.actionIdentifier === ACCION_BAJA_PATROCINADOS && esAvisoPatrocinado(respuesta)) {
+    return { accion: 'baja-patrocinados' }
+  }
+
+  const data = respuesta.notification.request.content?.data
+  const id = eventoIdDesdeDatosPush(data)
+  if (!id) return { accion: 'nada' }
+
+  const patrocinado = esObjetoPlano(data) && data.tipo === CATEGORIA_PATROCINADO
+  return { accion: 'abrir', id, patrocinado }
+}
+
+/** Lo que hay que hacer con un `{ accion: 'baja-patrocinados' }` ya decidido, según el estado de la sesión en ESE momento. */
+export type DecisionBajaPatrocinados =
+  | { accion: 'guardar'; userId: string }
+  | { accion: 'esperar' }
+  | { accion: 'pedir-sesion' }
+
+/**
+ * Qué hacer con el botón de baja rápida, dado el estado de `useSession()` en
+ * el momento en que llegó la respuesta del push. Pura, para poder probar el
+ * caso del arranque en frío como un comportamiento (esta función), no como
+ * un detector de texto sobre `ManejadorTapPush.tsx`.
+ *
+ * Existe el estado `'esperar'` por este motivo (vuelta 1 de revisión de
+ * 51-e): `lib/session/index.tsx` arranca en `{ session: null, cargando: true }`
+ * y resuelve `getSession()` de forma ASINCRÓNICA; `opensAppToForeground: true`
+ * (`lib/push/categorias.ts`) existe justamente para que este botón funcione
+ * con la app CERRADA, así que en un arranque en frío `getLastNotificationResponseAsync()`
+ * puede entregar la respuesta del botón ANTES de que la sesión termine de
+ * cargar. En ese instante `userId` es `null` no porque la persona no tenga
+ * sesión, sino porque todavía no se sabe — tratarlo como "sin sesión"
+ * (`'pedir-sesion'`) sería mentirle a alguien que sí tiene cuenta Y, peor,
+ * la preferencia nunca se guardaría. `'esperar'` le dice a quien llama que
+ * no decida ni avise nada todavía (ver `ManejadorTapPush.tsx`: deja la baja
+ * pendiente y la vuelve a evaluar cuando `cargando` pase a `false`).
+ *
+ * - `userId` presente (con o sin `cargando`: una sesión ya resuelta manda) → `'guardar'`.
+ * - sin `userId` y `cargando: true` → `'esperar'` (no se sabe todavía).
+ * - sin `userId` y `cargando: false` → `'pedir-sesion'` (ya se sabe que no hay sesión).
+ */
+export function decidirBajaPatrocinados(estado: { cargando: boolean; userId: string | null }): DecisionBajaPatrocinados {
+  if (estado.userId) return { accion: 'guardar', userId: estado.userId }
+  if (estado.cargando) return { accion: 'esperar' }
+  return { accion: 'pedir-sesion' }
 }

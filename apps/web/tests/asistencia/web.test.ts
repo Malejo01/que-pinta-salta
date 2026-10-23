@@ -811,6 +811,7 @@ describe('detector estático: ningún select sobre event_attendance pide user_id
     expect(archivos.length).toBeGreaterThan(0)
   })
 
+  // 15 s: recorre archivos del repo y con dos suites en paralelo pasa los 5 s por omisión (R64).
   it('ningún select sobre event_attendance tiene user_id ni "*"', () => {
     const violaciones: string[] = []
     for (const archivo of archivos) {
@@ -822,13 +823,14 @@ describe('detector estático: ningún select sobre event_attendance pide user_id
       }
     }
     expect(violaciones).toEqual([])
-  })
+  }, 15_000)
 })
 
 describe('detector estático: la única tabla/vista de la que se lee "voy" es event_attendance_counts', () => {
   const WEB_ROOT = fileURLToPath(new URL('../../', import.meta.url))
   const archivos = listarArchivosDeCodigo(WEB_ROOT)
 
+  // 15 s: recorre archivos del repo y con dos suites en paralelo pasa los 5 s por omisión (R64).
   it('ningún select de la columna voy aparece sobre otra tabla', () => {
     const violaciones: string[] = []
     for (const archivo of archivos) {
@@ -841,8 +843,9 @@ describe('detector estático: la única tabla/vista de la que se lee "voy" es ev
       }
     }
     expect(violaciones).toEqual([])
-  })
+  }, 15_000)
 
+  // 15 s: recorre archivos del repo y con dos suites en paralelo pasa los 5 s por omisión (R64).
   it('al menos un archivo real sí lee "voy" de event_attendance_counts (si esto da 0, el detector de arriba pasaría por no mirar nada)', () => {
     let encontrado = false
     for (const archivo of archivos) {
@@ -854,13 +857,14 @@ describe('detector estático: la única tabla/vista de la que se lee "voy" es ev
       }
     }
     expect(encontrado).toBe(true)
-  })
+  }, 15_000)
 })
 
 describe('detector estático: "me_interesa" desapareció del modelo, ningún select de apps/web la pide', () => {
   const WEB_ROOT = fileURLToPath(new URL('../../', import.meta.url))
   const archivos = listarArchivosDeCodigo(WEB_ROOT)
 
+  // 15 s: recorre archivos del repo y con dos suites en paralelo pasa los 5 s por omisión (R64).
   it('ningún select, en ninguna tabla, pide la columna "me_interesa"', () => {
     const violaciones: string[] = []
     for (const archivo of archivos) {
@@ -873,7 +877,7 @@ describe('detector estático: "me_interesa" desapareció del modelo, ningún sel
       }
     }
     expect(violaciones).toEqual([])
-  })
+  }, 15_000)
 })
 
 // ---------------------------------------------------------------------------

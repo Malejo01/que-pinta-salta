@@ -27,6 +27,7 @@ import { AdSenseBanner } from "@/components/adsense-banner"
 import { ViewBeacon } from "@/components/view-beacon"
 import { goHref, urlComoLlegar, type MetricOrigin } from "@/lib/metricas/links"
 import { FlyerImage } from "@/components/flyer-image"
+import { VerEnElMapa } from "@/components/ver-en-el-mapa"
 import { FilaAccionesEvento } from "@/components/fila-acciones-evento"
 import { BotonSeguir } from "@/components/boton-seguir"
 import { InsigniaDestacado } from "@/components/insignia-destacado"
@@ -388,6 +389,8 @@ export function EventDetailPage({
                   </a>
                 </Button>
               )}
+
+              <VerEnElMapa venue={event.venue} startDate={startDate} className="w-full sm:flex-1" size="lg" />
 
               {displayEvent.ticketUrl && (
                 <Button size="lg" variant="outline" className="w-full sm:flex-1" asChild>

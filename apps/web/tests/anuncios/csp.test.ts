@@ -55,6 +55,8 @@ const CSP_SIN_ADS = {
     'https://*.cinemark.com.ar', 'https://*.adro.studio',
     'https://stats.g.doubleclick.net',
     'https://*.google.com', 'https://*.google.com.ar',
+    // El mapa (R54): los tiles de OpenFreeMap.
+    'https://tiles.openfreemap.org',
   ],
   'font-src': ["'self'", 'data:', 'https://fonts.gstatic.com'],
   'connect-src': [
@@ -62,12 +64,14 @@ const CSP_SIN_ADS = {
     'https://*.google-analytics.com', 'https://*.analytics.google.com',
     'https://stats.g.doubleclick.net',
     'https://*.googletagmanager.com', 'https://*.google.com', 'https://*.google.com.ar',
+    'https://tiles.openfreemap.org',
   ],
   'frame-src': [
     'https://*.googletagmanager.com',
     'https://*.google.com', 'https://*.google.com.ar',
   ],
   'frame-ancestors': ["'none'"],
+  'worker-src': ["'self'", 'blob:'],
 }
 
 const CSP_SIN_ADS_TEXTO = Object.entries(CSP_SIN_ADS)

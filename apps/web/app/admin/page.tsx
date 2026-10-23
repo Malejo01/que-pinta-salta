@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
-import { Database, Home, SearchCheck, Tags, Sparkles, MapPin } from 'lucide-react'
+import { Database, Home, SearchCheck, Tags, Sparkles, MapPin, Megaphone } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -35,6 +35,12 @@ const adminSections = [
     title: 'Destacados',
     description: 'Destacá eventos por un tiempo elegido (7, 14 o 30 días, o una fecha a mano) y quitales el destacado cuando corresponda.',
     icon: Sparkles,
+  },
+  {
+    href: '/admin/avisos',
+    title: 'Avisos patrocinados',
+    description: 'Cargá, editá y cancelá campañas de avisos push patrocinados.',
+    icon: Megaphone,
   },
 ]
 

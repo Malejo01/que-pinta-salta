@@ -23,6 +23,12 @@ const LOADING_FILES = [
   'app/cines/loading.tsx',
 ]
 
+// R54 (54-b): /mapa arma su esqueleto con `Skeleton` directo (el bloque del
+// mapa tiene un alto fijo propio), no con `components/skeletons.tsx`.
+const LOADING_PROPIOS = [
+  'app/mapa/loading.tsx',
+]
+
 function archivos(dir: string): string[] {
   return readdirSync(dir).flatMap((nombre) => {
     const ruta = join(dir, nombre)
@@ -53,8 +59,24 @@ describe('ningún loading.tsx convierte un 404/307/308 en un 200', () => {
   })
 
   it('la lista de loading.tsx es exactamente la esperada (sumar uno nuevo obliga a pensar en esto)', () => {
-    expect(todos.map(rel).filter((r) => r.endsWith('/loading.tsx')).sort()).toEqual([...LOADING_FILES].sort())
+    expect(todos.map(rel).filter((r) => r.endsWith('/loading.tsx')).sort()).toEqual([...LOADING_FILES, ...LOADING_PROPIOS].sort())
   })
+})
+
+describe('loading.tsx con esqueleto propio (/mapa)', () => {
+  it.each(LOADING_PROPIOS)(
+    '%s no es "use client", exporta un componente por defecto, usa Skeleton y es accesible',
+    (relPath) => {
+      const content = read(relPath)
+
+      expect(content).not.toMatch(/['"]use client['"]/)
+      expect(content).toMatch(/export default function/)
+      expect(content).toMatch(/from ['"]@\/components\/ui\/skeleton['"]/)
+      expect(content).toContain('aria-busy="true"')
+      expect(content).toMatch(/sr-only[^>]*>\s*Cargando/)
+      expect(content).not.toMatch(/\b(?:bg|text|border)-(?:zinc|black|white)(?:-\d+)?\b/)
+    }
+  )
 })
 
 describe('loading.tsx de /buscar y /cines', () => {

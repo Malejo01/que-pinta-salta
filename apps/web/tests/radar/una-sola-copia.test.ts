@@ -241,6 +241,12 @@ const ARCHIVOS_PERMITIDOS_PARA_FROM_NO_LITERAL = [
     motivo: '.storage.from(INSTAGRAM_ENGINE_CONFIG.STORAGE_BUCKET): idem, bucket de Storage.',
   },
   {
+    archivo: 'apps/web/lib/notificaciones/novedades.ts',
+    motivo:
+      '.from(tabla) en leerSeguidosEnLotesYPaginas (R51, 51-b, QPS-201): lectura paginada (select, nunca ' +
+      'escribe) de las tres tablas user_followed_*, con `tabla` tipada como la unión de esos tres nombres.',
+  },
+  {
     archivo: 'apps/web/app/api/cron/scrape/run-scrape-job.ts',
     motivo: '.storage.from(INSTAGRAM_ENGINE_CONFIG.STORAGE_BUCKET): idem, bucket de Storage.',
   },
@@ -287,6 +293,7 @@ describe('el detector funciona de verdad (fixtures en memoria)', () => {
 })
 
 describe('las escrituras sobre las tres tablas de seguimiento aparecen solo en los módulos permitidos', () => {
+  // 15 s: recorre archivos del repo y con dos suites en paralelo pasa los 5 s por omisión (R64).
   it('ningún archivo fuera de la lista permitida escribe sobre user_followed_*', () => {
     const hallazgos: string[] = []
     for (const archivo of ARCHIVOS) {
@@ -296,7 +303,7 @@ describe('las escrituras sobre las tres tablas de seguimiento aparecen solo en l
       if (tablas.length > 0) hallazgos.push(`${archivo}: escribe sobre ${tablas.join(', ')}`)
     }
     expect(hallazgos, hallazgos.join('\n')).toEqual([])
-  })
+  }, 15_000)
 
   it('los dos radar.ts SÍ escriben sobre las tres tablas (si esto da false, el detector no está mirando nada)', () => {
     const web = quitarComentarios(readFileSync(join(REPO_ROOT, 'apps/web/lib/actions/radar.ts'), 'utf8'))
@@ -308,6 +315,7 @@ describe('las escrituras sobre las tres tablas de seguimiento aparecen solo en l
 })
 
 describe('TABLA_SEGUIMIENTO (el mapeo tabla/columna) se referencia solo en los dos radar.ts', () => {
+  // 15 s: recorre archivos del repo y con dos suites en paralelo pasa los 5 s por omisión (R64).
   it('ningún otro archivo de apps/web o apps/mobile lo referencia', () => {
     const hallazgos: string[] = []
     for (const archivo of ARCHIVOS) {
@@ -316,7 +324,7 @@ describe('TABLA_SEGUIMIENTO (el mapeo tabla/columna) se referencia solo en los d
       if (tieneTablaSeguimiento(limpio)) hallazgos.push(archivo)
     }
     expect(hallazgos, hallazgos.join('\n')).toEqual([])
-  })
+  }, 15_000)
 
   it('los dos radar.ts SÍ lo referencian', () => {
     for (const archivo of ARCHIVOS_PERMITIDOS_PARA_TABLA_SEGUIMIENTO) {
@@ -369,6 +377,7 @@ describe('llamadasFromNoLiteral: el detector funciona de verdad (fixtures en mem
 })
 
 describe('cualquier .from(<algo que no es un literal>) aparece solo en los módulos permitidos (R56, QPS-253)', () => {
+  // 15 s: recorre archivos del repo y con dos suites en paralelo pasa los 5 s por omisión (R64).
   it('ningún archivo fuera de la lista permitida tiene un .from(no-literal)', () => {
     const hallazgos: string[] = []
     for (const archivo of ARCHIVOS) {
@@ -385,7 +394,7 @@ describe('cualquier .from(<algo que no es un literal>) aparece solo en los módu
       }
     }
     expect(hallazgos, hallazgos.join('\n')).toEqual([])
-  })
+  }, 15_000)
 
   it('cada archivo permitido SIGUE teniendo de verdad su .from(no-literal) (si lo perdiera, o se borrara el archivo, esto tiene que quedar en rojo, no en verde por omisión)', () => {
     for (const { archivo, motivo } of ARCHIVOS_PERMITIDOS_PARA_FROM_NO_LITERAL) {

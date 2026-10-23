@@ -396,6 +396,28 @@ describe('enviarLote: fallas que no revientan', () => {
   })
 })
 
+describe('enviarLote: categoryId (D2/Ronda 51, avisos patrocinados)', () => {
+  it('un mensaje con categoryId lo manda en el body del POST a Expo', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(respuestaFalsa({ data: [{ status: 'ok', id: 'ticket-1' }] }))
+
+    await enviarLote([{ to: tokenFalso(1), title: 't', body: 'b', categoryId: 'patrocinado' }], fetchImpl as unknown as typeof fetch)
+
+    const [, init] = fetchImpl.mock.calls[0] as [string, RequestInit]
+    const cuerpo = JSON.parse(init.body as string) as Array<{ categoryId?: string }>
+    expect(cuerpo[0].categoryId).toBe('patrocinado')
+  })
+
+  it('un mensaje SIN categoryId no manda esa clave (ni siquiera `categoryId: undefined`)', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(respuestaFalsa({ data: [{ status: 'ok', id: 'ticket-1' }] }))
+
+    await enviarLote([{ to: tokenFalso(1), title: 't', body: 'b' }], fetchImpl as unknown as typeof fetch)
+
+    const [, init] = fetchImpl.mock.calls[0] as [string, RequestInit]
+    const cuerpo = JSON.parse(init.body as string) as Array<Record<string, unknown>>
+    expect('categoryId' in cuerpo[0]).toBe(false)
+  })
+})
+
 describe('leerReceipts', () => {
   it('pega a getReceipts con { ids } y devuelve el objeto indexado', async () => {
     const fetchImpl = vi.fn().mockResolvedValue(
