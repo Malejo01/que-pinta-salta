@@ -2,6 +2,7 @@ import type { Metadata } from "next"
 import Link from "next/link"
 import { FileText } from "lucide-react"
 import { PaginaLegal, SeccionLegal, Marca, claseLink } from "@/components/legal/pagina-legal"
+import { UMBRAL_CONTADOR_ASISTENCIA } from "@qps/core/asistencia"
 import { ADS_ENABLED } from "@/lib/config/monetization"
 import { whatsappUrl } from "@/lib/contacto"
 import { CONTACTO_EMAIL, mailtoContacto } from "@qps/core/contacto"
@@ -49,7 +50,7 @@ export default function TerminosPage() {
 
       <SeccionLegal titulo="4. Tu cuenta" id="tu-cuenta">
         <p>
-          Tener cuenta es opcional: podés usar la agenda sin crear una. Para guardar favoritos, seguir categorías,
+          Tener cuenta es opcional: podés usar la agenda sin crear una. Para guardar eventos, marcar &quot;Voy&quot;, seguir categorías,
           lugares y cuentas, o usar Mi Radar y las notificaciones, te registrás con tu email y una contraseña, o
           con tu cuenta de Google. Cuidá tu contraseña y no la compartas.
         </p>
@@ -71,10 +72,13 @@ export default function TerminosPage() {
 
       <SeccionLegal titulo="5. Lo que podés hacer con tu cuenta" id="lo-que-podes-hacer">
         <ul className="list-disc space-y-2 pl-5">
-          <li>Guardar favoritos y seguir categorías, lugares y cuentas de Instagram.</li>
           <li>
-            Marcar &quot;Voy&quot; o &quot;Me interesa&quot; en un evento: el total se muestra recién desde 3
-            personas, y nunca se muestra quién marcó qué.
+            Guardar eventos (&quot;Guardar&quot;, tus favoritos) y seguir (&quot;Seguir&quot;) categorías, lugares y
+            cuentas de Instagram.
+          </li>
+          <li>
+            Marcar &quot;Voy&quot; en un evento: el total se muestra recién {`desde ${UMBRAL_CONTADOR_ASISTENCIA} personas`},
+            y nunca se muestra quién lo marcó.
           </li>
           <li>
             Mi Radar: un email con las novedades de lo que seguís. Te das de baja con un clic, desde el mismo email
@@ -84,6 +88,11 @@ export default function TerminosPage() {
             Notificaciones en la app: las activás y las apagás cuando querés. Respetan un horario de silencio —por
             defecto, de 23:00 a 09:00, y lo podés cambiar desde la app— y un tope de avisos por día, que hoy es de 4
             y no se edita.
+          </li>
+          <li>
+            Avisos patrocinados: las notificaciones de la app pueden incluir avisos patrocinados, con la etiqueta
+            &quot;Patrocinado&quot;, como mucho uno por semana. Vienen activados y los apagás en un toque desde
+            Cuenta, con su propio interruptor, sin apagar los demás avisos.
           </li>
         </ul>
       </SeccionLegal>
@@ -137,7 +146,28 @@ export default function TerminosPage() {
         ) : (
           <p>Hoy no mostramos publicidad.</p>
         )}
-        <p>La app no muestra anuncios.</p>
+        <p>
+          La app puede mostrar anuncios de Google, identificados como tales con el rótulo &quot;Publicidad&quot;. Cómo
+          se tratan los datos con los anuncios está en la{" "}
+          <Link href="/privacidad" className={claseLink}>
+            Política de Privacidad
+          </Link>
+          .
+        </p>
+        <p>
+          <strong className="text-foreground">Contenido destacado o patrocinado.</strong> Un evento puede aparecer
+          destacado, por ejemplo porque su organizador contrató un paquete: todo evento destacado lleva el sello
+          &quot;★ Destacado&quot;, en el sitio y en la app. Los avisos patrocinados de las notificaciones llevan la
+          etiqueta &quot;Patrocinado&quot; (ver el punto 5).
+        </p>
+        <p>
+          El cobro de los destacados es manual: no se paga dentro del sitio ni de la app, sino que se coordina con
+          nosotros y se abona por transferencia o Mercado Pago. El tarifario con los precios está en{" "}
+          <Link href="/anunciantes" className={claseLink}>
+            la página para anunciantes
+          </Link>
+          .
+        </p>
       </SeccionLegal>
 
       <SeccionLegal titulo="10. Disponibilidad y cambios del servicio" id="disponibilidad-y-cambios">

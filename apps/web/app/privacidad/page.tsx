@@ -3,6 +3,7 @@ import Link from "next/link"
 import { ShieldCheck } from "lucide-react"
 import { CONTACTO_EMAIL, mailtoContacto } from "@qps/core/contacto"
 import { whatsappUrl } from "@/lib/contacto"
+import { UMBRAL_CONTADOR_ASISTENCIA } from "@qps/core/asistencia"
 import { ADS_ENABLED } from "@/lib/config/monetization"
 import { PaginaLegal, SeccionLegal, Marca, claseLink } from "@/components/legal/pagina-legal"
 
@@ -42,11 +43,14 @@ export default function PrivacidadPage() {
             proveedor de autenticación (Supabase) y nosotros no la vemos.
           </li>
           <li>
-            <strong className="text-foreground">Lo que hacés con tu cuenta:</strong> tus favoritos; tus marcas de
-            &quot;Voy&quot; y &quot;Me interesa&quot; en cada evento (el total de cada uno se muestra recién desde 3
-            personas, y nunca se muestra quién marcó cada tipo); las categorías, los lugares y las cuentas de
-            Instagram que seguís; las preferencias de Mi Radar (incluido el email al que llegan los avisos) y las de
-            notificaciones (el horario de silencio y el tope de avisos por día); y los eventos que cargás.
+            <strong className="text-foreground">Lo que hacés con tu cuenta:</strong> los eventos que guardás con
+            &quot;Guardar&quot; (tus favoritos); tus marcas de &quot;Voy&quot; en cada evento (marcar &quot;Voy&quot;
+            también guarda el evento, y sacarlo de tus guardados saca el &quot;Voy&quot;; el total de &quot;Voy&quot;
+            se muestra recién {`desde ${UMBRAL_CONTADOR_ASISTENCIA} personas`}, y nunca se muestra quién lo marcó);
+            las categorías, los lugares y las cuentas de Instagram que seguís con &quot;Seguir&quot;; las
+            preferencias de Mi Radar (incluido el email al que llegan los avisos) y las de notificaciones (el horario
+            de silencio, el tope de avisos por día y el interruptor de los avisos patrocinados); y los eventos que
+            cargás.
           </li>
           <li>
             <strong className="text-foreground">Notificaciones en la app:</strong> solo si las activás: el permiso
@@ -55,6 +59,13 @@ export default function PrivacidadPage() {
             te mandamos, para no repetirte uno y para respetar el tope diario. Al cerrar sesión intentamos borrar el
             token de ese teléfono. Si en ese momento no hay conexión, puede quedar guardado un tiempo más; se borra
             en cuanto eliminás tu cuenta.
+          </li>
+          <li>
+            <strong className="text-foreground">Avisos patrocinados:</strong> las notificaciones de la app pueden
+            incluir avisos patrocinados, con la etiqueta &quot;Patrocinado&quot;. Mandamos como mucho uno por semana.
+            Vienen activados y los apagás en un toque desde Cuenta, con su propio interruptor (&quot;Avisos
+            patrocinados&quot;), sin apagar los demás avisos. Solo los podés recibir si activaste las notificaciones
+            de la app.
           </li>
           <li>
             <strong className="text-foreground">Lo que la app guarda en tu teléfono:</strong> la sesión, en el
@@ -84,23 +95,50 @@ export default function PrivacidadPage() {
             solo con tu consentimiento, Google Analytics (ver &quot;Cookies y almacenamiento local&quot;).
           </li>
           <li>
-            <strong className="text-foreground">Lo que no tratamos:</strong> tu ubicación (&quot;Cómo llegar&quot;
-            abre el mapa de tu teléfono con la dirección del lugar), tus contactos, las fotos de tu teléfono ni un
-            historial de búsquedas por usuario. La app no tiene analítica de terceros ni anuncios.
+            <strong className="text-foreground">Anuncios en la app:</strong> la app incluye el SDK de anuncios de
+            Google, que puede recolectar algunos datos del dispositivo de forma automática. Está explicado en
+            &quot;Publicidad en la app&quot;, más abajo.
+          </li>
+          <li>
+            <strong className="text-foreground">Cuando uses &quot;Cerca mío&quot; en la app:</strong> la app te pide
+            la ubicación del teléfono solo cuando tocás ese botón, y solo con la app abierta (en primer plano). La
+            usamos en tu teléfono, para mostrarte lo que queda cerca, y no sale de él: no la mandamos a nuestros
+            servidores ni a terceros, ni la guardamos.
+          </li>
+          <li>
+            <strong className="text-foreground">Cuando mires el mapa</strong> (en el sitio o en la app): las
+            imágenes del mapa (los &quot;tiles&quot;) las sirve OpenFreeMap, por lo que recibe la dirección IP de tu
+            dispositivo y qué zona del mapa estás mirando.
+          </li>
+          <li>
+            <strong className="text-foreground">Lo que no tratamos:</strong> tus contactos, las fotos de tu teléfono
+            ni un historial de búsquedas por usuario. Tampoco tu ubicación, salvo lo que contamos arriba para
+            &quot;Cerca mío&quot;, que no sale de tu teléfono. &quot;Cómo llegar&quot; abre Google Maps (en la app de
+            mapas de tu teléfono o en el navegador) con la dirección del lugar; no le pasamos tu ubicación. La
+            analítica propia de la app es la de &quot;Métricas propias&quot;: no usamos Firebase Analytics ni Google
+            Analytics en la app.
           </li>
         </ul>
         <p>
           <strong className="text-foreground">Darnos estos datos es opcional.</strong> Podés usar la agenda, buscar
           y ver las fichas de evento sin crear una cuenta, tanto en el sitio como en la app. Si no creás una cuenta,
-          no vas a poder guardar favoritos, marcar &quot;Voy&quot; o &quot;Me interesa&quot;, seguir categorías,
-          lugares ni cuentas, ni usar Mi Radar o las notificaciones de la app. Nada más cambia.
+          no vas a poder guardar eventos, marcar &quot;Voy&quot;, seguir categorías, lugares ni cuentas, ni usar Mi
+          Radar o las notificaciones de la app. Nada más cambia.
         </p>
       </SeccionLegal>
 
       <SeccionLegal titulo="Para qué los usamos">
         <ul className="list-disc space-y-2 pl-5">
-          <li>Mantener tu sesión, tus favoritos y los eventos que publicás.</li>
+          <li>Mantener tu sesión, tus guardados, tus &quot;Voy&quot;, lo que seguís y los eventos que publicás.</li>
           <li>Mandarte los avisos que activaste en la app, respetando el horario de silencio y el tope por día.</li>
+          <li>
+            Incluir, entre esos avisos, avisos patrocinados de eventos (como mucho uno por semana), que se pueden
+            apagar desde Cuenta.
+          </li>
+          <li>Mostrarte lo que queda cerca cuando tocás &quot;Cerca mío&quot;, en tu teléfono, y mostrarte el mapa.</li>
+          <li>
+            Mostrar anuncios de Google en la app, cuando la app los muestra (ver &quot;Publicidad en la app&quot;).
+          </li>
           <li>Mostrarte la agenda sin conexión cuando no tenés señal.</li>
           <li>Arreglar fallas de la app.</li>
           <li>Enviarte por email las novedades de Mi Radar, solo si lo activás.</li>
@@ -141,7 +179,11 @@ export default function PrivacidadPage() {
         {ADS_ENABLED ? (
           <p>
             Mostramos publicidad de Google AdSense, que usa cookies de terceros para mostrarte anuncios según tu
-            navegación en este y otros sitios. Podés desactivar la publicidad personalizada en la{" "}
+            navegación en este y otros sitios. El script de AdSense no se carga hasta que respondas el aviso de
+            cookies: si rechazás, pedimos anuncios no personalizados; si aceptás, los anuncios pueden ser
+            personalizados. Si visitás el sitio desde la Unión Europea, el Reino Unido o Suiza, Google además puede
+            mostrarte su propio mensaje de consentimiento, si está configurado en nuestra cuenta de AdSense. Podés
+            desactivar la publicidad personalizada en la{" "}
             <a
               href="https://adssettings.google.com"
               target="_blank"
@@ -176,13 +218,64 @@ export default function PrivacidadPage() {
           no vas a poder iniciar sesión en el sitio.
         </p>
         <p>
-          La app no usa cookies: la sesión se guarda en el almacenamiento seguro del teléfono (ver &quot;Qué datos
-          tratamos&quot;).
+          La app no usa cookies propias: la sesión se guarda en el almacenamiento seguro del teléfono (ver &quot;Qué
+          datos tratamos&quot;).
+        </p>
+      </SeccionLegal>
+
+      <SeccionLegal titulo="Publicidad en la app" id="publicidad-en-la-app">
+        <p>
+          La app incluye el SDK de anuncios de Google (Google Mobile Ads / AdMob). Cuando la app muestra anuncios, van
+          en Inicio y en Buscar, nunca en la ficha de un evento ni en Cuenta, y llevan el rótulo
+          &quot;Publicidad&quot;.
+        </p>
+        <p>
+          Ese SDK puede recolectar de forma automática y compartir con Google, para publicidad, analítica y
+          prevención de fraude, estos datos, que viajan cifrados:
+        </p>
+        <ul className="list-disc space-y-2 pl-5">
+          <li>
+            la dirección IP, que puede servir para estimar la ubicación aproximada del dispositivo;
+          </li>
+          <li>las interacciones con la app (aperturas, toques, vistas de video);</li>
+          <li>información de diagnóstico (rendimiento de la app y del SDK);</li>
+          <li>
+            identificadores del dispositivo: el ID de publicidad de Android y el <em>app set ID</em>.
+          </li>
+        </ul>
+        <p>
+          <strong className="text-foreground">El ID de publicidad es opcional:</strong> lo podés restablecer o borrar
+          desde los ajustes de Android (Google → Anuncios, o Privacidad → Anuncios, según la versión de tu teléfono).
+        </p>
+        <p>
+          Donde corresponde según la región (por ejemplo, la Unión Europea, el Reino Unido y Suiza), la app usa el
+          formulario de consentimiento de Google (UMP). Si ese formulario indica que no se pueden pedir anuncios, la
+          app no inicia el SDK y no muestra anuncios. Cuando hace falta, Cuenta muestra &quot;Privacidad de los anuncios&quot; para volver a abrir ese
+          formulario y cambiar tu elección.
+        </p>
+        <p>
+          La analítica propia de la app sigue siendo agregada y sin usuario (&quot;Métricas propias&quot;). La app
+          está configurada para que la medición de Google del SDK no arranque antes de que la app inicie el SDK.
+        </p>
+        <p>
+          Más información sobre{" "}
+          <a
+            href="https://policies.google.com/technologies/partner-sites"
+            target="_blank"
+            rel="noopener noreferrer"
+            className={claseLink}
+          >
+            cómo usa Google los datos de las apps y sitios que usan sus servicios
+          </a>
+          .
         </p>
       </SeccionLegal>
 
       <SeccionLegal titulo="Con quién los compartimos">
-        <p>Solo con los proveedores que hacen funcionar el sitio y la app, y únicamente para esa función:</p>
+        <p>
+          Con los proveedores que hacen funcionar el sitio y la app y con los que nos permiten mostrar publicidad,
+          cada uno para su función:
+        </p>
         <ul className="list-disc space-y-2 pl-5">
           <li>
             <strong className="text-foreground">Supabase:</strong> base de datos y autenticación.
@@ -207,7 +300,15 @@ export default function PrivacidadPage() {
             notificaciones a los teléfonos Android.
           </li>
           <li>
+            <strong className="text-foreground">Google (Google Mobile Ads / AdMob):</strong> proveedor de los anuncios
+            de la app; recibe los datos que describimos en &quot;Publicidad en la app&quot;.
+          </li>
+          <li>
             <strong className="text-foreground">Sentry:</strong> recibe los reportes de fallas de la app.
+          </li>
+          <li>
+            <strong className="text-foreground">OpenFreeMap:</strong> cuando mirás el mapa, en el sitio o en la app,
+            sirve las imágenes del mapa y recibe la dirección IP de tu dispositivo y la zona que estás mirando.
           </li>
         </ul>
         <p>
