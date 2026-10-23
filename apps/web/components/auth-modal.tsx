@@ -207,7 +207,35 @@ export function AuthModalProvider({ children }: { children: ReactNode }) {
               <GoogleIcon />
               <span>Google</span>
             </Button>
-            
+
+            <p className="text-xs text-muted-foreground text-center">
+              {mode === "login" ? (
+                <>
+                  Al continuar con Google aceptás los{" "}
+                  <Link href="/terminos" onClick={close} className="text-primary underline underline-offset-4">
+                    Términos y condiciones
+                  </Link>{" "}
+                  y la{" "}
+                  <Link href="/privacidad" onClick={close} className="text-primary underline underline-offset-4">
+                    Política de Privacidad
+                  </Link>
+                  .
+                </>
+              ) : (
+                <>
+                  Al crear tu cuenta aceptás los{" "}
+                  <Link href="/terminos" onClick={close} className="text-primary underline underline-offset-4">
+                    Términos y condiciones
+                  </Link>{" "}
+                  y la{" "}
+                  <Link href="/privacidad" onClick={close} className="text-primary underline underline-offset-4">
+                    Política de Privacidad
+                  </Link>
+                  .
+                </>
+              )}
+            </p>
+
             <div className="text-center text-sm text-muted-foreground mt-4">
               {mode === "login" ? (
                 <>
