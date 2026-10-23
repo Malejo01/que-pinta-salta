@@ -45,6 +45,8 @@ export interface CampaniaVigenteUsable {
   eventId: string
   /** `sponsored_campaigns.sent_at` tal cual vino de la base: `null` si todavía no se marcó ningún envío exitoso de esta campaña. */
   sentAt: string | null
+  /** `sponsored_campaigns.destinatarios` ya guardado (58-e): la ruta lo recuenta y solo escribe si cambió. */
+  destinatarios?: number
 }
 
 export type ResultadoCampaniaVigente =
@@ -60,7 +62,31 @@ interface FilaCampania {
   starts_at: string
   ends_at: string
   sent_at: string | null
+  destinatarios: number | null
   event: { status: string | null } | null
+}
+
+/** Estado de la pausa del push patrocinado (`ad_settings.push_patrocinado_pausado_at`). */
+export type EstadoPausaPatrocinado = 'libre' | 'pausado' | 'ilegible'
+
+/**
+ * Lee la pausa del push patrocinado (58-e). Falla cerrado: si la lectura
+ * falla (error o excepción), devuelve `'ilegible'` y la ruta tampoco manda el
+ * patrocinado. Solo se loguea el nombre de la tabla y `error.message`; el
+ * motivo de la pausa no se lee ni se loguea nunca.
+ */
+export async function leerPausaPatrocinado(supabase: SupabaseClient): Promise<EstadoPausaPatrocinado> {
+  try {
+    const { data, error } = await supabase.from('ad_settings').select('push_patrocinado_pausado_at').eq('id', true).maybeSingle()
+    if (error) {
+      console.error('[Notificaciones] Error al leer ad_settings:', error.message)
+      return 'ilegible'
+    }
+    return data?.push_patrocinado_pausado_at ? 'pausado' : 'libre'
+  } catch {
+    console.error('[Notificaciones] Error al leer ad_settings')
+    return 'ilegible'
+  }
 }
 
 /** `{ ok: false, tabla }` más el único `console.error` permitido: nombre de la tabla y `error.message`. */
@@ -83,7 +109,7 @@ export async function cargarCampaniaVigente(supabase: SupabaseClient, ahora: Dat
   const ahoraISO = ahora.toISOString()
   const { data, error } = await supabase
     .from('sponsored_campaigns')
-    .select('id, title, body, event_id, starts_at, ends_at, sent_at, event:events(status)')
+    .select('id, title, body, event_id, starts_at, ends_at, sent_at, destinatarios, event:events(status)')
     .lte('starts_at', ahoraISO)
     .gt('ends_at', ahoraISO)
   if (error) return errorDeTabla('sponsored_campaigns', error)
@@ -113,6 +139,9 @@ export async function cargarCampaniaVigente(supabase: SupabaseClient, ahora: Dat
       cuerpo: ganadora.body,
       eventId: ganadora.event_id,
       sentAt: ganadora.sent_at,
+      // Solo viaja si ya hay un valor guardado (> 0): sin él, la forma de la
+      // campaña es la de la R51.
+      ...(ganadora.destinatarios ? { destinatarios: ganadora.destinatarios } : {}),
     },
     descartada: false,
   }
