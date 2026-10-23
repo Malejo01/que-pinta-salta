@@ -206,18 +206,16 @@ describe('buscar.tsx: lectura estática', () => {
     expect(SRC_BUSCAR).toMatch(/<TarjetaEvento\b/)
   })
 
-  it('usa buscarEventosPorTexto de @qps/core/home/busqueda (no una regla propia)', () => {
-    expect(SRC_BUSCAR).toMatch(
-      /import\s*\{\s*buscarEventosPorTexto\s*\}\s*from\s*['"]@qps\/core\/home\/busqueda['"]/
-    )
+  // R66 (66-b): el filtro de texto + gratis + categoría + fecha lo hace
+  // `filtrarCombinado` (core), que por dentro usa `buscarEventosPorTexto` y
+  // `soloGratis` — ya no se importan sueltos en la pantalla.
+  it('usa filtrarCombinado de @qps/core/home/filtros-combinados (no una regla propia)', () => {
+    expect(SRC_BUSCAR).toMatch(/import\s*\{[^}]*\bfiltrarCombinado\b[^}]*\}\s*from\s*['"]@qps\/core\/home\/filtros-combinados['"]/)
+    expect(SRC_BUSCAR).toMatch(/\bfiltrarCombinado\(/)
   })
 
-  it('usa soloGratis de @qps/core/home/filtros-extra', () => {
-    expect(SRC_BUSCAR).toMatch(/import\s*\{\s*soloGratis\s*\}\s*from\s*['"]@qps\/core\/home\/filtros-extra['"]/)
-  })
-
-  it('lee "categoria" de useLocalSearchParams (punto 5: "Ver todos" de la portada)', () => {
-    expect(SRC_BUSCAR).toMatch(/useLocalSearchParams<\{\s*categoria\?:\s*string\s*\}>/)
+  it('lee "categoria" y "atajo" de useLocalSearchParams (punto 5: "Ver todos" de la portada)', () => {
+    expect(SRC_BUSCAR).toMatch(/useLocalSearchParams<\{\s*categoria\?:\s*string;\s*atajo\?:\s*string\s*\}>/)
   })
 
   it('el chip "Solo gratis" sigue (texto literal)', () => {
