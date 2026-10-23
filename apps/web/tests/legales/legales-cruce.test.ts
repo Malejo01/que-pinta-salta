@@ -218,6 +218,18 @@ describe("versión 1 en el HTML renderizado de las dos páginas", () => {
       expect(html).not.toMatch(/me interesa/i)
     }
   })
+
+  // Vitest no chequea tipos: una prop `borrador` vuelta a poner en la página
+  // no cambia el HTML (PaginaLegal la ignora) y solo la frenaría el typecheck.
+  // Se mira la etiqueta de apertura en el fuente de cada página.
+  it("ninguna página le pasa borrador ni ultimaActualizacion a PaginaLegal", () => {
+    for (const archivo of ["app/privacidad/page.tsx", "app/terminos/page.tsx"]) {
+      const apertura = leer(archivo).match(/<PaginaLegal\b[^>]*>/)
+      expect(apertura, `${archivo} no usa <PaginaLegal>`).not.toBeNull()
+      expect(apertura![0], archivo).not.toMatch(/\bborrador\b/)
+      expect(apertura![0], archivo).not.toMatch(/\bultimaActualizacion\b/)
+    }
+  })
 })
 
 // ---------------------------------------------------------------------------
