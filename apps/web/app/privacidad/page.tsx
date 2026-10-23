@@ -6,6 +6,7 @@ import { whatsappUrl } from "@/lib/contacto"
 import { UMBRAL_CONTADOR_ASISTENCIA } from "@qps/core/asistencia"
 import { ADS_ENABLED } from "@/lib/config/monetization"
 import { PaginaLegal, SeccionLegal, claseLink } from "@/components/legal/pagina-legal"
+import { RESPONSABLE } from "@/components/legal/responsable"
 
 export const metadata: Metadata = {
   title: "Política de Privacidad | Qué Pinta Salta",
@@ -27,8 +28,10 @@ export default function PrivacidadPage() {
         </p>
         <p>
           <strong className="text-foreground">Responsable del tratamiento:</strong>{" "}
-          Lizarraga Mauro Alejandro.
+          {RESPONSABLE.nombre}.
         </p>
+        <p>CUIT: {RESPONSABLE.cuit}.</p>
+        <p>Domicilio: {RESPONSABLE.domicilio}.</p>
       </SeccionLegal>
 
       <SeccionLegal titulo="Qué datos tratamos">

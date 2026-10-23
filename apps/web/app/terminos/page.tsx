@@ -2,6 +2,7 @@ import type { Metadata } from "next"
 import Link from "next/link"
 import { FileText } from "lucide-react"
 import { PaginaLegal, SeccionLegal, claseLink } from "@/components/legal/pagina-legal"
+import { RESPONSABLE } from "@/components/legal/responsable"
 import { UMBRAL_CONTADOR_ASISTENCIA } from "@qps/core/asistencia"
 import { ADS_ENABLED } from "@/lib/config/monetization"
 import { whatsappUrl } from "@/lib/contacto"
@@ -28,8 +29,10 @@ export default function TerminosPage() {
 
       <SeccionLegal titulo="2. Quién lo ofrece" id="quien-lo-ofrece">
         <p>
-          Qué Pinta Salta lo ofrece Lizarraga Mauro Alejandro.
+          Qué Pinta Salta lo ofrece {RESPONSABLE.nombre}.
         </p>
+        <p>CUIT: {RESPONSABLE.cuit}.</p>
+        <p>Domicilio: {RESPONSABLE.domicilio}.</p>
       </SeccionLegal>
 
       <SeccionLegal titulo="3. De dónde sale la información y qué no hacemos" id="de-donde-sale-la-informacion">

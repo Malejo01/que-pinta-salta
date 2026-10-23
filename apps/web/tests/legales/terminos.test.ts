@@ -113,8 +113,10 @@ describe("/terminos: los datos de Mauro (23/10), ya sin [COMPLETAR]", () => {
     expect(VIGENTE_DESDE.startsWith("[COMPLETAR")).toBe(false)
   })
 
-  it("nombra a quien lo ofrece y la edad mínima de 13 años", () => {
+  it("nombra a quien lo ofrece (nombre, CUIT y domicilio) y la edad mínima de 13 años", () => {
     expect(html).toContain("Lizarraga Mauro Alejandro")
+    expect(html).toContain("CUIT: 27-36802726-5")
+    expect(html).toContain("Domicilio: Diario El Clarín 3932, B° El Tribuno, Salta, Argentina")
     expect(html).toContain("13 años")
   })
 })
