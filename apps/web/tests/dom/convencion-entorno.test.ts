@@ -32,7 +32,17 @@ import { join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 
-import { quitarComentarios } from '@/lib/rondas/tests-que-leen'
+// La lógica del detector (buscar la directiva, quitar comentarios) vive en un
+// helper compartido, solo para tests, con el gemelo de apps/mobile (R64).
+import {
+  ENVIRONMENT_NODE,
+  PALABRA_DIRECTIVA,
+  buscarDirectiva,
+  configTieneEnvironmentNode,
+  esValidoFueraDeTestsDom,
+  esValidoParaTestsDom,
+  quitarComentarios,
+} from '@qps/core/tests/convencion-entorno'
 
 // apps/web/tests/dom -> apps/web
 const APPS_WEB_ROOT = fileURLToPath(new URL('../../', import.meta.url))
@@ -42,50 +52,6 @@ const TESTS_DIR = join(APPS_WEB_ROOT, 'tests')
 const RUTA_ESTE_ARCHIVO = 'tests/dom/convencion-entorno.test.ts'
 /** El módulo de ayuda de los tests con DOM: no termina en .test.ts. */
 const RUTA_PREPARAR_DOM = 'tests/dom/preparar-dom.ts'
-
-/**
- * La palabra de la directiva, armada en tiempo de ejecución con '@' + el
- * resto. Si se escribiera como literal completo en este archivo —aunque sea
- * dentro de un comentario que la explica, como pasó con
- * `password-input.test.ts` y `fila-render.test.ts`— Vitest le cambiaría el
- * entorno a ESTE archivo: exactamente el bug que esta tarea existe para
- * impedir. Misma familia que el `'me' + '_interesa'` de
- * `tests/asistencia/sin-me-interesa.test.ts` (56-d).
- */
-const PALABRA_DIRECTIVA = '@' + 'vitest-environment'
-const PATRON_DIRECTIVA = new RegExp(PALABRA_DIRECTIVA + '\\s+([A-Za-z0-9_-]+)')
-
-/** El `environment: 'node'` de `vitest.config.ts` (Regla 3). */
-const ENVIRONMENT_NODE = /environment:\s*'node'/
-
-interface Hallazgo {
-  valor: string
-  linea: number
-}
-
-/**
- * Busca la directiva en TODO el texto del archivo, igual que Vitest: no le
- * importa si está en código, en un comentario de línea o en uno de bloque.
- * Devuelve el valor pedido (por ejemplo "jsdom") y el número de línea (1 =
- * primera línea) de la primera ocurrencia, o null si no aparece.
- */
-function buscarDirectiva(contenido: string): Hallazgo | null {
-  const coincidencia = PATRON_DIRECTIVA.exec(contenido)
-  if (!coincidencia || coincidencia.index === undefined) return null
-  const linea = contenido.slice(0, coincidencia.index).split('\n').length
-  return { valor: coincidencia[1], linea }
-}
-
-/** Para tests/dom/: pide jsdom, y en la primera línea. */
-function esValidoParaTestsDom(contenido: string): boolean {
-  const hallazgo = buscarDirectiva(contenido)
-  return hallazgo !== null && hallazgo.valor === 'jsdom' && hallazgo.linea === 1
-}
-
-/** Para fuera de tests/dom/: no debe aparecer ninguna directiva, de ningún valor. */
-function esValidoFueraDeTestsDom(contenido: string): boolean {
-  return buscarDirectiva(contenido) === null
-}
 
 /**
  * Recorre un directorio recursivamente y devuelve las rutas relativas (con
@@ -231,7 +197,7 @@ describe('Las excepciones de la Regla 2 siguen siendo ciertas', () => {
 describe("Regla 3: apps/web/vitest.config.ts sigue con environment: 'node'", () => {
   it("el environment configurado es 'node', leído SIN los comentarios del archivo", () => {
     const contenido = readFileSync(join(APPS_WEB_ROOT, 'vitest.config.ts'), 'utf8')
-    expect(quitarComentarios(contenido)).toMatch(ENVIRONMENT_NODE)
+    expect(configTieneEnvironmentNode(contenido)).toBe(true)
   })
 
   // Por qué se quitan los comentarios, y por qué esto es un caso y no una
@@ -283,6 +249,11 @@ describe('El patrón armado en tiempo de ejecución es el que Vitest usa de verd
   it('este archivo, leído desde el disco con fs, NO contiene el literal contiguo (está armado en pedazos a propósito)', () => {
     const contenidoPropio = readFileSync(join(APPS_WEB_ROOT, RUTA_ESTE_ARCHIVO), 'utf8')
     expect(contenidoPropio).not.toContain(PALABRA_DIRECTIVA)
+  })
+
+  it('el helper compartido de packages/core tampoco contiene el literal contiguo', () => {
+    const helper = readFileSync(join(APPS_WEB_ROOT, '../../packages/core/src/tests/convencion-entorno.ts'), 'utf8')
+    expect(helper).not.toContain(PALABRA_DIRECTIVA)
   })
 })
 

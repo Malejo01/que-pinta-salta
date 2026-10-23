@@ -7,8 +7,10 @@
  * `apps/mobile/`): el mismo motivo por el que `estado-evento-paridad` son dos
  * archivos, uno por app (`tests/estado-evento-paridad.test.ts` acá,
  * `apps/web/tests/asistencia/estado-evento-paridad.test.ts` en la web).
- * Unificar los dos detectores en un módulo compartido de `packages/` queda
- * pendiente: esta ronda no puede tocar `packages/`.
+ * La lógica común (buscar la directiva, `quitarComentarios` completo) vive en
+ * un helper compartido, solo para tests, en
+ * `packages/core/src/tests/convencion-entorno.ts` (R64); cada archivo es un
+ * envoltorio fino que lo aplica a su carpeta y a su regla.
  *
  * Qué pasó en la R61 que lo hizo necesario: al abrir `apps/web/tests/dom/`,
  * se descubrió que Vitest busca la directiva de entorno por archivo (la
@@ -33,70 +35,22 @@ import { join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 
+import {
+  ENVIRONMENT_NODE,
+  PALABRA_DIRECTIVA,
+  buscarDirectiva,
+  configTieneEnvironmentNode,
+  esValidoFueraDeTestsDom,
+  esValidoParaTestsDom,
+  quitarComentarios,
+} from '@qps/core/tests/convencion-entorno'
+
 // apps/mobile/tests -> apps/mobile
 const APPS_MOBILE_ROOT = fileURLToPath(new URL('../', import.meta.url))
 const TESTS_DIR = join(APPS_MOBILE_ROOT, 'tests')
 
 /** Ruta de este mismo archivo, relativa a apps/mobile (con "/"). */
 const RUTA_ESTE_ARCHIVO = 'tests/convencion-entorno.test.ts'
-
-/**
- * La palabra de la directiva, armada en tiempo de ejecución con '@' + el
- * resto. Si se escribiera como literal completo en este archivo —aunque sea
- * dentro de un comentario que la explica, como pasó en `apps/web` con
- * `password-input.test.ts` y `fila-render.test.ts`— Vitest le cambiaría el
- * entorno a ESTE archivo: exactamente el bug que esta tarea existe para
- * impedir.
- */
-const PALABRA_DIRECTIVA = '@' + 'vitest-environment'
-const PATRON_DIRECTIVA = new RegExp(PALABRA_DIRECTIVA + '\\s+([A-Za-z0-9_-]+)')
-
-/** El `environment: 'node'` de `vitest.config.ts` (Regla 2). */
-const ENVIRONMENT_NODE = /environment:\s*'node'/
-
-interface Hallazgo {
-  valor: string
-  linea: number
-}
-
-/**
- * Busca la directiva en TODO el texto del archivo, igual que Vitest: no le
- * importa si está en código, en un comentario de línea o en uno de bloque.
- * Devuelve el valor pedido (por ejemplo "jsdom") y el número de línea (1 =
- * primera línea) de la primera ocurrencia, o null si no aparece.
- */
-function buscarDirectiva(contenido: string): Hallazgo | null {
-  const coincidencia = PATRON_DIRECTIVA.exec(contenido)
-  if (!coincidencia || coincidencia.index === undefined) return null
-  const linea = contenido.slice(0, coincidencia.index).split('\n').length
-  return { valor: coincidencia[1], linea }
-}
-
-/**
- * Quita las líneas de comentario de un archivo de config CHICO (pensado para
- * `vitest.config.ts`, hoy 27 líneas), para que la Regla 2 no se deje engañar
- * por un comentario que mencione `environment: 'node'` mientras el valor real
- * es otro — es la MISMA familia de falso verde que este archivo existe para
- * cazar en los tests, y el detector no puede dejarse una puerta abierta en su
- * propia Regla 2.
- *
- * El filtro es por LÍNEA: descarta las que, después de `trim()`, empiezan con
- * "//", un "*" (continuación de un comentario de bloque) o el inicio de un
- * comentario de bloque. Límite a propósito, documentado para que nadie lo use
- * para otra cosa: no entiende strings ni un comentario de bloque que empiece
- * a mitad de línea (ej. "codigo" seguido del inicio de un comentario de
- * bloque en la misma línea seguiría sin filtrarse del lado derecho). Para un
- * archivo de 27 líneas como `vitest.config.ts` alcanza.
- */
-function quitarLineasDeComentario(contenido: string): string {
-  return contenido
-    .split('\n')
-    .filter((linea) => {
-      const recortada = linea.trim()
-      return !(recortada.startsWith('//') || recortada.startsWith('*') || recortada.startsWith('/*'))
-    })
-    .join('\n')
-}
 
 /**
  * Recorre un directorio recursivamente y devuelve las rutas relativas (con
@@ -178,7 +132,7 @@ describe('Regla 1: ningún archivo de apps/mobile/tests/ lleva la directiva de e
 describe("Regla 2: apps/mobile/vitest.config.ts sigue con environment: 'node'", () => {
   it("el environment configurado es 'node', leído SIN las líneas de comentario del archivo", () => {
     const contenido = readFileSync(join(APPS_MOBILE_ROOT, 'vitest.config.ts'), 'utf8')
-    expect(quitarLineasDeComentario(contenido)).toMatch(ENVIRONMENT_NODE)
+    expect(configTieneEnvironmentNode(contenido)).toBe(true)
   })
 
   // Por qué se quitan los comentarios, y por qué esto es un caso y no una
@@ -201,12 +155,19 @@ describe("Regla 2: apps/mobile/vitest.config.ts sigue con environment: 'node'", 
     // Sobre el texto crudo pasaría (el comentario la salva): eso era el bug.
     expect(configFalsa).toMatch(ENVIRONMENT_NODE)
     // Filtrada, no.
-    expect(quitarLineasDeComentario(configFalsa)).not.toMatch(ENVIRONMENT_NODE)
+    expect(quitarComentarios(configFalsa)).not.toMatch(ENVIRONMENT_NODE)
+  })
+
+  it('un comentario de bloque que empieza a mitad de línea tampoco la salva (lo que el filtro por línea dejaba pasar)', () => {
+    const configFalsa = ["const a = 1 /* environment: 'node' */", "export default { test: { environment: 'jsdom' } }"].join('\n')
+    expect(configFalsa).toMatch(ENVIRONMENT_NODE)
+    expect(quitarComentarios(configFalsa)).not.toMatch(ENVIRONMENT_NODE)
+    expect(configTieneEnvironmentNode(configFalsa)).toBe(false)
   })
 
   it('un archivo con el environment en node de verdad SÍ pasa la Regla 2 (el caso seguro, para que el chequeo no sea imposible)', () => {
     const configBuena = ['export default defineConfig({', '  test: {', "    environment: 'node',", '  },', '})'].join('\n')
-    expect(quitarLineasDeComentario(configBuena)).toMatch(ENVIRONMENT_NODE)
+    expect(quitarComentarios(configBuena)).toMatch(ENVIRONMENT_NODE)
   })
 })
 
@@ -234,10 +195,23 @@ describe('El patrón armado en tiempo de ejecución no se escribe completo en es
 // ---------------------------------------------------------------------------
 describe('El detector funciona sobre fixtures en memoria antes de aplicarse al repo', () => {
   const comentarioDeBloqueConDirectiva = `/* ${PALABRA_DIRECTIVA} jsdom */\nconst x = 1\n`
+  const primeraLineaConDirectiva = `// ${PALABRA_DIRECTIVA} jsdom\nimport { describe } from 'vitest'\n`
+  const lineaOchoConDirectiva =
+    '// línea 1\n// línea 2\n// línea 3\n// línea 4\n// línea 5\n// línea 6\n// línea 7\n' + `// ${PALABRA_DIRECTIVA} jsdom\n`
   const sinDirectivaNinguna = '// un comentario cualquiera, sin ninguna directiva\nconst x = 1\n'
 
   it('un comentario de BLOQUE (/* ... */) que la menciona: el detector la encuentra, igual que Vitest', () => {
     expect(buscarDirectiva(comentarioDeBloqueConDirectiva)).toEqual({ valor: 'jsdom', linea: 1 })
+  })
+
+  it('en la primera línea: válido para una carpeta con DOM, e inválido fuera de ella', () => {
+    expect(esValidoParaTestsDom(primeraLineaConDirectiva)).toBe(true)
+    expect(esValidoFueraDeTestsDom(primeraLineaConDirectiva)).toBe(false)
+  })
+
+  it('en la línea 8 (no la primera): inválido para una carpeta con DOM, aunque la directiva esté presente', () => {
+    expect(buscarDirectiva(lineaOchoConDirectiva)?.linea).toBe(8)
+    expect(esValidoParaTestsDom(lineaOchoConDirectiva)).toBe(false)
   })
 
   it('un texto sin ninguna directiva: el detector no encuentra nada', () => {
