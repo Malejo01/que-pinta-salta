@@ -163,9 +163,29 @@ describe('el token de notificaciones no se afirma como borrado con certeza', () 
 })
 
 describe('carácter facultativo de los datos (art. 6, Ley 25.326)', () => {
-  it('el HTML dice que dar los datos es opcional y nombra la consecuencia de no darlos', () => {
-    expect(html).toContain('Darnos estos datos es opcional')
+  it('el HTML dice que crear una cuenta es opcional y nombra la consecuencia de no crearla', () => {
+    expect(html).toContain('Crear una cuenta es opcional')
     expect(html).toContain('no vas a poder guardar eventos')
+  })
+
+  // Lo automático (fallas, mapa, SDK de anuncios) sale con o sin cuenta: la
+  // página no puede decir que "nada más cambia" sin cuenta.
+  it('no dice que darlos sea todo opcional y avisa que algunos datos técnicos se envían igual', () => {
+    expect(html).not.toContain('Darnos estos datos es opcional')
+    expect(html).not.toContain('Nada más cambia')
+    expect(html).toContain('Algunos datos técnicos se envían igual, con o sin cuenta')
+  })
+})
+
+describe('lo que está por entrar va en condicional (sin código en main)', () => {
+  it('los avisos patrocinados: "si las notificaciones de la app incluyen avisos patrocinados"', () => {
+    expect(html).toMatch(/si las notificaciones de la app incluyen avisos patrocinados/i)
+    expect(html).not.toContain('Mandamos como mucho uno por semana')
+  })
+
+  it('la ubicación aproximada por IP no se niega', () => {
+    expect(html).toContain('pueden servir para estimar tu ubicación aproximada')
+    expect(html).not.toContain('Tampoco tu ubicación,')
   })
 })
 

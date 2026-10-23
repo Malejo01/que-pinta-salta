@@ -183,4 +183,15 @@ describe("/terminos v1: publicidad y contenido destacado", () => {
     expect(html).toContain("Patrocinado")
     expect(html).toContain("uno por semana")
   })
+
+  // Los patrocinados no tienen código en main (#88): van en condicional.
+  it("los avisos patrocinados van en condicional", () => {
+    expect(html).toMatch(/si las notificaciones de la app incluyen avisos patrocinados/i)
+  })
+
+  // Con ADS_ENABLED apagado, "Hoy no mostramos publicidad" contradecía la
+  // línea siguiente ("La app puede mostrar anuncios"): habla solo del sitio.
+  it('no dice "Hoy no mostramos publicidad" al lado de los anuncios de la app', () => {
+    expect(html).not.toContain("Hoy no mostramos publicidad")
+  })
 })

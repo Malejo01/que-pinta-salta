@@ -49,8 +49,8 @@ export default function PrivacidadPage() {
             se muestra recién {`desde ${UMBRAL_CONTADOR_ASISTENCIA} personas`}, y nunca se muestra quién lo marcó);
             las categorías, los lugares y las cuentas de Instagram que seguís con &quot;Seguir&quot;; las
             preferencias de Mi Radar (incluido el email al que llegan los avisos) y las de notificaciones (el horario
-            de silencio, el tope de avisos por día y el interruptor de los avisos patrocinados); y los eventos que
-            cargás.
+            de silencio, el tope de avisos por día y, si la app incluye avisos patrocinados, su interruptor); y los
+            eventos que cargás.
           </li>
           <li>
             <strong className="text-foreground">Notificaciones en la app:</strong> solo si las activás: el permiso
@@ -61,18 +61,17 @@ export default function PrivacidadPage() {
             en cuanto eliminás tu cuenta.
           </li>
           <li>
-            <strong className="text-foreground">Avisos patrocinados:</strong> las notificaciones de la app pueden
-            incluir avisos patrocinados, con la etiqueta &quot;Patrocinado&quot;. Mandamos como mucho uno por semana.
-            Vienen activados y los apagás en un toque desde Cuenta, con su propio interruptor (&quot;Avisos
-            patrocinados&quot;), sin apagar los demás avisos. Solo los podés recibir si activaste las notificaciones
-            de la app.
+            <strong className="text-foreground">Avisos patrocinados:</strong> si las notificaciones de la app incluyen
+            avisos patrocinados, llevan la etiqueta &quot;Patrocinado&quot;, son como mucho uno por semana, vienen
+            activados y los podés apagar desde Cuenta, con su propio interruptor, sin apagar los demás avisos. Solo
+            los podés recibir si activaste las notificaciones de la app.
           </li>
           <li>
             <strong className="text-foreground">Lo que la app guarda en tu teléfono:</strong> la sesión, en el
             almacenamiento seguro del teléfono; y, para verla sin conexión, una copia de la última agenda y de tu
             lista de favoritos, sin tu email, tu contraseña ni ningún token. Esa copia deja de usarse a las 48 horas
-            (la agenda) o a los 7 días (los favoritos), y se borra al cerrar sesión, al cambiar de cuenta y al
-            eliminar la cuenta.
+            (la agenda) o a los 7 días (los favoritos). Al cerrar sesión o cambiar de cuenta, la app borra la copia
+            de tus favoritos; al eliminar la cuenta, borra toda la copia. La de la agenda no tiene datos tuyos.
           </li>
           <li>
             <strong className="text-foreground">Calendario:</strong> solo cuando tocás &quot;Agregar al
@@ -83,7 +82,8 @@ export default function PrivacidadPage() {
           <li>
             <strong className="text-foreground">Fallas de la app:</strong> si la app se cierra o falla, mandamos un
             reporte técnico a Sentry con el detalle del error. Antes de enviarlo, la app le saca tu email y los
-            tokens de sesión que pudieran aparecer.
+            tokens de sesión que pudieran aparecer. El reporte puede incluir datos técnicos del teléfono y de la
+            app, como el modelo, la versión de Android y la versión de la app.
           </li>
           <li>
             <strong className="text-foreground">Métricas propias:</strong> cuántas veces se vio cada ficha y cuántos
@@ -91,7 +91,7 @@ export default function PrivacidadPage() {
             vistas desde la app.
           </li>
           <li>
-            <strong className="text-foreground">Navegación en el sitio:</strong> lo de siempre: Vercel Analytics y,
+            <strong className="text-foreground">Navegación en el sitio:</strong> Vercel Analytics (sin cookies) y,
             solo con tu consentimiento, Google Analytics (ver &quot;Cookies y almacenamiento local&quot;).
           </li>
           <li>
@@ -102,8 +102,10 @@ export default function PrivacidadPage() {
           <li>
             <strong className="text-foreground">Cuando uses &quot;Cerca mío&quot; en la app:</strong> la app te pide
             la ubicación del teléfono solo cuando tocás ese botón, y solo con la app abierta (en primer plano). La
-            usamos en tu teléfono, para mostrarte lo que queda cerca, y no sale de él: no la mandamos a nuestros
-            servidores ni a terceros, ni la guardamos.
+            usamos en tu teléfono para mostrarte lo que queda cerca. Tu posición exacta no la mandamos a nuestros
+            servidores ni a terceros, ni la guardamos. Si el mapa se centra donde estás, la app le pide a
+            OpenFreeMap las imágenes de esa zona, así que OpenFreeMap puede conocer de forma aproximada dónde estás
+            (ver &quot;Cuando mires el mapa&quot;).
           </li>
           <li>
             <strong className="text-foreground">Cuando mires el mapa</strong> (en el sitio o en la app): las
@@ -112,18 +114,22 @@ export default function PrivacidadPage() {
           </li>
           <li>
             <strong className="text-foreground">Lo que no tratamos:</strong> tus contactos, las fotos de tu teléfono
-            ni un historial de búsquedas por usuario. Tampoco tu ubicación, salvo lo que contamos arriba para
-            &quot;Cerca mío&quot;, que no sale de tu teléfono. &quot;Cómo llegar&quot; abre Google Maps (en la app de
+            ni un historial de búsquedas por usuario. Tampoco la ubicación de tu teléfono (el GPS), salvo lo que contamos arriba
+            para &quot;Cerca mío&quot;. Las direcciones IP que reciben Google (por los anuncios de la app) y
+            OpenFreeMap (por el mapa) pueden servir para estimar tu ubicación aproximada, como explicamos en esta
+            página. &quot;Cómo llegar&quot; abre Google Maps (en la app de
             mapas de tu teléfono o en el navegador) con la dirección del lugar; no le pasamos tu ubicación. La
-            analítica propia de la app es la de &quot;Métricas propias&quot;: no usamos Firebase Analytics ni Google
-            Analytics en la app.
+            analítica propia de la app es la de &quot;Métricas propias&quot;: no sumamos Firebase Analytics ni Google
+            Analytics propios en la app; la analítica que hace el SDK de anuncios es la que contamos en
+            &quot;Publicidad en la app&quot;.
           </li>
         </ul>
         <p>
-          <strong className="text-foreground">Darnos estos datos es opcional.</strong> Podés usar la agenda, buscar
-          y ver las fichas de evento sin crear una cuenta, tanto en el sitio como en la app. Si no creás una cuenta,
-          no vas a poder guardar eventos, marcar &quot;Voy&quot;, seguir categorías, lugares ni cuentas, ni usar Mi
-          Radar o las notificaciones de la app. Nada más cambia.
+          <strong className="text-foreground">Crear una cuenta es opcional.</strong> Podés usar la agenda, buscar y
+          ver las fichas de evento sin crear una cuenta, tanto en el sitio como en la app. Sin cuenta no vas a poder
+          guardar eventos, marcar &quot;Voy&quot;, seguir categorías, lugares ni cuentas, ni usar Mi Radar o las
+          notificaciones de la app. Algunos datos técnicos se envían igual, con o sin cuenta: el reporte de fallas de
+          la app, los pedidos del mapa y lo que recolecta el SDK de anuncios (ver &quot;Publicidad en la app&quot;).
         </p>
       </SeccionLegal>
 
@@ -132,8 +138,8 @@ export default function PrivacidadPage() {
           <li>Mantener tu sesión, tus guardados, tus &quot;Voy&quot;, lo que seguís y los eventos que publicás.</li>
           <li>Mandarte los avisos que activaste en la app, respetando el horario de silencio y el tope por día.</li>
           <li>
-            Incluir, entre esos avisos, avisos patrocinados de eventos (como mucho uno por semana), que se pueden
-            apagar desde Cuenta.
+            Si la app incluye avisos patrocinados entre esos avisos, mandar como mucho uno por semana, que se
+            pueden apagar desde Cuenta.
           </li>
           <li>Mostrarte lo que queda cerca cuando tocás &quot;Cerca mío&quot;, en tu teléfono, y mostrarte el mapa.</li>
           <li>
@@ -307,6 +313,11 @@ export default function PrivacidadPage() {
             <strong className="text-foreground">Sentry:</strong> recibe los reportes de fallas de la app.
           </li>
           <li>
+            <strong className="text-foreground">Sitios de origen de las imágenes:</strong> algunas imágenes de
+            eventos se cargan desde los servidores de las ticketeras o de quien las publica, que reciben la dirección
+            IP de tu dispositivo.
+          </li>
+          <li>
             <strong className="text-foreground">OpenFreeMap:</strong> cuando mirás el mapa, en el sitio o en la app,
             sirve las imágenes del mapa y recibe la dirección IP de tu dispositivo y la zona que estás mirando.
           </li>
@@ -369,7 +380,9 @@ export default function PrivacidadPage() {
 
       <SeccionLegal titulo="Seguridad">
         <p>
-          Toda la información viaja cifrada (HTTPS) y cada cuenta solo puede leer lo suyo. Ningún sistema es
+          La comunicación con nuestros servidores y con nuestros proveedores viaja cifrada (HTTPS). Cada cuenta solo
+          puede leer sus propios datos; el equipo de Qué Pinta Salta puede acceder a lo necesario para moderar
+          eventos y mantener el servicio. Ningún sistema es
           perfecto: trabajamos para protegerla, pero no podemos garantizar una seguridad absoluta.
         </p>
       </SeccionLegal>

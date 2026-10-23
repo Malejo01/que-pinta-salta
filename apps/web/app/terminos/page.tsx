@@ -90,9 +90,9 @@ export default function TerminosPage() {
             y no se edita.
           </li>
           <li>
-            Avisos patrocinados: las notificaciones de la app pueden incluir avisos patrocinados, con la etiqueta
-            &quot;Patrocinado&quot;, como mucho uno por semana. Vienen activados y los apagás en un toque desde
-            Cuenta, con su propio interruptor, sin apagar los demás avisos.
+            Avisos patrocinados: si las notificaciones de la app incluyen avisos patrocinados, llevan la etiqueta
+            &quot;Patrocinado&quot;, son como mucho uno por semana, vienen activados y los podés apagar desde Cuenta,
+            con su propio interruptor, sin apagar los demás avisos.
           </li>
         </ul>
       </SeccionLegal>
@@ -144,7 +144,7 @@ export default function TerminosPage() {
         {ADS_ENABLED ? (
           <p>El sitio puede mostrar anuncios de Google AdSense, identificados como tales.</p>
         ) : (
-          <p>Hoy no mostramos publicidad.</p>
+          <p>Hoy el sitio no muestra publicidad.</p>
         )}
         <p>
           La app puede mostrar anuncios de Google, identificados como tales con el rótulo &quot;Publicidad&quot;. Cómo
@@ -157,7 +157,7 @@ export default function TerminosPage() {
         <p>
           <strong className="text-foreground">Contenido destacado o patrocinado.</strong> Un evento puede aparecer
           destacado, por ejemplo porque su organizador contrató un paquete: todo evento destacado lleva el sello
-          &quot;Destacado&quot;, con una estrella, en el sitio y en la app. Los avisos patrocinados de las notificaciones llevan la
+          &quot;Destacado&quot;, con una estrella, en el sitio y en la app. Si las notificaciones incluyen avisos patrocinados, llevan la
           etiqueta &quot;Patrocinado&quot; (ver el punto 5).
         </p>
         <p>
