@@ -105,22 +105,17 @@ describe('/terminos: "Me interesa" ya no se nombra', () => {
   })
 })
 
-describe("/terminos: lo único que falta completar (datos de Mauro antes del merge)", () => {
-  // Si alguien suma un [COMPLETAR] o Mauro completa uno, este test lo dice: en
-  // ese caso se actualiza la lista a propósito.
-  it("el HTML tiene exactamente el del responsable y el de la edad mínima, sin contar VIGENTE_DESDE", () => {
-    const sinVigencia = html.split(VIGENTE_DESDE).join("")
-    const marcas = sinVigencia.match(/\[COMPLETAR[^\]]*\]/g) ?? []
-    expect(marcas).toEqual([
-      "[COMPLETAR: nombre o razón social, CUIT y domicilio]",
-      "[COMPLETAR: edad mínima]",
-    ])
+describe("/terminos: los datos de Mauro (23/10), ya sin [COMPLETAR]", () => {
+  // Mauro pasó responsable, edad mínima y vigencia el 23/10 (pregunta 13 de la
+  // R63). Si vuelve a aparecer un [COMPLETAR], este test lo dice.
+  it("el HTML no tiene ningún [COMPLETAR, tampoco en VIGENTE_DESDE", () => {
+    expect(html.match(/\[COMPLETAR[^\]]*\]/g) ?? []).toEqual([])
+    expect(VIGENTE_DESDE.startsWith("[COMPLETAR")).toBe(false)
   })
 
-  it("en total, con el de VIGENTE_DESDE (si todavía es una marca), el HTML tiene un [COMPLETAR más", () => {
-    const total = (html.match(/\[COMPLETAR/g) ?? []).length
-    const deVigencia = VIGENTE_DESDE.startsWith("[COMPLETAR") ? 1 : 0
-    expect(total).toBe(2 + deVigencia)
+  it("nombra a quien lo ofrece y la edad mínima de 13 años", () => {
+    expect(html).toContain("Lizarraga Mauro Alejandro")
+    expect(html).toContain("13 años")
   })
 })
 

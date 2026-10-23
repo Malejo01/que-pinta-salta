@@ -5,7 +5,7 @@ import { CONTACTO_EMAIL, mailtoContacto } from "@qps/core/contacto"
 import { whatsappUrl } from "@/lib/contacto"
 import { UMBRAL_CONTADOR_ASISTENCIA } from "@qps/core/asistencia"
 import { ADS_ENABLED } from "@/lib/config/monetization"
-import { PaginaLegal, SeccionLegal, Marca, claseLink } from "@/components/legal/pagina-legal"
+import { PaginaLegal, SeccionLegal, claseLink } from "@/components/legal/pagina-legal"
 
 export const metadata: Metadata = {
   title: "Política de Privacidad | Qué Pinta Salta",
@@ -27,7 +27,7 @@ export default function PrivacidadPage() {
         </p>
         <p>
           <strong className="text-foreground">Responsable del tratamiento:</strong>{" "}
-          <Marca>[COMPLETAR: nombre o razón social del responsable, CUIT y domicilio]</Marca>.
+          Lizarraga Mauro Alejandro.
         </p>
       </SeccionLegal>
 
@@ -374,7 +374,7 @@ export default function PrivacidadPage() {
 
       <SeccionLegal titulo="Menores de edad">
         <p>
-          La edad mínima para crear una cuenta: <Marca>[COMPLETAR: edad mínima para crear una cuenta]</Marca>.
+          La edad mínima para crear una cuenta es de 13 años.
         </p>
       </SeccionLegal>
 

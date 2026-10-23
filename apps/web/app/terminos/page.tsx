@@ -1,7 +1,7 @@
 import type { Metadata } from "next"
 import Link from "next/link"
 import { FileText } from "lucide-react"
-import { PaginaLegal, SeccionLegal, Marca, claseLink } from "@/components/legal/pagina-legal"
+import { PaginaLegal, SeccionLegal, claseLink } from "@/components/legal/pagina-legal"
 import { UMBRAL_CONTADOR_ASISTENCIA } from "@qps/core/asistencia"
 import { ADS_ENABLED } from "@/lib/config/monetization"
 import { whatsappUrl } from "@/lib/contacto"
@@ -28,7 +28,7 @@ export default function TerminosPage() {
 
       <SeccionLegal titulo="2. Quién lo ofrece" id="quien-lo-ofrece">
         <p>
-          Qué Pinta Salta lo ofrece <Marca>[COMPLETAR: nombre o razón social, CUIT y domicilio]</Marca>.
+          Qué Pinta Salta lo ofrece Lizarraga Mauro Alejandro.
         </p>
       </SeccionLegal>
 
@@ -55,7 +55,7 @@ export default function TerminosPage() {
           con tu cuenta de Google. Cuidá tu contraseña y no la compartas.
         </p>
         <p>
-          Edad mínima para crear una cuenta: <Marca>[COMPLETAR: edad mínima]</Marca>.
+          Edad mínima para crear una cuenta: 13 años.
         </p>
         <p>
           Podés eliminar tu cuenta cuando quieras: con sesión iniciada, desde{" "}
