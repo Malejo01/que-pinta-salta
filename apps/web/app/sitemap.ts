@@ -46,7 +46,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       staticRoute("/cines", now, "daily", 0.8),
       staticRoute("/buscar", now, "weekly", 0.5),
       staticRoute("/mapa", now, "weekly", 0.5),
-    staticRoute("/privacidad", now, "weekly", 0.2),
+      staticRoute("/privacidad", now, "weekly", 0.2),
+      staticRoute("/terminos", now, "weekly", 0.2),
       staticRoute("/eliminar-cuenta", now, "weekly", 0.2),
       ...(ANUNCIANTES.publicada ? [staticRoute("/anunciantes", now, "weekly", 0.3)] : []),
     ]
@@ -128,6 +129,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     staticRoute("/cines", cinemaUpdatedAt, "daily", 0.8),
     staticRoute("/buscar", eventsUpdatedAt, "weekly", 0.5),
     staticRoute("/mapa", eventsUpdatedAt, "weekly", 0.5),
+    staticRoute("/privacidad", now, "weekly", 0.2),
+    staticRoute("/terminos", now, "weekly", 0.2),
     staticRoute("/eliminar-cuenta", now, "weekly", 0.2),
     // /anunciantes solo mientras ANUNCIANTES.publicada sea true (ver
     // lib/config/anunciantes.ts): mientras haya precios sin completar la
