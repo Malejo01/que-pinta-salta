@@ -17,24 +17,17 @@ const whatsappConsultaUrl = whatsappUrl("Hola! Tengo una consulta sobre los tér
 
 export default function TerminosPage() {
   return (
-    <PaginaLegal
-      titulo="Términos y condiciones"
-      icono={FileText}
-      ultimaActualizacion="[COMPLETAR: fecha de publicación]"
-      borrador
-    >
+    <PaginaLegal titulo="Términos y condiciones" icono={FileText}>
       <SeccionLegal titulo="1. Qué es Qué Pinta Salta" id="que-es">
         <p>
           Qué Pinta Salta es una agenda gratuita de eventos de Salta Capital: peñas, boliches, teatro, cine y
-          recitales, en el sitio y en la app para Android. Usarla implica aceptar estos términos{" "}
-          <Marca>[REVISIÓN LEGAL]</Marca>.
+          recitales, en el sitio y en la app para Android. Al usarla, aceptás estos términos.
         </p>
       </SeccionLegal>
 
       <SeccionLegal titulo="2. Quién lo ofrece" id="quien-lo-ofrece">
         <p>
-          Qué Pinta Salta lo ofrece <Marca>[COMPLETAR: nombre o razón social, CUIT y domicilio]</Marca>{" "}
-          <Marca>[REVISIÓN LEGAL]</Marca>.
+          Qué Pinta Salta lo ofrece <Marca>[COMPLETAR: nombre o razón social, CUIT y domicilio]</Marca>.
         </p>
       </SeccionLegal>
 
@@ -49,8 +42,8 @@ export default function TerminosPage() {
           la compra queda entre vos y ella, con sus condiciones. Los precios son orientativos.
         </p>
         <p>
-          <Marca>[REVISIÓN LEGAL]</Marca> sobre el alcance de nuestra responsabilidad por la información que viene
-          de terceros.
+          No controlamos la información que viene de terceros, y en la medida que lo permita la ley no nos hacemos
+          responsables por sus errores.
         </p>
       </SeccionLegal>
 
@@ -61,7 +54,7 @@ export default function TerminosPage() {
           con tu cuenta de Google. Cuidá tu contraseña y no la compartas.
         </p>
         <p>
-          Edad mínima para crear una cuenta: <Marca>[COMPLETAR: edad mínima]</Marca> <Marca>[REVISIÓN LEGAL]</Marca>.
+          Edad mínima para crear una cuenta: <Marca>[COMPLETAR: edad mínima]</Marca>.
         </p>
         <p>
           Podés eliminar tu cuenta cuando quieras: con sesión iniciada, desde{" "}
@@ -100,7 +93,7 @@ export default function TerminosPage() {
           <li>Antes de publicarse, los revisamos: los podemos editar, rechazar o quitar.</li>
           <li>Al cargarlos, confirmás que la información es cierta y que podés publicar el afiche y los textos.</li>
           <li>
-            Nos dejás mostrarlos en el sitio, en la app y para que se compartan <Marca>[REVISIÓN LEGAL]</Marca>.
+            Nos autorizás a mostrarlos en el sitio y en la app, y a que se compartan, para informar sobre el evento.
           </li>
           <li>
             Si eliminás tu cuenta, siguen publicados sin tu nombre, tal como explica la página de{" "}
@@ -119,7 +112,7 @@ export default function TerminosPage() {
           usar el servicio de forma automatizada para copiarlo en bloque o sobrecargarlo.
         </p>
         <p>
-          Podemos suspender o eliminar una cuenta que no cumpla con esto <Marca>[REVISIÓN LEGAL]</Marca>.
+          Podemos suspender o eliminar una cuenta que no cumpla con esto.
         </p>
       </SeccionLegal>
 
@@ -129,12 +122,12 @@ export default function TerminosPage() {
       >
         <p>
           Los afiches, los nombres y las marcas de los eventos, los lugares y las ticketeras son de sus dueños: los
-          mostramos para informar sobre el evento, no los tenemos como propios <Marca>[REVISIÓN LEGAL]</Marca>. Si
+          mostramos para informar sobre el evento, no los tenemos como propios. Si
           sos titular de alguno de esos contenidos y querés que corrijamos algo o que lo quitemos, escribinos (más
           abajo está el contacto).
         </p>
         <p>
-          El nombre y el diseño de Qué Pinta Salta son nuestros. <Marca>[REVISIÓN LEGAL]</Marca>.
+          El nombre y el diseño de Qué Pinta Salta son de quien ofrece el servicio; no podés usarlos como propios.
         </p>
       </SeccionLegal>
 
@@ -156,11 +149,7 @@ export default function TerminosPage() {
 
       <SeccionLegal titulo="11. Responsabilidad" id="responsabilidad">
         <p>
-          <Marca>[REVISIÓN LEGAL]</Marca> sobre el alcance de esta limitación, teniendo en cuenta la Ley 24.240 de
-          Defensa del Consumidor.
-        </p>
-        <p>
-          Dentro de lo que permite la ley, no respondemos por los daños que puedan surgir de usar la agenda,
+          Dentro de lo que permite la ley, incluida la Ley 24.240 de Defensa del Consumidor, no respondemos por los daños que puedan surgir de usar la agenda,
           incluyendo errores en la información de un evento o problemas con una ticketera.
         </p>
       </SeccionLegal>
@@ -177,15 +166,14 @@ export default function TerminosPage() {
 
       <SeccionLegal titulo="13. Cambios a estos términos" id="cambios-a-estos-terminos">
         <p>
-          Si cambiamos estos términos, actualizamos la fecha de arriba. Si el cambio es importante, avisamos en el
+          Si cambiamos estos términos, actualizamos la versión y la fecha de arriba. Si el cambio es importante, avisamos en el
           sitio y en la app.
         </p>
       </SeccionLegal>
 
       <SeccionLegal titulo="14. Ley aplicable y jurisdicción" id="ley-y-jurisdiccion">
         <p>
-          Estos términos se rigen por las leyes de la República Argentina. <Marca>[REVISIÓN LEGAL]</Marca>{" "}
-          <Marca>[COMPLETAR: jurisdicción, por ejemplo, los tribunales de la ciudad de Salta]</Marca>.
+          Estos términos se rigen por las leyes de la República Argentina.
         </p>
       </SeccionLegal>
 

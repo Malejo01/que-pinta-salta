@@ -17,12 +17,7 @@ const contactoWhatsappUrl = whatsappUrl("Hola! Tengo una consulta sobre mis dato
 
 export default function PrivacidadPage() {
   return (
-    <PaginaLegal
-      titulo="Política de Privacidad"
-      icono={ShieldCheck}
-      ultimaActualizacion="[COMPLETAR: fecha de publicación]"
-      borrador
-    >
+    <PaginaLegal titulo="Política de Privacidad" icono={ShieldCheck}>
       <SeccionLegal titulo="Quiénes somos y a qué se aplica" id="quienes-somos">
         <p>
           Qué Pinta Salta es el sitio quepintasalta.com.ar y la app &quot;Qué Pinta Salta&quot; para Android. Esta
@@ -31,13 +26,7 @@ export default function PrivacidadPage() {
         </p>
         <p>
           <strong className="text-foreground">Responsable del tratamiento:</strong>{" "}
-          <Marca>[COMPLETAR: nombre o razón social del responsable, CUIT y domicilio]</Marca>{" "}
-          <Marca>[REVISIÓN LEGAL]</Marca>.
-        </p>
-        <p>
-          <strong className="text-foreground">La base de datos:</strong> <Marca>[REVISIÓN LEGAL]</Marca> sobre si
-          hace falta inscribirla en el Registro Nacional de Bases de Datos de la Agencia de Acceso a la Información
-          Pública.
+          <Marca>[COMPLETAR: nombre o razón social del responsable, CUIT y domicilio]</Marca>.
         </p>
       </SeccionLegal>
 
@@ -50,9 +39,7 @@ export default function PrivacidadPage() {
           <li>
             <strong className="text-foreground">Tu cuenta:</strong> tu email, con contraseña o con Google; si entrás
             con Google, también el nombre y la foto de perfil que Google comparte. La contraseña la gestiona nuestro
-            proveedor de autenticación (Supabase) y nosotros no la vemos. Los campos <code>contact_type</code> y{" "}
-            <code>contact_value</code> de tu perfil:{" "}
-            <Marca>[COMPLETAR: ¿se piden en algún lado? Hoy ningún archivo de la web los usa]</Marca>.
+            proveedor de autenticación (Supabase) y nosotros no la vemos.
           </li>
           <li>
             <strong className="text-foreground">Lo que hacés con tu cuenta:</strong> tus favoritos; tus marcas de
@@ -72,26 +59,20 @@ export default function PrivacidadPage() {
           <li>
             <strong className="text-foreground">Lo que la app guarda en tu teléfono:</strong> la sesión, en el
             almacenamiento seguro del teléfono; y, para verla sin conexión, una copia de la última agenda y de tu
-            lista de favoritos, sin tu email, tu contraseña ni ningún token. Esa copia vence a las 48 horas (la
-            agenda) o a los 7 días (los favoritos) —{" "}
-            <Marca>[COMPLETAR: confirmar estos plazos, propuesta sin confirmar de la R43]</Marca>— y se borra al
-            cerrar sesión, al cambiar de cuenta y al eliminar la cuenta.
+            lista de favoritos, sin tu email, tu contraseña ni ningún token. Esa copia deja de usarse a las 48 horas
+            (la agenda) o a los 7 días (los favoritos), y se borra al cerrar sesión, al cambiar de cuenta y al
+            eliminar la cuenta.
           </li>
           <li>
             <strong className="text-foreground">Calendario:</strong> solo cuando tocás &quot;Agregar al
             calendario&quot;: la app te pide permiso al calendario de tu teléfono. Con ese permiso mira qué
             calendarios tenés para saber en cuál puede escribir y guarda ahí el evento. No leemos los eventos de tu
-            calendario ni los mandamos a ningún lado: todo queda en el teléfono.{" "}
-            <Marca>[REVISIÓN LEGAL]</Marca> sobre cómo se informa este permiso en el momento de pedirlo.
+            calendario ni los mandamos a ningún lado: todo queda en el teléfono.
           </li>
           <li>
             <strong className="text-foreground">Fallas de la app:</strong> si la app se cierra o falla, mandamos un
-            reporte técnico a Sentry sin datos personales (sin tu email ni tokens).{" "}
-            <Marca>
-              [COMPLETAR: qué datos técnicos incluye (modelo del teléfono, versión de Android y de la app) y cuánto
-              tiempo los guarda Sentry]
-            </Marca>
-            .
+            reporte técnico a Sentry con el detalle del error. Antes de enviarlo, la app le saca tu email y los
+            tokens de sesión que pudieran aparecer.
           </li>
           <li>
             <strong className="text-foreground">Métricas propias:</strong> cuántas veces se vio cada ficha y cuántos
@@ -230,9 +211,7 @@ export default function PrivacidadPage() {
           </li>
         </ul>
         <p>
-          Algunos de estos proveedores procesan datos fuera de Argentina <Marca>[REVISIÓN LEGAL]</Marca> sobre la
-          transferencia internacional de datos. La región del proyecto de Supabase:{" "}
-          <Marca>[COMPLETAR: región del proyecto de Supabase]</Marca>. También podemos revelar datos si una autoridad
+          Algunos de estos proveedores procesan los datos fuera de Argentina. También podemos revelar datos si una autoridad
           competente lo exige legalmente.
         </p>
       </SeccionLegal>
@@ -240,8 +219,8 @@ export default function PrivacidadPage() {
       <SeccionLegal titulo="Contenido público">
         <p>
           La información de eventos (títulos, flyers, lugares, horarios y precios) viene de ticketeras, de cuentas
-          públicas de Instagram de locales y productores, y de lo que cargan los usuarios.{" "}
-          <Marca>[REVISIÓN LEGAL]</Marca> sobre los afiches de terceros. Si sos titular de un contenido publicado y
+          públicas de Instagram de locales y productores, y de lo que cargan los usuarios. Los afiches y
+          los nombres son de sus dueños: los mostramos para informar sobre el evento. Si sos titular de un contenido publicado y
           querés corregirlo o que lo quitemos, escribinos.
         </p>
       </SeccionLegal>
@@ -250,8 +229,7 @@ export default function PrivacidadPage() {
         <p>
           Los datos de tu cuenta se conservan mientras la cuenta exista. La copia que la app guarda en tu teléfono
           dura hasta que vence o hasta que se borra, como contamos arriba. El registro de los avisos enviados se
-          conserva <Marca>[COMPLETAR: plazo]</Marca>. Lo que debamos conservar por una obligación legal:{" "}
-          <Marca>[REVISIÓN LEGAL]</Marca>.
+          borra junto con tu cuenta cuando la eliminás.
         </p>
       </SeccionLegal>
 
@@ -273,7 +251,7 @@ export default function PrivacidadPage() {
         <p>
           Podés pedir acceso, rectificación, actualización o supresión de tus datos personales. El acceso es
           gratuito en intervalos no menores a seis meses, salvo que acredites un interés legítimo (art. 14, inc. 3,
-          Ley 25.326). Los plazos para responder estos pedidos: <Marca>[REVISIÓN LEGAL]</Marca>.
+          Ley 25.326). Para ejercer estos derechos, escribinos al contacto de más abajo.
         </p>
         <p>
           La Agencia de Acceso a la Información Pública, en su carácter de Órgano de Control de la Ley 25.326, tiene
@@ -284,8 +262,7 @@ export default function PrivacidadPage() {
 
       <SeccionLegal titulo="Menores de edad">
         <p>
-          <Marca>[REVISIÓN LEGAL]</Marca> sobre si la app y el sitio pueden usarse a partir de cierta edad. La edad
-          mínima para crear una cuenta: <Marca>[COMPLETAR: edad mínima para crear una cuenta]</Marca>.
+          La edad mínima para crear una cuenta: <Marca>[COMPLETAR: edad mínima para crear una cuenta]</Marca>.
         </p>
       </SeccionLegal>
 
@@ -312,7 +289,7 @@ export default function PrivacidadPage() {
 
       <SeccionLegal titulo="Cambios a esta política">
         <p>
-          Si cambiamos esta política, vamos a actualizar la fecha de arriba. Si el cambio es importante, lo vamos a
+          Si cambiamos esta política, vamos a actualizar la versión y la fecha de arriba. Si el cambio es importante, lo vamos a
           avisar en el sitio y en la app.
         </p>
       </SeccionLegal>
