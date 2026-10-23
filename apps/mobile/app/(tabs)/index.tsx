@@ -31,6 +31,11 @@
 // categoría), todo en memoria sobre lo ya cargado — así también anda con la
 // caché de la R43. En ese modo no van el banner del Radar ni el anuncio (regla
 // del pliegue). "Ver todos" suma el atajo: `/buscar?categoria=…&atajo=…`.
+// 66-c: sin eventos para la combinación hay una caja con "Ver todas las fechas"
+// (`/buscar?categoria=…` sin atajo; el cine va a `/cines`) y "Todas las
+// categorías"; con eventos, una línea "N eventos" (live region) bajo el título.
+// Sin chips que elegir no se dibuja la fila. Sin conexión: nada de esto pide
+// red (todo es memoria sobre lo cargado), y `AvisoSinConexion` sigue arriba.
 //
 // Lo que no se copia, a propósito (ops/paridad-web-app.md, inventario
 // "Portada" y la tarea 29-h): "Más filtros" (lugar/zona) y el switch
@@ -310,28 +315,26 @@ export default function Inicio() {
     // R66, 66-a: chips y modo "categoría elegida", sobre lo mismo ya cargado.
     const chips = categoriasDisponibles(todosLosEventos, estado.categorias, categoria)
     let eventosCategoria: DisplayEvent[] = []
+    let nombreCategoria = ''
     if (categoria !== null) {
       const items: ItemFiltrable[] = [
         ...estado.eventos,
-        ...estado.peliculas.map((pelicula) => ({ evento: transformMovie(pelicula, saltaTodayStr), paraAtajo: null })),
+        ...peliculasComoEventos.map((evento) => ({ evento, paraAtajo: null })),
       ]
       eventosCategoria = filtrarCombinado(items, { atajo, categoria }, ahora)
+      nombreCategoria = estado.categorias.find((c) => c.slug === categoria)?.name ?? categoria
     }
 
-    return { carrusel, filas, hoyEventos, chips, eventosCategoria }
+    return { carrusel, filas, hoyEventos, chips, eventosCategoria, nombreCategoria }
   }, [estado, atajo, categoria])
 
   // Con una categoría elegida (R66) no hay secciones: ni "Hoy en Salta", ni
   // filas, ni banners — el cuerpo es la grilla de más abajo.
+  const nombreCategoria = datosPortada?.nombreCategoria ?? ''
   const secciones = useMemo(
     () => (datosPortada && categoria === null ? seccionesPortada(datosPortada.filas, datosPortada.hoyEventos) : []),
     [datosPortada, categoria]
   )
-
-  const nombreCategoria =
-    categoria === null
-      ? ''
-      : ((estado.tipo === 'ok' ? estado.categorias.find((c) => c.slug === categoria)?.name : undefined) ?? categoria)
 
   if (cargandoBienvenida) return null
   if (!vista) return <Redirect href="/bienvenida" />
@@ -355,7 +358,9 @@ export default function Inicio() {
 
           <PillsAtajos atajo={atajo} onCambiar={setAtajo} />
 
-          <ChipsCategorias categorias={datosPortada.chips} seleccionada={categoria} onCambiar={setCategoria} />
+          {datosPortada.chips.length > 0 || categoria !== null ? (
+            <ChipsCategorias categorias={datosPortada.chips} seleccionada={categoria} onCambiar={setCategoria} />
+          ) : null}
 
           {categoria !== null ? (
             <View style={estilos.bloqueCategoria}>
@@ -363,11 +368,37 @@ export default function Inicio() {
                 {nombreCategoria} · {ETIQUETA_ATAJO[atajo]}
               </Texto>
               {datosPortada.eventosCategoria.length === 0 ? (
-                <Texto tono="secundario">
-                  No hay eventos de {nombreCategoria} para {FRASE_ATAJO[atajo]}.
-                </Texto>
+                <View style={[estilos.vacioHoy, estilos.vacioCategoria, { backgroundColor: colores.card, borderColor: colores.border }]}>
+                  <Texto tono="secundario">
+                    No hay eventos de {nombreCategoria} para {FRASE_ATAJO[atajo]}.
+                  </Texto>
+                  <Pressable
+                    onPress={() => {
+                      // Igual que "Ver todos" de su fila: el cine va a Cines.
+                      if (categoria === 'cine') router.push('/cines')
+                      else router.push(`/buscar?categoria=${encodeURIComponent(categoria)}`)
+                    }}
+                    accessibilityRole="button"
+                    style={[estilos.vacioHoyBoton, estilos.botonVacio, { backgroundColor: colores.primary }]}
+                  >
+                    <Texto peso="bold" style={{ color: colores.primaryForeground }}>
+                      Ver todas las fechas
+                    </Texto>
+                  </Pressable>
+                  <Pressable
+                    onPress={() => setCategoria(null)}
+                    accessibilityRole="button"
+                    style={[estilos.vacioHoyBoton, estilos.botonVacio, { borderWidth: 1, borderColor: colores.border }]}
+                  >
+                    <Texto peso="bold">Todas las categorías</Texto>
+                  </Pressable>
+                </View>
               ) : (
-                enFilasDeDos(datosPortada.eventosCategoria).map((fila) => (
+                <>
+                  <Texto tono="secundario" accessibilityLiveRegion="polite">
+                    {datosPortada.eventosCategoria.length} {datosPortada.eventosCategoria.length === 1 ? 'evento' : 'eventos'}
+                  </Texto>
+                  {enFilasDeDos(datosPortada.eventosCategoria).map((fila) => (
                   <View key={fila[0].id} style={estilos.filaGrilla}>
                     {fila.map((evento) => (
                       <View key={evento.id} style={estilos.celda}>
@@ -375,7 +406,8 @@ export default function Inicio() {
                       </View>
                     ))}
                   </View>
-                ))
+                  ))}
+                </>
               )}
             </View>
           ) : null}
@@ -471,4 +503,7 @@ const estilos = StyleSheet.create({
   // Evita que la última celda de un número impar se estire a todo el ancho.
   celda: { flex: 1, maxWidth: '50%' },
   vacioHoyBoton: { borderRadius: 10, paddingVertical: 12, alignItems: 'center' },
+  // El bloque de la categoría ya tiene su propio padding horizontal.
+  vacioCategoria: { marginHorizontal: 0, marginTop: 0, gap: 12 },
+  botonVacio: { minHeight: 48, justifyContent: 'center' },
 })
