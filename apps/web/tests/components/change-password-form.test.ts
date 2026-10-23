@@ -2,9 +2,10 @@
  * `ChangePasswordForm` (R48, tarea 48-c): "Crear contraseña" para cuentas de
  * Google, además de "cambiar" para cuentas de email. Mismo patrón que
  * `tests/components/password-input.test.ts`: `apps/web` corre Vitest con
- * `environment: 'node'` (sin jsdom ni Testing Library), así que se usa
- * `react-dom/server` para renderizar sin DOM, y `fs` para los detectores
- * estáticos sobre el código fuente.
+ * `environment: 'node'` por omisión, así que se usa `react-dom/server` para
+ * renderizar sin DOM, y `fs` para los detectores estáticos sobre el código
+ * fuente. (Desde la R61 jsdom y Testing Library están instalados y los tests
+ * de `tests/dom/` piden su entorno por archivo; acá no hacen falta.)
  */
 import { readFileSync } from 'node:fs'
 import path from 'node:path'

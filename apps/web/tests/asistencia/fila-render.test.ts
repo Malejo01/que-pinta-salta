@@ -3,11 +3,18 @@
  * las piezas SIN estado y SIN hooks de `components/fila-acciones-evento.tsx`
  * y `components/boton-seguir.tsx`.
  *
- * `apps/web` no tiene jsdom ni @testing-library/react (vitest corre con
- * `environment: 'node'`, ver `apps/web/vitest.config.ts`), así que no hay
- * forma de montar los componentes en un DOM real y disparar un click sin
- * agregar una dependencia nueva (no autorizado para esta tarea). El patrón
- * es el mismo que `tests/components/password-input.test.ts`:
+ * Este archivo cubre SOLO las vistas sin estado, sin montar nada: Vitest
+ * corre con `environment: 'node'` en `apps/web` (`apps/web/vitest.config.ts`)
+ * y cuando se escribió, en la R47, jsdom y @testing-library/react no estaban
+ * autorizados. **Desde la R61 sí están instalados**, y el click con estado
+ * sobre `FilaAccionesEvento` —lo que faltaba de QPS-199— vive en
+ * `tests/dom/fila-acciones-evento.dom.test.ts`, que pide jsdom con la
+ * directiva de entorno por archivo de Vitest en su primera línea (el literal
+ * no se reproduce acá a propósito: alcanza con que aparezca en un comentario
+ * para que Vitest le cambie el entorno a ESTE archivo). Los dos archivos se
+ * reparten el trabajo y no se pisan: acá el HTML y el ORDEN de las vistas
+ * puras, allá el estado y los clicks. El patrón de acá es el mismo que
+ * `tests/components/password-input.test.ts`:
  *
  *   - Para el HTML real (orden de los botones, texto, `aria-pressed`) se usa
  *     `renderToStaticMarkup` de `react-dom/server`, que funciona en Node

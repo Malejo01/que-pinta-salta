@@ -437,7 +437,7 @@ export function EventDetailPage({
         </div>
 
         <div className="mt-12 border-t border-border pt-8 max-w-4xl mx-auto">
-          <AdSenseBanner slot="event-detail-bottom-banner" />
+          <AdSenseBanner lugar="ficha" />
         </div>
       </main>
 

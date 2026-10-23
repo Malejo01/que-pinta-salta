@@ -223,6 +223,27 @@ export const COLUMNAS_A_DESVINCULAR: readonly EntradaTablaPersonal[] = [
       "nullable. Mismo criterio que events.featured_set_by.",
   },
   {
+    tabla: "ad_price_cycles",
+    columna: "approved_by",
+    comentario:
+      "R58: quién aprobó el ciclo de precios (admin). FK a auth.users(id) ON DELETE SET NULL, nullable. " +
+      "Mismo criterio que events.featured_set_by.",
+  },
+  {
+    tabla: "ad_settings",
+    columna: "updated_by",
+    comentario:
+      "R58: quién cambió la configuración de la publicidad (admin). FK a auth.users(id) ON DELETE SET NULL, " +
+      "nullable. Mismo criterio que events.featured_set_by.",
+  },
+  {
+    tabla: "ad_campaign_reports",
+    columna: "created_by",
+    comentario:
+      "R58: quién generó el reporte de la campaña (admin, o null si lo armó el cron). FK a auth.users(id) " +
+      "ON DELETE SET NULL, nullable. Mismo criterio que events.featured_set_by.",
+  },
+  {
     tabla: "aliases",
     columna: "created_by",
     comentario:

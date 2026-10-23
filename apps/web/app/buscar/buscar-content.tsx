@@ -13,6 +13,7 @@ import { EventCard } from "@/components/event-card"
 import { EventModal } from "@/components/event-modal"
 import { MovieModal } from "@/components/movie-modal"
 import { getCategoryIcon } from "@/lib/category-icons"
+import { AdSenseBanner } from "@/components/adsense-banner"
 import { transformEvent, type DisplayEvent } from "@/components/home-content"
 import { soloGratis } from "@qps/core/home/filtros-extra"
 import { buscarEventosPorTexto } from "@qps/core/home/busqueda"
@@ -286,6 +287,15 @@ export function BuscarContent({
                 ? `No se encontraron eventos para "${searchQuery}"`
                 : "No hay eventos gratis por ahora."}
             </p>
+          </div>
+        )}
+
+        {/* Con 0 resultados el estado vacío es cortito: el banner asomaría
+            sin scroll justo debajo de "no se encontraron eventos" (regla del
+            pliegue, 360x800). Se oculta en ese caso puntual. */}
+        {!(mostrarListaResultados && resultadosMostrados.length === 0) && (
+          <div className="mt-8">
+            <AdSenseBanner lugar="buscar" />
           </div>
         )}
       </main>

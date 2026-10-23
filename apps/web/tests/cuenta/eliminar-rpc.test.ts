@@ -25,8 +25,11 @@ const CARPETA_MIGRACIONES = join(process.cwd(), "..", "..", "supabase", "migrati
 const PATRON_DEFINICION = /create\s+(or\s+replace\s+)?function\s+public\.delete_my_account\s*\(/i
 
 /**
- * Busca, entre TODOS los archivos `.sql` de `supabase/migrations/`, el que
- * define `public.delete_my_account()`. Si no encuentra exactamente uno,
+ * Busca, entre TODOS los archivos `.sql` de `supabase/migrations/`, los que
+ * definen `public.delete_my_account()`, y se queda con el ÚLTIMO (por nombre,
+ * que empieza con la versión): esa es la definición vigente después de
+ * aplicar todas las migraciones (la R58 la reemplaza para sumar tres
+ * columnas). Si no encuentra ninguno,
  * tira con un mensaje explícito (no un `expect` que falla más abajo con un
  * mensaje genérico): esta búsqueda es la base de todo lo demás en este
  * archivo, así que si falla, tiene que fallar fuerte y claro.
@@ -52,20 +55,14 @@ function encontrarArchivoDeLaMigracion(): { ruta: string; contenido: string } {
         "\"create [or replace] function public.delete_my_account(\". ¿Se borró o se renombró la función?",
     )
   }
-  if (candidatos.length > 1) {
-    throw new Error(
-      `Se encontró la definición de public.delete_my_account() en MÁS DE UN archivo de migración: ` +
-        `${candidatos.join(", ")}. Este test asume que hay exactamente uno.`,
-    )
-  }
-
-  return { ruta: candidatos[0], contenido: readFileSync(candidatos[0], "utf8") }
+  const vigente = [...candidatos].sort().at(-1)!
+  return { ruta: vigente, contenido: readFileSync(vigente, "utf8") }
 }
 
 const { contenido: SQL } = encontrarArchivoDeLaMigracion()
 
 describe("public.delete_my_account(): la migración existe y define la función", () => {
-  it("se encontró exactamente un archivo de migración con la definición", () => {
+  it("se encontró la migración vigente con la definición", () => {
     expect(SQL.length).toBeGreaterThan(0)
     expect(PATRON_DEFINICION.test(SQL)).toBe(true)
   })

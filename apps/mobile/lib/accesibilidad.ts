@@ -124,6 +124,14 @@ export function cumpleContraste(ratio: number, uso: UsoContraste): boolean {
  * - el Hero de portada (`Hero`): todos sus textos, incluido el badge de
  *   categoría.
  * - el badge de categoría de la ficha de evento (`app/evento/[id].tsx`).
+ * - el rótulo "Publicidad" del banner de AdMob (`BannerAnuncio`, R60). Es la
+ *   única entrada de esta lista donde el motivo NO es "se corta": el
+ *   contenedor del banner no tiene alto fijo, así que un rótulo más grande no
+ *   desborda nada. El tope está para que el rótulo quede proporcionado al
+ *   banner, que SÍ es de alto fijo pero no es nuestro (lo dibuja el SDK y no
+ *   escala con la fuente del sistema): sin tope, con la letra del sistema al
+ *   máximo el rótulo puede llegar a competir en altura con el aviso que
+ *   rotula.
  *
  * A propósito, SIN tope:
  * - las pills de atajos (`PillsAtajos`): la fila es un scroll horizontal

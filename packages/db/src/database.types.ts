@@ -5,7 +5,90 @@ export type Database = {
   
   "public": {
           Tables: {
-            "aliases": {
+            "ad_campaign_reports": {
+                  Row: {
+                    "created_at": string,"created_by": string | null,"desde": string,"event_id": string,"hasta": string,"id": string,"metricas": NonNullable<Json>,"precio_ars": number | null,"sponsored_campaign_id": string | null,"tipo": string,"token": string
+                  }
+                  Insert: {
+                    "created_at"?: string,"created_by"?: string | null,"desde": string,"event_id": string,"hasta": string,"id"?: string,"metricas"?: NonNullable<Json>,"precio_ars"?: number | null,"sponsored_campaign_id"?: string | null,"tipo": string,"token"?: string
+                  }
+                  Update: {
+                    "created_at"?: string,"created_by"?: string | null,"desde"?: string,"event_id"?: string,"hasta"?: string,"id"?: string,"metricas"?: NonNullable<Json>,"precio_ars"?: number | null,"sponsored_campaign_id"?: string | null,"tipo"?: string,"token"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "ad_campaign_reports_event_id_fkey"
+      columns: ["event_id"]
+isOneToOne: false
+      referencedRelation: "events"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "ad_campaign_reports_sponsored_campaign_id_fkey"
+      columns: ["sponsored_campaign_id"]
+isOneToOne: false
+      referencedRelation: "sponsored_campaigns"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"ad_occupancy_daily": {
+                  Row: {
+                    "created_at": string,"day": string,"hero_cupos": number,"hero_ocupados": number,"push_cupos": number,"push_cupos_usados": number
+                  }
+                  Insert: {
+                    "created_at"?: string,"day": string,"hero_cupos": number,"hero_ocupados": number,"push_cupos"?: number,"push_cupos_usados"?: number
+                  }
+                  Update: {
+                    "created_at"?: string,"day"?: string,"hero_cupos"?: number,"hero_ocupados"?: number,"push_cupos"?: number,"push_cupos_usados"?: number
+                  }
+                  Relationships: [
+                    
+                  ]
+                },"ad_price_cycles": {
+                  Row: {
+                    "approved_at": string | null,"approved_by": string | null,"audiencia": number,"audiencia_web_28d": number,"cambio_tramo_desde": string | null,"ciclo": string,"created_at": string,"dispositivos_push": number | null,"estado": string,"factor_hero": number,"factor_push": number,"fuente_audiencia": string,"fuente_tipo_cambio": string,"mau_app_28d": number | null,"ocupacion_hero": number | null,"ocupacion_push": number | null,"tipo_cambio": number,"tramo_calculado": number,"tramo_vigente": number
+                  }
+                  Insert: {
+                    "approved_at"?: string | null,"approved_by"?: string | null,"audiencia": number,"audiencia_web_28d": number,"cambio_tramo_desde"?: string | null,"ciclo": string,"created_at"?: string,"dispositivos_push"?: number | null,"estado"?: string,"factor_hero"?: number,"factor_push"?: number,"fuente_audiencia": string,"fuente_tipo_cambio": string,"mau_app_28d"?: number | null,"ocupacion_hero"?: number | null,"ocupacion_push"?: number | null,"tipo_cambio": number,"tramo_calculado": number,"tramo_vigente": number
+                  }
+                  Update: {
+                    "approved_at"?: string | null,"approved_by"?: string | null,"audiencia"?: number,"audiencia_web_28d"?: number,"cambio_tramo_desde"?: string | null,"ciclo"?: string,"created_at"?: string,"dispositivos_push"?: number | null,"estado"?: string,"factor_hero"?: number,"factor_push"?: number,"fuente_audiencia"?: string,"fuente_tipo_cambio"?: string,"mau_app_28d"?: number | null,"ocupacion_hero"?: number | null,"ocupacion_push"?: number | null,"tipo_cambio"?: number,"tramo_calculado"?: number,"tramo_vigente"?: number
+                  }
+                  Relationships: [
+                    
+                  ]
+                },"ad_prices": {
+                  Row: {
+                    "ciclo": string,"created_at": string,"estado": string,"id": string,"precio_ars": number,"precio_fundador_ars": number | null,"precio_usd": number,"producto": string,"tipo_cambio": number,"tramo_ref": number,"vigente_desde": string
+                  }
+                  Insert: {
+                    "ciclo": string,"created_at"?: string,"estado"?: string,"id"?: string,"precio_ars": number,"precio_fundador_ars"?: number | null,"precio_usd": number,"producto": string,"tipo_cambio": number,"tramo_ref": number,"vigente_desde": string
+                  }
+                  Update: {
+                    "ciclo"?: string,"created_at"?: string,"estado"?: string,"id"?: string,"precio_ars"?: number,"precio_fundador_ars"?: number | null,"precio_usd"?: number,"producto"?: string,"tipo_cambio"?: number,"tramo_ref"?: number,"vigente_desde"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "ad_prices_ciclo_fkey"
+      columns: ["ciclo"]
+isOneToOne: false
+      referencedRelation: "ad_price_cycles"
+      referencedColumns: ["ciclo"]
+    }
+                  ]
+                },"ad_settings": {
+                  Row: {
+                    "aprobacion_automatica": boolean,"id": boolean,"push_patrocinado_pausa_motivo": string | null,"push_patrocinado_pausado_at": string | null,"umbral_bajas_push": number,"updated_at": string,"updated_by": string | null
+                  }
+                  Insert: {
+                    "aprobacion_automatica"?: boolean,"id"?: boolean,"push_patrocinado_pausa_motivo"?: string | null,"push_patrocinado_pausado_at"?: string | null,"umbral_bajas_push"?: number,"updated_at"?: string,"updated_by"?: string | null
+                  }
+                  Update: {
+                    "aprobacion_automatica"?: boolean,"id"?: boolean,"push_patrocinado_pausa_motivo"?: string | null,"push_patrocinado_pausado_at"?: string | null,"umbral_bajas_push"?: number,"updated_at"?: string,"updated_by"?: string | null
+                  }
+                  Relationships: [
+                    
+                  ]
+                },"aliases": {
                   Row: {
                     "alias": string,"created_at": string | null,"created_by": string | null,"id": string,"target_id": string,"target_type": string
                   }
@@ -356,13 +439,13 @@ isOneToOne: false
                   ]
                 },"sponsored_campaigns": {
                   Row: {
-                    "body": string,"created_at": string,"created_by": string | null,"ends_at": string,"event_id": string | null,"id": string,"sent_at": string | null,"starts_at": string,"title": string,"url": string | null
+                    "bajas_48h": number | null,"bajas_medidas_at": string | null,"body": string,"created_at": string,"created_by": string | null,"destinatarios": number | null,"ends_at": string,"event_id": string | null,"id": string,"sent_at": string | null,"starts_at": string,"title": string,"url": string | null
                   }
                   Insert: {
-                    "body": string,"created_at"?: string,"created_by"?: string | null,"ends_at": string,"event_id"?: string | null,"id"?: string,"sent_at"?: string | null,"starts_at": string,"title": string,"url"?: string | null
+                    "bajas_48h"?: number | null,"bajas_medidas_at"?: string | null,"body": string,"created_at"?: string,"created_by"?: string | null,"destinatarios"?: number | null,"ends_at": string,"event_id"?: string | null,"id"?: string,"sent_at"?: string | null,"starts_at": string,"title": string,"url"?: string | null
                   }
                   Update: {
-                    "body"?: string,"created_at"?: string,"created_by"?: string | null,"ends_at"?: string,"event_id"?: string | null,"id"?: string,"sent_at"?: string | null,"starts_at"?: string,"title"?: string,"url"?: string | null
+                    "bajas_48h"?: number | null,"bajas_medidas_at"?: string | null,"body"?: string,"created_at"?: string,"created_by"?: string | null,"destinatarios"?: number | null,"ends_at"?: string,"event_id"?: string | null,"id"?: string,"sent_at"?: string | null,"starts_at"?: string,"title"?: string,"url"?: string | null
                   }
                   Relationships: [
                     {

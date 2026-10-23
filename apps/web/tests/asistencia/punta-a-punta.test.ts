@@ -88,6 +88,20 @@ function construirClienteVoy(config: ConfigVoy) {
         },
       }
     }
+    // QPS-195 (R56, tarea 56-a): `estadoPermiteAgregar` se consulta antes
+    // del primer paso que AGREGUE una marca. Siempre PUBLISHED acá: esta
+    // secuencia de punta a punta no prueba ESE chequeo (lo hace
+    // `tests/asistencia/estado-evento.test.ts`), solo el orden de las
+    // escrituras de Guardar/Voy.
+    if (tabla === 'events') {
+      return {
+        select: () => ({
+          eq: () => ({
+            maybeSingle: async () => ({ data: { status: 'PUBLISHED' }, error: null }),
+          }),
+        }),
+      }
+    }
     throw new Error(`tabla inesperada en el doble de marcarAsistencia: ${tabla}`)
   })
 

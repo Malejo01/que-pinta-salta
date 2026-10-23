@@ -23,6 +23,8 @@ const csp = {
       'https://pagead2.googlesyndication.com', 'https://adservice.google.com',
       'https://googleads.g.doubleclick.net', 'https://*.adtrafficquality.google', 'https://*.doubleclick.net',
       'https://www.googleadservices.com', 'https://*.googleadservices.com',
+      // CMP de Google ("Privacidad y mensajes", fundingchoicesmessages.google.com).
+      'https://fundingchoicesmessages.google.com',
     ]),
     'https://www.google.com', 'https://*.google.com', 'https://*.google.com.ar',
   ],
@@ -60,7 +62,7 @@ const csp = {
         ]
       : ['https://stats.g.doubleclick.net']),
     'https://*.googletagmanager.com', 'https://*.google.com', 'https://*.google.com.ar',
-    ...ifAds(['https://*.googleadservices.com', 'https://*.merchant-center-analytics.goog']),
+    ...ifAds(['https://*.googleadservices.com', 'https://*.merchant-center-analytics.goog', 'https://fundingchoicesmessages.google.com']),
     // El mapa (R54): MapLibre pide el estilo, los tiles, las fuentes y los
     // sprites de OpenFreeMap con `fetch`.
     ORIGEN_TILES_MAPA,
@@ -70,6 +72,7 @@ const csp = {
     ...ifAds([
       'https://googleads.g.doubleclick.net', 'https://*.doubleclick.net',
       'https://tpc.googlesyndication.com', 'https://*.adtrafficquality.google',
+      'https://fundingchoicesmessages.google.com',
     ]),
     'https://*.google.com', 'https://*.google.com.ar',
   ],
