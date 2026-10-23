@@ -28,20 +28,44 @@
 // suelto, visible solo con `texto` no vacío. La lupa de la izquierda NO se
 // recupera a propósito: `CampoTexto` no tiene slot izquierdo, y ahora hay un
 // label visible ("Buscar") que cumple el mismo rol.
+//
+// R66 (66-b): Buscar filtra también por fecha y deja cambiar la categoría.
+// Las pills de fecha (`PillsAtajos` con `etiquetaTodas="Cualquier fecha"`,
+// `null` = todas las fechas) y, en modo resultados, los chips de categoría
+// (`ChipsCategorias`, con las categorías que tienen eventos para la fecha, el
+// texto y "Solo gratis" elegidos; van dentro de la lista, arriba del conteo,
+// para que scrolleen y no le roben alto a los resultados con el teclado
+// abierto) se suman a texto + gratis, todo con
+// `filtrarCombinado` de `@qps/core/home/filtros-combinados`. Para filtrar por
+// fecha hace falta `end_date`, así que la carga pasa a
+// `obtenerEventosVigentesParaInicio(ahora)`, con un `ahora` único por carga
+// guardado en el estado (mismo criterio que la portada). `atajo` llega por
+// querystring junto con `categoria` y un nonce `v` desde "Ver todos" de la
+// portada (`/buscar?categoria=<slug>&atajo=<atajo>&v=<Date.now()>`), con el
+// mismo patrón comparar-y-ajustar, cuya clave incluye `v`: un toque nuevo vuelve
+// a aplicar categoría y fecha aunque sean iguales a los de antes. Los conteos de la grilla "Explorar por categoria" siguen
+// siendo sobre todos los eventos. Sin resultados, el vacío ofrece salir de la
+// fecha y/o de la categoría. Buscar sigue sin caché offline.
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { FlatList, Pressable, RefreshControl, StyleSheet, View } from 'react-native'
 import { useLocalSearchParams } from 'expo-router'
-import { buscarEventosPorTexto } from '@qps/core/home/busqueda'
-import { soloGratis } from '@qps/core/home/filtros-extra'
-import type { DisplayEvent } from '@qps/core/home/types'
+import type { Atajo } from '@qps/core/home/atajos'
+import {
+  atajoDesdeParametro,
+  categoriasDisponibles,
+  filtrarCombinado,
+  type ItemFiltrable,
+} from '@qps/core/home/filtros-combinados'
 import { BannerAnuncio } from '@/components/BannerAnuncio'
 import { CampoTexto } from '@/components/CampoTexto'
+import { ChipsCategorias } from '@/components/ChipsCategorias'
 import { Cargando, ErrorCarga, Vacio } from '@/components/EstadoCarga'
 import { Icono, iconoPorCategoria } from '@/components/Icono'
+import { PillsAtajos } from '@/components/PillsAtajos'
 import { TarjetaEvento } from '@/components/TarjetaEvento'
 import { Texto } from '@/components/Texto'
 import { useColoresQPS } from '@/lib/colores'
-import { obtenerCategorias, obtenerEventosVigentes, type CategoriaBasica } from '@/lib/datos/eventos'
+import { obtenerCategorias, obtenerEventosVigentesParaInicio, type CategoriaBasica } from '@/lib/datos/eventos'
 
 /**
  * Cuántos resultados tienen que haber para que el banner de abajo se dibuje
@@ -55,7 +79,17 @@ export const RESULTADOS_MINIMOS_PARA_ANUNCIO = 3
 type EstadoLista =
   | { tipo: 'cargando' }
   | { tipo: 'error'; error: string }
-  | { tipo: 'ok'; eventos: DisplayEvent[]; categorias: CategoriaBasica[] }
+  // `ahora`: un único instante por carga (el mismo que decidió qué eventos
+  // siguen vigentes), para que el filtro de fecha no use otro reloj.
+  | { tipo: 'ok'; items: ItemFiltrable[]; categorias: CategoriaBasica[]; ahora: Date }
+
+// Cómo se nombra cada fecha dentro de una frase ("... · el finde", "... para hoy").
+const NOMBRE_ATAJO: Record<Atajo, string> = {
+  hoy: 'hoy',
+  'esta-noche': 'esta noche',
+  finde: 'el finde',
+  semana: 'esta semana',
+}
 
 // El ícono por categoría (R29-q, integración de la tanda 3, punto D): sale
 // de `iconoPorCategoria`, `components/Icono.tsx` — el mismo mapeo que usa
@@ -64,8 +98,13 @@ type EstadoLista =
 
 export default function Buscar() {
   const colores = useColoresQPS()
-  const params = useLocalSearchParams<{ categoria?: string }>()
+  const params = useLocalSearchParams<{ categoria?: string; atajo?: string; v?: string }>()
   const categoriaParam = typeof params.categoria === 'string' && params.categoria ? params.categoria : null
+  const atajoParam = atajoDesdeParametro(params.atajo)
+  // Nonce de la portada (`Date.now()` en el `onPress` de "Ver todos"): cambia en
+  // cada toque, así que sirve para volver a aplicar categoría y fecha aunque
+  // los parámetros sean idénticos a los de la vez anterior.
+  const vParam = typeof params.v === 'string' && params.v ? params.v : null
 
   const [estado, setEstado] = useState<EstadoLista>({ tipo: 'cargando' })
   // Estado de refresco aparte del de carga (28-c): mientras se refresca, la
@@ -77,11 +116,19 @@ export default function Buscar() {
   // Sincroniza `categoriaFiltro` con el parámetro de la ruta sin `setState`
   // sincrónico dentro de un `useEffect` (mismo patrón que `idAnterior` en
   // `app/evento/[id].tsx`): se compara durante el render, no en un efecto.
-  const [categoriaParamAnterior, setCategoriaParamAnterior] = useState(categoriaParam)
+  // R66: "Ver todos" de la portada trae la categoría Y el atajo que estaba
+  // elegido, más el nonce `v`. La clave del comparar-y-ajustar es la
+  // combinación de los tres: si cambia cualquiera (incluso solo `v`), se
+  // vuelven a aplicar `categoria` y `atajo` del parámetro. Texto y "Solo
+  // gratis" no se tocan.
+  const claveParams = `${categoriaParam ?? ''}|${atajoParam ?? ''}|${vParam ?? ''}`
+  const [claveParamsAnterior, setClaveParamsAnterior] = useState(claveParams)
   const [categoriaFiltro, setCategoriaFiltro] = useState<string | null>(categoriaParam)
-  if (categoriaParamAnterior !== categoriaParam) {
-    setCategoriaParamAnterior(categoriaParam)
+  const [atajo, setAtajo] = useState<Atajo | null>(atajoParam)
+  if (claveParamsAnterior !== claveParams) {
+    setClaveParamsAnterior(claveParams)
     setCategoriaFiltro(categoriaParam)
+    setAtajo(atajoParam)
   }
 
   // Cuenta de "reintentos" (mismo patrón que `app/evento/[id].tsx` y
@@ -94,14 +141,15 @@ export default function Buscar() {
   const [intento, setIntento] = useState(0)
 
   const obtenerDatos = useCallback(async (): Promise<EstadoLista> => {
+    const ahora = new Date()
     const [resultadoEventos, resultadoCategorias] = await Promise.all([
-      obtenerEventosVigentes(),
+      obtenerEventosVigentesParaInicio(ahora),
       obtenerCategorias(),
     ])
 
     if (!resultadoEventos.ok) return { tipo: 'error', error: resultadoEventos.error }
     if (!resultadoCategorias.ok) return { tipo: 'error', error: resultadoCategorias.error }
-    return { tipo: 'ok', eventos: resultadoEventos.eventos, categorias: resultadoCategorias.categorias }
+    return { tipo: 'ok', items: resultadoEventos.eventos, categorias: resultadoCategorias.categorias, ahora }
   }, [])
 
   const cargar = useCallback(() => {
@@ -142,56 +190,88 @@ export default function Buscar() {
   // "Solo gratis" se ven resultados en vez de la grilla de categorías); acá
   // se suma `categoriaFiltro`, que la web no tiene en Buscar (es la llegada
   // desde "Ver todos" de una fila de la portada, 29-h).
-  const mostrarResultados = Boolean(texto) || soloGratisActivo || Boolean(categoriaFiltro)
+  // R66: también con una fecha elegida (`atajo`).
+  const mostrarResultados = Boolean(texto) || soloGratisActivo || Boolean(categoriaFiltro) || atajo !== null
 
   const resultadosMostrados = useMemo(() => {
     if (estado.tipo !== 'ok') return []
-    let base = texto ? buscarEventosPorTexto(estado.eventos, texto) : estado.eventos
-    if (categoriaFiltro) base = base.filter((evento) => evento.category === categoriaFiltro)
-    return soloGratisActivo ? soloGratis(base) : base
-  }, [estado, texto, categoriaFiltro, soloGratisActivo])
+    return filtrarCombinado(
+      estado.items,
+      { atajo, categoria: categoriaFiltro, soloGratis: soloGratisActivo, texto },
+      estado.ahora,
+    )
+  }, [estado, texto, atajo, categoriaFiltro, soloGratisActivo])
 
+  // Los chips de categoría salen de lo filtrado por fecha + texto + gratis,
+  // SIN la categoría: así se puede cambiar de categoría (o sacarla) y cada
+  // chip muestra lo que daría elegirla.
+  const categoriasParaChips = useMemo(() => {
+    if (estado.tipo !== 'ok') return []
+    const sinCategoria = filtrarCombinado(
+      estado.items,
+      { atajo, categoria: null, soloGratis: soloGratisActivo, texto },
+      estado.ahora,
+    )
+    return categoriasDisponibles(sinCategoria, estado.categorias, categoriaFiltro)
+  }, [estado, texto, atajo, categoriaFiltro, soloGratisActivo])
+
+  // Los conteos de la grilla "Explorar por categoria" son sobre TODOS los
+  // eventos (sin fecha ni texto): esa grilla solo se ve sin filtros.
   const cantidadPorCategoria = useCallback(
-    (slug: string) => (estado.tipo === 'ok' ? estado.eventos.filter((evento) => evento.category === slug).length : 0),
+    (slug: string) => (estado.tipo === 'ok' ? estado.items.filter((item) => item.evento.category === slug).length : 0),
     [estado],
   )
 
+  const sufijoFecha = atajo ? ` · ${NOMBRE_ATAJO[atajo]}` : ''
+  const enCategoria = nombreCategoriaFiltro ? ` en ${nombreCategoriaFiltro}` : ''
+
   function textoResultados(cantidad: number): string {
     const plural = cantidad !== 1 ? 's' : ''
-    if (texto) return `${cantidad} resultado${plural} para "${texto}"`
-    if (categoriaFiltro) return `${cantidad} evento${plural}${nombreCategoriaFiltro ? ` en ${nombreCategoriaFiltro}` : ''}`
-    return `${cantidad} evento${plural} gratis`
+    if (texto) return `${cantidad} resultado${plural} para "${texto}"${enCategoria}${sufijoFecha}`
+    const gratis = soloGratisActivo ? ' gratis' : ''
+    return `${cantidad} evento${plural}${gratis}${enCategoria}${sufijoFecha}`
   }
 
   function textoSinResultados(): string {
-    if (texto) return `No se encontraron eventos para "${texto}"`
-    if (categoriaFiltro) return `No hay eventos${nombreCategoriaFiltro ? ` en ${nombreCategoriaFiltro}` : ''} por ahora.`
-    return 'No hay eventos gratis por ahora.'
+    if (texto) return `No se encontraron eventos para "${texto}"${enCategoria}${sufijoFecha}`
+    const gratis = soloGratisActivo ? ' gratis' : ''
+    const cuando = atajo ? ` para ${NOMBRE_ATAJO[atajo]}` : ' por ahora'
+    return `No hay eventos${gratis}${enCategoria}${cuando}.`
   }
+
+  // Salidas del vacío (R66): sacar la fecha y/o la categoría. Un botón por
+  // cada filtro que se puede sacar.
+  const accionesVacio: { texto: string; alTocar: () => void }[] = []
+  if (atajo !== null) accionesVacio.push({ texto: 'Ver todas las fechas', alTocar: () => setAtajo(null) })
+  if (categoriaFiltro !== null) accionesVacio.push({ texto: 'Todas las categorías', alTocar: () => setCategoriaFiltro(null) })
 
   return (
     <View style={[estilos.contenedor, { backgroundColor: colores.background }]}>
       <View style={estilos.cabecera}>
-        <CampoTexto
-          label="Buscar"
-          value={texto}
-          onChangeText={setTexto}
-          placeholder="Buscar por evento, lugar o descripcion..."
-          autoCapitalize="none"
-          accionDerecha={
-            texto ? (
-              <Pressable
-                onPress={() => setTexto('')}
-                accessibilityRole="button"
-                accessibilityLabel="Limpiar búsqueda"
-                style={estilos.botonLimpiar}
-                hitSlop={8}
-              >
-                <Icono nombre="X" tamanio={18} color={colores.mutedForeground} />
-              </Pressable>
-            ) : undefined
-          }
-        />
+        <View style={estilos.campo}>
+          <CampoTexto
+            label="Buscar"
+            value={texto}
+            onChangeText={setTexto}
+            placeholder="Buscar por evento, lugar o descripcion..."
+            autoCapitalize="none"
+            accionDerecha={
+              texto ? (
+                <Pressable
+                  onPress={() => setTexto('')}
+                  accessibilityRole="button"
+                  accessibilityLabel="Limpiar búsqueda"
+                  style={estilos.botonLimpiar}
+                  hitSlop={8}
+                >
+                  <Icono nombre="X" tamanio={18} color={colores.mutedForeground} />
+                </Pressable>
+              ) : undefined
+            }
+          />
+        </View>
+
+        <PillsAtajos atajo={atajo} onCambiar={setAtajo} etiquetaTodas="Cualquier fecha" />
 
         <Pressable
           onPress={() => setSoloGratisActivo((valor) => !valor)}
@@ -222,6 +302,8 @@ export default function Buscar() {
           numColumns={2}
           columnWrapperStyle={estilos.filaGrilla}
           contentContainerStyle={estilos.lista}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
           refreshControl={
             <RefreshControl refreshing={refrescando} onRefresh={refrescar} tintColor={colores.primary} colors={[colores.primary]} />
           }
@@ -269,15 +351,47 @@ export default function Buscar() {
           numColumns={2}
           columnWrapperStyle={estilos.filaGrilla}
           contentContainerStyle={estilos.lista}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
           refreshControl={
             <RefreshControl refreshing={refrescando} onRefresh={refrescar} tintColor={colores.primary} colors={[colores.primary]} />
           }
           ListHeaderComponent={
-            <Texto tono="secundario" style={estilos.tituloSeccion}>
-              {textoResultados(resultadosMostrados.length)}
-            </Texto>
+            <>
+              {/* Los chips scrollean con la lista (no quedan fijos): con el
+                  teclado abierto la cabecera fija es solo campo + pills. El
+                  padding horizontal de la lista (16) se compensa con margen
+                  negativo porque los chips traen el suyo. */}
+              <View style={estilos.chipsEnLista}>
+                <ChipsCategorias categorias={categoriasParaChips} seleccionada={categoriaFiltro} onCambiar={setCategoriaFiltro} />
+              </View>
+              <Texto tono="secundario" accessibilityLiveRegion="polite" style={estilos.tituloSeccion}>
+                {textoResultados(resultadosMostrados.length)}
+              </Texto>
+            </>
           }
-          ListEmptyComponent={<Vacio mensaje={textoSinResultados()} />}
+          ListEmptyComponent={
+            <View style={estilos.vacio}>
+              <Vacio mensaje={textoSinResultados()} />
+              {accionesVacio.map((accion, indice) => (
+                <Pressable
+                  key={accion.texto}
+                  onPress={accion.alTocar}
+                  accessibilityRole="button"
+                  // El primero es la salida principal (relleno, como en la
+                  // portada); el segundo, con contorno.
+                  style={[
+                    estilos.botonVacio,
+                    indice === 0 ? { backgroundColor: colores.primary, borderColor: colores.primary } : { borderColor: colores.border },
+                  ]}
+                >
+                  <Texto peso="semibold" style={{ color: indice === 0 ? colores.primaryForeground : colores.foreground }}>
+                    {accion.texto}
+                  </Texto>
+                </Pressable>
+              ))}
+            </View>
+          }
           // Mismo porqué que la lista de categorías, arriba, pero el corte es
           // por CANTIDAD y no solo por lista vacía — regla (a) de Mauro
           // ("ningún anuncio arriba del pliegue"), con la cuenta de alturas de
@@ -288,6 +402,17 @@ export default function Buscar() {
           // ~649 dp: con 1 o 2 resultados asoma sin scrollear. Con 3 o 4 son
           // dos filas y el banner se va a los ~702 dp. Es el mismo hallazgo
           // que ux-ui hizo sobre la web en la R52 (ahí fue con 2 resultados).
+          //
+          // R66 (66-b, rehecha en 66-r1): la cabecera FIJA es campo + chip +
+          // pills de fecha: ~228 dp (160 + ~68 de las pills). Los chips de
+          // categoría (~60 dp) ya no son fijos: van arriba del título dentro de
+          // la lista (`ListHeaderComponent`) y scrollean con ella. Sin scrollear
+          // la suma es la misma: 228 + 60 (chips) + 32 (título) + UNA fila de
+          // 237 + ~24 de relleno = ~581 dp, así que con 1 o 2 resultados el
+          // banner sigue asomando (área visible ~649 dp) y el mínimo no baja de
+          // 3; con dos filas arranca a los ~830 dp. Al scrollear o con el
+          // teclado abierto, los chips salen de pantalla y los resultados
+          // ganan ~60 dp.
           //
           // Sin `sinConexion`, porque esta pantalla
           // no tiene ningún estado de caché/sin conexión propio
@@ -310,7 +435,22 @@ export default function Buscar() {
 
 const estilos = StyleSheet.create({
   contenedor: { flex: 1 },
-  cabecera: { padding: 16, gap: 12 },
+  // R66: las pills y los chips traen su propio padding horizontal (16), así
+  // que la cabecera ya no lo pone: lo ponen el campo y el chip "Solo gratis".
+  cabecera: { paddingTop: 16, gap: 4 },
+  campo: { paddingHorizontal: 16 },
+  // `ChipsCategorias` trae su padding horizontal (16) y la lista también: se
+  // compensa para que el primer chip quede alineado con el campo, como antes.
+  chipsEnLista: { marginHorizontal: -16 },
+  vacio: { alignItems: 'center', gap: 12 },
+  botonVacio: {
+    borderWidth: 1,
+    borderRadius: 20,
+    paddingHorizontal: 16,
+    minHeight: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   // Mismo tamaño mínimo (44dp) que el "ojito" de CampoTexto.tsx: el área
   // táctil del botón de limpiar no puede depender solo del padding.
   botonLimpiar: {
@@ -328,6 +468,8 @@ const estilos = StyleSheet.create({
   // más de alto, casi imperceptible en una pill chica).
   chipGratis: {
     alignSelf: 'flex-start',
+    marginLeft: 16,
+    marginBottom: 8,
     borderWidth: 1,
     borderRadius: 999,
     minHeight: 48,

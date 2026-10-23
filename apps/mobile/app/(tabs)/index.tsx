@@ -23,6 +23,24 @@
 // `groupByCategory` las ubica en su propia fila sin lógica extra acá, igual
 // que en la web.
 //
+// R66 (66-a): los chips de categoría (`components/ChipsCategorias.tsx`) van
+// debajo de los atajos. Sus categorías salen de `categoriasDisponibles` (core)
+// sobre los eventos del atajo elegido (más las películas). Con "Todas" la
+// portada queda como siempre; con una categoría, el cuerpo es un título
+// ("Música · Finde") y una grilla de 2 columnas con `filtrarCombinado` (atajo +
+// categoría), todo en memoria sobre lo ya cargado — así también anda con la
+// caché de la R43. En ese modo no van el banner del Radar ni el anuncio (regla
+// del pliegue) ni el Hero (mide ~60 % de la ventana y empujaba la grilla fuera
+// de pantalla, además de mezclar categorías). "Ver todos" suma el atajo y un
+// nonce `v` (`Date.now()` en el `onPress`): `/buscar?categoria=…&atajo=…&v=…`;
+// Buscar lo usa para volver a aplicar los parámetros aunque sean idénticos.
+// 66-c: sin eventos para la combinación hay una caja con "Ver <Nombre> en todas
+// las fechas" (`/buscar?categoria=…&v=…` sin atajo; el cine, "Ver cartelera", va
+// a `/cines`) y "Todas las
+// categorías"; con eventos, una línea "N eventos" (live region) bajo el título.
+// Sin chips que elegir no se dibuja la fila. Sin conexión: nada de esto pide
+// red (todo es memoria sobre lo cargado), y `AvisoSinConexion` sigue arriba.
+//
 // Lo que no se copia, a propósito (ops/paridad-web-app.md, inventario
 // "Portada" y la tarea 29-h): "Más filtros" (lugar/zona) y el switch
 // "Mostrar flyers de redes" — ninguno de los dos tiene un equivalente de
@@ -42,15 +60,18 @@ import { formatDateInSalta, transformMovie } from '@qps/core/home/transform'
 import { selectCarouselEvents, sortCategories } from '@qps/core/home/carousel'
 import { groupByCategory, selectTodayRow, type CategoryEventsRow } from '@qps/core/home/filters'
 import { eventoEnAtajo, type Atajo } from '@qps/core/home/atajos'
+import { categoriasDisponibles, filtrarCombinado, type ItemFiltrable } from '@qps/core/home/filtros-combinados'
 import type { DisplayEvent } from '@qps/core/home/types'
 import type { Category } from '@qps/core/types'
 import { AvisoSinConexion } from '@/components/AvisoSinConexion'
 import { BannerAnuncio } from '@/components/BannerAnuncio'
 import { BannerRadar } from '@/components/BannerRadar'
+import { ChipsCategorias } from '@/components/ChipsCategorias'
 import { Cargando, ErrorCarga } from '@/components/EstadoCarga'
 import { FilaCategoria } from '@/components/FilaCategoria'
 import { Hero } from '@/components/Hero'
 import { PillsAtajos } from '@/components/PillsAtajos'
+import { TarjetaEvento } from '@/components/TarjetaEvento'
 import { Texto } from '@/components/Texto'
 import { useBienvenidaVista } from '@/lib/bienvenida'
 import { useColoresQPS } from '@/lib/colores'
@@ -150,11 +171,33 @@ export function seccionesPortada(filas: CategoryEventsRow[], hoyEventos: Display
   return secciones
 }
 
+const ETIQUETA_ATAJO: Record<Atajo, string> = {
+  hoy: 'Hoy',
+  'esta-noche': 'Esta noche',
+  finde: 'Finde',
+  semana: 'Semana',
+}
+
+// Frase para el vacío ("No hay eventos de Música para hoy.").
+const FRASE_ATAJO: Record<Atajo, string> = {
+  hoy: 'hoy',
+  'esta-noche': 'esta noche',
+  finde: 'el finde',
+  semana: 'esta semana',
+}
+
+function enFilasDeDos<T>(lista: T[]): T[][] {
+  const filas: T[][] = []
+  for (let i = 0; i < lista.length; i += 2) filas.push(lista.slice(i, i + 2))
+  return filas
+}
+
 export default function Inicio() {
   const { cargando: cargandoBienvenida, vista } = useBienvenidaVista()
   const colores = useColoresQPS()
   const router = useRouter()
   const [atajo, setAtajo] = useState<Atajo>('hoy')
+  const [categoria, setCategoria] = useState<string | null>(null)
   const [estado, setEstado] = useState<EstadoPortada>({ tipo: 'cargando' })
   // Estado de refresco aparte del de carga (28-c): mientras se refresca, lo
   // que ya está armado sigue a la vista en vez de pasar a `Cargando`.
@@ -273,12 +316,28 @@ export default function Inicio() {
     const filas = groupByCategory(categoriasOrdenadas, todosLosEventos, null, null, ahora)
     const hoyEventos = selectTodayRow(todosLosEventos, saltaTodayStr, ahora)
 
-    return { carrusel, filas, hoyEventos }
-  }, [estado, atajo])
+    // R66, 66-a: chips y modo "categoría elegida", sobre lo mismo ya cargado.
+    const chips = categoriasDisponibles(todosLosEventos, estado.categorias, categoria)
+    let eventosCategoria: DisplayEvent[] = []
+    let nombreCategoria = ''
+    if (categoria !== null) {
+      const items: ItemFiltrable[] = [
+        ...estado.eventos,
+        ...peliculasComoEventos.map((evento) => ({ evento, paraAtajo: null })),
+      ]
+      eventosCategoria = filtrarCombinado(items, { atajo, categoria }, ahora)
+      nombreCategoria = estado.categorias.find((c) => c.slug === categoria)?.name ?? categoria
+    }
 
+    return { carrusel, filas, hoyEventos, chips, eventosCategoria, nombreCategoria }
+  }, [estado, atajo, categoria])
+
+  // Con una categoría elegida (R66) no hay secciones: ni "Hoy en Salta", ni
+  // filas, ni banners — el cuerpo es la grilla de más abajo.
+  const nombreCategoria = datosPortada?.nombreCategoria ?? ''
   const secciones = useMemo(
-    () => (datosPortada ? seccionesPortada(datosPortada.filas, datosPortada.hoyEventos) : []),
-    [datosPortada]
+    () => (datosPortada && categoria === null ? seccionesPortada(datosPortada.filas, datosPortada.hoyEventos) : []),
+    [datosPortada, categoria]
   )
 
   if (cargandoBienvenida) return null
@@ -299,9 +358,65 @@ export default function Inicio() {
         >
           {estado.desdeCache ? <AvisoSinConexion guardadoEn={estado.desdeCache.guardadoEn} /> : null}
 
-          {datosPortada.carrusel.length > 0 ? <Hero eventos={datosPortada.carrusel} /> : null}
+          {categoria === null && datosPortada.carrusel.length > 0 ? <Hero eventos={datosPortada.carrusel} /> : null}
 
           <PillsAtajos atajo={atajo} onCambiar={setAtajo} />
+
+          {datosPortada.chips.length > 0 || categoria !== null ? (
+            <ChipsCategorias categorias={datosPortada.chips} seleccionada={categoria} onCambiar={setCategoria} />
+          ) : null}
+
+          {categoria !== null ? (
+            <View style={estilos.bloqueCategoria}>
+              <Texto peso="bold" accessibilityRole="header" style={estilos.tituloCategoria}>
+                {nombreCategoria} · {ETIQUETA_ATAJO[atajo]}
+              </Texto>
+              {datosPortada.eventosCategoria.length === 0 ? (
+                <View style={[estilos.vacioHoy, estilos.vacioCategoria, { backgroundColor: colores.card, borderColor: colores.border }]}>
+                  <Texto tono="secundario">
+                    No hay eventos de {nombreCategoria} para {FRASE_ATAJO[atajo]}.
+                  </Texto>
+                  <Pressable
+                    onPress={() => {
+                      // Igual que "Ver todos" de su fila: el cine va a Cines.
+                      if (categoria === 'cine') router.push('/cines')
+                      // `v`: nonce para que Buscar vuelva a aplicar los
+                      // parámetros aunque sean iguales a los de la vez anterior.
+                      else router.push(`/buscar?categoria=${encodeURIComponent(categoria)}&v=${Date.now()}`)
+                    }}
+                    accessibilityRole="button"
+                    style={[estilos.vacioHoyBoton, estilos.botonVacio, { backgroundColor: colores.primary }]}
+                  >
+                    <Texto peso="bold" style={{ color: colores.primaryForeground }}>
+                      {categoria === 'cine' ? 'Ver cartelera' : `Ver ${nombreCategoria} en todas las fechas`}
+                    </Texto>
+                  </Pressable>
+                  <Pressable
+                    onPress={() => setCategoria(null)}
+                    accessibilityRole="button"
+                    style={[estilos.vacioHoyBoton, estilos.botonVacio, { borderWidth: 1, borderColor: colores.border }]}
+                  >
+                    <Texto peso="bold">Todas las categorías</Texto>
+                  </Pressable>
+                </View>
+              ) : (
+                <>
+                  <Texto tono="secundario" accessibilityLiveRegion="polite">
+                    {datosPortada.eventosCategoria.length} {datosPortada.eventosCategoria.length === 1 ? 'evento' : 'eventos'}
+                  </Texto>
+                  {enFilasDeDos(datosPortada.eventosCategoria).map((fila) => (
+                  <View key={fila[0].id} style={estilos.filaGrilla}>
+                    {fila.map((evento) => (
+                      <View key={evento.id} style={estilos.celda}>
+                        <TarjetaEvento evento={evento} />
+                      </View>
+                    ))}
+                  </View>
+                  ))}
+                </>
+              )}
+            </View>
+          ) : null}
 
           {secciones.map((seccion) => {
             if (seccion.tipo === 'hoy') {
@@ -356,7 +471,9 @@ export default function Inicio() {
                     if (catSlug === 'cine') {
                       router.push('/cines')
                     } else {
-                      router.push(`/buscar?categoria=${encodeURIComponent(catSlug)}`)
+                      router.push(
+                        `/buscar?categoria=${encodeURIComponent(catSlug)}&atajo=${encodeURIComponent(atajo)}&v=${Date.now()}`
+                      )
                     }
                   }}
                 />
@@ -386,5 +503,13 @@ const estilos = StyleSheet.create({
   },
   vacioHoyTexto: { gap: 4 },
   vacioHoyTitulo: { fontSize: 20 },
+  bloqueCategoria: { paddingHorizontal: 16, paddingTop: 8, gap: 12 },
+  tituloCategoria: { fontSize: 20 },
+  filaGrilla: { flexDirection: 'row', gap: 12 },
+  // Evita que la última celda de un número impar se estire a todo el ancho.
+  celda: { flex: 1, maxWidth: '50%' },
   vacioHoyBoton: { borderRadius: 10, paddingVertical: 12, alignItems: 'center' },
+  // El bloque de la categoría ya tiene su propio padding horizontal.
+  vacioCategoria: { marginHorizontal: 0, marginTop: 0, gap: 12 },
+  botonVacio: { minHeight: 48, justifyContent: 'center' },
 })
