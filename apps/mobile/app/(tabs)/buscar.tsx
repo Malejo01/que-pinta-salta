@@ -33,14 +33,17 @@
 // Las pills de fecha (`PillsAtajos` con `etiquetaTodas="Cualquier fecha"`,
 // `null` = todas las fechas) y, en modo resultados, los chips de categoría
 // (`ChipsCategorias`, con las categorías que tienen eventos para la fecha, el
-// texto y "Solo gratis" elegidos) se suman a texto + gratis, todo con
+// texto y "Solo gratis" elegidos; van dentro de la lista, arriba del conteo,
+// para que scrolleen y no le roben alto a los resultados con el teclado
+// abierto) se suman a texto + gratis, todo con
 // `filtrarCombinado` de `@qps/core/home/filtros-combinados`. Para filtrar por
 // fecha hace falta `end_date`, así que la carga pasa a
 // `obtenerEventosVigentesParaInicio(ahora)`, con un `ahora` único por carga
 // guardado en el estado (mismo criterio que la portada). `atajo` llega por
-// querystring junto con `categoria` desde "Ver todos" de la portada
-// (`/buscar?categoria=<slug>&atajo=<atajo>`), con el mismo patrón
-// comparar-y-ajustar. Los conteos de la grilla "Explorar por categoria" siguen
+// querystring junto con `categoria` y un nonce `v` desde "Ver todos" de la
+// portada (`/buscar?categoria=<slug>&atajo=<atajo>&v=<Date.now()>`), con el
+// mismo patrón comparar-y-ajustar, cuya clave incluye `v`: un toque nuevo vuelve
+// a aplicar categoría y fecha aunque sean iguales a los de antes. Los conteos de la grilla "Explorar por categoria" siguen
 // siendo sobre todos los eventos. Sin resultados, el vacío ofrece salir de la
 // fecha y/o de la categoría. Buscar sigue sin caché offline.
 import { useCallback, useEffect, useMemo, useState } from 'react'
@@ -95,9 +98,13 @@ const NOMBRE_ATAJO: Record<Atajo, string> = {
 
 export default function Buscar() {
   const colores = useColoresQPS()
-  const params = useLocalSearchParams<{ categoria?: string; atajo?: string }>()
+  const params = useLocalSearchParams<{ categoria?: string; atajo?: string; v?: string }>()
   const categoriaParam = typeof params.categoria === 'string' && params.categoria ? params.categoria : null
   const atajoParam = atajoDesdeParametro(params.atajo)
+  // Nonce de la portada (`Date.now()` en el `onPress` de "Ver todos"): cambia en
+  // cada toque, así que sirve para volver a aplicar categoría y fecha aunque
+  // los parámetros sean idénticos a los de la vez anterior.
+  const vParam = typeof params.v === 'string' && params.v ? params.v : null
 
   const [estado, setEstado] = useState<EstadoLista>({ tipo: 'cargando' })
   // Estado de refresco aparte del de carga (28-c): mientras se refresca, la
@@ -109,19 +116,18 @@ export default function Buscar() {
   // Sincroniza `categoriaFiltro` con el parámetro de la ruta sin `setState`
   // sincrónico dentro de un `useEffect` (mismo patrón que `idAnterior` en
   // `app/evento/[id].tsx`): se compara durante el render, no en un efecto.
-  const [categoriaParamAnterior, setCategoriaParamAnterior] = useState(categoriaParam)
+  // R66: "Ver todos" de la portada trae la categoría Y el atajo que estaba
+  // elegido, más el nonce `v`. La clave del comparar-y-ajustar es la
+  // combinación de los tres: si cambia cualquiera (incluso solo `v`), se
+  // vuelven a aplicar `categoria` y `atajo` del parámetro. Texto y "Solo
+  // gratis" no se tocan.
+  const claveParams = `${categoriaParam ?? ''}|${atajoParam ?? ''}|${vParam ?? ''}`
+  const [claveParamsAnterior, setClaveParamsAnterior] = useState(claveParams)
   const [categoriaFiltro, setCategoriaFiltro] = useState<string | null>(categoriaParam)
-  if (categoriaParamAnterior !== categoriaParam) {
-    setCategoriaParamAnterior(categoriaParam)
-    setCategoriaFiltro(categoriaParam)
-  }
-
-  // Lo mismo para la fecha (R66, 66-b): "Ver todos" de la portada trae la
-  // categoría Y el atajo que estaba elegido.
-  const [atajoParamAnterior, setAtajoParamAnterior] = useState(atajoParam)
   const [atajo, setAtajo] = useState<Atajo | null>(atajoParam)
-  if (atajoParamAnterior !== atajoParam) {
-    setAtajoParamAnterior(atajoParam)
+  if (claveParamsAnterior !== claveParams) {
+    setClaveParamsAnterior(claveParams)
+    setCategoriaFiltro(categoriaParam)
     setAtajo(atajoParam)
   }
 
@@ -283,10 +289,6 @@ export default function Buscar() {
             Solo gratis
           </Texto>
         </Pressable>
-
-        {estado.tipo === 'ok' && mostrarResultados ? (
-          <ChipsCategorias categorias={categoriasParaChips} seleccionada={categoriaFiltro} onCambiar={setCategoriaFiltro} />
-        ) : null}
       </View>
 
       {estado.tipo === 'cargando' ? <Cargando /> : null}
@@ -300,6 +302,8 @@ export default function Buscar() {
           numColumns={2}
           columnWrapperStyle={estilos.filaGrilla}
           contentContainerStyle={estilos.lista}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
           refreshControl={
             <RefreshControl refreshing={refrescando} onRefresh={refrescar} tintColor={colores.primary} colors={[colores.primary]} />
           }
@@ -347,25 +351,41 @@ export default function Buscar() {
           numColumns={2}
           columnWrapperStyle={estilos.filaGrilla}
           contentContainerStyle={estilos.lista}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
           refreshControl={
             <RefreshControl refreshing={refrescando} onRefresh={refrescar} tintColor={colores.primary} colors={[colores.primary]} />
           }
           ListHeaderComponent={
-            <Texto tono="secundario" style={estilos.tituloSeccion}>
-              {textoResultados(resultadosMostrados.length)}
-            </Texto>
+            <>
+              {/* Los chips scrollean con la lista (no quedan fijos): con el
+                  teclado abierto la cabecera fija es solo campo + pills. El
+                  padding horizontal de la lista (16) se compensa con margen
+                  negativo porque los chips traen el suyo. */}
+              <View style={estilos.chipsEnLista}>
+                <ChipsCategorias categorias={categoriasParaChips} seleccionada={categoriaFiltro} onCambiar={setCategoriaFiltro} />
+              </View>
+              <Texto tono="secundario" accessibilityLiveRegion="polite" style={estilos.tituloSeccion}>
+                {textoResultados(resultadosMostrados.length)}
+              </Texto>
+            </>
           }
           ListEmptyComponent={
             <View style={estilos.vacio}>
               <Vacio mensaje={textoSinResultados()} />
-              {accionesVacio.map((accion) => (
+              {accionesVacio.map((accion, indice) => (
                 <Pressable
                   key={accion.texto}
                   onPress={accion.alTocar}
                   accessibilityRole="button"
-                  style={[estilos.botonVacio, { borderColor: colores.border }]}
+                  // El primero es la salida principal (relleno, como en la
+                  // portada); el segundo, con contorno.
+                  style={[
+                    estilos.botonVacio,
+                    indice === 0 ? { backgroundColor: colores.primary, borderColor: colores.primary } : { borderColor: colores.border },
+                  ]}
                 >
-                  <Texto peso="semibold" style={{ color: colores.foreground }}>
+                  <Texto peso="semibold" style={{ color: indice === 0 ? colores.primaryForeground : colores.foreground }}>
                     {accion.texto}
                   </Texto>
                 </Pressable>
@@ -383,12 +403,16 @@ export default function Buscar() {
           // dos filas y el banner se va a los ~702 dp. Es el mismo hallazgo
           // que ux-ui hizo sobre la web en la R52 (ahí fue con 2 resultados).
           //
-          // R66 (66-b): la cabecera crece ~68 dp con las pills de fecha y
-          // ~60 dp más con los chips de categoría (que solo se ven en este
-          // modo): ~288 dp. Con UNA fila el banner arranca a los ~581 dp (sigue
-          // asomando: el mínimo no baja de 3); con dos filas, a los ~830 dp.
-          // Una cabecera más alta solo empuja el banner hacia abajo, nunca
-          // hacia arriba, así que el 3 sigue valiendo.
+          // R66 (66-b, rehecha en 66-r1): la cabecera FIJA es campo + chip +
+          // pills de fecha: ~228 dp (160 + ~68 de las pills). Los chips de
+          // categoría (~60 dp) ya no son fijos: van arriba del título dentro de
+          // la lista (`ListHeaderComponent`) y scrollean con ella. Sin scrollear
+          // la suma es la misma: 228 + 60 (chips) + 32 (título) + UNA fila de
+          // 237 + ~24 de relleno = ~581 dp, así que con 1 o 2 resultados el
+          // banner sigue asomando (área visible ~649 dp) y el mínimo no baja de
+          // 3; con dos filas arranca a los ~830 dp. Al scrollear o con el
+          // teclado abierto, los chips salen de pantalla y los resultados
+          // ganan ~60 dp.
           //
           // Sin `sinConexion`, porque esta pantalla
           // no tiene ningún estado de caché/sin conexión propio
@@ -415,6 +439,9 @@ const estilos = StyleSheet.create({
   // que la cabecera ya no lo pone: lo ponen el campo y el chip "Solo gratis".
   cabecera: { paddingTop: 16, gap: 4 },
   campo: { paddingHorizontal: 16 },
+  // `ChipsCategorias` trae su padding horizontal (16) y la lista también: se
+  // compensa para que el primer chip quede alineado con el campo, como antes.
+  chipsEnLista: { marginHorizontal: -16 },
   vacio: { alignItems: 'center', gap: 12 },
   botonVacio: {
     borderWidth: 1,

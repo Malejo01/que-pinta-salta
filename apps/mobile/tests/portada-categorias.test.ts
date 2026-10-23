@@ -152,7 +152,10 @@ describe('components/ChipsCategorias.tsx', () => {
     expect(codigo).toMatch(/import\s*\{\s*useColoresQPS\s*\}\s*from\s*'@\/lib\/colores'/)
     expect(codigo).toMatch(/const colores = useColoresQPS\(\)/)
     expect(codigo).toMatch(/colores\.primary\b/)
-    expect(codigo).toMatch(/colores\.primaryForeground\b/)
+    // 66-r1 (N1): el chip activo ya no es relleno (tinte + contorno de
+    // `primary` con texto `foreground`), así que no usa `primaryForeground`.
+    expect(codigo).toMatch(/colores\.foreground\b/)
+    expect(codigo).toMatch(/`\$\{colores\.primary\}26`/)
     expect(codigo).toMatch(/colores\.border\b/)
     expect(codigo).not.toMatch(/#[0-9a-fA-F]{3,8}\b/)
     expect(codigo).not.toMatch(/\b(?:rgba?|hsla?)\(/)
@@ -165,7 +168,8 @@ describe('components/ChipsCategorias.tsx', () => {
   })
 
   it('el chip "Todas" no lleva ícono (solo las categorías con slug)', () => {
-    expect(codigo).toMatch(/chip\.slug !== null \? <Icono/)
+    // 66-r1: el JSX del ícono pasó a varias líneas (con paréntesis).
+    expect(codigo).toMatch(/chip\.slug !== null \? \(?\s*<Icono/)
   })
 })
 
@@ -211,16 +215,20 @@ describe('portada (app/(tabs)/index.tsx) en modo categoría', () => {
   // Mutación: sacar el atajo del router.push de las filas.
   it('"Ver todos" de una fila lleva categoría y atajo a Buscar', () => {
     const alVerTodos = entre(jsx, 'alVerTodos={() => {', "seccion.tipo === 'banner-radar'")
-    expect(alVerTodos).toMatch(/`\/buscar\?categoria=\$\{encodeURIComponent\(catSlug\)\}&atajo=\$\{encodeURIComponent\(atajo\)\}`/)
+    expect(alVerTodos).toMatch(/`\/buscar\?categoria=\$\{encodeURIComponent\(catSlug\)\}&atajo=\$\{encodeURIComponent\(atajo\)\}&v=\$\{Date\.now\(\)\}`/)
   })
 
   // Mutación: sacar uno de los dos Pressable del vacío, o cambiar su destino.
   it('el vacío tiene "Ver todas las fechas" (a Buscar sin atajo; el cine, a /cines) y "Todas las categorías"', () => {
     const vacio = entre(bloqueCategoria, 'eventosCategoria.length === 0', ') : (')
-    expect(vacio).toContain('Ver todas las fechas')
+    // 66-r1 (N3): el texto dice a dónde va ("Ver <Nombre> en todas las fechas";
+    // el cine, "Ver cartelera").
+    expect(vacio).toContain('en todas las fechas')
+    expect(vacio).toContain('Ver cartelera')
     expect(vacio).toContain('Todas las categorías')
     expect(vacio).toMatch(/if \(categoria === 'cine'\) router\.push\('\/cines'\)/)
-    expect(vacio).toMatch(/router\.push\(`\/buscar\?categoria=\$\{encodeURIComponent\(categoria\)\}`\)/)
+    // `v`: nonce en el onPress (nunca en el render) para que Buscar reaplique.
+    expect(vacio).toMatch(/router\.push\(`\/buscar\?categoria=\$\{encodeURIComponent\(categoria\)\}&v=\$\{Date\.now\(\)\}`\)/)
     // "sin atajo": el destino de "Ver todas las fechas" no arrastra la fecha.
     expect(vacio).not.toMatch(/atajo=/)
     // "Todas las categorías" vuelve al modo de siempre.
@@ -280,6 +288,17 @@ describe('portada (app/(tabs)/index.tsx) en modo categoría', () => {
     expect(codigo).toMatch(/eventosCategoria = filtrarCombinado\(items,\s*\{\s*atajo,\s*categoria\s*\},\s*ahora\)/)
     expect(bloqueCategoria).toMatch(/enFilasDeDos\(datosPortada\.eventosCategoria\)/)
   })
+
+  // 66-r1 (B1 de ux-ui): el Hero mide ~60 % de la ventana y con una categoría
+  // elegida empujaba la grilla fuera de pantalla. Mutación: volver a
+  // `{datosPortada.carrusel.length > 0 ? <Hero` sin mirar `categoria`.
+  it('el Hero solo se dibuja con "Todas" (categoria === null)', () => {
+    const usos = jsx.match(/<Hero\b/g) ?? []
+    expect(usos).toHaveLength(1)
+    const antesDelHero = jsx.slice(0, jsx.indexOf('<Hero'))
+    const condicion = antesDelHero.slice(antesDelHero.lastIndexOf('{'))
+    expect(condicion).toMatch(/categoria === null\s*&&/)
+  })
 })
 
 // ---------------------------------------------------------------------------
@@ -307,7 +326,18 @@ describe('Buscar (app/(tabs)/buscar.tsx) con fecha y categoría', () => {
   // Mutación: sacar <ChipsCategorias> de Buscar.
   it('los chips de categoría están y solo se dibujan en modo resultados', () => {
     expect(codigo).toMatch(/import\s*\{\s*ChipsCategorias\s*\}\s*from\s*'@\/components\/ChipsCategorias'/)
-    expect(codigo).toMatch(/estado\.tipo === 'ok' && mostrarResultados\s*\?\s*\(\s*<ChipsCategorias\b[^>]*seleccionada=\{categoriaFiltro\}[^>]*onCambiar=\{setCategoriaFiltro\}/)
+    // 66-r1 (B2): ya no van en la cabecera fija sino en el `ListHeaderComponent`
+    // de la lista de resultados (scrollean con ella), arriba del conteo.
+    const cabeceraLista = codigo.slice(codigo.indexOf('data={resultadosMostrados}'), codigo.indexOf('ListEmptyComponent={\n            <View style={estilos.vacio}>'))
+    expect(cabeceraLista).toMatch(/ListHeaderComponent=\{[\s\S]*<ChipsCategorias\b[^>]*seleccionada=\{categoriaFiltro\}[^>]*onCambiar=\{setCategoriaFiltro\}[\s\S]*accessibilityLiveRegion="polite"/)
+    // Y no quedan chips en la parte fija: una sola aparición del JSX.
+    expect(codigo.match(/<ChipsCategorias\b/g) ?? []).toHaveLength(1)
+  })
+
+  // Mutación: sacar las props de teclado de alguna de las dos FlatList.
+  it('las dos listas cierran el teclado al arrastrar y no se tragan el primer toque', () => {
+    expect(codigo.match(/keyboardShouldPersistTaps="handled"/g) ?? []).toHaveLength(2)
+    expect(codigo.match(/keyboardDismissMode="on-drag"/g) ?? []).toHaveLength(2)
   })
 
   it('elegir una fecha cuenta como filtro: mostrarResultados incluye atajo !== null', () => {

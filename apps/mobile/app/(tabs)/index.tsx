@@ -30,9 +30,13 @@
 // ("Música · Finde") y una grilla de 2 columnas con `filtrarCombinado` (atajo +
 // categoría), todo en memoria sobre lo ya cargado — así también anda con la
 // caché de la R43. En ese modo no van el banner del Radar ni el anuncio (regla
-// del pliegue). "Ver todos" suma el atajo: `/buscar?categoria=…&atajo=…`.
-// 66-c: sin eventos para la combinación hay una caja con "Ver todas las fechas"
-// (`/buscar?categoria=…` sin atajo; el cine va a `/cines`) y "Todas las
+// del pliegue) ni el Hero (mide ~60 % de la ventana y empujaba la grilla fuera
+// de pantalla, además de mezclar categorías). "Ver todos" suma el atajo y un
+// nonce `v` (`Date.now()` en el `onPress`): `/buscar?categoria=…&atajo=…&v=…`;
+// Buscar lo usa para volver a aplicar los parámetros aunque sean idénticos.
+// 66-c: sin eventos para la combinación hay una caja con "Ver <Nombre> en todas
+// las fechas" (`/buscar?categoria=…&v=…` sin atajo; el cine, "Ver cartelera", va
+// a `/cines`) y "Todas las
 // categorías"; con eventos, una línea "N eventos" (live region) bajo el título.
 // Sin chips que elegir no se dibuja la fila. Sin conexión: nada de esto pide
 // red (todo es memoria sobre lo cargado), y `AvisoSinConexion` sigue arriba.
@@ -354,7 +358,7 @@ export default function Inicio() {
         >
           {estado.desdeCache ? <AvisoSinConexion guardadoEn={estado.desdeCache.guardadoEn} /> : null}
 
-          {datosPortada.carrusel.length > 0 ? <Hero eventos={datosPortada.carrusel} /> : null}
+          {categoria === null && datosPortada.carrusel.length > 0 ? <Hero eventos={datosPortada.carrusel} /> : null}
 
           <PillsAtajos atajo={atajo} onCambiar={setAtajo} />
 
@@ -376,13 +380,15 @@ export default function Inicio() {
                     onPress={() => {
                       // Igual que "Ver todos" de su fila: el cine va a Cines.
                       if (categoria === 'cine') router.push('/cines')
-                      else router.push(`/buscar?categoria=${encodeURIComponent(categoria)}`)
+                      // `v`: nonce para que Buscar vuelva a aplicar los
+                      // parámetros aunque sean iguales a los de la vez anterior.
+                      else router.push(`/buscar?categoria=${encodeURIComponent(categoria)}&v=${Date.now()}`)
                     }}
                     accessibilityRole="button"
                     style={[estilos.vacioHoyBoton, estilos.botonVacio, { backgroundColor: colores.primary }]}
                   >
                     <Texto peso="bold" style={{ color: colores.primaryForeground }}>
-                      Ver todas las fechas
+                      {categoria === 'cine' ? 'Ver cartelera' : `Ver ${nombreCategoria} en todas las fechas`}
                     </Texto>
                   </Pressable>
                   <Pressable
@@ -466,7 +472,7 @@ export default function Inicio() {
                       router.push('/cines')
                     } else {
                       router.push(
-                        `/buscar?categoria=${encodeURIComponent(catSlug)}&atajo=${encodeURIComponent(atajo)}`
+                        `/buscar?categoria=${encodeURIComponent(catSlug)}&atajo=${encodeURIComponent(atajo)}&v=${Date.now()}`
                       )
                     }
                   }}

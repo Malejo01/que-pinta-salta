@@ -478,7 +478,7 @@ describe('"Ver todos" de una fila: Buscar con categoria=<slug>, o /cines para el
   // R66, 66-a: además de la categoría, "Ver todos" lleva el atajo elegido.
   it('navega a /buscar?categoria=<slug>&atajo=<atajo> para una categoría cualquiera', () => {
     expect(content).toMatch(
-      /router\.push\(\s*`\/buscar\?categoria=\$\{encodeURIComponent\(catSlug\)\}&atajo=\$\{encodeURIComponent\(atajo\)\}`\s*\)/
+      /router\.push\(\s*`\/buscar\?categoria=\$\{encodeURIComponent\(catSlug\)\}&atajo=\$\{encodeURIComponent\(atajo\)\}&v=\$\{Date\.now\(\)\}`\s*\)/
     )
   })
 
