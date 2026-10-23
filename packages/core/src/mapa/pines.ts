@@ -4,7 +4,7 @@
  * parámetro). La R55 (mapa en la app) importa este archivo tal cual.
  */
 import { formatSaltaDayKey, saltaWallClockToDate } from '../date-format'
-import { eventoEnAtajo, ventanaDeAtajo, type EventoParaAtajo } from '../home/atajos'
+import { ventanaDeAtajo } from '../home/atajos'
 import { estimatedEnd, isVigente } from '../events/vigencia'
 import { coordenadasEnSalta } from './zona'
 
@@ -109,24 +109,15 @@ export function ventanaDeFiltroMapa(filtro: FiltroMapa, ahora: Date): { desde: D
 }
 
 /**
- * `EventoParaAtajo.category` es el slug suelto (`string | null`), no el
- * objeto `{ slug }` que trae `EventoParaMapa`: se mapea acá.
- */
-function aEventoParaAtajo(evento: EventoParaMapa): EventoParaAtajo {
-  return { start_date: evento.start_date, end_date: evento.end_date, category: evento.category?.slug ?? null }
-}
-
-/**
- * `true` si `evento` cae en `filtro` para el instante `ahora`. `hoy`/`finde`
- * delegan en `eventoEnAtajo`. `fecha` pide vigencia (`isVigente`) y que el
- * inicio caiga en la ventana del día, o que el evento haya empezado antes
- * (dura varios días) y siga vigente durante ese día (`estimatedEnd`).
+ * `true` si `evento` cae en `filtro` para el instante `ahora`. La misma regla
+ * para `hoy`, `finde` y `fecha`: el evento tiene que estar vigente
+ * (`isVigente`) y, o bien su inicio cae en la ventana (`ventanaDeFiltroMapa`),
+ * o bien empezó antes de la ventana (dura varios días: un festival que arrancó
+ * anteayer) y su fin estimado (`estimatedEnd`) llega hasta el principio de la
+ * ventana. Para `hoy`/`finde` es `eventoEnAtajo` más ese arrastre: el mapa
+ * muestra lo que sigue en curso (la portada, `atajos.ts`, no cambia).
  */
 export function eventoEnFiltroMapa(evento: EventoParaMapa, filtro: FiltroMapa, ahora: Date): boolean {
-  if (filtro.tipo === 'hoy' || filtro.tipo === 'finde') {
-    return eventoEnAtajo(aEventoParaAtajo(evento), filtro.tipo, ahora)
-  }
-
   if (!isVigente(evento, ahora)) return false
 
   const inicio = new Date(evento.start_date)

@@ -166,6 +166,49 @@ describe("eventoEnFiltroMapa con tipo: 'fecha' y eventos de varios días", () =>
   })
 })
 
+describe("eventoEnFiltroMapa con 'hoy' y 'finde': lo que empezó antes y sigue en curso", () => {
+  const ahora = salta('2026-10-10T15:00:00') // sábado 15:00 de Salta
+  const hoy = { tipo: 'hoy' as const }
+  const finde = { tipo: 'finde' as const }
+  const deHoy = { tipo: 'fecha' as const, dia: '2026-10-10' }
+
+  it('un festival que empezó anteayer y termina mañana está en "Hoy" y en "fecha de hoy"', () => {
+    const festival = evento({
+      start_date: saltaWallClockToUtcISO('2026-10-08T20:00:00'),
+      end_date: saltaWallClockToUtcISO('2026-10-11T02:00:00'),
+    })
+    expect(eventoEnFiltroMapa(festival, hoy, ahora)).toBe(true)
+    expect(eventoEnFiltroMapa(festival, deHoy, ahora)).toBe(true)
+  })
+
+  it('uno que empezó el jueves y termina el domingo está en "Este finde" (con ahora un sábado)', () => {
+    const festival = evento({
+      start_date: saltaWallClockToUtcISO('2026-10-08T20:00:00'),
+      end_date: saltaWallClockToUtcISO('2026-10-11T23:00:00'),
+    })
+    expect(eventoEnFiltroMapa(festival, finde, ahora)).toBe(true)
+  })
+
+  it('uno que terminó ayer no está en "Hoy" ni en "Este finde"', () => {
+    const terminado = evento({
+      start_date: saltaWallClockToUtcISO('2026-10-08T20:00:00'),
+      end_date: saltaWallClockToUtcISO('2026-10-09T23:00:00'),
+    })
+    expect(eventoEnFiltroMapa(terminado, hoy, ahora)).toBe(false)
+    expect(eventoEnFiltroMapa(terminado, finde, ahora)).toBe(false)
+  })
+
+  it('uno de mañana no está en "Hoy"', () => {
+    const manana = evento({ start_date: saltaWallClockToUtcISO('2026-10-11T21:00:00') })
+    expect(eventoEnFiltroMapa(manana, hoy, ahora)).toBe(false)
+  })
+
+  it('uno sin end_date de ayer a la noche, ya vencido, no está en "Hoy"', () => {
+    const deAyer = evento({ start_date: saltaWallClockToUtcISO('2026-10-09T22:00:00') })
+    expect(eventoEnFiltroMapa(deAyer, hoy, ahora)).toBe(false)
+  })
+})
+
 describe('aCoordenada', () => {
   it('número finito: se devuelve tal cual', () => {
     expect(aCoordenada(-24.78)).toBe(-24.78)
