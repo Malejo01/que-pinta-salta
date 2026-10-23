@@ -475,8 +475,11 @@ describe('components/BannerRadar.tsx: lectura estática', () => {
 describe('"Ver todos" de una fila: Buscar con categoria=<slug>, o /cines para el cine', () => {
   const content = readFileSync(INDEX_PATH, 'utf8')
 
-  it('navega a /buscar?categoria=<slug> para una categoría cualquiera', () => {
-    expect(content).toMatch(/router\.push\(`\/buscar\?categoria=\$\{encodeURIComponent\(catSlug\)\}`\)/)
+  // R66, 66-a: además de la categoría, "Ver todos" lleva el atajo elegido.
+  it('navega a /buscar?categoria=<slug>&atajo=<atajo> para una categoría cualquiera', () => {
+    expect(content).toMatch(
+      /router\.push\(\s*`\/buscar\?categoria=\$\{encodeURIComponent\(catSlug\)\}&atajo=\$\{encodeURIComponent\(atajo\)\}`\s*\)/
+    )
   })
 
   it('el cine navega a /cines, no a /buscar', () => {
