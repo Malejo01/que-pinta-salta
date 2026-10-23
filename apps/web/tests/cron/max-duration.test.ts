@@ -14,6 +14,7 @@ const ARCHIVOS_CON_RED = [
   'app/api/cron/scrape/route.ts',
   'app/api/cron/recurrentes/route.ts',
   'app/api/ai/process-flyers/route.ts',
+  'app/api/cron/publicidad/route.ts',
 ] as const
 
 /** Saca comentarios de línea y de bloque, sin tocar el contenido de strings ni de template literals. */
@@ -99,8 +100,9 @@ describe('maxDuration en los crones que tocan red (QPS-161)', () => {
       'app/api/cron/scrape/route.ts',
       'app/api/cron/recurrentes/route.ts',
       'app/api/ai/process-flyers/route.ts',
+      'app/api/cron/publicidad/route.ts',
     ])
-    expect(ARCHIVOS_CON_RED).toHaveLength(3)
+    expect(ARCHIVOS_CON_RED).toHaveLength(4)
   })
 
   it.each(ARCHIVOS_CON_RED)('%s exporta `maxDuration = 60` como código real (no comentado)', (rutaDesdeAppsWeb) => {
