@@ -59,6 +59,13 @@ function clienteFalso(tablas: Partial<Record<string, Row[]>>, errores: Partial<R
         gte: metodo('gte'),
         lte: metodo('lte'),
         order: metodo('order'),
+        // QPS-201 (51-b): los tres user_followed_* ahora paginan con
+        // `.range(desde, hasta)` (`leerPaginado`). El doble sigue ignorando
+        // los filtros de verdad (ver el comentario de arriba del archivo):
+        // cada "página" devuelve la fixture completa, así que con fixtures
+        // de menos de TAMANIO_PAGINA_TOKENS filas (todas las de este
+        // archivo) la paginación corta en la primera página, como antes.
+        range: metodo('range'),
         then: (res: (v: unknown) => unknown, rej: (e: unknown) => unknown) => {
           const mensaje = errores[tabla]
           const resultado = mensaje ? { data: null, error: { message: mensaje } } : { data: tablas[tabla] ?? [], error: null }
@@ -392,5 +399,157 @@ describe('cargarNovedades', () => {
     if (!resultado.ok) return
     expect(resultado.porUsuario.get(userA)?.map((n) => n.id)).toEqual([eventoA.id])
     expect(resultado.porUsuario.get(userB)?.map((n) => n.id)).toEqual([eventoB.id])
+  })
+
+  it('un error en user_followed_venues (no solo en user_followed_categories) también corta con su propia tabla', async () => {
+    const userId = uuid()
+    const ahora = salta('2026-10-20T12:00:00')
+
+    const { resultado } = await cargar(
+      {
+        job_runs: [],
+        user_followed_categories: [],
+        user_followed_venues: [],
+        user_followed_instagram_accounts: [],
+      },
+      { userIds: [userId], ahora },
+      { user_followed_venues: 'conexión perdida' },
+    )
+
+    expect(resultado).toEqual({ ok: false, tabla: 'user_followed_venues' })
+  })
+})
+
+// ---------------------------------------------------------------------------
+// QPS-201 (D2/Ronda 51, tarea 51-b): los tres `user_followed_*` en lotes de
+// `TAMANIO_LOTE_IN` ids y, dentro de cada lote, paginados con `leerPaginado`.
+// ---------------------------------------------------------------------------
+describe('cargarNovedades: QPS-201, lotes y páginas de los tres user_followed_*', () => {
+  it('con 450 usuarios, ningún `.in` de ninguno de los tres user_followed_* lleva más de 200 ids (3 lotes cada una)', async () => {
+    const userIds = Array.from({ length: 450 }, () => uuid())
+    const ahora = salta('2026-10-20T12:00:00')
+
+    const { resultado, registro } = await cargar(
+      {
+        job_runs: [],
+        user_followed_categories: [],
+        user_followed_venues: [],
+        user_followed_instagram_accounts: [],
+      },
+      { userIds, ahora },
+    )
+
+    expect(resultado.ok).toBe(true)
+
+    for (const tabla of ['user_followed_categories', 'user_followed_venues', 'user_followed_instagram_accounts']) {
+      const llamadasIn = (registro[tabla] ?? []).flatMap((entrada) => entrada.llamadas.filter((l) => l.metodo === 'in'))
+      // 450 ids en lotes de 200: 3 lotes (200 + 200 + 50), así que 3 llamadas `.from(tabla)` con un `.in` cada una.
+      expect(llamadasIn).toHaveLength(3)
+      for (const llamada of llamadasIn) {
+        const ids = llamada.args[1] as string[]
+        expect(ids.length).toBeLessThanOrEqual(200)
+      }
+      const totalIds = llamadasIn.reduce((acc, llamada) => acc + (llamada.args[1] as string[]).length, 0)
+      expect(totalIds).toBe(450)
+    }
+  })
+
+  /**
+   * Cliente que SÍ respeta `.in`/`.order`/`.range` (a diferencia de
+   * `clienteFalso`, que los ignora a propósito porque cada fixture ya viene
+   * pre-filtrada): hace falta un doble de verdad para probar que una
+   * paginación real, de más de una página, junta TODAS las filas. Sin esto,
+   * el test de abajo no distinguiría un código que pagina de uno que se
+   * conforma con la primera página (`max_rows` de PostgREST).
+   */
+  function clienteRealista(tablas: Partial<Record<string, Row[]>>) {
+    const registro: Record<string, RegistroTabla[]> = {}
+    const client = {
+      from: (tabla: string) => {
+        const entrada: RegistroTabla = { llamadas: [] }
+        registro[tabla] = [...(registro[tabla] ?? []), entrada]
+        let idsFiltrados: string[] | null = null
+
+        const chain: Record<string, unknown> = {
+          select: (columnas?: string) => {
+            entrada.columnas = columnas
+            return chain
+          },
+          eq: (...args: unknown[]) => {
+            entrada.llamadas.push({ metodo: 'eq', args })
+            return chain
+          },
+          in: (col: string, vals: string[]) => {
+            entrada.llamadas.push({ metodo: 'in', args: [col, vals] })
+            idsFiltrados = vals
+            return chain
+          },
+          gt: (...args: unknown[]) => {
+            entrada.llamadas.push({ metodo: 'gt', args })
+            return chain
+          },
+          gte: (...args: unknown[]) => {
+            entrada.llamadas.push({ metodo: 'gte', args })
+            return chain
+          },
+          lte: (...args: unknown[]) => {
+            entrada.llamadas.push({ metodo: 'lte', args })
+            return chain
+          },
+          order: (...args: unknown[]) => {
+            entrada.llamadas.push({ metodo: 'order', args })
+            return chain
+          },
+          range: (desde: number, hasta: number) => {
+            entrada.llamadas.push({ metodo: 'range', args: [desde, hasta] })
+            const base = tablas[tabla] ?? []
+            const filtradas = idsFiltrados ? base.filter((fila) => idsFiltrados!.includes(fila.user_id as string)) : base
+            return Promise.resolve({ data: filtradas.slice(desde, hasta + 1), error: null })
+          },
+          then: (res: (v: unknown) => unknown, rej: (e: unknown) => unknown) => {
+            // Tablas sin `.range()` (job_runs, events): se devuelven enteras.
+            return Promise.resolve({ data: tablas[tabla] ?? [], error: null }).then(res, rej)
+          },
+        }
+        return chain
+      },
+    }
+    return { client, registro }
+  }
+
+  it('un solo lote con 1200 filas de user_followed_categories: se leen las 1200, en 2 páginas (no se corta en la primera, de 1000)', async () => {
+    const userId = uuid()
+    const ahora = salta('2026-10-20T12:00:00')
+
+    // 1200 ids de categoría, ordenados: la del evento es la ÚLTIMA (posición
+    // 1199). Si la lectura se cortara en la primera página de 1000 (el
+    // max_rows de PostgREST sin paginar), esta categoría JAMÁS llegaría, y la
+    // novedad no aparecería en el resultado: es la aserción que de verdad
+    // distingue "pagina" de "no pagina", no solo contar llamadas a `.range`.
+    const categoriaIds = Array.from({ length: 1200 }, () => uuid()).sort()
+    const categoriaDelEvento = categoriaIds[categoriaIds.length - 1]
+    const followedRows: Row[] = categoriaIds.map((categoryId) => ({ user_id: userId, category_id: categoryId }))
+    const evento = eventoRow({ category_id: categoriaDelEvento, created_at: hastaISO('2026-10-20T10:00:00') })
+
+    const { client, registro } = clienteRealista({
+      job_runs: [],
+      user_followed_categories: followedRows,
+      user_followed_venues: [],
+      user_followed_instagram_accounts: [],
+      events: [evento],
+    })
+
+    const resultado = await cargarNovedades(client as unknown as SupabaseClient, {
+      userIds: [userId],
+      preferenciasPorUsuario: new Map(),
+      ahora,
+    })
+
+    expect(resultado.ok).toBe(true)
+    if (!resultado.ok) return
+    expect(resultado.porUsuario.get(userId)?.map((n) => n.id)).toEqual([evento.id])
+
+    const llamadasRange = (registro.user_followed_categories ?? []).flatMap((e) => e.llamadas.filter((l) => l.metodo === 'range'))
+    expect(llamadasRange).toHaveLength(2) // 1200 filas / 1000 por página: una página de 1000 y una de 200.
   })
 })

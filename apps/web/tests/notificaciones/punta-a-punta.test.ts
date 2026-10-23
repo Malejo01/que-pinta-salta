@@ -43,6 +43,7 @@ import {
 } from '@qps/core/notificaciones/tanda'
 import { saltaWallClockToDate, saltaWallClockToUtcISO } from '@qps/core/date-format'
 import { PREFERENCIAS_POR_DEFECTO, type PreferenciasNotificacion } from '@qps/core/notificaciones/preferencias'
+import { CATEGORIA_PATROCINADO } from '@qps/core/notificaciones/patrocinados'
 import { enviarLote, leerReceipts, tokensInvalidos } from '@/lib/notificaciones/expo-push'
 
 // ---------------------------------------------------------------------------
@@ -203,6 +204,12 @@ describe('la tanda de un día completo: reglas + tanda + cliente de Expo, con do
   describe('el contrato duplicado a mano entre `MensajeTanda` (core) y `MensajePush` (web)', () => {
     it('la salida de armarTanda se le pasa TAL CUAL a enviarLote, y Expo la acepta', async () => {
       const mensajes = armarTanda(datos(), AHORA)
+      // Nota de este test (no de D2/Ronda 51): el escenario de arriba
+      // (`datos()`) no tiene campaña patrocinada, así que ningún mensaje de
+      // ESTE array trae `categoryId`. El contrato de punta a punta con
+      // `categoryId` (campo opcional de `MensajeTanda` que viaja igual en
+      // `MensajePush`) se prueba en el describe de abajo, con un
+      // `MensajeDeTanda` armado a mano.
 
       // `mensajes` es `MensajeDeTanda[]` (de tanda.ts); `enviarLote` espera
       // `MensajePush[]` (de expo-push.ts). Se manda sin mapear ningún campo
@@ -225,6 +232,42 @@ describe('la tanda de un día completo: reglas + tanda + cliente de Expo, con do
       // novedad), no.
       const invalidos = tokensInvalidos(resultado.tickets, {})
       expect(invalidos).toEqual([TOKEN_FAVORITO_2])
+    })
+  })
+
+  describe('D2/Ronda 51: `categoryId` del aviso patrocinado viaja de punta a punta, de armarTanda hasta el body del POST a Expo', () => {
+    it('un `MensajeDeTanda` de kind patrocinado trae categoryId, y enviarLote lo manda tal cual a Expo', async () => {
+      const EVENT_PATROCINADO = uuid(201)
+      const datosConPatrocinado: DatosParaTanda = {
+        usuarios: [
+          {
+            userId: USER_NOVEDAD, // reusa un usuario del escenario, sin favoritos/novedades/silencio de por medio.
+            preferencias: prefs(),
+            tokens: [TOKEN_NOVEDAD],
+            favoritos: [],
+            novedades: [],
+            enviosRegistrados: [],
+          },
+        ],
+        patrocinado: { id: uuid(301), titulo: 'Campaña de Prueba', cuerpo: 'Cuerpo de prueba', eventId: EVENT_PATROCINADO },
+      }
+
+      const mensajes = armarTanda(datosConPatrocinado, AHORA)
+      expect(mensajes).toHaveLength(1)
+      expect(mensajes[0].kind).toBe('patrocinado')
+      expect(mensajes[0].categoryId).toBe(CATEGORIA_PATROCINADO)
+
+      const fetchImpl = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({ data: [{ status: 'ok', id: 'ticket-patrocinado' }] }),
+      } as unknown as Response)
+
+      await enviarLote(mensajes, fetchImpl as unknown as typeof fetch)
+
+      const [, init] = fetchImpl.mock.calls[0] as [string, RequestInit]
+      const cuerpoEnviado = JSON.parse(init.body as string) as Array<{ categoryId?: string }>
+      expect(cuerpoEnviado[0].categoryId).toBe(CATEGORIA_PATROCINADO)
     })
   })
 

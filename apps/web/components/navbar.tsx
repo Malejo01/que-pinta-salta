@@ -4,7 +4,7 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
 import Image from "next/image"
-import { Moon, Sun, Plus, LogIn, LogOut, User, Settings, SearchCheck, Tags, Heart, Radio, Coffee, Search, Calendar } from "lucide-react"
+import { Moon, Sun, Plus, LogIn, LogOut, User, Settings, SearchCheck, Tags, Heart, Radio, Coffee, Search, Calendar, Map } from "lucide-react"
 import { useTheme } from "@/components/theme-provider"
 import { useDonation } from "@/components/donation-context"
 import { DONATIONS_ENABLED } from "@/lib/config/monetization"
@@ -107,6 +107,12 @@ export function Navbar() {
           <Button asChild variant="ghost" size="icon" className="hidden sm:inline-flex text-muted-foreground hover:text-primary transition-colors">
             <Link href="/buscar" aria-label="Buscar eventos" prefetch={false}>
               <Search className="size-5" />
+            </Link>
+          </Button>
+
+          <Button asChild variant="ghost" size="icon" className="hidden sm:inline-flex text-muted-foreground hover:text-primary transition-colors">
+            <Link href="/mapa" aria-label="Ver el mapa" prefetch={false}>
+              <Map className="size-5" />
             </Link>
           </Button>
 

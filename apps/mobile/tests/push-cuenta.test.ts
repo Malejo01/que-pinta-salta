@@ -212,6 +212,47 @@ describe('components/SeccionNotificaciones.tsx: monta AvisoActivarPush variante 
     expect(SRC_SECCION_NOTIFICACIONES).toContain("radarChannel === 'push' || radarChannel === 'ambos'")
     expect(SRC_SECCION_NOTIFICACIONES).toContain('Por ahora el Radar te sigue llegando por email.')
   })
+
+  // Ronda 51, tarea 51-d: "Avisos patrocinados" va DESPUÉS de "Novedades de
+  // lo que seguís" y ANTES de "Avisos de Qué Pinta Salta" (que sigue
+  // disabled con "Pronto", QPS-166, sin tocar).
+  it('"Avisos patrocinados" aparece después de "Novedades de lo que seguís" y antes de "Avisos de Qué Pinta Salta"', () => {
+    const idxFavoritos = SRC_SECCION_NOTIFICACIONES.indexOf('Recordatorios de favoritos')
+    const idxNovedades = SRC_SECCION_NOTIFICACIONES.indexOf('Novedades de lo que seguís')
+    // Ancla por la etiqueta JSX exacta (no el texto plano): "Avisos
+    // patrocinados" también aparece antes, en comentarios de cabecera.
+    const idxPatrocinados = SRC_SECCION_NOTIFICACIONES.indexOf('<Texto>Avisos patrocinados</Texto>')
+    const idxAnnouncements = SRC_SECCION_NOTIFICACIONES.indexOf('Avisos de Qué Pinta Salta')
+
+    expect(idxFavoritos).toBeGreaterThan(-1)
+    expect(idxNovedades).toBeGreaterThan(idxFavoritos)
+    expect(idxPatrocinados).toBeGreaterThan(idxNovedades)
+    expect(idxAnnouncements).toBeGreaterThan(idxPatrocinados)
+  })
+
+  it('el interruptor de "Avisos patrocinados" tiene su descripción y accessibilityState con checked/busy', () => {
+    const idxFila = SRC_SECCION_NOTIFICACIONES.indexOf('<Texto>Avisos patrocinados</Texto>')
+    const idxSwitch = SRC_SECCION_NOTIFICACIONES.indexOf('<Switch', idxFila)
+    const finSwitch = SRC_SECCION_NOTIFICACIONES.indexOf('/>', idxSwitch)
+    expect(idxFila).toBeGreaterThan(-1)
+    expect(idxSwitch).toBeGreaterThan(idxFila)
+
+    const tramoEtiqueta = SRC_SECCION_NOTIFICACIONES.slice(idxFila, idxSwitch)
+    expect(tramoEtiqueta).toContain('Hasta 1 por semana, de eventos de Salta.')
+    expect(tramoEtiqueta).toContain('Patrocinado')
+
+    const tramoSwitch = SRC_SECCION_NOTIFICACIONES.slice(idxSwitch, finSwitch + 2)
+    expect(tramoSwitch).toContain('accessibilityLabel="Avisos patrocinados"')
+    expect(tramoSwitch).toMatch(/accessibilityState=\{\{\s*checked:\s*sponsored\s*,\s*busy:\s*guardandoPatrocinados\s*\}\}/)
+  })
+
+  it('"Avisos de Qué Pinta Salta" sigue disabled con "Pronto" (QPS-166, no se toca en esta tarea)', () => {
+    const idxFila = SRC_SECCION_NOTIFICACIONES.indexOf('Avisos de Qué Pinta Salta')
+    const idxSwitch = SRC_SECCION_NOTIFICACIONES.indexOf('<Switch', idxFila)
+    const finEtiquetaSwitch = SRC_SECCION_NOTIFICACIONES.indexOf('/>', idxSwitch)
+    const tramoSwitch = SRC_SECCION_NOTIFICACIONES.slice(idxSwitch, finEtiquetaSwitch + 2)
+    expect(tramoSwitch).toMatch(/<Switch\s+value=\{announcements\}\s+disabled\s+accessibilityLabel="Avisos de Qué Pinta Salta"\s*\/>/)
+  })
 })
 
 describe('app/(tabs)/favoritos.tsx: monta AvisoActivarPush variante favoritos, arriba de la lista', () => {

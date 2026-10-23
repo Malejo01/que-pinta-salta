@@ -297,7 +297,7 @@ export function debeMandarEmail(canal: CanalRadar): boolean {
 // ---------------------------------------------------------------------------
 
 /** Tipo de envío, igual que la columna `kind` de `notification_sends` (texto libre en la base, acá una lista cerrada). */
-export type TipoEnvioNotificacion = 'favorito' | 'novedad' | 'radar' | 'anuncio'
+export type TipoEnvioNotificacion = 'favorito' | 'novedad' | 'radar' | 'anuncio' | 'patrocinado'
 
 export interface ClaveDedupeInput {
   kind: TipoEnvioNotificacion
@@ -325,4 +325,91 @@ export function claveDedupe({ kind, userId, eventId, extra }: ClaveDedupeInput):
   if (eventId) partes.push(eventId)
   if (extra) partes.push(extra)
   return partes.join(':')
+}
+
+// ---------------------------------------------------------------------------
+// Semana de Salta (avisos patrocinados, D2/Ronda 51, tarea 51-a)
+// ---------------------------------------------------------------------------
+
+const MS_POR_DIA = 24 * 60 * 60 * 1000
+
+/**
+ * Clave de la semana ISO (lunes a domingo) de Salta a la que cae `fecha`,
+ * formato `"AAAA-Sss"` (p. ej. `"2026-S43"`). Se usa para el dedupe semanal
+ * de avisos patrocinados: un usuario recibe como mucho uno por semana.
+ *
+ * Es la semana de SALTA, no la de UTC: un domingo 23:30 de Salta ya es lunes
+ * en UTC (Salta está a UTC-3), así que calcular la semana sobre `fecha` tal
+ * cual (con `getUTCDay`/`getDay` de un `Date` sin pasar por la zona de Salta)
+ * metería a esa persona en la semana equivocada, y una corrida media hora
+ * después (ya lunes de Salta también) le mandaría un segundo aviso de la
+ * "semana nueva" el mismo fin de semana.
+ *
+ * El cálculo, igual que `diaAnteriorSalta` de este archivo: se arranca de
+ * `formatSaltaDayKey(fecha)` (el día de Salta, como string `"YYYY-MM-DD"`) y
+ * TODA la aritmética de ahí en adelante es sobre ese string anclado a UTC
+ * (`T00:00:00Z`), nunca sobre la hora real de `fecha` ni sobre la zona de la
+ * máquina que corre el proceso.
+ *
+ * Es el año ISO, no el año de calendario: el número de semana se calcula
+ * sobre el JUEVES de la semana (ver más abajo), que siempre cae en el año
+ * ISO al que esa semana pertenece. La clave usa ese año ISO, no el de
+ * calendario: el 2027-01-01 es viernes, pero el jueves de SU semana es el
+ * 2026-12-31, así que `semanaSalta` da `"2026-S53"`, no `"2027-S01"`. Así, dos
+ * semanas reales distintas nunca comparten la misma clave `AAAA-Sww` (si se
+ * usara el año de calendario del día consultado en vez del año ISO del
+ * jueves, sí podrían compartirla, y un usuario recibiría dos avisos en la
+ * misma semana real).
+ */
+export function semanaSalta(fecha: Date): string {
+  const diaKey = formatSaltaDayKey(fecha)
+  const fechaUtc = new Date(`${diaKey}T00:00:00Z`)
+
+  // Día ISO de la semana: lunes = 1 ... domingo = 7 (getUTCDay da domingo = 0).
+  const diaSemanaIso = fechaUtc.getUTCDay() === 0 ? 7 : fechaUtc.getUTCDay()
+
+  // El jueves de la semana de `fechaUtc` cae siempre en el año ISO correcto
+  // (es el método estándar de ISO 8601: la semana le "pertenece" al año en el
+  // que cae su jueves).
+  const jueves = new Date(fechaUtc)
+  jueves.setUTCDate(fechaUtc.getUTCDate() + (4 - diaSemanaIso))
+  const anioIso = jueves.getUTCFullYear()
+
+  // Semana 1 es la que contiene el primer jueves de `anioIso`. Fórmula
+  // estándar de ISO 8601: `ceil((dias + 1) / 7)`, con `dias` la cantidad de
+  // días completos entre el 1 de enero de `anioIso` y `jueves`. OJO:
+  // `ceil(dias / 7 + 1)` (sin el +1 adentro del numerador) solo da lo mismo
+  // cuando `dias` es múltiplo de 7, es decir cuando el 1 de enero cae
+  // jueves — un caso particular, no la regla general.
+  const primerDiaDelAnio = new Date(Date.UTC(anioIso, 0, 1))
+  const dias = (jueves.getTime() - primerDiaDelAnio.getTime()) / MS_POR_DIA
+  const numeroSemana = Math.ceil((dias + 1) / 7)
+
+  return `${anioIso}-S${String(numeroSemana).padStart(2, '0')}`
+}
+
+/**
+ * Arma la clave de dedupe de un aviso patrocinado para `userId` en la semana
+ * `semana` (ver `semanaSalta`). No se escribe el formato `"patrocinado:<userId>:<semana>"`
+ * a mano: se delega en `claveDedupe`, el único lugar que conoce el formato
+ * real de `notification_sends.dedupe_key`.
+ */
+export function claveDedupePatrocinado(userId: string, semana: string): string {
+  return claveDedupe({ kind: 'patrocinado', userId, extra: semana })
+}
+
+/**
+ * `true` si `clave` es EXACTAMENTE la clave de dedupe del aviso patrocinado
+ * de `userId` en `semana` (igualdad completa, no un `startsWith` de prefijo
+ * como hace `esDedupeKeyDeNovedad` en `./tanda`). Acá sí hace falta la
+ * igualdad exacta y no alcanza con el prefijo `"patrocinado:"`: el dedupe de
+ * novedades se evalúa siempre sobre los envíos de UN solo usuario (ya viene
+ * filtrado), pero esta función además tiene que distinguir la semana (el
+ * `extra`) de otros envíos patrocinados del mismo usuario en OTRAS semanas, y
+ * (por si alguna vez se llama sin filtrar antes por usuario) nunca confundir
+ * la clave de un usuario con la de otro. Un prefijo compartido no alcanza
+ * para ninguna de esas dos distinciones; la igualdad exacta sí.
+ */
+export function esDedupeKeyPatrocinadoDeLaSemana(clave: string, userId: string, semana: string): boolean {
+  return clave === claveDedupePatrocinado(userId, semana)
 }

@@ -29,7 +29,12 @@ import { CampoTexto } from '@/components/CampoTexto'
 import { Cargando, ErrorCarga } from '@/components/EstadoCarga'
 import { Texto } from '@/components/Texto'
 import { useColoresQPS } from '@/lib/colores'
-import { guardarNotificaciones, MENSAJE_NO_DISPONIBLE, obtenerNotificaciones } from '@/lib/notificaciones'
+import {
+  cambiarPatrocinados,
+  guardarNotificaciones,
+  MENSAJE_NO_DISPONIBLE,
+  obtenerNotificaciones,
+} from '@/lib/notificaciones'
 import { useSession } from '@/lib/session'
 
 const ETIQUETAS_CANAL: Record<CanalRadar, string> = {
@@ -51,6 +56,7 @@ type Estado =
       favoriteReminders: boolean
       followNews: boolean
       announcements: boolean
+      sponsored: boolean
       quietStart: string
       quietEnd: string
     }
@@ -63,6 +69,11 @@ export function SeccionNotificaciones() {
   const [estado, setEstado] = useState<Estado>({ tipo: 'cargando' })
   const [guardando, setGuardando] = useState(false)
   const [mensaje, setMensaje] = useState<{ tipo: 'ok' | 'error'; texto: string } | null>(null)
+  // Bandera propia de la fila de "Avisos patrocinados": no es `guardando`
+  // (ese es del botón "Guardar notificaciones", otra cosa) — evita que dos
+  // toques seguidos en el interruptor disparen dos cambiarPatrocinados en
+  // paralelo y dejen el estado inconsistente.
+  const [guardandoPatrocinados, setGuardandoPatrocinados] = useState(false)
 
   const cargar = useCallback(async () => {
     if (!userId) return
@@ -82,6 +93,7 @@ export function SeccionNotificaciones() {
       favoriteReminders: resultado.preferencias.favorite_reminders,
       followNews: resultado.preferencias.follow_news,
       announcements: resultado.preferencias.announcements,
+      sponsored: resultado.preferencias.sponsored,
       quietStart: resultado.preferencias.quiet_start,
       quietEnd: resultado.preferencias.quiet_end,
     })
@@ -115,17 +127,27 @@ export function SeccionNotificaciones() {
     )
   }
 
-  const { radarChannel, favoriteReminders, followNews, announcements, quietStart, quietEnd } = estado
+  const { radarChannel, favoriteReminders, followNews, announcements, sponsored, quietStart, quietEnd } = estado
 
   async function guardar() {
     if (!userId || guardando) return
     setGuardando(true)
     setMensaje(null)
+    // `sponsored` viaja con el valor que esté en el estado en este momento.
+    // Consecuencia conocida (sin arreglar en esta ronda): si la persona
+    // apagó los avisos patrocinados desde el aviso de un push (51-e) MIENTRAS
+    // esta pantalla estaba abierta con el valor viejo ya cargado, tocar
+    // "Guardar notificaciones" después los vuelve a prender (el estado de
+    // esta pantalla no se refrescó solo). Arreglarlo necesitaría recargar
+    // antes de guardar, y eso le cambia el comportamiento al botón para todo
+    // lo demás (radar_channel, horario de silencio, etc.) — queda para otra
+    // ronda.
     const resultado = await guardarNotificaciones(userId, {
       radar_channel: radarChannel,
       favorite_reminders: favoriteReminders,
       follow_news: followNews,
       announcements,
+      sponsored,
       quiet_start: quietStart,
       quiet_end: quietEnd,
     })
@@ -137,6 +159,32 @@ export function SeccionNotificaciones() {
       setMensaje({ tipo: 'ok', texto: 'Guardamos tus notificaciones.' })
     }
     setGuardando(false)
+  }
+
+  // Avisos patrocinados (51-d): guarda al tocar el interruptor, sin esperar
+  // a "Guardar notificaciones" (es una baja en un toque). Optimista: cambia
+  // el estado primero, y si `cambiarPatrocinados` falla, vuelve atrás y
+  // muestra el error con el mismo mecanismo que ya usa `guardar()`.
+  //
+  // Arma el literal `{ tipo: 'ok', ... }` entero (en vez de `{ ...estado,
+  // sponsored: nuevo }`) a propósito: `estado` acá adentro sigue tipado como
+  // la unión completa de `Estado` (una `function` declarada, a diferencia de
+  // una arrow function inline, no hereda el angostamiento de los `if`
+  // anteriores), así que un spread de `estado` no compila. Las variables ya
+  // desestructuradas (radarChannel, favoriteReminders, etc.) sí tienen su
+  // tipo correcto.
+  async function cambiarSponsored(nuevo: boolean) {
+    if (!userId || guardandoPatrocinados) return
+    const anterior = sponsored
+    setEstado({ tipo: 'ok', radarChannel, favoriteReminders, followNews, announcements, sponsored: nuevo, quietStart, quietEnd })
+    setGuardandoPatrocinados(true)
+    setMensaje(null)
+    const resultado = await cambiarPatrocinados(userId, nuevo)
+    if (!resultado.ok) {
+      setEstado({ tipo: 'ok', radarChannel, favoriteReminders, followNews, announcements, sponsored: anterior, quietStart, quietEnd })
+      setMensaje({ tipo: 'error', texto: resultado.mensaje })
+    }
+    setGuardandoPatrocinados(false)
   }
 
   // Ronda 41, 41-e, decisión 4 del plan: el canal del Radar por push no lo
@@ -165,6 +213,22 @@ export function SeccionNotificaciones() {
           value={followNews}
           onValueChange={(valor) => setEstado({ ...estado, followNews: valor })}
           accessibilityLabel="Novedades de lo que seguís"
+        />
+      </View>
+
+      <View style={estilos.filaInterruptor}>
+        <View style={estilos.filaEtiquetaConDescripcion}>
+          <Texto>Avisos patrocinados</Texto>
+          <Texto tono="secundario" style={estilos.textoDescripcion}>
+            {'Hasta 1 por semana, de eventos de Salta. Llevan la etiqueta "Patrocinado".'}
+          </Texto>
+        </View>
+        <Switch
+          value={sponsored}
+          onValueChange={cambiarSponsored}
+          disabled={guardandoPatrocinados}
+          accessibilityLabel="Avisos patrocinados"
+          accessibilityState={{ checked: sponsored, busy: guardandoPatrocinados }}
         />
       </View>
 
@@ -255,6 +319,8 @@ const estilos = StyleSheet.create({
   filaInterruptor: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   filaEtiquetaConPronto: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   etiquetaPronto: { fontSize: 11, textTransform: 'uppercase' },
+  filaEtiquetaConDescripcion: { flex: 1, marginRight: 12, gap: 2 },
+  textoDescripcion: { fontSize: 12 },
   filaChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: { borderWidth: 1, borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8 },
   filaHorario: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },

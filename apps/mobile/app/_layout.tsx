@@ -121,7 +121,12 @@ function RootLayout() {
               seguir a ese tema (igual que `TEMA_OSCURO`, arriba). */}
           <StatusBar style="light" />
           {/* Sin interfaz propia: registra el handler de avisos en primer
-              plano y navega a la ficha cuando se toca un push (41-d). */}
+              plano y navega a la ficha cuando se toca un push (41-d).
+              Desde la R51 (51-e) también registra la categoría del aviso
+              patrocinado (su botón "No recibir más") y, si tocan ese botón,
+              guarda la preferencia con el usuario de `useSession()` — por
+              eso tiene que seguir adentro de `SessionProvider`, como
+              `PushProvider`. */}
           <ManejadorTapPush />
           <Stack>
             <Stack.Screen name="bienvenida" options={{ headerShown: false }} />

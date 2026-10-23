@@ -66,7 +66,7 @@ export async function obtenerNotificaciones(userId: string): Promise<ResultadoNo
   try {
     const { data, error } = await supabase
       .from('notification_preferences')
-      .select('radar_channel, favorite_reminders, follow_news, announcements, quiet_start, quiet_end')
+      .select('radar_channel, favorite_reminders, follow_news, announcements, sponsored, quiet_start, quiet_end')
       .eq('user_id', userId)
       .maybeSingle()
 
@@ -84,6 +84,7 @@ export async function obtenerNotificaciones(userId: string): Promise<ResultadoNo
         favorite_reminders: data.favorite_reminders,
         follow_news: data.follow_news,
         announcements: data.announcements,
+        sponsored: data.sponsored,
         quiet_start: horaCorta(data.quiet_start, PREFERENCIAS_POR_DEFECTO.quiet_start),
         quiet_end: horaCorta(data.quiet_end, PREFERENCIAS_POR_DEFECTO.quiet_end),
       },
@@ -116,5 +117,54 @@ export async function guardarNotificaciones(
     return { tipo: 'ok' }
   } catch (excepcion) {
     return resultadoDeError(excepcion, MENSAJE_ERROR_GUARDAR)
+  }
+}
+
+export type ResultadoCambiarPatrocinados = { ok: true } | { ok: false; mensaje: string }
+
+export const MENSAJE_ERROR_PATROCINADOS = 'No pudimos guardar tu preferencia de avisos patrocinados. Probá de nuevo.'
+
+/**
+ * Ronda 51, tarea 51-d: prende/apaga `sponsored` (avisos patrocinados) en un
+ * solo toque, sin pasar por el resto del formulario de notificaciones. El
+ * upsert manda **solo** `user_id` y `sponsored`: si la fila todavía no
+ * existe, las demás columnas toman el default de la base
+ * (`notification_preferences`, migración de D2 de la R51) — no se "completa"
+ * con los defaults de `PREFERENCIAS_POR_DEFECTO` de core, porque eso pisaría
+ * cualquier otra preferencia que la persona ya tenga guardada desde otro
+ * dispositivo (la fila podría existir en el servidor aunque esta pantalla
+ * nunca la haya leído, por ejemplo si el upsert llega antes que
+ * `obtenerNotificaciones` en otra sesión).
+ *
+ * `userId` lo tiene que pasar quien llama, **siempre** leído de
+ * `useSession()` en esa pantalla — nunca un dato que venga de un push (la
+ * tarea 51-e llama a esta función desde el botón de una notificación
+ * patrocinada, y la única garantía que tiene de que el usuario es quien dice
+ * ser es la sesión activa en el teléfono, no el contenido del push).
+ *
+ * El timeout de red ya lo pone el cliente de Supabase
+ * (`fetchConTimeout`/`TIMEOUT_RED_MS` aplicado en `lib/supabase.ts`): esta
+ * función no agrega uno propio.
+ */
+export async function cambiarPatrocinados(userId: string, valor: boolean): Promise<ResultadoCambiarPatrocinados> {
+  if (!supabase) return { ok: false, mensaje: MENSAJE_SIN_CONFIGURACION }
+
+  try {
+    const { error } = await supabase
+      .from('notification_preferences')
+      .upsert({ user_id: userId, sponsored: valor }, { onConflict: 'user_id' })
+
+    if (error) {
+      const resultado = resultadoDeError(error, MENSAJE_ERROR_PATROCINADOS)
+      return resultado.tipo === 'no-disponible'
+        ? { ok: false, mensaje: MENSAJE_NO_DISPONIBLE }
+        : { ok: false, mensaje: resultado.error }
+    }
+    return { ok: true }
+  } catch (excepcion) {
+    const resultado = resultadoDeError(excepcion, MENSAJE_ERROR_PATROCINADOS)
+    return resultado.tipo === 'no-disponible'
+      ? { ok: false, mensaje: MENSAJE_NO_DISPONIBLE }
+      : { ok: false, mensaje: resultado.error }
   }
 }
