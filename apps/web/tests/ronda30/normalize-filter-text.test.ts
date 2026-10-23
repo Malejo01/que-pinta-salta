@@ -68,10 +68,21 @@ describe('QPS-021: /buscar, la portada y la app usan la misma normalizeFilterTex
     expect(source).not.toMatch(SIN_COPIA_PROPIA)
   })
 
-  it('la app (apps/mobile/app/(tabs)/buscar.tsx) usa buscarEventosPorTexto de core, sin normalización propia', () => {
+  // R66 (66-b): la app ya no importa `buscarEventosPorTexto` suelta: filtra
+  // texto + fecha + categoría + gratis con `filtrarCombinado`
+  // (`packages/core/src/home/filtros-combinados.ts`), que la usa por dentro.
+  // Se exigen los dos eslabones: la app importa `filtrarCombinado` de core, y
+  // `filtros-combinados.ts` importa `buscarEventosPorTexto` de `./busqueda`,
+  // ninguno con normalización propia.
+  it('la app (apps/mobile/app/(tabs)/buscar.tsx) busca con core (filtrarCombinado → buscarEventosPorTexto), sin normalización propia', () => {
     const source = readMobile('app/(tabs)/buscar.tsx')
-    expect(source).toMatch(IMPORTA_BUSQUEDA_DE_CORE)
+    expect(source).toMatch(/import\s*\{[^}]*\bfiltrarCombinado\b[^}]*\}\s*from\s*["']@qps\/core\/home\/filtros-combinados["']/)
     expect(source).not.toMatch(SIN_COPIA_PROPIA)
+
+    const combinado = readCore('home/filtros-combinados.ts')
+    expect(combinado).toMatch(/import\s*\{[^}]*\bbuscarEventosPorTexto\b[^}]*\}\s*from\s*["']\.\/busqueda["']/)
+    expect(combinado).toMatch(/buscarEventosPorTexto\(/)
+    expect(combinado).not.toMatch(SIN_COPIA_PROPIA)
   })
 
   it('filtrado real: "pena" encuentra "Peña" con la búsqueda de core (la de /buscar y la app)', () => {
