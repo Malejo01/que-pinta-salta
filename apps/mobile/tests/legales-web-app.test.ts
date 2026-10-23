@@ -123,14 +123,19 @@ describe('cumpleRutaLegal: los cuatro cruces de /terminos (flag × existe la pá
   })
 })
 
-describe('con el flag invertido en memoria y el fs real: si TERMINOS_PUBLICADOS fuera true hoy, esto fallaría de verdad', () => {
-  it('hoy, antes del #74, la página de /terminos no existe en el fs real', () => {
-    expect(existsSync(paginaWebDe(RUTA_TERMINOS))).toBe(false)
+// Antes del #74 este bloque fijaba lo contrario: que /terminos NO existía y
+// que, con el flag invertido a true, el cruce no cumplía (el centinela para no
+// subir el flag antes que la página). Con el #74 la página existe; el flag
+// sigue en false hasta que el #74 esté en producción (lib/legales.ts), y con
+// false una página presente cumple igual (la excepción es "no obligatoria").
+describe('con el #74: la página de /terminos existe en el fs real, así que el flag ya se puede subir', () => {
+  it('la página de /terminos existe en el fs real', () => {
+    expect(existsSync(paginaWebDe(RUTA_TERMINOS))).toBe(true)
   })
 
-  it('con terminosPublicados=true (invertido, no se toca lib/legales.ts) y la existencia real: no cumple', () => {
+  it('con terminosPublicados=true (invertido, no se toca lib/legales.ts) y la existencia real: cumple', () => {
     const paginaExisteDeVerdad = existsSync(paginaWebDe(RUTA_TERMINOS))
-    expect(cumpleRutaLegal(RUTA_TERMINOS, true, paginaExisteDeVerdad)).toBe(false)
+    expect(cumpleRutaLegal(RUTA_TERMINOS, true, paginaExisteDeVerdad)).toBe(true)
   })
 })
 

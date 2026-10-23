@@ -102,6 +102,12 @@ export function Footer() {
               >
                 Política de Privacidad
               </Link>
+              <Link
+                href="/terminos"
+                className="text-sm text-muted-foreground transition-colors hover:text-foreground"
+              >
+                Términos y condiciones
+              </Link>
               {/* Oculto mientras haya precios sin completar (decisión de Mauro, 12/10) */}
               {ANUNCIANTES.publicada && (
                 <Link

@@ -188,8 +188,20 @@ function LoginForm() {
               <span>Google</span>
             </Button>
 
+            <p className="mt-4 text-xs text-muted-foreground text-center">
+              Al continuar con Google aceptás los{' '}
+              <Link href="/terminos" className="text-primary underline underline-offset-4">
+                Términos y condiciones
+              </Link>{' '}
+              y la{' '}
+              <Link href="/privacidad" className="text-primary underline underline-offset-4">
+                Política de Privacidad
+              </Link>
+              .
+            </p>
+
             <div className="mt-4 text-center text-sm">
-              ¿No tienes cuenta?{' '}
+              ¿No tenés cuenta?{' '}
               <Link
                 href="/auth/sign-up"
                 className="text-primary underline underline-offset-4"
