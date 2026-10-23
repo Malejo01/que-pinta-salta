@@ -64,13 +64,22 @@ type SeccionPortada =
   | { tipo: 'hoy'; eventos: DisplayEvent[] }
   | { tipo: 'categoria'; fila: CategoryEventsRow }
   | { tipo: 'banner-radar' }
+  | { tipo: 'anuncio' }
+
+const FILAS_MINIMAS_PARA_ANUNCIO = 2
 
 function seccionesPortada(filas: CategoryEventsRow[], hoyEventos: DisplayEvent[]): SeccionPortada[] {
   const secciones: SeccionPortada[] = [{ tipo: 'hoy', eventos: hoyEventos }]
+  let anuncioInsertado = false
   filas.forEach((fila, indice) => {
     secciones.push({ tipo: 'categoria', fila })
     if (indice === 1) secciones.push({ tipo: 'banner-radar' })
+    if (indice === 3) {
+      secciones.push({ tipo: 'anuncio' })
+      anuncioInsertado = true
+    }
   })
+  if (!anuncioInsertado && filas.length >= FILAS_MINIMAS_PARA_ANUNCIO) secciones.push({ tipo: 'anuncio' })
   return secciones
 }
 
@@ -106,7 +115,7 @@ describe('seccionesPortada (fixtures en memoria)', () => {
     expect(secciones.some((s) => s.tipo === 'banner-radar')).toBe(false)
   })
 
-  it('con cero filas, solo queda la sección "hoy"', () => {
+  it('con cero filas: solo "hoy", sin anuncio (R60 — con menos de 2 filas el banner quedaría arriba del pliegue)', () => {
     expect(seccionesPortada([], hoy)).toEqual([{ tipo: 'hoy', eventos: hoy }])
   })
 
@@ -118,6 +127,85 @@ describe('seccionesPortada (fixtures en memoria)', () => {
     ]
     const secciones = seccionesPortada(conUnaVacia, hoy)
     expect(secciones[3]).toEqual({ tipo: 'banner-radar' })
+  })
+})
+
+// ---------------------------------------------------------------------------
+// R60, 52-d: el banner de AdMob (`tipo: 'anuncio'`) después de la 4.ª fila
+// (índice 3) — contando TODAS las filas, igual que el banner del Radar. Con
+// menos de 4 filas (0 o 2), va al FINAL de la lista de secciones (diferencia
+// deliberada con la web: un día flojo de agenda no se queda sin la sección
+// del anuncio). En todos los casos, el banner del Radar NO se mueve (sigue
+// después del índice 1).
+// ---------------------------------------------------------------------------
+describe('seccionesPortada: el banner de AdMob ("anuncio"), con 0/2/4/8 filas', () => {
+  const hoy = [makeDisplayEvent({ id: 'hoy-1' })]
+
+  function filas(cantidad: number): CategoryEventsRow[] {
+    return Array.from({ length: cantidad }, (_, i) => ({
+      category: `cat-${i}`,
+      title: `Categoría ${i}`,
+      events: [makeDisplayEvent({ id: `e-${i}` })],
+    }))
+  }
+
+  // R60 (lead, hallazgo de ux-ui): con 0 o 1 filas NO hay anuncio. La cuenta
+  // de alturas para 360×800 (la medida que fijó Mauro) da el banner
+  // arrancando a los ~256 dp con 0 filas y a los ~582 dp con 1, contra un
+  // área visible de ~649 dp: en los dos casos asoma sin scrollear, y eso
+  // rompe la regla (a) ("ningún anuncio arriba del pliegue"). Con 2 filas, las
+  // dos FilaCategoria (~326 dp cada una) lo empujan arriba de los 900 dp.
+  it('0 filas: NO hay anuncio (quedaría arriba del pliegue)', () => {
+    const secciones = seccionesPortada(filas(0), hoy)
+    expect(secciones.map((s) => s.tipo)).toEqual(['hoy'])
+  })
+
+  it('1 fila: tampoco hay anuncio (el umbral es 2 filas, no "cualquier cosa menos vacío")', () => {
+    const secciones = seccionesPortada(filas(1), hoy)
+    expect(secciones.map((s) => s.tipo)).toEqual(['hoy', 'categoria'])
+  })
+
+  it('2 filas: el anuncio va al final (nunca llega al índice 3)', () => {
+    const secciones = seccionesPortada(filas(2), hoy)
+    expect(secciones.map((s) => s.tipo)).toEqual(['hoy', 'categoria', 'categoria', 'banner-radar', 'anuncio'])
+    expect(secciones.at(-1)).toEqual({ tipo: 'anuncio' })
+  })
+
+  it('4 filas: el anuncio va justo después de la 4.ª fila (índice 3), no al final', () => {
+    const secciones = seccionesPortada(filas(4), hoy)
+    expect(secciones.map((s) => s.tipo)).toEqual([
+      'hoy',
+      'categoria', // fila 0
+      'categoria', // fila 1
+      'banner-radar',
+      'categoria', // fila 2
+      'categoria', // fila 3 (índice 3)
+      'anuncio',
+    ])
+  })
+
+  it('8 filas: el anuncio sigue después de la 4.ª fila (índice 3), con 4 filas más después de él', () => {
+    const secciones = seccionesPortada(filas(8), hoy)
+    const tipos = secciones.map((s) => s.tipo)
+    const idxAnuncio = tipos.indexOf('anuncio')
+    expect(idxAnuncio).toBeGreaterThan(-1)
+    // Justo después de la 4.ª fila (fila de índice 3): antes del anuncio hay
+    // exactamente 4 secciones "categoria" (más "hoy" y "banner-radar").
+    const categoriasAntes = tipos.slice(0, idxAnuncio).filter((t) => t === 'categoria').length
+    expect(categoriasAntes).toBe(4)
+    // Y siguen filas después del anuncio (a diferencia del caso de 4 filas).
+    expect(tipos.slice(idxAnuncio + 1).filter((t) => t === 'categoria').length).toBe(4)
+  })
+
+  it.each([0, 1, 2, 4, 8])('con %i filas, el banner del Radar no se mueve (sigue después del índice 1, si existe)', (cantidad) => {
+    const secciones = seccionesPortada(filas(cantidad), hoy)
+    const idxBanner = secciones.findIndex((s) => s.tipo === 'banner-radar')
+    if (cantidad < 2) {
+      expect(idxBanner).toBe(-1)
+    } else {
+      // El banner va justo después de la fila de índice 1: "hoy" + 2 filas.
+      expect(idxBanner).toBe(3)
+    }
   })
 })
 
@@ -200,10 +288,43 @@ describe('app/(tabs)/index.tsx: lectura estática', () => {
     expect(content).toContain('Ver esta semana')
   })
 
-  it('deja constancia de lo que no se copia a propósito (Más filtros, el switch de flyers, AdSense)', () => {
+  it('deja constancia de lo que no se copia a propósito (Más filtros, el switch de flyers)', () => {
     expect(content).toMatch(/Más filtros/)
     expect(content).toMatch(/Mostrar flyers de redes/)
-    expect(content).toMatch(/AdSense/)
+  })
+
+  // R60, 52-d: el comentario de cabecera ya no dice que AdSense no tiene
+  // equivalente en la app — ahora lo tiene (AdMob/BannerAnuncio). Esto
+  // reemplaza la exigencia vieja de `/AdSense/` (que antes afirmaba lo
+  // contrario de lo que pasa ahora).
+  it('el comentario de cabecera dice que AdMob SÍ tiene equivalente (ya no que "ninguno de los tres" lo tiene)', () => {
+    expect(content).toMatch(/AdMob/)
+    expect(content).toMatch(/BannerAnuncio/)
+    expect(content).not.toMatch(/ninguno de los tres tiene un/)
+  })
+
+  it('importa BannerAnuncio de @/components/BannerAnuncio y lo monta con lugar="inicio"', () => {
+    expect(content).toMatch(/import\s*\{\s*BannerAnuncio\s*\}\s*from\s*['"]@\/components\/BannerAnuncio['"]/)
+    expect(content).toMatch(/<BannerAnuncio\b[^>]*lugar="inicio"/)
+  })
+
+  it('seccionesPortada inserta el anuncio después de la 4.ª fila (indice === 3)', () => {
+    const idx = content.indexOf('function seccionesPortada')
+    expect(idx).toBeGreaterThan(-1)
+    const cuerpo = content.slice(idx, content.indexOf('\n}', idx))
+    expect(cuerpo).toMatch(/indice\s*===\s*3/)
+  })
+
+  // R60 (lead): la rama del respaldo —el anuncio al final cuando no se llegó
+  // al índice 3— también tiene que estar fijada acá. Sin esto, la copia local
+  // de más arriba podía seguir en verde con el archivo real cambiado en esa
+  // rama (que es justo donde está la regla (a) de Mauro), porque el único
+  // lazo con el archivo real era la comparación `indice === 3`.
+  it('el respaldo del final exige un mínimo de filas, y el mínimo es 2', () => {
+    expect(content).toMatch(/FILAS_MINIMAS_PARA_ANUNCIO\s*=\s*2\b/)
+    const idx = content.indexOf('function seccionesPortada')
+    const cuerpo = content.slice(idx, content.indexOf('\n}', idx))
+    expect(cuerpo).toMatch(/!anuncioInsertado\s*&&\s*filas\.length\s*>=\s*FILAS_MINIMAS_PARA_ANUNCIO/)
   })
 
   it('no toca tests/base-visual.test.ts: nunca usa colors.border/colores.border como color de texto', () => {

@@ -71,6 +71,7 @@ function makeEvent(overrides: Partial<EventWithRelations> & { start_date: string
     tags: overrides.tags ?? [],
     status: overrides.status ?? 'PUBLISHED',
     is_featured: overrides.is_featured ?? false,
+    featured_until: overrides.featured_until ?? null,
     view_count: overrides.view_count ?? 0,
     created_by: overrides.created_by ?? null,
     created_at: overrides.created_at ?? '2026-01-01T00:00:00Z',
@@ -231,6 +232,46 @@ describe('transformEvent', () => {
     const conHora = makeEvent({ start_date: salta('2030-10-10T21:30:00').toISOString() })
     expect(transformEvent(sinHora).time).toBe('')
     expect(transformEvent(conHora).time).toBe('21:30')
+  })
+
+  // QPS-239: el cambio de regla que más vale de la tarea. `isFeatured` ya no
+  // sale de `is_featured` (legado) sino de si `featured_until` sigue
+  // vigente: un evento con `is_featured: true` pero sin `featured_until` NO
+  // está destacado. `transformEvent` compara contra el reloj real (es el
+  // único `new Date()` sin argumento de la regla, ver `home/transform.ts`),
+  // así que los casos "futuro"/"pasado" se construyen relativos a
+  // `Date.now()` en vez de con años fijos (si no, con el paso del tiempo
+  // real los fixtures de 2030 dejarían de ser "futuro").
+  describe('isFeatured / featuredUntil (QPS-239)', () => {
+    const base = { start_date: salta('2030-10-10T21:00:00').toISOString() }
+
+    it('is_featured: true pero featured_until: null -> isFeatured false (el cambio de regla)', () => {
+      const event = makeEvent({ ...base, is_featured: true, featured_until: null })
+      expect(transformEvent(event).isFeatured).toBe(false)
+    })
+
+    it('featured_until en el futuro (relativo a ahora) -> isFeatured true', () => {
+      const futuro = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+      const event = makeEvent({ ...base, is_featured: false, featured_until: futuro })
+      expect(transformEvent(event).isFeatured).toBe(true)
+    })
+
+    it('featured_until en el pasado (relativo a ahora) -> isFeatured false', () => {
+      const pasado = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
+      const event = makeEvent({ ...base, is_featured: true, featured_until: pasado })
+      expect(transformEvent(event).isFeatured).toBe(false)
+    })
+
+    it('featuredUntil se copia tal cual desde featured_until', () => {
+      const fecha = salta('2030-11-01T00:00:00').toISOString()
+      const event = makeEvent({ ...base, featured_until: fecha })
+      expect(transformEvent(event).featuredUntil).toBe(fecha)
+    })
+
+    it('sin featured_until: featuredUntil queda en null', () => {
+      const event = makeEvent({ ...base, featured_until: null })
+      expect(transformEvent(event).featuredUntil).toBeNull()
+    })
   })
 })
 

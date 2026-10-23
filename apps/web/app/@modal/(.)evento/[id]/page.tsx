@@ -4,7 +4,7 @@ import { EventModalWrapper } from "@/components/event-modal-wrapper"
 import { createClient } from "@/lib/supabase/server"
 import { parseOrigin } from "@/lib/metricas/links"
 import { esEventoFavorito } from "@/lib/favoritos/es-favorito"
-import { obtenerAsistencia } from "@/lib/asistencia"
+import { leerAsistencia } from "@/lib/asistencia-lectura"
 import { debenMostrarseBotonesAsistencia } from "@/lib/asistencia-visibilidad"
 import { obtenerSeguimientoDeEvento } from "@/lib/actions/radar"
 
@@ -50,9 +50,12 @@ export default async function ModalEventPage({ params, searchParams }: ModalEven
 
   // "Voy": solo se lee la asistencia si el evento está PUBLISHED (misma
   // función que la ficha). Si la lectura falla, el modal sigue sin el
-  // botón de Voy (la fila de ♥ Guardar/Compartir se dibuja igual).
+  // botón de Voy (la fila de ♥ Guardar/Compartir se dibuja igual: el
+  // `console.error` ya quedó dentro de `leerAsistencia`). R56 (56-a,
+  // QPS-196): el MISMO cliente y el MISMO auth.getUser() de arriba, sin
+  // crear un segundo cliente ni volver a autenticar.
   const resultadoAsistencia = debenMostrarseBotonesAsistencia(event.status)
-    ? await obtenerAsistencia(id)
+    ? await leerAsistencia(supabase, user?.id ?? null, id)
     : null
   const cantidadesAsistencia = resultadoAsistencia?.ok ? resultadoAsistencia.cantidades : undefined
   const marcaAsistencia = resultadoAsistencia?.ok ? resultadoAsistencia.propia : null

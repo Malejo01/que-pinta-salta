@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { DarkTheme, Stack, ThemeProvider, type ErrorBoundaryProps } from 'expo-router'
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native'
 import { StatusBar } from 'expo-status-bar'
@@ -15,6 +16,7 @@ import { Montserrat_700Bold } from '@expo-google-fonts/montserrat/700Bold'
 import { COLORES_OSCURO, construirTema } from '@/lib/theme'
 import { leerEnv } from '@/lib/env'
 import { inicializarSentry } from '@/lib/sentry'
+import { iniciarAnuncios } from '@/lib/anuncios/consentimiento'
 import { SessionProvider } from '@/lib/session'
 import { PushProvider } from '@/lib/push'
 import { ManejadorTapPush } from '@/components/ManejadorTapPush'
@@ -90,6 +92,17 @@ function RootLayout() {
     Montserrat_600SemiBold,
     Montserrat_700Bold,
   })
+
+  // R60/52-c: AdMob, recién en el camino donde las fuentes ya cargaron (o
+  // fallaron) — el mismo gate que el resto del árbol, abajo. El `useEffect`
+  // se declara antes del `return null` (las reglas de hooks no permiten un
+  // hook condicional entre renders); el guardado de adentro es lo que evita
+  // que dispare mientras la splash nativa sigue puesta. `iniciarAnuncios` es
+  // "fire and forget": no bloquea este render.
+  useEffect(() => {
+    if (!fontsLoaded && !fontError) return
+    iniciarAnuncios()
+  }, [fontsLoaded, fontError])
 
   if (!fontsLoaded && !fontError) {
     return null

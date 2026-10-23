@@ -51,6 +51,14 @@ interface ConfigVoy {
   insertError?: unknown
   upsertError?: unknown
   deleteAttendanceError?: unknown
+  /**
+   * El `status` que devuelve `events`.select("status").eq("id", ...).maybeSingle()
+   * (QPS-195, tarea 56-a: `estadoPermiteAgregar` se consulta antes de
+   * AGREGAR una marca). Por defecto 'PUBLISHED', así los escenarios de este
+   * archivo (que prueban el ORDEN de las escrituras, no ese chequeo) siguen
+   * escribiendo como antes.
+   */
+  eventsStatus?: string | null
 }
 
 function construirClienteVoy(config: ConfigVoy) {
@@ -109,6 +117,22 @@ function construirClienteVoy(config: ConfigVoy) {
           orden.push('user_favorites.insert')
           inserts.push(valores)
           return { error: config.insertError ?? null }
+        },
+      }
+    }
+
+    // QPS-195 (56-a): `estadoPermiteAgregar` se consulta antes del primer
+    // paso que AGREGUE una marca. Por defecto 'PUBLISHED' (ver el porqué en
+    // el comentario de ConfigVoy.eventsStatus).
+    if (tabla === 'events') {
+      return {
+        select: (columnas: string) => {
+          if (columnas !== 'status') throw new Error(`select inesperado sobre events: "${columnas}"`)
+          return {
+            eq: () => ({
+              maybeSingle: async () => ({ data: { status: config.eventsStatus ?? 'PUBLISHED' }, error: null }),
+            }),
+          }
         },
       }
     }

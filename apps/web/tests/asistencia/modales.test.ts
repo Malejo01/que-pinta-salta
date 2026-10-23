@@ -6,9 +6,12 @@
  * `components/event-modal-wrapper.tsx`) y el de Buscar
  * (`components/event-modal.tsx` + `components/botones-asistencia-diferidos.tsx`).
  *
- * Sin jsdom ni Testing Library (no hay en `apps/web`): funciones puras y
- * detectores estáticos sobre el código real, con el mismo estilo que
- * `web.test.ts`.
+ * Sin DOM: funciones puras y detectores estáticos sobre el código real, con
+ * el mismo estilo que `web.test.ts`. (Cuando se escribió, jsdom y Testing
+ * Library no estaban instalados en `apps/web`; desde la R61 sí lo están y
+ * hay tests con DOM real en `tests/dom/`. Para lo que fija este archivo —que
+ * el modal importe y condicione la llamada— el detector estático sigue
+ * siendo la herramienta correcta: un DOM no vería nada de eso.)
  *
  * Guardas del #65 que este archivo sigue fijando (no se pierden en esta
  * adaptación): que el modal interceptado importe `obtenerAsistencia` de
@@ -215,8 +218,15 @@ describe('botones-asistencia-diferidos.tsx: detector estático', () => {
 describe('modal interceptado (app/@modal/(.)evento/[id]/page.tsx)', () => {
   const codigo = sinComentarios(leer(RUTA_MODAL_INTERCEPTADO))
 
-  it('importa obtenerAsistencia de "@/lib/asistencia"', () => {
-    expect(codigo).toMatch(/import\s*\{[^}]*\bobtenerAsistencia\b[^}]*\}\s*from\s*['"]@\/lib\/asistencia['"]/)
+  // R56 (tarea 56-a, QPS-196): el modal pasó de llamar a la server action
+  // `obtenerAsistencia` (que creaba SU PROPIO cliente y volvía a llamar a
+  // Auth) a `leerAsistencia` de `@/lib/asistencia-lectura`, con el mismo
+  // cliente y el mismo `auth.getUser()` que ya usa el resto de la página.
+  // Estas dos aserciones se actualizaron para seguir ese cambio real (no se
+  // aflojó ninguna: siguen exigiendo un import y una condición exactos,
+  // solo que ahora apuntan a la función nueva).
+  it('importa leerAsistencia de "@/lib/asistencia-lectura"', () => {
+    expect(codigo).toMatch(/import\s*\{[^}]*\bleerAsistencia\b[^}]*\}\s*from\s*['"]@\/lib\/asistencia-lectura['"]/)
   })
 
   it('importa debenMostrarseBotonesAsistencia de "@/lib/asistencia-visibilidad"', () => {
@@ -225,8 +235,8 @@ describe('modal interceptado (app/@modal/(.)evento/[id]/page.tsx)', () => {
     )
   })
 
-  it('la llamada a obtenerAsistencia está condicionada por debenMostrarseBotonesAsistencia(', () => {
-    expect(codigo).toMatch(/debenMostrarseBotonesAsistencia\([^)]*\)\s*\?\s*await\s+obtenerAsistencia\(/)
+  it('la llamada a leerAsistencia está condicionada por debenMostrarseBotonesAsistencia(', () => {
+    expect(codigo).toMatch(/debenMostrarseBotonesAsistencia\([^)]*\)\s*\?\s*await\s+leerAsistencia\(/)
   })
 
   it('importa y llama a obtenerSeguimientoDeEvento, en el mismo Promise.all que ya existía', () => {

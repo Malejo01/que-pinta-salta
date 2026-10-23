@@ -21,6 +21,7 @@ import { Afiche } from '@/components/Afiche'
 import { BotonCompartir } from '@/components/BotonCompartir'
 import { BotonFavorito } from '@/components/BotonFavorito'
 import { Icono } from '@/components/Icono'
+import { InsigniaDestacado } from '@/components/InsigniaDestacado'
 import { ESCALA_MAXIMA_COMPACTA } from '@/lib/accesibilidad'
 import { useColoresQPS } from '@/lib/colores'
 import { textoPrecio } from '@/lib/formato'
@@ -82,13 +83,7 @@ export function TarjetaEvento({ evento }: TarjetaEventoProps) {
             {evento.categoryName}
           </Text>
         </View>
-        {evento.isFeatured ? (
-          <View style={estilos.badgeDestacado}>
-            <Text style={estilos.textoBadgeDestacado} numberOfLines={1} maxFontSizeMultiplier={ESCALA_MAXIMA_COMPACTA}>
-              ★ Destacado
-            </Text>
-          </View>
-        ) : null}
+        <InsigniaDestacado visible={evento.isFeatured} />
       </View>
 
       <View style={estilos.accionesArriba}>
@@ -162,8 +157,6 @@ const estilos = StyleSheet.create({
   arriba: { position: 'absolute', left: 8, top: 8, gap: 4, alignItems: 'flex-start' },
   badge: { borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3, maxWidth: 140 },
   textoBadge: { fontSize: 11, fontWeight: '700' },
-  badgeDestacado: { backgroundColor: '#f59e0b', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 },
-  textoBadgeDestacado: { fontSize: 10, fontWeight: '800', color: '#000' },
   accionesArriba: { position: 'absolute', right: 8, top: 8, flexDirection: 'row', gap: 6, zIndex: 10 },
   abajo: { position: 'absolute', left: 0, right: 0, bottom: 0, padding: 12 },
   titulo: { color: '#fff', fontSize: 14, fontWeight: '600', marginBottom: 4 },

@@ -1,14 +1,17 @@
 import { describe, expect, it } from 'vitest'
+import { ANUNCIANTES } from '@/lib/config/anunciantes'
 import {
-  ANUNCIANTES,
-  type PaqueteAnunciante,
-} from '@/lib/config/anunciantes'
+  PIE_TARIFARIO,
+  TARIFARIO,
+  textoPrecioFundador,
+  textoPrecioLista,
+  textoUsdAprox,
+} from '@qps/core/publicidad/precios'
 import {
   formatPublicCount,
   formatRadarSubscribers,
   getAdvertiserMetrics,
   last30DaysRange,
-  precioVisible,
   sumViewsPaged,
   type AdvertiserMetricsClient,
   type FetchPageResult,
@@ -198,32 +201,20 @@ describe('sumViewsPaged', () => {
   })
 })
 
-describe('precioVisible', () => {
-  it('precio null -> "Consultar"', () => {
-    expect(precioVisible({ precio: null, periodo: null })).toBe('Consultar')
-  })
-
-  it('con precio y período: formato "$ 12.000 / mes"', () => {
-    expect(precioVisible({ precio: 12000, periodo: 'mes' })).toBe('$ 12.000 / mes')
-  })
-
-  it('con precio pero sin período: solo el monto', () => {
-    expect(precioVisible({ precio: 5000, periodo: null })).toBe('$ 5.000')
-  })
-})
-
 describe('configuración de /anunciantes (ANUNCIANTES)', () => {
-  it('con publicada: false, ningún texto visible contiene "[COMPLETAR"', () => {
-    expect(ANUNCIANTES.publicada).toBe(false)
+  it('está publicada (tarifario final cargado el 19/10) y no tiene paquetes ni precios propios', () => {
+    expect(ANUNCIANTES.publicada).toBe(true)
+    expect(Object.keys(ANUNCIANTES)).toEqual(['publicada'])
+  })
 
-    const textosVisibles: string[] = []
-    for (const paquete of ANUNCIANTES.paquetes as PaqueteAnunciante[]) {
-      textosVisibles.push(paquete.nombre)
-      textosVisibles.push(...paquete.queIncluye)
-      textosVisibles.push(precioVisible(paquete))
+  it('ningún texto visible del tarifario contiene "[COMPLETAR"', () => {
+    const textos: string[] = []
+    for (const p of TARIFARIO) {
+      textos.push(p.nombre, p.queIncluye, textoPrecioLista(p.precio), textoPrecioFundador(p.precio))
+      textos.push(textoUsdAprox(p.precio) ?? '')
     }
-
-    for (const texto of textosVisibles) {
+    textos.push(PIE_TARIFARIO)
+    for (const texto of textos) {
       expect(texto).not.toContain('[COMPLETAR')
     }
   })

@@ -9,7 +9,7 @@ import { Toaster } from '@/components/ui/toaster'
 import { AuthModalProvider } from '@/components/auth-modal'
 import { DonationProvider } from '@/components/donation-context'
 import { DonationModal } from '@/components/donation-modal'
-import { ADSENSE_CLIENT_ID } from '@/lib/config/monetization'
+import { AdsenseLoader } from '@/components/adsense-loader'
 import './globals.css'
 
 const montserrat = Montserrat({
@@ -122,13 +122,7 @@ export default function RootLayout({
       <head>
         {/* Aplica el tema antes del primer pintado (misma clave y default que ThemeProvider). */}
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
-        {ADSENSE_CLIENT_ID && (
-          <script
-            async
-            src={`https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${ADSENSE_CLIENT_ID}`}
-            crossOrigin="anonymous"
-          />
-        )}
+        <AdsenseLoader />
       </head>
       <AnalyticsConsent />
       <body className="font-sans antialiased bg-background">

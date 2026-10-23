@@ -31,6 +31,7 @@ import * as Linking from 'expo-linking'
 import { Redirect, useLocalSearchParams, useRouter, useTheme } from 'expo-router'
 import { formatEventDate } from '@qps/core/date-format'
 import { capitalizeFirst, cleanDescription, formatEventTimeDisplay } from '@qps/core/event-display'
+import { estaDestacado } from '@qps/core/events/destacados'
 import { urlComoLlegar, urlGo } from '@qps/core/metricas/links'
 import { vibeLabels } from '@qps/core/types'
 import { Afiche } from '@/components/Afiche'
@@ -40,6 +41,7 @@ import { BotonSeguir } from '@/components/BotonSeguir'
 import { Cargando, ErrorCarga, Vacio } from '@/components/EstadoCarga'
 import { FilaAccionesEvento } from '@/components/FilaAccionesEvento'
 import { Icono } from '@/components/Icono'
+import { InsigniaDestacado } from '@/components/InsigniaDestacado'
 import { Texto } from '@/components/Texto'
 import { ESCALA_MAXIMA_COMPACTA } from '@/lib/accesibilidad'
 import { useColoresQPS } from '@/lib/colores'
@@ -171,6 +173,13 @@ export default function EventoPorId() {
   const direccion = evento.venue?.address || ''
   const categoryName = evento.category?.name || 'Sin categorizar'
   const vibe = evento.age_restriction >= 18 ? 'adultos' : null
+  // `EventoDetalle` (arriba) NO pasa por `transformEvent`, así que no tiene
+  // `isFeatured`: trae la columna cruda `featured_until` (`PUBLIC_EVENT_SELECT`).
+  // `estaDestacado` (`@qps/core/events/destacados`) es la misma regla que usa
+  // `transformEvent` para calcular `isFeatured` en el resto de la app — acá se
+  // llama directo porque este dato no llega ya resuelto (ver el reporte de la
+  // tarea 50-e).
+  const destacado = estaDestacado(evento.featured_until, new Date())
 
   // Mismo criterio que la web (`event-detail-page.tsx`): "gratis", "confirmar"
   // (precio en 0 sin marcar gratis, se oculta la caja) o un número.
@@ -199,10 +208,13 @@ export default function EventoPorId() {
 
       <View style={[estilos.contenedorImagen, { width: anchoAfiche, aspectRatio: 3 / 4, borderRadius: 16 }]}>
         <Afiche url={evento.image_url} llenar ancho={800} />
-        <View style={[estilos.badgeCategoria, { backgroundColor: colores.primary }]}>
-          <Texto peso="bold" style={[estilos.textoBadge, { color: colores.primaryForeground }]} numberOfLines={1} maxFontSizeMultiplier={ESCALA_MAXIMA_COMPACTA}>
-            {categoryName}
-          </Texto>
+        <View style={estilos.filaBadges}>
+          <View style={[estilos.badgeCategoria, { backgroundColor: colores.primary }]}>
+            <Texto peso="bold" style={[estilos.textoBadge, { color: colores.primaryForeground }]} numberOfLines={1} maxFontSizeMultiplier={ESCALA_MAXIMA_COMPACTA}>
+              {categoryName}
+            </Texto>
+          </View>
+          <InsigniaDestacado visible={destacado} />
         </View>
       </View>
 
@@ -313,7 +325,8 @@ const estilos = StyleSheet.create({
   contenido: { padding: 16, gap: 16 },
   centrado: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24, gap: 8 },
   contenedorImagen: { overflow: 'hidden', position: 'relative' },
-  badgeCategoria: { position: 'absolute', left: 12, top: 12, borderRadius: 6, paddingHorizontal: 10, paddingVertical: 5, maxWidth: '70%' },
+  filaBadges: { position: 'absolute', left: 12, top: 12, right: 12, flexDirection: 'row', alignItems: 'center', gap: 6 },
+  badgeCategoria: { borderRadius: 6, paddingHorizontal: 10, paddingVertical: 5, maxWidth: '70%' },
   textoBadge: { fontSize: 12 },
   // `filaTitulo`/`accionesTitulo` (el corazón y Compartir junto al título)
   // se sacaron en la R47 (47-f, QPS-197): se mudaron a FilaAccionesEvento.

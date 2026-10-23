@@ -11,13 +11,14 @@
 //   - `FilaAccionesEventoVista`: SIN estado y SIN un solo hook. Recibe el
 //     estado y los `onClick` por props. Por qué: un test (QPS-199,
 //     `tests/asistencia/fila-render.test.ts`) la llama como función común y
-//     la pasa por `renderToStaticMarkup` en Node puro (sin jsdom, no hay en
-//     el repo), así que no puede depender de `useState`, `useToast`,
-//     `useAuthModal` ni de ningún otro hook.
+//     la pasa por `renderToStaticMarkup` en Node puro (sin jsdom: ese test
+//     corre con `environment: 'node'`), así que no puede depender de
+//     `useState`, `useToast`, `useAuthModal` ni de ningún otro hook.
 //
 //   - `FilaAccionesEvento`: el componente con estado, que llama a las server
 //     actions (`marcarAsistencia`, `toggleFavorite`) y delega el dibujado en
-//     la vista.
+//     la vista. Su click con estado lo prueba con DOM real (jsdom)
+//     `tests/dom/fila-acciones-evento.dom.test.ts` (R61, QPS-199).
 //
 // Por qué Compartir llega como una prop (`compartir?: ReactNode`) en vez de
 // importar `ShareButton` directamente en la vista: `ShareButton` puede

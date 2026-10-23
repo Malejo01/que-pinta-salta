@@ -31,6 +31,12 @@ const adminSections = [
     icon: MapPin,
   },
   {
+    href: '/admin/destacados',
+    title: 'Destacados',
+    description: 'Destacá eventos por un tiempo elegido (7, 14 o 30 días, o una fecha a mano) y quitales el destacado cuando corresponda.',
+    icon: Sparkles,
+  },
+  {
     href: '/admin/avisos',
     title: 'Avisos patrocinados',
     description: 'Cargá, editá y cancelá campañas de avisos push patrocinados.',

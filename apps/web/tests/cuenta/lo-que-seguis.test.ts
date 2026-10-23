@@ -4,8 +4,9 @@
  * ("Cuenta") que muestra exactamente lo que el usuario sigue.
  *
  * Mismo patrón que `tests/asistencia/fila-render.test.ts` y
- * `tests/components/password-input.test.ts` (sin jsdom ni
- * @testing-library/react, no autorizado para esta tarea):
+ * `tests/components/password-input.test.ts` (sin DOM; cuando se escribió,
+ * jsdom y @testing-library/react no estaban autorizados para esa tarea —
+ * desde la R61 están instalados y hay tests con DOM real en `tests/dom/`):
  *   - Para el HTML real (textos, qué se dibuja y qué no) se usa
  *     `renderToStaticMarkup` de `react-dom/server`, que funciona en Node
  *     puro porque la vista no tiene hooks.

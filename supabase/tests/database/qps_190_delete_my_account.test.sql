@@ -37,13 +37,14 @@ select is(
    join pg_attribute a on a.attrelid = c.conrelid and a.attnum = any(c.conkey)
    where c.contype = 'f' and c.connamespace = 'public'::regnamespace
      and c.confrelid in ('auth.users'::regclass, 'public.profiles'::regclass)),
-  'aliases.created_by,duplicate_dismissals.decided_by,event_attendance.user_id,events.created_by,'
+  'ad_campaign_reports.created_by,ad_price_cycles.approved_by,ad_settings.updated_by,'
+  || 'aliases.created_by,duplicate_dismissals.decided_by,event_attendance.user_id,events.created_by,'
   || 'events.featured_set_by,favorites.user_id,notification_preferences.user_id,notification_sends.user_id,'
   || 'profiles.id,push_tokens.user_id,scrape_runs.triggered_by,sponsored_campaigns.created_by,'
   || 'user_favorites.user_id,user_followed_categories.user_id,user_followed_instagram_accounts.user_id,'
   || 'user_followed_venues.user_id,user_radar_settings.user_id,venue_aliases.created_by,'
   || 'venue_review_queue.reviewed_by',
-  '4. las FK a auth.users/profiles son las 19 que cubre delete_my_account()'
+  '4. las FK a auth.users/profiles son las 22 que cubre delete_my_account()'
 );
 
 -- ---------------------------------------------------------------------------
