@@ -1,9 +1,7 @@
 /**
- * `/terminos` (R45, 45-c): página nueva de términos y condiciones, con el
- * mismo armazón que `/privacidad` (`PaginaLegal`, 45-a). `apps/web` no tiene
- * jsdom ni @testing-library/react (vitest corre con `environment: 'node'`),
- * así que se usa `react-dom/server` (`renderToStaticMarkup`), igual que en
- * `tests/legales/pagina-legal.test.ts`.
+ * `/terminos`, versión 1 (R63): mismo armazón que `/privacidad`
+ * (`PaginaLegal`). Se usa `react-dom/server` (`renderToStaticMarkup`) en Node,
+ * igual que en `tests/legales/pagina-legal.test.ts`.
  *
  * `Navbar` y `MobileNav` son componentes de cliente con hooks y Supabase: se
  * mockean para que no exploten al renderizar en Node puro.
@@ -20,6 +18,8 @@ vi.mock("@/components/navbar", () => ({ Navbar: () => null }))
 vi.mock("@/components/mobile-nav", () => ({ MobileNav: () => null }))
 
 import TerminosPage, { metadata } from "@/app/terminos/page"
+import { VERSION_LEGAL, VIGENTE_DESDE } from "@/components/legal/vigencia"
+import { CONTACTO_EMAIL } from "@qps/core/contacto"
 
 const WEB_ROOT = fileURLToPath(new URL("../../", import.meta.url))
 
@@ -27,7 +27,13 @@ function readSource(relativePath: string): string {
   return readFileSync(path.join(WEB_ROOT, relativePath), "utf8")
 }
 
+/** Fuente sin comentarios de bloque ni de línea (los comentarios pueden nombrar lo que ya no existe). */
+function sinComentarios(source: string): string {
+  return source.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:])\/\/.*$/gm, "$1")
+}
+
 const fuente = readSource("app/terminos/page.tsx")
+const fuenteSinComentarios = sinComentarios(fuente)
 const html = renderToStaticMarkup(createElement(TerminosPage))
 
 describe("/terminos: h1 y metadata", () => {
@@ -56,12 +62,12 @@ describe("/terminos: Server Component", () => {
 
 describe("/terminos: el mail sale de la constante, no literal", () => {
   it("el HTML tiene el mail y un mailto: con ese mail", () => {
-    expect(html).toContain("contacto@quepintasalta.com.ar")
-    expect(html).toContain('href="mailto:contacto@quepintasalta.com.ar')
+    expect(html).toContain(CONTACTO_EMAIL)
+    expect(html).toContain(`href="mailto:${CONTACTO_EMAIL}`)
   })
 
   it("el archivo fuente no tiene el mail literal", () => {
-    expect(fuente).not.toContain("contacto@quepintasalta.com.ar")
+    expect(fuente).not.toContain(CONTACTO_EMAIL)
   })
 
   it("el archivo fuente no tiene una secuencia de 8 dígitos o más (sin CUIT ni teléfono de ejemplo)", () => {
@@ -69,26 +75,52 @@ describe("/terminos: el mail sale de la constante, no literal", () => {
   })
 })
 
-describe("/terminos: aviso de borrador y marcas pendientes", () => {
-  it('tiene el aviso "Borrador pendiente de revisión legal"', () => {
-    expect(html).toContain("Borrador pendiente de revisión legal")
+describe("/terminos: ya no es un borrador", () => {
+  it('el HTML no dice "borrador" (sin distinguir mayúsculas), "REVISIÓN LEGAL" ni "Última actualización"', () => {
+    expect(html).not.toMatch(/borrador/i)
+    expect(html).not.toContain("REVISIÓN LEGAL")
+    expect(html).not.toContain("Última actualización")
   })
 
-  it('tiene "Última actualización: [COMPLETAR"', () => {
-    expect(html).toContain("Última actualización: [COMPLETAR")
+  it('el HTML no tiene el role="note" del aviso viejo', () => {
+    expect(html).not.toContain('role="note"')
   })
 
-  it("tiene al menos 8 marcas [REVISIÓN LEGAL]", () => {
-    const apariciones = html.split("[REVISIÓN LEGAL]").length - 1
-    expect(apariciones).toBeGreaterThanOrEqual(8)
+  it("el archivo fuente (sin comentarios) no usa [REVISIÓN LEGAL]", () => {
+    expect(fuenteSinComentarios).not.toContain("REVISIÓN LEGAL")
+  })
+})
+
+describe("/terminos: versión y vigencia", () => {
+  it('muestra "Versión <VERSION_LEGAL>" y "vigente desde el"', () => {
+    expect(html).toContain(`Versión ${VERSION_LEGAL}`)
+    expect(html).toContain("vigente desde el")
+  })
+})
+
+describe('/terminos: "Me interesa" ya no se nombra', () => {
+  it("ni en el HTML ni en el fuente (sin comentarios), con cualquier mayúscula", () => {
+    expect(html).not.toMatch(/me interesa/i)
+    expect(fuenteSinComentarios).not.toMatch(/me interesa/i)
+  })
+})
+
+describe("/terminos: lo único que falta completar (datos de Mauro antes del merge)", () => {
+  // Si alguien suma un [COMPLETAR] o Mauro completa uno, este test lo dice: en
+  // ese caso se actualiza la lista a propósito.
+  it("el HTML tiene exactamente el del responsable y el de la edad mínima, sin contar VIGENTE_DESDE", () => {
+    const sinVigencia = html.split(VIGENTE_DESDE).join("")
+    const marcas = sinVigencia.match(/\[COMPLETAR[^\]]*\]/g) ?? []
+    expect(marcas).toEqual([
+      "[COMPLETAR: nombre o razón social, CUIT y domicilio]",
+      "[COMPLETAR: edad mínima]",
+    ])
   })
 
-  // 45-c2: la sección 8 (contenido de terceros) suma su propia marca
-  // [REVISIÓN LEGAL] en el primer párrafo, que antes no tenía ninguna; por
-  // eso el total pasa de 9 a 10.
-  it("tiene al menos 10 marcas [REVISIÓN LEGAL]", () => {
-    const apariciones = html.split("[REVISIÓN LEGAL]").length - 1
-    expect(apariciones).toBeGreaterThanOrEqual(10)
+  it("en total, con el de VIGENTE_DESDE (si todavía es una marca), el HTML tiene un [COMPLETAR más", () => {
+    const total = (html.match(/\[COMPLETAR/g) ?? []).length
+    const deVigencia = VIGENTE_DESDE.startsWith("[COMPLETAR") ? 1 : 0
+    expect(total).toBe(2 + deVigencia)
   })
 })
 
@@ -120,7 +152,7 @@ describe("/terminos: lo que dice el producto", () => {
     expect(html).toContain("No vendemos entradas")
   })
 
-  it('el total de "Voy"/"Me interesa" se ve desde 3 y nunca quién', () => {
+  it('el total de "Voy" se ve desde 3 y nunca quién', () => {
     expect(html).toContain("desde 3")
     expect(html).toContain("nunca se muestra quién")
   })
@@ -128,5 +160,27 @@ describe("/terminos: lo que dice el producto", () => {
   it("avisa que la información puede tener errores y hay que confirmar con el organizador o la ticketera", () => {
     expect(html).toContain("Puede haber errores o cambios de último momento")
     expect(html).toContain("confirmá siempre con el organizador o la ticketera")
+  })
+})
+
+describe("/terminos v1: publicidad y contenido destacado", () => {
+  it('ya no dice "La app no muestra anuncios" y dice que la app puede mostrar anuncios', () => {
+    expect(html).not.toContain("La app no muestra anuncios")
+    expect(html).toContain("La app puede mostrar anuncios")
+  })
+
+  // El literal "★ Destacado" vive solo en components/insignia-destacado.tsx
+  // (lo exige tests/components/insignia-destacado.test.ts): la página lo describe.
+  it('el contenido destacado lleva el sello "Destacado", con una estrella', () => {
+    expect(html).toContain("&quot;Destacado&quot;, con una estrella")
+  })
+
+  it("enlaza /anunciantes", () => {
+    expect(html).toContain('href="/anunciantes"')
+  })
+
+  it("los avisos patrocinados llevan etiqueta y son como mucho uno por semana", () => {
+    expect(html).toContain("Patrocinado")
+    expect(html).toContain("uno por semana")
   })
 })

@@ -1,28 +1,25 @@
 /**
- * 45-q: tests que cruzan tareas de la Ronda 45 (el armazón de 45-a, las dos
- * páginas de 45-b/45-c y los links de 45-d), más dos cosas que ningún test
- * de tarea puede ver por separado: que el sitemap, **ejecutado**, devuelva
- * las dos rutas nuevas, y que las dos páginas no se desincronicen del umbral
- * real de "Voy / Me interesa" (`UMBRAL_CONTADOR_ASISTENCIA`).
+ * Tests que cruzan las páginas legales (el armazón, `/privacidad`,
+ * `/terminos` y los links), más dos cosas que ningún test de página puede ver
+ * por separado: que el sitemap, **ejecutado**, devuelva las dos rutas, y que
+ * las dos páginas no se desincronicen del umbral real de "Voy"
+ * (`UMBRAL_CONTADOR_ASISTENCIA`).
  *
- * No repite lo que ya cubren (en verde, no se tocan):
+ * Versión 1 (R63): las páginas ya no son un borrador; acá se fija, para las
+ * dos juntas, que no quedan el aviso, las marcas de revisión legal ni "Última
+ * actualización", y que muestran la versión y la vigencia.
+ *
+ * No repite lo que ya cubren:
  * - `tests/legales/pagina-legal.test.ts` (el armazón, componente por
  *   componente);
  * - `tests/legales/privacidad.test.ts` y `tests/legales/terminos.test.ts`
- *   (cada página por separado: ya cuentan las marcas `[REVISIÓN LEGAL]` en el
- *   HTML, el aviso de borrador, "Última actualización: [COMPLETAR" y el
- *   `desde 3 personas`/`desde 3` literal — acá se repite la cuenta de marcas
- *   por pedido explícito del encargo, porque esta es la fuente que no
- *   depende de que ningún archivo de tarea siga existiendo, pero el resto no
- *   se duplica);
+ *   (cada página por separado: contenido, `[COMPLETAR` que quedan, etc.);
  * - `tests/legales/enlaces.test.ts` (los links, sobre el texto de los
  *   archivos). Lo que ese archivo no puede ver — el sitemap **ejecutado**
  *   — es justamente lo que prueba acá.
  *
- * `apps/web` corre Vitest con `environment: 'node'` (ver
- * `apps/web/vitest.config.ts`): sin jsdom y sin JSX en los tests, por eso
- * todo el render usa `createElement` + `renderToStaticMarkup`, igual que en
- * `tests/legales/pagina-legal.test.ts`.
+ * Todo el render usa `createElement` + `renderToStaticMarkup` en Node, igual
+ * que en `tests/legales/pagina-legal.test.ts`.
  */
 import { readFileSync, readdirSync, statSync } from "node:fs"
 import path from "node:path"
@@ -39,6 +36,7 @@ import PrivacidadPage, { metadata as metadataPrivacidad } from "@/app/privacidad
 import TerminosPage, { metadata as metadataTerminos } from "@/app/terminos/page"
 import { metadata as metadataEliminarCuenta } from "@/app/eliminar-cuenta/page"
 import { UMBRAL_CONTADOR_ASISTENCIA } from "@qps/core/asistencia"
+import { VERSION_LEGAL } from "@/components/legal/vigencia"
 
 const WEB_ROOT = fileURLToPath(new URL("../../", import.meta.url))
 
@@ -194,26 +192,31 @@ describe("el mail, de una sola fuente (barrido recursivo, solo lectura)", () => 
 })
 
 // ---------------------------------------------------------------------------
-// 4. Los marcadores, visibles en el HTML renderizado (no en el archivo: así
-//    ninguna marca puede estar escondida dentro de un comentario JSX).
+// 4. Versión 1, visible en el HTML renderizado (no en el archivo: así nada
+//    puede estar escondido dentro de un comentario JSX).
 // ---------------------------------------------------------------------------
 
-describe("marcadores visibles en el HTML renderizado", () => {
-  it("las dos tienen el aviso de borrador y la fecha sin completar", () => {
+describe("versión 1 en el HTML renderizado de las dos páginas", () => {
+  it("las dos muestran la versión y la vigencia", () => {
     for (const html of [htmlPrivacidad, htmlTerminos]) {
-      expect(html).toContain("Borrador pendiente de revisión legal")
-      expect(html).toContain("Última actualización: [COMPLETAR")
+      expect(html).toContain(`Versión ${VERSION_LEGAL}`)
+      expect(html).toContain("vigente desde el")
     }
   })
 
-  it("/privacidad tiene al menos 6 marcas [REVISIÓN LEGAL] en el HTML", () => {
-    const apariciones = htmlPrivacidad.split("[REVISIÓN LEGAL]").length - 1
-    expect(apariciones).toBeGreaterThanOrEqual(6)
+  it('ninguna dice "borrador", "REVISIÓN LEGAL" ni "Última actualización", ni tiene role="note"', () => {
+    for (const html of [htmlPrivacidad, htmlTerminos]) {
+      expect(html).not.toMatch(/borrador/i)
+      expect(html).not.toContain("REVISIÓN LEGAL")
+      expect(html).not.toContain("Última actualización")
+      expect(html).not.toContain('role="note"')
+    }
   })
 
-  it("/terminos tiene al menos 8 marcas [REVISIÓN LEGAL] en el HTML", () => {
-    const apariciones = htmlTerminos.split("[REVISIÓN LEGAL]").length - 1
-    expect(apariciones).toBeGreaterThanOrEqual(8)
+  it('ninguna nombra "Me interesa"', () => {
+    for (const html of [htmlPrivacidad, htmlTerminos]) {
+      expect(html).not.toMatch(/me interesa/i)
+    }
   })
 })
 
@@ -303,10 +306,10 @@ describe("voseo en las dos páginas y en el armazón compartido", () => {
 })
 
 // ---------------------------------------------------------------------------
-// 7. El umbral de "Voy / Me interesa" no puede desincronizarse del código.
+// 7. El umbral de "Voy" no puede desincronizarse del código.
 // ---------------------------------------------------------------------------
 
-describe('el umbral de "Voy / Me interesa" en el texto sale de la constante, no de un número suelto', () => {
+describe('el umbral de "Voy" en el texto sale de la constante, no de un número suelto', () => {
   // No se escribe el "3" literal en este test: si Mauro cambia
   // `UMBRAL_CONTADOR_ASISTENCIA`, las dos páginas legales van a decir un
   // número falso y, sin este test construido con la constante (no con un
