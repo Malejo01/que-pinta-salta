@@ -35,6 +35,10 @@ const CORE_ROOT = path.resolve(WEB_ROOT, '../../packages/core/src')
 
 const MAPLIBRE = 'maplibre-gl'
 const ARCHIVO_MAPLIBRE = 'components/mapa/mapa-maplibre.tsx'
+const ARCHIVO_PIN = 'components/mapa/mapa-pin-maplibre.tsx'
+/** Los dos únicos archivos que importan `maplibre-gl`: llegar a cualquiera de ellos es llegar a MapLibre. */
+const ARCHIVOS_MAPLIBRE = [ARCHIVO_MAPLIBRE, ARCHIVO_PIN]
+const ARCHIVO_UBICAR = 'components/admin/lugar-mapa-ubicar.tsx'
 const EXTENSIONES = ['.ts', '.tsx', '.js', '.mjs']
 
 // ---------------------------------------------------------------------------
@@ -118,7 +122,7 @@ function esDeCodigo(archivo: string): boolean {
  */
 function cadenaHastaMaplibre(entrada: string, sistema: Sistema = sistemaReal): string[] | null {
   const raiz = path.resolve(sistema.webRoot, entrada)
-  const archivoMaplibre = path.resolve(sistema.webRoot, ARCHIVO_MAPLIBRE)
+  const archivosMaplibre = ARCHIVOS_MAPLIBRE.map((archivo) => path.resolve(sistema.webRoot, archivo))
   const visitados = new Set<string>()
 
   const mostrar = (absoluta: string) => path.relative(sistema.webRoot, absoluta).split(path.sep).join('/')
@@ -127,7 +131,7 @@ function cadenaHastaMaplibre(entrada: string, sistema: Sistema = sistemaReal): s
     if (visitados.has(archivo)) return null
     visitados.add(archivo)
     const aqui = [...camino, mostrar(archivo)]
-    if (path.resolve(archivo) === archivoMaplibre) return aqui
+    if (archivosMaplibre.includes(path.resolve(archivo))) return aqui
 
     for (const especificador of importsEstaticos(sistema.leer(archivo))) {
       if (esMaplibre(especificador)) return [...aqui, especificador]
@@ -236,6 +240,14 @@ describe('el detector (fixtures inventados)', () => {
     expect(archivosAlcanzados('app/page.tsx', sistema)).not.toContain('components/mapa/mapa-maplibre.tsx')
   })
 
+  it('falla con un import estático de mapa-pin-maplibre desde una página', () => {
+    const sistema = sistemaVirtual({
+      'app/page.tsx': 'import Pin from "@/components/mapa/mapa-pin-maplibre"\nexport default Pin',
+      'components/mapa/mapa-pin-maplibre.tsx': 'import { Map } from "maplibre-gl"\nexport default Map',
+    })
+    expect(cadenaHastaMaplibre('app/page.tsx', sistema)).toEqual(['app/page.tsx', 'components/mapa/mapa-pin-maplibre.tsx'])
+  })
+
   it('pasa con import dinámico con comillas simples, backticks o con await, y con React.lazy', () => {
     const sistema = sistemaVirtual({
       'app/page.tsx': [
@@ -328,6 +340,7 @@ const ENTRADAS = [
   'app/buscar/page.tsx',
   'app/evento/[id]/page.tsx',
   'app/mapa/page.tsx',
+  'app/admin/lugares/page.tsx',
 ]
 
 describe('ninguna página llega a MapLibre por imports estáticos', () => {
@@ -358,6 +371,14 @@ describe('ninguna página llega a MapLibre por imports estáticos', () => {
     )
   })
 
+  it('el detector ve el archivo del pin: desde mapa-pin-maplibre.tsx sí llega a maplibre-gl, y lugar-mapa-ubicar.tsx no', () => {
+    expect(cadenaHastaMaplibre(ARCHIVO_PIN)).toEqual([ARCHIVO_PIN])
+    expect(importsEstaticos(readFileSync(path.join(WEB_ROOT, ARCHIVO_PIN), 'utf8'))).toEqual(
+      expect.arrayContaining(['maplibre-gl', 'maplibre-gl/dist/maplibre-gl.css'])
+    )
+    expect(cadenaHastaMaplibre(ARCHIVO_UBICAR)).toBeNull()
+  })
+
   it('mapa-maplibre.tsx importa mapa-diferido solo como tipo, así que el diferido no llega por ahí', () => {
     const fuente = readFileSync(path.join(WEB_ROOT, ARCHIVO_MAPLIBRE), 'utf8')
     expect(sinComentarios(fuente)).toMatch(/import type \{ PropsMapa \} from ["']\.\/mapa-diferido["']/)
@@ -380,7 +401,7 @@ function archivosDeCodigo(dir: string): string[] {
   return salida
 }
 
-describe('MapLibre en un solo archivo y solo con import() desde mapa-diferido', () => {
+describe('MapLibre en dos archivos y solo con import() desde sus cargadores', () => {
   const archivos = ['app', 'components', 'lib'].flatMap((carpeta) => archivosDeCodigo(path.join(WEB_ROOT, carpeta)))
   const relativo = (archivo: string) => path.relative(WEB_ROOT, archivo).split(path.sep).join('/')
 
@@ -388,11 +409,11 @@ describe('MapLibre en un solo archivo y solo con import() desde mapa-diferido', 
     expect(archivos.length).toBeGreaterThan(100)
   })
 
-  it('solo components/mapa/mapa-maplibre.tsx importa maplibre-gl (estático o dinámico)', () => {
+  it('solo mapa-maplibre.tsx y mapa-pin-maplibre.tsx importan maplibre-gl (estático o dinámico)', () => {
     const importan = archivos
       .filter((archivo) => /(?:from\s+|import\s*\(?\s*|require\s*\(\s*)["'`]maplibre-gl(?:\/[^"'`]*)?["'`]/.test(sinComentarios(readFileSync(archivo, 'utf8'))))
       .map(relativo)
-    expect(importan).toEqual([ARCHIVO_MAPLIBRE])
+    expect([...importan].sort()).toEqual([...ARCHIVOS_MAPLIBRE].sort())
   })
 
   it('solo mapa-diferido.tsx nombra mapa-maplibre, y lo hace con import() (el import type de mapa-maplibre hacia mapa-diferido es al revés)', () => {
@@ -404,5 +425,16 @@ describe('MapLibre en un solo archivo y solo con import() desde mapa-diferido', 
     const diferido = sinComentarios(readFileSync(path.join(WEB_ROOT, 'components/mapa/mapa-diferido.tsx'), 'utf8'))
     expect(diferido).toMatch(/import\(\s*["']\.\/mapa-maplibre["']\s*\)/)
     expect(diferido).not.toMatch(/(?:^|\n)\s*import\s+[^(\n]*["']\.\/mapa-maplibre["']/)
+  })
+
+  it('solo lugar-mapa-ubicar.tsx nombra mapa-pin-maplibre, y lo hace con import()', () => {
+    const nombran = archivos
+      .filter((archivo) => /mapa-pin-maplibre["'`]/.test(sinComentarios(readFileSync(archivo, 'utf8'))))
+      .map(relativo)
+    expect(nombran).toEqual([ARCHIVO_UBICAR])
+
+    const ubicar = sinComentarios(readFileSync(path.join(WEB_ROOT, ARCHIVO_UBICAR), 'utf8'))
+    expect(ubicar).toMatch(/import\(\s*["']@\/components\/mapa\/mapa-pin-maplibre["']\s*\)/)
+    expect(ubicar).not.toMatch(/(?:^|\n)\s*import\s+[^(\n]*mapa-pin-maplibre["']/)
   })
 })

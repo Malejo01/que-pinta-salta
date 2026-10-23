@@ -8,6 +8,7 @@ import { CENTRO_SALTA_CAPITAL } from "@qps/core/mapa/zona"
 import { pinesAGeoJson } from "@qps/core/mapa/pines"
 import { estiloSegunTema } from "@qps/core/mapa/estilos"
 import type { PropsMapa } from "./mapa-diferido"
+import { TEXTOS_ES } from "./textos-maplibre"
 
 // El único archivo del sitio que importa `maplibre-gl` (y su CSS). Solo se
 // carga con `import()` desde `mapa-diferido.tsx`.
@@ -24,17 +25,6 @@ const FUENTE = "lugares"
 const CAPA_PINES = "lugares-pines"
 /** Círculo invisible, más grande que el pin: el área de toque (alcanza el dedo). */
 const CAPA_TOQUE = "lugares-toque"
-/** Textos de MapLibre en español (claves de `defaultLocale` de maplibre-gl 6.15). */
-const TEXTOS_ES: Record<string, string> = {
-  "AttributionControl.ToggleAttribution": "Mostrar atribución",
-  "AttributionControl.MapFeedback": "Comentarios sobre el mapa",
-  "NavigationControl.ZoomIn": "Acercar",
-  "NavigationControl.ZoomOut": "Alejar",
-  "NavigationControl.ResetBearing": "Orientar al norte",
-  "CooperativeGesturesHandler.WindowsHelpText": "Usá Ctrl + scroll para acercar el mapa",
-  "CooperativeGesturesHandler.MacHelpText": "Usá ⌘ + scroll para acercar el mapa",
-  "CooperativeGesturesHandler.MobileHelpText": "Usá dos dedos para mover el mapa",
-}
 const CAPA_SELECCION = "lugares-seleccion"
 const ZOOM_INICIAL = 13
 const ZOOM_AL_SELECCIONAR = 15

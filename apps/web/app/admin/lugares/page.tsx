@@ -7,6 +7,8 @@ import { formatSaltaClock, formatSaltaDayKey } from '@/lib/date-format'
 import { traerTodasLasFilas } from '@/lib/images/paginar-filas'
 import { urlBuscarEnOsm, urlVerEnOsm } from '@/lib/venues/coordenadas-manuales'
 import { LugarUbicacionForm } from '@/components/admin/lugar-ubicacion-form'
+import { LugarMapaUbicar } from '@/components/admin/lugar-mapa-ubicar'
+import { isUuid } from '@/lib/metricas'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 
 export const dynamic = 'force-dynamic'
@@ -60,7 +62,7 @@ function formatGeocodedAt(iso: string): string {
 export default async function AdminLugaresPage({
   searchParams,
 }: {
-  searchParams: Promise<{ ver?: string }>
+  searchParams: Promise<{ ver?: string; ubicar?: string }>
 }) {
   const supabase = await createClient()
 
@@ -128,6 +130,9 @@ export default async function AdminLugaresPage({
     if (diff !== 0) return diff
     return a.name.localeCompare(b.name, 'es')
   })
+
+  // Un lugar a la vez: `?ubicar=<id>` abre el mapa solo si es un uuid de la lista de la pestaña.
+  const ubicarId = isUuid(params?.ubicar) && lugares.some((v) => v.id === params.ubicar) ? params.ubicar : null
 
   return (
     <div className="space-y-6">
@@ -218,7 +223,32 @@ export default async function AdminLugaresPage({
                       Buscar en OpenStreetMap
                       <ExternalLink className="size-3" />
                     </a>
+                    {ubicarId === venue.id ? (
+                      <Link
+                        href={`/admin/lugares?ver=${pestañaActual}`}
+                        scroll={false}
+                        className="inline-flex min-h-11 items-center gap-1 font-medium text-primary hover:underline"
+                      >
+                        Cerrar mapa
+                      </Link>
+                    ) : (
+                      <Link
+                        href={`/admin/lugares?ver=${pestañaActual}&ubicar=${venue.id}`}
+                        scroll={false}
+                        className="inline-flex min-h-11 items-center gap-1 font-medium text-primary hover:underline"
+                      >
+                        Ubicar
+                      </Link>
+                    )}
                   </div>
+                  {ubicarId === venue.id && (
+                    <LugarMapaUbicar
+                      venueId={venue.id}
+                      nombre={venue.name}
+                      latitude={venue.latitude}
+                      longitude={venue.longitude}
+                    />
+                  )}
                   <LugarUbicacionForm venueId={venue.id} />
                 </CardContent>
               </Card>

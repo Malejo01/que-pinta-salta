@@ -14,7 +14,9 @@ import { describe, expect, it } from 'vitest'
 const WEB_ROOT = fileURLToPath(new URL('../../', import.meta.url))
 
 const MAPLIBRE = 'components/mapa/mapa-maplibre.tsx'
-const DIFERIDO = 'components/mapa/mapa-diferido.tsx'
+const PIN_MAPLIBRE = 'components/mapa/mapa-pin-maplibre.tsx'
+const TEXTOS = 'components/mapa/textos-maplibre.ts'
+const DIFERIDO ='components/mapa/mapa-diferido.tsx'
 const LISTA = 'components/mapa/lista-lugares.tsx'
 const CONTENIDO = 'app/mapa/mapa-contenido.tsx'
 const PAGINA = 'app/mapa/page.tsx'
@@ -56,9 +58,9 @@ describe('el barrido mira algo', () => {
 })
 
 describe('maplibre-gl se importa en un solo archivo', () => {
-  it('solo components/mapa/mapa-maplibre.tsx nombra el paquete (o su CSS) en app, components y lib', () => {
+  it('solo mapa-maplibre.tsx y mapa-pin-maplibre.tsx nombran el paquete (o su CSS) en app, components y lib', () => {
     const nombran = CODIGO.filter((ruta) => NOMBRA_MAPLIBRE.test(leer(ruta)))
-    expect(nombran).toEqual([MAPLIBRE])
+    expect(nombran).toEqual([MAPLIBRE, PIN_MAPLIBRE])
   })
 
   it('mapa-maplibre importa el paquete y su CSS', () => {
@@ -251,7 +253,15 @@ describe('el área de toque y los gestos del mapa', () => {
   it('los gestos son cooperativos y los textos van en español', () => {
     expect(codigo).toMatch(/cooperativeGestures:\s*true/)
     expect(codigo).toMatch(/locale:\s*TEXTOS_ES/)
-    expect(codigo).toContain('Usá dos dedos para mover el mapa')
+    expect(codigo).toMatch(/import\s*\{\s*TEXTOS_ES\s*\}\s*from\s*['"]\.\/textos-maplibre['"]/)
+    expect(leer(TEXTOS)).toContain('Usá dos dedos para mover el mapa')
+  })
+
+  it('el mapa del pin también: gestos cooperativos y los mismos textos en español', () => {
+    const pin = leer(PIN_MAPLIBRE)
+    expect(pin).toMatch(/cooperativeGestures:\s*true/)
+    expect(pin).toMatch(/locale:\s*TEXTOS_ES/)
+    expect(pin).toMatch(/import\s*\{\s*TEXTOS_ES\s*\}\s*from\s*['"]\.\/textos-maplibre['"]/)
   })
 })
 
