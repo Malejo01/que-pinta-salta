@@ -35,7 +35,7 @@ export function ListaLugares({ pines, seleccionado, onVerEnElMapa }: ListaLugare
             key={pin.venueId}
             id={idBloqueLugar(pin.venueId)}
             aria-current={esSeleccionado ? "true" : undefined}
-            className={`scroll-mt-24 rounded-2xl border bg-card p-4 transition-colors ${
+            className={`scroll-mt-24 scroll-mb-24 rounded-2xl border bg-card p-4 transition-colors ${
               esSeleccionado ? "border-primary ring-1 ring-primary" : "border-border"
             }`}
           >
@@ -47,23 +47,24 @@ export function ListaLugares({ pines, seleccionado, onVerEnElMapa }: ListaLugare
               <button
                 type="button"
                 onClick={() => onVerEnElMapa(pin.venueId)}
-                aria-label={`Ver ${pin.nombre} en el mapa`}
                 className="inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-md border border-input px-3 text-sm font-medium text-foreground hover:bg-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
               >
                 <MapPin className="size-4" aria-hidden="true" />
-                Ver en el mapa
+                <span>
+                  Ver en el mapa<span className="sr-only"> {pin.nombre}</span>
+                </span>
               </button>
             </div>
 
             <ul className="mt-3 divide-y divide-border border-t border-border">
               {pin.eventos.map((evento) => (
                 <li key={evento.id} className="flex items-baseline gap-3 py-2">
-                  <time dateTime={evento.inicio} className="w-24 shrink-0 text-sm tabular-nums text-muted-foreground">
+                  <time dateTime={evento.inicio} className="w-28 shrink-0 whitespace-nowrap text-sm tabular-nums text-muted-foreground">
                     {formatEventDayMonth(evento.inicio)} · {formatEventTime(evento.inicio)}
                   </time>
                   <Link
                     href={`/evento/${evento.id}`}
-                    className="min-w-0 text-sm font-medium text-foreground hover:text-primary hover:underline"
+                    className="min-w-0 rounded-sm text-sm font-medium text-foreground hover:text-primary hover:underline focus-visible:outline-2 focus-visible:outline-primary"
                   >
                     {evento.titulo}
                   </Link>

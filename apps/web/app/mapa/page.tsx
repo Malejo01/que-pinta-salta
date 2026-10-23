@@ -67,7 +67,7 @@ export default async function MapaPage({ searchParams }: MapaPageProps) {
   return (
     <div className="min-h-screen bg-background pb-page sm:pb-0">
       <Navbar />
-      <main className="container mx-auto px-4 py-8">
+      <main className="container mx-auto px-4 py-4 sm:py-8">
         <MapaContenido
           pines={pines}
           sinUbicacion={sinUbicacion}

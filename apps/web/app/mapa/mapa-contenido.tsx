@@ -67,6 +67,7 @@ export function MapaContenido({ pines, sinUbicacion, filtro, lugarInicial, ahora
 
   const hoy = formatSaltaDayKey(new Date(ahoraISO))
   const maximo = sumarDias(hoy, DIAS_MAXIMOS_FECHA_MAPA)
+  const textoDelFiltro = filtro.tipo === "hoy" ? "hoy" : filtro.tipo === "finde" ? "este finde" : "esta fecha"
 
   function irA(consulta: string) {
     // Otro filtro, otra lista: el lugar seleccionado no tiene que revivir después.
@@ -117,7 +118,7 @@ export function MapaContenido({ pines, sinUbicacion, filtro, lugarInicial, ahora
           Este finde
         </button>
         <label
-          className={`${BASE_BOTON} gap-2 ${filtro.tipo === "fecha" ? BOTON_ACTIVO : BOTON_INACTIVO}`}
+          className={`${BASE_BOTON} gap-2 focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-primary ${filtro.tipo === "fecha" ? BOTON_ACTIVO : BOTON_INACTIVO}`}
         >
           <span>Elegir fecha</span>
           <input
@@ -128,7 +129,8 @@ export function MapaContenido({ pines, sinUbicacion, filtro, lugarInicial, ahora
             onChange={(evento) => {
               const dia = evento.target.value
               setDiaElegido(dia)
-              if (dia) irA(`cuando=fecha&dia=${encodeURIComponent(dia)}`)
+              // Solo con el día completo y en rango: tipear el año no dispara navegaciones parciales.
+              if (dia && dia >= hoy && dia <= maximo) irA(`cuando=fecha&dia=${encodeURIComponent(dia)}`)
             }}
             className="rounded bg-background px-2 py-1 text-foreground"
           />
@@ -137,13 +139,14 @@ export function MapaContenido({ pines, sinUbicacion, filtro, lugarInicial, ahora
 
       <div className={`mt-4 transition-opacity ${cambiando ? "opacity-60" : ""}`}>
         {pines.length > 0 ? (
-          <p className="text-sm font-medium text-foreground">
+          <p aria-live="polite" className="text-sm font-medium text-foreground">
             {pines.length} {pines.length === 1 ? "lugar con eventos" : "lugares con eventos"}
           </p>
         ) : null}
         {sinUbicacion > 0 ? (
           <p className="mt-1 text-sm text-muted-foreground">
-            {sinUbicacion} {sinUbicacion === 1 ? "evento no aparece" : "eventos no aparecen"} en el mapa porque su lugar todavía no tiene ubicación.{" "}
+            {sinUbicacion} {sinUbicacion === 1 ? "evento no aparece" : "eventos no aparecen"} en el mapa porque{" "}
+            {sinUbicacion === 1 ? "su lugar todavía no tiene ubicación" : "sus lugares todavía no tienen ubicación"}.{" "}
             <Link href="/buscar" className="font-medium text-primary underline-offset-2 hover:underline">
               Ver la agenda completa
             </Link>
@@ -152,7 +155,7 @@ export function MapaContenido({ pines, sinUbicacion, filtro, lugarInicial, ahora
 
         {pines.length === 0 ? (
           <div className="mt-6 rounded-2xl border border-border bg-card p-8 text-center">
-            <p className="text-foreground">No hay eventos con ubicación para esta fecha</p>
+            <p className="text-foreground">No hay eventos con ubicación para {textoDelFiltro}</p>
             <Link
               href="/buscar"
               className="mt-4 inline-flex min-h-11 items-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground hover:opacity-90"
@@ -162,13 +165,13 @@ export function MapaContenido({ pines, sinUbicacion, filtro, lugarInicial, ahora
           </div>
         ) : (
           <div className="mt-4 space-y-4 lg:grid lg:grid-cols-[minmax(0,1fr)_26rem] lg:items-start lg:gap-6 lg:space-y-0">
-            <div ref={bloqueMapa}>
+            <div ref={bloqueMapa} className="scroll-mt-20">
               <MapaDiferido
                 pines={pines}
                 seleccionado={seleccionVigente}
                 centrar={centrar}
                 onSeleccionar={alSeleccionarEnElMapa}
-                className="h-[45vh] min-h-64 lg:h-[70vh]"
+                className="h-[45dvh] min-h-64 lg:h-[70vh]"
               />
             </div>
             <div className="lg:max-h-[70vh] lg:overflow-y-auto lg:pr-1">

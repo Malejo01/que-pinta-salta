@@ -211,6 +211,50 @@ describe('"Ver en el mapa" vuelve a centrar aunque el lugar ya esté seleccionad
   })
 })
 
+/** El `<button ...>` que contiene "Ver en el mapa" (WCAG 2.5.3: el nombre accesible contiene el texto visible). */
+function botonVerEnElMapa(codigo: string): string {
+  const coincidencia = /<button\b[^>]*>[\s\S]*?<\/button>/.exec(codigo)
+  expect(coincidencia, 'no se encontró el botón').not.toBeNull()
+  return coincidencia![0]
+}
+
+function cumpleEtiquetaEnNombre(boton: string): boolean {
+  const sinAriaLabel = !/aria-label\s*=/.test(boton)
+  const nombreSoloLector = /Ver en el mapa<span className="sr-only">\s*\{pin\.nombre\}<\/span>/.test(boton)
+  return sinAriaLabel && nombreSoloLector
+}
+
+describe('"Ver en el mapa": el nombre accesible contiene el texto visible', () => {
+  it('el botón no reemplaza el texto con aria-label y suma el nombre en un sr-only', () => {
+    expect(cumpleEtiquetaEnNombre(botonVerEnElMapa(leer(LISTA)))).toBe(true)
+  })
+
+  it('un detector se pone en rojo con el aria-label viejo', () => {
+    const roto = botonVerEnElMapa(leer(LISTA)).replace('<button', '<button aria-label={`Ver ${pin.nombre} en el mapa`}')
+    expect(cumpleEtiquetaEnNombre(roto)).toBe(false)
+  })
+})
+
+describe('el área de toque y los gestos del mapa', () => {
+  const codigo = leer(MAPLIBRE)
+
+  it('hay una capa invisible más grande y los eventos del puntero van sobre ella', () => {
+    const funcion = cuerpoDesde(codigo, /function agregarFuenteYCapas\([^)]*\)\s*\{/)
+    expect(funcion).toMatch(/!mapa\.getLayer\(CAPA_TOQUE\)[\s\S]*addLayer\(/)
+    expect(funcion).toMatch(/"circle-opacity":\s*0,\s*"circle-radius":\s*22/)
+    for (const evento of ['click', 'mouseenter', 'mouseleave']) {
+      expect(codigo).toMatch(new RegExp(`mapa\\.on\\(\\s*"${evento}"\\s*,\\s*CAPA_TOQUE`))
+      expect(codigo).not.toMatch(new RegExp(`mapa\\.on\\(\\s*"${evento}"\\s*,\\s*CAPA_PINES`))
+    }
+  })
+
+  it('los gestos son cooperativos y los textos van en español', () => {
+    expect(codigo).toMatch(/cooperativeGestures:\s*true/)
+    expect(codigo).toMatch(/locale:\s*TEXTOS_ES/)
+    expect(codigo).toContain('Usá dos dedos para mover el mapa')
+  })
+})
+
 describe('"use client" solo donde hace falta', () => {
   it.each(NUEVOS)('%s', (ruta) => {
     const esCliente = /^\s*["']use client["']/.test(leer(ruta))

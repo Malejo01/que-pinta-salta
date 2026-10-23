@@ -22,6 +22,19 @@ import type { PropsMapa } from "./mapa-diferido"
 
 const FUENTE = "lugares"
 const CAPA_PINES = "lugares-pines"
+/** Círculo invisible, más grande que el pin: el área de toque (alcanza el dedo). */
+const CAPA_TOQUE = "lugares-toque"
+/** Textos de MapLibre en español (claves de `defaultLocale` de maplibre-gl 6.15). */
+const TEXTOS_ES: Record<string, string> = {
+  "AttributionControl.ToggleAttribution": "Mostrar atribución",
+  "AttributionControl.MapFeedback": "Comentarios sobre el mapa",
+  "NavigationControl.ZoomIn": "Acercar",
+  "NavigationControl.ZoomOut": "Alejar",
+  "NavigationControl.ResetBearing": "Orientar al norte",
+  "CooperativeGesturesHandler.WindowsHelpText": "Usá Ctrl + scroll para acercar el mapa",
+  "CooperativeGesturesHandler.MacHelpText": "Usá ⌘ + scroll para acercar el mapa",
+  "CooperativeGesturesHandler.MobileHelpText": "Usá dos dedos para mover el mapa",
+}
 const CAPA_SELECCION = "lugares-seleccion"
 const ZOOM_INICIAL = 13
 const ZOOM_AL_SELECCIONAR = 15
@@ -82,6 +95,19 @@ function agregarFuenteYCapas(mapa: MapaDeMapLibre, pines: PropsMapa["pines"], se
         "circle-radius": ["interpolate", ["linear"], ["get", "cantidad"], 1, 9, 10, 16],
         "circle-stroke-width": 2,
         "circle-stroke-color": "#ffffff",
+      },
+    })
+  }
+  if (!mapa.getLayer(CAPA_TOQUE)) {
+    mapa.addLayer({
+      id: CAPA_TOQUE,
+      type: "circle",
+      source: FUENTE,
+      paint: {
+        "circle-color": color,
+        "circle-opacity": 0,
+        "circle-radius": 22,
+        "circle-stroke-width": 0,
       },
     })
   }
@@ -149,6 +175,9 @@ export default function MapaMaplibre({ pines, seleccionado, centrar, onSeleccion
         center: [CENTRO_SALTA_CAPITAL.lng, CENTRO_SALTA_CAPITAL.lat],
         zoom: ZOOM_INICIAL,
         attributionControl: { compact: true },
+        // Un dedo sobre el mapa mueve la página; con dos dedos (o Ctrl/⌘ + scroll) se mueve el mapa.
+        cooperativeGestures: true,
+        locale: TEXTOS_ES,
       })
     } catch {
       // WebGL apagado o no disponible.
@@ -169,14 +198,14 @@ export default function MapaMaplibre({ pines, seleccionado, centrar, onSeleccion
     })
     // La capa del canvas no recibe teclado: la alternativa para teclado y lector
     // de pantalla es el botón "Ver en el mapa" de cada lugar en la lista.
-    mapa.on("click", CAPA_PINES, (evento: MapLayerMouseEvent) => {
+    mapa.on("click", CAPA_TOQUE, (evento: MapLayerMouseEvent) => {
       const venueId = evento.features?.[0]?.properties?.venueId
       if (typeof venueId === "string") ultimo.current.onSeleccionar(venueId)
     })
-    mapa.on("mouseenter", CAPA_PINES, () => {
+    mapa.on("mouseenter", CAPA_TOQUE, () => {
       mapa.getCanvas().style.cursor = "pointer"
     })
-    mapa.on("mouseleave", CAPA_PINES, () => {
+    mapa.on("mouseleave", CAPA_TOQUE, () => {
       mapa.getCanvas().style.cursor = ""
     })
 
