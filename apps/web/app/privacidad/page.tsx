@@ -254,7 +254,7 @@ export default function PrivacidadPage() {
           formulario y cambiar tu elección.
         </p>
         <p>
-          La analítica propia de la app sigue siendo agregada y sin usuario (&quot;Métricas propias&quot;). La app
+          La analítica propia de la app es agregada y sin usuario (&quot;Métricas propias&quot;). La app
           está configurada para que la medición de Google del SDK no arranque antes de que la app inicie el SDK.
         </p>
         <p>

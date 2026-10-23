@@ -157,7 +157,7 @@ export default function TerminosPage() {
         <p>
           <strong className="text-foreground">Contenido destacado o patrocinado.</strong> Un evento puede aparecer
           destacado, por ejemplo porque su organizador contrató un paquete: todo evento destacado lleva el sello
-          &quot;★ Destacado&quot;, en el sitio y en la app. Los avisos patrocinados de las notificaciones llevan la
+          &quot;Destacado&quot;, con una estrella, en el sitio y en la app. Los avisos patrocinados de las notificaciones llevan la
           etiqueta &quot;Patrocinado&quot; (ver el punto 5).
         </p>
         <p>
