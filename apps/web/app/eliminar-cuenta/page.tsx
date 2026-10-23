@@ -4,6 +4,7 @@ import { Trash2 } from "lucide-react"
 import { Navbar } from "@/components/navbar"
 import { MobileNav } from "@/components/mobile-nav"
 import { whatsappUrl } from "@/lib/contacto"
+import { CONTACTO_EMAIL, mailtoContacto } from "@qps/core/contacto"
 
 export const metadata: Metadata = {
   title: "Eliminar mi cuenta | Qué Pinta Salta",
@@ -55,8 +56,11 @@ export default function EliminarCuentaPublicaPage() {
                 <a href={contactoWhatsappUrl} target="_blank" rel="noopener noreferrer" className={linkClass}>
                   WhatsApp
                 </a>{" "}
-                o por mail a [COMPLETAR: mail de contacto] pidiendo la eliminación de tu cuenta. En este caso puede
-                demorar hasta 30 días.
+                o por mail a{" "}
+                <a href={mailtoContacto("Eliminar mi cuenta de Qué Pinta Salta")} className={linkClass}>
+                  {CONTACTO_EMAIL}
+                </a>{" "}
+                pidiendo la eliminación de tu cuenta. En este caso puede demorar hasta 30 días.
               </li>
             </ul>
           </Section>
@@ -64,9 +68,10 @@ export default function EliminarCuentaPublicaPage() {
           <Section title="Qué se borra">
             <ul className="list-disc space-y-2 pl-5">
               <li>Tus favoritos.</li>
-              <li>Tus marcas de &quot;Voy&quot; y &quot;Me interesa&quot;.</li>
+              <li>Tus marcas de &quot;Voy&quot;.</li>
               <li>Las preferencias de Mi Radar y de notificaciones.</li>
               <li>Los avisos que tenés activados.</li>
+              <li>El historial de los avisos que te mandamos.</li>
               <li>Los tokens de aviso de tu celular.</li>
               <li>La cuenta misma, con tu email y tu contraseña.</li>
             </ul>

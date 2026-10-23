@@ -2,6 +2,9 @@ import { createClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
 import { formatEventDateShort, formatEventTime } from "@/lib/date-format"
 import { ChangePasswordForm } from "@/components/change-password-form"
+import { tipoDeCuenta } from "@qps/core/auth/cuenta"
+import { LoQueSeguis } from "./lo-que-seguis"
+import { obtenerLoQueSeguis } from "@/lib/actions/radar"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card } from "@/components/ui/card"
@@ -18,6 +21,11 @@ export default async function PerfilPage() {
   if (!user) {
     redirect("/auth/login?next=/perfil")
   }
+
+  // "Lo que seguís" (R47, QPS-197): `null` sin sesión (ya descartado arriba),
+  // así que acá solo puede venir el objeto con las tres listas. Si vuelve
+  // `null` de todas formas (no debería pasar), no se dibuja la sección.
+  const loQueSeguis = await obtenerLoQueSeguis()
 
   // Obtener los eventos creados por el usuario
   const { data: events, error } = await supabase
@@ -216,7 +224,15 @@ export default async function PerfilPage() {
 
           {/* Columna de cambio de contraseña (1/3 de ancho) */}
           <div className="space-y-6 lg:col-span-1">
-            <ChangePasswordForm />
+            {loQueSeguis && (
+              <LoQueSeguis
+                lugares={loQueSeguis.lugares}
+                cuentas={loQueSeguis.cuentas}
+                categorias={loQueSeguis.categorias}
+              />
+            )}
+
+            <ChangePasswordForm modo={tipoDeCuenta(user)} />
 
             <Button
               asChild

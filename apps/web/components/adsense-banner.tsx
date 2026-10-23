@@ -3,17 +3,26 @@
 import Link from "next/link"
 import { useEffect, useRef, useState } from "react"
 import { ExternalLink, Sparkles } from "lucide-react"
-import { ADS_ENABLED, ADSENSE_CLIENT_ID } from "@/lib/config/monetization"
+import { ADS_ENABLED, ADSENSE_CLIENT_ID, ADSENSE_SLOTS } from "@/lib/config/monetization"
 import { ANUNCIANTES } from "@/lib/config/anunciantes"
 import { TEXTO_ANUNCIAR, whatsappUrl } from "@/lib/contacto"
 
 interface AdSenseBannerProps {
-  /** ID numérico del bloque de anuncios en AdSense (p. ej. "1234567890"). */
-  slot: string
+  /** El lugar define el slot (ADSENSE_SLOTS) y el alto reservado (ALTO_RESERVADO_ANUNCIO), los dos en lib/config/monetization.ts. */
+  lugar: "portada" | "ficha" | "buscar"
   format?: "auto" | "fluid" | "rectangle" | "vertical" | "horizontal"
   responsive?: boolean
   className?: string
 }
+
+/**
+ * Alto reservado del contenedor, en clases de Tailwind (tienen que ser
+ * literales: Tailwind 4 no arma una clase con un template literal). Sale del
+ * `min-height` en px de ALTO_RESERVADO_ANUNCIO, que hoy comparten los tres
+ * lugares (mobile 280px, desktop 250px). Si algún lugar necesitara otro alto,
+ * agregá su propio par de clases literales y elegí según `lugar`.
+ */
+export const ALTO_RESERVADO_CLASES = "min-h-[280px] sm:min-h-[250px]"
 
 /**
  * Con la monetización apagada (NEXT_PUBLIC_ADS_ENABLED != "true") no se
@@ -26,7 +35,7 @@ export function AdSenseBanner(props: AdSenseBannerProps) {
 }
 
 function AdSenseSlot({
-  slot,
+  lugar,
   format = "auto",
   responsive = true,
   className = "",
@@ -36,11 +45,12 @@ function AdSenseSlot({
   const insRef = useRef<HTMLModElement>(null)
 
   const adClientId = ADSENSE_CLIENT_ID
+  const slot = ADSENSE_SLOTS[lugar]
   const isDev = process.env.NODE_ENV === "development"
-  // data-ad-slot tiene que ser el ID numérico de un bloque de anuncios; con
-  // un nombre ("home-middle-banner") el slot nunca se llena.
-  const isValidSlot = /^\d+$/.test(slot)
-  
+  // ADSENSE_SLOTS[lugar] ya viene validado (solo dígitos o null): ver
+  // parseAdsenseSlot en lib/config/monetization.ts.
+  const isValidSlot = slot !== null
+
   const anunciarWhatsappUrl = whatsappUrl(TEXTO_ANUNCIAR)
 
   useEffect(() => {
@@ -49,9 +59,9 @@ function AdSenseSlot({
 
   useEffect(() => {
     if (isClient && adClientId && !isDev && !isValidSlot) {
-      console.warn(`[AdSense] data-ad-slot inválido ("${slot}"): tiene que ser el ID numérico del bloque`)
+      console.warn(`[AdSense] no hay data-ad-slot configurado para "${lugar}": revisar NEXT_PUBLIC_ADSENSE_SLOT_${lugar.toUpperCase()}`)
     }
-  }, [isClient, adClientId, isDev, isValidSlot, slot])
+  }, [isClient, adClientId, isDev, isValidSlot, lugar])
 
   useEffect(() => {
     if (isClient && adClientId && !isDev && isValidSlot && insRef.current) {
@@ -111,7 +121,7 @@ function AdSenseSlot({
           // @ts-ignore -- adsbygoogle no está tipado en Window; @ts-expect-error
           // tira "Unused directive" porque esta línea no da error de tipos acá.
           const isScriptLoaded = window.adsbygoogle && (window.adsbygoogle.loaded === true || typeof window.adsbygoogle === "object")
-          
+
           if (!isScriptLoaded) {
             setAdError(true)
             return
@@ -120,7 +130,7 @@ function AdSenseSlot({
           if (insRef.current) {
             const status = insRef.current.getAttribute("data-ad-status")
             const height = insRef.current.offsetHeight
-            
+
             // Si el estado es unfilled o si se detecta altura 0 (bloqueo)
             if (status === "unfilled" || height === 0) {
               setAdError(true)
@@ -140,61 +150,60 @@ function AdSenseSlot({
     }
   }, [isClient, adClientId, isDev, isValidSlot])
 
-  if (!isClient) return null
-
-  // Si no hay un ID de cliente, estamos en desarrollo, el slot no es un ID
-  // válido u ocurrió un error/bloqueo de AdSense, mostramos un banner premium
-  // para anunciantes locales
-  if (!adClientId || isDev || !isValidSlot || adError) {
-    return (
-      <div 
-        className={`w-full overflow-hidden rounded-xl border border-primary/20 bg-gradient-to-r from-primary/5 via-card to-primary/5 p-6 text-center shadow-sm backdrop-blur-sm transition-all duration-300 hover:border-primary/40 hover:shadow-md ${className}`}
-      >
-        <div className="mx-auto max-w-lg flex flex-col items-center">
-          <div className="mb-2 flex items-center gap-1 rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold text-primary uppercase tracking-wider">
-            <Sparkles className="size-3" />
-            Anunciá en Qué Pinta Salta
-          </div>
-          <p className="text-lg font-bold text-foreground mb-1">
-            ¿Querés destacar tu evento o promocionar tu marca acá?
-          </p>
-          <p className="text-sm text-muted-foreground mb-4 max-w-md">
-            Llegá directamente al público que está buscando salidas en Salta Capital. ¡Simple, rápido y efectivo!
-          </p>
-          {ANUNCIANTES.publicada ? (
-            <Link
-              href="/anunciantes"
-              className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow-sm transition-all hover:bg-primary/90 hover:scale-[1.02] active:scale-[0.98]"
-            >
-              Ver paquetes para anunciantes
-            </Link>
-          ) : (
-            <a
-              href={anunciarWhatsappUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow-sm transition-all hover:bg-primary/90 hover:scale-[1.02] active:scale-[0.98]"
-            >
-              Contactar por WhatsApp
-              <ExternalLink className="size-4" />
-            </a>
-          )}
-        </div>
-      </div>
-    )
-  }
+  // El bloque no llenó, está bloqueado, estamos en desarrollo o no hay slot
+  // configurado para este lugar: mostramos el cartel de respaldo para
+  // anunciantes locales. Esta decisión NO depende de isClient: el contenedor
+  // (con su alto reservado) sale igual desde el servidor, para que el salto
+  // de layout (CLS) sea 0 tanto si termina llenándose como si no.
+  const mostrarRespaldo = !adClientId || isDev || !isValidSlot || adError
 
   return (
-    <div className={`w-full overflow-hidden py-2 ${className}`}>
-      <ins
-        ref={insRef}
-        className="adsbygoogle text-center"
-        style={{ display: "block" }}
-        data-ad-client={adClientId}
-        data-ad-slot={slot}
-        data-ad-format={format}
-        data-full-width-responsive={responsive ? "true" : "false"}
-      />
+    <div className={`flex w-full flex-col overflow-hidden ${ALTO_RESERVADO_CLASES} ${className}`}>
+      <p className="mb-2 text-center text-xs text-muted-foreground">Publicidad</p>
+      <div className="flex flex-1 items-center justify-center">
+        {mostrarRespaldo ? (
+          <div className="mx-auto flex max-w-lg flex-col items-center rounded-xl border border-primary/20 bg-gradient-to-r from-primary/5 via-card to-primary/5 p-6 text-center shadow-sm backdrop-blur-sm transition-all duration-300 hover:border-primary/40 hover:shadow-md">
+            <div className="mb-2 flex items-center gap-1 rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold text-primary uppercase tracking-wider">
+              <Sparkles className="size-3" />
+              Anunciá en Qué Pinta Salta
+            </div>
+            <p className="text-lg font-bold text-foreground mb-1">
+              ¿Querés destacar tu evento o promocionar tu marca acá?
+            </p>
+            <p className="text-sm text-muted-foreground mb-4 max-w-md">
+              Llegá directamente al público que está buscando salidas en Salta Capital. ¡Simple, rápido y efectivo!
+            </p>
+            {ANUNCIANTES.publicada ? (
+              <Link
+                href="/anunciantes"
+                className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow-sm transition-all hover:bg-primary/90 hover:scale-[1.02] active:scale-[0.98]"
+              >
+                Ver paquetes para anunciantes
+              </Link>
+            ) : (
+              <a
+                href={anunciarWhatsappUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow-sm transition-all hover:bg-primary/90 hover:scale-[1.02] active:scale-[0.98]"
+              >
+                Contactar por WhatsApp
+                <ExternalLink className="size-4" />
+              </a>
+            )}
+          </div>
+        ) : (
+          <ins
+            ref={insRef}
+            className="adsbygoogle w-full text-center"
+            style={{ display: "block" }}
+            data-ad-client={adClientId}
+            data-ad-slot={slot as string}
+            data-ad-format={format}
+            data-full-width-responsive={responsive ? "true" : "false"}
+          />
+        )}
+      </div>
     </div>
   )
 }

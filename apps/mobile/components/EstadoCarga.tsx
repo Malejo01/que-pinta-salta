@@ -81,8 +81,10 @@ const estilos = StyleSheet.create({
   cargando: { alignItems: 'center', justifyContent: 'center', paddingVertical: 24 },
   contenedor: { alignItems: 'center', justifyContent: 'center', gap: 12, paddingVertical: 24, paddingHorizontal: 24 },
   mensaje: { textAlign: 'center' },
-  // Al menos 44 dp de alto (criterio de 28-c): minHeight + centrado, en vez
-  // de depender solo del padding vertical.
-  boton: { borderWidth: 1, borderRadius: 20, paddingHorizontal: 16, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
+  // Al menos 48 dp de alto (46-c, AREA_TACTIL_MINIMA de lib/accesibilidad.ts;
+  // antes 44, criterio de 28-c): minHeight + centrado, en vez de depender
+  // solo del padding vertical. Los 4dp de más no se notan (botón grande,
+  // centrado, sin nada pegado arriba/abajo).
+  boton: { borderWidth: 1, borderRadius: 20, paddingHorizontal: 16, minHeight: 48, alignItems: 'center', justifyContent: 'center' },
   textoBoton: { fontWeight: '600' },
 })

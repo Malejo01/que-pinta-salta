@@ -1,6 +1,7 @@
 import { StyleSheet, type ColorValue } from 'react-native'
 import { Tabs } from 'expo-router'
 import { Encabezado } from '@/components/Encabezado'
+import { EtiquetaPestana } from '@/components/EtiquetaPestana'
 import { Icono, type NombreIcono } from '@/components/Icono'
 import { useColoresQPS } from '@/lib/colores'
 
@@ -37,9 +38,14 @@ export default function TabsLayout() {
     <Tabs
       screenOptions={{
         header: () => <Encabezado />,
-        tabBarActiveTintColor: colores.primary,
+        // QPS-241 (grupo 2): el activo pasa de `primary` a `foreground` —
+        // más contraste contra el fondo oscuro de la barra. El inactivo
+        // sigue en `mutedForeground` (no son el mismo tono, así que la
+        // pestaña activa se sigue distinguiendo por el color del texto,
+        // además del relleno del ícono de `crearTabBarIcon`).
+        tabBarActiveTintColor: colores.foreground,
         tabBarInactiveTintColor: colores.mutedForeground,
-        tabBarLabelStyle: estilos.etiqueta,
+        tabBarLabel: ({ color, children }) => <EtiquetaPestana color={color}>{children}</EtiquetaPestana>,
         tabBarStyle: {
           backgroundColor: `${colores.background}E6`,
           borderTopColor: colores.border,
@@ -61,7 +67,7 @@ export default function TabsLayout() {
       />
       <Tabs.Screen
         name="favoritos"
-        options={{ title: 'Favoritos', tabBarIcon: crearTabBarIcon(ICONOS.favoritos, colores.primary) }}
+        options={{ title: 'Mis eventos', tabBarIcon: crearTabBarIcon(ICONOS.favoritos, colores.primary) }}
       />
       {/* Cuenta sale de la barra (decisión A de Mauro) pero conserva su ruta: se
           llega desde el header, nunca desde acá. */}
@@ -69,7 +75,3 @@ export default function TabsLayout() {
     </Tabs>
   )
 }
-
-const estilos = StyleSheet.create({
-  etiqueta: { fontSize: 12, fontFamily: 'Montserrat_600SemiBold' },
-})

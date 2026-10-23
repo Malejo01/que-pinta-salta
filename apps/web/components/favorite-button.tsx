@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import { Heart } from "lucide-react"
+import { TEXTO_SACASTE_GUARDADO_CON_VOY } from "@qps/core/asistencia"
 import { toggleFavorite } from "@/lib/actions/favorites"
 import { useAuthModal } from "./auth-modal"
 import { cn } from "@/lib/utils"
@@ -100,6 +101,10 @@ export function FavoriteButton({
             </ToastAction>
           ) : undefined,
         })
+      } else if (result.voyQuitado) {
+        // Sacar el ♥ de un evento con Voy también saca el Voy (QPS-197):
+        // avisar con el texto único de core, no "Favorito eliminado".
+        toast({ description: TEXTO_SACASTE_GUARDADO_CON_VOY })
       } else {
         toast({
           title: "Favorito eliminado",

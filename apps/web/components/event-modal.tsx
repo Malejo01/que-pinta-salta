@@ -21,7 +21,7 @@ interface DisplayEvent {
   ticketUrl?: string
   isFeatured?: boolean
   vibe?: string | null
-  /** Estado del evento: gate de "Voy / Me interesa". Flyers y películas no lo tienen. */
+  /** Estado del evento: gate del botón de Voy (y de Seguir). Flyers y películas no lo tienen. */
   status?: string
 }
 
@@ -34,14 +34,14 @@ import {
 } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { InsigniaDestacado } from "@/components/insignia-destacado"
 import { getCategoryIcon } from "@/lib/category-icons"
 import { formatEventDate } from "@/lib/date-format"
 import { capitalizeFirst, cleanDescription } from "@/lib/event-display"
 import { ViewBeacon } from "@/components/view-beacon"
 import { goHref, urlComoLlegar, type MetricOrigin } from "@/lib/metricas/links"
 import { FlyerImage } from "@/components/flyer-image"
-import { FavoriteButton } from "@/components/favorite-button"
-import { BotonesAsistenciaDiferidos } from "@/components/botones-asistencia-diferidos"
+import { BotonesAsistenciaDiferidos, BotonesSeguirDiferidos } from "@/components/botones-asistencia-diferidos"
 
 interface EventModalProps {
   event: Event | null
@@ -53,7 +53,7 @@ interface EventModalProps {
   isFavorite?: boolean
   /** El corazón del modal confirmó un cambio (QPS-158): /buscar actualiza la tarjeta de abajo. */
   onFavoriteChange?: (eventId: string, favorited: boolean) => void
-  /** Si hay sesión (la lee /buscar en el servidor): para "Voy / Me interesa". */
+  /** Si hay sesión (la lee /buscar en el servidor): para Voy y Seguir. */
   haySesion?: boolean
 }
 
@@ -83,20 +83,20 @@ export function EventModal({ event, open, onClose, origin = "directo", isFavorit
             {createElement(iconComponent, { className: "mr-1 size-3" })}
             {event.categoryName || event.category}
           </Badge>
+          {/*
+            Acá SÍ alcanza con `event.isFeatured` tal cual (no se llama a
+            `estaDestacado`): este `event` es el `DisplayEvent` local del
+            modal (línea 8), lo arma `/buscar` con `isFeatured` ya resuelto
+            (y, para flyers/películas, fijado en `false` a mano — ver
+            `app/buscar/buscar-content.tsx`), igual que en `event-card.tsx` y
+            `hero-carousel.tsx`.
+          */}
+          <InsigniaDestacado visible={!!event.isFeatured} className="absolute left-4 top-14" />
         </div>
 
         <div className="p-6">
           <DialogHeader className="mb-4">
-            <div className="flex items-start justify-between gap-4">
-              <DialogTitle className="text-2xl flex-1">{event.title}</DialogTitle>
-              <FavoriteButton
-                itemId={event.id}
-                type="event"
-                initialIsFavorite={isFavorite}
-                onChange={onFavoriteChange ? (favorited) => onFavoriteChange(event.id, favorited) : undefined}
-                className="size-10 flex-shrink-0 bg-muted/40 hover:bg-muted text-foreground"
-              />
-            </div>
+            <DialogTitle className="text-2xl">{event.title}</DialogTitle>
           </DialogHeader>
 
           <div className="mb-6 space-y-3">
@@ -119,6 +119,13 @@ export function EventModal({ event, open, onClose, origin = "directo", isFavorit
                 <p className="text-sm">{event.address}</p>
               </div>
             </div>
+
+            <BotonesSeguirDiferidos
+              eventId={event.id}
+              status={event.status}
+              abierto={open}
+              haySesion={haySesion}
+            />
 
             {event.vibe && vibeLabels[event.vibe as keyof typeof vibeLabels] && (
               <div className="flex items-center gap-3 text-muted-foreground">
@@ -168,9 +175,12 @@ export function EventModal({ event, open, onClose, origin = "directo", isFavorit
 
           <BotonesAsistenciaDiferidos
             eventId={event.id}
+            titulo={event.title}
             status={event.status}
             abierto={open}
             haySesion={haySesion}
+            isFavorite={isFavorite}
+            onFavoriteChange={onFavoriteChange}
             className="mt-6"
           />
         </div>

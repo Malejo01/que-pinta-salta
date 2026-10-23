@@ -20,6 +20,7 @@
 import { useState } from 'react'
 import { ActivityIndicator, Pressable, ScrollView, View } from 'react-native'
 import { Stack, useRouter } from 'expo-router'
+import { CONTACTO_EMAIL } from '@qps/core/contacto'
 import { CampoTexto } from '@/components/CampoTexto'
 import { Cargando } from '@/components/EstadoCarga'
 import { Texto } from '@/components/Texto'
@@ -91,9 +92,10 @@ export default function EliminarCuenta() {
       <View style={estilos.bloque}>
         <Texto peso="semibold">Qué se borra:</Texto>
         <Texto>• Tus favoritos.</Texto>
-        <Texto>• Tus marcas de &quot;Voy&quot; y &quot;Me interesa&quot;.</Texto>
+        <Texto>• Tus marcas de &quot;Voy&quot;.</Texto>
         <Texto>• Las preferencias de Mi Radar y de notificaciones.</Texto>
         <Texto>• Los avisos que tenés activados.</Texto>
+        <Texto>• El historial de los avisos que te mandamos.</Texto>
         <Texto>• Los tokens de aviso de tu celular.</Texto>
         <Texto>• La cuenta misma, con tu email y tu contraseña.</Texto>
       </View>
@@ -102,6 +104,20 @@ export default function EliminarCuenta() {
         <Texto peso="semibold">Qué no se borra:</Texto>
         <Texto tono="secundario">
           Los eventos que cargaste siguen publicados, pero quedan sin tu nombre: pasan a figurar sin autor.
+        </Texto>
+      </View>
+
+      <View style={estilos.bloque}>
+        <Texto tono="secundario">Si no podés eliminarla desde acá, escribinos a</Texto>
+        <Texto
+          selectable
+          accessibilityLabel={`Correo de contacto: ${CONTACTO_EMAIL}`}
+          accessibilityHint="Mantené presionado para copiarlo"
+        >
+          {CONTACTO_EMAIL}
+        </Texto>
+        <Texto tono="secundario" style={{ fontSize: 12 }}>
+          Mantené presionado para copiarlo
         </Texto>
       </View>
 
@@ -123,12 +139,12 @@ export default function EliminarCuenta() {
         disabled={!habilitado}
         accessibilityRole="button"
         accessibilityLabel="Eliminar mi cuenta para siempre"
-        style={estilos.boton(habilitado, colores.border)}
+        style={estilos.boton(habilitado ? COLOR_ERROR : colores.border)}
       >
         {enviando ? (
-          <ActivityIndicator color="#ffffff" />
+          <ActivityIndicator color={habilitado ? COLOR_ERROR : colores.mutedForeground} />
         ) : (
-          <Texto peso="semibold" style={{ color: '#ffffff' }}>
+          <Texto peso="semibold" style={{ color: habilitado ? COLOR_ERROR : colores.mutedForeground }}>
             Eliminar mi cuenta para siempre
           </Texto>
         )}
@@ -141,13 +157,21 @@ const estilos = {
   centrado: { flex: 1, alignItems: 'center' as const, justifyContent: 'center' as const },
   contenedor: { flexGrow: 1, padding: 24, gap: 14 },
   bloque: { gap: 4 },
-  boton: (habilitado: boolean, colorDeshabilitado: string) => ({
+  // Ronda 49 (QPS-241, grupo 1): contorno en vez de relleno — blanco sobre
+  // COLOR_ERROR daba 2,77, abajo del mínimo de "texto" (4,5), y esta es la
+  // pantalla que Google mira para la ficha de Play. El fondo ya no cambia
+  // (siempre transparent): lo que cambia con el estado es el color del
+  // borde, que decide el llamador (`colorBorde`) — COLOR_ERROR habilitado,
+  // `colores.border` deshabilitado.
+  boton: (colorBorde: string) => ({
     width: '100%' as const,
-    minHeight: 44,
+    minHeight: 48,
     borderRadius: 8,
+    borderWidth: 2,
     padding: 12,
     alignItems: 'center' as const,
     justifyContent: 'center' as const,
-    backgroundColor: habilitado ? COLOR_ERROR : colorDeshabilitado,
+    backgroundColor: 'transparent',
+    borderColor: colorBorde,
   }),
 }

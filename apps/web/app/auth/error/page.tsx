@@ -1,32 +1,32 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import Link from 'next/link'
 
-export default async function Page({
-  searchParams,
-}: {
-  searchParams: Promise<{ error: string }>
-}) {
-  const params = await searchParams
-
+// En castellano y sin mostrar el `error` crudo de la query (antes se
+// mostraba tal cual, en inglés): no da información útil para distinguir
+// casos y agrega ruido en el idioma equivocado. Las dos salidas cubren los
+// motivos más comunes de que el link no funcione: pedir uno nuevo o entrar
+// directamente si la cuenta ya tiene contraseña.
+export default function Page() {
   return (
     <div className="flex min-h-svh w-full items-center justify-center p-6 md:p-10">
       <div className="w-full max-w-sm">
         <div className="flex flex-col gap-6">
           <Card>
             <CardHeader>
-              <CardTitle className="text-2xl">
-                Sorry, something went wrong.
-              </CardTitle>
+              <CardTitle className="text-2xl">El link no funcionó</CardTitle>
             </CardHeader>
-            <CardContent>
-              {params?.error ? (
-                <p className="text-sm text-muted-foreground">
-                  Code error: {params.error}
-                </p>
-              ) : (
-                <p className="text-sm text-muted-foreground">
-                  An unspecified error occurred.
-                </p>
-              )}
+            <CardContent className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Puede que haya vencido o que lo hayas abierto en otro navegador.
+              </p>
+              <div className="flex flex-col gap-2 text-sm">
+                <Link href="/auth/recuperar" className="text-primary underline underline-offset-4">
+                  Pedir un link nuevo
+                </Link>
+                <Link href="/auth/login" className="text-primary underline underline-offset-4">
+                  Iniciar sesión
+                </Link>
+              </div>
             </CardContent>
           </Card>
         </div>

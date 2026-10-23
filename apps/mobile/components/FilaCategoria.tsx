@@ -41,7 +41,7 @@ export function FilaCategoria({ categoria, titulo, eventos, alVerTodos }: FilaCa
       <View style={estilos.encabezado}>
         <View style={estilos.tituloFila}>
           <Icono nombre={iconoPorCategoria(categoria)} tamanio={20} color={colores.primary} />
-          <Texto peso="bold" style={estilos.titulo}>
+          <Texto peso="bold" accessibilityRole="header" style={estilos.titulo}>
             {titulo}
           </Texto>
           <View style={[estilos.pillContador, { backgroundColor: colores.muted }]}>
@@ -52,7 +52,11 @@ export function FilaCategoria({ categoria, titulo, eventos, alVerTodos }: FilaCa
         </View>
 
         <Pressable onPress={alVerTodos} accessibilityRole="button" style={estilos.botonVerTodos}>
-          <Texto peso="semibold" tono="primario" style={estilos.textoVerTodos}>
+          {/* Ronda 49 (QPS-241, grupo 2): `primary` da 3,83 sobre `background`
+              como texto chico, abajo de 4,5 — pasa a `foreground` (tono por
+              defecto de `Texto`), subrayado para no perder la señal de que
+              se toca (no tiene ícono ni borde propio). */}
+          <Texto peso="semibold" style={[estilos.textoVerTodos, estilos.subrayado]}>
             Ver todos
           </Texto>
         </Pressable>
@@ -106,8 +110,17 @@ const estilos = StyleSheet.create({
   titulo: { fontSize: 20 },
   pillContador: { borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2 },
   textoContador: { fontSize: 12 },
-  botonVerTodos: { minHeight: 44, justifyContent: 'center', paddingVertical: 12, marginVertical: -12 },
+  // 46-c: 44 -> 48 (AREA_TACTIL_MINIMA de lib/accesibilidad.ts). Los 4dp de
+  // más no se notan: es texto solo ("Ver todos"), sin fondo/borde, con
+  // `marginVertical` negativo que ya compensa el padding para no empujar la
+  // fila — el único cambio real es que el `Pressable` pasa a medir 2dp más
+  // arriba y abajo de lo que medía antes.
+  botonVerTodos: { minHeight: 48, justifyContent: 'center', paddingVertical: 12, marginVertical: -12 },
   textoVerTodos: { fontSize: 14 },
+  // Ronda 49 (QPS-241, grupo 2): "Ver todos" pasa de `tono="primario"` a
+  // `foreground` (ver el comentario de arriba) — subrayado para seguir
+  // marcándose como tocable sin volver a usar `primary`.
+  subrayado: { textDecorationLine: 'underline' },
   lista: { paddingHorizontal: 16, gap: 20 },
   celda: { width: ANCHO_TARJETA, height: ALTO_TARJETA },
 })

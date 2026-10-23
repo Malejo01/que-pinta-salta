@@ -34,6 +34,7 @@ import { useLocalSearchParams } from 'expo-router'
 import { buscarEventosPorTexto } from '@qps/core/home/busqueda'
 import { soloGratis } from '@qps/core/home/filtros-extra'
 import type { DisplayEvent } from '@qps/core/home/types'
+import { BannerAnuncio } from '@/components/BannerAnuncio'
 import { CampoTexto } from '@/components/CampoTexto'
 import { Cargando, ErrorCarga, Vacio } from '@/components/EstadoCarga'
 import { Icono, iconoPorCategoria } from '@/components/Icono'
@@ -41,6 +42,15 @@ import { TarjetaEvento } from '@/components/TarjetaEvento'
 import { Texto } from '@/components/Texto'
 import { useColoresQPS } from '@/lib/colores'
 import { obtenerCategorias, obtenerEventosVigentes, type CategoriaBasica } from '@/lib/datos/eventos'
+
+/**
+ * Cuántos resultados tienen que haber para que el banner de abajo se dibuje
+ * (R60, 52-d). No es un número arbitrario: con menos, el banner asoma sin
+ * scrollear en un celular de 360×800 y eso rompe la regla (a) de Mauro — la
+ * cuenta está en el comentario del `ListFooterComponent` de la lista de
+ * resultados, más abajo. `tests/buscar.test.ts` exige que siga en 3.
+ */
+export const RESULTADOS_MINIMOS_PARA_ANUNCIO = 3
 
 type EstadoLista =
   | { tipo: 'cargando' }
@@ -221,11 +231,18 @@ export default function Buscar() {
             </Texto>
           }
           ListEmptyComponent={<Vacio mensaje="Todavía no hay categorías cargadas." />}
+          // R60, 52-d: con la lista vacía, `null` en vez de `<BannerAnuncio>`
+          // — hallazgo de la R52 en la web (ux-ui): una FlatList dibuja
+          // `ListFooterComponent` también debajo de `ListEmptyComponent`, así
+          // que sin esta guarda el banner quedaría pegado abajo de "Todavía
+          // no hay categorías cargadas.", cerca del pliegue.
+          ListFooterComponent={estado.categorias.length === 0 ? null : <BannerAnuncio lugar="buscar" />}
           renderItem={({ item }) => {
             const cantidad = cantidadPorCategoria(item.slug)
             return (
               <Pressable
                 onPress={() => alTocarCategoria(item.slug)}
+                accessibilityRole="button"
                 style={[estilos.tileCategoria, { backgroundColor: colores.card, borderColor: colores.border }]}
               >
                 <View style={[estilos.iconoCategoria, { backgroundColor: `${colores.primary}1A` }]}>
@@ -261,6 +278,25 @@ export default function Buscar() {
             </Texto>
           }
           ListEmptyComponent={<Vacio mensaje={textoSinResultados()} />}
+          // Mismo porqué que la lista de categorías, arriba, pero el corte es
+          // por CANTIDAD y no solo por lista vacía — regla (a) de Mauro
+          // ("ningún anuncio arriba del pliegue"), con la cuenta de alturas de
+          // ux-ui para 360×800: la cabecera (CampoTexto + chip, ~160 dp) más
+          // el título de resultados (~32 dp) más UNA fila de la grilla de 2
+          // columnas (tarjeta de 158×237 dp por el `aspectRatio: 2/3`) dejan
+          // el banner arrancando a los ~453 dp, contra un área visible de
+          // ~649 dp: con 1 o 2 resultados asoma sin scrollear. Con 3 o 4 son
+          // dos filas y el banner se va a los ~702 dp. Es el mismo hallazgo
+          // que ux-ui hizo sobre la web en la R52 (ahí fue con 2 resultados).
+          //
+          // Sin `sinConexion`, porque esta pantalla
+          // no tiene ningún estado de caché/sin conexión propio
+          // (a diferencia de Inicio, no usa `cargarAgendaConCache`), así que
+          // no hay nada que pasarle — `BannerAnuncio` ya trae `false` por
+          // omisión.
+          ListFooterComponent={
+            resultadosMostrados.length < RESULTADOS_MINIMOS_PARA_ANUNCIO ? null : <BannerAnuncio lugar="buscar" />
+          }
           renderItem={({ item }) => (
             <View style={estilos.celda}>
               <TarjetaEvento evento={item} />
@@ -283,11 +319,18 @@ const estilos = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  // 46-d: minHeight (no hitSlop) a propósito, aunque el chip tiene forma
+  // propia (pill) — ver el reporte de la tarea: el detector de
+  // `tests/accesibilidad-detector.test.ts` (`area-chica`) decide solo por
+  // el nombre de la clave de estilo que usa el `style` del `Pressable`, sin
+  // mirar `hitSlop`; la única excepción documentada (`EXCEPCIONES_AREA_CHICA`)
+  // vive en ese mismo archivo, que esta tarea no puede tocar. 44 -> 48 (4dp
+  // más de alto, casi imperceptible en una pill chica).
   chipGratis: {
     alignSelf: 'flex-start',
     borderWidth: 1,
     borderRadius: 999,
-    minHeight: 44,
+    minHeight: 48,
     paddingHorizontal: 16,
     alignItems: 'center',
     justifyContent: 'center',

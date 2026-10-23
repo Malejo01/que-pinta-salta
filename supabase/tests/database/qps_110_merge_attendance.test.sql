@@ -17,10 +17,11 @@
 -- la vez" funciona: los 4 usuarios de abajo se repuntan en el mismo UPDATE/
 -- DELETE, no en llamadas separadas):
 --   U1: marca en LOS DOS eventos, MISMO kind ('voy' en keep y en drop).
---   U2: marca en LOS DOS eventos, kind DISTINTO ('voy' en keep, 'me_interesa'
---       en drop): prueba que la marca del que queda manda y no se combinan
---       los kinds.
---   U3: marca SOLO en el descartado ('me_interesa'): tiene que moverse.
+--   U2: marca en LOS DOS eventos (otro usuario, para probar que el DELETE
+--       toca a varios a la vez). Antes de la R47 tenía kind DISTINTO en cada
+--       evento ('me_interesa' en drop); desde la R47 el único kind es 'voy'
+--       (migración 20261018120000_r47_guardar_voy.sql).
+--   U3: marca SOLO en el descartado ('voy'): tiene que moverse.
 --   U4: marca SOLO en el que queda ('voy'): no tiene que cambiar.
 --
 -- uuid fijo, prefijo "e" (no choca con los prefijos c/d que ya usan
@@ -82,18 +83,17 @@ values
   -- U1: mismo kind en los dos eventos.
   ('e0000000-0000-4000-8000-000000000002', 'e1111111-1111-4111-8111-111111111111', 'voy'),
   ('e0000000-0000-4000-8000-000000000002', 'e2222222-2222-4222-8222-222222222222', 'voy'),
-  -- U2: kind distinto en cada evento.
+  -- U2: también en los dos eventos.
   ('e0000000-0000-4000-8000-000000000003', 'e1111111-1111-4111-8111-111111111111', 'voy'),
-  ('e0000000-0000-4000-8000-000000000003', 'e2222222-2222-4222-8222-222222222222', 'me_interesa'),
+  ('e0000000-0000-4000-8000-000000000003', 'e2222222-2222-4222-8222-222222222222', 'voy'),
   -- U3: solo en el descartado.
-  ('e0000000-0000-4000-8000-000000000004', 'e2222222-2222-4222-8222-222222222222', 'me_interesa'),
+  ('e0000000-0000-4000-8000-000000000004', 'e2222222-2222-4222-8222-222222222222', 'voy'),
   -- U4: solo en el que queda.
   ('e0000000-0000-4000-8000-000000000005', 'e1111111-1111-4111-8111-111111111111', 'voy');
 
 -- ---------------------------------------------------------------------------
 -- Preparación: totales antes de fusionar (el trigger ya los mantiene al
--- insertar los fixtures). keep: 3 "voy" (U1,U2,U4). drop: 1 "voy" (U1), 2
--- "me_interesa" (U2,U3).
+-- insertar los fixtures). keep: 3 "voy" (U1,U2,U4). drop: 3 "voy" (U1,U2,U3).
 -- ---------------------------------------------------------------------------
 select ok(
   (select voy = 3 and me_interesa = 0 from public.event_attendance_totals
@@ -102,9 +102,9 @@ select ok(
 );
 
 select ok(
-  (select voy = 1 and me_interesa = 2 from public.event_attendance_totals
+  (select voy = 3 and me_interesa = 0 from public.event_attendance_totals
    where event_id = 'e2222222-2222-4222-8222-222222222222'),
-  'prep-drop. event_attendance_totals/drop antes de fusionar: voy=1, me_interesa=2'
+  'prep-drop. event_attendance_totals/drop antes de fusionar: voy=3, me_interesa=0'
 );
 
 -- ---------------------------------------------------------------------------
@@ -147,17 +147,16 @@ select is(
   '3. event_attendance: ninguna fila apunta al descartado después de la fusión'
 );
 
--- 4. event_attendance_totals/keep cierra: voy=3 (sin cambios: U1, U2, U4) +
---    me_interesa=1 (el "me_interesa" de U3 que se movió).
+-- 4. event_attendance_totals/keep cierra: voy=4 (U1, U2, U4 sin cambios + el
+--    "voy" de U3 que se movió), me_interesa=0.
 select ok(
-  (select voy = 3 and me_interesa = 1 from public.event_attendance_totals
+  (select voy = 4 and me_interesa = 0 from public.event_attendance_totals
    where event_id = 'e1111111-1111-4111-8111-111111111111'),
-  '4. event_attendance_totals/keep después de fusionar: voy=3, me_interesa=1'
+  '4. event_attendance_totals/keep después de fusionar: voy=4, me_interesa=0'
 );
 
--- 5. event_attendance_totals/drop cierra en 0/0 (se restó todo: el "voy" de
---    U1 al borrarse, el "me_interesa" de U2 al borrarse, el "me_interesa" de
---    U3 al moverse).
+-- 5. event_attendance_totals/drop cierra en 0/0 (se restó todo: los "voy" de
+--    U1 y U2 al borrarse, el de U3 al moverse).
 select ok(
   (select voy = 0 and me_interesa = 0 from public.event_attendance_totals
    where event_id = 'e2222222-2222-4222-8222-222222222222'),
@@ -173,22 +172,22 @@ select is(
   '6. U1 (mismo kind en los dos): 1 sola fila, en keep, kind=voy sin cambios'
 );
 
--- 7. U2 (kind distinto en cada evento): una sola fila, en keep, kind='voy'
---    (la de keep manda; el "me_interesa" de drop se descartó, no se combinó).
+-- 7. U2 (marca en los dos eventos): una sola fila, en keep, kind='voy'
+--    (la de keep manda; la de drop se descartó).
 select is(
   (select jsonb_build_object('n', count(*), 'event_id', min(event_id::text), 'kind', min(kind))
    from public.event_attendance where user_id = 'e0000000-0000-4000-8000-000000000003'),
   jsonb_build_object('n', 1, 'event_id', 'e1111111-1111-4111-8111-111111111111', 'kind', 'voy'),
-  '7. U2 (kind distinto en cada evento): 1 sola fila, en keep, kind=voy (la de keep manda, no se combina con me_interesa)'
+  '7. U2 (marca en los dos eventos): 1 sola fila, en keep, kind=voy (la de keep manda)'
 );
 
 -- 8. U3 (solo en el descartado): una sola fila, ahora en keep, con el kind
---    que ya tenía ('me_interesa') preservado por el UPDATE.
+--    que ya tenía ('voy') preservado por el UPDATE.
 select is(
   (select jsonb_build_object('n', count(*), 'event_id', min(event_id::text), 'kind', min(kind))
    from public.event_attendance where user_id = 'e0000000-0000-4000-8000-000000000004'),
-  jsonb_build_object('n', 1, 'event_id', 'e1111111-1111-4111-8111-111111111111', 'kind', 'me_interesa'),
-  '8. U3 (solo en el descartado): se movió a keep, kind=me_interesa preservado'
+  jsonb_build_object('n', 1, 'event_id', 'e1111111-1111-4111-8111-111111111111', 'kind', 'voy'),
+  '8. U3 (solo en el descartado): se movió a keep, kind=voy preservado'
 );
 
 -- 9. U4 (solo en el que queda): sin cambios.

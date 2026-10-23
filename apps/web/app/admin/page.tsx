@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
-import { Database, Home, SearchCheck, Tags, Sparkles } from 'lucide-react'
+import { Database, Home, SearchCheck, Tags, Sparkles, MapPin } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -22,6 +22,18 @@ const adminSections = [
     href: '/admin/revision',
     title: 'Borradores (IA)',
     description: 'Revisá, corregí y aprobá eventos extraídos de flyers de Instagram mediante inteligencia artificial.',
+    icon: Sparkles,
+  },
+  {
+    href: '/admin/lugares',
+    title: 'Lugares sin ubicación',
+    description: 'Revisá y corregí a mano la ubicación de los lugares que el geocodificador no pudo resolver.',
+    icon: MapPin,
+  },
+  {
+    href: '/admin/destacados',
+    title: 'Destacados',
+    description: 'Destacá eventos por un tiempo elegido (7, 14 o 30 días, o una fecha a mano) y quitales el destacado cuando corresponda.',
     icon: Sparkles,
   },
 ]

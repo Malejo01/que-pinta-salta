@@ -12,10 +12,12 @@ import {
 import { Input } from '@/components/ui/input'
 import { PasswordInput } from '@/components/ui/password-input'
 import { Label } from '@/components/ui/label'
+import { mensajeErrorIngreso } from '@/lib/auth/mensajes'
+import { rutaSiguienteSegura } from '@qps/core/auth/cuenta'
 import Image from 'next/image'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
-import { useState } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { Suspense, useState } from 'react'
 import { ArrowLeft } from 'lucide-react'
 
 const GoogleIcon = () => (
@@ -27,12 +29,20 @@ const GoogleIcon = () => (
   </svg>
 )
 
-export default function LoginPage() {
+// `useSearchParams` en un client component necesita un `<Suspense>` alrededor
+// (si no, `next build` falla al intentar generar la ruta de forma estática).
+// Por eso el contenido vive en `LoginForm` y el default export de abajo solo
+// la envuelve. No hay otra página en el repo que use `useSearchParams` para
+// copiar el patrón (`components/home-content.tsx` lo usa pero no está
+// envuelta en ningún `Suspense`); este es el patrón recomendado por Next.js.
+function LoginForm() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const next = rutaSiguienteSegura(searchParams.get('next'))
 
   const handleGoogleLogin = async () => {
     setIsLoading(true)
@@ -40,8 +50,8 @@ export default function LoginPage() {
     try {
       const { error } = await signInWithGoogle()
       if (error) throw error
-    } catch (error: unknown) {
-      setError(error instanceof Error ? error.message : 'Ocurrió un error al iniciar sesión con Google')
+    } catch {
+      setError('Ocurrió un error al iniciar sesión con Google. Probá de nuevo.')
       setIsLoading(false)
     }
   }
@@ -52,19 +62,17 @@ export default function LoginPage() {
     setIsLoading(true)
     setError(null)
 
-    try {
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      })
-      if (error) throw error
-      router.push('/')
-      router.refresh()
-    } catch (error: unknown) {
-      setError(error instanceof Error ? error.message : 'Ocurrió un error')
-    } finally {
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    })
+    if (error) {
+      setError(mensajeErrorIngreso(error))
       setIsLoading(false)
+      return
     }
+    router.push(next)
+    router.refresh()
   }
 
   return (
@@ -115,7 +123,7 @@ export default function LoginPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-2xl">Iniciar Sesión</CardTitle>
+            <CardTitle className="text-2xl">Iniciar sesión</CardTitle>
             <CardDescription>
               Ingresá tu email y contraseña para entrar
             </CardDescription>
@@ -205,5 +213,24 @@ export default function LoginPage() {
         </Card>
       </div>
     </div>
+  )
+}
+
+// El fallback repite el armazón visual (mismo fondo, mismo ancho) para que
+// no haya un salto de layout mientras se resuelve `useSearchParams` (en la
+// práctica, instantáneo en una navegación de cliente).
+function LoginFallback() {
+  return (
+    <div className="relative flex min-h-svh w-full flex-col items-center justify-center p-6 md:p-10 bg-background overflow-hidden">
+      <div className="relative w-full max-w-sm" />
+    </div>
+  )
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<LoginFallback />}>
+      <LoginForm />
+    </Suspense>
   )
 }

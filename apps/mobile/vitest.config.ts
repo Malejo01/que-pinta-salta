@@ -15,6 +15,13 @@ export default defineConfig({
         replacement: fileURLToPath(new URL('../../packages/core/src/', import.meta.url)) + '$1',
       },
       { find: /^@\/(.*)$/, replacement: fileURLToPath(new URL('./', import.meta.url)) + '$1' },
+      // Doble en memoria del módulo nativo (R43, 43-a): ningún test de la
+      // app necesita mockear `@react-native-async-storage/async-storage` a
+      // mano.
+      {
+        find: '@react-native-async-storage/async-storage',
+        replacement: fileURLToPath(new URL('./tests/dobles/async-storage.ts', import.meta.url)),
+      },
     ],
   },
 })

@@ -122,7 +122,7 @@ export const TABLAS_A_BORRAR: readonly EntradaTablaPersonal[] = [
   {
     tabla: "event_attendance",
     columna: "user_id",
-    comentario: "\"Voy\" / \"Me interesa\" del usuario (FK a auth.users, ON DELETE CASCADE).",
+    comentario: "\"Voy\" del usuario (FK a auth.users, ON DELETE CASCADE). Desde la R47 no hay \"Me interesa\".",
   },
   {
     tabla: "push_tokens",
@@ -206,6 +206,42 @@ export const COLUMNAS_A_DESVINCULAR: readonly EntradaTablaPersonal[] = [
       "FK a public.profiles(id) sin on delete (NO ACTION), nullable. Hay que ponerla en null a mano " +
       "antes de borrar profiles; si no, el borrado de profiles falla por esta FK. El plan original decía " +
       "que esta columna referencia auth.users: es falso, referencia profiles.",
+  },
+  {
+    tabla: "events",
+    columna: "featured_set_by",
+    comentario:
+      "Etapa 2: quién destacó el evento (admin). FK a auth.users(id) ON DELETE SET NULL, nullable. La base " +
+      "la deja en null sola cuando corre deleteUser(); se pone en null a mano igual (también lo hace " +
+      "delete_my_account()).",
+  },
+  {
+    tabla: "sponsored_campaigns",
+    columna: "created_by",
+    comentario:
+      "Etapa 2: quién cargó la campaña patrocinada (admin). FK a auth.users(id) ON DELETE SET NULL, " +
+      "nullable. Mismo criterio que events.featured_set_by.",
+  },
+  {
+    tabla: "ad_price_cycles",
+    columna: "approved_by",
+    comentario:
+      "R58: quién aprobó el ciclo de precios (admin). FK a auth.users(id) ON DELETE SET NULL, nullable. " +
+      "Mismo criterio que events.featured_set_by.",
+  },
+  {
+    tabla: "ad_settings",
+    columna: "updated_by",
+    comentario:
+      "R58: quién cambió la configuración de la publicidad (admin). FK a auth.users(id) ON DELETE SET NULL, " +
+      "nullable. Mismo criterio que events.featured_set_by.",
+  },
+  {
+    tabla: "ad_campaign_reports",
+    columna: "created_by",
+    comentario:
+      "R58: quién generó el reporte de la campaña (admin, o null si lo armó el cron). FK a auth.users(id) " +
+      "ON DELETE SET NULL, nullable. Mismo criterio que events.featured_set_by.",
   },
   {
     tabla: "aliases",

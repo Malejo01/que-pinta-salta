@@ -12,7 +12,8 @@ import {
 import { Input } from '@/components/ui/input'
 import { PasswordInput } from '@/components/ui/password-input'
 import { Label } from '@/components/ui/label'
-import { mensajeErrorAlta } from '@/lib/auth/mensajes'
+import { mensajeErrorAlta, resultadoAlta } from '@/lib/auth/mensajes'
+import { validarContrasenaNueva } from '@qps/core/auth/cuenta'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
@@ -42,8 +43,8 @@ export default function SignUpPage() {
     try {
       const { error } = await signInWithGoogle()
       if (error) throw error
-    } catch (error: unknown) {
-      setError(error instanceof Error ? error.message : 'Ocurrió un error al registrarse con Google')
+    } catch {
+      setError('Ocurrió un error al registrarse con Google. Probá de nuevo.')
       setIsLoading(false)
     }
   }
@@ -54,20 +55,15 @@ export default function SignUpPage() {
     setIsLoading(true)
     setError(null)
 
-    if (password !== repeatPassword) {
-      setError('Las contraseñas no coinciden')
-      setIsLoading(false)
-      return
-    }
-
-    if (password.length < 6) {
-      setError('La contraseña debe tener al menos 6 caracteres')
+    const validacion = validarContrasenaNueva(password, repeatPassword)
+    if (!validacion.ok) {
+      setError(validacion.mensaje)
       setIsLoading(false)
       return
     }
 
     try {
-      const { error } = await supabase.auth.signUp({
+      const respuesta = await supabase.auth.signUp({
         email,
         password,
         options: {
@@ -79,8 +75,12 @@ export default function SignUpPage() {
           },
         },
       })
-      if (error) throw error
-      router.push('/auth/sign-up-success')
+      const resultado = resultadoAlta(respuesta)
+      if (resultado.tipo === 'enviado') {
+        router.push('/auth/sign-up-success')
+      } else {
+        setError(resultado.mensaje)
+      }
     } catch (error: unknown) {
       setError(mensajeErrorAlta(error))
     } finally {
@@ -200,7 +200,7 @@ export default function SignUpPage() {
                 href="/auth/login"
                 className="text-primary underline underline-offset-4"
               >
-                Iniciar sesion
+                Iniciar sesión
               </Link>
             </div>
           </CardContent>

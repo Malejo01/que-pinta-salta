@@ -8,13 +8,41 @@
 // `userId` sale siempre de `useSession()` acá adentro, nunca de una prop
 // (mismo patrón que `BotonesAsistencia`); un `23505` en `lib/favoritos.ts`
 // ya cuenta como éxito, no como error.
+//
+// R47, tarea 47-f (QPS-197): Voy está CONTENIDO en Guardados
+// (`@qps/core/asistencia`), así que sacar el ♥ de un evento con Voy también
+// saca el Voy (`desmarcarFavorito`, `lib/favoritos.ts`). Esta tarjeta solo
+// tiene el corazón (no el Voy: eso vive en `FilaAccionesEvento`, en la
+// ficha), así que el único aviso posible acá es el toast de Android
+// (`avisar`, `lib/aviso.ts`): no hay dónde mostrar el texto en línea sin
+// invadir el layout de la tarjeta. Fuera de Android, el usuario se entera
+// igual la próxima vez que vea el evento (ya no tiene el ✓ Voy).
 import { useCallback, useEffect, useState } from 'react'
 import { ActivityIndicator, Pressable, StyleSheet } from 'react-native'
 import { useRouter } from 'expo-router'
+import { TEXTO_SACASTE_GUARDADO_CON_VOY } from '@qps/core/asistencia'
+import { avisar } from '@/lib/aviso'
 import { desmarcarFavorito, marcarFavorito, obtenerEsFavorito } from '@/lib/favoritos'
 import { Icono } from '@/components/Icono'
+import { hitSlopPara } from '@/lib/accesibilidad'
 import { useColoresQPS } from '@/lib/colores'
 import { useSession } from '@/lib/session'
+
+/**
+ * `hitSlopPara(tamanio)` sirve para los dos usos: 40 en la ficha
+ * (`app/evento/[id].tsx`, `estilos.accionesTitulo`, gap 8, junto a
+ * `BotonCompartir`) y 32 en la tarjeta (`TarjetaEvento.tsx`,
+ * `estilos.accionesArriba`, gap 6, también junto a `BotonCompartir`).
+ *
+ * Con 40: hitSlopPara(40) da 4 por lado — 4+4=8, justo el gap de la ficha, no
+ * se pisa. Con 32: hitSlopPara(32) da 8 por lado — 8+8=16, más que el gap de
+ * 6 de la tarjeta: el lado lateral se baja a la mitad del gap (3) en los dos
+ * botones para no comerse el vecino (46-c, para que lo revise 46-q).
+ */
+function hitSlopBotonAccion(tamanio: number) {
+  const base = hitSlopPara(tamanio)
+  return tamanio <= 32 ? { ...base, left: 3, right: 3 } : base
+}
 
 export interface BotonFavoritoProps {
   eventId: string
@@ -61,8 +89,23 @@ export function BotonFavorito({ eventId, tamanio = 40, fondo = 'muted' }: BotonF
 
     const marcadoAntes = estado.marcado
     setGuardando(true)
-    const resultado = marcadoAntes ? await desmarcarFavorito(eventId, userId) : await marcarFavorito(eventId, userId)
-    setEstado(resultado.ok ? { tipo: 'ok', marcado: !marcadoAntes } : { tipo: 'error', error: resultado.error })
+
+    // Dos ramas (no un ternario sobre un solo `resultado`): `voyQuitado` solo
+    // existe en `ResultadoDesmarcarFavorito`, y TypeScript no lo sabe si las
+    // dos llamadas comparten una sola variable unión.
+    if (marcadoAntes) {
+      const resultado = await desmarcarFavorito(eventId, userId)
+      if (resultado.ok) {
+        if (resultado.voyQuitado) avisar(TEXTO_SACASTE_GUARDADO_CON_VOY)
+        setEstado({ tipo: 'ok', marcado: false })
+      } else {
+        setEstado({ tipo: 'error', error: resultado.error })
+      }
+    } else {
+      const resultado = await marcarFavorito(eventId, userId)
+      setEstado(resultado.ok ? { tipo: 'ok', marcado: true } : { tipo: 'error', error: resultado.error })
+    }
+
     setGuardando(false)
   }
 
@@ -79,6 +122,7 @@ export function BotonFavorito({ eventId, tamanio = 40, fondo = 'muted' }: BotonF
       disabled={cargando}
       accessibilityRole="button"
       accessibilityLabel={marcado ? 'Quitar de favoritos' : 'Agregar a favoritos'}
+      hitSlop={hitSlopBotonAccion(tamanio)}
       style={[
         estilos.boton,
         { width: tamanio, height: tamanio, borderRadius: tamanio / 2, backgroundColor: fondoColor },

@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { DarkTheme, Stack, ThemeProvider, type ErrorBoundaryProps } from 'expo-router'
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native'
 import { StatusBar } from 'expo-status-bar'
@@ -15,7 +16,10 @@ import { Montserrat_700Bold } from '@expo-google-fonts/montserrat/700Bold'
 import { COLORES_OSCURO, construirTema } from '@/lib/theme'
 import { leerEnv } from '@/lib/env'
 import { inicializarSentry } from '@/lib/sentry'
+import { iniciarAnuncios } from '@/lib/anuncios/consentimiento'
 import { SessionProvider } from '@/lib/session'
+import { PushProvider } from '@/lib/push'
+import { ManejadorTapPush } from '@/components/ManejadorTapPush'
 
 // Tema con los colores de la web (24-a) y, desde 29-g, con `fonts` en
 // Montserrat (ver `construirTema`). D1 (29-g, decisión de Mauro): la app
@@ -53,6 +57,7 @@ export function ErrorBoundary({ retry }: ErrorBoundaryProps) {
       </Text>
       <Pressable
         onPress={retry}
+        accessibilityRole="button"
         style={[estilosError.boton, { backgroundColor: colores.primary }]}
       >
         <Text style={[estilosError.textoBoton, { color: colores.primaryForeground }]}>Reintentar</Text>
@@ -88,24 +93,42 @@ function RootLayout() {
     Montserrat_700Bold,
   })
 
+  // R60/52-c: AdMob, recién en el camino donde las fuentes ya cargaron (o
+  // fallaron) — el mismo gate que el resto del árbol, abajo. El `useEffect`
+  // se declara antes del `return null` (las reglas de hooks no permiten un
+  // hook condicional entre renders); el guardado de adentro es lo que evita
+  // que dispare mientras la splash nativa sigue puesta. `iniciarAnuncios` es
+  // "fire and forget": no bloquea este render.
+  useEffect(() => {
+    if (!fontsLoaded && !fontError) return
+    iniciarAnuncios()
+  }, [fontsLoaded, fontError])
+
   if (!fontsLoaded && !fontError) {
     return null
   }
 
   return (
     <SessionProvider>
-      <ThemeProvider value={TEMA_OSCURO}>
-        {/* D1 (QPS-148): barra de estado clara (íconos blancos) sobre el
-            fondo oscuro, fija en "light" porque la app arranca siempre
-            oscura (no hay selector de tema todavía). El día que exista un
-            selector de tema, este `style` tiene que dejar de ser fijo y
-            seguir a ese tema (igual que `TEMA_OSCURO`, arriba). */}
-        <StatusBar style="light" />
-        <Stack>
-          <Stack.Screen name="bienvenida" options={{ headerShown: false }} />
-          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        </Stack>
-      </ThemeProvider>
+      {/* Ronda 41 (41-c/41-d): `PushProvider` lee `useSession()` por dentro,
+          así que va adentro de `SessionProvider`. */}
+      <PushProvider>
+        <ThemeProvider value={TEMA_OSCURO}>
+          {/* D1 (QPS-148): barra de estado clara (íconos blancos) sobre el
+              fondo oscuro, fija en "light" porque la app arranca siempre
+              oscura (no hay selector de tema todavía). El día que exista un
+              selector de tema, este `style` tiene que dejar de ser fijo y
+              seguir a ese tema (igual que `TEMA_OSCURO`, arriba). */}
+          <StatusBar style="light" />
+          {/* Sin interfaz propia: registra el handler de avisos en primer
+              plano y navega a la ficha cuando se toca un push (41-d). */}
+          <ManejadorTapPush />
+          <Stack>
+            <Stack.Screen name="bienvenida" options={{ headerShown: false }} />
+            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+          </Stack>
+        </ThemeProvider>
+      </PushProvider>
     </SessionProvider>
   )
 }

@@ -42,6 +42,7 @@
 // falta dibujarla dos veces superpuesta.
 import { useEffect, useRef, useState } from 'react'
 import {
+  AccessibilityInfo,
   FlatList,
   Image,
   Pressable,
@@ -57,14 +58,31 @@ import { capitalizeFirst } from '@qps/core/event-display'
 import type { DisplayEvent } from '@qps/core/home/types'
 import { Afiche } from '@/components/Afiche'
 import { Icono } from '@/components/Icono'
+import { InsigniaDestacado } from '@/components/InsigniaDestacado'
 import { Texto } from '@/components/Texto'
+import { AREA_TACTIL_MINIMA, ESCALA_MAXIMA_COMPACTA, hitSlopPara } from '@/lib/accesibilidad'
 import { useColoresQPS } from '@/lib/colores'
 import { textoPrecio } from '@/lib/formato'
+import { ACCIONES_HERO, etiquetaDiapositiva, indiceTrasAccion } from '@/lib/hero-accesible'
 import LOGO_MARCA from '@/assets/logo-circular.png'
 
 const PORCENTAJE_ALTO_HERO = 0.6
 const INTERVALO_MS = 5000
 const MAXIMO_EVENTOS = 6
+
+/**
+ * Los puntos de paginación (`estilos.punto`) miden 6 de alto, siempre —
+ * `hitSlopPara(AREA_TACTIL_MINIMA, 6)` da 0 de lateral (el primer argumento
+ * ya es 48) y 21 arriba/abajo (6 + 2×21 = 48, llega). El ancho SÍ varía (20
+ * el activo, 6 los demás) y los puntos están pegados entre sí (`estilos.puntos`,
+ * gap: 6): no pueden llegar a 48 de ancho sin que las áreas de toque de dos
+ * puntos vecinos se pisen. Se les da algo de aire igual (la mitad del gap,
+ * 3, en vez de 0) sin llegar a pisarse — sigue sin alcanzar los 48, así que
+ * `components/Hero.tsx` sigue en `tests/a11y/pendientes-componentes.ts` con
+ * `area-chica: 1` (el motivo: el gesto principal para cambiar de diapositiva
+ * es deslizar, no tocar el punto).
+ */
+const HIT_SLOP_PUNTO = { ...hitSlopPara(AREA_TACTIL_MINIMA, 6), left: 3, right: 3 }
 
 /**
  * ~60 % del alto de la ventana (G1 del feedback del teléfono 2), redondeado.
@@ -95,13 +113,41 @@ export function Hero({ eventos }: HeroProps) {
   const { width: ancho, height: altoVentana } = useWindowDimensions()
   const alto = altoHero(altoVentana)
   const [indice, setIndice] = useState(0)
+  const [lectorActivo, setLectorActivo] = useState(false)
 
   const slides = eventosHero(eventos)
 
+  // WCAG 2.2.2 ("Pausa, detener, ocultar"): con el lector de pantalla
+  // prendido el Hero no tiene que avanzar solo, porque quien lo usa necesita
+  // su propio tiempo para escuchar cada diapositiva. Se consulta el estado
+  // al montar (la promesa puede resolver después del desmonte — por eso el
+  // chequeo de `montado` antes de aplicar el resultado) y se escucha el
+  // evento `'screenReaderChanged'` para reaccionar si se prende o se apaga
+  // mientras el Hero ya está en pantalla. El `remove()` del suscriptor vive
+  // en el cleanup de ESTE `useEffect` (no en el del intervalo, que es otro).
+  useEffect(() => {
+    let montado = true
+    AccessibilityInfo.isScreenReaderEnabled().then((habilitado) => {
+      if (montado) setLectorActivo(habilitado)
+    })
+    const suscripcion = AccessibilityInfo.addEventListener('screenReaderChanged', (habilitado) => {
+      setLectorActivo(habilitado)
+    })
+    return () => {
+      montado = false
+      suscripcion.remove()
+    }
+  }, [])
+
   // Avanza cada 5 s; se reinicia cada vez que `indice` cambia (timer propio o
-  // un deslizamiento manual) y se limpia al desmontar.
+  // un deslizamiento manual) y se limpia al desmontar. `lectorActivo` tiene
+  // que estar en los deps: si no, cuando alguien prende TalkBack con el Hero
+  // ya montado este efecto no se vuelve a ejecutar, y el `return` de abajo
+  // (que hoy evita armar el `setInterval`) nunca llega a correr — el timer
+  // que ya estaba corriendo sigue disparando, y el carrusel no se frena.
   useEffect(() => {
     if (slides.length <= 1) return undefined
+    if (lectorActivo) return undefined
 
     const temporizador = setInterval(() => {
       setIndice((actual) => {
@@ -112,7 +158,7 @@ export function Hero({ eventos }: HeroProps) {
     }, INTERVALO_MS)
 
     return () => clearInterval(temporizador)
-  }, [indice, slides.length])
+  }, [indice, slides.length, lectorActivo])
 
   if (slides.length === 0) return null
 
@@ -140,8 +186,16 @@ export function Hero({ eventos }: HeroProps) {
         keyExtractor={(item) => item.id}
         onMomentumScrollEnd={alTerminarDeDeslizar}
         getItemLayout={(_data, index) => ({ length: ancho, offset: ancho * index, index })}
-        renderItem={({ item }) => (
-          <DiapositivaHero evento={item} ancho={ancho} alto={alto} onPress={() => router.push(`/evento/${item.id}`)} />
+        renderItem={({ item, index }) => (
+          <DiapositivaHero
+            evento={item}
+            ancho={ancho}
+            alto={alto}
+            indice={index}
+            total={slides.length}
+            alCambiarIndice={irA}
+            onPress={() => router.push(`/evento/${item.id}`)}
+          />
         )}
       />
 
@@ -153,7 +207,7 @@ export function Hero({ eventos }: HeroProps) {
               onPress={() => irA(i)}
               accessibilityRole="button"
               accessibilityLabel={`Ir al evento ${i + 1}`}
-              hitSlop={10}
+              hitSlop={HIT_SLOP_PUNTO}
               style={[
                 estilos.punto,
                 i === indice
@@ -172,16 +226,26 @@ interface DiapositivaHeroProps {
   evento: DisplayEvent
   ancho: number
   alto: number
+  indice: number
+  total: number
+  alCambiarIndice: (nuevoIndice: number) => void
   onPress: () => void
 }
 
-function DiapositivaHero({ evento, ancho, alto, onPress }: DiapositivaHeroProps) {
+function DiapositivaHero({ evento, ancho, alto, indice, total, alCambiarIndice, onPress }: DiapositivaHeroProps) {
   const colores = useColoresQPS()
   const fecha = capitalizeFirst(formatEventDate(evento.date))
   const precio = textoPrecio(evento.price)
 
   return (
-    <Pressable onPress={onPress} style={[estilos.diapositiva, { width: ancho, height: alto }]}>
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={etiquetaDiapositiva(evento.title, indice, total)}
+      accessibilityActions={total > 1 ? ACCIONES_HERO : undefined}
+      onAccessibilityAction={(accion) => alCambiarIndice(indiceTrasAccion(accion.nativeEvent.actionName, indice, total))}
+      style={[estilos.diapositiva, { width: ancho, height: alto }]}
+    >
       {/* Dos `<Afiche llenar>` con la MISMA url (misma cadena de fuentes y
           mismo allow-list, sin armar nada a mano): abajo, la versión
           desenfocada a sangre (`cover` + `blurRadius`) que llena todo el
@@ -217,27 +281,30 @@ function DiapositivaHero({ evento, ancho, alto, onPress }: DiapositivaHeroProps)
       </View>
 
       <View style={estilos.contenido}>
-        <View style={[estilos.badge, { backgroundColor: colores.primary }]}>
-          <Texto peso="bold" style={estilos.textoBadge} numberOfLines={1}>
-            {evento.categoryName}
-          </Texto>
+        <View style={estilos.filaBadges}>
+          <View style={[estilos.badge, { backgroundColor: colores.primary }]}>
+            <Texto peso="bold" style={estilos.textoBadge} numberOfLines={1} maxFontSizeMultiplier={ESCALA_MAXIMA_COMPACTA}>
+              {evento.categoryName}
+            </Texto>
+          </View>
+          <InsigniaDestacado visible={evento.isFeatured} />
         </View>
 
-        <Texto peso="bold" style={estilos.titulo} numberOfLines={2}>
+        <Texto peso="bold" style={estilos.titulo} numberOfLines={2} maxFontSizeMultiplier={ESCALA_MAXIMA_COMPACTA}>
           {evento.title}
         </Texto>
 
         <View style={estilos.filaDatos}>
           <View style={estilos.dato}>
             <Icono nombre="Calendar" tamanio={12} color={colores.primary} />
-            <Texto style={estilos.textoDato} numberOfLines={1}>
+            <Texto style={estilos.textoDato} numberOfLines={1} maxFontSizeMultiplier={ESCALA_MAXIMA_COMPACTA}>
               {fecha}
               {evento.time ? ` - ${evento.time}` : ''}
             </Texto>
           </View>
           <View style={estilos.dato}>
             <Icono nombre="MapPin" tamanio={12} color={colores.primary} />
-            <Texto style={estilos.textoDato} numberOfLines={1}>
+            <Texto style={estilos.textoDato} numberOfLines={1} maxFontSizeMultiplier={ESCALA_MAXIMA_COMPACTA}>
               {evento.venue}
             </Texto>
           </View>
@@ -246,12 +313,12 @@ function DiapositivaHero({ evento, ancho, alto, onPress }: DiapositivaHeroProps)
         <View style={estilos.filaAccion}>
           <View style={[estilos.botonVerDetalles, { backgroundColor: colores.primary }]}>
             <Icono nombre="Ticket" tamanio={14} color={colores.primaryForeground} />
-            <Texto peso="semibold" style={estilos.textoBoton}>
+            <Texto peso="semibold" style={estilos.textoBoton} maxFontSizeMultiplier={ESCALA_MAXIMA_COMPACTA}>
               Ver detalles
             </Texto>
           </View>
           {evento.price !== 'confirmar' ? (
-            <Texto peso="bold" style={estilos.textoPrecio} numberOfLines={1}>
+            <Texto peso="bold" style={estilos.textoPrecio} numberOfLines={1} maxFontSizeMultiplier={ESCALA_MAXIMA_COMPACTA}>
               {evento.price === 'gratis' ? 'Entrada Gratuita' : precio}
             </Texto>
           ) : null}
@@ -269,6 +336,7 @@ const estilos = StyleSheet.create({
   degrade: { position: 'absolute', left: 0, right: 0, bottom: 0, top: '35%', flexDirection: 'column' },
   franja: { flex: 1, backgroundColor: '#000' },
   contenido: { padding: 12, gap: 4 },
+  filaBadges: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   badge: { alignSelf: 'flex-start', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3, maxWidth: '70%' },
   textoBadge: { color: '#fff', fontSize: 11 },
   titulo: { color: '#fff', fontSize: 15, lineHeight: 19 },

@@ -18,6 +18,12 @@ export type Env = {
   supabase: EnvSupabase | null
   googleWebClientId: string | null
   sentryDsn: string | null
+  // R60/52-c: AdMob en la app. El interruptor es EXPO_PUBLIC_ADS_ENABLED,
+  // separado del de la web (NEXT_PUBLIC_ADS_ENABLED, R52) — cada plataforma
+  // apaga o enciende la publicidad por su cuenta.
+  admobBannerInicio: string | null
+  admobBannerBuscar: string | null
+  anunciosHabilitados: boolean
 }
 
 /** Vacío, `undefined` o solo espacios cuenta como "falta". */
@@ -41,5 +47,10 @@ export function leerEnv(): Env {
     supabase: url && anonKey ? { url, anonKey } : null,
     googleWebClientId: limpiar(process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID),
     sentryDsn: limpiar(process.env.EXPO_PUBLIC_SENTRY_DSN),
+    admobBannerInicio: limpiar(process.env.EXPO_PUBLIC_ADMOB_BANNER_INICIO_ANDROID),
+    admobBannerBuscar: limpiar(process.env.EXPO_PUBLIC_ADMOB_BANNER_BUSCAR_ANDROID),
+    // Solo el string exacto "true" enciende los anuncios: "1", "TRUE", con
+    // espacios alrededor, vacío o ausente dan false (apagado es lo seguro).
+    anunciosHabilitados: process.env.EXPO_PUBLIC_ADS_ENABLED === 'true',
   }
 }

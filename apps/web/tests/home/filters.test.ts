@@ -198,6 +198,96 @@ describe('groupByCategory', () => {
   })
 })
 
+// Decisión 4 (R50, QPS-239): dentro de cada fila de categoría, los
+// destacados van primero.
+describe('groupByCategory: destacados primero en su fila (decisión 4, R50)', () => {
+  const now = salta('2030-10-10T12:00:00')
+  const boliches = makeCategory('boliches', 'Boliches')
+  const sortedCategories = [boliches]
+
+  it('sin el filtro "hoy": los destacados quedan primero (ordenados entre ellos por fecha ascendente); el resto conserva el orden que traía (flyers primero, después fecha)', () => {
+    const flyer = makeDisplayEvent({
+      id: 'flyer-boliches',
+      category: 'boliches',
+      isInstagramFlyer: true,
+      startDateTime: salta('2030-10-20T21:00:00').toISOString(),
+    })
+    const normalTemprano = makeDisplayEvent({
+      id: 'normal-temprano',
+      category: 'boliches',
+      startDateTime: salta('2030-10-11T21:00:00').toISOString(),
+    })
+    const destacadoTardio = makeDisplayEvent({
+      id: 'destacado-tardio',
+      category: 'boliches',
+      isFeatured: true,
+      startDateTime: salta('2030-10-18T21:00:00').toISOString(),
+    })
+    const destacadoTemprano = makeDisplayEvent({
+      id: 'destacado-temprano',
+      category: 'boliches',
+      isFeatured: true,
+      startDateTime: salta('2030-10-12T21:00:00').toISOString(),
+    })
+    // Orden de entrada deliberadamente "desordenado" entre los destacados
+    // (tardío antes que temprano), como ya deja `filterEvents` (flyers
+    // primero, después por fecha: no conoce `isFeatured` para el orden).
+    const filteredEvents = [flyer, normalTemprano, destacadoTardio, destacadoTemprano]
+
+    const rows = groupByCategory(sortedCategories, filteredEvents, null, null, now)
+    expect(rows[0].events.map((e) => e.id)).toEqual([
+      'destacado-temprano',
+      'destacado-tardio',
+      'flyer-boliches',
+      'normal-temprano',
+    ])
+  })
+
+  it('el orden de las filas (por cantidad de eventos) no cambia por tener destacados', () => {
+    const cine = makeCategory('cine', 'Cine')
+    const sortedCategoriesConCine = [boliches, cine]
+    const filteredEvents = [
+      makeDisplayEvent({ id: 'boliches-destacado', category: 'boliches', isFeatured: true }),
+      ...Array.from({ length: 3 }, (_, i) => makeDisplayEvent({ id: `cine-${i}`, category: 'cine' })),
+    ]
+
+    const rows = groupByCategory(sortedCategoriesConCine, filteredEvents, null, null, now)
+    // Cine tiene 3 eventos y boliches 1: cine va primero igual, el destacado
+    // no cambia el orden de las filas (solo el orden dentro de la suya).
+    expect(rows.map((r) => r.category)).toEqual(['cine', 'boliches'])
+  })
+
+  // Trampa (R50): con "hoy", `arrangeRowsForToday` reordena cada fila por
+  // hora y pisa la garantía de "destacados primero". Se deja documentado
+  // con el comportamiento real encontrado (no se tocó `arrangeRowsForToday`,
+  // de `event-display.ts`, que no es archivo propio de esta tarea).
+  it('con el filtro "hoy": el destacado NO queda garantizado primero (arrangeRowsForToday reordena por hora y pisa "destacados primero")', () => {
+    const normalProximo = makeDisplayEvent({
+      id: 'normal-14hs',
+      category: 'boliches',
+      date: '2030-10-10',
+      startDateTime: salta('2030-10-10T14:00:00').toISOString(),
+    })
+    const destacadoMasTarde = makeDisplayEvent({
+      id: 'destacado-20hs',
+      category: 'boliches',
+      isFeatured: true,
+      date: '2030-10-10',
+      startDateTime: salta('2030-10-10T20:00:00').toISOString(),
+    })
+
+    // Sin "hoy": destacadosPrimero pondría el destacado primero.
+    const sinHoy = groupByCategory(sortedCategories, [normalProximo, destacadoMasTarde], null, null, now)
+    expect(sinHoy[0].events.map((e) => e.id)).toEqual(['destacado-20hs', 'normal-14hs'])
+
+    // Con "hoy": ambos todavía no empezaron (now=12:00), así que
+    // arrangeRowsForToday los ordena por hora (14:00 antes que 20:00) y el
+    // no destacado queda primero, pisando la garantía de "destacados primero".
+    const conHoy = groupByCategory(sortedCategories, [normalProximo, destacadoMasTarde], 'hoy', null, now)
+    expect(conHoy[0].events.map((e) => e.id)).toEqual(['normal-14hs', 'destacado-20hs'])
+  })
+})
+
 describe('selectTodayRow', () => {
   const saltaTodayStr = '2030-10-10'
 

@@ -7,14 +7,24 @@
 //      de findDuplicateMatch (lib/scraper/deduplicate.ts) que desde la tarea 34-a (QPS-164,
 //      hallazgo 1) exige también la misma hora de inicio (sameClock), no sólo título+día.
 //
-//      Sin venue_id en ninguno de los dos lados, a propósito: el paso 2 (respaldo difuso,
-//      mismo venue_id + similitud de título >= 0.65) NO mira la hora, así que si las dos
-//      funciones compartieran venue_id Y título idéntico volverían a fusionarse ahí — es una
-//      limitación conocida y fuera de alcance de esta tarea (documentada también en
-//      tests/scraper/deduplicate-similitud.test.ts, describe "dos funciones el mismo día", y
-//      en tests/scraper/dedup-hora.test.ts). Dejar el venue sin definir aísla el camino que el
+//      Sin venue_id en ninguno de los dos lados, a propósito: así se aísla el camino que el
 //      paso 1 está diseñado para cubrir sin depender de venue_id (ver su propio docstring en
-//      lib/scraper/deduplicate.ts: "no necesita venue_id").
+//      lib/scraper/deduplicate.ts: "no necesita venue_id"), sin que el resultado dependa además
+//      de qué hace el paso 2 con el venue.
+//
+//      [Actualizado en R40, QPS-164 hallazgo 1, decisión de Mauro del 17/10] Cuando se escribió
+//      este test (R34), el paso 2 (respaldo difuso, mismo venue_id + similitud de título >= 0.65)
+//      NO miraba la hora, así que si estas dos funciones hubieran compartido venue_id Y título
+//      idéntico, se habrían vuelto a fusionar por ese camino — de ahí que el venue se dejara sin
+//      definir. Desde la tarea 40-b el paso 2 también exige horasCompatibles() (tolerancia
+//      TOLERANCIA_HORA_DEDUP_MIN, 120 minutos, packages/core/src/scraper/dedup-key.ts): 16:00 y
+//      21:00 están a 300 minutos de diferencia, por encima de la tolerancia, así que esa fusión
+//      por el paso 2 ya NO pasaría aunque las dos funciones de este test compartieran venue_id.
+//      La limitación que SÍ persiste (el paso 1 sigue exigiendo la hora exacta, y sin venue en
+//      común entre los dos no hay ningún camino que los junte) queda documentada y probada en
+//      tests/ingesta/punta-a-punta-tolerancia.test.ts (tarea 40-q, casos "LÍMITE CONOCIDO"). Ver
+//      también tests/scraper/deduplicate-similitud.test.ts, describe "dos funciones el mismo
+//      día", y tests/scraper/dedup-hora.test.ts.
 //
 //   2. La misma función anunciada por dos ticketeras (mismo título, día y hora, cada una con
 //      su propio link y precio) queda como un solo evento: la encuentra por clave exacta

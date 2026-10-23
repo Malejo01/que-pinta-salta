@@ -1,95 +1,101 @@
 /**
- * Tarea 38-q: paridad web/app de "Voy / Me interesa" — que muestren
- * exactamente el mismo texto para las mismas cantidades. Sin red ni base,
- * mismo enfoque que `tests/core/equivalencia.test.ts` (comparar los dos
- * lados) combinado con un detector estático sobre el código real (mismo
- * estilo que `tests/asistencia/web.test.ts`).
+ * Tarea 47-q: paridad web/app de "✓ Voy" después de QPS-197 ("Guardar, Voy y
+ * Seguir"). "Me interesa" desapareció de la interfaz: ahora hay un solo tipo
+ * de asistencia (`'voy'`), con un solo texto de botón (`textoBotonVoy`, de
+ * `@qps/core/asistencia`) y un solo orden de fila (`ORDEN_FILA_ACCIONES`,
+ * también de core). `textoBoton`, `ETIQUETAS_ASISTENCIA.me_interesa` y
+ * `siguienteMarca` ya no existen: lo que hereda este archivo de la versión
+ * de la R38 es la GARANTÍA de paridad (que la web y la app no tengan cada
+ * una su copia de la lógica), no los nombres viejos.
  *
- * Por qué hacen falta las DOS cosas (afirmar sobre `textoBoton` de core +
- * detector estático de que los componentes lo llaman), y por qué ninguna de
- * las dos sola alcanza:
+ * Por qué hacen falta las DOS cosas (afirmar sobre `textoBotonVoy` +
+ * detector estático de que los componentes lo llaman, junto con
+ * `ORDEN_FILA_ACCIONES`), y por qué ninguna de las dos sola alcanza:
  *
- *  - Solo (a) "afirmar sobre textoBoton" no prueba nada de paridad: core es
- *    un módulo único, compartido por los dos lados. Si `textoBoton` da bien
- *    "Voy · 5", eso no dice si `BotonesAsistencia` (web) o `BotonesAsistencia`
- *    (app) en verdad lo usan — un componente podría ignorarlo y armar su
- *    propio texto (`${etiqueta} · ${cantidad}` a mano, sin pasar por el
- *    umbral) y este chequeo seguiría en verde, porque nunca mira el
+ *  - Solo (a) "afirmar sobre textoBotonVoy" no prueba nada de paridad: core
+ *    es un módulo único, compartido por los dos lados. Si `textoBotonVoy` da
+ *    bien "Voy · 5 van", eso no dice si la fila de la web o la de la app en
+ *    verdad lo usan — un componente podría ignorarlo y armar su propio texto
+ *    a mano, y este chequeo seguiría en verde, porque nunca mira el
  *    componente.
- *  - Solo (b) "detector estático de que llaman a textoBoton" tampoco alcanza
- *    sin (a): si alguien rompiera `textoBoton` en core (por ejemplo,
- *    mostrando siempre el número, sin umbral), los dos componentes seguirían
- *    "llamando a textoBoton" tal cual, y el detector (b) no lo notaría — la
- *    paridad real (mismo texto, mismo umbral) solo se cubre si además hay
- *    una aserción directa sobre lo que `textoBoton` devuelve.
+ *  - Solo (b) "detector estático de que llaman a textoBotonVoy/ORDEN_FILA_ACCIONES"
+ *    tampoco alcanza sin (a): si alguien rompiera `textoBotonVoy` en core
+ *    (por ejemplo, mostrando siempre el número, sin umbral), los componentes
+ *    seguirían "llamando a textoBotonVoy" tal cual, y el detector (b) no lo
+ *    notaría.
  *
- * Juntas: (a) fija qué tiene que devolver `textoBoton` para cada cantidad, y
- * (b) prueba que ningún componente arma su propio texto en vez de usar esa
- * función — entre las dos, un bug real de paridad (un lado que deja de
- * llamar a `textoBoton`, o que `textoBoton` mismo se rompa) tiene que romper
- * al menos una.
+ * Juntas: (a) fija qué tiene que devolver `textoBotonVoy` para cada
+ * cantidad, y (b) prueba que ninguna de las dos filas arma el texto o el
+ * orden a mano — entre las dos, un bug real de paridad tiene que romper al
+ * menos una.
+ *
+ * Ojo con un falso positivo real (documentado en el encargo de esta tarea):
+ * en la app, `textoBoton` TAMBIÉN es una clave de `StyleSheet`
+ * (`estilos.textoBoton`) en `components/EstadoCarga.tsx`, `Hero.tsx` y
+ * otros, sin relación con core. Por eso el detector de abajo busca
+ * puntualmente el import desde `@qps/core/asistencia` y la llamada
+ * `textoBotonVoy(`, nunca la cadena suelta `textoBoton`.
  */
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
-import { ETIQUETAS_ASISTENCIA, TEXTO_ENTRAR_PARA_MARCAR, textoBoton, type TipoAsistencia } from '@qps/core/asistencia'
+import {
+  ETIQUETAS_ASISTENCIA,
+  ORDEN_FILA_ACCIONES,
+  TEXTO_ENTRAR_PARA_MARCAR,
+  TEXTO_SACASTE_GUARDADO_CON_VOY,
+  textoBotonVoy,
+} from '@qps/core/asistencia'
 
 // ---------------------------------------------------------------------------
-// (a) El texto que tiene que mostrar cada lado, para una tabla de
-// cantidades (incluye un valor grande, QPS: nunca truncar ni redondear) y
-// los dos tipos. Como los dos componentes importan `textoBoton` de
+// (a) El texto que tiene que mostrar cada lado, para la tabla de cantidades
+// del encargo (0, 2, 3 y 12): como las dos filas llaman a `textoBotonVoy` de
 // `@qps/core/asistencia` (lo prueba el bloque (b) de abajo), afirmar sobre
 // esta tabla alcanza para fijar lo que web y app van a mostrar.
 // ---------------------------------------------------------------------------
-describe('textoBoton: tabla de cantidades, igual para los dos tipos', () => {
-  const tipos: TipoAsistencia[] = ['voy', 'me_interesa']
-  const casos: Array<{ cantidad: number; conNumero: boolean }> = [
-    { cantidad: 0, conNumero: false },
-    { cantidad: 1, conNumero: false },
-    { cantidad: 2, conNumero: false },
-    { cantidad: 3, conNumero: true },
-    { cantidad: 4, conNumero: true },
-    { cantidad: 10, conNumero: true },
-    { cantidad: 123456, conNumero: true },
-  ]
+describe('textoBotonVoy: la tabla de textos (0, 2, 3 y 12)', () => {
+  it('cantidad=0: sin número ("Voy")', () => {
+    expect(textoBotonVoy(0)).toBe('Voy')
+  })
 
-  for (const tipo of tipos) {
-    for (const caso of casos) {
-      it(`${tipo}, cantidad=${caso.cantidad}: ${caso.conNumero ? 'con' : 'sin'} número`, () => {
-        const esperado = caso.conNumero
-          ? `${ETIQUETAS_ASISTENCIA[tipo]} · ${caso.cantidad}`
-          : ETIQUETAS_ASISTENCIA[tipo]
-        expect(textoBoton(tipo, caso.cantidad)).toBe(esperado)
-      })
-    }
-  }
+  it('cantidad=2 (debajo del umbral de 3): sin número ("Voy")', () => {
+    expect(textoBotonVoy(2)).toBe('Voy')
+  })
+
+  it('cantidad=3 (el umbral, inclusive): con número ("Voy · 3 van")', () => {
+    expect(textoBotonVoy(3)).toBe('Voy · 3 van')
+  })
+
+  it('cantidad=12: con número, sin truncar ni redondear ("Voy · 12 van")', () => {
+    expect(textoBotonVoy(12)).toBe('Voy · 12 van')
+  })
 })
 
-// ---------------------------------------------------------------------------
-// Los mismos textos en los dos lados: ninguno de los dos tiene su propia
-// constante con las etiquetas o el texto de "sin sesión" — los dos leen las
-// mismas constantes de core. Si alguno declarara su propia copia (aunque
-// tuviera el mismo valor hoy), un cambio futuro en un solo lado los haría
-// divergir sin que ningún test lo note; por eso se chequea la identidad
-// (`toBe`, no `toEqual`) contra las constantes de core.
-// ---------------------------------------------------------------------------
-describe('ETIQUETAS_ASISTENCIA y TEXTO_ENTRAR_PARA_MARCAR: una sola fuente para los dos lados', () => {
-  it('ETIQUETAS_ASISTENCIA tiene exactamente "Voy" y "Me interesa"', () => {
+describe('ETIQUETAS_ASISTENCIA / ORDEN_FILA_ACCIONES / los textos fijos: una sola fuente para los dos lados', () => {
+  it('ETIQUETAS_ASISTENCIA tiene EXACTAMENTE la clave "voy" (ya no existe "me_interesa")', () => {
+    expect(Object.keys(ETIQUETAS_ASISTENCIA)).toEqual(['voy'])
     expect(ETIQUETAS_ASISTENCIA.voy).toBe('Voy')
-    expect(ETIQUETAS_ASISTENCIA.me_interesa).toBe('Me interesa')
+  })
+
+  it('ORDEN_FILA_ACCIONES es, en ese orden, guardar → voy → compartir', () => {
+    expect(ORDEN_FILA_ACCIONES).toEqual(['guardar', 'voy', 'compartir'])
   })
 
   it('TEXTO_ENTRAR_PARA_MARCAR es el texto exacto de invitación a entrar', () => {
     expect(TEXTO_ENTRAR_PARA_MARCAR).toBe('Entrá para marcar si vas.')
   })
+
+  it('TEXTO_SACASTE_GUARDADO_CON_VOY es el texto exacto del aviso de "Voy contenido en Guardados"', () => {
+    expect(TEXTO_SACASTE_GUARDADO_CON_VOY).toBe('Lo sacaste de tus guardados y ya no figurás como que vas.')
+  })
 })
 
 // ===========================================================================
-// (b) Detector estático: los dos componentes de verdad llaman a `textoBoton`
-// y no arman el texto del botón a mano (ni con un template string tipo
-// `${etiqueta} · ${cantidad}`, ni con una concatenación, ni dejando un "·"
-// suelto). Recorre el código real de los dos componentes (no un fixture
-// inventado): si alguno deja de llamar a `textoBoton`, esto se rompe.
+// (b) Detector estático: las dos filas de verdad recorren
+// `ORDEN_FILA_ACCIONES` (nunca escriben ['guardar','voy','compartir'] a
+// mano) y la pieza que dibuja el texto de "Voy" llama a `textoBotonVoy`
+// (nunca arma "Voy · N" a mano). Recorre el código real de los componentes
+// (no un fixture inventado): si alguno deja de usar core, esto se rompe.
 // ===========================================================================
 
 const WEB_ROOT = fileURLToPath(new URL('../../', import.meta.url))
@@ -100,92 +106,148 @@ function quitarComentarios(content: string): string {
   return content.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:"'])\/\/.*$/gm, '$1')
 }
 
-/** `true` si el contenido importa `textoBoton` de `@qps/core/asistencia` (con o sin alias). */
-function importaTextoBoton(content: string): boolean {
+/** `true` si el contenido importa `nombre` de `@qps/core/asistencia` (con o sin alias), sin comentarios. */
+function importaDeCoreAsistencia(content: string, nombre: string): boolean {
   const limpio = quitarComentarios(content)
-  return /import\s+(?:type\s+)?\{[^}]*\btextoBoton\b[^}]*\}\s*from\s*['"]@qps\/core\/asistencia['"]/.test(limpio)
+  const patron = new RegExp(`import\\s+(?:type\\s+)?\\{[^}]*\\b${nombre}\\b[^}]*\\}\\s*from\\s*['"]@qps/core/asistencia['"]`)
+  return patron.test(limpio)
 }
 
 /**
- * `true` si hay un texto de botón armado a mano: un template string o una
- * concatenación que mezcla la etiqueta ("Voy"/"Me interesa", o una variable
- * de etiqueta) con la cantidad, o un separador "·" suelto en el código (fuera
- * de la constante `ETIQUETAS_ASISTENCIA · n` que vive solo dentro de
- * `textoBoton`, en core). Busca la FORMA (un backtick con `·` y una
- * interpolación `${...}` cerca, o un literal de texto con "·" seguido de un
- * `+`), no nombres fijos de variable — para que renombrar no lo evada.
+ * `true` si hay un texto de "Voy" armado a mano: un template string o una
+ * concatenación que mezcla "Voy" (o una variable) con el separador real "·"
+ * y una cantidad interpolada, en vez de llamar a `textoBotonVoy`. Busca la
+ * FORMA (un backtick con "·" y una interpolación `${...}` cerca), no nombres
+ * fijos de variable, para que renombrar no lo evada.
  */
-function tieneTextoBotonArmadoAMano(content: string): boolean {
+function tieneTextoVoyArmadoAMano(content: string): boolean {
   const limpio = quitarComentarios(content)
-  // Template string con el separador real (· o el guion medio ·) y una
-  // interpolación: `${algo} · ${cantidad}` o `${algo} · 5`.
   if (/`[^`]*·[^`]*\$\{[^}]*\}[^`]*`/.test(limpio)) return true
   if (/`[^`]*\$\{[^}]*\}[^`]*·[^`]*`/.test(limpio)) return true
-  // Concatenación con "+" que incluye el separador "·" como literal.
   if (/['"`][^'"`]*·[^'"`]*['"`]\s*\+/.test(limpio)) return true
   if (/\+\s*['"`][^'"`]*·[^'"`]*['"`]/.test(limpio)) return true
   return false
 }
 
-describe('tieneTextoBotonArmadoAMano / importaTextoBoton (fixtures en memoria: el detector tiene que fallar de verdad)', () => {
+describe('tieneTextoVoyArmadoAMano / importaDeCoreAsistencia (fixtures en memoria: el detector tiene que fallar de verdad)', () => {
   it('detecta un template string armado a mano con el separador real', () => {
-    expect(tieneTextoBotonArmadoAMano('const texto = `${etiqueta} · ${cantidad}`')).toBe(true)
+    expect(tieneTextoVoyArmadoAMano('const texto = `Voy · ${cantidad} van`')).toBe(true)
   })
 
   it('detecta el mismo patrón con la cantidad primero', () => {
-    expect(tieneTextoBotonArmadoAMano('const texto = `${cantidad} · ${etiqueta}`')).toBe(true)
+    expect(tieneTextoVoyArmadoAMano('const texto = `${cantidad} · Voy`')).toBe(true)
   })
 
   it('detecta una concatenación con "+" y el separador como literal', () => {
-    expect(tieneTextoBotonArmadoAMano("const texto = etiqueta + ' · ' + cantidad")).toBe(true)
+    expect(tieneTextoVoyArmadoAMano("const texto = 'Voy' + ' · ' + cantidad + ' van'")).toBe(true)
   })
 
   it('un template string sin el separador (otro uso cualquiera) no cuenta: false', () => {
-    expect(tieneTextoBotonArmadoAMano('const label = `Marcar ${texto}`')).toBe(false)
+    expect(tieneTextoVoyArmadoAMano('const label = `Marcar ${texto}`')).toBe(false)
   })
 
-  it('llamar a textoBoton(tipo, cantidad) tal cual no cuenta como armado a mano: false', () => {
-    expect(tieneTextoBotonArmadoAMano('const texto = textoBoton(tipo, cantidad)')).toBe(false)
+  it('llamar a textoBotonVoy(cantidad) tal cual no cuenta como armado a mano: false', () => {
+    expect(tieneTextoVoyArmadoAMano('const texto = textoBotonVoy(cantidad)')).toBe(false)
   })
 
   it('un comentario que menciona el separador "·" no cuenta (se descarta antes de buscar)', () => {
-    const fixture = '// el separador es "·", igual que `${etiqueta} · ${cantidad}` en el ejemplo viejo\nconst x = 1'
-    expect(tieneTextoBotonArmadoAMano(fixture)).toBe(false)
+    const fixture = '// el separador es "·", igual que `Voy · ${cantidad} van` en el ejemplo viejo\nconst x = 1'
+    expect(tieneTextoVoyArmadoAMano(fixture)).toBe(false)
   })
 
-  it('importaTextoBoton detecta el import real, con alias', () => {
-    expect(importaTextoBoton(`import { textoBoton as armar } from '@qps/core/asistencia'`)).toBe(true)
+  it('importaDeCoreAsistencia detecta el import real, con alias', () => {
+    expect(importaDeCoreAsistencia(`import { textoBotonVoy as armar } from '@qps/core/asistencia'`, 'textoBotonVoy')).toBe(
+      true,
+    )
   })
 
-  it('importaTextoBoton: sin textoBoton entre las llaves, false', () => {
-    expect(importaTextoBoton(`import { siguienteMarca } from '@qps/core/asistencia'`)).toBe(false)
+  it('importaDeCoreAsistencia: sin el nombre buscado entre las llaves, false', () => {
+    expect(importaDeCoreAsistencia(`import { ORDEN_FILA_ACCIONES } from '@qps/core/asistencia'`, 'textoBotonVoy')).toBe(
+      false,
+    )
+  })
+
+  it('el falso positivo real: una clave de StyleSheet llamada "textoBoton" no es un import de core', () => {
+    const fixture = `const estilos = StyleSheet.create({ textoBoton: { fontWeight: '600' } })`
+    expect(importaDeCoreAsistencia(fixture, 'textoBotonVoy')).toBe(false)
   })
 })
 
-const COMPONENTES_ASISTENCIA = [
-  { etiqueta: 'web: components/botones-asistencia.tsx', ruta: `${WEB_ROOT}/components/botones-asistencia.tsx` },
-  { etiqueta: 'app: components/BotonesAsistencia.tsx', ruta: `${MOBILE_ROOT}/components/BotonesAsistencia.tsx` },
+// ---------------------------------------------------------------------------
+// Las dos filas reales. La web separa en dos archivos (la fila, que recorre
+// ORDEN_FILA_ACCIONES y delega el botón de Voy en `BotonVoy`; y
+// `botones-asistencia.tsx`, que exporta `BotonVoy` y llama a
+// `textoBotonVoy`); la app hace las dos cosas en el mismo archivo
+// (`FilaAccionesEvento.tsx`, en `botonesDeLaFila`).
+// ---------------------------------------------------------------------------
+const WEB_FILA = readFileSync(`${WEB_ROOT}/components/fila-acciones-evento.tsx`, 'utf8')
+const WEB_BOTON_VOY = readFileSync(`${WEB_ROOT}/components/botones-asistencia.tsx`, 'utf8')
+const MOBILE_FILA = readFileSync(`${MOBILE_ROOT}/components/FilaAccionesEvento.tsx`, 'utf8')
+
+const CASOS_ORDEN = [
+  { etiqueta: 'web: components/fila-acciones-evento.tsx', contenido: WEB_FILA },
+  { etiqueta: 'app: components/FilaAccionesEvento.tsx', contenido: MOBILE_FILA },
 ] as const
 
-describe.each(COMPONENTES_ASISTENCIA)('$etiqueta: llama a textoBoton de core, no arma el texto a mano', (caso) => {
-  const contenido = readFileSync(caso.ruta, 'utf8')
-
-  it('importa textoBoton de @qps/core/asistencia', () => {
-    if (!importaTextoBoton(contenido)) {
-      throw new Error(`${caso.etiqueta}: no importa 'textoBoton' de '@qps/core/asistencia'`)
-    }
-    expect(importaTextoBoton(contenido)).toBe(true)
+describe.each(CASOS_ORDEN)('$etiqueta: el orden sale de ORDEN_FILA_ACCIONES, nunca escrito a mano', (caso) => {
+  it('importa ORDEN_FILA_ACCIONES de @qps/core/asistencia', () => {
+    expect(importaDeCoreAsistencia(caso.contenido, 'ORDEN_FILA_ACCIONES')).toBe(true)
   })
 
-  it('no tiene un texto de botón armado a mano (sin template string ni concatenación con "·")', () => {
-    if (tieneTextoBotonArmadoAMano(contenido)) {
-      throw new Error(`${caso.etiqueta}: parece armar el texto del botón a mano, en vez de usar textoBoton`)
-    }
-    expect(tieneTextoBotonArmadoAMano(contenido)).toBe(false)
+  it('recorre ORDEN_FILA_ACCIONES (map/filter/forEach), no un arreglo propio', () => {
+    const limpio = quitarComentarios(caso.contenido)
+    expect(/\bORDEN_FILA_ACCIONES\s*\.\s*(map|filter|forEach)\s*\(/.test(limpio)).toBe(true)
   })
 
-  it('llama a textoBoton con dos argumentos (tipo, cantidad), no solo lo importa sin usarlo', () => {
-    const limpio = quitarComentarios(contenido)
-    expect(/\btextoBoton\s*\([^)]*,[^)]*\)/.test(limpio)).toBe(true)
+  it('no repite ["guardar","voy","compartir"] como un arreglo literal propio', () => {
+    const limpio = quitarComentarios(caso.contenido)
+    expect(/\[\s*['"]guardar['"]\s*,\s*['"]voy['"]\s*,\s*['"]compartir['"]\s*\]/.test(limpio)).toBe(false)
+  })
+})
+
+const CASOS_TEXTO = [
+  { etiqueta: 'web: components/botones-asistencia.tsx (BotonVoy)', contenido: WEB_BOTON_VOY },
+  { etiqueta: 'app: components/FilaAccionesEvento.tsx (botonesDeLaFila)', contenido: MOBILE_FILA },
+] as const
+
+describe.each(CASOS_TEXTO)('$etiqueta: el texto de "Voy" sale de textoBotonVoy, nunca armado a mano', (caso) => {
+  it('importa textoBotonVoy de @qps/core/asistencia', () => {
+    if (!importaDeCoreAsistencia(caso.contenido, 'textoBotonVoy')) {
+      throw new Error(`${caso.etiqueta}: no importa 'textoBotonVoy' de '@qps/core/asistencia'`)
+    }
+    expect(importaDeCoreAsistencia(caso.contenido, 'textoBotonVoy')).toBe(true)
+  })
+
+  it('llama a textoBotonVoy con la cantidad, no solo lo importa sin usarlo', () => {
+    const limpio = quitarComentarios(caso.contenido)
+    expect(/\btextoBotonVoy\s*\([^)]*\)/.test(limpio)).toBe(true)
+  })
+
+  it('no tiene un texto de "Voy" armado a mano (sin template string ni concatenación con "·")', () => {
+    if (tieneTextoVoyArmadoAMano(caso.contenido)) {
+      throw new Error(`${caso.etiqueta}: parece armar el texto de "Voy" a mano, en vez de usar textoBotonVoy`)
+    }
+    expect(tieneTextoVoyArmadoAMano(caso.contenido)).toBe(false)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// La fila de la web delega el botón de Voy en `BotonVoy` (no reimplementa su
+// texto): esto conecta los dos archivos de arriba y es lo que hace que
+// comprobar ORDEN en `fila-acciones-evento.tsx` y el texto en
+// `botones-asistencia.tsx` siga siendo una garantía de paridad real (y no
+// dos chequeos de archivos que, en los hechos, no se usan entre sí).
+// ---------------------------------------------------------------------------
+describe('web: fila-acciones-evento.tsx delega el botón de Voy en BotonVoy (no arma el texto él mismo)', () => {
+  it('importa BotonVoy de @/components/botones-asistencia', () => {
+    const limpio = quitarComentarios(WEB_FILA)
+    expect(/import\s+\{[^}]*\bBotonVoy\b[^}]*\}\s*from\s*['"]@\/components\/botones-asistencia['"]/.test(limpio)).toBe(
+      true,
+    )
+  })
+
+  it('renderiza <BotonVoy ...> dentro del recorrido de ORDEN_FILA_ACCIONES', () => {
+    const limpio = quitarComentarios(WEB_FILA)
+    expect(/<BotonVoy\b/.test(limpio)).toBe(true)
   })
 })

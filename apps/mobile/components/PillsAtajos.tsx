@@ -17,7 +17,18 @@ import { useEffect, useState } from 'react'
 import { Animated, Pressable, ScrollView, StyleSheet, type LayoutChangeEvent } from 'react-native'
 import type { Atajo } from '@qps/core/home/atajos'
 import { Texto } from '@/components/Texto'
+import { AREA_TACTIL_MINIMA, hitSlopPara } from '@/lib/accesibilidad'
 import { useColoresQPS } from '@/lib/colores'
+
+// 46-c: `estilos.pill` mide 44 de alto (minHeight), 4dp corto de
+// `AREA_TACTIL_MINIMA`. El ancho sí llega (paddingHorizontal 16 + texto), así
+// que el déficit es solo vertical. Subir `minHeight` a 48 desalinearía el
+// resaltado animado (`estilos.resaltado`, con `top`/`bottom` fijos en 12, que
+// mide el layout real de cada pill con `onLayout`) y agrandaría visiblemente
+// la pill (tiene fondo/borde propios, a diferencia del ojito o el botón de
+// usuario) — por eso va con `hitSlop`, no con `minHeight`. El detector
+// estático no ve `hitSlop`: sigue en `tests/a11y/pendientes-componentes.ts`.
+const HIT_SLOP_PILL = hitSlopPara(AREA_TACTIL_MINIMA, 44)
 
 const ATAJOS: { id: Atajo; etiqueta: string }[] = [
   { id: 'hoy', etiqueta: 'Hoy' },
@@ -69,6 +80,8 @@ export function PillsAtajos({ atajo, onCambiar }: PillsAtajosProps) {
             onPress={() => onCambiar(item.id)}
             accessibilityRole="button"
             accessibilityState={{ selected: activo }}
+            accessibilityLabel={item.etiqueta}
+            hitSlop={HIT_SLOP_PILL}
             style={[estilos.pill, !activo && { borderWidth: 1, borderColor: colores.border }]}
           >
             <Texto peso="semibold" style={{ color: activo ? colores.primaryForeground : colores.foreground }}>

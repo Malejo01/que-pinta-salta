@@ -37,6 +37,32 @@ export const COLOR_NOTIFICACION = '#cc272e'
 export const TEXTO_PERMISO_CALENDARIO =
   'Qué Pinta Salta usa tu calendario solo para agregar los eventos que elegís.'
 
+/**
+ * expo-location (chore/deps-etapa-2, 18/10): solo "mientras se usa". El
+ * permiso se pide recién al tocar "Cerca mío" (R55); nada de ubicación en
+ * segundo plano. Este texto es el de iOS; en Android el diálogo es del sistema.
+ */
+export const TEXTO_PERMISO_UBICACION =
+  'Qué Pinta Salta usa tu ubicación solo cuando tocás "Cerca mío", para mostrarte los eventos que tenés más cerca.'
+
+/**
+ * AdMob (chore/deps-etapa-2, 18/10). Los ID reales de la app los carga Mauro
+ * en EAS como EXPO_PUBLIC_ADMOB_ANDROID_APP_ID / EXPO_PUBLIC_ADMOB_IOS_APP_ID.
+ * Sin ellos van los ID de prueba oficiales de Google (developers.google.com/
+ * admob/android/quick-start y /ios/quick-start): sin ningún ID, el SDK
+ * nativo cierra la app al arrancar. Un ID de app no es un secreto (va en el
+ * AndroidManifest de cualquier APK).
+ */
+export const ADMOB_ANDROID_APP_ID_PRUEBA = 'ca-app-pub-3940256099942544~3347511713'
+export const ADMOB_IOS_APP_ID_PRUEBA = 'ca-app-pub-3940256099942544~1458002511'
+
+export function admobAppIds(env: Record<string, string | undefined>): { androidAppId: string; iosAppId: string } {
+  return {
+    androidAppId: env.EXPO_PUBLIC_ADMOB_ANDROID_APP_ID?.trim() || ADMOB_ANDROID_APP_ID_PRUEBA,
+    iosAppId: env.EXPO_PUBLIC_ADMOB_IOS_APP_ID?.trim() || ADMOB_IOS_APP_ID_PRUEBA,
+  }
+}
+
 export function plugins(env: Record<string, string | undefined>): Plugin[] {
   const base: Plugin[] = [
     'expo-router',
@@ -55,6 +81,28 @@ export function plugins(env: Record<string, string | undefined>): Plugin[] {
     // expo-sharing (R42) NO lleva plugin: el plugin es para RECIBIR lo que
     // otra app comparte (share extension / intent filters), y la app solo
     // comparte hacia afuera con shareAsync, que no lo necesita.
+    // R54/R55: mapa con MapLibre. Sin opciones: motor de ubicación "default"
+    // (el de MapLibre, sin Google Play Services de ubicación).
+    '@maplibre/maplibre-react-native',
+    // R55: "Cerca mío". Solo "mientras se usa": los textos de "siempre" se
+    // borran del Info.plist (false) y en Android no entran
+    // ACCESS_BACKGROUND_LOCATION ni el servicio en primer plano.
+    [
+      'expo-location',
+      {
+        locationWhenInUsePermission: TEXTO_PERMISO_UBICACION,
+        locationAlwaysAndWhenInUsePermission: false,
+        locationAlwaysPermission: false,
+        motionUsagePermission: false,
+        isIosBackgroundLocationEnabled: false,
+        isAndroidBackgroundLocationEnabled: false,
+        isAndroidForegroundServiceEnabled: false,
+      },
+    ],
+    // R52: AdMob + UMP. delayAppMeasurementInit: la medición de Google no
+    // arranca hasta que la app inicialice el SDK, después del consentimiento
+    // UMP (lo recomienda la doc de la librería, "European user consent").
+    ['react-native-google-mobile-ads', { ...admobAppIds(env), delayAppMeasurementInit: true }],
   ]
   return env.SENTRY_AUTH_TOKEN?.trim() ? [...base, '@sentry/react-native/expo'] : base
 }

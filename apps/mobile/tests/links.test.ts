@@ -5,7 +5,7 @@
 // el id devuelto siempre va en minúsculas, aunque el link llegue con el
 // hexadecimal del uuid en mayúsculas.
 import { describe, expect, it } from 'vitest'
-import { esUuid, eventoIdDesdeLink } from '../lib/links'
+import { esUuid, eventoIdDesdeLink, urlSitio } from '../lib/links'
 
 const UUID_MINUSCULAS = '0b9d4f5a-6a2b-4c1e-8f3d-9a7b6c5d4e3f'
 const UUID_MAYUSCULAS = UUID_MINUSCULAS.toUpperCase()
@@ -82,5 +82,24 @@ describe('esUuid', () => {
     expect(esUuid('')).toBe(false)
     expect(esUuid(`${UUID_MINUSCULAS}x`)).toBe(false)
     expect(esUuid(UUID_MINUSCULAS.slice(0, -1))).toBe(false)
+  })
+})
+
+// 49-a (QPS-237): RUTAS_SITIO_PERMITIDAS suma los dos legales. El detalle de
+// la guarda de TERMINOS_PUBLICADOS vive en tests/legales.test.ts; acá solo
+// se confirma que las rutas conocidas ("/auth/otra-cosa" y "/admin" siguen
+// en null) resuelven como corresponde desde lib/links.ts.
+describe('urlSitio: rutas legales (QPS-237)', () => {
+  it('/privacidad resuelve', () => {
+    expect(urlSitio('/privacidad')).toBe('https://www.quepintasalta.com.ar/privacidad')
+  })
+
+  it('/terminos: null (TERMINOS_PUBLICADOS en false)', () => {
+    expect(urlSitio('/terminos')).toBeNull()
+  })
+
+  it('rutas desconocidas siguen en null', () => {
+    expect(urlSitio('/auth/otra-cosa')).toBeNull()
+    expect(urlSitio('/admin')).toBeNull()
   })
 })

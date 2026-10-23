@@ -51,7 +51,9 @@ function selectArgs(): unknown[] {
   return state.calls.filter((c) => c.method === 'select').map((c) => c.args[0])
 }
 
-const COLUMNAS_INTERNAS = ['merge_audit', 'dedup_key', 'ai_metadata', 'created_by']
+// featured_set_by/featured_set_at (QPS-239): mismo argumento que created_by,
+// auditoría del panel (quién y cuándo marcó el destacado).
+const COLUMNAS_INTERNAS = ['merge_audit', 'dedup_key', 'ai_metadata', 'created_by', 'featured_set_by', 'featured_set_at']
 
 describe('PUBLIC_EVENT_COLUMNS', () => {
   it('no incluye columnas internas (merge_audit, dedup_key, ai_metadata, created_by)', () => {
@@ -63,6 +65,18 @@ describe('PUBLIC_EVENT_COLUMNS', () => {
   it('no incluye un "*" (ni vacío)', () => {
     expect(PUBLIC_EVENT_COLUMNS).not.toContain('*')
     expect(PUBLIC_EVENT_COLUMNS.length).toBeGreaterThan(0)
+  })
+
+  // QPS-239 (R50): la fecha de vencimiento del destacado es pública (la
+  // muestra la insignia), pero quién lo marcó y cuándo es auditoría del
+  // panel — el mismo argumento que `created_by`.
+  it('incluye featured_until (la fecha de vencimiento del destacado, pública)', () => {
+    expect(PUBLIC_EVENT_COLUMNS).toContain('featured_until')
+  })
+
+  it('NO incluye featured_set_by ni featured_set_at (auditoría del panel: quién y cuándo marcó el destacado, igual que created_by)', () => {
+    expect(PUBLIC_EVENT_COLUMNS).not.toContain('featured_set_by')
+    expect(PUBLIC_EVENT_COLUMNS).not.toContain('featured_set_at')
   })
 })
 
