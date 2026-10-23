@@ -51,6 +51,7 @@ async function cargarAdSenseBanner() {
 // El alto reservado (CLS 0) y el cartel de respaldo cuando el slot es null.
 // ---------------------------------------------------------------------------
 describe('AdSenseBanner: con ADS_ENABLED=true y el slot en null', () => {
+  // 15 s: el primer import dinámico es en frío y con dos suites en paralelo pasa los 5 s por omisión (R64).
   it('el contenedor sale con el min-height del lugar y el cartel de respaldo (sin <ins>)', async () => {
     vi.stubEnv('NEXT_PUBLIC_ADS_ENABLED', 'true')
     vi.stubEnv('NEXT_PUBLIC_ADSENSE_CLIENT_ID', 'ca-pub-0000000000000000')
@@ -63,7 +64,7 @@ describe('AdSenseBanner: con ADS_ENABLED=true y el slot en null', () => {
     expect(html).toContain('sm:min-h-[250px]')
     expect(html).not.toContain('<ins')
     expect(html).toContain('Anunciá en Qué Pinta Salta')
-  })
+  }, 15_000)
 })
 
 // ---------------------------------------------------------------------------
