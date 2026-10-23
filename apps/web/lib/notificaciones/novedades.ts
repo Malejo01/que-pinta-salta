@@ -146,10 +146,14 @@ function eventIdDelFlyer(ai_metadata: unknown): string | null {
  * Si falla cualquier lote o cualquier página, se corta ahí (no se devuelve
  * una lista a medias): el `error` que devuelve ya viene con el nombre de
  * `tabla`, para que quien llama use `errorDeTabla` tal cual.
+ *
+ * `tabla` va tipada con las tres tablas y nada más: el `.from(tabla)` de abajo
+ * es el único `.from` no literal del archivo, y el detector de la R56
+ * (`tests/radar/una-sola-copia.test.ts`, QPS-253) lo permite por eso. Solo lee.
  */
 async function leerSeguidosEnLotesYPaginas<T>(
   supabase: SupabaseClient,
-  tabla: string,
+  tabla: 'user_followed_categories' | 'user_followed_venues' | 'user_followed_instagram_accounts',
   columnas: string,
   segundaColumna: string,
   userIds: string[],

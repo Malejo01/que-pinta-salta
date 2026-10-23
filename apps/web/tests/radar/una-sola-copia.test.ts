@@ -241,6 +241,12 @@ const ARCHIVOS_PERMITIDOS_PARA_FROM_NO_LITERAL = [
     motivo: '.storage.from(INSTAGRAM_ENGINE_CONFIG.STORAGE_BUCKET): idem, bucket de Storage.',
   },
   {
+    archivo: 'apps/web/lib/notificaciones/novedades.ts',
+    motivo:
+      '.from(tabla) en leerSeguidosEnLotesYPaginas (R51, 51-b, QPS-201): lectura paginada (select, nunca ' +
+      'escribe) de las tres tablas user_followed_*, con `tabla` tipada como la unión de esos tres nombres.',
+  },
+  {
     archivo: 'apps/web/app/api/cron/scrape/run-scrape-job.ts',
     motivo: '.storage.from(INSTAGRAM_ENGINE_CONFIG.STORAGE_BUCKET): idem, bucket de Storage.',
   },
