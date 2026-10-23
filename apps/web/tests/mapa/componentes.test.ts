@@ -1,0 +1,233 @@
+/**
+ * Detectores de `/mapa` (R54, tarea 54-b): MapLibre vive en un solo archivo y
+ * se carga diferido, la atribución no se apaga, el mapa no dibuja HTML y los
+ * `"use client"` son los justos. Sin red ni base; entorno `node`.
+ *
+ * Los detectores leen el código SIN comentarios: un comentario que nombre la
+ * clase o la palabra no hace pasar ni fallar un test.
+ */
+import { readdirSync, readFileSync, statSync } from 'node:fs'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { describe, expect, it } from 'vitest'
+
+const WEB_ROOT = fileURLToPath(new URL('../../', import.meta.url))
+
+const MAPLIBRE = 'components/mapa/mapa-maplibre.tsx'
+const DIFERIDO = 'components/mapa/mapa-diferido.tsx'
+const LISTA = 'components/mapa/lista-lugares.tsx'
+const CONTENIDO = 'app/mapa/mapa-contenido.tsx'
+const PAGINA = 'app/mapa/page.tsx'
+const LOADING = 'app/mapa/loading.tsx'
+const NUEVOS = [MAPLIBRE, DIFERIDO, LISTA, CONTENIDO, PAGINA, LOADING]
+const CLIENTE = [CONTENIDO, DIFERIDO, MAPLIBRE]
+
+/** El código sin comentarios de bloque ni de línea completa. */
+export function sinComentarios(fuente: string): string {
+  return fuente.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^[^\S\n]*\/\/.*$/gm, '')
+}
+
+function leer(relativa: string): string {
+  return sinComentarios(readFileSync(path.join(WEB_ROOT, relativa), 'utf8'))
+}
+
+function archivosDe(dir: string): string[] {
+  return readdirSync(dir).flatMap((nombre) => {
+    const ruta = path.join(dir, nombre)
+    return statSync(ruta).isDirectory() ? archivosDe(ruta) : [ruta]
+  })
+}
+
+/** Todo el código de la web que llega al navegador o al servidor (sin tests ni node_modules). */
+const CODIGO = ['app', 'components', 'lib']
+  .flatMap((dir) => archivosDe(path.join(WEB_ROOT, dir)))
+  .filter((ruta) => /\.(ts|tsx)$/.test(ruta))
+  .map((ruta) => path.relative(WEB_ROOT, ruta).split(path.sep).join('/'))
+
+/** Un texto que nombra el paquete: `from 'maplibre-gl'`, `import 'maplibre-gl/dist/…'`. */
+const NOMBRA_MAPLIBRE = /['"]maplibre-gl(?:\/[^'"]*)?['"]/
+const IMPORT_DINAMICO_MAPA = /import\(\s*['"][^'"]*mapa-maplibre['"]\s*\)/g
+
+describe('el barrido mira algo', () => {
+  it('encuentra los archivos nuevos y bastante código de la web', () => {
+    expect(CODIGO.length).toBeGreaterThan(100)
+    for (const nuevo of NUEVOS) expect(CODIGO).toContain(nuevo)
+  })
+})
+
+describe('maplibre-gl se importa en un solo archivo', () => {
+  it('solo components/mapa/mapa-maplibre.tsx nombra el paquete (o su CSS) en app, components y lib', () => {
+    const nombran = CODIGO.filter((ruta) => NOMBRA_MAPLIBRE.test(leer(ruta)))
+    expect(nombran).toEqual([MAPLIBRE])
+  })
+
+  it('mapa-maplibre importa el paquete y su CSS', () => {
+    const codigo = leer(MAPLIBRE)
+    expect(codigo).toMatch(/from\s*['"]maplibre-gl['"]/)
+    expect(codigo).toMatch(/import\s*['"]maplibre-gl\/dist\/maplibre-gl\.css['"]/)
+  })
+})
+
+describe('mapa-maplibre se carga solo con import() desde mapa-diferido', () => {
+  it('mapa-diferido lo pide con un import() dinámico', () => {
+    expect(leer(DIFERIDO).match(IMPORT_DINAMICO_MAPA)).toHaveLength(1)
+  })
+
+  it('ningún archivo lo nombra fuera de un import() (ni siquiera un import de tipo)', () => {
+    const nombran = CODIGO.filter((ruta) => ruta !== MAPLIBRE)
+      .filter((ruta) => leer(ruta).replace(IMPORT_DINAMICO_MAPA, '').includes('mapa-maplibre'))
+    expect(nombran).toEqual([])
+  })
+
+  it('mapa-diferido espera a que el contenedor se vea y el navegador esté libre', () => {
+    const codigo = leer(DIFERIDO)
+    expect(codigo).toMatch(/new IntersectionObserver\(/)
+    expect(codigo).toMatch(/rootMargin:\s*['"]200px['"]/)
+    expect(codigo).toMatch(/requestIdleCallback/)
+    expect(codigo).toMatch(/setTimeout\(\s*tarea\s*,\s*1\s*\)/)
+  })
+
+  it('mapa-diferido avisa si el mapa no carga', () => {
+    expect(leer(DIFERIDO)).toContain('No pudimos cargar el mapa. La lista tiene los mismos lugares.')
+  })
+})
+
+describe('la atribución y el HTML', () => {
+  it.each(NUEVOS)('%s no apaga la atribución ni dibuja HTML', (ruta) => {
+    const codigo = leer(ruta)
+    expect(codigo).not.toMatch(/attributionControl\s*:\s*false/)
+    expect(codigo).not.toMatch(/setHTML/)
+    expect(codigo).not.toMatch(/dangerouslySetInnerHTML/)
+    expect(codigo).not.toMatch(/innerHTML/)
+    expect(codigo).not.toMatch(/\bPopup\b/)
+  })
+
+  it('mapa-maplibre deja la atribución prendida (compacta)', () => {
+    expect(leer(MAPLIBRE)).toMatch(/attributionControl\s*:\s*\{\s*compact:\s*true\s*\}/)
+  })
+})
+
+describe('mapa-maplibre usa core para el estilo y los pines', () => {
+  const codigo = leer(MAPLIBRE)
+
+  it('importa estiloSegunTema y pinesAGeoJson de core y los usa', () => {
+    expect(codigo).toMatch(/import\s*\{[^}]*\bestiloSegunTema\b[^}]*\}\s*from\s*['"]@qps\/core\/mapa\/estilos['"]/)
+    expect(codigo).toMatch(/import\s*\{[^}]*\bpinesAGeoJson\b[^}]*\}\s*from\s*['"]@qps\/core\/mapa\/pines['"]/)
+    expect(codigo).toMatch(/estiloSegunTema\(/)
+    expect(codigo).toMatch(/pinesAGeoJson\(/)
+  })
+
+  it('no escribe a mano la URL del estilo ni el GeoJSON', () => {
+    expect(codigo).not.toMatch(/openfreemap/i)
+    expect(codigo).not.toMatch(/https?:\/\//)
+    expect(codigo).not.toMatch(/FeatureCollection/)
+    expect(codigo).not.toMatch(/['"]Feature['"]/)
+  })
+
+  it('el color del pin sale de la variable --primary, no de un hex escrito a mano', () => {
+    expect(codigo).toMatch(/getPropertyValue\(\s*['"]--primary['"]\s*\)/)
+    expect(codigo).toMatch(/'circle-color'|"circle-color"/)
+  })
+
+  it('al cambiar el tema o los pines actualiza el mapa, y lo destruye al desmontar', () => {
+    expect(codigo).toMatch(/\.setStyle\(/)
+    expect(codigo).toMatch(/['"]style\.load['"]/)
+    expect(codigo).toMatch(/\.setData\(/)
+    expect(codigo).toMatch(/\.easeTo\(/)
+    expect(codigo).toMatch(/\.remove\(\)/)
+  })
+})
+
+/** El cuerpo (hasta la llave que cierra) de la primera función o manejador que empieza en `inicio`. */
+function cuerpoDesde(codigo: string, inicio: RegExp): string {
+  const coincidencia = inicio.exec(codigo)
+  expect(coincidencia, `no se encontró ${inicio}`).not.toBeNull()
+  const desde = codigo.indexOf('{', coincidencia!.index + coincidencia![0].length - 1)
+  let nivel = 0
+  for (let i = desde; i < codigo.length; i++) {
+    if (codigo[i] === '{') nivel++
+    if (codigo[i] === '}' && --nivel === 0) return codigo.slice(desde, i + 1)
+  }
+  throw new Error('llaves sin cerrar')
+}
+
+describe('el ciclo de vida del estilo del mapa', () => {
+  const codigo = leer(MAPLIBRE)
+
+  it('al cargar un estilo (style.load) se vuelven a poner la fuente y las capas', () => {
+    const manejador = cuerpoDesde(codigo, /mapa\.on\(\s*["']style\.load["']\s*,\s*\(\)\s*=>\s*\{/)
+    expect(manejador).toMatch(/agregarFuenteYCapas\(\s*mapa\b/)
+    expect(manejador).toMatch(/estiloCargado\s*=\s*true/)
+  })
+
+  it('agregarFuenteYCapas agrega la fuente y las dos capas solo si faltan', () => {
+    const funcion = cuerpoDesde(codigo, /function agregarFuenteYCapas\([^)]*\)\s*\{/)
+    expect(funcion).toMatch(/!mapa\.getSource\(FUENTE\)[\s\S]*addSource\(/)
+    expect(funcion).toMatch(/!mapa\.getLayer\(CAPA_PINES\)[\s\S]*addLayer\(/)
+    expect(funcion).toMatch(/!mapa\.getLayer\(CAPA_SELECCION\)[\s\S]*addLayer\(/)
+  })
+
+  it('el error del mapa avisa solo mientras el estilo no cargó', () => {
+    const manejador = cuerpoDesde(codigo, /mapa\.on\(\s*["']error["']\s*,\s*\(\)\s*=>\s*\{/)
+    expect(manejador).toMatch(/if\s*\(\s*!estiloCargado\s*\)\s*ultimo\.current\.onError\(\)/)
+  })
+})
+
+describe('"Ver en el mapa" vuelve a centrar aunque el lugar ya esté seleccionado', () => {
+  const contenido = leer(CONTENIDO)
+
+  it('alVerEnElMapa emite una orden de centrar que cambia en cada pedido', () => {
+    const verEnElMapa = cuerpoDesde(contenido, /function alVerEnElMapa\([^)]*\)\s*\{/)
+    expect(verEnElMapa).toMatch(/ordenarCentrar\(\s*venueId\s*\)/)
+    const orden = cuerpoDesde(contenido, /function ordenarCentrar\([^)]*\)\s*\{/)
+    expect(orden).toMatch(/setCentrar\(/)
+    expect(orden).toMatch(/n:\s*\(?\s*anterior\??\.n\s*\?\?\s*0\s*\)?\s*\+\s*1/)
+  })
+
+  it('la orden llega al mapa y el mapa centra con un efecto que depende de ella', () => {
+    expect(contenido).toMatch(/<MapaDiferido[\s\S]*?centrar=\{centrar\}/)
+    expect(leer(DIFERIDO)).toMatch(/<Mapa\b[^>]*centrar=\{centrar\}/)
+    const maplibre = leer(MAPLIBRE)
+    expect(maplibre).toMatch(/useEffect\(\(\)\s*=>\s*\{[\s\S]*?\.easeTo\([\s\S]*?\},\s*\[centrar\]\s*\)/)
+    // El efecto de la selección no mueve la cámara: no hay dos easeTo peleándose.
+    expect(maplibre.match(/\.easeTo\(/g)).toHaveLength(1)
+  })
+
+  it('al cambiar de filtro se limpia la selección y la orden', () => {
+    const irA = cuerpoDesde(contenido, /function irA\([^)]*\)\s*\{/)
+    expect(irA).toMatch(/setSeleccionado\(\s*null\s*\)/)
+    expect(irA).toMatch(/setCentrar\(\s*null\s*\)/)
+  })
+
+  it('el selector de fecha usa un estado local y no se vacía mientras carga', () => {
+    expect(contenido).toMatch(/value=\{diaElegido\}/)
+    expect(contenido).toMatch(/setDiaElegido\(\s*dia\s*\)/)
+  })
+
+  it('un detector que mira la orden se pone en rojo si solo se llama a setSeleccionado', () => {
+    const roto = 'function alVerEnElMapa(venueId: string) {\n  setSeleccionado(venueId)\n}\n'
+    const verEnElMapa = cuerpoDesde(roto, /function alVerEnElMapa\([^)]*\)\s*\{/)
+    expect(verEnElMapa).not.toMatch(/ordenarCentrar\(\s*venueId\s*\)/)
+  })
+})
+
+describe('"use client" solo donde hace falta', () => {
+  it.each(NUEVOS)('%s', (ruta) => {
+    const esCliente = /^\s*["']use client["']/.test(leer(ruta))
+    expect(esCliente).toBe(CLIENTE.includes(ruta))
+  })
+})
+
+describe('detectores propios', () => {
+  it('un comentario que nombra la clase o el paquete no cuenta', () => {
+    const fuente = "// from 'maplibre-gl' attributionControl: false\n/* setHTML */\nconst a = 1\n"
+    expect(sinComentarios(fuente)).not.toMatch(/maplibre|attributionControl|setHTML/)
+  })
+
+  it('un import estático del mapa se ve; el dinámico se descuenta', () => {
+    const estatico = "import MapaMaplibre from './mapa-maplibre'"
+    const dinamico = "import('./mapa-maplibre')"
+    expect(estatico.replace(IMPORT_DINAMICO_MAPA, '')).toContain('mapa-maplibre')
+    expect(dinamico.replace(IMPORT_DINAMICO_MAPA, '')).not.toContain('mapa-maplibre')
+  })
+})
