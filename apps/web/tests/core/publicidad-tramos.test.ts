@@ -168,6 +168,47 @@ describe('armarPropuesta y los tramos', () => {
     expect(p.ciclo.cambio_tramo_desde).toBeNull()
   })
 
+  it('un cambio anunciado para un mes que nunca se aprobó (cambioTramoDesde anterior al ciclo) no se pierde', () => {
+    const p = armarPropuesta({
+      ...base,
+      ciclo: '2027-01-01',
+      audienciaWeb28d: 900,
+      mauApp28d: null,
+      anterior: {
+        ciclo: '2026-11-01',
+        audiencia: 900,
+        tramoVigente: 500,
+        tramoCalculado: 1000,
+        cambioTramoDesde: '2026-12-01',
+        factorHero: 1,
+        factorPush: 1,
+        precios: {},
+      },
+    })
+    expect(p.ciclo.tramo_vigente).toBe(1000)
+    expect(p.precios.every((f) => f.tramo_ref === 1000)).toBe(true)
+  })
+
+  it('un cambio anunciado para un ciclo futuro no se aplica todavía', () => {
+    const p = armarPropuesta({
+      ...base,
+      ciclo: '2026-12-01',
+      audienciaWeb28d: 900,
+      mauApp28d: null,
+      anterior: {
+        ciclo: '2026-11-01',
+        audiencia: 900,
+        tramoVigente: 500,
+        tramoCalculado: 1000,
+        cambioTramoDesde: '2027-01-01',
+        factorHero: 1,
+        factorPush: 1,
+        precios: {},
+      },
+    })
+    expect(p.ciclo.tramo_vigente).toBe(500)
+  })
+
   it('un cambio anunciado deja el vigente, guarda el nuevo y fija la fecha (diciembre -> enero)', () => {
     const p = armarPropuesta({
       ...base,

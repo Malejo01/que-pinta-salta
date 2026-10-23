@@ -548,7 +548,7 @@ describe('privacidad: una corrida del cron con ids inventados no deja ninguno en
     expect(resultado).toEqual({ medidas: 1, pausado: true, fallidas: 0 })
   })
 
-  it('con una campaña que falla a mitad: las otras igual se miden y el error no nombra a nadie', async () => {
+  it('con una campaña que falla a mitad: el error no suelta ids ni nombra a nadie', async () => {
     const a = escenario()
     // La lectura de los envíos de la campaña falla: la medición queda como "fallida" sin detalle.
     a.fallar = (tabla) => (tabla === 'notification_sends' ? { code: 'XX000', message: `user_id ${idUsuario(7)}` } : null)

@@ -71,6 +71,8 @@ describe('comparacionConMeta', () => {
     expect(barato.cpcMeta).toBe(290)
     expect(barato.masBarato).toBe(true)
     expect(barato.texto).toContain(FRASE_REFERENCIA_META)
+    expect(barato.texto).toContain('la mediana publicada de Meta Ads en Argentina ronda $ 290 por clic')
+    expect(barato.texto).toContain('dato de terceros, muy variable')
     expect(comparacionConMeta(400)!.masBarato).toBe(false)
   })
 })

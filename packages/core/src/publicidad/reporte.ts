@@ -92,8 +92,8 @@ export function comparacionConMeta(cpc: number | null): ComparacionConMeta | nul
   if (cpc === null || !Number.isFinite(cpc)) return null
   const masBarato = cpc < MEDIANA_CPC_META_ARS
   const texto =
-    `Tu costo por clic fue ${pesos(cpc)}; la mediana de Meta Ads es ${pesos(MEDIANA_CPC_META_ARS)} ` +
-    `(${FRASE_REFERENCIA_META}).`
+    `Tu costo por clic fue ${pesos(cpc)}; la mediana publicada de Meta Ads en Argentina ronda ` +
+    `${pesos(MEDIANA_CPC_META_ARS)} por clic (dato de terceros, muy variable; ${FRASE_REFERENCIA_META}).`
   return { cpcQps: cpc, cpcMeta: MEDIANA_CPC_META_ARS, masBarato, texto }
 }
 

@@ -257,8 +257,10 @@ export function sumarUnMes(ciclo: string): string {
  *
  * - `audiencia = round(web28d + 0,8 × mauApp28d)`.
  * - Tramo vigente: si el ciclo anterior anunció un cambio que empieza en este
- *   ciclo (`cambioTramoDesde === ciclo`), el anunciado (`tramoCalculado` del
- *   anterior); si no, el vigente del anterior; sin anterior, 500.
+ *   ciclo o antes (`cambioTramoDesde <= ciclo`, fechas `'AAAA-MM-01'` comparadas
+ *   como texto; "antes" cubre un ciclo anunciado que nunca se aprobó), el
+ *   anunciado (`tramoCalculado` del anterior); si no, el vigente del anterior;
+ *   sin anterior, 500.
  * - `tramo_calculado`: con un cambio anunciado, el `tramoNuevo` (es lo que lee
  *   el aviso de 58-d y lo que aplica el ciclo siguiente); si no, el tramo de la
  *   audiencia de este ciclo.
@@ -272,7 +274,10 @@ export function armarPropuesta(entrada: EntradaPropuesta): Propuesta {
 
   let tramoVigente = TRAMO_INICIAL
   if (anterior) {
-    tramoVigente = anterior.cambioTramoDesde === ciclo ? anterior.tramoCalculado : anterior.tramoVigente
+    tramoVigente =
+      anterior.cambioTramoDesde !== null && anterior.cambioTramoDesde <= ciclo
+        ? anterior.tramoCalculado
+        : anterior.tramoVigente
   }
 
   const calculadoActual = tramoDeAudiencia(audiencia)

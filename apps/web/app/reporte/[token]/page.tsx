@@ -149,7 +149,15 @@ function Metricas({
     <>
       <section className="grid gap-4" aria-label="Resultados">
         <Cifra valor={numero(vistas)} titulo="Vistas de la ficha del evento" />
-        <Cifra valor={numero(clics)} titulo="Clics a entradas" />
+        <Cifra
+          valor={numero(clics)}
+          titulo={esPush ? "Clics a entradas del evento en el período" : "Clics a entradas"}
+          nota={
+            esPush
+              ? "Cuenta los clics y las vistas del evento en esos días, no solo los que vinieron del aviso."
+              : undefined
+          }
+        />
         {esPush && metricas.destinatarios !== undefined && (
           <Cifra valor={numero(metricas.destinatarios)} titulo="Personas a las que llegó el aviso" />
         )}
@@ -167,6 +175,12 @@ function Metricas({
         <section className="rounded-2xl border border-border bg-card p-5 shadow-sm" aria-label="Costo por clic">
           <p className={hayClics ? "text-2xl font-extrabold text-foreground" : "text-base text-muted-foreground"}>
             {textoCpc}
+            {hayClics && <span className="text-base font-medium"> (precio de lista)</span>}
+            {hayClics && esPush && (
+              <span className="mt-1 block text-sm font-normal text-muted-foreground">
+                Calculado con los clics del evento en el período.
+              </span>
+            )}
           </p>
           {hayClics && precio !== null && (
             <p className="mt-1 text-xs text-muted-foreground">
@@ -176,7 +190,7 @@ function Metricas({
           {comparacion && (
             <p className="mt-3 text-sm leading-relaxed text-foreground">
               Como referencia: {comparacion.texto}
-              {comparacion.masBarato ? " Salió más barato que la referencia." : ""} No es una comparación directa: un
+              {comparacion.masBarato ? " Quedó por debajo de esa referencia." : ""} No es una comparación directa: un
               clic a entradas desde la ficha no es lo mismo que un clic en un anuncio de Meta.
             </p>
           )}

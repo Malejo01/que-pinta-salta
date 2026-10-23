@@ -9,6 +9,22 @@ import { fileURLToPath } from 'node:url'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+// El diálogo de confirmación está cerrado en el HTML estático: se renderiza inline para leer su texto.
+vi.mock('@/components/ui/alert-dialog', () => {
+  const pasa = ({ children }: { children?: unknown }) => children
+  return {
+    AlertDialog: pasa,
+    AlertDialogTrigger: pasa,
+    AlertDialogContent: pasa,
+    AlertDialogHeader: pasa,
+    AlertDialogFooter: pasa,
+    AlertDialogTitle: pasa,
+    AlertDialogDescription: pasa,
+    AlertDialogAction: pasa,
+    AlertDialogCancel: pasa,
+  }
+})
+
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }))
 vi.mock('next/navigation', () => ({
   redirect: (url: string) => {
@@ -189,6 +205,17 @@ describe('/admin/publicidad: el ciclo propuesto', () => {
     const html = await renderizar()
     expect(html).not.toContain('Es la audiencia del mes anterior')
     expect(html).toContain('Todo cargado')
+    expect(html).not.toContain('Todavía falta cargar')
+  })
+
+  it('el diálogo de Aprobar muestra en negrita lo que falta cargar', async () => {
+    state.panel = panel({
+      propuesto: { ciclo: ciclo({ fuente_tipo_cambio: 'anterior' }), precios: [] }, // audiencia 490 = vigente, dólar anterior
+    })
+    const html = await renderizar()
+    expect(html).toContain(
+      '<strong class="font-semibold text-foreground">Todavía falta cargar la audiencia del mes anterior y el dólar del mes anterior.</strong>',
+    )
   })
 
   it('traduce las fuentes a texto legible', async () => {

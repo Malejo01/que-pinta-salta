@@ -642,6 +642,9 @@ describe('R58 de punta a punta: el reporte al anunciante', () => {
     expect(html).toContain('referencia del estudio de precios, octubre 2026')
     expect(html).not.toContain('999')
     expect(html).not.toContain('Salió más barato')
+    expect(html).not.toContain('Quedó por debajo')
+    expect(html).toContain('la mediana publicada de Meta Ads en Argentina ronda $ 290 por clic')
+    expect(html).toContain('(precio de lista)')
   })
 
   it('/reporte/<token> del push muestra a cuántas personas llegó el aviso', () => {
@@ -649,6 +652,7 @@ describe('R58 de punta a punta: el reporte al anunciante', () => {
     expect(html).toContain('Push patrocinado')
     expect(html).toContain('Festival de Prueba')
     expect(html).toContain('Personas a las que llegó el aviso')
+    expect(html).toContain('Clics a entradas del evento en el período')
     expect(html).toContain('200')
   })
 

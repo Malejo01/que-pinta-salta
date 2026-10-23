@@ -123,7 +123,15 @@ export function AccionesCiclo({
           <AlertDialogContent>
             <AlertDialogHeader>
               <AlertDialogTitle>¿Aprobar los precios de {mes}?</AlertDialogTitle>
-              <AlertDialogDescription>Se publican en Publicitá tu evento.</AlertDialogDescription>
+              <AlertDialogDescription>
+                Se publican en Publicitá tu evento.
+                {faltan.length > 0 && (
+                  <>
+                    {' '}
+                    <strong className="font-semibold text-foreground">Todavía falta cargar {faltan.join(' y ')}.</strong>
+                  </>
+                )}
+              </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogCancel className="min-h-11">Cancelar</AlertDialogCancel>

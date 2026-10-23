@@ -89,6 +89,11 @@ describe('/reporte/[token]: lo que muestra', () => {
     expect(html).toContain('$ 280 por clic')
     expect(html).toContain('$ 290')
     expect(html).toContain('referencia del estudio de precios, octubre 2026')
+    expect(html).toContain('la mediana publicada de Meta Ads en Argentina ronda $ 290 por clic (dato de terceros, muy variable')
+    expect(html).toContain('(precio de lista)')
+    expect(html).toContain('Quedó por debajo de esa referencia.')
+    expect(html).not.toContain('Salió más barato')
+    expect(html).not.toContain('Clics a entradas del evento en el período')
     expect(html).not.toMatch(/[0-9a-f]{8}-[0-9a-f]{4}-/i)
     expect(html).not.toContain(TOKEN)
   })
@@ -133,6 +138,8 @@ describe('/reporte/[token]: lo que muestra', () => {
     expect(html).toContain('Push patrocinado')
     expect(html).toContain('321')
     expect(html).toContain('Personas a las que llegó el aviso')
+    expect(html).toContain('Clics a entradas del evento en el período')
+    expect(html).toContain('Calculado con los clics del evento en el período.')
   })
 
   it.each([
