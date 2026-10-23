@@ -16,7 +16,7 @@ const WEB_ROOT = fileURLToPath(new URL('../../', import.meta.url))
 const MAPLIBRE = 'components/mapa/mapa-maplibre.tsx'
 const PIN_MAPLIBRE = 'components/mapa/mapa-pin-maplibre.tsx'
 const TEXTOS = 'components/mapa/textos-maplibre.ts'
-const DIFERIDO ='components/mapa/mapa-diferido.tsx'
+const DIFERIDO = 'components/mapa/mapa-diferido.tsx'
 const LISTA = 'components/mapa/lista-lugares.tsx'
 const CONTENIDO = 'app/mapa/mapa-contenido.tsx'
 const PAGINA = 'app/mapa/page.tsx'
@@ -57,7 +57,7 @@ describe('el barrido mira algo', () => {
   })
 })
 
-describe('maplibre-gl se importa en un solo archivo', () => {
+describe('maplibre-gl se importa en solo dos archivos (el mapa y el mapa del pin)', () => {
   it('solo mapa-maplibre.tsx y mapa-pin-maplibre.tsx nombran el paquete (o su CSS) en app, components y lib', () => {
     const nombran = CODIGO.filter((ruta) => NOMBRA_MAPLIBRE.test(leer(ruta)))
     expect(nombran).toEqual([MAPLIBRE, PIN_MAPLIBRE])

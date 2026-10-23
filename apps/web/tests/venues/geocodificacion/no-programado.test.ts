@@ -24,24 +24,34 @@
  * REGLA 2 — sin autocompletar. La misma política lista "Auto-complete
  * search" como uso NO aceptable: "This type of query is highly demanding of
  * resources and is therefore not permitted." Hoy se cumple porque ningún
- * código de cliente llama a Nominatim: `crearClienteNominatim`
- * (`lib/venues/geocodificacion/nominatim.ts`) lo usa solo el script que
- * corre Mauro, del lado del servidor. Pero es código genérico e importable:
- * nada impide que mañana alguien lo importe desde un componente `"use
- * client"` para armar un autocompletar mientras la persona tipea, que es
- * exactamente el uso prohibido. Si hace falta buscar un lugar desde la
- * interfaz, el camino es el link "Buscar en OpenStreetMap" que abre la
- * persona en su propio navegador — no un fetch disparado por la app. Barre
- * (solo lectura, sin red ni base) todos los `.ts`/`.tsx` con la directiva
- * `"use client"` como primera sentencia bajo `<raíz>/apps/web/app/`,
- * `<raíz>/apps/web/components/` y `<raíz>/apps/mobile/`.
+ * componente de cliente llama a Nominatim. `crearClienteNominatim`
+ * (`lib/venues/geocodificacion/nominatim.ts`) lo usan solo: el script que
+ * corre Mauro a mano, y, desde la R65, la búsqueda de dirección del admin
+ * en /admin/lugares (aprobada por Mauro el 23/10): es la server action
+ * `buscarDireccionLugar` de `lib/admin/lugares-actions.ts`, del lado del
+ * servidor, solo para ADMIN, UNA consulta por click en "Buscar" (nunca al
+ * tipear, sin debounce; lo fija `tests/admin/lugar-mapa-ubicar.test.ts`),
+ * con un cliente único por proceso que espacia los pedidos a 1 por segundo
+ * y no reintenta. Pero el cliente es código genérico e importable: nada
+ * impide que mañana alguien lo importe desde un componente `"use client"`
+ * para armar un autocompletar mientras la persona tipea, que es exactamente
+ * el uso prohibido. Para el resto de la interfaz el camino sigue siendo el
+ * link "Buscar en OpenStreetMap" que abre la persona en su propio
+ * navegador — no un fetch disparado por la app. Esta regla barre (solo
+ * lectura, sin red ni base) de dos maneras:
+ *   a. todos los `.ts`/`.tsx` con la directiva `"use client"` como primera
+ *      sentencia bajo `<raíz>/apps/web/app/`, `<raíz>/apps/web/components/`
+ *      y `<raíz>/apps/mobile/` no pueden importar el cliente;
+ *   b. la lista cerrada de los archivos de `app/`, `components/` y `lib/`
+ *      de la web que sí lo importan (`ARCHIVOS_QUE_IMPORTAN_NOMINATIM`):
+ *      sumar uno nuevo obliga a tocar este test, o sea, a decidirlo.
  *
  * Nota: este archivo de test SÍ menciona "nominatim" y "geocodificar" (en
  * este docstring y en los mensajes de falla), pero ninguno de los lugares
  * barridos incluye `tests/`, así que el barrido nunca se lee a sí mismo.
  */
 import { existsSync, readFileSync, readdirSync } from 'node:fs'
-import { relative } from 'node:path'
+import path, { relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 
@@ -360,4 +370,130 @@ describe('ningún archivo "use client" importa el cliente de Nominatim (polític
       expect(importa, mensajeFallaAutocompletar(etiqueta)).toBe(false)
     },
   )
+})
+
+// ===========================================================================
+// REGLA 2 (lista cerrada, R65): quién puede importar el cliente de Nominatim
+// ===========================================================================
+
+/**
+ * Los únicos archivos de `app/`, `components/` y `lib/` de la web que importan
+ * `lib/venues/geocodificacion/nominatim` (a la fecha de la R65, tarea 65-q):
+ *  - `plan.ts`: usa `evaluarResultados` y el tipo del resultado (no crea un cliente);
+ *  - `busqueda-admin.ts`: solo el TIPO `ResultadoNominatim` (`import type`);
+ *  - `lugares-actions.ts`: la server action `buscarDireccionLugar` (crea el cliente).
+ * `scripts/geocodificar-lugares.ts` también lo importa, pero está fuera de lo
+ * que barre este test (no es código de la app) y lo corre Mauro a mano.
+ */
+export const ARCHIVOS_QUE_IMPORTAN_NOMINATIM = [
+  'lib/admin/lugares-actions.ts',
+  'lib/venues/geocodificacion/busqueda-admin.ts',
+  'lib/venues/geocodificacion/plan.ts',
+]
+
+const MODULO_NOMINATIM = 'lib/venues/geocodificacion/nominatim'
+const BARRIL_GEOCODIFICACION = 'lib/venues/geocodificacion'
+
+/**
+ * Rutas (relativas a `webRoot`, sin extensión) que `contenido` importa, ya
+ * resueltas: el alias `@/` y las rutas relativas a partir de `dirDelArchivo`.
+ * Cubre `from '…'`, `import '…'`, `require('…')` e `import('…')`, y deja
+ * afuera los comentarios. Los paquetes (`react`, `@qps/core/…`) no se resuelven.
+ * A diferencia de `importaClienteNominatim`, ve también `./nominatim` (desde
+ * la misma carpeta).
+ */
+export function importesResueltos(contenido: string, dirDelArchivo: string, webRoot: string): string[] {
+  const regex = /(?:\bfrom\s*|\bimport\s*\(?\s*|\brequire\(\s*)["']([^"']+)["']/g
+  const limpio = quitarComentarios(contenido)
+  const resueltos: string[] = []
+  let m: RegExpExecArray | null
+  while ((m = regex.exec(limpio))) {
+    const ruta = m[1]
+    let absoluta: string | null = null
+    if (ruta.startsWith('@/')) absoluta = path.resolve(webRoot, ruta.slice(2))
+    else if (ruta.startsWith('.')) absoluta = path.resolve(dirDelArchivo, ruta)
+    if (absoluta === null) continue
+    resueltos.push(path.relative(webRoot, absoluta).split(path.sep).join('/').replace(/\/index$/, ''))
+  }
+  return resueltos
+}
+
+/** `true` si el archivo importa el módulo del cliente (o el barril de la carpeta, que podría re-exportarlo). */
+export function importaNominatimResuelto(contenido: string, dirDelArchivo: string, webRoot: string): boolean {
+  return importesResueltos(contenido, dirDelArchivo, webRoot).some(
+    (r) => r === MODULO_NOMINATIM || r === BARRIL_GEOCODIFICACION
+  )
+}
+
+describe('importaNominatimResuelto: fixtures en memoria', () => {
+  const raiz = path.resolve('/web')
+  const dirLib = path.join(raiz, 'lib/venues/geocodificacion')
+
+  it('el alias @/ se detecta', () => {
+    expect(importaNominatimResuelto("import { x } from '@/lib/venues/geocodificacion/nominatim'", raiz, raiz)).toBe(true)
+  })
+
+  it('"./nominatim" desde la carpeta de geocodificación se detecta (el detector de "use client" no lo vería)', () => {
+    expect(importaNominatimResuelto("import type { R } from './nominatim'", dirLib, raiz)).toBe(true)
+  })
+
+  it('una ruta relativa que sube se detecta', () => {
+    const dir = path.join(raiz, 'components/admin')
+    expect(importaNominatimResuelto("import { x } from '../../lib/venues/geocodificacion/nominatim'", dir, raiz)).toBe(true)
+  })
+
+  it('un import dinámico y un require se detectan', () => {
+    expect(importaNominatimResuelto("const m = await import('@/lib/venues/geocodificacion/nominatim')", raiz, raiz)).toBe(true)
+    expect(importaNominatimResuelto("const m = require('@/lib/venues/geocodificacion/nominatim')", raiz, raiz)).toBe(true)
+  })
+
+  it('el barril de la carpeta (podría re-exportar el cliente) se detecta', () => {
+    expect(importaNominatimResuelto("import { x } from '@/lib/venues/geocodificacion'", raiz, raiz)).toBe(true)
+  })
+
+  it('otros módulos de la misma carpeta no', () => {
+    expect(importaNominatimResuelto("import { x } from './consultas'", dirLib, raiz)).toBe(false)
+    expect(importaNominatimResuelto("import { x } from '@/lib/venues/geocodificacion/busqueda-admin'", raiz, raiz)).toBe(false)
+  })
+
+  it('una mención en un comentario no cuenta', () => {
+    expect(importaNominatimResuelto("// import { x } from '@/lib/venues/geocodificacion/nominatim'\nexport {}", raiz, raiz)).toBe(false)
+  })
+})
+
+describe('REGLA 2, lista cerrada: quién importa el cliente de Nominatim', () => {
+  const dirs = [APP_DIR, COMPONENTS_DIR, `${WEB_ROOT}lib`].filter((d) => existsSync(d))
+  const archivos = dirs.flatMap((d) => listarArchivosDeCodigoExcluyendo(d, EXCLUIR_DIRS))
+  const importan = archivos
+    .filter((archivo) => importaNominatimResuelto(readFileSync(archivo, 'utf8'), path.dirname(archivo), WEB_ROOT))
+    .map((archivo) => relative(WEB_ROOT, archivo).split('\\').join('/'))
+    .sort()
+
+  it('cordura: el barrido mira bastante código y no entra a tests/', () => {
+    expect(archivos.length).toBeGreaterThan(100)
+    expect(archivos.some((a) => relative(WEB_ROOT, a).split('\\').join('/').startsWith('tests/'))).toBe(false)
+  })
+
+  it('los únicos que lo importan son los de la lista (más lib/admin/lugares-actions.ts, R65)', () => {
+    expect(importan).toEqual([...ARCHIVOS_QUE_IMPORTAN_NOMINATIM].sort())
+  })
+
+  it('lib/admin/lugares-actions.ts empieza con "use server" (la búsqueda corre del lado del servidor)', () => {
+    const contenido = readFileSync(`${WEB_ROOT}lib/admin/lugares-actions.ts`, 'utf8')
+    const limpio = quitarComentarios(contenido).replace(/^\s+/, '')
+    expect(limpio).toMatch(/^(["'])use server\1\s*;?/)
+  })
+
+  it('ninguno de la lista es un componente "use client"', () => {
+    for (const ruta of ARCHIVOS_QUE_IMPORTAN_NOMINATIM) {
+      expect(primeraSentenciaEsUseClient(readFileSync(`${WEB_ROOT}${ruta}`, 'utf8')), ruta).toBe(false)
+    }
+  })
+
+  it('en app/ y components/, solo el panel de ubicar nombra buscarDireccionLugar', () => {
+    const nombran = [...ARCHIVOS_TS_APP, ...ARCHIVOS_TS_COMPONENTS]
+      .filter((a) => quitarComentarios(readFileSync(a, 'utf8')).includes('buscarDireccionLugar'))
+      .map((a) => relative(WEB_ROOT, a).split('\\').join('/'))
+    expect(nombran).toEqual(['components/admin/lugar-mapa-ubicar.tsx'])
+  })
 })
