@@ -252,6 +252,9 @@ describe('app/(tabs)/index.tsx con el chip "Cine"', () => {
 // ---------------------------------------------------------------------------
 // 3. components/TarjetaPelicula.tsx: el cine abierto es estado propio
 // ---------------------------------------------------------------------------
+// R67, 67-r1: con `compacta` el primer cine arranca abierto; sin ella, `null`.
+const ESTADO_ABIERTO = 'const [abierto, setAbierto] = useState<string | null>(compacta ? (cines[0]?.cine ?? null) : null)'
+
 function violacionesTarjeta(codigo: string): string[] {
   const v: string[] = []
   const inicio = codigo.indexOf('export function TarjetaPelicula(')
@@ -259,7 +262,7 @@ function violacionesTarjeta(codigo: string): string[] {
   const firma = codigo.slice(inicio, codigo.indexOf('{', codigo.indexOf(')', inicio)) + 1)
   const cuerpo = codigo.slice(inicio)
   if (/\babierto\b|\bsetAbierto\b|\bonToggle\b/.test(firma)) v.push('el cine abierto llega por props (firma de TarjetaPelicula)')
-  if (!/const \[abierto, setAbierto\] = useState<string \| null>\(null\)/.test(cuerpo)) v.push('el cine abierto no es un useState dentro de TarjetaPelicula')
+  if (!/const \[abierto, setAbierto\] = useState<string \| null>\(/.test(cuerpo)) v.push('el cine abierto no es un useState dentro de TarjetaPelicula')
   if (!/<BloqueCine\b/.test(cuerpo)) v.push('la tarjeta no usa <BloqueCine')
   if (!/import\s*\{\s*BloqueCine\s*\}\s*from\s*'@\/components\/BloqueCine'/.test(codigo)) v.push('no importa BloqueCine de @/components/BloqueCine')
   if (!/abierto=\{abierto === cine\.cine\}/.test(cuerpo)) v.push('el acordeón no se abre comparando abierto con el cine')
@@ -275,15 +278,15 @@ describe('components/TarjetaPelicula.tsx', () => {
   })
 
   it('el estado vive dentro del componente, antes del return', () => {
-    expect(codigo.indexOf('useState<string | null>(null)')).toBeGreaterThan(codigo.indexOf('export function TarjetaPelicula('))
-    expect(codigo.indexOf('useState<string | null>(null)')).toBeLessThan(codigo.indexOf('return ('))
+    expect(codigo.indexOf('useState<string | null>(')).toBeGreaterThan(codigo.indexOf('export function TarjetaPelicula('))
+    expect(codigo.indexOf('useState<string | null>(')).toBeLessThan(codigo.indexOf('return ('))
   })
 
   describe('fixtures falsos', () => {
     it('una tarjeta que recibe `abierto` por props', () => {
       const roto = codigo
-        .replace('({ pelicula }: { pelicula: Pelicula })', '({ pelicula, abierto, onToggle }: { pelicula: Pelicula; abierto: string | null; onToggle: () => void })')
-        .replace('const [abierto, setAbierto] = useState<string | null>(null)', '')
+        .replace('({ pelicula, compacta = false }: { pelicula: Pelicula; compacta?: boolean })', '({ pelicula, abierto, onToggle }: { pelicula: Pelicula; abierto: string | null; onToggle: () => void })')
+        .replace(ESTADO_ABIERTO, '')
       const v = violacionesTarjeta(roto)
       expect(v).toContain('el cine abierto llega por props (firma de TarjetaPelicula)')
       expect(v).toContain('el cine abierto no es un useState dentro de TarjetaPelicula')
@@ -291,14 +294,98 @@ describe('components/TarjetaPelicula.tsx', () => {
 
     it('un useState arriba del componente (compartido por todas las tarjetas)', () => {
       const roto = codigo
-        .replace('  const [abierto, setAbierto] = useState<string | null>(null)\n', '')
-        .replace('export function TarjetaPelicula(', 'const [abierto, setAbierto] = useState<string | null>(null)\nexport function TarjetaPelicula(')
+        .replace(`  ${ESTADO_ABIERTO}\n`, '')
+        .replace('export function TarjetaPelicula(', `${ESTADO_ABIERTO}\nexport function TarjetaPelicula(`)
       expect(violacionesTarjeta(roto)).toContain('el cine abierto no es un useState dentro de TarjetaPelicula')
     })
 
     it('una tarjeta que dibuja el cine a mano en vez de <BloqueCine', () => {
       const roto = codigo.replace(/<BloqueCine\b/g, '<View')
       expect(violacionesTarjeta(roto)).toContain('la tarjeta no usa <BloqueCine')
+    })
+  })
+})
+
+// ---------------------------------------------------------------------------
+// 3 bis. R67, 67-r1: tarjeta compacta, título "En cartel"
+// ---------------------------------------------------------------------------
+/** La portada pasa `compacta` a su <TarjetaPelicula; Cines no. */
+function violacionesCompacta(portada: string, cines: string): string[] {
+  const v: string[] = []
+  const usoPortada = portada.match(/<TarjetaPelicula\b[^>]*>/g) ?? []
+  if (usoPortada.length !== 1 || !/\bcompacta\b/.test(usoPortada[0])) v.push('la portada no pasa compacta a <TarjetaPelicula')
+  const usoCines = cines.match(/<TarjetaPelicula\b[^>]*>/g) ?? []
+  if (usoCines.length === 0) v.push('app/cines.tsx no dibuja <TarjetaPelicula')
+  if (usoCines.some((uso) => /\bcompacta\b/.test(uso))) v.push('app/cines.tsx pasa compacta (tiene que quedar a ancho completo)')
+  return v
+}
+
+/** Con `compacta` el cine abierto arranca en el primer cine; sin ella, en null. */
+function violacionesCineAbiertoInicial(tarjeta: string): string[] {
+  const v: string[] = []
+  if (!/compacta\??:\s*boolean/.test(tarjeta)) v.push('la tarjeta no declara la prop compacta?: boolean')
+  if (!/compacta\s*=\s*false/.test(tarjeta)) v.push('compacta no vale false por defecto')
+  if (!/useState<string \| null>\(compacta \? \(cines\[0\]\?\.cine \?\? null\) : null\)/.test(tarjeta)) {
+    v.push('el useState del cine abierto no arranca con el primer cine con compacta (y con null sin ella)')
+  }
+  if (/useEffect/.test(tarjeta)) v.push('la tarjeta usa useEffect (el cine inicial va en el useState)')
+  return v
+}
+
+/** Con "Cine" el título dice "En cartel" (las películas no se filtran por fecha). */
+function violacionesTituloCartel(portada: string): string[] {
+  const v: string[] = []
+  if (!/categoria === 'cine' \? 'En cartel' : ETIQUETA_ATAJO\[atajo\]/.test(portada)) v.push("el título con categoria === 'cine' no dice 'En cartel'")
+  if (!/\{nombreCategoria\} · \{/.test(portada)) v.push('el título no arranca con el nombre de la categoría')
+  return v
+}
+
+describe('R67, 67-r1: tarjeta compacta en la portada', () => {
+  const portada = sinComentarios(leer('app', '(tabs)', 'index.tsx'))
+  const cines = sinComentarios(leer('app', 'cines.tsx'))
+  const tarjeta = sinComentarios(leer('components', 'TarjetaPelicula.tsx'))
+
+  it('la portada pasa compacta y app/cines.tsx no', () => {
+    expect(violacionesCompacta(portada, cines)).toEqual([])
+  })
+
+  it('con compacta el primer cine arranca abierto; sin ella, null', () => {
+    expect(violacionesCineAbiertoInicial(tarjeta)).toEqual([])
+  })
+
+  it("con el chip Cine el título dice 'En cartel'; el resto, el atajo", () => {
+    expect(violacionesTituloCartel(portada)).toEqual([])
+  })
+
+  describe('fixtures falsos', () => {
+    it('la portada sin compacta', () => {
+      const roto = portada.replace('pelicula={pelicula} compacta />', 'pelicula={pelicula} />')
+      expect(violacionesCompacta(roto, cines)).toEqual(['la portada no pasa compacta a <TarjetaPelicula'])
+    })
+
+    it('app/cines.tsx con compacta', () => {
+      const roto = cines.replace('<TarjetaPelicula pelicula={item}', '<TarjetaPelicula compacta pelicula={item}')
+      expect(violacionesCompacta(portada, roto)).toEqual(['app/cines.tsx pasa compacta (tiene que quedar a ancho completo)'])
+    })
+
+    it('el cine abierto que arranca siempre en null', () => {
+      const roto = tarjeta.replace('useState<string | null>(compacta ? (cines[0]?.cine ?? null) : null)', 'useState<string | null>(null)')
+      expect(violacionesCineAbiertoInicial(roto)).toHaveLength(1)
+    })
+
+    it('el cine abierto que arranca siempre con el primero (también sin compacta)', () => {
+      const roto = tarjeta.replace('compacta ? (cines[0]?.cine ?? null) : null', '(cines[0]?.cine ?? null)')
+      expect(violacionesCineAbiertoInicial(roto)).toHaveLength(1)
+    })
+
+    it('un useEffect que abre el primer cine', () => {
+      const roto = `${tarjeta}\nuseEffect(() => { setAbierto(cines[0]?.cine ?? null) }, [])`
+      expect(violacionesCineAbiertoInicial(roto)).toEqual(['la tarjeta usa useEffect (el cine inicial va en el useState)'])
+    })
+
+    it('el título con el atajo también para Cine', () => {
+      const roto = portada.replace("categoria === 'cine' ? 'En cartel' : ETIQUETA_ATAJO[atajo]", 'ETIQUETA_ATAJO[atajo]')
+      expect(violacionesTituloCartel(roto)).toEqual(["el título con categoria === 'cine' no dice 'En cartel'"])
     })
   })
 })

@@ -25,7 +25,7 @@
 // que en la web.
 //
 // R66 (66-a): los chips de categoría (`components/ChipsCategorias.tsx`) van
-// debajo de los atajos. Sus categorías salen de `categoriasDisponibles` (core)
+// arriba de todo, en la cabecera fija (R67, 67-b). Sus categorías salen de `categoriasDisponibles` (core)
 // sobre los eventos del atajo elegido (más las películas). Con "Todas" la
 // portada queda como siempre; con una categoría, el cuerpo es un título
 // ("Música · Finde") y una grilla de 2 columnas con `filtrarCombinado` (atajo +
@@ -40,7 +40,7 @@
 // a `/cines`) y "Todas las
 // categorías"; con eventos, una línea "N eventos" (live region) bajo el título.
 // Sin chips que elegir no se dibuja la fila. Sin conexión: nada de esto pide
-// red (todo es memoria sobre lo cargado), y `AvisoSinConexion` sigue arriba.
+// red (todo es memoria sobre lo cargado), y `AvisoSinConexion` va debajo de la cabecera fija.
 // R67, 67-c: con el chip "Cine", las películas se dibujan como la cartelera de
 // `app/cines.tsx` (`components/TarjetaPelicula.tsx`, a ancho completo y con su
 // acordeón por cine), no como tarjetas de evento en 2 columnas; los eventos
@@ -159,11 +159,12 @@ export const FILAS_MINIMAS_PARA_ANUNCIO = 2
  * umbral es dónde empieza a haber contenido real que mirar antes del aviso.
  *
  * R67, 67-b: las pills dejaron de ir después del Hero: ahora están, con los
- * chips, en una cabecera fija arriba de todo (~124 dp en vez de los ~68 dp de
- * las pills solas). Con ese valor el banner arranca a ~312 dp con 0 filas y a
- * ~638 dp con 1 (124 + 188 + 326), todavía dentro de los ~649 dp sin scrollear;
- * y la cabecera fija tapa ~124 dp del área visible útil al scrollear (quedan
- * ~525 dp). O sea que el anuncio queda más abajo, nunca más arriba: la regla y
+ * chips, en una cabecera fija arriba de todo (≈113 dp con chips: 8 de aire + 60
+ * de chips con su padding + 56 de pills − 12 del `marginTop` negativo + 1 del
+ * borde; ≈65 dp sin chips, en vez de los ~68 dp de las pills solas). Con ese
+ * valor el banner arranca a ~301 dp con 0 filas y a ~627 dp con 1 (113 + 188 +
+ * 326), todavía dentro de los ~649 dp sin scrollear; y la cabecera fija tapa
+ * ~113 dp del área visible útil al scrollear (quedan ~536 dp). O sea que el anuncio queda más abajo, nunca más arriba: la regla y
  * el umbral siguen valiendo sin cambios.
  *
  * Ojo con el porqué de las filas, que es contraintuitivo: `groupByCategory`
@@ -421,7 +422,7 @@ export default function Inicio() {
           {/* R67, 67-b: cabecera fija (primer hijo, siempre presente: el índice 0
               de `stickyHeaderIndices`). Fondo opaco para que el contenido no se
               vea por detrás. Chips arriba, pills de fecha debajo. */}
-          <View style={[estilos.cabecera, { backgroundColor: colores.background }]}>
+          <View style={[estilos.cabecera, { backgroundColor: colores.background, borderBottomColor: colores.border }]}>
             {datosPortada.chips.length > 0 || categoria !== null ? (
               <ChipsCategorias categorias={datosPortada.chips} seleccionada={categoria} onCambiar={cambiarCategoria} />
             ) : null}
@@ -437,7 +438,9 @@ export default function Inicio() {
           {categoria !== null ? (
             <View style={estilos.bloqueCategoria}>
               <Texto peso="bold" accessibilityRole="header" style={estilos.tituloCategoria}>
-                {nombreCategoria} · {ETIQUETA_ATAJO[atajo]}
+                {/* R67, 67-r1: las películas no se filtran por fecha, así que
+                    con "Cine" el título dice "En cartel" y no el atajo. */}
+                {nombreCategoria} · {categoria === 'cine' ? 'En cartel' : ETIQUETA_ATAJO[atajo]}
               </Texto>
               {datosPortada.eventosCategoria.length === 0 ? (
                 <View style={[estilos.vacioHoy, estilos.vacioCategoria, { backgroundColor: colores.card, borderColor: colores.border }]}>
@@ -480,7 +483,7 @@ export default function Inicio() {
                       estado de cada `TarjetaPelicula`: abrir uno solo vuelve
                       a dibujar esa tarjeta, ni se remonta ni se mueve otra. */}
                   {datosPortada.peliculasCategoria.map((pelicula) => (
-                    <TarjetaPelicula key={pelicula.id} pelicula={pelicula} />
+                    <TarjetaPelicula key={pelicula.id} pelicula={pelicula} compacta />
                   ))}
                   {enFilasDeDos(datosPortada.eventosSinPelicula).map((fila) => (
                   <View key={fila[0].id} style={estilos.filaGrilla}>
@@ -571,10 +574,11 @@ export default function Inicio() {
 const estilos = StyleSheet.create({
   contenedor: { flex: 1 },
   scroll: { paddingBottom: 24 },
-  // R67, 67-b: cabecera fija. ~124 dp: 8 de aire + chips 48 + 12 + pills 56
-  // (las pills traen 12 de padding arriba; con `pillsBajoChips` se descuenta
-  // para que entre filas queden 12 y no 24).
-  cabecera: { paddingTop: 8 },
+  // R67, 67-b: cabecera fija. ≈113 dp con chips: 8 de aire + 60 de chips (con su
+  // padding) + 56 de pills − 12 (`pillsBajoChips`, que descuenta el padding
+  // superior de las pills) + 1 del borde inferior (R67, 67-r1, para que se
+  // distinga del contenido que pasa por debajo). Sin chips: ≈65 dp.
+  cabecera: { paddingTop: 8, borderBottomWidth: 1 },
   pillsBajoChips: { marginTop: -12 },
   vacioHoy: {
     marginHorizontal: 16,

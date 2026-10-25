@@ -55,7 +55,7 @@ describe('app/cines.tsx: la tarjeta de la lista ya no navega a /pelicula/ (R29, 
   it('el acordeón por cine (BloqueCine) toggle con un estado local, no con router', () => {
     expect(bloque).toMatch(/export function BloqueCine/)
     expect(bloque).toMatch(/onToggle/)
-    expect(tarjeta).toMatch(/useState<string \| null>\(null\)/)
+    expect(tarjeta).toMatch(/useState<string \| null>\(/)
     expect(navegaAPelicula(tarjeta + bloque)).toBe(false)
   })
 })

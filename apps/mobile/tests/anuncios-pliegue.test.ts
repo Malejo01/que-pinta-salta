@@ -84,7 +84,7 @@ describe('heroYPillsAntesDelMapaDeSecciones (fixtures en memoria: tiene que pode
 })
 
 describe('app/(tabs)/index.tsx: el Hero y los atajos van antes del mapa de secciones (donde vive el anuncio)', () => {
-  it('Hero, después PillsAtajos, después secciones.map( — el anuncio nunca puede quedar arriba del pliegue', () => {
+  it('el Hero y PillsAtajos aparecen antes de secciones.map( — el anuncio nunca puede quedar arriba del pliegue', () => {
     expect(heroYPillsAntesDelMapaDeSecciones(SRC_INDEX)).toBe(true)
   })
 

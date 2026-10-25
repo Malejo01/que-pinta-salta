@@ -300,7 +300,7 @@ describe('2. el primer hijo del ScrollView es la cabecera (chips y debajo pills)
     expect(violacionesCabecera(codigo)).toEqual([])
   })
 
-  const APERTURA = '<View style={[estilos.cabecera, { backgroundColor: colores.background }]}>'
+  const APERTURA = '<View style={[estilos.cabecera, { backgroundColor: colores.background, borderBottomColor: colores.border }]}>'
 
   describe('fixtures falsos', () => {
     it('la fuente tiene la apertura que los fixtures reemplazan', () => {
