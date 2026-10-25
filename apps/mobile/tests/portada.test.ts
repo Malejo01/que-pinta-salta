@@ -437,9 +437,11 @@ describe('components/FilaCategoria.tsx: lectura estática', () => {
     expect(content).toMatch(/ALTO_TARJETA\s*=\s*270/)
   })
 
-  it('tocar una película (isCinemaMovie) abre /pelicula/<id>, sin el prefijo "movie-"', () => {
-    expect(content).toMatch(/isCinemaMovie/)
-    expect(content).toMatch(/\/pelicula\/\$\{evento\.id\.replace\(\/\^movie-\/, ''\)\}/)
+  // R67, 67-a: la capa transparente para películas se fue; la ruta correcta
+  // (/pelicula/<id> sin "movie-") la resuelve TarjetaEvento con rutaDeEvento.
+  it('la celda es solo <TarjetaEvento>, sin capa propia que navegue (la ruta de la película la resuelve rutaDeEvento)', () => {
+    expect(content).toMatch(/<TarjetaEvento evento=\{evento\}/)
+    expect(content).not.toMatch(/router\.push|useRouter/)
   })
 
   it('no usa border como color de texto', () => {

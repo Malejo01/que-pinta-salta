@@ -49,12 +49,7 @@ export type ResultadoMarcarFavorito = { ok: true } | { ok: false; error: string 
 /** `voyQuitado` es `true` solo si la fila propia que se borró tenía `kind === 'voy'` (ver `desmarcarFavorito`). */
 export type ResultadoDesmarcarFavorito = { ok: true; voyQuitado: boolean } | { ok: false; error: string }
 
-/** A dónde navega cada item de favoritos al tocarlo: evento, película (R28) o flyer de Instagram. */
-export function rutaDeFavorito(item: DisplayEvent): string {
-  if (item.isCinemaMovie) return `/pelicula/${item.id.replace(/^movie-/, '')}`
-  if (item.isInstagramFlyer && item.flyerId) return `/flyer/${item.flyerId}`
-  return `/evento/${item.id}`
-}
+// R67, 67-a: `rutaDeFavorito` pasó a `rutaDeEvento` de `lib/rutas.ts`.
 
 /**
  * Los favoritos de `userId`, separados en dos listas (R47, QPS-197):
