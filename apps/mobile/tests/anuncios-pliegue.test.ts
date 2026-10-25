@@ -33,17 +33,19 @@ const RUTA_INDEX = fileURLToPath(new URL('../app/(tabs)/index.tsx', import.meta.
 const SRC_INDEX = readFileSync(RUTA_INDEX, 'utf8')
 
 /**
- * `true` si, en `content`, aparecen (en este orden) un `<Hero`, después un
- * `<PillsAtajos`, y después un `secciones.map(` — las tres cosas tienen que
- * existir Y estar en ese orden. `false` si falta alguna, o si el orden está
- * mal. Puro, con fixtures abajo.
+ * `true` si, en `content`, aparecen un `<Hero` y un `<PillsAtajos` y los dos
+ * van ANTES de `secciones.map(` — las tres cosas tienen que existir. `false`
+ * si falta alguna, o si el mapa (donde va el anuncio) queda antes de alguno.
+ * R67, 67-b: las pills pasaron a la cabecera fija, arriba del Hero, así que
+ * el orden entre Hero y pills ya no se exige; lo que importa es el mapa.
+ * Puro, con fixtures abajo.
  */
 function heroYPillsAntesDelMapaDeSecciones(content: string): boolean {
   const idxHero = content.indexOf('<Hero')
   const idxPills = content.indexOf('<PillsAtajos')
   const idxMapa = content.indexOf('secciones.map(')
   if (idxHero === -1 || idxPills === -1 || idxMapa === -1) return false
-  return idxHero < idxPills && idxPills < idxMapa
+  return idxHero < idxMapa && idxPills < idxMapa
 }
 
 describe('heroYPillsAntesDelMapaDeSecciones (fixtures en memoria: tiene que poder dar positivo y negativo)', () => {
@@ -68,11 +70,11 @@ describe('heroYPillsAntesDelMapaDeSecciones (fixtures en memoria: tiene que pode
     expect(heroYPillsAntesDelMapaDeSecciones(content)).toBe(false)
   })
 
-  it('roto: PillsAtajos antes que Hero', () => {
+  it('sano (R67, 67-b): PillsAtajos antes que Hero, los dos antes del mapa', () => {
     const content = ['<PillsAtajos atajo={a} onCambiar={b} />', '<Hero eventos={x} />', '{secciones.map((s) => null)}'].join(
       '\n',
     )
-    expect(heroYPillsAntesDelMapaDeSecciones(content)).toBe(false)
+    expect(heroYPillsAntesDelMapaDeSecciones(content)).toBe(true)
   })
 
   it('falta uno de los tres: false (no asume nada por descarte)', () => {

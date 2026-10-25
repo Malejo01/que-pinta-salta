@@ -181,12 +181,13 @@ describe('portada (app/(tabs)/index.tsx) en modo categoría', () => {
   const jsx = codigo.slice(codigo.indexOf('return (\n    <View style={[estilos.contenedor'))
   const bloqueCategoria = entre(jsx, 'estilos.bloqueCategoria}>', 'secciones.map(')
 
-  // Mutación: mover <ChipsCategorias> arriba de <PillsAtajos>.
-  it('los chips van después de PillsAtajos en el JSX', () => {
+  // Mutación: mover <ChipsCategorias> debajo de <PillsAtajos>.
+  // R67, 67-b: los chips van arriba de las pills, los dos en la cabecera fija.
+  it('los chips van antes que PillsAtajos en el JSX (cabecera fija de la R67)', () => {
     const pills = jsx.indexOf('<PillsAtajos')
     const chips = jsx.indexOf('<ChipsCategorias')
-    expect(pills).toBeGreaterThan(-1)
-    expect(chips).toBeGreaterThan(pills)
+    expect(chips).toBeGreaterThan(-1)
+    expect(pills).toBeGreaterThan(chips)
   })
 
   // Mutación: sacar `categoria === null &&` del useMemo de `secciones`.
@@ -232,7 +233,8 @@ describe('portada (app/(tabs)/index.tsx) en modo categoría', () => {
     // "sin atajo": el destino de "Ver todas las fechas" no arrastra la fecha.
     expect(vacio).not.toMatch(/atajo=/)
     // "Todas las categorías" vuelve al modo de siempre.
-    expect(vacio).toMatch(/onPress=\{\(\) => setCategoria\(null\)\}/)
+    // R67, 67-b: por el handler que además vuelve el scroll arriba.
+    expect(vacio).toMatch(/onPress=\{\(\) => cambiarCategoria\(null\)\}/)
   })
 
   it('cada botón del vacío es un botón accesible', () => {
