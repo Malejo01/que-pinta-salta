@@ -18,9 +18,55 @@ import {
   mensajeErrorContrasena,
   mensajeErrorIngreso,
   resultadoAlta,
+  resultadoAltaConSesion,
 } from '@qps/core/auth/mensajes'
 
+// R67, 67-d: el alta con sesión (Confirm email apagado), solo para la app.
+describe('resultadoAltaConSesion', () => {
+  it('sin error y con una sesión objeto: "sesion"', () => {
+    expect(
+      resultadoAltaConSesion({ data: { user: { id: '1' }, session: { access_token: 'x' } }, error: null }),
+    ).toEqual({ tipo: 'sesion' })
+  })
+
+  it('session null: "enviado"', () => {
+    expect(resultadoAltaConSesion({ data: { user: { id: '1' }, session: null }, error: null })).toEqual({
+      tipo: 'enviado',
+    })
+  })
+
+  it.each([null, undefined, 'texto', 42, true])('data %s (no objeto): "enviado"', (data) => {
+    expect(resultadoAltaConSesion({ data, error: null })).toEqual({ tipo: 'enviado' })
+  })
+
+  it('session que no es objeto (string): "enviado"', () => {
+    expect(resultadoAltaConSesion({ data: { session: 'abc' }, error: null })).toEqual({ tipo: 'enviado' })
+  })
+
+  it('error con sesión: lo que diga el error, nunca "sesion"', () => {
+    expect(
+      resultadoAltaConSesion({ data: { session: { access_token: 'x' } }, error: { code: 'weak_password' } }),
+    ).toEqual({
+      tipo: 'error',
+      mensaje: 'La contraseña es muy débil: usá al menos 6 caracteres.',
+    })
+  })
+
+  it('código de "ya existe" con sesión: "enviado"', () => {
+    expect(
+      resultadoAltaConSesion({ data: { session: { access_token: 'x' } }, error: { code: 'user_already_exists' } }),
+    ).toEqual({ tipo: 'enviado' })
+  })
+})
+
 describe('resultadoAlta', () => {
+  // La web sigue con `resultadoAlta`: el alta con sesión se informa "enviado".
+  it('sin error y con sesión objeto: sigue dando "enviado" (la web no cambia)', () => {
+    expect(resultadoAlta({ data: { user: { id: '1' }, session: { access_token: 'x' } }, error: null })).toEqual({
+      tipo: 'enviado',
+    })
+  })
+
   it('sin error: enviado', () => {
     expect(resultadoAlta({ data: { user: { id: '1' } }, error: null })).toEqual({ tipo: 'enviado' })
   })

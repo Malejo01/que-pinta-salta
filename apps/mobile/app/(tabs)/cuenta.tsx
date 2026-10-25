@@ -25,7 +25,7 @@ import {
   isSuccessResponse,
 } from '@react-native-google-signin/google-signin'
 import { textosContrasena, tipoDeCuenta, validarContrasenaNueva } from '@qps/core/auth/cuenta'
-import { MENSAJE_ALTA_ENVIADA, mensajeErrorAlta, mensajeErrorIngreso, resultadoAlta } from '@qps/core/auth/mensajes'
+import { MENSAJE_ALTA_CON_SESION, MENSAJE_ALTA_ENVIADA, mensajeErrorAlta, mensajeErrorIngreso, resultadoAltaConSesion } from '@qps/core/auth/mensajes'
 import LOGO_MARCA from '@/assets/logo-circular.png'
 import WORDMARK from '@/assets/titulo-horizontal.png'
 import PATRON_MARCA from '@/assets/patron-claro.png'
@@ -44,6 +44,7 @@ import { leerEnv } from '@/lib/env'
 import { urlSitio } from '@/lib/links'
 import { borrarTokenDeEsteTelefono } from '@/lib/push/registro'
 import { supabase } from '@/lib/supabase'
+import { avisar } from '@/lib/aviso'
 import { useSession } from '@/lib/session'
 import { textoVersion } from '@/lib/version'
 
@@ -158,6 +159,18 @@ export default function Cuenta() {
   const [error, setError] = useState<string | null>(null)
   const [accionEnCurso, setAccionEnCurso] = useState<'entrar' | 'crear' | 'google' | 'salir' | null>(null)
   const [avisoConfirmacion, setAvisoConfirmacion] = useState(false)
+  // R67, 67-d: el alta con sesión pasa de la vista del formulario a la de
+  // sesión; el estado vive en `Cuenta` (no se desmonta), así el texto
+  // sobrevive al cambio de vista. Se guarda el email con el que se hizo el
+  // alta (no un booleano) y se muestra solo si coincide con el de la sesión
+  // actual: si la sesión cambia a otra cuenta (token revocado, otro
+  // dispositivo, otro ingreso), el aviso no aparece, sin `useEffect` ni
+  // leer `data` de la respuesta. Además se apaga a mano en `entrar`,
+  // `entrarConGoogle` y `salir`.
+  const [avisoAltaConSesionPara, setAvisoAltaConSesionPara] = useState<string | null>(null)
+  const mostrarAvisoAltaConSesion =
+    avisoAltaConSesionPara !== null &&
+    session?.user.email?.trim().toLowerCase() === avisoAltaConSesionPara
 
   const estilos = {
     pantalla: { flex: 1, backgroundColor: colores.background },
@@ -244,6 +257,7 @@ export default function Cuenta() {
     }
     setError(null)
     setAvisoConfirmacion(false)
+    setAvisoAltaConSesionPara(null)
     setAccionEnCurso('entrar')
     try {
       // R48, 48-d (vuelta 2): `entrar` pasa a `mensajeErrorIngreso` de core
@@ -278,17 +292,27 @@ export default function Cuenta() {
     }
     setError(null)
     setAvisoConfirmacion(false)
+    setAvisoAltaConSesionPara(null)
     setAccionEnCurso('crear')
     try {
-      // QPS-124 (R48, 48-a): `resultadoAlta` clasifica la respuesta en
-      // "enviado" o "error" sin distinguir, dentro de "enviado", si el email
-      // ya tenía cuenta — así el alta nunca puede usarse para averiguar si
-      // un email está registrado. El error nunca muestra el texto crudo de
-      // la API.
+      // QPS-124 (R48, 48-a; R67, 67-d): `resultadoAltaConSesion` clasifica la
+      // respuesta en "sesion", "enviado" o "error". Dentro de "enviado" no
+      // distingue si el email ya tenía cuenta — así el alta nunca puede
+      // usarse para averiguar si un email está registrado. El tercer caso,
+      // "sesion" (el alta nueva con "Confirm email" apagado), tampoco filtra
+      // nada: un email registrado antes nunca vuelve con sesión, y quien
+      // llega ahí entró a una cuenta nueva que él mismo creó. El error nunca
+      // muestra el texto crudo de la API.
       const respuesta = await supabase.auth.signUp({ email, password })
-      const resultado = resultadoAlta(respuesta)
+      const resultado = resultadoAltaConSesion(respuesta)
       if (resultado.tipo === 'error') {
         setError(resultado.mensaje)
+      } else if (resultado.tipo === 'sesion') {
+        // R67, 67-d: supabase-js ya guardó la sesión y `useSession` la
+        // levanta con `onAuthStateChange`: la pantalla pasa sola a la vista
+        // con sesión. Toast en Android (`avisar`) y texto en línea en todas.
+        setAvisoAltaConSesionPara(email.trim().toLowerCase())
+        avisar(MENSAJE_ALTA_CON_SESION)
       } else {
         setAvisoConfirmacion(true)
       }
@@ -305,6 +329,7 @@ export default function Cuenta() {
       return
     }
     setError(null)
+    setAvisoAltaConSesionPara(null)
     setAccionEnCurso('google')
     try {
       GoogleSignin.configure({ webClientId: googleWebClientId })
@@ -351,6 +376,7 @@ export default function Cuenta() {
   async function salir() {
     if (!supabase) return
     setError(null)
+    setAvisoAltaConSesionPara(null)
     setAccionEnCurso('salir')
     try {
       const entroConGoogle = session?.user.app_metadata.provider === 'google'
@@ -388,6 +414,7 @@ export default function Cuenta() {
           </Texto>
         </View>
         <Texto peso="semibold">{session.user.email}</Texto>
+        {mostrarAvisoAltaConSesion ? <Texto tono="secundario">{MENSAJE_ALTA_CON_SESION}</Texto> : null}
 
         {error ? <Texto style={estilos.error}>{error}</Texto> : null}
 

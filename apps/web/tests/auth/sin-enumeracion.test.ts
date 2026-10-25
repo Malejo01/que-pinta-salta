@@ -144,9 +144,9 @@ describe('CAPA DE CABLEADO: apps/mobile/app/(tabs)/cuenta.tsx (alta de la app)',
     return SRC_MOBILE_CUENTA.slice(inicio, fin)
   }
 
-  it('decide el camino con resultadoAlta, no con una rama propia', () => {
+  it('decide el camino con resultadoAltaConSesion (R67, 67-d; envuelve a resultadoAlta), no con una rama propia', () => {
     const cuerpo = cuerpoDeCrearCuenta()
-    expect(cuerpo).toMatch(/resultadoAlta\(respuesta\)/)
+    expect(cuerpo).toMatch(/resultadoAltaConSesion\(respuesta\)/)
     expect(cuerpo).toMatch(/resultado\.tipo\s*===\s*["']error["']/)
   })
 
