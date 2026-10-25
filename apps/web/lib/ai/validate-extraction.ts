@@ -1,6 +1,8 @@
 // Controles deterministas sobre la salida del modelo ("el modelo extrae, el código decide").
 // Funciones puras, sin red ni base: se testean con fixtures inventados.
 
+import { tieneCondicionNoGratis } from '@qps/core/events/gratis'
+
 /** Hora de pared de Salta que se usa cuando no hay hora confiable (solo la fecha). */
 export const DEFAULT_START_TIME = '00:00'
 
@@ -11,21 +13,13 @@ function normalize(text: string): string {
     .replace(/[̀-ͯ]/g, '')
 }
 
-// Condicionantes que vuelven "parcial" una entrada gratuita (se aplican sobre texto normalizado, sin tildes).
-const FREE_CONDITIONAL_PATTERNS: RegExp[] = [
-  /\bhasta\s+(las|la|el|hs|\d)/,
-  /\bfree\s+hasta\b/,
-  /\bgratis\s+hasta\b/,
-  /\bdamas\b/,
-  /\bcon\s+lista\b/,
-  /\bantes\s+de\b/,
-  /\bfree\s+antes\b/,
-]
-
-/** True si el texto trae condicionantes de gratuidad parcial ("free hasta las 1", "damas free", etc.). */
+/**
+ * True si el texto trae condicionantes de gratuidad parcial ("free hasta las 1", "damas free",
+ * etc.) u otra condición que impide tomarlo como gratis (2x1, montos, sorteos…): la lista vive
+ * en core (`CONDICIONES_NO_GRATIS`).
+ */
 export function hasFreeConditionals(...texts: Array<string | null | undefined>): boolean {
-  const joined = normalize(texts.filter((t): t is string => !!t).join('\n'))
-  return FREE_CONDITIONAL_PATTERNS.some((re) => re.test(joined))
+  return tieneCondicionNoGratis(...texts)
 }
 
 /**

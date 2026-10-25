@@ -1,6 +1,7 @@
 import { saltaWallClockToDate } from '@/lib/date-format'
 import { filtrarSaltaCapital, loguearDescartes } from '@/lib/scraper/salta-capital'
 import { ScrapedEvent } from '../types'
+import { textoIndicaGratis } from '@qps/core/events/gratis'
 
 const CARTELERA_JSON_URL = 'https://s3.sa-east-1.amazonaws.com/contenido.general.entradauno/cache/12/cartelera.json'
 
@@ -69,16 +70,6 @@ interface EntradaUnoPayload {
  */
 function toDate(isoString: string): Date {
   return saltaWallClockToDate(isoString)
-}
-
-/**
- * Detecta si el evento es realmente gratis analizando el título
- * (Como en cron no tenemos la descripción larga del todo en el mapping, podemos buscar también en cDescripcion si existiera)
- */
-function isTextFree(title: string, description: string = ''): boolean {
-  const text = `${title} ${description}`.toLowerCase()
-    .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-  return /gratis|gratuito|entrada libre|sin costo|libre y gratuit/.test(text);
 }
 
 /**
@@ -192,7 +183,7 @@ export async function scrapeEntradaUno(): Promise<ScrapedEvent[]> {
       const flyerUrl = getBestImage(rawEvent)
 
       const priceFrom = rawEvent.fPrecioDesde ?? 0
-      const isFree = priceFrom === 0 && isTextFree(rawEvent.cNombre, rawEvent.cDescripcion || '')
+      const isFree = priceFrom === 0 && textoIndicaGratis(rawEvent.cNombre, rawEvent.cDescripcion)
 
       events.push({
         title: rawEvent.cNombre.trim(),
