@@ -88,13 +88,19 @@ describe('CTAs externos: accessibilityRole="link" (ficha, flyer, película, cine
     )
   })
 
-  it('app/pelicula/[id].tsx: "Comprar Entradas" es link', () => {
-    const content = leer('app', 'pelicula', '[id].tsx')
+  // R67, 67-c: "Comprar Entradas" vive en `components/BloqueCine.tsx`, que usan
+  // la ficha de la película y `TarjetaPelicula` (Cines y la portada): se
+  // comprueba el botón ahí y que cada pantalla use ese componente.
+  it('app/pelicula/[id].tsx: "Comprar Entradas" (por BloqueCine) es link', () => {
+    expect(leer('app', 'pelicula', '[id].tsx')).toMatch(/<BloqueCine\b/)
+    const content = leer('components', 'BloqueCine.tsx')
     expect(aperturaPressableQueContiene(content, 'Comprar Entradas')).toMatch(/accessibilityRole="link"/)
   })
 
-  it('app/cines.tsx: "Comprar Entradas" es link', () => {
-    const content = leer('app', 'cines.tsx')
+  it('app/cines.tsx: "Comprar Entradas" (por TarjetaPelicula → BloqueCine) es link', () => {
+    expect(leer('app', 'cines.tsx')).toMatch(/<TarjetaPelicula\b/)
+    expect(leer('components', 'TarjetaPelicula.tsx')).toMatch(/<BloqueCine\b/)
+    const content = leer('components', 'BloqueCine.tsx')
     expect(aperturaPressableQueContiene(content, 'Comprar Entradas')).toMatch(/accessibilityRole="link"/)
   })
 })

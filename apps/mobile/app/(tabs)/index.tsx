@@ -40,6 +40,10 @@
 // categorías"; con eventos, una línea "N eventos" (live region) bajo el título.
 // Sin chips que elegir no se dibuja la fila. Sin conexión: nada de esto pide
 // red (todo es memoria sobre lo cargado), y `AvisoSinConexion` sigue arriba.
+// R67, 67-c: con el chip "Cine", las películas se dibujan como la cartelera de
+// `app/cines.tsx` (`components/TarjetaPelicula.tsx`, a ancho completo y con su
+// acordeón por cine), no como tarjetas de evento en 2 columnas; los eventos
+// reales de la categoría cine, si hay, van en la grilla debajo.
 //
 // Lo que no se copia, a propósito (ops/paridad-web-app.md, inventario
 // "Portada" y la tarea 29-h): "Más filtros" (lugar/zona) y el switch
@@ -72,6 +76,7 @@ import { FilaCategoria } from '@/components/FilaCategoria'
 import { Hero } from '@/components/Hero'
 import { PillsAtajos } from '@/components/PillsAtajos'
 import { TarjetaEvento } from '@/components/TarjetaEvento'
+import { TarjetaPelicula } from '@/components/TarjetaPelicula'
 import { Texto } from '@/components/Texto'
 import { useBienvenidaVista } from '@/lib/bienvenida'
 import { useColoresQPS } from '@/lib/colores'
@@ -184,6 +189,18 @@ const FRASE_ATAJO: Record<Atajo, string> = {
   'esta-noche': 'esta noche',
   finde: 'el finde',
   semana: 'esta semana',
+}
+
+/**
+ * Línea de conteo bajo el título de la categoría (R67, 67-c): "N eventos" como
+ * siempre; con películas del chip "Cine", "N películas" y, si además hay
+ * eventos reales, "N películas · M eventos". Singular/plural bien en ambos.
+ */
+export function conteoCategoria(peliculas: number, eventos: number): string {
+  const textoEventos = `${eventos} ${eventos === 1 ? 'evento' : 'eventos'}`
+  if (peliculas === 0) return textoEventos
+  const textoPeliculas = `${peliculas} ${peliculas === 1 ? 'película' : 'películas'}`
+  return eventos === 0 ? textoPeliculas : `${textoPeliculas} · ${textoEventos}`
 }
 
 function enFilasDeDos<T>(lista: T[]): T[][] {
@@ -320,6 +337,11 @@ export default function Inicio() {
     const chips = categoriasDisponibles(todosLosEventos, estado.categorias, categoria)
     let eventosCategoria: DisplayEvent[] = []
     let nombreCategoria = ''
+    // R67, 67-c: con "Cine", las películas (`isCinemaMovie`, id `movie-<uuid>`)
+    // salen como `Pelicula` completas (con sus funciones) en el mismo orden que
+    // `eventosCategoria`; los eventos reales de la categoría quedan aparte.
+    const peliculasCategoria: Pelicula[] = []
+    let eventosSinPelicula: DisplayEvent[] = []
     if (categoria !== null) {
       const items: ItemFiltrable[] = [
         ...estado.eventos,
@@ -327,9 +349,19 @@ export default function Inicio() {
       ]
       eventosCategoria = filtrarCombinado(items, { atajo, categoria }, ahora)
       nombreCategoria = estado.categorias.find((c) => c.slug === categoria)?.name ?? categoria
+      if (categoria === 'cine') {
+        const porId = new Map(estado.peliculas.map((pelicula) => [`movie-${pelicula.id}`, pelicula]))
+        for (const evento of eventosCategoria) {
+          const pelicula = evento.isCinemaMovie ? porId.get(evento.id) : undefined
+          if (pelicula) peliculasCategoria.push(pelicula)
+          else eventosSinPelicula.push(evento)
+        }
+      } else {
+        eventosSinPelicula = eventosCategoria
+      }
     }
 
-    return { carrusel, filas, hoyEventos, chips, eventosCategoria, nombreCategoria }
+    return { carrusel, filas, hoyEventos, chips, eventosCategoria, peliculasCategoria, eventosSinPelicula, nombreCategoria }
   }, [estado, atajo, categoria])
 
   // Con una categoría elegida (R66) no hay secciones: ni "Hoy en Salta", ni
@@ -402,9 +434,19 @@ export default function Inicio() {
               ) : (
                 <>
                   <Texto tono="secundario" accessibilityLiveRegion="polite">
-                    {datosPortada.eventosCategoria.length} {datosPortada.eventosCategoria.length === 1 ? 'evento' : 'eventos'}
+                    {conteoCategoria(datosPortada.peliculasCategoria.length, datosPortada.eventosSinPelicula.length)}
                   </Texto>
-                  {enFilasDeDos(datosPortada.eventosCategoria).map((fila) => (
+                  {/* R67, 67-c: el scroll no salta al abrir el acordeón de la
+                      película 2 o 3 porque las tarjetas cuelgan de este mismo
+                      `ScrollView` con `key` estables (`pelicula.id`), la lista
+                      sale del `useMemo` de `datosPortada` (misma referencia
+                      entre renders, no se recalcula acá) y el cine abierto es
+                      estado de cada `TarjetaPelicula`: abrir uno solo vuelve
+                      a dibujar esa tarjeta, ni se remonta ni se mueve otra. */}
+                  {datosPortada.peliculasCategoria.map((pelicula) => (
+                    <TarjetaPelicula key={pelicula.id} pelicula={pelicula} />
+                  ))}
+                  {enFilasDeDos(datosPortada.eventosSinPelicula).map((fila) => (
                   <View key={fila[0].id} style={estilos.filaGrilla}>
                     {fila.map((evento) => (
                       <View key={evento.id} style={estilos.celda}>

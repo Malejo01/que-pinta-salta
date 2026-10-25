@@ -280,13 +280,18 @@ describe('portada (app/(tabs)/index.tsx) en modo categoría', () => {
   it('el conteo "N eventos" es una live region polite', () => {
     const conteo = entre(bloqueCategoria, 'accessibilityLiveRegion', '</Texto>')
     expect(conteo).toMatch(/accessibilityLiveRegion="polite"/)
-    expect(conteo).toMatch(/eventosCategoria\.length/)
-    expect(conteo).toMatch(/'evento'\s*:\s*'eventos'/)
+    // R67, 67-c: el texto lo arma `conteoCategoria(películas, eventos)`.
+    expect(conteo).toMatch(/conteoCategoria\(datosPortada\.peliculasCategoria\.length,\s*datosPortada\.eventosSinPelicula\.length\)/)
+    expect(codigo).toMatch(/'evento'\s*:\s*'eventos'/)
+    expect(codigo).toMatch(/'película'\s*:\s*'películas'/)
   })
 
   it('la grilla usa el resultado de filtrarCombinado (atajo + categoría), no la lista sin filtrar', () => {
     expect(codigo).toMatch(/eventosCategoria = filtrarCombinado\(items,\s*\{\s*atajo,\s*categoria\s*\},\s*ahora\)/)
-    expect(bloqueCategoria).toMatch(/enFilasDeDos\(datosPortada\.eventosCategoria\)/)
+    // R67, 67-c: la grilla de 2 columnas toma `eventosSinPelicula` (con otra
+    // categoría, es todo `eventosCategoria`; con "Cine", lo que no es película).
+    expect(bloqueCategoria).toMatch(/enFilasDeDos\(datosPortada\.eventosSinPelicula\)/)
+    expect(codigo).toMatch(/eventosSinPelicula = eventosCategoria/)
   })
 
   // 66-r1 (B1 de ux-ui): el Hero mide ~60 % de la ventana y con una categoría
