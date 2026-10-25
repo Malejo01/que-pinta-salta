@@ -230,6 +230,15 @@ describe('textoIndicaGratis: vuelta 2', () => {
     expect(textoIndicaGratis(t)).toBe(false)
   })
 
+  it.each([
+    'Gratis para ni&ntilde;os',
+    'Entrada libre. Consumici&oacute;n gratis',
+    'Gratis para ni&#241;os',
+    'Entrada&nbsp;libre&nbsp;hasta&nbsp;las&nbsp;2',
+  ])('entidades HTML decodificadas antes de buscar condiciones: %s', (t) => {
+    expect(detectarGratis(t)).toMatchObject({ gratis: false, motivo: 'condicion' })
+  })
+
   it.each(['Gratis: sorteamos tres entradas', 'Entrada libre: sorteo de 2 pares de entradas'])(
     'lo bloquea el sorteo, no la falta de frase: %s',
     (t) => {

@@ -73,6 +73,21 @@ function toDate(isoString: string): Date {
 }
 
 /**
+ * La API entrega `cDescripcion` como HTML URL-encoded ("%3Cp%3EEntrada%20libre…"):
+ * se decodifica y se le sacan las etiquetas antes de buscar frases de gratuidad,
+ * como hace `cleanDescription` en lib/scraper/entradauno-scraper.ts. Si no se
+ * puede decodificar, no aporta evidencia.
+ */
+function textoDeDescripcion(encoded: string | undefined): string {
+  if (!encoded) return ''
+  try {
+    return decodeURIComponent(encoded).replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ')
+  } catch {
+    return ''
+  }
+}
+
+/**
  * Retorna la mejor imagen disponible para el evento (prioriza resoluciones altas sobre miniaturas)
  */
 function getBestImage(rawEvent: EntradaUnoRawEvent): string {
@@ -183,7 +198,7 @@ export async function scrapeEntradaUno(): Promise<ScrapedEvent[]> {
       const flyerUrl = getBestImage(rawEvent)
 
       const priceFrom = rawEvent.fPrecioDesde ?? 0
-      const isFree = priceFrom === 0 && textoIndicaGratis(rawEvent.cNombre, rawEvent.cDescripcion)
+      const isFree = priceFrom === 0 && textoIndicaGratis(rawEvent.cNombre, textoDeDescripcion(rawEvent.cDescripcion))
 
       events.push({
         title: rawEvent.cNombre.trim(),

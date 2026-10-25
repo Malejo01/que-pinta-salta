@@ -18,6 +18,11 @@ function normalizar(textos: Array<string | null | undefined>): string {
     .filter((t): t is string => typeof t === 'string' && t.length > 0)
     .join('\n')
     .slice(0, MAX_TEXTO)
+    // Entidades HTML que dejan algunas descripciones de ticketeras ("ni&ntilde;os"): sin
+    // decodificarlas, las condiciones no ven la palabra y la frase positiva sí.
+    .replace(/&([a-z])(?:acute|tilde|uml|grave|circ);/gi, '$1')
+    .replace(/&#(\d{1,5});/g, (_, n: string) => String.fromCharCode(Number(n)))
+    .replace(/&nbsp;/gi, ' ')
     .toLowerCase()
     .normalize('NFD')
     .replace(/[̀-ͯ]/g, '')
