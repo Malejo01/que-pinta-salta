@@ -64,6 +64,7 @@ import { AREA_TACTIL_MINIMA, ESCALA_MAXIMA_COMPACTA, hitSlopPara } from '@/lib/a
 import { useColoresQPS } from '@/lib/colores'
 import { textoPrecio } from '@/lib/formato'
 import { ACCIONES_HERO, etiquetaDiapositiva, indiceTrasAccion } from '@/lib/hero-accesible'
+import { rutaDeEvento } from '@/lib/rutas'
 import LOGO_MARCA from '@/assets/logo-circular.png'
 
 const PORCENTAJE_ALTO_HERO = 0.6
@@ -194,7 +195,7 @@ export function Hero({ eventos }: HeroProps) {
             indice={index}
             total={slides.length}
             alCambiarIndice={irA}
-            onPress={() => router.push(`/evento/${item.id}`)}
+            onPress={() => router.push(rutaDeEvento(item))}
           />
         )}
       />

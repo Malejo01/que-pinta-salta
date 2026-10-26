@@ -181,12 +181,13 @@ describe('portada (app/(tabs)/index.tsx) en modo categoría', () => {
   const jsx = codigo.slice(codigo.indexOf('return (\n    <View style={[estilos.contenedor'))
   const bloqueCategoria = entre(jsx, 'estilos.bloqueCategoria}>', 'secciones.map(')
 
-  // Mutación: mover <ChipsCategorias> arriba de <PillsAtajos>.
-  it('los chips van después de PillsAtajos en el JSX', () => {
+  // Mutación: mover <ChipsCategorias> debajo de <PillsAtajos>.
+  // R67, 67-b: los chips van arriba de las pills, los dos en la cabecera fija.
+  it('los chips van antes que PillsAtajos en el JSX (cabecera fija de la R67)', () => {
     const pills = jsx.indexOf('<PillsAtajos')
     const chips = jsx.indexOf('<ChipsCategorias')
-    expect(pills).toBeGreaterThan(-1)
-    expect(chips).toBeGreaterThan(pills)
+    expect(chips).toBeGreaterThan(-1)
+    expect(pills).toBeGreaterThan(chips)
   })
 
   // Mutación: sacar `categoria === null &&` del useMemo de `secciones`.
@@ -232,7 +233,8 @@ describe('portada (app/(tabs)/index.tsx) en modo categoría', () => {
     // "sin atajo": el destino de "Ver todas las fechas" no arrastra la fecha.
     expect(vacio).not.toMatch(/atajo=/)
     // "Todas las categorías" vuelve al modo de siempre.
-    expect(vacio).toMatch(/onPress=\{\(\) => setCategoria\(null\)\}/)
+    // R67, 67-b: por el handler que además vuelve el scroll arriba.
+    expect(vacio).toMatch(/onPress=\{\(\) => cambiarCategoria\(null\)\}/)
   })
 
   it('cada botón del vacío es un botón accesible', () => {
@@ -280,13 +282,18 @@ describe('portada (app/(tabs)/index.tsx) en modo categoría', () => {
   it('el conteo "N eventos" es una live region polite', () => {
     const conteo = entre(bloqueCategoria, 'accessibilityLiveRegion', '</Texto>')
     expect(conteo).toMatch(/accessibilityLiveRegion="polite"/)
-    expect(conteo).toMatch(/eventosCategoria\.length/)
-    expect(conteo).toMatch(/'evento'\s*:\s*'eventos'/)
+    // R67, 67-c: el texto lo arma `conteoCategoria(películas, eventos)`.
+    expect(conteo).toMatch(/conteoCategoria\(datosPortada\.peliculasCategoria\.length,\s*datosPortada\.eventosSinPelicula\.length\)/)
+    expect(codigo).toMatch(/'evento'\s*:\s*'eventos'/)
+    expect(codigo).toMatch(/'película'\s*:\s*'películas'/)
   })
 
   it('la grilla usa el resultado de filtrarCombinado (atajo + categoría), no la lista sin filtrar', () => {
     expect(codigo).toMatch(/eventosCategoria = filtrarCombinado\(items,\s*\{\s*atajo,\s*categoria\s*\},\s*ahora\)/)
-    expect(bloqueCategoria).toMatch(/enFilasDeDos\(datosPortada\.eventosCategoria\)/)
+    // R67, 67-c: la grilla de 2 columnas toma `eventosSinPelicula` (con otra
+    // categoría, es todo `eventosCategoria`; con "Cine", lo que no es película).
+    expect(bloqueCategoria).toMatch(/enFilasDeDos\(datosPortada\.eventosSinPelicula\)/)
+    expect(codigo).toMatch(/eventosSinPelicula = eventosCategoria/)
   })
 
   // 66-r1 (B1 de ux-ui): el Hero mide ~60 % de la ventana y con una categoría

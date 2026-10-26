@@ -87,15 +87,15 @@ describe('mensajeErrorAlta (@qps/core/auth/mensajes, mismo módulo que usa la we
   })
 })
 
-describe('app/(tabs)/cuenta.tsx: el camino del alta usa resultadoAlta/mensajeErrorAlta, no error.message crudo', () => {
+describe('app/(tabs)/cuenta.tsx: el camino del alta usa resultadoAltaConSesion/mensajeErrorAlta, no error.message crudo', () => {
   const src = readFileSync(CUENTA_TSX, 'utf8')
 
-  it('importa mensajeErrorAlta y resultadoAlta de @qps/core/auth/mensajes', () => {
+  it('importa mensajeErrorAlta y resultadoAltaConSesion de @qps/core/auth/mensajes', () => {
     expect(src).toMatch(/import\s*\{[^}]*\bmensajeErrorAlta\b[^}]*\}\s*from\s*['"]@qps\/core\/auth\/mensajes['"]/)
-    expect(src).toMatch(/import\s*\{[^}]*\bresultadoAlta\b[^}]*\}\s*from\s*['"]@qps\/core\/auth\/mensajes['"]/)
+    expect(src).toMatch(/import\s*\{[^}]*\bresultadoAltaConSesion\b[^}]*\}\s*from\s*['"]@qps\/core\/auth\/mensajes['"]/)
   })
 
-  it('crearCuenta (la función del alta) clasifica la respuesta de signUp con resultadoAlta, nunca mira errorCrear/mensajeDeError directo', () => {
+  it('crearCuenta (la función del alta) clasifica la respuesta de signUp con resultadoAltaConSesion, nunca mira errorCrear/mensajeDeError directo', () => {
     const inicio = src.indexOf('async function crearCuenta')
     expect(inicio).toBeGreaterThan(-1)
     // Corta en la siguiente función async del archivo (entrarConGoogle), para
@@ -106,7 +106,8 @@ describe('app/(tabs)/cuenta.tsx: el camino del alta usa resultadoAlta/mensajeErr
 
     // R48, 48-d: la respuesta de signUp pasa por resultadoAlta (QPS-124,
     // 48-a) — no se mira `errorCrear` suelto.
-    expect(cuerpo).toContain('resultadoAlta(')
+    // R67, 67-d: ahora con `resultadoAltaConSesion` (suma el caso 'sesion').
+    expect(cuerpo).toContain('resultadoAltaConSesion(')
     // El catch (una excepción, no un error de la API) sigue en mensajeErrorAlta.
     expect(cuerpo).toContain('mensajeErrorAlta(excepcion)')
     // Ni un solo uso del mensaje crudo de la API en este camino.
@@ -117,5 +118,95 @@ describe('app/(tabs)/cuenta.tsx: el camino del alta usa resultadoAlta/mensajeErr
     // email ya tenía cuenta — ese texto (el de MENSAJES_ERROR, usado solo
     // por entrar/Google) no tiene que aparecer en el camino del alta.
     expect(cuerpo).not.toContain('Ya existe una cuenta')
+  })
+})
+
+// R67, 67-d: el alta que vuelve con sesión. Detectores por texto sobre el
+// cuerpo de las funciones de `cuenta.tsx`, cada uno con un fixture falso que
+// demuestra que se pone en rojo.
+function cuerpoDe(src: string, desde: string, hasta: string): string {
+  const inicio = src.indexOf(desde)
+  if (inicio < 0) return ''
+  const fin = src.indexOf(hasta, inicio + desde.length)
+  return fin < 0 ? src.slice(inicio) : src.slice(inicio, fin)
+}
+
+/** El texto de la rama `resultado.tipo === 'sesion'` hasta el siguiente `} else`. */
+function ramaSesion(cuerpoCrearCuenta: string): string | null {
+  const m = /resultado\.tipo\s*===\s*['"]sesion['"]\s*\)\s*\{/.exec(cuerpoCrearCuenta)
+  if (!m) return null
+  const resto = cuerpoCrearCuenta.slice(m.index + m[0].length)
+  const fin = resto.indexOf('} else')
+  return fin < 0 ? resto : resto.slice(0, fin)
+}
+
+const llamaAvisar = (rama: string | null) => !!rama && /\bavisar\(\s*MENSAJE_ALTA_CON_SESION\s*\)/.test(rama)
+const mezclaEnviado = (rama: string | null) =>
+  !!rama && /MENSAJE_ALTA_ENVIADA|setAvisoConfirmacion\(\s*true\s*\)/.test(rama)
+const apagaAviso = (cuerpo: string) => /setAvisoAltaConSesionPara\(\s*null\s*\)/.test(cuerpo)
+
+const FIXTURE_BUENO = `async function crearCuenta() {
+  if (resultado.tipo === 'error') {
+    setError(resultado.mensaje)
+  } else if (resultado.tipo === 'sesion') {
+    setAvisoAltaConSesionPara(email)
+    avisar(MENSAJE_ALTA_CON_SESION)
+  } else {
+    setAvisoConfirmacion(true)
+  }
+}
+async function entrarConGoogle() {}`
+
+describe('app/(tabs)/cuenta.tsx: el alta con sesión (R67, 67-d)', () => {
+  const src = readFileSync(CUENTA_TSX, 'utf8')
+  const crear = cuerpoDe(src, 'async function crearCuenta', 'async function entrarConGoogle')
+
+  it('crearCuenta tiene la rama resultado.tipo === "sesion" y llama a avisar(MENSAJE_ALTA_CON_SESION)', () => {
+    const rama = ramaSesion(crear)
+    expect(rama, 'no se encontró la rama de sesion').not.toBeNull()
+    expect(llamaAvisar(rama)).toBe(true)
+  })
+
+  it('la rama de sesion no usa MENSAJE_ALTA_ENVIADA ni setAvisoConfirmacion(true)', () => {
+    expect(mezclaEnviado(ramaSesion(crear))).toBe(false)
+  })
+
+  it('salir, entrar y entrarConGoogle apagan el aviso', () => {
+    expect(apagaAviso(cuerpoDe(src, 'async function salir', 'return ('))).toBe(true)
+    expect(apagaAviso(cuerpoDe(src, 'async function entrar()', 'async function crearCuenta'))).toBe(true)
+    expect(apagaAviso(cuerpoDe(src, 'async function entrarConGoogle', 'function abrirRecuperarContrasenia'))).toBe(
+      true
+    )
+  })
+
+  it('el fixture bueno pasa los detectores', () => {
+    const rama = ramaSesion(FIXTURE_BUENO)
+    expect(llamaAvisar(rama)).toBe(true)
+    expect(mezclaEnviado(rama)).toBe(false)
+  })
+
+  it('fixture sin la rama de sesion: se pone en rojo', () => {
+    const roto = FIXTURE_BUENO.replace("resultado.tipo === 'sesion'", "resultado.tipo === 'otra'")
+    expect(ramaSesion(roto)).toBeNull()
+  })
+
+  it('fixture sin avisar(MENSAJE_ALTA_CON_SESION): se pone en rojo', () => {
+    const roto = FIXTURE_BUENO.replace('avisar(MENSAJE_ALTA_CON_SESION)', 'avisar(otraCosa)')
+    expect(llamaAvisar(ramaSesion(roto))).toBe(false)
+  })
+
+  it('fixture con MENSAJE_ALTA_ENVIADA o setAvisoConfirmacion(true) en la rama de sesion: se pone en rojo', () => {
+    const conTexto = FIXTURE_BUENO.replace('avisar(MENSAJE_ALTA_CON_SESION)', 'avisar(MENSAJE_ALTA_ENVIADA)')
+    expect(mezclaEnviado(ramaSesion(conTexto))).toBe(true)
+    const conFlag = FIXTURE_BUENO.replace(
+      'avisar(MENSAJE_ALTA_CON_SESION)',
+      'avisar(MENSAJE_ALTA_CON_SESION)\n    setAvisoConfirmacion(true)'
+    )
+    expect(mezclaEnviado(ramaSesion(conFlag))).toBe(true)
+  })
+
+  it('fixture de salir sin apagar el aviso: se pone en rojo', () => {
+    expect(apagaAviso('async function salir() {\n  setError(null)\n}')).toBe(false)
+    expect(apagaAviso('async function salir() {\n  setAvisoAltaConSesionPara(null)\n}')).toBe(true)
   })
 })

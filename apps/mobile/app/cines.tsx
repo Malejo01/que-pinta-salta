@@ -11,27 +11,19 @@
 // tienen la tarjeta completa disponible (ver el comentario de
 // `app/pelicula/[id].tsx`).
 //
-// `funcionesPorCine` (R28, `lib/datos/cines.ts`) se reusa tal cual para
-// agrupar `showings` por cine; `BloqueCine` (acordeón de un cine) está
-// duplicado a propósito en este archivo y en `app/pelicula/[id].tsx`: no hay
-// un componente compartido en los archivos permitidos de esta tarea.
+// R67 (67-c): la tarjeta (`components/TarjetaPelicula.tsx`) y el acordeón de
+// un cine (`components/BloqueCine.tsx`) ya no son locales: los comparte la
+// portada con el chip "Cine" y la ficha de la película. `funcionesPorCine`
+// (R28, `lib/datos/cines.ts`) agrupa `showings` por cine adentro de la tarjeta.
 import { useCallback, useEffect, useState } from 'react'
-import * as Linking from 'expo-linking'
 import { FlatList, Pressable, RefreshControl, StyleSheet, TextInput, View } from 'react-native'
-import { Afiche } from '@/components/Afiche'
 import { Cargando, ErrorCarga, Vacio } from '@/components/EstadoCarga'
 import { Icono } from '@/components/Icono'
+import { TarjetaPelicula } from '@/components/TarjetaPelicula'
 import { Texto } from '@/components/Texto'
 import { hitSlopPara } from '@/lib/accesibilidad'
-import { useColoresQPS, type ColoresQPS } from '@/lib/colores'
-import {
-  cantidadDeSalas,
-  funcionesPorCine,
-  obtenerCines,
-  urlCompraCineSegura,
-  type FuncionesDeCine,
-  type Pelicula,
-} from '@/lib/datos/cines'
+import { useColoresQPS } from '@/lib/colores'
+import { obtenerCines, type Pelicula } from '@/lib/datos/cines'
 
 type Estado = { tipo: 'cargando' } | { tipo: 'error'; error: string } | { tipo: 'ok'; peliculas: Pelicula[] }
 
@@ -136,125 +128,8 @@ export default function Cines() {
             <RefreshControl refreshing={refrescando} onRefresh={refrescar} tintColor={colores.primary} colors={[colores.primary]} />
           }
           ListEmptyComponent={<Vacio mensaje={mensajeVacio} />}
-          renderItem={({ item }) => <TarjetaPelicula pelicula={item} colores={colores} />}
+          renderItem={({ item }) => <TarjetaPelicula pelicula={item} />}
         />
-      ) : null}
-    </View>
-  )
-}
-
-/** Una tarjeta de la lista: afiche 2:3, badge "N Cines", título y el
- * acordeón por cine (igual que `MovieCard` de la web). */
-function TarjetaPelicula({ pelicula, colores }: { pelicula: Pelicula; colores: ColoresQPS }) {
-  const cines = funcionesPorCine(pelicula.showings)
-  const cantidad = cantidadDeSalas(pelicula)
-  // `Accordion type="single" collapsible` de la web: un solo cine abierto a
-  // la vez dentro de la misma tarjeta.
-  const [abierto, setAbierto] = useState<string | null>(null)
-
-  return (
-    <View style={[estilos.tarjeta, { backgroundColor: colores.card, borderColor: colores.border }]}>
-      <View style={estilos.contenedorAfiche}>
-        <Afiche url={pelicula.poster_url} llenar />
-        <View style={estilos.badge}>
-          <Texto peso="semibold" style={estilos.textoBadge}>
-            {cantidad} {cantidad === 1 ? 'Cine' : 'Cines'}
-          </Texto>
-        </View>
-      </View>
-
-      <Texto peso="bold" style={estilos.tituloPelicula} numberOfLines={2}>
-        {pelicula.title}
-      </Texto>
-
-      <View style={[estilos.divisor, { borderColor: colores.border }]} />
-
-      {cines.length === 0 ? (
-        <Texto tono="secundario" style={estilos.sinFunciones}>
-          Sin funciones para hoy
-        </Texto>
-      ) : (
-        cines.map((cine, indice) => (
-          <BloqueCine
-            key={`${cine.cine}-${indice}`}
-            cine={cine}
-            colores={colores}
-            abierto={abierto === cine.cine}
-            esUltimo={indice === cines.length - 1}
-            onToggle={() => setAbierto((actual) => (actual === cine.cine ? null : cine.cine))}
-          />
-        ))
-      )}
-    </View>
-  )
-}
-
-/** Un cine dentro del acordeón: el nombre como trigger y, abierto, los
- * formatos con sus horarios en chips y "Comprar Entradas". Mismo componente
- * (duplicado) en `app/pelicula/[id].tsx`. */
-function BloqueCine({
-  cine,
-  colores,
-  abierto,
-  esUltimo,
-  onToggle,
-}: {
-  cine: FuncionesDeCine
-  colores: ColoresQPS
-  abierto: boolean
-  esUltimo: boolean
-  onToggle: () => void
-}) {
-  // Único origen válido para abrir una URL de compra (R28, 28-g): el
-  // `booking_url` crudo (`cine.urlCompra`) nunca llega a `Linking.openURL`
-  // directo — siempre pasa por `urlCompraCineSegura` (ver
-  // `tests/aperturas-url.test.ts`).
-  const urlCompra = urlCompraCineSegura(cine.urlCompra)
-
-  return (
-    <View style={[estilos.bloqueCine, !esUltimo && { borderBottomWidth: 1, borderColor: colores.border }]}>
-      <Pressable onPress={onToggle} accessibilityRole="button" accessibilityState={{ expanded: abierto }} style={estilos.triggerCine}>
-        <View style={estilos.triggerTexto}>
-          <View style={[estilos.punto, { backgroundColor: colores.primary }]} />
-          <Texto peso="semibold" style={estilos.nombreCine}>
-            {cine.cine}
-          </Texto>
-        </View>
-        <View style={abierto ? estilos.chevronAbierto : undefined}>
-          <Icono nombre="ChevronDown" tamanio={18} color={colores.mutedForeground} />
-        </View>
-      </Pressable>
-
-      {abierto ? (
-        <View style={estilos.contenidoCine}>
-          {cine.formatos.map((formato, indice) => (
-            <View key={`${formato.tipo}-${indice}`} style={[estilos.cajaFormato, { backgroundColor: colores.muted, borderColor: colores.border }]}>
-              <Texto tono="secundario" peso="semibold" style={estilos.tipoFormato}>
-                {formato.tipo}
-              </Texto>
-              <View style={estilos.filaChips}>
-                {formato.horarios.map((horario, indiceHorario) => (
-                  <View key={`${horario}-${indiceHorario}`} style={[estilos.chip, { backgroundColor: colores.card, borderColor: colores.border }]}>
-                    <Texto style={estilos.textoChip}>{horario}</Texto>
-                  </View>
-                ))}
-              </View>
-            </View>
-          ))}
-
-          {urlCompra ? (
-            <Pressable
-              accessibilityRole="link"
-              onPress={() => Linking.openURL(urlCompra).catch(() => {})}
-              style={[estilos.botonComprar, { backgroundColor: colores.muted }]}
-            >
-              <Icono nombre="Ticket" tamanio={14} color={colores.primary} />
-              <Texto peso="semibold" style={estilos.textoComprar}>
-                Comprar Entradas
-              </Texto>
-            </Pressable>
-          ) : null}
-        </View>
       ) : null}
     </View>
   )
@@ -275,33 +150,4 @@ const estilos = StyleSheet.create({
   },
   inputBusqueda: { flex: 1, fontSize: 15, paddingVertical: 10 },
   lista: { padding: 16, gap: 16 },
-  tarjeta: { borderWidth: 1, borderRadius: 16, padding: 16 },
-  contenedorAfiche: { width: '100%', aspectRatio: 2 / 3, borderRadius: 12, overflow: 'hidden', position: 'relative' },
-  badge: {
-    position: 'absolute',
-    top: 10,
-    right: 10,
-    backgroundColor: 'rgba(0,0,0,0.7)',
-    borderRadius: 6,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-  },
-  textoBadge: { color: '#fff', fontSize: 11 },
-  tituloPelicula: { fontSize: 17, marginTop: 12 },
-  divisor: { borderTopWidth: 1, marginTop: 10, marginBottom: 2 },
-  sinFunciones: { textAlign: 'center', fontStyle: 'italic', paddingVertical: 8 },
-  bloqueCine: { paddingVertical: 4 },
-  triggerCine: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 48, paddingVertical: 4 },
-  triggerTexto: { flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 1 },
-  punto: { width: 6, height: 6, borderRadius: 3 },
-  nombreCine: { fontSize: 14, flexShrink: 1 },
-  chevronAbierto: { transform: [{ rotate: '180deg' }] },
-  contenidoCine: { gap: 8, paddingBottom: 10 },
-  cajaFormato: { borderWidth: 1, borderRadius: 8, padding: 8, gap: 6 },
-  tipoFormato: { fontSize: 12 },
-  filaChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
-  chip: { borderWidth: 1, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4 },
-  textoChip: { fontSize: 12 },
-  botonComprar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderRadius: 8, paddingVertical: 10 },
-  textoComprar: { fontSize: 12 },
 })

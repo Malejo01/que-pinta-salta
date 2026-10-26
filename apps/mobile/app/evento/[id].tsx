@@ -28,7 +28,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native'
 import * as Linking from 'expo-linking'
-import { Redirect, useLocalSearchParams, useRouter, useTheme } from 'expo-router'
+import { Redirect, useLocalSearchParams, type Href, useRouter, useTheme } from 'expo-router'
 import { formatEventDate } from '@qps/core/date-format'
 import { capitalizeFirst, cleanDescription, formatEventTimeDisplay } from '@qps/core/event-display'
 import { estaDestacado } from '@qps/core/events/destacados'
@@ -50,6 +50,7 @@ import { obtenerEventoPorId, type ResultadoEvento } from '@/lib/datos/eventos'
 import { textoPrecio, type PrecioEvento } from '@/lib/formato'
 import { esUuid } from '@/lib/links'
 import { obtenerSeguimientoDeEvento, type SeguimientoDeEvento } from '@/lib/radar'
+import { rutaPorPrefijo } from '@/lib/rutas'
 import { useSession } from '@/lib/session'
 import { useVistaEvento } from '@/lib/metricas-hook'
 
@@ -138,7 +139,10 @@ export default function EventoPorId() {
   useVistaEvento(estado.tipo === 'ok' ? estado.evento.id : null)
 
   if (!valido) {
-    return <Redirect href="/" />
+    // R67, 67-a: un id de película (`movie-…`) o de flyer (`ig-…`) va a su
+    // ficha en vez de a Inicio; cualquier otro id inválido sigue yendo a Inicio.
+    const destino = rutaPorPrefijo(id)
+    return <Redirect href={(destino ?? '/') as Href} />
   }
 
   if (estado.tipo === 'cargando') {

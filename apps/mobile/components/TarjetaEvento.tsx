@@ -10,6 +10,11 @@
 // en React Native el touch no burbujea de un `Pressable` a otro (gana el
 // más anidado), así que tocarlos no dispara la navegación a la ficha.
 //
+// R67, 67-a (F6 de la beta): la tarjeta también dibuja películas (`movie-…`) y
+// flyers (`ig-…`). Navega con `rutaDeEvento` (lib/rutas.ts) a la ficha que
+// corresponde, y para ellos no muestra Compartir ni el corazón: mandarían
+// `movie-…`/`ig-…` a `event_id`.
+//
 // El degradé no usa `expo-linear-gradient` (no es dependencia aprobada):
 // son 4 `View` absolutos apilados, con negro de opacidad creciente hacia
 // abajo, sobre la mitad inferior de la tarjeta.
@@ -25,6 +30,7 @@ import { InsigniaDestacado } from '@/components/InsigniaDestacado'
 import { ESCALA_MAXIMA_COMPACTA } from '@/lib/accesibilidad'
 import { useColoresQPS } from '@/lib/colores'
 import { textoPrecio } from '@/lib/formato'
+import { esEventoReal, rutaDeEvento } from '@/lib/rutas'
 
 export interface TarjetaEventoProps {
   evento: DisplayEvent
@@ -42,11 +48,13 @@ export function TarjetaEvento({ evento }: TarjetaEventoProps) {
   const inicialCategoria = (evento.categoryName || 'Q').charAt(0).toUpperCase()
   const otrasFechas = evento.occurrences && evento.occurrences.length > 1 ? evento.occurrences.length - 1 : 0
 
-  const etiqueta = `${evento.title}, ${fecha}${evento.time ? ` ${evento.time}` : ''}, en ${evento.venue}`
+  const etiqueta = evento.isCinemaMovie
+    ? `${evento.title}, en cartel`
+    : `${evento.title}, ${fecha}${evento.time ? ` ${evento.time}` : ''}, en ${evento.venue}`
 
   return (
     <Pressable
-      onPress={() => router.push(`/evento/${evento.id}`)}
+      onPress={() => router.push(rutaDeEvento(evento))}
       accessibilityRole="button"
       accessibilityLabel={etiqueta}
       style={[estilos.contenedor, { backgroundColor: colores.card }]}
@@ -86,10 +94,12 @@ export function TarjetaEvento({ evento }: TarjetaEventoProps) {
         <InsigniaDestacado visible={evento.isFeatured} />
       </View>
 
-      <View style={estilos.accionesArriba}>
-        <BotonCompartir eventId={evento.id} titulo={evento.title} fecha={fecha} hora={evento.time} lugar={evento.venue} tamanio={32} fondo="oscuro" />
-        <BotonFavorito eventId={evento.id} tamanio={32} fondo="oscuro" />
-      </View>
+      {esEventoReal(evento) ? (
+        <View style={estilos.accionesArriba}>
+          <BotonCompartir eventId={evento.id} titulo={evento.title} fecha={fecha} hora={evento.time} lugar={evento.venue} tamanio={32} fondo="oscuro" />
+          <BotonFavorito eventId={evento.id} tamanio={32} fondo="oscuro" />
+        </View>
+      ) : null}
 
       <View style={estilos.abajo} pointerEvents="none">
         <Text style={estilos.titulo} numberOfLines={2} maxFontSizeMultiplier={ESCALA_MAXIMA_COMPACTA}>
