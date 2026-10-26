@@ -11,6 +11,7 @@
  */
 import { esUuid } from '../radar/preferencias'
 import { normalizeFilterText } from '../home/filters'
+import { urlEvento, type MetricOrigin } from '../metricas/links'
 
 // ---------------------------------------------------------------------------
 // Constantes
@@ -174,6 +175,31 @@ function obtenerCampo(entrada: unknown, campo: string): unknown {
   return (entrada as Record<string, unknown>)[campo]
 }
 
+function validarTextosEnErrores(
+  entrada: unknown,
+  errores: ErrorCampania[],
+): { titulo: string | null; cuerpo: string | null } {
+  const titulo = validarTexto(obtenerCampo(entrada, 'titulo'), 'titulo', 'El título', LARGO_MAXIMO_TITULO, errores)
+  const cuerpo = validarTexto(obtenerCampo(entrada, 'cuerpo'), 'cuerpo', 'El cuerpo', LARGO_MAXIMO_CUERPO, errores)
+  return { titulo, cuerpo }
+}
+
+export type ResultadoValidacionTextosCampania =
+  | { ok: true; titulo: string; cuerpo: string }
+  | { ok: false; errores: ErrorCampania[] }
+
+/**
+ * Valida solo título y cuerpo, con las mismas reglas que `validarCampania`
+ * (que usa esta misma lógica por dentro). Sirve para la prueba "Enviarme una
+ * prueba", que no tiene fechas.
+ */
+export function validarTextosCampania(entrada: unknown): ResultadoValidacionTextosCampania {
+  const errores: ErrorCampania[] = []
+  const { titulo, cuerpo } = validarTextosEnErrores(entrada, errores)
+  if (errores.length > 0 || titulo === null || cuerpo === null) return { ok: false, errores }
+  return { ok: true, titulo, cuerpo }
+}
+
 /**
  * Valida una campaña patrocinada ANTES de guardarla (panel admin, 51-b/51-c).
  * Devuelve TODOS los errores que encuentra, no solo el primero: quien llama
@@ -199,8 +225,7 @@ export function validarCampania(
 ): ResultadoValidacionCampania {
   const errores: ErrorCampania[] = []
 
-  const titulo = validarTexto(obtenerCampo(entrada, 'titulo'), 'titulo', 'El título', LARGO_MAXIMO_TITULO, errores)
-  const cuerpo = validarTexto(obtenerCampo(entrada, 'cuerpo'), 'cuerpo', 'El cuerpo', LARGO_MAXIMO_CUERPO, errores)
+  const { titulo, cuerpo } = validarTextosEnErrores(entrada, errores)
 
   const eventIdCrudo = obtenerCampo(entrada, 'eventId')
   const eventId = esUuid(eventIdCrudo) ? eventIdCrudo : null
@@ -309,4 +334,35 @@ export function campaniaVigente<T extends VentanaCampania>(campanias: T[], ahora
 /** Título final del push: la etiqueta "Patrocinado" bien visible, antes del título de la campaña. */
 export function tituloAvisoPatrocinado(titulo: string): string {
   return `${ETIQUETA_PATROCINADO} · ${titulo}`
+}
+
+const ORIGEN_AVISO: MetricOrigin = 'app'
+
+export interface ContenidoAvisoPatrocinado {
+  title: string
+  body: string
+  categoryId: string
+  data: { url: string; tipo: string }
+}
+
+/**
+ * Contenido del push patrocinado: lo comparten el envío real (`armarTanda`) y
+ * la prueba del admin. `null` si `eventId` no resuelve un link válido (un
+ * aviso patrocinado sin ficha a la que ir no se manda).
+ */
+export function contenidoAvisoPatrocinado(campania: {
+  titulo: string
+  cuerpo: string
+  eventId: string
+}): ContenidoAvisoPatrocinado | null {
+  const url = urlEvento(campania.eventId, ORIGEN_AVISO)
+  if (!url) return null
+  return {
+    title: tituloAvisoPatrocinado(campania.titulo),
+    body: campania.cuerpo,
+    categoryId: CATEGORIA_PATROCINADO,
+    // `tipo` con la misma constante que `categoryId` (ver el respaldo de
+    // `esAvisoPatrocinado` en `apps/mobile/lib/push/tap.ts`).
+    data: { url, tipo: CATEGORIA_PATROCINADO },
+  }
 }

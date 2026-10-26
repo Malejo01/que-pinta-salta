@@ -229,9 +229,36 @@ describe('categoryId (core → mensaje) e identifier (app → categoría de Expo
   const RUTA_CATEGORIAS = fileURLToPath(new URL('../lib/push/categorias.ts', import.meta.url))
   const srcCategorias = readFileSync(RUTA_CATEGORIAS, 'utf8')
 
-  it('tanda.ts (core) importa CATEGORIA_PATROCINADO de ./patrocinados y lo usa como categoryId del candidato patrocinado', () => {
-    expect(srcTanda).toMatch(/import\s*\{[^}]*\bCATEGORIA_PATROCINADO\b[^}]*\}\s*from\s*['"]\.\/patrocinados['"]/)
-    expect(srcTanda).toMatch(/categoryId:\s*CATEGORIA_PATROCINADO\b/)
+  // R70 (70-c): el contenido del aviso patrocinado (título, cuerpo,
+  // categoryId y data) se arma en UN solo lugar, `contenidoAvisoPatrocinado`
+  // de `patrocinados.ts`, que comparten `armarTanda` y la prueba del admin.
+  // El contrato sigue siendo el mismo, pero vive en dos saltos: tanda.ts toma
+  // categoryId y data de esa función (nunca un string a mano), y esa función
+  // usa la constante.
+  const RUTA_PATROCINADOS = fileURLToPath(new URL('../../../packages/core/src/notificaciones/patrocinados.ts', import.meta.url))
+  const srcPatrocinados = readFileSync(RUTA_PATROCINADOS, 'utf8')
+
+  /** El cuerpo de `function <nombre>` hasta su `}` de cierre en la columna 0 (con `\r?\n`: en Windows el archivo tiene CRLF). */
+  function cuerpoDeFuncion(src: string, nombre: string): string {
+    const desde = src.indexOf(`function ${nombre}`)
+    expect(desde).toBeGreaterThanOrEqual(0)
+    const resto = src.slice(desde)
+    const fin = /\r?\n\}\r?\n/.exec(resto)
+    expect(fin).not.toBeNull()
+    return resto.slice(0, (fin?.index ?? 0) + 1)
+  }
+
+  it('tanda.ts (core) toma categoryId y data del candidato patrocinado de contenidoAvisoPatrocinado (./patrocinados), y esa función usa CATEGORIA_PATROCINADO', () => {
+    expect(srcTanda).toMatch(/import\s*\{[^}]*\bcontenidoAvisoPatrocinado\b[^}]*\}\s*from\s*['"]\.\/patrocinados['"]/)
+    const candidato = cuerpoDeFuncion(srcTanda, 'candidatoPatrocinado')
+    expect(candidato).toMatch(/contenidoAvisoPatrocinado\(/)
+    expect(candidato).toMatch(/categoryId:\s*contenido\.categoryId\b/)
+    expect(candidato).toMatch(/data:\s*contenido\.data\b/)
+    expect(candidato).not.toMatch(/categoryId:\s*['"`]/)
+
+    const contenido = cuerpoDeFuncion(srcPatrocinados, 'contenidoAvisoPatrocinado')
+    expect(contenido).toMatch(/categoryId:\s*CATEGORIA_PATROCINADO\b/)
+    expect(contenido).not.toMatch(/categoryId:\s*['"`]/)
   })
 
   it('categorias.ts (app) importa CATEGORIA_PATROCINADO y ACCION_BAJA_PATROCINADOS de @qps/core/notificaciones/patrocinados (no un string a mano) y los usa al registrar la categoría', () => {
@@ -255,22 +282,23 @@ describe('categoryId (core → mensaje) e identifier (app → categoría de Expo
   // reconocer el aviso, en silencio y sin un test en rojo. Lo arregló el
   // lead en el mismo commit que este archivo; el test es lo que impide que
   // vuelva.
-  it('el `data.tipo` del candidato patrocinado de core sale de la constante, no de un string a mano', () => {
-    // El corte del final de la función, con `\r?\n` y no con `\n` a secas:
-    // en Windows este archivo queda con CRLF en el disco y un `indexOf('\n}\n')`
-    // devuelve -1, lo que dejaba un recorte de dos caracteres que hacía
-    // fallar el test por el motivo equivocado.
-    const cuerpoDelCandidato = srcTanda.slice(srcTanda.indexOf('function candidatoPatrocinado'))
-    const finDeLaFuncion = /\r?\n\}\r?\n/.exec(cuerpoDelCandidato)
-    expect(finDeLaFuncion).not.toBeNull()
-    const hastaElFinalDeLaFuncion = cuerpoDelCandidato.slice(0, (finDeLaFuncion?.index ?? 0) + 1)
+  it('el `data.tipo` del aviso patrocinado de core sale de la constante, no de un string a mano', () => {
+    // El corte del final de la función, con `\r?\n` y no con `\n` a secas
+    // (`cuerpoDeFuncion`): en Windows este archivo queda con CRLF en el disco
+    // y un `indexOf('\n}\n')` devuelve -1, lo que dejaba un recorte de dos
+    // caracteres que hacía fallar el test por el motivo equivocado.
+    // R70: el `data` se arma en `contenidoAvisoPatrocinado`; el candidato de
+    // tanda.ts no puede volver a armar un `tipo` propio.
+    const contenido = cuerpoDeFuncion(srcPatrocinados, 'contenidoAvisoPatrocinado')
+    expect(contenido).toMatch(/tipo:\s*CATEGORIA_PATROCINADO\b/)
+    expect(contenido).not.toMatch(/tipo:\s*['"`]/)
 
-    expect(hastaElFinalDeLaFuncion).toMatch(/tipo:\s*CATEGORIA_PATROCINADO\b/)
-    // Solo el `tipo` del `data`: el `kind: 'patrocinado'` de la misma
-    // función es otra cosa (el valor de la columna
-    // `notification_sends.kind`, que no tiene nada que ver con la categoría
-    // de notificación de Expo) y ahí el literal es correcto.
-    expect(hastaElFinalDeLaFuncion).not.toMatch(/tipo:\s*['"`]/)
+    // Solo el `tipo` del `data`: el `kind: 'patrocinado'` del candidato es
+    // otra cosa (el valor de la columna `notification_sends.kind`, que no
+    // tiene nada que ver con la categoría de notificación de Expo) y ahí el
+    // literal es correcto.
+    const candidato = cuerpoDeFuncion(srcTanda, 'candidatoPatrocinado')
+    expect(candidato).not.toMatch(/tipo:\s*['"`]/)
   })
 })
 
