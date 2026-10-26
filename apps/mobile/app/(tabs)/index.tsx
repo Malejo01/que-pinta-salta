@@ -81,6 +81,7 @@ import { ChipsCategorias } from '@/components/ChipsCategorias'
 import { Cargando, ErrorCarga } from '@/components/EstadoCarga'
 import { FilaCategoria } from '@/components/FilaCategoria'
 import { Hero } from '@/components/Hero'
+import { InvitacionAvisos } from '@/components/InvitacionAvisos'
 import { PillsAtajos } from '@/components/PillsAtajos'
 import { TarjetaEvento } from '@/components/TarjetaEvento'
 import { TarjetaPelicula } from '@/components/TarjetaPelicula'
@@ -434,6 +435,8 @@ export default function Inicio() {
           {estado.desdeCache ? <AvisoSinConexion guardadoEn={estado.desdeCache.guardadoEn} /> : null}
 
           {categoria === null && datosPortada.carrusel.length > 0 ? <Hero eventos={datosPortada.carrusel} /> : null}
+
+          {categoria === null ? <InvitacionAvisos /> : null}
 
           {categoria !== null ? (
             <View style={estilos.bloqueCategoria}>

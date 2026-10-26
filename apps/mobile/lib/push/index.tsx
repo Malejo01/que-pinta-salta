@@ -18,7 +18,7 @@ import type { EstadoPush } from './estado'
 export interface ContextoPush {
   estado: EstadoPush
   /** `sincronizarPush({ preguntar: true })`: el botón de "activar notificaciones". */
-  activar: () => Promise<void>
+  activar: () => Promise<EstadoPush>
   /** Igual que `activar`, pero para el botón de "reintentar" en los estados que fallaron. Siempre manual, nunca automático. */
   reintentar: () => Promise<void>
   /** `Linking.openSettings()`, con `.catch(() => {})`: nunca deja una excepción sin atrapar. */
@@ -29,10 +29,14 @@ function sinEfecto(): Promise<void> {
   return Promise.resolve()
 }
 
+function sinEfectoSinSesion(): Promise<EstadoPush> {
+  return Promise.resolve('sin-sesion')
+}
+
 /** Sin `PushProvider` montado, un contexto que no rompe: `sin-sesion` y funciones que no hacen nada. */
 const CONTEXTO_POR_DEFECTO: ContextoPush = {
   estado: 'sin-sesion',
-  activar: sinEfecto,
+  activar: sinEfectoSinSesion,
   reintentar: sinEfecto,
   abrirAjustes: () => {},
 }
@@ -96,11 +100,12 @@ export function PushProvider({ children }: { children: ReactNode }) {
   // anterior): no hace falta "limpiar" nada en el efecto de arriba.
   const estado: EstadoPush = !userId ? 'sin-sesion' : estadoSincronizado
 
-  const correr = useCallback(async (preguntar: boolean) => {
+  const correr = useCallback(async (preguntar: boolean): Promise<EstadoPush> => {
     setEstadoSincronizado('pidiendo')
     try {
       const resultado = await sincronizarPush({ preguntar })
       setEstadoSincronizado(resultado)
+      return resultado
     } catch {
       // Red de última instancia (igual razón que el `.catch()` del efecto
       // de arriba): sin esto, una excepción inesperada deja el `await`
@@ -108,11 +113,14 @@ export function PushProvider({ children }: { children: ReactNode }) {
       // estado (y el botón) quedan clavados en `'pidiendo'` para siempre,
       // sin mensaje y sin forma de reintentar sin reiniciar la app.
       setEstadoSincronizado('error-registro')
+      return 'error-registro'
     }
   }, [])
 
   const activar = useCallback(() => correr(true), [correr])
-  const reintentar = useCallback(() => correr(true), [correr])
+  const reintentar = useCallback(async () => {
+    await correr(true)
+  }, [correr])
   const abrirAjustes = useCallback(() => {
     Linking.openSettings().catch(() => {})
   }, [])

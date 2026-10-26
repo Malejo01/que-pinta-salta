@@ -30,6 +30,7 @@ import { Cargando, ErrorCarga } from '@/components/EstadoCarga'
 import { Texto } from '@/components/Texto'
 import { useColoresQPS } from '@/lib/colores'
 import {
+  cambiarAvisosEquipo,
   cambiarPatrocinados,
   guardarNotificaciones,
   MENSAJE_NO_DISPONIBLE,
@@ -74,6 +75,7 @@ export function SeccionNotificaciones() {
   // toques seguidos en el interruptor disparen dos cambiarPatrocinados en
   // paralelo y dejen el estado inconsistente.
   const [guardandoPatrocinados, setGuardandoPatrocinados] = useState(false)
+  const [guardandoAvisos, setGuardandoAvisos] = useState(false)
 
   const cargar = useCallback(async () => {
     if (!userId) return
@@ -187,6 +189,22 @@ export function SeccionNotificaciones() {
     setGuardandoPatrocinados(false)
   }
 
+  // R70: avisos del equipo (`announcements`), mismo patrón optimista que
+  // `cambiarSponsored`.
+  async function cambiarAnnouncements(nuevo: boolean) {
+    if (!userId || guardandoAvisos) return
+    const anterior = announcements
+    setEstado({ tipo: 'ok', radarChannel, favoriteReminders, followNews, announcements: nuevo, sponsored, quietStart, quietEnd })
+    setGuardandoAvisos(true)
+    setMensaje(null)
+    const resultado = await cambiarAvisosEquipo(userId, nuevo)
+    if (!resultado.ok) {
+      setEstado({ tipo: 'ok', radarChannel, favoriteReminders, followNews, announcements: anterior, sponsored, quietStart, quietEnd })
+      setMensaje({ tipo: 'error', texto: resultado.mensaje })
+    }
+    setGuardandoAvisos(false)
+  }
+
   // Ronda 41, 41-e, decisión 4 del plan: el canal del Radar por push no lo
   // manda el backend todavía (solo email), así que esto es honesto, no una
   // cifra ni un horario (QPS-113 sigue sin confirmar).
@@ -233,15 +251,21 @@ export function SeccionNotificaciones() {
       </View>
 
       <View style={estilos.filaInterruptor}>
-        <View style={estilos.filaEtiquetaConPronto}>
+        <View style={estilos.filaEtiquetaConDescripcion}>
           <Texto>Avisos de Qué Pinta Salta</Texto>
-          <Texto tono="secundario" style={estilos.etiquetaPronto}>Pronto</Texto>
+          <Texto tono="secundario" style={estilos.textoDescripcion}>
+            Novedades y avisos del equipo de Qué Pinta Salta.
+          </Texto>
         </View>
-        {/* Decisión 4 del plan: visible pero apagado. El valor que la
-            persona ya tenía se guarda igual (ver `guardar`, más abajo: el
-            upsert manda `announcements` tal como vino de la base, nunca un
-            `false` fijo). */}
-        <Switch value={announcements} disabled accessibilityLabel="Avisos de Qué Pinta Salta" />
+        {/* R70: se prende y apaga al tocar y guarda solo `announcements`
+            (`cambiarAvisosEquipo`), igual que los patrocinados. */}
+        <Switch
+          value={announcements}
+          onValueChange={cambiarAnnouncements}
+          disabled={guardandoAvisos}
+          accessibilityLabel="Avisos de Qué Pinta Salta"
+          accessibilityState={{ checked: announcements, busy: guardandoAvisos }}
+        />
       </View>
 
       <Texto peso="semibold" style={estilos.subtitulo}>Canal del Radar</Texto>
@@ -317,8 +341,6 @@ const estilos = StyleSheet.create({
   titulo: { fontSize: 16 },
   subtitulo: { marginTop: 8 },
   filaInterruptor: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  filaEtiquetaConPronto: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  etiquetaPronto: { fontSize: 11, textTransform: 'uppercase' },
   filaEtiquetaConDescripcion: { flex: 1, marginRight: 12, gap: 2 },
   textoDescripcion: { fontSize: 12 },
   filaChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
