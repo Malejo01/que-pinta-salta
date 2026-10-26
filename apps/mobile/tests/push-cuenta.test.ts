@@ -177,27 +177,33 @@ describe('components/SeccionNotificaciones.tsx: monta AvisoActivarPush variante 
     expect(idxFavoritos).toBeGreaterThan(idxAviso)
   })
 
-  it('"Avisos de Qué Pinta Salta" sigue visible, pero con "Pronto" y el Switch deshabilitado', () => {
-    const idxFila = SRC_SECCION_NOTIFICACIONES.indexOf('Avisos de Qué Pinta Salta')
+  // R70 (70-a): "Avisos de Qué Pinta Salta" deja de ser "Pronto" y de estar
+  // deshabilitado fijo: se prende y apaga y guarda solo `announcements`.
+  it('"Avisos de Qué Pinta Salta" sigue visible, sin "Pronto", con su descripción y accessibilityLabel', () => {
+    const idxFila = SRC_SECCION_NOTIFICACIONES.indexOf('<Texto>Avisos de Qué Pinta Salta</Texto>')
     const idxSwitch = SRC_SECCION_NOTIFICACIONES.indexOf('<Switch', idxFila)
     expect(idxFila).toBeGreaterThan(-1)
     expect(idxSwitch).toBeGreaterThan(idxFila)
 
     const tramoEtiqueta = SRC_SECCION_NOTIFICACIONES.slice(idxFila, idxSwitch)
-    expect(tramoEtiqueta).toContain('Pronto')
+    expect(tramoEtiqueta).not.toContain('Pronto')
+    expect(tramoEtiqueta).toContain('Novedades y avisos del equipo de Qué Pinta Salta.')
 
     const finEtiquetaSwitch = SRC_SECCION_NOTIFICACIONES.indexOf('/>', idxSwitch)
     const tramoSwitch = SRC_SECCION_NOTIFICACIONES.slice(idxSwitch, finEtiquetaSwitch + 2)
     // R46: todo <Switch> lleva accessibilityLabel (tests/accesibilidad-detector.test.ts).
-    expect(tramoSwitch).toMatch(/<Switch\s+value=\{announcements\}\s+disabled\s+accessibilityLabel="Avisos de Qué Pinta Salta"\s*\/>/)
+    expect(tramoSwitch).toContain('accessibilityLabel="Avisos de Qué Pinta Salta"')
+    expect(tramoSwitch).toMatch(/accessibilityState=\{\{\s*checked:\s*announcements\s*,\s*busy:\s*guardandoAvisos\s*\}\}/)
   })
 
-  it('el "Pronto" de announcements NO tiene onValueChange (no se puede tocar)', () => {
-    const idxFila = SRC_SECCION_NOTIFICACIONES.indexOf('Avisos de Qué Pinta Salta')
+  it('el interruptor de announcements se puede tocar: onValueChange guarda solo esa columna (cambiarAvisosEquipo)', () => {
+    const idxFila = SRC_SECCION_NOTIFICACIONES.indexOf('<Texto>Avisos de Qué Pinta Salta</Texto>')
     const idxSwitch = SRC_SECCION_NOTIFICACIONES.indexOf('<Switch', idxFila)
     const finEtiquetaSwitch = SRC_SECCION_NOTIFICACIONES.indexOf('/>', idxSwitch)
-    const tramo = SRC_SECCION_NOTIFICACIONES.slice(idxFila, finEtiquetaSwitch + 2)
-    expect(tramo).not.toContain('onValueChange')
+    const tramoSwitch = SRC_SECCION_NOTIFICACIONES.slice(idxSwitch, finEtiquetaSwitch + 2)
+    expect(tramoSwitch).toContain('onValueChange={cambiarAnnouncements}')
+    expect(tramoSwitch).not.toMatch(/\bdisabled\s*(\/|\n|$)/)
+    expect(SRC_SECCION_NOTIFICACIONES).toContain('await cambiarAvisosEquipo(userId, nuevo)')
   })
 
   it('guardar() sigue mandando announcements tal como está en el estado (nunca un false fijo)', () => {
@@ -246,12 +252,9 @@ describe('components/SeccionNotificaciones.tsx: monta AvisoActivarPush variante 
     expect(tramoSwitch).toMatch(/accessibilityState=\{\{\s*checked:\s*sponsored\s*,\s*busy:\s*guardandoPatrocinados\s*\}\}/)
   })
 
-  it('"Avisos de Qué Pinta Salta" sigue disabled con "Pronto" (QPS-166, no se toca en esta tarea)', () => {
-    const idxFila = SRC_SECCION_NOTIFICACIONES.indexOf('Avisos de Qué Pinta Salta')
-    const idxSwitch = SRC_SECCION_NOTIFICACIONES.indexOf('<Switch', idxFila)
-    const finEtiquetaSwitch = SRC_SECCION_NOTIFICACIONES.indexOf('/>', idxSwitch)
-    const tramoSwitch = SRC_SECCION_NOTIFICACIONES.slice(idxSwitch, finEtiquetaSwitch + 2)
-    expect(tramoSwitch).toMatch(/<Switch\s+value=\{announcements\}\s+disabled\s+accessibilityLabel="Avisos de Qué Pinta Salta"\s*\/>/)
+  it('ya no queda ningún "Pronto" en la fila de "Avisos de Qué Pinta Salta" (R70)', () => {
+    expect(SRC_SECCION_NOTIFICACIONES).not.toContain('etiquetaPronto')
+    expect(SRC_SECCION_NOTIFICACIONES).not.toContain('>Pronto<')
   })
 })
 
@@ -371,6 +374,15 @@ describe('QPS-113 sin confirmar: los textos nuevos de 41-e no prometen cifras ni
     'Reintentar',
     'Pronto',
     'Por ahora el Radar te sigue llegando por email.',
+    // R70 (70-a): la invitación a activar los avisos.
+    'Activá los avisos para enterarte de lo que pinta',
+    'Te avisamos antes de lo que guardaste y te mandamos novedades de Qué Pinta Salta. Lo cambiás cuando quieras en Cuenta.',
+    'Entrá a tu cuenta para activar los avisos',
+    'Novedades y avisos del equipo de Qué Pinta Salta.',
+    'Con tu cuenta te avisamos antes de lo que guardes. Lo cambiás cuando quieras en Cuenta.',
+    'Listo, te vamos a avisar.',
+    'No pudimos activar los avisos. Podés probar en Cuenta.',
+    'Los avisos quedaron activos, pero no pudimos guardar tu preferencia. Revisala en Cuenta.',
   ]
 
   // Un tope ("hasta 4 por día", "4 notificaciones diarias") o un horario

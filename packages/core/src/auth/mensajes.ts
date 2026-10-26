@@ -27,7 +27,14 @@ export function mensajeErrorAlta(error: unknown): string {
 export const MENSAJE_ALTA_ENVIADA =
   'Si ese email no tenía cuenta, te mandamos un correo para confirmarla. Si ya tenías una, iniciá sesión o recuperá tu contraseña.'
 
-type ResultadoAlta = { tipo: 'enviado' } | { tipo: 'error'; mensaje: string }
+/**
+ * Texto para quien se da de alta y la cuenta queda lista en el momento, con
+ * sesión (R67, 67-d). En producción "Confirm email" está apagado: el alta
+ * nueva vuelve con sesión y no sale ningún correo de confirmación.
+ */
+export const MENSAJE_ALTA_CON_SESION = 'Listo, ya tenés tu cuenta.'
+
+export type ResultadoAlta = { tipo: 'enviado' } | { tipo: 'error'; mensaje: string }
 
 /**
  * Clasifica la respuesta de `supabase.auth.signUp` en "enviado" o "error"
@@ -42,10 +49,13 @@ type ResultadoAlta = { tipo: 'enviado' } | { tipo: 'error'; mensaje: string }
  * y ofrece las dos salidas (iniciar sesión o recuperar la contraseña) en
  * vez de prometer un correo que puede no haber salido.
  *
- * `data` no se inspecciona: con "Confirm email" prendido, un alta con un
- * email ya existente tampoco trae `error` (Supabase devuelve
- * `data.user.identities: []`), así que alcanza con "sin error" para
- * informar "enviado" en los dos casos.
+ * `data` no se inspecciona. En producción "Confirm email" está apagado y el
+ * alta nueva vuelve con sesión; esta función igual la informa como
+ * "enviado". Con "Confirm email" prendido, un alta con un email ya existente
+ * tampoco trae `error` (Supabase devuelve `data.user.identities: []`), así
+ * que alcanza con "sin error" para informar "enviado" en los dos casos. Para
+ * distinguir el alta que vuelve con sesión, ver `resultadoAltaConSesion`
+ * (R67, 67-d), que usan la app y la web.
  */
 export function resultadoAlta(respuesta: { data: unknown; error: unknown }): ResultadoAlta {
   const { error } = respuesta
@@ -59,6 +69,30 @@ export function resultadoAlta(respuesta: { data: unknown; error: unknown }): Res
   }
 
   return { tipo: 'error', mensaje: mensajeErrorAlta(error) }
+}
+
+export type ResultadoAltaConSesion = { tipo: 'sesion' } | ResultadoAlta
+
+/**
+ * Como `resultadoAlta`, pero distingue el alta que vuelve con sesión (R67,
+ * 67-d). De `data` solo se mira `data.session`. En producción "Confirm email"
+ * está apagado: el alta nueva vuelve con sesión y se informa `'sesion'`. La
+ * función no depende de esa configuración: un email ya existente nunca vuelve
+ * con sesión, ni con "Confirm email" apagado ni prendido (prendido, Supabase
+ * devuelve `data.user.identities: []`, sin sesión). Así `'sesion'` no le dice
+ * nada a quien prueba un email ajeno que no supiera ya: entró a una cuenta
+ * nueva que él mismo creó. Con `error` nunca es `'sesion'`; todo lo demás lo
+ * resuelve `resultadoAlta`.
+ *
+ * La usan la app y la web (R71).
+ */
+export function resultadoAltaConSesion(respuesta: { data: unknown; error: unknown }): ResultadoAltaConSesion {
+  if (!respuesta.error) {
+    const data = respuesta.data
+    const sesion = data && typeof data === 'object' ? (data as { session?: unknown }).session : null
+    if (sesion && typeof sesion === 'object') return { tipo: 'sesion' }
+  }
+  return resultadoAlta(respuesta)
 }
 
 export function mensajeErrorIngreso(error: unknown): string {

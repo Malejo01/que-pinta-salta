@@ -12,7 +12,8 @@ import {
 import { Input } from '@/components/ui/input'
 import { PasswordInput } from '@/components/ui/password-input'
 import { Label } from '@/components/ui/label'
-import { mensajeErrorAlta, resultadoAlta } from '@/lib/auth/mensajes'
+import { mensajeErrorAlta, resultadoAltaConSesion, MENSAJE_ALTA_CON_SESION } from '@/lib/auth/mensajes'
+import { useToast } from '@/hooks/use-toast'
 import { validarContrasenaNueva } from '@qps/core/auth/cuenta'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -36,6 +37,7 @@ export default function SignUpPage() {
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const router = useRouter()
+  const { toast } = useToast()
 
   const handleGoogleLogin = async () => {
     setIsLoading(true)
@@ -75,8 +77,17 @@ export default function SignUpPage() {
           },
         },
       })
-      const resultado = resultadoAlta(respuesta)
-      if (resultado.tipo === 'enviado') {
+      const resultado = resultadoAltaConSesion(respuesta)
+      if (resultado.tipo === 'sesion') {
+        // Supabase confirmó el alta solo: no sale ningún correo y el usuario
+        // ya quedó logueado. El Toaster vive en el layout raíz, sobrevive a la navegación.
+        toast({
+          title: '¡Bienvenido!',
+          description: MENSAJE_ALTA_CON_SESION,
+        })
+        router.push('/')
+        router.refresh()
+      } else if (resultado.tipo === 'enviado') {
         router.push('/auth/sign-up-success')
       } else {
         setError(resultado.mensaje)

@@ -36,6 +36,7 @@ describe('components/TarjetaEvento.tsx: usa BotonFavorito y BotonCompartir (ops/
   })
 
   it('el Pressable de toda la tarjeta sigue navegando a la ficha (tocar el corazón o compartir no la abre)', () => {
-    expect(content).toMatch(/router\.push\(`\/evento\/\$\{evento\.id\}`\)/)
+    // R67, 67-a: la ruta sale de rutaDeEvento (evento, película o flyer).
+    expect(content).toMatch(/router\.push\(rutaDeEvento\(evento\)\)/)
   })
 })

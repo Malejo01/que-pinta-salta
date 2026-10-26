@@ -22,8 +22,12 @@
  */
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
+import type { SupabaseClient } from '@supabase/supabase-js'
 import { isUuid } from '@/lib/metricas'
+import { enviarPushATokens, tokensDelUsuario } from '@/lib/notificaciones/envio-admin'
 import {
+  contenidoAvisoPatrocinado,
+  validarTextosCampania,
   validarCampania,
   type ErrorCampania,
   type VentanaCampania,
@@ -51,6 +55,7 @@ async function requireAdminSupabase(): Promise<AdminAuthResult> {
 }
 
 const MENSAJE_ERROR_GENERICO = 'No se pudo guardar la campaña. Intentá de nuevo'
+const MENSAJE_ERROR_PRUEBA = 'No se pudo enviar la prueba. Intentá de nuevo'
 const MENSAJE_ERROR_CANCELAR = 'No se pudo cancelar la campaña. Intentá de nuevo'
 
 function errorGeneral(mensaje: string): { ok: false; errores: ErrorCampania[] } {
@@ -171,6 +176,74 @@ export async function guardarCampania(entrada: unknown): Promise<GuardarCampania
 
   revalidatePath('/admin/avisos')
   return { ok: true }
+}
+
+// ---------------------------------------------------------------------------
+// enviarmePruebaCampania
+// ---------------------------------------------------------------------------
+
+export type PruebaCampaniaResult =
+  | { ok: true; simulado: boolean; telefonos: number }
+  | { ok: false; errores: ErrorCampania[] }
+
+/**
+ * Manda el aviso patrocinado SOLO a los teléfonos del admin logueado (`user.id`
+ * de la sesión, nunca un id de la entrada), con el mismo contenido que el
+ * envío real (`contenidoAvisoPatrocinado`). No escribe nada: ni
+ * `notification_sends`, ni `sponsored_campaigns.sent_at`; no cuenta para el
+ * tope semanal. Sin fechas: valida solo textos y evento.
+ */
+export async function enviarmePruebaCampania(entrada: unknown): Promise<PruebaCampaniaResult> {
+  if (!formaValida(entrada) || Array.isArray(entrada)) {
+    return errorGeneral('La campaña no tiene un formato válido.')
+  }
+
+  const auth = await requireAdminSupabase()
+  if ('error' in auth) return errorGeneral(auth.error)
+  const { supabase, userId } = auth
+
+  const textos = validarTextosCampania(entrada)
+  const errores: ErrorCampania[] = textos.ok ? [] : [...textos.errores]
+  const eventId = isUuid(entrada.eventId) ? entrada.eventId : null
+  if (!eventId) {
+    errores.push({ campo: 'eventId', mensaje: 'El evento es obligatorio y tiene que ser un id válido.' })
+  }
+  if (!textos.ok || !eventId || errores.length > 0) return { ok: false, errores }
+
+  const { data: evento, error: eventoError } = await supabase
+    .from('events')
+    .select('status')
+    .eq('id', eventId)
+    .maybeSingle()
+  if (eventoError) {
+    console.error('enviarmePruebaCampania: error leyendo el evento', eventoError.code)
+    return errorGeneral(MENSAJE_ERROR_PRUEBA)
+  }
+  if (!evento || evento.status !== 'PUBLISHED') {
+    return { ok: false, errores: [{ campo: 'eventId', mensaje: 'El evento tiene que estar publicado.' }] }
+  }
+
+  const contenido = contenidoAvisoPatrocinado({ titulo: textos.titulo, cuerpo: textos.cuerpo, eventId })
+  if (!contenido) {
+    return { ok: false, errores: [{ campo: 'eventId', mensaje: 'El evento no tiene un link válido.' }] }
+  }
+
+  const tokens = await tokensDelUsuario(supabase as unknown as SupabaseClient, userId)
+  if (tokens === null) return errorGeneral(MENSAJE_ERROR_PRUEBA)
+  if (tokens.length === 0) return errorGeneral('No tenés la app con avisos activos en tu teléfono.')
+
+  const resumen = await enviarPushATokens(
+    tokens.map((to) => ({
+      to,
+      title: contenido.title,
+      body: contenido.body,
+      categoryId: contenido.categoryId,
+      data: contenido.data,
+    })),
+  )
+  if (resumen.simulado) return { ok: true, simulado: true, telefonos: tokens.length }
+  if (resumen.enviados === 0) return errorGeneral('No se pudo entregar la prueba a tu teléfono.')
+  return { ok: true, simulado: false, telefonos: resumen.enviados }
 }
 
 // ---------------------------------------------------------------------------

@@ -437,9 +437,11 @@ describe('components/FilaCategoria.tsx: lectura estática', () => {
     expect(content).toMatch(/ALTO_TARJETA\s*=\s*270/)
   })
 
-  it('tocar una película (isCinemaMovie) abre /pelicula/<id>, sin el prefijo "movie-"', () => {
-    expect(content).toMatch(/isCinemaMovie/)
-    expect(content).toMatch(/\/pelicula\/\$\{evento\.id\.replace\(\/\^movie-\/, ''\)\}/)
+  // R67, 67-a: la capa transparente para películas se fue; la ruta correcta
+  // (/pelicula/<id> sin "movie-") la resuelve TarjetaEvento con rutaDeEvento.
+  it('la celda es solo <TarjetaEvento>, sin capa propia que navegue (la ruta de la película la resuelve rutaDeEvento)', () => {
+    expect(content).toMatch(/<TarjetaEvento evento=\{evento\}/)
+    expect(content).not.toMatch(/router\.push|useRouter/)
   })
 
   it('no usa border como color de texto', () => {
@@ -475,8 +477,11 @@ describe('components/BannerRadar.tsx: lectura estática', () => {
 describe('"Ver todos" de una fila: Buscar con categoria=<slug>, o /cines para el cine', () => {
   const content = readFileSync(INDEX_PATH, 'utf8')
 
-  it('navega a /buscar?categoria=<slug> para una categoría cualquiera', () => {
-    expect(content).toMatch(/router\.push\(`\/buscar\?categoria=\$\{encodeURIComponent\(catSlug\)\}`\)/)
+  // R66, 66-a: además de la categoría, "Ver todos" lleva el atajo elegido.
+  it('navega a /buscar?categoria=<slug>&atajo=<atajo> para una categoría cualquiera', () => {
+    expect(content).toMatch(
+      /router\.push\(\s*`\/buscar\?categoria=\$\{encodeURIComponent\(catSlug\)\}&atajo=\$\{encodeURIComponent\(atajo\)\}&v=\$\{Date\.now\(\)\}`\s*\)/
+    )
   })
 
   it('el cine navega a /cines, no a /buscar', () => {

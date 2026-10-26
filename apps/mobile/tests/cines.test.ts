@@ -90,6 +90,9 @@ const SRC_CINES = readFileSync(RUTA_CINES, 'utf8')
 const RUTA_PELICULA = fileURLToPath(new URL('../app/pelicula/[id].tsx', import.meta.url))
 const SRC_PELICULA = readFileSync(RUTA_PELICULA, 'utf8')
 
+const SRC_BLOQUE = readFileSync(fileURLToPath(new URL('../components/BloqueCine.tsx', import.meta.url)), 'utf8')
+const SRC_TARJETA = readFileSync(fileURLToPath(new URL('../components/TarjetaPelicula.tsx', import.meta.url)), 'utf8')
+
 describe('app/cines.tsx: lectura estática', () => {
   it('exporta filtrarPeliculasPorTitulo', () => {
     expect(SRC_CINES).toMatch(/export function filtrarPeliculasPorTitulo/)
@@ -104,18 +107,21 @@ describe('app/cines.tsx: lectura estática', () => {
     expect(SRC_CINES).toMatch(/placeholder="Buscar película por nombre\.\.\."/)
   })
 
+  // R67, 67-c: la tarjeta y el acordeón viven en `components/`; estas tres
+  // comprobaciones leen ahí.
   it('"Comprar Entradas" es el texto literal de la web (con mayúsculas, no "Comprar entradas")', () => {
-    expect(SRC_CINES).toMatch(/Comprar Entradas/)
-    expect(SRC_CINES).not.toMatch(/Comprar entradas/)
+    expect(SRC_BLOQUE).toMatch(/Comprar Entradas/)
+    expect(SRC_BLOQUE).not.toMatch(/Comprar entradas/)
   })
 
   it('el badge usa singular "Cine" / plural "Cines", como MovieCard', () => {
-    expect(SRC_CINES).toMatch(/cantidad === 1 \? 'Cine' : 'Cines'/)
+    expect(SRC_CINES).toMatch(/<TarjetaPelicula\b/)
+    expect(SRC_TARJETA).toMatch(/cantidad === 1 \? 'Cine' : 'Cines'/)
   })
 
   it('usa cantidadDeSalas y funcionesPorCine de lib/datos/cines (no cuentas propias)', () => {
-    expect(SRC_CINES).toMatch(/import\s*\{[^}]*\bcantidadDeSalas\b[^}]*\}\s*from\s*['"]@\/lib\/datos\/cines['"]/)
-    expect(SRC_CINES).toMatch(/import\s*\{[^}]*\bfuncionesPorCine\b[^}]*\}\s*from\s*['"]@\/lib\/datos\/cines['"]/)
+    expect(SRC_TARJETA).toMatch(/import\s*\{[^}]*\bcantidadDeSalas\b[^}]*\}\s*from\s*['"]@\/lib\/datos\/cines['"]/)
+    expect(SRC_TARJETA).toMatch(/import\s*\{[^}]*\bfuncionesPorCine\b[^}]*\}\s*from\s*['"]@\/lib\/datos\/cines['"]/)
   })
 
   it('usa Texto e Icono (no Text/lucide directo) para el título y el buscador', () => {
@@ -129,16 +135,19 @@ describe('app/cines.tsx: lectura estática', () => {
 })
 
 describe('app/pelicula/[id].tsx: mismo armado que la tarjeta abierta (lectura estática)', () => {
+  // R67, 67-c: el botón es de `components/BloqueCine.tsx`, que esta ficha usa.
   it('"Comprar Entradas" es el texto literal de la web', () => {
-    expect(SRC_PELICULA).toMatch(/Comprar Entradas/)
+    expect(SRC_PELICULA).toMatch(/<BloqueCine\b/)
+    expect(SRC_BLOQUE).toMatch(/Comprar Entradas/)
   })
 
   it('usa el mismo helper urlCompraCineSegura para el booking_url (ver tests/aperturas-url.test.ts)', () => {
-    expect(SRC_PELICULA).toMatch(/urlCompraCineSegura/)
+    expect(SRC_BLOQUE).toMatch(/urlCompraCineSegura/)
   })
 
   it('usa Texto e Icono (Ticket) para "Comprar Entradas"', () => {
     expect(SRC_PELICULA).toMatch(/import\s*\{\s*Texto\s*\}\s*from\s*['"]@\/components\/Texto['"]/)
-    expect(SRC_PELICULA).toMatch(/nombre="Ticket"/)
+    expect(SRC_BLOQUE).toMatch(/import\s*\{\s*Texto\s*\}\s*from\s*['"]@\/components\/Texto['"]/)
+    expect(SRC_BLOQUE).toMatch(/nombre="Ticket"/)
   })
 })

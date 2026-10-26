@@ -67,7 +67,6 @@ import { Icono } from '@/components/Icono'
 import { TarjetaEvento } from '@/components/TarjetaEvento'
 import { Texto } from '@/components/Texto'
 import { useColoresQPS } from '@/lib/colores'
-import { rutaDeFavorito } from '@/lib/favoritos'
 import { esperarBorradoDeCache, useSession } from '@/lib/session'
 import { cargarFavoritosConCache, leerFavoritosGuardados } from '@/lib/sin-conexion/favoritos'
 
@@ -458,25 +457,9 @@ export default function Favoritos() {
             <View style={estilos.filaGrilla}>
               {fila.map((item) => (
                 <View key={item.id} style={estilos.celda}>
-                  {item.isCinemaMovie || item.isInstagramFlyer ? (
-                    // `TarjetaEvento` siempre navega a `/evento/<id>` (es la
-                    // tarjeta de Inicio/Buscar, donde todo es un evento real):
-                    // para una película o un flyer, un `Pressable` transparente
-                    // por encima intercepta el toque y lleva a la ruta correcta
-                    // (`/pelicula/<id>` o `/flyer/<id>`), sin tocar
-                    // components/TarjetaEvento.tsx (R29-b, en paralelo).
-                    <View style={estilos.celdaConToqueDistinto}>
-                      <TarjetaEvento evento={item} />
-                      <Pressable
-                        accessibilityRole="button"
-                        accessibilityLabel={item.title}
-                        onPress={() => router.push(rutaDeFavorito(item))}
-                        style={StyleSheet.absoluteFill}
-                      />
-                    </View>
-                  ) : (
-                    <TarjetaEvento evento={item} />
-                  )}
+                  {/* R67, 67-a: `TarjetaEvento` ya navega a la ficha de
+                      película o de flyer (lib/rutas.ts): sin capa encima. */}
+                  <TarjetaEvento evento={item} />
                 </View>
               ))}
               {fila.length === 1 ? <View style={estilos.celda} /> : null}
@@ -550,5 +533,4 @@ const estilos = StyleSheet.create({
   // Ver el comentario del mismo nombre en app/(tabs)/index.tsx: evita que la
   // última celda de un número impar de eventos se estire a todo el ancho.
   celda: { flex: 1, maxWidth: '50%' },
-  celdaConToqueDistinto: { flex: 1, position: 'relative' },
 })

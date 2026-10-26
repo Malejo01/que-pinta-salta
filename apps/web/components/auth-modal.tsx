@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { PasswordInput } from "@/components/ui/password-input"
 import { Label } from "@/components/ui/label"
-import { mensajeErrorAlta, mensajeErrorIngreso, resultadoAlta, MENSAJE_ALTA_ENVIADA } from "@/lib/auth/mensajes"
+import { mensajeErrorAlta, mensajeErrorIngreso, resultadoAltaConSesion, MENSAJE_ALTA_ENVIADA, MENSAJE_ALTA_CON_SESION } from "@/lib/auth/mensajes"
 import { validarContrasenaNueva } from "@qps/core/auth/cuenta"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
@@ -108,16 +108,24 @@ export function AuthModalProvider({ children }: { children: ReactNode }) {
             emailRedirectTo: `${window.location.origin}/auth/callback`,
           }
         })
-        const resultado = resultadoAlta(respuesta)
+        const resultado = resultadoAltaConSesion(respuesta)
         if (resultado.tipo === "error") {
           setError(resultado.mensaje)
           return
         }
 
-        toast({
-          title: "Revisá tu email",
-          description: MENSAJE_ALTA_ENVIADA,
-        })
+        if (resultado.tipo === "sesion") {
+          // Supabase confirmó el alta solo: no sale ningún correo.
+          toast({
+            title: "¡Bienvenido!",
+            description: MENSAJE_ALTA_CON_SESION,
+          })
+        } else {
+          toast({
+            title: "Revisá tu email",
+            description: MENSAJE_ALTA_ENVIADA,
+          })
+        }
       }
       close()
       router.refresh()

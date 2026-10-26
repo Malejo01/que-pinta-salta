@@ -5,6 +5,11 @@
 // con `Animated` (spring) al cambiar — las demás con borde. El comportamiento
 // de los atajos no cambia: esto solo decide cómo se ven.
 //
+// R66 (66-b): con `etiquetaTodas` se dibuja antes de los 4 una pill más que
+// representa "sin fecha" (`atajo === null`; Buscar la usa con "Cualquier
+// fecha"). El resaltado animado también se mueve a ella. Sin la prop todo
+// queda como estaba: `atajo` es siempre un `Atajo` (la portada no cambia).
+//
 // `Animated.Value` con `useState(() => new Animated.Value(...))` (no
 // `useRef(...).current`, que dispara `react-hooks/refs` al leerse durante el
 // render — mismo criterio que el pulso de `components/PantallaRadar.tsx`).
@@ -42,25 +47,33 @@ interface Medida {
   width: number
 }
 
-export interface PillsAtajosProps {
-  atajo: Atajo
-  onCambiar: (atajo: Atajo) => void
-}
+// Unión discriminada por `etiquetaTodas`: sin ella no hay estado "sin fecha";
+// con ella, `atajo` y `onCambiar` admiten `null`.
+export type PillsAtajosProps =
+  | { atajo: Atajo; onCambiar: (atajo: Atajo) => void; etiquetaTodas?: undefined }
+  | { atajo: Atajo | null; onCambiar: (atajo: Atajo | null) => void; etiquetaTodas: string }
 
-export function PillsAtajos({ atajo, onCambiar }: PillsAtajosProps) {
+const CLAVE_TODAS = 'todas'
+
+export function PillsAtajos(props: PillsAtajosProps) {
+  const { atajo, etiquetaTodas } = props
+  const onCambiar = props.onCambiar as (atajo: Atajo | null) => void
   const colores = useColoresQPS()
-  const [medidas, setMedidas] = useState<Partial<Record<Atajo, Medida>>>({})
+  const [medidas, setMedidas] = useState<Record<string, Medida>>({})
+  const pills: { id: Atajo | null; etiqueta: string }[] = etiquetaTodas
+    ? [{ id: null, etiqueta: etiquetaTodas }, ...ATAJOS]
+    : ATAJOS
   const [animX] = useState(() => new Animated.Value(0))
   const [animWidth] = useState(() => new Animated.Value(0))
 
   useEffect(() => {
-    const medida = medidas[atajo]
+    const medida = medidas[atajo ?? CLAVE_TODAS]
     if (!medida) return
     Animated.spring(animX, { toValue: medida.x, useNativeDriver: false, bounciness: 6 }).start()
     Animated.spring(animWidth, { toValue: medida.width, useNativeDriver: false, bounciness: 6 }).start()
   }, [atajo, medidas, animX, animWidth])
 
-  function registrarMedida(id: Atajo, evento: LayoutChangeEvent) {
+  function registrarMedida(id: string, evento: LayoutChangeEvent) {
     const { x, width } = evento.nativeEvent.layout
     setMedidas((actual) => ({ ...actual, [id]: { x, width } }))
   }
@@ -71,12 +84,12 @@ export function PillsAtajos({ atajo, onCambiar }: PillsAtajosProps) {
         pointerEvents="none"
         style={[estilos.resaltado, { backgroundColor: colores.primary, transform: [{ translateX: animX }], width: animWidth }]}
       />
-      {ATAJOS.map((item) => {
+      {pills.map((item) => {
         const activo = item.id === atajo
         return (
           <Pressable
-            key={item.id}
-            onLayout={(e) => registrarMedida(item.id, e)}
+            key={item.id ?? CLAVE_TODAS}
+            onLayout={(e) => registrarMedida(item.id ?? CLAVE_TODAS, e)}
             onPress={() => onCambiar(item.id)}
             accessibilityRole="button"
             accessibilityState={{ selected: activo }}

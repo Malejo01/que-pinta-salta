@@ -1,6 +1,7 @@
 // Portada (R29, 29-h: ops/paridad-web-app.md §3.2 y §2 puntos 6, 7 y 9;
 // paridad con `apps/web/components/home-content.tsx`). Estructura de la web:
-// Hero → pills de fecha (acá, los atajos de la app, D3) → "Hoy en Salta" →
+// Hero → pills de fecha (acá, los atajos de la app, D3; desde la R67, 67-b van
+// arriba de todo, en la cabecera fija, ver más abajo) → "Hoy en Salta" →
 // filas por categoría (de más eventos a menos, el cine es una fila más) →
 // banner del Radar después de la 2.ª fila. La Bienvenida se muestra antes de
 // esto, una sola vez (lib/bienvenida.ts): mientras no se sepa si ya se vio,
@@ -23,6 +24,34 @@
 // `groupByCategory` las ubica en su propia fila sin lógica extra acá, igual
 // que en la web.
 //
+// R66 (66-a): los chips de categoría (`components/ChipsCategorias.tsx`) van
+// arriba de todo, en la cabecera fija (R67, 67-b). Sus categorías salen de `categoriasDisponibles` (core)
+// sobre los eventos del atajo elegido (más las películas). Con "Todas" la
+// portada queda como siempre; con una categoría, el cuerpo es un título
+// ("Música · Finde") y una grilla de 2 columnas con `filtrarCombinado` (atajo +
+// categoría), todo en memoria sobre lo ya cargado — así también anda con la
+// caché de la R43. En ese modo no van el banner del Radar ni el anuncio (regla
+// del pliegue) ni el Hero (mide ~60 % de la ventana y empujaba la grilla fuera
+// de pantalla, además de mezclar categorías). "Ver todos" suma el atajo y un
+// nonce `v` (`Date.now()` en el `onPress`): `/buscar?categoria=…&atajo=…&v=…`;
+// Buscar lo usa para volver a aplicar los parámetros aunque sean idénticos.
+// 66-c: sin eventos para la combinación hay una caja con "Ver <Nombre> en todas
+// las fechas" (`/buscar?categoria=…&v=…` sin atajo; el cine, "Ver cartelera", va
+// a `/cines`) y "Todas las
+// categorías"; con eventos, una línea "N eventos" (live region) bajo el título.
+// Sin chips que elegir no se dibuja la fila. Sin conexión: nada de esto pide
+// red (todo es memoria sobre lo cargado), y `AvisoSinConexion` va debajo de la cabecera fija.
+// R67, 67-c: con el chip "Cine", las películas se dibujan como la cartelera de
+// `app/cines.tsx` (`components/TarjetaPelicula.tsx`, a ancho completo y con su
+// acordeón por cine), no como tarjetas de evento en 2 columnas; los eventos
+// reales de la categoría cine, si hay, van en la grilla debajo.
+//
+// R67, 67-b: orden nuevo de la portada: cabecera fija (chips de categoría
+// arriba, pills de fecha debajo; `stickyHeaderIndices={[0]}`, fondo opaco) →
+// aviso sin conexión → Hero (solo con "Todas") → resto, igual que antes. Antes
+// los chips quedaban debajo del Hero y no se descubrían. Cambiar de chip o de
+// pill vuelve el scroll arriba (`scrollTo` en el handler, no en un efecto).
+//
 // Lo que no se copia, a propósito (ops/paridad-web-app.md, inventario
 // "Portada" y la tarea 29-h): "Más filtros" (lugar/zona) y el switch
 // "Mostrar flyers de redes" — ninguno de los dos tiene un equivalente de
@@ -35,22 +64,27 @@
 // anuncio arriba del pliegue) y nunca en la ficha de un evento ni en el Hero
 // de esta misma pantalla. El detector que lo exige está en
 // `tests/anuncios-lugares.test.ts`.
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { AccessibilityInfo, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native'
 import { Redirect, useRouter } from 'expo-router'
 import { formatDateInSalta, transformMovie } from '@qps/core/home/transform'
 import { selectCarouselEvents, sortCategories } from '@qps/core/home/carousel'
 import { groupByCategory, selectTodayRow, type CategoryEventsRow } from '@qps/core/home/filters'
 import { eventoEnAtajo, type Atajo } from '@qps/core/home/atajos'
+import { categoriasDisponibles, filtrarCombinado, type ItemFiltrable } from '@qps/core/home/filtros-combinados'
 import type { DisplayEvent } from '@qps/core/home/types'
 import type { Category } from '@qps/core/types'
 import { AvisoSinConexion } from '@/components/AvisoSinConexion'
 import { BannerAnuncio } from '@/components/BannerAnuncio'
 import { BannerRadar } from '@/components/BannerRadar'
+import { ChipsCategorias } from '@/components/ChipsCategorias'
 import { Cargando, ErrorCarga } from '@/components/EstadoCarga'
 import { FilaCategoria } from '@/components/FilaCategoria'
 import { Hero } from '@/components/Hero'
+import { InvitacionAvisos } from '@/components/InvitacionAvisos'
 import { PillsAtajos } from '@/components/PillsAtajos'
+import { TarjetaEvento } from '@/components/TarjetaEvento'
+import { TarjetaPelicula } from '@/components/TarjetaPelicula'
 import { Texto } from '@/components/Texto'
 import { useBienvenidaVista } from '@/lib/bienvenida'
 import { useColoresQPS } from '@/lib/colores'
@@ -125,6 +159,15 @@ export const FILAS_MINIMAS_PARA_ANUNCIO = 2
  * una) más el banner del Radar lo empujan arriba de los 900 dp. O sea que el
  * umbral es dónde empieza a haber contenido real que mirar antes del aviso.
  *
+ * R67, 67-b: las pills dejaron de ir después del Hero: ahora están, con los
+ * chips, en una cabecera fija arriba de todo (≈113 dp con chips: 8 de aire + 60
+ * de chips con su padding + 56 de pills − 12 del `marginTop` negativo + 1 del
+ * borde; ≈65 dp sin chips, en vez de los ~68 dp de las pills solas). Con ese
+ * valor el banner arranca a ~301 dp con 0 filas y a ~627 dp con 1 (113 + 188 +
+ * 326), todavía dentro de los ~649 dp sin scrollear; y la cabecera fija tapa
+ * ~113 dp del área visible útil al scrollear (quedan ~536 dp). O sea que el anuncio queda más abajo, nunca más arriba: la regla y
+ * el umbral siguen valiendo sin cambios.
+ *
  * Ojo con el porqué de las filas, que es contraintuitivo: `groupByCategory`
  * devuelve **una fila por cada categoría configurada en el admin**, con
  * eventos o sin ellos, así que `filas.length` NO baja porque la agenda esté
@@ -150,15 +193,50 @@ export function seccionesPortada(filas: CategoryEventsRow[], hoyEventos: Display
   return secciones
 }
 
+const ETIQUETA_ATAJO: Record<Atajo, string> = {
+  hoy: 'Hoy',
+  'esta-noche': 'Esta noche',
+  finde: 'Finde',
+  semana: 'Semana',
+}
+
+// Frase para el vacío ("No hay eventos de Música para hoy.").
+const FRASE_ATAJO: Record<Atajo, string> = {
+  hoy: 'hoy',
+  'esta-noche': 'esta noche',
+  finde: 'el finde',
+  semana: 'esta semana',
+}
+
+/**
+ * Línea de conteo bajo el título de la categoría (R67, 67-c): "N eventos" como
+ * siempre; con películas del chip "Cine", "N películas" y, si además hay
+ * eventos reales, "N películas · M eventos". Singular/plural bien en ambos.
+ */
+export function conteoCategoria(peliculas: number, eventos: number): string {
+  const textoEventos = `${eventos} ${eventos === 1 ? 'evento' : 'eventos'}`
+  if (peliculas === 0) return textoEventos
+  const textoPeliculas = `${peliculas} ${peliculas === 1 ? 'película' : 'películas'}`
+  return eventos === 0 ? textoPeliculas : `${textoPeliculas} · ${textoEventos}`
+}
+
+function enFilasDeDos<T>(lista: T[]): T[][] {
+  const filas: T[][] = []
+  for (let i = 0; i < lista.length; i += 2) filas.push(lista.slice(i, i + 2))
+  return filas
+}
+
 export default function Inicio() {
   const { cargando: cargandoBienvenida, vista } = useBienvenidaVista()
   const colores = useColoresQPS()
   const router = useRouter()
   const [atajo, setAtajo] = useState<Atajo>('hoy')
+  const [categoria, setCategoria] = useState<string | null>(null)
   const [estado, setEstado] = useState<EstadoPortada>({ tipo: 'cargando' })
   // Estado de refresco aparte del de carga (28-c): mientras se refresca, lo
   // que ya está armado sigue a la vista en vez de pasar a `Cargando`.
   const [refrescando, setRefrescando] = useState(false)
+  const scrollRef = useRef<ScrollView>(null)
 
   // Sin `atajo` entre las dependencias (36-a): cambiar de atajo ya no vuelve
   // a pedir nada, así que esta función queda estable entre renders.
@@ -273,13 +351,78 @@ export default function Inicio() {
     const filas = groupByCategory(categoriasOrdenadas, todosLosEventos, null, null, ahora)
     const hoyEventos = selectTodayRow(todosLosEventos, saltaTodayStr, ahora)
 
-    return { carrusel, filas, hoyEventos }
-  }, [estado, atajo])
+    // R66, 66-a: chips y modo "categoría elegida", sobre lo mismo ya cargado.
+    const chips = categoriasDisponibles(todosLosEventos, estado.categorias, categoria)
+    let eventosCategoria: DisplayEvent[] = []
+    let nombreCategoria = ''
+    // R67, 67-c: con "Cine", las películas (`isCinemaMovie`, id `movie-<uuid>`)
+    // salen como `Pelicula` completas (con sus funciones) en el mismo orden que
+    // `eventosCategoria`; los eventos reales de la categoría quedan aparte.
+    const peliculasCategoria: Pelicula[] = []
+    let eventosSinPelicula: DisplayEvent[] = []
+    if (categoria !== null) {
+      const items: ItemFiltrable[] = [
+        ...estado.eventos,
+        ...peliculasComoEventos.map((evento) => ({ evento, paraAtajo: null })),
+      ]
+      eventosCategoria = filtrarCombinado(items, { atajo, categoria }, ahora)
+      nombreCategoria = estado.categorias.find((c) => c.slug === categoria)?.name ?? categoria
+      if (categoria === 'cine') {
+        const porId = new Map(estado.peliculas.map((pelicula) => [`movie-${pelicula.id}`, pelicula]))
+        for (const evento of eventosCategoria) {
+          const pelicula = evento.isCinemaMovie ? porId.get(evento.id) : undefined
+          if (pelicula) peliculasCategoria.push(pelicula)
+          else eventosSinPelicula.push(evento)
+        }
+      } else {
+        eventosSinPelicula = eventosCategoria
+      }
+    }
 
+    return { carrusel, filas, hoyEventos, chips, eventosCategoria, peliculasCategoria, eventosSinPelicula, nombreCategoria }
+  }, [estado, atajo, categoria])
+
+  // Con una categoría elegida (R66) no hay secciones: ni "Hoy en Salta", ni
+  // filas, ni banners — el cuerpo es la grilla de más abajo.
+  const nombreCategoria = datosPortada?.nombreCategoria ?? ''
   const secciones = useMemo(
-    () => (datosPortada ? seccionesPortada(datosPortada.filas, datosPortada.hoyEventos) : []),
-    [datosPortada]
+    () => (datosPortada && categoria === null ? seccionesPortada(datosPortada.filas, datosPortada.hoyEventos) : []),
+    [datosPortada, categoria]
   )
+
+  // R67, 67-b: al cambiar de pill o de chip la portada vuelve arriba (así, con
+  // la portada scrolleada, se ve el principio de lo nuevo y no un hueco). Va en
+  // el handler, no en un efecto. Abrir el acordeón de una película no pasa por acá.
+  const cambiarAtajo = useCallback((nuevo: Atajo) => {
+    setAtajo(nuevo)
+    scrollRef.current?.scrollTo({ y: 0, animated: false })
+  }, [])
+  const cambiarCategoria = useCallback((nueva: string | null) => {
+    setCategoria(nueva)
+    scrollRef.current?.scrollTo({ y: 0, animated: false })
+  }, [])
+
+  // R69, 69-b (QPS-354): el conteo tiene `accessibilityLiveRegion="polite"`,
+  // pero Android anuncia los cambios de una live region, no su montaje: al
+  // entrar al modo categoría la primera línea no se leía. Se anuncia con
+  // `announceForAccessibility` cuando el conteo pasa de no estar a estar. Para
+  // no leer dos veces el mismo texto, los cambios posteriores (la live region
+  // ya montada) los anuncia la live region en Android y este efecto solo en
+  // iOS, que ignora `accessibilityLiveRegion`. Un anuncio no es `setState`.
+  const textoConteo =
+    datosPortada && categoria !== null && datosPortada.eventosCategoria.length > 0
+      ? conteoCategoria(datosPortada.peliculasCategoria.length, datosPortada.eventosSinPelicula.length)
+      : null
+  const conteoVisible = useRef(false)
+  useEffect(() => {
+    if (textoConteo === null) {
+      conteoVisible.current = false
+      return
+    }
+    const primeraVez = !conteoVisible.current
+    conteoVisible.current = true
+    if (primeraVez || Platform.OS === 'ios') AccessibilityInfo.announceForAccessibility(textoConteo)
+  }, [textoConteo])
 
   if (cargandoBienvenida) return null
   if (!vista) return <Redirect href="/bienvenida" />
@@ -292,16 +435,95 @@ export default function Inicio() {
 
       {estado.tipo === 'ok' && datosPortada ? (
         <ScrollView
+          ref={scrollRef}
+          stickyHeaderIndices={[0]}
           refreshControl={
             <RefreshControl refreshing={refrescando} onRefresh={refrescar} tintColor={colores.primary} colors={[colores.primary]} />
           }
           contentContainerStyle={estilos.scroll}
         >
+          {/* R67, 67-b: cabecera fija (primer hijo, siempre presente: el índice 0
+              de `stickyHeaderIndices`). Fondo opaco para que el contenido no se
+              vea por detrás. Chips arriba, pills de fecha debajo. */}
+          <View style={[estilos.cabecera, { backgroundColor: colores.background, borderBottomColor: colores.border }]}>
+            {datosPortada.chips.length > 0 || categoria !== null ? (
+              <ChipsCategorias categorias={datosPortada.chips} seleccionada={categoria} onCambiar={cambiarCategoria} />
+            ) : null}
+            <View style={datosPortada.chips.length > 0 || categoria !== null ? estilos.pillsBajoChips : null}>
+              <PillsAtajos atajo={atajo} onCambiar={cambiarAtajo} />
+            </View>
+          </View>
+
           {estado.desdeCache ? <AvisoSinConexion guardadoEn={estado.desdeCache.guardadoEn} /> : null}
 
-          {datosPortada.carrusel.length > 0 ? <Hero eventos={datosPortada.carrusel} /> : null}
+          {categoria === null && datosPortada.carrusel.length > 0 ? <Hero eventos={datosPortada.carrusel} /> : null}
 
-          <PillsAtajos atajo={atajo} onCambiar={setAtajo} />
+          {categoria === null ? <InvitacionAvisos /> : null}
+
+          {categoria !== null ? (
+            <View style={estilos.bloqueCategoria}>
+              <Texto peso="bold" accessibilityRole="header" style={estilos.tituloCategoria}>
+                {/* R67, 67-r1: las películas no se filtran por fecha, así que
+                    con "Cine" el título dice "En cartel" y no el atajo. */}
+                {nombreCategoria} · {categoria === 'cine' ? 'En cartel' : ETIQUETA_ATAJO[atajo]}
+              </Texto>
+              {datosPortada.eventosCategoria.length === 0 ? (
+                <View style={[estilos.vacioHoy, estilos.vacioCategoria, { backgroundColor: colores.card, borderColor: colores.border }]}>
+                  <Texto tono="secundario">
+                    No hay eventos de {nombreCategoria} para {FRASE_ATAJO[atajo]}.
+                  </Texto>
+                  <Pressable
+                    onPress={() => {
+                      // Igual que "Ver todos" de su fila: el cine va a Cines.
+                      if (categoria === 'cine') router.push('/cines')
+                      // `v`: nonce para que Buscar vuelva a aplicar los
+                      // parámetros aunque sean iguales a los de la vez anterior.
+                      else router.push(`/buscar?categoria=${encodeURIComponent(categoria)}&v=${Date.now()}`)
+                    }}
+                    accessibilityRole="button"
+                    style={[estilos.vacioHoyBoton, estilos.botonVacio, { backgroundColor: colores.primary }]}
+                  >
+                    <Texto peso="bold" style={{ color: colores.primaryForeground }}>
+                      {categoria === 'cine' ? 'Ver cartelera' : `Ver ${nombreCategoria} en todas las fechas`}
+                    </Texto>
+                  </Pressable>
+                  <Pressable
+                    onPress={() => cambiarCategoria(null)}
+                    accessibilityRole="button"
+                    style={[estilos.vacioHoyBoton, estilos.botonVacio, { borderWidth: 1, borderColor: colores.border }]}
+                  >
+                    <Texto peso="bold">Todas las categorías</Texto>
+                  </Pressable>
+                </View>
+              ) : (
+                <>
+                  <Texto tono="secundario" accessibilityLiveRegion="polite">
+                    {conteoCategoria(datosPortada.peliculasCategoria.length, datosPortada.eventosSinPelicula.length)}
+                  </Texto>
+                  {/* (el primer anuncio lo hace el efecto de `textoConteo`) */}
+                  {/* R67, 67-c: el scroll no salta al abrir el acordeón de la
+                      película 2 o 3 porque las tarjetas cuelgan de este mismo
+                      `ScrollView` con `key` estables (`pelicula.id`), la lista
+                      sale del `useMemo` de `datosPortada` (misma referencia
+                      entre renders, no se recalcula acá) y el cine abierto es
+                      estado de cada `TarjetaPelicula`: abrir uno solo vuelve
+                      a dibujar esa tarjeta, ni se remonta ni se mueve otra. */}
+                  {datosPortada.peliculasCategoria.map((pelicula) => (
+                    <TarjetaPelicula key={pelicula.id} pelicula={pelicula} compacta />
+                  ))}
+                  {enFilasDeDos(datosPortada.eventosSinPelicula).map((fila) => (
+                  <View key={fila[0].id} style={estilos.filaGrilla}>
+                    {fila.map((evento) => (
+                      <View key={evento.id} style={estilos.celda}>
+                        <TarjetaEvento evento={evento} />
+                      </View>
+                    ))}
+                  </View>
+                  ))}
+                </>
+              )}
+            </View>
+          ) : null}
 
           {secciones.map((seccion) => {
             if (seccion.tipo === 'hoy') {
@@ -312,7 +534,7 @@ export default function Inicio() {
                     categoria="hoy"
                     titulo="Hoy en Salta"
                     eventos={seccion.eventos}
-                    alVerTodos={() => setAtajo('hoy')}
+                    alVerTodos={() => cambiarAtajo('hoy')}
                   />
                 )
               }
@@ -328,7 +550,7 @@ export default function Inicio() {
                     </Texto>
                   </View>
                   <Pressable
-                    onPress={() => setAtajo('semana')}
+                    onPress={() => cambiarAtajo('semana')}
                     accessibilityRole="button"
                     style={[estilos.vacioHoyBoton, { backgroundColor: colores.primary }]}
                   >
@@ -356,7 +578,9 @@ export default function Inicio() {
                     if (catSlug === 'cine') {
                       router.push('/cines')
                     } else {
-                      router.push(`/buscar?categoria=${encodeURIComponent(catSlug)}`)
+                      router.push(
+                        `/buscar?categoria=${encodeURIComponent(catSlug)}&atajo=${encodeURIComponent(atajo)}&v=${Date.now()}`
+                      )
                     }
                   }}
                 />
@@ -376,6 +600,12 @@ export default function Inicio() {
 const estilos = StyleSheet.create({
   contenedor: { flex: 1 },
   scroll: { paddingBottom: 24 },
+  // R67, 67-b: cabecera fija. ≈113 dp con chips: 8 de aire + 60 de chips (con su
+  // padding) + 56 de pills − 12 (`pillsBajoChips`, que descuenta el padding
+  // superior de las pills) + 1 del borde inferior (R67, 67-r1, para que se
+  // distinga del contenido que pasa por debajo). Sin chips: ≈65 dp.
+  cabecera: { paddingTop: 8, borderBottomWidth: 1 },
+  pillsBajoChips: { marginTop: -12 },
   vacioHoy: {
     marginHorizontal: 16,
     marginTop: 20,
@@ -386,5 +616,13 @@ const estilos = StyleSheet.create({
   },
   vacioHoyTexto: { gap: 4 },
   vacioHoyTitulo: { fontSize: 20 },
+  bloqueCategoria: { paddingHorizontal: 16, paddingTop: 8, gap: 12 },
+  tituloCategoria: { fontSize: 20 },
+  filaGrilla: { flexDirection: 'row', gap: 12 },
+  // Evita que la última celda de un número impar se estire a todo el ancho.
+  celda: { flex: 1, maxWidth: '50%' },
   vacioHoyBoton: { borderRadius: 10, paddingVertical: 12, alignItems: 'center' },
+  // El bloque de la categoría ya tiene su propio padding horizontal.
+  vacioCategoria: { marginHorizontal: 0, marginTop: 0, gap: 12 },
+  botonVacio: { minHeight: 48, justifyContent: 'center' },
 })

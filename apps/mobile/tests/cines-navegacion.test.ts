@@ -42,14 +42,21 @@ describe('app/cines.tsx: la tarjeta de la lista ya no navega a /pelicula/ (R29, 
     expect(navegaAPelicula(src)).toBe(false)
   })
 
+  // R67, 67-c: la tarjeta y el acordeón pasaron a `components/`.
+  const tarjeta = readFileSync(fileURLToPath(new URL('../components/TarjetaPelicula.tsx', import.meta.url)), 'utf8')
+  const bloque = readFileSync(fileURLToPath(new URL('../components/BloqueCine.tsx', import.meta.url)), 'utf8')
+
   it('cada película de la lista es una tarjeta con el afiche a sangre y el badge "N Cines"', () => {
-    expect(src).toMatch(/<Afiche\b/)
-    expect(src).toMatch(/\{cantidad\}\s*\{cantidad === 1 \? 'Cine' : 'Cines'\}/)
+    expect(src).toMatch(/<TarjetaPelicula\b/)
+    expect(tarjeta).toMatch(/<Afiche\b/)
+    expect(tarjeta).toMatch(/\{cantidad\}\s*\{cantidad === 1 \? 'Cine' : 'Cines'\}/)
   })
 
   it('el acordeón por cine (BloqueCine) toggle con un estado local, no con router', () => {
-    expect(src).toMatch(/function BloqueCine/)
-    expect(src).toMatch(/onToggle/)
+    expect(bloque).toMatch(/export function BloqueCine/)
+    expect(bloque).toMatch(/onToggle/)
+    expect(tarjeta).toMatch(/useState<string \| null>\(/)
+    expect(navegaAPelicula(tarjeta + bloque)).toBe(false)
   })
 })
 
@@ -62,6 +69,7 @@ describe('app/pelicula/[id].tsx: sigue existiendo para Favoritos y la fila de ci
   })
 
   it('tiene el mismo acordeón por cine (BloqueCine) que app/cines.tsx', () => {
-    expect(src).toMatch(/function BloqueCine/)
+    expect(src).toMatch(/import \{ BloqueCine \} from '@\/components\/BloqueCine'/)
+    expect(src).toMatch(/<BloqueCine\b/)
   })
 })

@@ -10,7 +10,6 @@
 // (`apps/web/lib/category-icons.ts`): "cine" y el resto de las categorías
 // reales tienen su ícono propio; "hoy" (la fila "Hoy en Salta", que no es
 // una categoría real) cae en el mismo fallback que la web, `Calendar`.
-import { useRouter } from 'expo-router'
 import { FlatList, Pressable, StyleSheet, View } from 'react-native'
 import type { DisplayEvent } from '@qps/core/home/types'
 import { Icono, iconoPorCategoria } from '@/components/Icono'
@@ -74,31 +73,12 @@ export function FilaCategoria({ categoria, titulo, eventos, alVerTodos }: FilaCa
   )
 }
 
+// R67, 67-a: la capa transparente para películas ya no hace falta;
+// `TarjetaEvento` navega con `rutaDeEvento` (lib/rutas.ts).
 function CeldaEvento({ evento }: { evento: DisplayEvent }) {
-  const router = useRouter()
-
   return (
     <View style={estilos.celda}>
       <TarjetaEvento evento={evento} />
-      {/* `TarjetaEvento` (no se puede tocar en esta tarea) siempre navega a
-          `/evento/<id>` y da por sentado que el favorito/compartir son de un
-          evento de verdad. Para una película (`id` con el prefijo "movie-")
-          eso rompe: `/evento/movie-xxx` no pasa `esUuid` y redirige a Inicio,
-          y favoritear mandaría ese id a la columna `event_id`. Esta capa
-          transparente, encima de toda la tarjeta, intercepta el toque antes
-          de que llegue al `Pressable` de `TarjetaEvento` y lleva a la ficha
-          de película correcta; como consecuencia, el corazón y "Compartir"
-          de la tarjeta quedan sin usarse para películas (no hacen nada, no
-          rompen) hasta que `TarjetaEvento` sepa distinguir un evento de una
-          película — fuera del alcance de esta tarea. */}
-      {evento.isCinemaMovie ? (
-        <Pressable
-          onPress={() => router.push(`/pelicula/${evento.id.replace(/^movie-/, '')}`)}
-          style={StyleSheet.absoluteFill}
-          accessibilityRole="button"
-          accessibilityLabel={`${evento.title}, en cartel`}
-        />
-      ) : null}
     </View>
   )
 }

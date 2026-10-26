@@ -27,13 +27,14 @@ import { obtenerCategorias } from '@/lib/datos/eventos'
 import { estadoPermiteAgregar } from '@/lib/estado-evento'
 import { MENSAJE_SIN_CONFIGURACION } from '@/lib/mensajes'
 import { esErrorDeRed } from '@/lib/red'
+import type { TipoFavorito } from '@/lib/rutas'
 import { supabase } from '@/lib/supabase'
 
 export { MENSAJE_SIN_CONFIGURACION }
 export const MENSAJE_ERROR_RED = 'No pudimos cargar tus favoritos. Revisá tu conexión.'
 export const MENSAJE_ERROR_GUARDAR = 'No pudimos guardar el favorito. Probá de nuevo.'
-// QPS-195 (56-b): `marcarFavorito` de un evento (nunca películas ni flyers,
-// que no tienen `status` de evento) chequea el estado ANTES del `insert`.
+// QPS-195 (56-b): `marcarFavorito` de un evento (no de películas ni flyers,
+// que no tienen `status` de evento; R69) chequea el estado ANTES del `insert`.
 // Mismo mensaje para un borrador que para un id inventado — nunca "es un
 // borrador" (ver `lib/estado-evento.ts`).
 export const MENSAJE_EVENTO_NO_DISPONIBLE = 'Ese evento ya no está disponible.'
@@ -49,12 +50,10 @@ export type ResultadoMarcarFavorito = { ok: true } | { ok: false; error: string 
 /** `voyQuitado` es `true` solo si la fila propia que se borró tenía `kind === 'voy'` (ver `desmarcarFavorito`). */
 export type ResultadoDesmarcarFavorito = { ok: true; voyQuitado: boolean } | { ok: false; error: string }
 
-/** A dónde navega cada item de favoritos al tocarlo: evento, película (R28) o flyer de Instagram. */
-export function rutaDeFavorito(item: DisplayEvent): string {
-  if (item.isCinemaMovie) return `/pelicula/${item.id.replace(/^movie-/, '')}`
-  if (item.isInstagramFlyer && item.flyerId) return `/flyer/${item.flyerId}`
-  return `/evento/${item.id}`
-}
+// R67, 67-a: `rutaDeFavorito` pasó a `rutaDeEvento` de `lib/rutas.ts`.
+// R69, 69-a (QPS-353): `obtenerEsFavorito`, `marcarFavorito` y
+// `desmarcarFavorito` aceptan el tipo (`TipoFavorito` de `lib/rutas.ts`) para
+// poder guardar y sacar también películas y flyers.
 
 /**
  * Los favoritos de `userId`, separados en dos listas (R47, QPS-197):
@@ -182,16 +181,26 @@ export async function obtenerFavoritos(userId: string): Promise<ResultadoFavorit
   }
 }
 
-/** Si `eventId` está entre los favoritos de `userId` (para el botón de la ficha). */
-export async function obtenerEsFavorito(eventId: string, userId: string): Promise<ResultadoFavorito> {
+// R69, 69-a (QPS-353): la columna de `user_favorites` según el tipo. Las tres
+// funciones de abajo reciben el tipo (por defecto `'event'`, como siempre) y
+// el uuid pelado: nunca un id con prefijo.
+const COLUMNA_POR_TIPO = {
+  event: 'event_id',
+  cinema: 'cinema_movie_id',
+  flyer: 'instagram_flyer_id',
+} as const satisfies Record<TipoFavorito, 'event_id' | 'cinema_movie_id' | 'instagram_flyer_id'>
+
+/** Si `id` (del `tipo` dado) está entre los favoritos de `userId` (para el botón de la ficha). */
+export async function obtenerEsFavorito(id: string, userId: string, tipo: TipoFavorito = 'event'): Promise<ResultadoFavorito> {
   if (!supabase) return { ok: false, error: MENSAJE_SIN_CONFIGURACION }
 
   try {
+    const columna = COLUMNA_POR_TIPO[tipo]
     const { data, error } = await supabase
       .from('user_favorites')
-      .select('event_id')
+      .select(columna)
       .eq('user_id', userId)
-      .eq('event_id', eventId)
+      .eq(columna, id)
       .maybeSingle()
 
     if (error) return { ok: false, error: MENSAJE_ERROR_RED }
@@ -203,26 +212,38 @@ export async function obtenerEsFavorito(eventId: string, userId: string): Promis
 }
 
 /**
- * Marca `eventId` como favorito de `userId`: `insert({ user_id, event_id })`.
- * Un `23505` (la unique de `user_favorites` por `user_id` + `event_id`: ya
- * estaba marcado) cuenta como éxito.
+ * Marca `id` (del `tipo` dado) como favorito de `userId`: un `insert` con
+ * `user_id` y la columna del tipo. Un `23505` (la unique de `user_favorites`
+ * por `user_id` + esa columna: ya estaba marcado) cuenta como éxito.
  *
- * QPS-195 (56-b): esta función siempre marca un EVENTO (nunca una película ni
- * un flyer — esos no pasan por acá), así que antes del `insert` se consulta
- * `estadoPermiteAgregar(eventId)` (lib/estado-evento.ts). `'no'` (el evento
+ * QPS-195 (56-b): para un EVENTO (`tipo` `'event'`, el valor por defecto)
+ * antes del `insert` se consulta
+ * `estadoPermiteAgregar(id)` (lib/estado-evento.ts). `'no'` (el evento
  * ya no está disponible — borrador o id inexistente, nunca se distingue uno
  * de otro) → error con `MENSAJE_EVENTO_NO_DISPONIBLE`, sin `insert`. `'error'`
  * → `MENSAJE_ERROR_GUARDAR`, sin `insert`.
+ *
+ * R69, 69-a: con `tipo` `'cinema'` o `'flyer'` el `insert` lleva
+ * `cinema_movie_id` / `instagram_flyer_id` y NO se chequea
+ * `estadoPermiteAgregar` (no tienen `status` de evento).
  */
-export async function marcarFavorito(eventId: string, userId: string): Promise<ResultadoMarcarFavorito> {
+export async function marcarFavorito(id: string, userId: string, tipo: TipoFavorito = 'event'): Promise<ResultadoMarcarFavorito> {
   if (!supabase) return { ok: false, error: MENSAJE_SIN_CONFIGURACION }
 
-  const estadoEvento = await estadoPermiteAgregar(eventId)
-  if (estadoEvento === 'no') return { ok: false, error: MENSAJE_EVENTO_NO_DISPONIBLE }
-  if (estadoEvento === 'error') return { ok: false, error: MENSAJE_ERROR_GUARDAR }
+  if (tipo === 'event') {
+    const estadoEvento = await estadoPermiteAgregar(id)
+    if (estadoEvento === 'no') return { ok: false, error: MENSAJE_EVENTO_NO_DISPONIBLE }
+    if (estadoEvento === 'error') return { ok: false, error: MENSAJE_ERROR_GUARDAR }
+  }
 
   try {
-    const { error } = await supabase.from('user_favorites').insert({ user_id: userId, event_id: eventId })
+    const fila: { user_id: string; event_id?: string; cinema_movie_id?: string; instagram_flyer_id?: string } =
+      tipo === 'cinema'
+        ? { user_id: userId, cinema_movie_id: id }
+        : tipo === 'flyer'
+          ? { user_id: userId, instagram_flyer_id: id }
+          : { user_id: userId, event_id: id }
+    const { error } = await supabase.from('user_favorites').insert(fila)
     if (error && error.code !== '23505') return { ok: false, error: MENSAJE_ERROR_GUARDAR }
     return { ok: true }
   } catch {
@@ -231,7 +252,9 @@ export async function marcarFavorito(eventId: string, userId: string): Promise<R
 }
 
 /**
- * Desmarca `eventId` de los favoritos de `userId` (sacar el ♥). Voy está
+ * Desmarca `id` (del `tipo` dado) de los favoritos de `userId` (sacar el ♥).
+ * R69, 69-a: para película o flyer es solo el `delete` de `user_favorites`,
+ * con `voyQuitado: false`; lo que sigue vale para un evento. Voy está
  * *contenido* en Guardados (ver `@qps/core/asistencia`), y como no hay una
  * transacción que una las dos tablas, el ORDEN de los dos deletes es la
  * regla que mantiene el invariante "nunca un Voy sin Guardado":
@@ -249,9 +272,23 @@ export async function marcarFavorito(eventId: string, userId: string): Promise<R
  * igual, pero no cuenta como `voyQuitado`: el aviso de "ya no figurás como
  * que vas" no tendría sentido para una marca que nunca fue Voy.
  */
-export async function desmarcarFavorito(eventId: string, userId: string): Promise<ResultadoDesmarcarFavorito> {
+export async function desmarcarFavorito(id: string, userId: string, tipo: TipoFavorito = 'event'): Promise<ResultadoDesmarcarFavorito> {
   if (!supabase) return { ok: false, error: MENSAJE_SIN_CONFIGURACION }
 
+  // R69, 69-a (QPS-353): película y flyer NO tocan `event_attendance` (Voy es
+  // de eventos): solo el `delete` de `user_favorites` por la columna que
+  // corresponde, y `voyQuitado` es siempre `false`.
+  if (tipo !== 'event') {
+    try {
+      const { error } = await supabase.from('user_favorites').delete().eq('user_id', userId).eq(COLUMNA_POR_TIPO[tipo], id)
+      if (error) return { ok: false, error: MENSAJE_ERROR_GUARDAR }
+      return { ok: true, voyQuitado: false }
+    } catch {
+      return { ok: false, error: MENSAJE_ERROR_GUARDAR }
+    }
+  }
+
+  const eventId = id
   try {
     const { data: filasBorradas, error: errorAsistencia } = await supabase
       .from('event_attendance')

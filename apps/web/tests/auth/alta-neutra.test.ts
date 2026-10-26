@@ -1,8 +1,9 @@
 /**
- * 48-b: el alta (`/auth/sign-up` y la parte de alta de `auth-modal.tsx`)
- * usa `resultadoAlta` para decidir el camino, y nunca distingue "ya existe"
- * de "cuenta nueva" (alta neutra, QPS-124). `/auth/sign-up-success` queda en
- * voseo y con tildes.
+ * 48-b (actualizado en R71): el alta (`/auth/sign-up` y la parte de alta de
+ * `auth-modal.tsx`) usa `resultadoAltaConSesion` (que envuelve a
+ * `resultadoAlta`) para decidir el camino, y nunca distingue "ya existe" de
+ * "cuenta nueva" (alta neutra, QPS-124). `/auth/sign-up-success` queda en
+ * voseo y con tildes. El camino con sesión se cubre en `alta-con-sesion.test.ts`.
  *
  * El vitest de la web es `environment: 'node'`, sin Testing Library: no se
  * monta ningún componente de React. Dos cosas se prueban por separado, cada
@@ -13,8 +14,8 @@
  *      dos dobles concretos que menciona la tarea, para que quede
  *      documentado en el mismo lugar que el resto de 48-b.
  *   2. Lectura estática del código fuente (`fs`) de `sign-up/page.tsx` y de
- *      `auth-modal.tsx`: que el resultado de `resultadoAlta` sea lo que
- *      decide el camino (no `if (error) throw error` suelto), y que el
+ *      `auth-modal.tsx`: que el resultado de `resultadoAltaConSesion` sea lo
+ *      que decide el camino (no `if (error) throw error` suelto), y que el
  *      texto de `sign-up-success/page.tsx` esté en voseo y con tildes.
  */
 import { readFileSync } from 'node:fs'
@@ -51,20 +52,20 @@ describe('resultadoAlta: con los dos dobles de signUp que no distinguen "ya exis
   })
 })
 
-describe('app/auth/sign-up/page.tsx: usa resultadoAlta para decidir el camino', () => {
+describe('app/auth/sign-up/page.tsx: usa resultadoAltaConSesion para decidir el camino', () => {
   const src = read('app/auth/sign-up/page.tsx')
 
-  it('importa resultadoAlta de @/lib/auth/mensajes', () => {
-    expect(src).toMatch(/import\s*\{[^}]*resultadoAlta[^}]*\}\s*from\s*['"]@\/lib\/auth\/mensajes['"]/)
+  it('importa resultadoAltaConSesion de @/lib/auth/mensajes', () => {
+    expect(src).toMatch(/import\s*\{[^}]*resultadoAltaConSesion[^}]*\}\s*from\s*['"]@\/lib\/auth\/mensajes['"]/)
   })
 
-  it('llama a resultadoAlta con la respuesta de signUp y decide con resultado.tipo', () => {
-    expect(src).toMatch(/resultadoAlta\(respuesta\)/)
+  it('llama a resultadoAltaConSesion con la respuesta de signUp y decide con resultado.tipo', () => {
+    expect(src).toMatch(/resultadoAltaConSesion\(respuesta\)/)
     expect(src).toMatch(/resultado\.tipo\s*===\s*['"]enviado['"]/)
   })
 
   it('con "enviado", redirige a /auth/sign-up-success', () => {
-    const bloque = src.slice(src.indexOf('resultadoAlta('))
+    const bloque = src.slice(src.indexOf('resultadoAltaConSesion('))
     expect(bloque).toMatch(/router\.push\(['"]\/auth\/sign-up-success['"]\)/)
   })
 
@@ -74,11 +75,11 @@ describe('app/auth/sign-up/page.tsx: usa resultadoAlta para decidir el camino', 
   })
 })
 
-describe('components/auth-modal.tsx: el alta también usa resultadoAlta', () => {
+describe('components/auth-modal.tsx: el alta también usa resultadoAltaConSesion', () => {
   const src = read('components/auth-modal.tsx')
 
-  it('importa resultadoAlta y MENSAJE_ALTA_ENVIADA de @/lib/auth/mensajes', () => {
-    expect(src).toMatch(/import\s*\{[^}]*resultadoAlta[^}]*\}\s*from\s*['"]@\/lib\/auth\/mensajes['"]/)
+  it('importa resultadoAltaConSesion y MENSAJE_ALTA_ENVIADA de @/lib/auth/mensajes', () => {
+    expect(src).toMatch(/import\s*\{[^}]*resultadoAltaConSesion[^}]*\}\s*from\s*['"]@\/lib\/auth\/mensajes['"]/)
     expect(src).toMatch(/MENSAJE_ALTA_ENVIADA/)
   })
 

@@ -245,8 +245,8 @@ import {
   marcarFavorito,
   obtenerEsFavorito,
   obtenerFavoritos,
-  rutaDeFavorito,
 } from '../lib/favoritos'
+import { rutaDeEvento } from '../lib/rutas'
 
 function filaDeEventoVigente(id: string) {
   return {
@@ -721,24 +721,24 @@ describe('obtenerFavoritos: Voy (R47)', () => {
 })
 
 // ---------------------------------------------------------------------------
-// rutaDeFavorito: a dónde navega cada item al tocarlo (F13).
+// rutaDeEvento (antes rutaDeFavorito, R67 67-a): a dónde navega cada item (F13).
 // ---------------------------------------------------------------------------
-type ItemFavorito = Parameters<typeof rutaDeFavorito>[0]
+type ItemFavorito = Parameters<typeof rutaDeEvento>[0]
 
-describe('rutaDeFavorito', () => {
+describe('rutaDeEvento', () => {
   it('un evento abre /evento/<id>', () => {
     const evento = { id: 'evento-1', isCinemaMovie: false, isInstagramFlyer: false } as unknown as ItemFavorito
-    expect(rutaDeFavorito(evento)).toBe('/evento/evento-1')
+    expect(rutaDeEvento(evento)).toBe('/evento/evento-1')
   })
 
   it('una película abre /pelicula/<id-sin-el-prefijo-"movie-">', () => {
     const pelicula = { id: 'movie-pelicula-1', isCinemaMovie: true } as unknown as ItemFavorito
-    expect(rutaDeFavorito(pelicula)).toBe('/pelicula/pelicula-1')
+    expect(rutaDeEvento(pelicula)).toBe('/pelicula/pelicula-1')
   })
 
   it('un flyer abre /flyer/<flyerId> (no el id con el prefijo "ig-")', () => {
     const flyer = { id: 'ig-flyer-1', isInstagramFlyer: true, flyerId: 'flyer-1' } as unknown as ItemFavorito
-    expect(rutaDeFavorito(flyer)).toBe('/flyer/flyer-1')
+    expect(rutaDeEvento(flyer)).toBe('/flyer/flyer-1')
   })
 })
 

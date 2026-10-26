@@ -10,11 +10,16 @@
 // expo-router (mismo patrón que `app/pelicula/[id].tsx`). No se agrega
 // ningún ícono: la pantalla no tenía ninguno antes de esta tarea (lo que se
 // ve y lo que hace no cambia, salvo tipografía y tokens de color).
+//
+// R69, 69-a (QPS-353): el corazón (`BotonFavorito` de tipo `flyer`) junto al
+// nombre de la cuenta, 40 y fondo `muted`, para poder sacar el flyer de
+// Favoritos.
 import { useCallback, useEffect, useState } from 'react'
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native'
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router'
 import { formatEventDateShort } from '@qps/core/date-format'
 import { Afiche } from '@/components/Afiche'
+import { BotonFavorito } from '@/components/BotonFavorito'
 import { Cargando, ErrorCarga, Vacio } from '@/components/EstadoCarga'
 import { Texto } from '@/components/Texto'
 import { useColoresQPS, type ColoresQPS } from '@/lib/colores'
@@ -88,9 +93,16 @@ function Ficha({ flyer, colores }: { flyer: FlyerFicha; colores: ColoresQPS }) {
         <Afiche url={flyer.storage_image_url || flyer.original_image_url} llenar />
       </View>
 
-      <Texto peso="bold" style={estilos.titulo}>
-        {flyer.account.display_name}
-      </Texto>
+      <View style={estilos.filaTitulo}>
+        <Texto peso="bold" accessibilityRole="header" style={[estilos.titulo, estilos.tituloFlex]}>
+          {flyer.account.display_name}
+        </Texto>
+        {/* R69, 69-a (QPS-353): el corazón del flyer, con el uuid pelado
+            (`flyer.id`, nunca `ig-…`). */}
+        <View style={estilos.corazonTitulo}>
+          <BotonFavorito objetivo={{ tipo: 'flyer', id: flyer.id }} nombre={`el flyer de ${flyer.account.display_name}`} tamanio={40} fondo="muted" />
+        </View>
+      </View>
 
       {flyer.published_at ? <Texto tono="secundario">{formatEventDateShort(flyer.published_at)}</Texto> : null}
 
@@ -118,6 +130,11 @@ const estilos = StyleSheet.create({
   centrado: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24, gap: 12 },
   contenido: { padding: 16, gap: 12 },
   contenedorAfiche: { width: '100%', aspectRatio: 3 / 4, borderRadius: 12, overflow: 'hidden' },
-  titulo: { fontSize: 22 },
+  // R69, 69-r1: igual que la ficha de película: el corazón (40) se alinea con la
+  // primera línea del título (`lineHeight` 28): sube (28 - 40) / 2 = -6.
+  filaTitulo: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
+  tituloFlex: { flex: 1 },
+  titulo: { fontSize: 22, lineHeight: 28 },
+  corazonTitulo: { marginTop: -6 },
   boton: { borderWidth: 1, borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8, alignSelf: 'flex-start', marginTop: 4 },
 })
