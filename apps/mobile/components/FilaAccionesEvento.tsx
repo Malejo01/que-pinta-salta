@@ -176,7 +176,7 @@ export function FilaAccionesEvento({ eventId, titulo, fecha, hora, lugar, status
     setEnVuelo('guardar')
 
     if (!guardado) {
-      const resultado = await marcarFavorito(eventId, userId)
+      const resultado = await marcarFavorito(eventId, userId, 'event')
       if (resultado.ok) {
         invitarTrasAccion()
         setEstado({ tipo: 'ok', guardado: true, voy, cantidadVoy })
@@ -184,7 +184,7 @@ export function FilaAccionesEvento({ eventId, titulo, fecha, hora, lugar, status
         setEstado({ tipo: 'error', error: resultado.error })
       }
     } else {
-      const resultado = await desmarcarFavorito(eventId, userId)
+      const resultado = await desmarcarFavorito(eventId, userId, 'event')
       if (resultado.ok) {
         const { voyQuitado } = resultado
         setEstado({

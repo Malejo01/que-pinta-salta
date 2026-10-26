@@ -204,31 +204,34 @@ describe.each<TipoFavorito>(['cinema', 'flyer'])('%s: película y flyer', (tipo)
   })
 })
 
-describe('event: todo como antes (tipo por defecto)', () => {
-  it('marcarFavorito sin tipo: estado antes del insert, y el insert lleva event_id', async () => {
-    const r = await marcarFavorito(UUID_EVENTO, USER_ID)
+// R72, 72-a (QPS-361): el tipo ya es obligatorio; 'event' se pasa explícito.
+describe('event explícito: todo como antes', () => {
+  it("marcarFavorito 'event': estado antes del insert, y el insert lleva event_id", async () => {
+    const r = await marcarFavorito(UUID_EVENTO, USER_ID, 'event')
     expect(r).toEqual({ ok: true })
     expect(estado.log.map((op) => `${op.tabla}:${op.accion}`)).toEqual(['(estado-evento):estadoPermiteAgregar', 'user_favorites:insert'])
     expect(estado.log[1].valores).toEqual({ user_id: USER_ID, event_id: UUID_EVENTO })
   })
 
-  it("marcarFavorito 'event' explícito == por defecto", async () => {
+  it("marcarFavorito 'event': no toca las columnas de película ni de flyer", async () => {
     await marcarFavorito(UUID_EVENTO, USER_ID, 'event')
-    expect(estado.log[1].valores).toEqual({ user_id: USER_ID, event_id: UUID_EVENTO })
+    const texto = JSON.stringify(estado.log[1].valores)
+    expect(texto).not.toContain('cinema_movie_id')
+    expect(texto).not.toContain('instagram_flyer_id')
   })
 
   it("estado 'no': error sin insert; estado 'error': MENSAJE_ERROR_GUARDAR sin insert", async () => {
     estado.estadoEvento = 'no'
-    const no = await marcarFavorito(UUID_EVENTO, USER_ID)
+    const no = await marcarFavorito(UUID_EVENTO, USER_ID, 'event')
     expect(no.ok).toBe(false)
     estado.estadoEvento = 'error'
-    expect(await marcarFavorito(UUID_EVENTO, USER_ID)).toEqual({ ok: false, error: MENSAJE_ERROR_GUARDAR })
+    expect(await marcarFavorito(UUID_EVENTO, USER_ID, 'event')).toEqual({ ok: false, error: MENSAJE_ERROR_GUARDAR })
     expect(estado.log.some((op) => op.accion === 'insert')).toBe(false)
   })
 
   it('desmarcarFavorito: event_attendance antes que user_favorites, y voyQuitado según kind', async () => {
     estado.asistenciaFilas = [{ kind: 'voy' }]
-    const r = await desmarcarFavorito(UUID_EVENTO, USER_ID)
+    const r = await desmarcarFavorito(UUID_EVENTO, USER_ID, 'event')
     expect(r).toEqual({ ok: true, voyQuitado: true })
     expect(estado.log.map((op) => `${op.tabla}:${op.accion}`)).toEqual(['event_attendance:delete', 'user_favorites:delete'])
     expect(estado.log[0].eqs).toEqual([['event_id', UUID_EVENTO]])
@@ -240,17 +243,17 @@ describe('event: todo como antes (tipo por defecto)', () => {
 
   it('desmarcarFavorito: me_interesa no cuenta como voyQuitado', async () => {
     estado.asistenciaFilas = [{ kind: 'me_interesa' }]
-    expect(await desmarcarFavorito(UUID_EVENTO, USER_ID)).toEqual({ ok: true, voyQuitado: false })
+    expect(await desmarcarFavorito(UUID_EVENTO, USER_ID, 'event')).toEqual({ ok: true, voyQuitado: false })
   })
 
   it('desmarcarFavorito: si falla event_attendance no se intenta el delete del favorito', async () => {
     estado.asistenciaError = { message: 'boom' }
-    expect(await desmarcarFavorito(UUID_EVENTO, USER_ID)).toEqual({ ok: false, error: MENSAJE_ERROR_GUARDAR })
+    expect(await desmarcarFavorito(UUID_EVENTO, USER_ID, 'event')).toEqual({ ok: false, error: MENSAJE_ERROR_GUARDAR })
     expect(estado.log.some((op) => op.tabla === 'user_favorites')).toBe(false)
   })
 
-  it('obtenerEsFavorito sin tipo filtra por event_id', async () => {
-    await obtenerEsFavorito(UUID_EVENTO, USER_ID)
+  it("obtenerEsFavorito 'event' filtra por event_id", async () => {
+    await obtenerEsFavorito(UUID_EVENTO, USER_ID, 'event')
     expect(estado.log[0]).toMatchObject({ columnas: 'event_id', eqs: [['user_id', USER_ID], ['event_id', UUID_EVENTO]] })
   })
 })

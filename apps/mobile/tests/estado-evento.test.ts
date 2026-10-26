@@ -201,7 +201,7 @@ describe('marcarFavorito: evento que ya no admite agregar (56-b)', () => {
   it('de un borrador (sin fila): error sin insert', async () => {
     estado.eventoFila = { data: null, error: null }
 
-    const resultado = await marcarFavorito(EVENT_ID, USER_ID)
+    const resultado = await marcarFavorito(EVENT_ID, USER_ID, 'event')
 
     expect(resultado).toEqual({ ok: false, error: MENSAJE_EVENTO_NO_DISPONIBLE_FAVORITOS })
     expect(estado.llamadas.favoritoInsert).toBe(0)
@@ -210,7 +210,7 @@ describe('marcarFavorito: evento que ya no admite agregar (56-b)', () => {
   it('camino feliz con el evento PUBLISHED: sigue haciendo el insert', async () => {
     estado.eventoFila = { data: { status: 'PUBLISHED' }, error: null }
 
-    const resultado = await marcarFavorito(EVENT_ID, USER_ID)
+    const resultado = await marcarFavorito(EVENT_ID, USER_ID, 'event')
 
     expect(resultado).toEqual({ ok: true })
     expect(estado.llamadas.favoritoInsert).toBe(1)
@@ -221,7 +221,7 @@ describe('desmarcarFavorito: nunca consulta el estado del evento (sacar una marc
   it('con cualquier estado del doble de events (ni siquiera se llega a consultar): ok', async () => {
     estado.eventoFila = { data: null, error: null }
 
-    const resultado = await desmarcarFavorito(EVENT_ID, USER_ID)
+    const resultado = await desmarcarFavorito(EVENT_ID, USER_ID, 'event')
 
     expect(resultado).toEqual({ ok: true, voyQuitado: false })
     expect(estado.llamadas.eventoSelect).toBe(0)

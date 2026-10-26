@@ -330,7 +330,7 @@ describe('user_id: siempre el de la sesión, aunque la función reciba otros ids
   })
 
   it('obtenerEsFavorito: filtra por user_id de la sesión y por el event_id recibido, en ese orden', async () => {
-    await obtenerEsFavorito(EVENT_ID, USER_ID_SESION)
+    await obtenerEsFavorito(EVENT_ID, USER_ID_SESION, 'event')
     expect(estado.ultimoEsFavoritoEqs).toEqual([
       ['user_id', USER_ID_SESION],
       ['event_id', EVENT_ID],
@@ -338,17 +338,17 @@ describe('user_id: siempre el de la sesión, aunque la función reciba otros ids
   })
 
   it('marcarFavorito: el insert lleva exactamente user_id de la sesión y event_id del evento, nada más', async () => {
-    await marcarFavorito(EVENT_ID, USER_ID_SESION)
+    await marcarFavorito(EVENT_ID, USER_ID_SESION, 'event')
     expect(estado.ultimoInsert).toEqual({ user_id: USER_ID_SESION, event_id: EVENT_ID })
   })
 
   it('marcarFavorito: con otro eventId, el user_id del insert sigue siendo el de la sesión', async () => {
-    await marcarFavorito(OTRO_EVENT_ID, USER_ID_SESION)
+    await marcarFavorito(OTRO_EVENT_ID, USER_ID_SESION, 'event')
     expect(estado.ultimoInsert).toEqual({ user_id: USER_ID_SESION, event_id: OTRO_EVENT_ID })
   })
 
   it('desmarcarFavorito: el delete filtra por user_id de la sesión y por event_id, en ese orden', async () => {
-    await desmarcarFavorito(EVENT_ID, USER_ID_SESION)
+    await desmarcarFavorito(EVENT_ID, USER_ID_SESION, 'event')
     expect(estado.ultimoDeleteEqs).toEqual([
       ['user_id', USER_ID_SESION],
       ['event_id', EVENT_ID],
@@ -427,19 +427,19 @@ describe('obtenerFavoritos: errores (nunca el mensaje crudo)', () => {
 describe('obtenerEsFavorito', () => {
   it('hay fila: marcado = true', async () => {
     estado.esFavoritoFila = { data: { event_id: EVENT_ID }, error: null }
-    const resultado = await obtenerEsFavorito(EVENT_ID, USER_ID_SESION)
+    const resultado = await obtenerEsFavorito(EVENT_ID, USER_ID_SESION, 'event')
     expect(resultado).toEqual({ ok: true, marcado: true })
   })
 
   it('no hay fila: marcado = false', async () => {
     estado.esFavoritoFila = { data: null, error: null }
-    const resultado = await obtenerEsFavorito(EVENT_ID, USER_ID_SESION)
+    const resultado = await obtenerEsFavorito(EVENT_ID, USER_ID_SESION, 'event')
     expect(resultado).toEqual({ ok: true, marcado: false })
   })
 
   it('error en la consulta: MENSAJE_ERROR_RED', async () => {
     estado.esFavoritoFila = { data: null, error: { message: 'boom' } }
-    const resultado = await obtenerEsFavorito(EVENT_ID, USER_ID_SESION)
+    const resultado = await obtenerEsFavorito(EVENT_ID, USER_ID_SESION, 'event')
     expect(resultado).toEqual({ ok: false, error: MENSAJE_ERROR_RED })
   })
 })
@@ -451,7 +451,7 @@ describe('marcarFavorito: 23505 (unique violation) cuenta como éxito', () => {
   it('insert con error 23505: ok = true de todos modos', async () => {
     estado.insertResultado = { error: { code: '23505', message: 'duplicate key value violates unique constraint' } }
 
-    const resultado = await marcarFavorito(EVENT_ID, USER_ID_SESION)
+    const resultado = await marcarFavorito(EVENT_ID, USER_ID_SESION, 'event')
 
     expect(resultado).toEqual({ ok: true })
   })
@@ -459,7 +459,7 @@ describe('marcarFavorito: 23505 (unique violation) cuenta como éxito', () => {
   it('insert con cualquier otro código de error: MENSAJE_ERROR_GUARDAR', async () => {
     estado.insertResultado = { error: { code: '42501', message: 'permission denied' } }
 
-    const resultado = await marcarFavorito(EVENT_ID, USER_ID_SESION)
+    const resultado = await marcarFavorito(EVENT_ID, USER_ID_SESION, 'event')
 
     expect(resultado).toEqual({ ok: false, error: MENSAJE_ERROR_GUARDAR })
   })
@@ -467,7 +467,7 @@ describe('marcarFavorito: 23505 (unique violation) cuenta como éxito', () => {
   it('el insert tira una excepción: MENSAJE_ERROR_GUARDAR, no explota', async () => {
     estado.arrojarInsert = new Error('network request failed')
 
-    const resultado = await marcarFavorito(EVENT_ID, USER_ID_SESION)
+    const resultado = await marcarFavorito(EVENT_ID, USER_ID_SESION, 'event')
 
     expect(resultado).toEqual({ ok: false, error: MENSAJE_ERROR_GUARDAR })
   })
@@ -476,13 +476,13 @@ describe('marcarFavorito: 23505 (unique violation) cuenta como éxito', () => {
 describe('desmarcarFavorito: errores', () => {
   it('delete con error: MENSAJE_ERROR_GUARDAR', async () => {
     estado.deleteResultado = { error: { message: 'boom' } }
-    const resultado = await desmarcarFavorito(EVENT_ID, USER_ID_SESION)
+    const resultado = await desmarcarFavorito(EVENT_ID, USER_ID_SESION, 'event')
     expect(resultado).toEqual({ ok: false, error: MENSAJE_ERROR_GUARDAR })
   })
 
   it('el delete tira una excepción: MENSAJE_ERROR_GUARDAR, no explota', async () => {
     estado.arrojarDelete = new Error('network request failed')
-    const resultado = await desmarcarFavorito(EVENT_ID, USER_ID_SESION)
+    const resultado = await desmarcarFavorito(EVENT_ID, USER_ID_SESION, 'event')
     expect(resultado).toEqual({ ok: false, error: MENSAJE_ERROR_GUARDAR })
   })
 })
@@ -508,7 +508,7 @@ describe('sin configuración de Supabase: no se escribe nada', () => {
     vi.doMock('@/lib/supabase', () => ({ supabase: null }))
     const { marcarFavorito: marcarSinConfig } = await import('../lib/favoritos')
 
-    const resultado = await marcarSinConfig(EVENT_ID, USER_ID_SESION)
+    const resultado = await marcarSinConfig(EVENT_ID, USER_ID_SESION, 'event')
 
     expect(resultado).toEqual({ ok: false, error: MENSAJE_SIN_CONFIGURACION })
     expect(estado.llamadas.insert).toBe(0)
@@ -519,7 +519,7 @@ describe('sin configuración de Supabase: no se escribe nada', () => {
     vi.doMock('@/lib/supabase', () => ({ supabase: null }))
     const { desmarcarFavorito: desmarcarSinConfig } = await import('../lib/favoritos')
 
-    const resultado = await desmarcarSinConfig(EVENT_ID, USER_ID_SESION)
+    const resultado = await desmarcarSinConfig(EVENT_ID, USER_ID_SESION, 'event')
 
     expect(resultado).toEqual({ ok: false, error: MENSAJE_SIN_CONFIGURACION })
     expect(estado.llamadas.delete).toBe(0)
@@ -530,7 +530,7 @@ describe('sin configuración de Supabase: no se escribe nada', () => {
     vi.doMock('@/lib/supabase', () => ({ supabase: null }))
     const { obtenerEsFavorito: obtenerSinConfig } = await import('../lib/favoritos')
 
-    const resultado = await obtenerSinConfig(EVENT_ID, USER_ID_SESION)
+    const resultado = await obtenerSinConfig(EVENT_ID, USER_ID_SESION, 'event')
 
     expect(resultado).toEqual({ ok: false, error: MENSAJE_SIN_CONFIGURACION })
     expect(estado.llamadas.esFavoritoSelect).toBe(0)
@@ -815,7 +815,7 @@ describe('ciclo guardar → listar (doble en memoria)', () => {
 
     const { marcarFavorito: marcarCiclo, obtenerFavoritos: obtenerCiclo } = await import('../lib/favoritos')
 
-    expect(await marcarCiclo(EVENTO_CICLO, USUARIO_CICLO)).toEqual({ ok: true })
+    expect(await marcarCiclo(EVENTO_CICLO, USUARIO_CICLO, 'event')).toEqual({ ok: true })
 
     const listado = await obtenerCiclo(USUARIO_CICLO)
     expect(listado.ok).toBe(true)

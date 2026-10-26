@@ -25,6 +25,7 @@ import type { CinemaMovie } from '@qps/core/types'
 import type { FlyerWithAccount } from '@qps/core/instagram-config'
 import { obtenerCategorias } from '@/lib/datos/eventos'
 import { estadoPermiteAgregar } from '@/lib/estado-evento'
+import { esUuid } from '@/lib/links'
 import { MENSAJE_SIN_CONFIGURACION } from '@/lib/mensajes'
 import { esErrorDeRed } from '@/lib/red'
 import type { TipoFavorito } from '@/lib/rutas'
@@ -54,6 +55,7 @@ export type ResultadoDesmarcarFavorito = { ok: true; voyQuitado: boolean } | { o
 // R69, 69-a (QPS-353): `obtenerEsFavorito`, `marcarFavorito` y
 // `desmarcarFavorito` aceptan el tipo (`TipoFavorito` de `lib/rutas.ts`) para
 // poder guardar y sacar también películas y flyers.
+// R72, 72-a (QPS-361): el tipo es obligatorio y película/flyer exigen uuid.
 
 /**
  * Los favoritos de `userId`, separados en dos listas (R47, QPS-197):
@@ -182,17 +184,29 @@ export async function obtenerFavoritos(userId: string): Promise<ResultadoFavorit
 }
 
 // R69, 69-a (QPS-353): la columna de `user_favorites` según el tipo. Las tres
-// funciones de abajo reciben el tipo (por defecto `'event'`, como siempre) y
-// el uuid pelado: nunca un id con prefijo.
+// funciones de abajo reciben el tipo (R72, 72-a, QPS-361: OBLIGATORIO, sin
+// valor por defecto) y el uuid pelado: nunca un id con prefijo.
 const COLUMNA_POR_TIPO = {
   event: 'event_id',
   cinema: 'cinema_movie_id',
   flyer: 'instagram_flyer_id',
 } as const satisfies Record<TipoFavorito, 'event_id' | 'cinema_movie_id' | 'instagram_flyer_id'>
 
+// R72, 72-a (QPS-361): la guarda común de las tres funciones, ANTES de tocar
+// la red. Un `tipo` que no está en `COLUMNA_POR_TIPO` (llegó mal en runtime) o
+// un `id` que no es uuid para película o flyer (sus columnas son uuid) no
+// arma ninguna consulta. Para eventos no cambia nada: el id lo valida
+// `estadoPermiteAgregar` (marcar) como siempre.
+function parametrosInvalidos(id: string, tipo: TipoFavorito): boolean {
+  if (!Object.prototype.hasOwnProperty.call(COLUMNA_POR_TIPO, tipo)) return true
+  return (tipo === 'cinema' || tipo === 'flyer') && !esUuid(id)
+}
+
 /** Si `id` (del `tipo` dado) está entre los favoritos de `userId` (para el botón de la ficha). */
-export async function obtenerEsFavorito(id: string, userId: string, tipo: TipoFavorito = 'event'): Promise<ResultadoFavorito> {
+export async function obtenerEsFavorito(id: string, userId: string, tipo: TipoFavorito): Promise<ResultadoFavorito> {
   if (!supabase) return { ok: false, error: MENSAJE_SIN_CONFIGURACION }
+  // Parámetros inválidos: `MENSAJE_ERROR_RED`, el mismo que el resto de los errores de esta lectura.
+  if (parametrosInvalidos(id, tipo)) return { ok: false, error: MENSAJE_ERROR_RED }
 
   try {
     const columna = COLUMNA_POR_TIPO[tipo]
@@ -216,7 +230,7 @@ export async function obtenerEsFavorito(id: string, userId: string, tipo: TipoFa
  * `user_id` y la columna del tipo. Un `23505` (la unique de `user_favorites`
  * por `user_id` + esa columna: ya estaba marcado) cuenta como éxito.
  *
- * QPS-195 (56-b): para un EVENTO (`tipo` `'event'`, el valor por defecto)
+ * QPS-195 (56-b): para un EVENTO (`tipo` `'event'`, explícito: R72, 72-a)
  * antes del `insert` se consulta
  * `estadoPermiteAgregar(id)` (lib/estado-evento.ts). `'no'` (el evento
  * ya no está disponible — borrador o id inexistente, nunca se distingue uno
@@ -227,8 +241,9 @@ export async function obtenerEsFavorito(id: string, userId: string, tipo: TipoFa
  * `cinema_movie_id` / `instagram_flyer_id` y NO se chequea
  * `estadoPermiteAgregar` (no tienen `status` de evento).
  */
-export async function marcarFavorito(id: string, userId: string, tipo: TipoFavorito = 'event'): Promise<ResultadoMarcarFavorito> {
+export async function marcarFavorito(id: string, userId: string, tipo: TipoFavorito): Promise<ResultadoMarcarFavorito> {
   if (!supabase) return { ok: false, error: MENSAJE_SIN_CONFIGURACION }
+  if (parametrosInvalidos(id, tipo)) return { ok: false, error: MENSAJE_ERROR_GUARDAR }
 
   if (tipo === 'event') {
     const estadoEvento = await estadoPermiteAgregar(id)
@@ -272,8 +287,9 @@ export async function marcarFavorito(id: string, userId: string, tipo: TipoFavor
  * igual, pero no cuenta como `voyQuitado`: el aviso de "ya no figurás como
  * que vas" no tendría sentido para una marca que nunca fue Voy.
  */
-export async function desmarcarFavorito(id: string, userId: string, tipo: TipoFavorito = 'event'): Promise<ResultadoDesmarcarFavorito> {
+export async function desmarcarFavorito(id: string, userId: string, tipo: TipoFavorito): Promise<ResultadoDesmarcarFavorito> {
   if (!supabase) return { ok: false, error: MENSAJE_SIN_CONFIGURACION }
+  if (parametrosInvalidos(id, tipo)) return { ok: false, error: MENSAJE_ERROR_GUARDAR }
 
   // R69, 69-a (QPS-353): película y flyer NO tocan `event_attendance` (Voy es
   // de eventos): solo el `delete` de `user_favorites` por la columna que

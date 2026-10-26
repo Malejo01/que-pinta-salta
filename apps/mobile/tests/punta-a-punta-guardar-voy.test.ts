@@ -114,7 +114,7 @@ describe('de punta a punta: sin nada → marca Voy → Guardado y Voy → saca e
     // Paso 2: sacar el ♥ — hay una fila de asistencia con kind "voy" para borrar.
     estado.asistenciaDeleteResultado = { data: [{ kind: 'voy' }], error: null }
 
-    const resultadoDesmarcar = await desmarcarFavorito(EVENT_ID, USER_ID)
+    const resultadoDesmarcar = await desmarcarFavorito(EVENT_ID, USER_ID, 'event')
     expect(resultadoDesmarcar).toEqual({ ok: true, voyQuitado: true })
     // No queda nada: voyQuitado:true (el Voy se fue) y el favorito también
     // se borró (ok:true sin error).
@@ -148,7 +148,7 @@ describe('de punta a punta: falla el segundo paso — el estado que queda cumple
     estado.asistenciaDeleteResultado = { data: [{ kind: 'voy' }], error: null }
     estado.favoritoDeleteResultado = { error: { message: 'boom' } }
 
-    const resultado = await desmarcarFavorito(EVENT_ID, USER_ID)
+    const resultado = await desmarcarFavorito(EVENT_ID, USER_ID, 'event')
 
     expect(resultado.ok).toBe(false)
     // El 1º paso (borrar la asistencia) sí se intentó y "salió bien" del
@@ -180,7 +180,7 @@ describe('de punta a punta: falla el primer paso — no se escribió nada, el es
 
     estado.asistenciaDeleteResultado = { data: null, error: { code: '42501', message: 'boom' } }
 
-    const resultado = await desmarcarFavorito(EVENT_ID, USER_ID)
+    const resultado = await desmarcarFavorito(EVENT_ID, USER_ID, 'event')
 
     expect(resultado.ok).toBe(false)
     // El favorito no se tocó: sigue existiendo, igual que después del paso
