@@ -198,12 +198,17 @@ describe('violacionesDeCapa (fixtures en memoria)', () => {
   })
 })
 
-/** BotonFavorito y BotonCompartir solo dentro de la rama `esEventoReal(evento) ?`. */
+/**
+ * BotonCompartir solo dentro de la rama `esEventoReal(evento) ?`. R69, 69-a:
+ * BotonFavorito ya no está guardado por `esEventoReal` (es por tipo y va
+ * también en películas y flyers), pero tiene que seguir renderizándose.
+ */
 export function violacionesDeGuarda(src: string): string[] {
   const c = sinComentarios(src)
   const v: string[] = []
   const guarda = c.search(/esEventoReal\(\s*evento\s*\)\s*\?/)
-  for (const boton of ['BotonCompartir', 'BotonFavorito']) {
+  if (c.indexOf('<BotonFavorito') === -1) v.push('no renderiza <BotonFavorito')
+  for (const boton of ['BotonCompartir']) {
     const uso = c.indexOf(`<${boton}`)
     if (uso === -1) {
       v.push(`no renderiza <${boton}`)
@@ -219,20 +224,21 @@ describe('violacionesDeGuarda (fixtures en memoria)', () => {
     const ok = `{esEventoReal(evento) ? (<View><BotonCompartir a={1} /><BotonFavorito a={1} /></View>) : null}`
     expect(violacionesDeGuarda(ok)).toEqual([])
   })
-  it('detecta los botones sin la guarda', () => {
-    const malo = `<View><BotonCompartir a={1} /><BotonFavorito a={1} /></View>`
-    expect(violacionesDeGuarda(malo)).toEqual([
-      '<BotonCompartir fuera de la guarda esEventoReal(evento) ?',
-      '<BotonFavorito fuera de la guarda esEventoReal(evento) ?',
-    ])
+  it('acepta el corazón fuera de la guarda (R69: también en películas y flyers)', () => {
+    const ok = `<BotonFavorito a={1} />{esEventoReal(evento) ? (<BotonCompartir a={1} />) : null}`
+    expect(violacionesDeGuarda(ok)).toEqual([])
   })
-  it('detecta un botón antes de la guarda', () => {
-    const malo = `<BotonFavorito a={1} />{esEventoReal(evento) ? (<BotonCompartir a={1} />) : null}`
-    expect(violacionesDeGuarda(malo)).toEqual(['<BotonFavorito fuera de la guarda esEventoReal(evento) ?'])
+  it('detecta Compartir sin la guarda', () => {
+    const malo = `<View><BotonCompartir a={1} /><BotonFavorito a={1} /></View>`
+    expect(violacionesDeGuarda(malo)).toEqual(['<BotonCompartir fuera de la guarda esEventoReal(evento) ?'])
+  })
+  it('detecta Compartir antes de la guarda', () => {
+    const malo = `<BotonCompartir a={1} />{esEventoReal(evento) ? (<BotonCompartir a={1} />) : null}<BotonFavorito a={1} />`
+    expect(violacionesDeGuarda(malo)).toEqual(['<BotonCompartir fuera de la guarda esEventoReal(evento) ?'])
   })
   it('un botón solo en un comentario no cuenta como uso', () => {
-    const malo = `// <BotonFavorito />\n<BotonFavorito a={1} />{esEventoReal(evento) ? (<BotonCompartir a={1} />) : null}`
-    expect(violacionesDeGuarda(malo)).toEqual(['<BotonFavorito fuera de la guarda esEventoReal(evento) ?'])
+    const malo = `// <BotonFavorito />\n{esEventoReal(evento) ? (<BotonCompartir a={1} />) : null}`
+    expect(violacionesDeGuarda(malo)).toEqual(['no renderiza <BotonFavorito'])
   })
 })
 

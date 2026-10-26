@@ -12,8 +12,11 @@
 //
 // R67, 67-a (F6 de la beta): la tarjeta también dibuja películas (`movie-…`) y
 // flyers (`ig-…`). Navega con `rutaDeEvento` (lib/rutas.ts) a la ficha que
-// corresponde, y para ellos no muestra Compartir ni el corazón: mandarían
-// `movie-…`/`ig-…` a `event_id`.
+// corresponde, y para ellos no muestra Compartir (es de eventos reales).
+//
+// R69, 69-a (QPS-353): el corazón vuelve para películas y flyers. `BotonFavorito`
+// es por tipo y recibe `objetivoDeFavorito(evento)` (`lib/rutas.ts`): el tipo
+// y el uuid pelado, nunca `movie-…`/`ig-…` (que no deben llegar a `event_id`).
 //
 // El degradé no usa `expo-linear-gradient` (no es dependencia aprobada):
 // son 4 `View` absolutos apilados, con negro de opacidad creciente hacia
@@ -30,7 +33,7 @@ import { InsigniaDestacado } from '@/components/InsigniaDestacado'
 import { ESCALA_MAXIMA_COMPACTA } from '@/lib/accesibilidad'
 import { useColoresQPS } from '@/lib/colores'
 import { textoPrecio } from '@/lib/formato'
-import { esEventoReal, rutaDeEvento } from '@/lib/rutas'
+import { esEventoReal, objetivoDeFavorito, rutaDeEvento } from '@/lib/rutas'
 
 export interface TarjetaEventoProps {
   evento: DisplayEvent
@@ -47,6 +50,10 @@ export function TarjetaEvento({ evento }: TarjetaEventoProps) {
   const precio = textoPrecio(evento.price)
   const inicialCategoria = (evento.categoryName || 'Q').charAt(0).toUpperCase()
   const otrasFechas = evento.occurrences && evento.occurrences.length > 1 ? evento.occurrences.length - 1 : 0
+
+  // R69, 69-a: el tipo y el uuid pelado que guarda el corazón (evento,
+  // película o flyer); `null` si una película/flyer no trae un uuid válido.
+  const objetivoFavorito = objetivoDeFavorito(evento)
 
   const etiqueta = evento.isCinemaMovie
     ? `${evento.title}, en cartel`
@@ -94,10 +101,12 @@ export function TarjetaEvento({ evento }: TarjetaEventoProps) {
         <InsigniaDestacado visible={evento.isFeatured} />
       </View>
 
-      {esEventoReal(evento) ? (
+      {esEventoReal(evento) || objetivoFavorito ? (
         <View style={estilos.accionesArriba}>
-          <BotonCompartir eventId={evento.id} titulo={evento.title} fecha={fecha} hora={evento.time} lugar={evento.venue} tamanio={32} fondo="oscuro" />
-          <BotonFavorito eventId={evento.id} tamanio={32} fondo="oscuro" />
+          {esEventoReal(evento) ? (
+            <BotonCompartir eventId={evento.id} titulo={evento.title} fecha={fecha} hora={evento.time} lugar={evento.venue} tamanio={32} fondo="oscuro" />
+          ) : null}
+          {objetivoFavorito ? <BotonFavorito objetivo={objetivoFavorito} tamanio={32} fondo="oscuro" /> : null}
         </View>
       ) : null}
 

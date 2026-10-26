@@ -17,11 +17,16 @@
 // R67 (67-c): el acordeón de un cine es `components/BloqueCine.tsx`, el mismo
 // que usa `components/TarjetaPelicula.tsx` (Cines y la portada con el chip
 // "Cine"); esta `Ficha` no es una tarjeta y conserva su armado.
+//
+// R69, 69-a (QPS-353): el corazón (`BotonFavorito` de tipo `cinema`) junto al
+// título, 40 y fondo `muted` como en la ficha de evento, para poder sacar la
+// película de Favoritos.
 import { useCallback, useEffect, useState } from 'react'
 import { ScrollView, StyleSheet, View } from 'react-native'
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router'
 import { Afiche } from '@/components/Afiche'
 import { BloqueCine } from '@/components/BloqueCine'
+import { BotonFavorito } from '@/components/BotonFavorito'
 import { Cargando, ErrorCarga, Vacio } from '@/components/EstadoCarga'
 import { Texto } from '@/components/Texto'
 import { useColoresQPS } from '@/lib/colores'
@@ -112,9 +117,14 @@ function Ficha({ pelicula }: { pelicula: Pelicula }) {
         <Afiche url={pelicula.poster_url} llenar />
       </View>
 
-      <Texto peso="bold" accessibilityRole="header" style={estilos.titulo}>
-        {pelicula.title}
-      </Texto>
+      <View style={estilos.filaTitulo}>
+        <Texto peso="bold" accessibilityRole="header" style={[estilos.titulo, estilos.tituloFlex]}>
+          {pelicula.title}
+        </Texto>
+        {/* R69, 69-a (QPS-353): el corazón de la película, con el uuid pelado
+            (`pelicula.id`, nunca `movie-…`). */}
+        <BotonFavorito objetivo={{ tipo: 'cinema', id: pelicula.id }} tamanio={40} fondo="muted" />
+      </View>
 
       {cines.length === 0 ? (
         <Texto tono="secundario" style={estilos.sinFunciones}>
@@ -140,6 +150,8 @@ const estilos = StyleSheet.create({
   centrado: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24, gap: 12 },
   contenido: { padding: 16, gap: 4 },
   contenedorAfiche: { width: '100%', aspectRatio: 2 / 3, borderRadius: 16, overflow: 'hidden' },
-  titulo: { fontSize: 22, marginTop: 16, marginBottom: 8 },
+  filaTitulo: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 16, marginBottom: 8 },
+  tituloFlex: { flex: 1 },
+  titulo: { fontSize: 22 },
   sinFunciones: { textAlign: 'center', fontStyle: 'italic', paddingVertical: 8 },
 })
