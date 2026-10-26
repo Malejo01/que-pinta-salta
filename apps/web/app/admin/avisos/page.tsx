@@ -13,6 +13,10 @@ import { FormularioCampania, BotonCancelarCampania, type CampaniaInicial } from 
 import { FormularioAvisoEquipo } from './formulario-aviso-equipo'
 
 export const dynamic = 'force-dynamic'
+// Las server actions de esta página (el envío a todos) corren con la config de
+// este segmento: mismo tope que el cron de notificaciones, para que un envío
+// grande no se corte a mitad de camino.
+export const maxDuration = 60
 
 const ETIQUETA_POR_ESTADO: Record<EstadoCampania, string> = {
   'por-venir': 'Por venir',
@@ -62,7 +66,7 @@ export default async function AdminAvisosPage({
 
   const campanias = await obtenerCampanias()
   const lista = campanias ?? []
-  const historial = (await historialAvisosEquipo()) ?? []
+  const historial = await historialAvisosEquipo()
   const envioReal = modoEnvioReal()
 
   const { editar } = await searchParams
@@ -105,7 +109,9 @@ export default async function AdminAvisosPage({
             <CardTitle>Últimos avisos del equipo</CardTitle>
           </CardHeader>
           <CardContent>
-            {historial.length === 0 ? (
+            {historial === null ? (
+              <p className="text-sm text-muted-foreground">No se pudo cargar el historial.</p>
+            ) : historial.length === 0 ? (
               <p className="text-sm text-muted-foreground">Todavía no se mandó ningún aviso del equipo.</p>
             ) : (
               <ul className="space-y-1 text-sm text-foreground">

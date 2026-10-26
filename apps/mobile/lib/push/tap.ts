@@ -164,7 +164,10 @@ export function interpretarRespuestaPush(respuesta: RespuestaPushMinima): Result
   const data = respuesta.notification.request.content?.data
   const id = eventoIdDesdeDatosPush(data)
   if (!id) {
-    if (esObjetoPlano(data) && data.destino === DESTINO_CINES) return { accion: 'abrir-cines' }
+    // Un aviso patrocinado nunca abre Cines, aunque su data lo pida.
+    if (esObjetoPlano(data) && data.destino === DESTINO_CINES && !esAvisoPatrocinado(respuesta)) {
+      return { accion: 'abrir-cines' }
+    }
     return { accion: 'nada' }
   }
 

@@ -135,7 +135,9 @@ export function FormularioAvisoEquipo() {
         setMensaje(
           resultado.simulado
             ? `Simulado: no se envió. (Habría llegado a ${resultado.telefonos} teléfonos.)`
-            : `Enviado a ${resultado.telefonos} teléfonos.`,
+            : resultado.fallidos && resultado.fallidos > 0
+              ? `Enviado a ${resultado.telefonos} teléfonos; ${resultado.fallidos} no se pudieron entregar.`
+              : `Enviado a ${resultado.telefonos} teléfonos.`,
         )
         router.refresh()
         return

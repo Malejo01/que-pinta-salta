@@ -58,6 +58,7 @@ async function requireAdminSupabase(): Promise<AdminAuthResult> {
 
 const MENSAJE_ERROR_GENERICO = 'No se pudo completar la acción. Intentá de nuevo.'
 const MENSAJE_YA_HUBO_HOY = 'Ya se mandó un aviso del equipo hoy.'
+const MENSAJE_SALIO_SIN_REGISTRO = 'El aviso salió, pero no se pudo registrar del todo. No lo vuelvas a mandar hoy.'
 
 function formaValida(entrada: unknown): entrada is Record<string, unknown> {
   return typeof entrada === 'object' && entrada !== null && !Array.isArray(entrada)
@@ -373,39 +374,66 @@ export async function enviarAvisoEquipoATodos(
   }
   if (reservadas.size === 0) return { ok: false, error: MENSAJE_YA_HUBO_HOY }
 
-  // 2. Mandar solo a los reservados.
-  const aMandar = mensajes.filter((m) => reservadas.has(m.userId))
-  const usuarioDeToken = new Map(aMandar.map((m) => [m.to, m.userId]))
-  const envio = await enviarPushATokens(aMandar.map((m) => mensajePush(m.to, aviso)))
+  // Desde acá hay reservas `PENDIENTE`: si algo tira, se liberan las que no
+  // llegaron a `SUCCESS` para no dejar el día bloqueado sin haber mandado
+  // nada. Pero si el envío YA volvió (`conExito` no es null), a quien le llegó
+  // se le deja la reserva: liberarla haría que un reintento del admin le
+  // mande el mismo aviso dos veces (hallazgo del revisor y de seguridad, R70).
+  const marcadas = new Set<string>()
+  let conExito: Set<string> | null = null
+  try {
+    // 2. Mandar solo a los reservados.
+    const aMandar = mensajes.filter((m) => reservadas.has(m.userId))
+    const usuarioDeToken = new Map(aMandar.map((m) => [m.to, m.userId]))
+    const envio = await enviarPushATokens(aMandar.map((m) => mensajePush(m.to, aviso)))
 
-  // 3. Registrar: SUCCESS a quien le llegó, borrar la reserva de los demás.
-  const conExito = new Set<string>()
-  for (const token of envio.tokensConExito) {
-    const userId = usuarioDeToken.get(token)
-    if (userId) conExito.add(userId)
-  }
-  const sinExito = [...reservadas].filter((userId) => !conExito.has(userId))
-
-  for (const lote of enLotes([...conExito].map((u) => claveDedupeAvisoEquipo(u, ahora)), TAMANIO_LOTE_ESCRITURA)) {
-    const { error } = await admin.from('notification_sends').update({ status: 'SUCCESS' }).in('dedupe_key', lote)
-    if (error) console.error('avisos-equipo: error marcando SUCCESS', error.code)
-  }
-  await liberarReservas(admin, sinExito, ahora)
-
-  if (envio.tokensInvalidos.length > 0) {
-    for (const lote of enLotes(envio.tokensInvalidos, TAMANIO_LOTE_ESCRITURA)) {
-      const { error } = await admin.from('push_tokens').delete().in('token', lote)
-      if (error) console.error('avisos-equipo: error borrando tokens inválidos', error.code)
+    // 3. Registrar: SUCCESS a quien le llegó, borrar la reserva de los demás.
+    const exito = new Set<string>()
+    for (const token of envio.tokensConExito) {
+      const userId = usuarioDeToken.get(token)
+      if (userId) exito.add(userId)
     }
-  }
+    conExito = exito
+    const sinExito = [...reservadas].filter((userId) => !exito.has(userId))
 
-  revalidatePath('/admin/avisos')
-  return {
-    ok: true,
-    simulado: false,
-    personas: conExito.size,
-    telefonos: envio.enviados,
-    fallidos: envio.fallidos,
+    for (const lote of enLotes([...exito], TAMANIO_LOTE_ESCRITURA)) {
+      const { error } = await admin
+        .from('notification_sends')
+        .update({ status: 'SUCCESS' })
+        .in('dedupe_key', lote.map((u) => claveDedupeAvisoEquipo(u, ahora)))
+      if (error) console.error('avisos-equipo: error marcando SUCCESS', error.code)
+      else for (const u of lote) marcadas.add(u)
+    }
+    await liberarReservas(admin, sinExito, ahora)
+
+    if (envio.tokensInvalidos.length > 0) {
+      for (const lote of enLotes(envio.tokensInvalidos, TAMANIO_LOTE_ESCRITURA)) {
+        const { error } = await admin.from('push_tokens').delete().in('token', lote)
+        if (error) console.error('avisos-equipo: error borrando tokens inválidos', error.code)
+      }
+    }
+
+    revalidatePath('/admin/avisos')
+    return {
+      ok: true,
+      simulado: false,
+      personas: exito.size,
+      telefonos: envio.enviados,
+      fallidos: envio.fallidos,
+    }
+  } catch {
+    const recibieron = conExito
+    console.error('avisos-equipo: falló el envío, se liberan las reservas de quien no lo recibió')
+    try {
+      await liberarReservas(
+        admin,
+        [...reservadas].filter((u) => !marcadas.has(u) && !(recibieron?.has(u) ?? false)),
+        ahora,
+      )
+    } catch {
+      console.error('avisos-equipo: no se pudieron liberar las reservas')
+    }
+    return { ok: false, error: recibieron && recibieron.size > 0 ? MENSAJE_SALIO_SIN_REGISTRO : MENSAJE_ERROR_GENERICO }
   }
 }
 
@@ -435,33 +463,38 @@ export async function historialAvisosEquipo(): Promise<DiaHistorialAvisoEquipo[]
   const auth = await requireAdminSupabase()
   if ('error' in auth) return null
 
-  const admin = createAdminClient()
-  const desde = new Date(Date.now() - DIAS_HISTORIAL * 24 * 60 * 60 * 1000).toISOString()
+  try {
+    const admin = createAdminClient()
+    const desde = new Date(Date.now() - DIAS_HISTORIAL * 24 * 60 * 60 * 1000).toISOString()
 
-  const resultado = await leerPaginado<{ sent_at: string }>(TAMANIO_PAGINA_TOKENS, (d, h) =>
-    comoPagina(
-      admin
-        .from('notification_sends')
-        .select('sent_at')
-        .eq('kind', 'anuncio')
-        .eq('status', 'SUCCESS')
-        .gte('sent_at', desde)
-        .order('sent_at', { ascending: false })
-        .range(d, h),
-    ),
-  )
-  if (!resultado.ok) {
-    console.error('avisos-equipo: error leyendo el historial')
+    const resultado = await leerPaginado<{ sent_at: string }>(TAMANIO_PAGINA_TOKENS, (d, h) =>
+      comoPagina(
+        admin
+          .from('notification_sends')
+          .select('sent_at')
+          .eq('kind', 'anuncio')
+          .eq('status', 'SUCCESS')
+          .gte('sent_at', desde)
+          .order('sent_at', { ascending: false })
+          .range(d, h),
+      ),
+    )
+    if (!resultado.ok) {
+      console.error('avisos-equipo: error leyendo el historial')
+      return null
+    }
+
+    const porDia = new Map<string, number>()
+    for (const fila of resultado.filas) {
+      const dia = formatSaltaDayKey(fila.sent_at)
+      porDia.set(dia, (porDia.get(dia) ?? 0) + 1)
+    }
+    return [...porDia.entries()]
+      .map(([dia, personas]) => ({ dia, personas }))
+      .sort((a, b) => (a.dia < b.dia ? 1 : -1))
+      .slice(0, MAX_DIAS_MOSTRADOS)
+  } catch {
+    console.error('avisos-equipo: falló la lectura del historial')
     return null
   }
-
-  const porDia = new Map<string, number>()
-  for (const fila of resultado.filas) {
-    const dia = formatSaltaDayKey(fila.sent_at)
-    porDia.set(dia, (porDia.get(dia) ?? 0) + 1)
-  }
-  return [...porDia.entries()]
-    .map(([dia, personas]) => ({ dia, personas }))
-    .sort((a, b) => (a.dia < b.dia ? 1 : -1))
-    .slice(0, MAX_DIAS_MOSTRADOS)
 }

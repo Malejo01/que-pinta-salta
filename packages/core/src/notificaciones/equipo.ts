@@ -61,6 +61,9 @@ const CARACTERES_DE_CONTROL_RE = new RegExp(
   `[${String.fromCharCode(0x00)}-${String.fromCharCode(0x1f)}${String.fromCharCode(0x7f)}]`,
 )
 
+// Caracteres de formato invisibles (U+200B, marcas bidi, etc.).
+const CARACTERES_DE_FORMATO_RE = /\p{Cf}/u
+
 function campoDe(entrada: unknown, campo: string): unknown {
   if (typeof entrada !== 'object' || entrada === null) return undefined
   return (entrada as Record<string, unknown>)[campo]
@@ -88,6 +91,10 @@ function validarTexto(
   }
   if (CARACTERES_DE_CONTROL_RE.test(texto)) {
     errores.push({ campo, mensaje: `${nombre} no puede tener saltos de línea ni caracteres de control.` })
+    return null
+  }
+  if (CARACTERES_DE_FORMATO_RE.test(texto)) {
+    errores.push({ campo, mensaje: `${nombre} no puede tener caracteres invisibles.` })
     return null
   }
   return texto
@@ -120,6 +127,9 @@ export function validarAvisoEquipo(entrada: unknown): ResultadoValidacionAvisoEq
   // Que un aviso del equipo nunca se confunda con publicidad.
   if (titulo !== null && normalizeFilterText(titulo).startsWith('patrocinado')) {
     errores.push({ campo: 'titulo', mensaje: 'El título no puede empezar con "Patrocinado".' })
+  }
+  if (cuerpo !== null && normalizeFilterText(cuerpo).startsWith('patrocinado')) {
+    errores.push({ campo: 'cuerpo', mensaje: 'El texto no puede empezar con "Patrocinado".' })
   }
 
   const destino = validarDestino(campoDe(entrada, 'destino'), errores)
