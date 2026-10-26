@@ -153,7 +153,8 @@ Notas para leer la tabla:
 
 ### Auth
 
-- Signup abierto, con confirmación de email obligatoria (`mailer_autoconfirm:false`).
+- Signup abierto. El alta confirma sola: `signUp` devuelve sesión y no sale ningún correo de confirmación ("Confirm email" apagado, equivale a `mailer_autoconfirm:true`).
+  - Nota: la auditoría original decía lo contrario (confirmación obligatoria, `mailer_autoconfirm:false`). Se corrigió en la R71 (QPS-352) a partir de lo observado en la beta (R67).
 - Google habilitado; usuarios anónimos deshabilitados.
 - Protección contra contraseñas filtradas: **apagada** (advisor WARN).
 

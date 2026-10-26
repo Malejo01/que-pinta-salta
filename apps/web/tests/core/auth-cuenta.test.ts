@@ -21,7 +21,7 @@ import {
   resultadoAltaConSesion,
 } from '@qps/core/auth/mensajes'
 
-// R67, 67-d: el alta con sesión (Confirm email apagado), solo para la app.
+// R67, 67-d: el alta con sesión (Confirm email apagado); la usan la app y, desde R71, la web.
 describe('resultadoAltaConSesion', () => {
   it('sin error y con una sesión objeto: "sesion"', () => {
     expect(
@@ -60,8 +60,9 @@ describe('resultadoAltaConSesion', () => {
 })
 
 describe('resultadoAlta', () => {
-  // La web sigue con `resultadoAlta`: el alta con sesión se informa "enviado".
-  it('sin error y con sesión objeto: sigue dando "enviado" (la web no cambia)', () => {
+  // `resultadoAlta` no mira `data`: el alta con sesión se informa "enviado".
+  // La que distingue la sesión es `resultadoAltaConSesion` (app y web, R71).
+  it('sin error y con sesión objeto: sigue dando "enviado" (no mira data)', () => {
     expect(resultadoAlta({ data: { user: { id: '1' }, session: { access_token: 'x' } }, error: null })).toEqual({
       tipo: 'enviado',
     })

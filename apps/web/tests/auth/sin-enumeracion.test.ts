@@ -13,15 +13,17 @@
 //
 // Este archivo prueba en DOS CAPAS, marcadas en cada describe:
 //
-//   CAPA DE COMPORTAMIENTO: se ejercita `resultadoAlta`, la función real de
+//   CAPA DE COMPORTAMIENTO: se ejercita `resultadoAlta` (y, desde R71,
+//   `resultadoAltaConSesion`, que la envuelve y es la que usan las pantallas
+//   de alta), las funciones reales de
 //   `packages/core/src/auth/mensajes.ts`, con los dobles de arriba. NO se
 //   monta ninguna página ni componente de React (el vitest de la web es
 //   `environment: 'node'`, sin DOM).
 //
 //   CAPA DE CABLEADO: se lee el TEXTO FUENTE de los cuatro archivos de
 //   producción (fs.readFileSync) y se comprueba, con regex/substrings, que
-//   cada uno de los tres caminos de alta usa `resultadoAlta` para decidir el
-//   camino (nunca una rama propia que distinga "ya existe"), que ninguno de
+//   cada uno de los tres caminos de alta usa `resultadoAltaConSesion` (que
+//   envuelve a `resultadoAlta`) para decidir el camino (nunca una rama propia que distinga "ya existe"), que ninguno de
 //   los cuatro muestra `error.message` (ni `err.message`, ni
 //   `error?.message`, ni nada derivado), y que "recuperar" tampoco tiene una
 //   rama de ese tipo. Esto NO prueba que la interfaz se vea así en el
@@ -100,8 +102,8 @@ describe('CAPA DE COMPORTAMIENTO: resultadoAlta da el mismo resultado para "nuev
 })
 
 describe('CAPA DE CABLEADO: app/auth/sign-up/page.tsx (alta de la página)', () => {
-  it('decide el camino con resultadoAlta, no con una rama propia', () => {
-    expect(SRC_SIGNUP).toMatch(/resultadoAlta\(respuesta\)/)
+  it('decide el camino con resultadoAltaConSesion, no con una rama propia', () => {
+    expect(SRC_SIGNUP).toMatch(/resultadoAltaConSesion\(respuesta\)/)
     expect(SRC_SIGNUP).toMatch(/resultado\.tipo\s*===\s*['"]enviado['"]/)
   })
 
@@ -115,8 +117,8 @@ describe('CAPA DE CABLEADO: app/auth/sign-up/page.tsx (alta de la página)', () 
 })
 
 describe('CAPA DE CABLEADO: components/auth-modal.tsx (alta del modal)', () => {
-  it('decide el camino con resultadoAlta, no con una rama propia', () => {
-    expect(SRC_MODAL).toMatch(/resultadoAlta\(respuesta\)/)
+  it('decide el camino con resultadoAltaConSesion, no con una rama propia', () => {
+    expect(SRC_MODAL).toMatch(/resultadoAltaConSesion\(respuesta\)/)
     expect(SRC_MODAL).toMatch(/resultado\.tipo\s*===\s*["']error["']/)
   })
 
