@@ -264,6 +264,7 @@ export function SeccionNotificaciones() {
           onValueChange={cambiarAnnouncements}
           disabled={guardandoAvisos}
           accessibilityLabel="Avisos de Qué Pinta Salta"
+          accessibilityHint="Novedades y avisos del equipo de Qué Pinta Salta."
           accessibilityState={{ checked: announcements, busy: guardandoAvisos }}
         />
       </View>

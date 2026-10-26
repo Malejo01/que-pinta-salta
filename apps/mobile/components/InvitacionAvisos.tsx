@@ -10,7 +10,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Modal, Pressable, StyleSheet, View } from 'react-native'
 import { useRouter } from 'expo-router'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Texto } from '@/components/Texto'
+import { avisar } from '@/lib/aviso'
 import { useColoresQPS } from '@/lib/colores'
 import { cambiarAvisosEquipo } from '@/lib/notificaciones'
 import { usePush } from '@/lib/push'
@@ -27,6 +29,15 @@ export const TITULO_INVITACION = 'Activá los avisos para enterarte de lo que pi
 export const TEXTO_INVITACION =
   'Te avisamos antes de lo que guardaste y te mandamos novedades de Qué Pinta Salta. Lo cambiás cuando quieras en Cuenta.'
 export const TITULO_INVITACION_ENTRAR = 'Entrá a tu cuenta para activar los avisos'
+export const TEXTO_INVITACION_ENTRAR =
+  'Con tu cuenta te avisamos antes de lo que guardes. Lo cambiás cuando quieras en Cuenta.'
+export const AVISO_AVISOS_ACTIVOS = 'Listo, te vamos a avisar.'
+export const AVISO_AVISOS_NO_ACTIVADOS = 'No pudimos activar los avisos. Podés probar en Cuenta.'
+export const AVISO_PREFERENCIA_NO_GUARDADA =
+  'Los avisos quedaron activos, pero no pudimos guardar tu preferencia. Revisala en Cuenta.'
+
+/** Retraso de la hoja post-Guardar/Voy, para no tapar el feedback del botón. */
+const RETRASO_HOJA_MS = 900
 
 /** `null` mientras se lee la bandera; después `true`/`false`. Se resincroniza si otra instancia la marca. */
 function useInvitacionVista(): boolean | null {
@@ -60,9 +71,13 @@ function useActivarAvisos() {
     await marcarInvitacionVista()
     const resultado = await activar()
     if (resultado === 'activo' && userId) {
-      // Si no se puede guardar la preferencia, los avisos quedan activos igual.
-      await cambiarAvisosEquipo(userId, true).catch(() => {})
+      // `cambiarAvisosEquipo` no tira: devuelve `ok`. Si falla, los avisos
+      // quedan activos igual y se le dice a la persona.
+      const guardado = await cambiarAvisosEquipo(userId, true)
+      avisar(guardado.ok ? AVISO_AVISOS_ACTIVOS : AVISO_PREFERENCIA_NO_GUARDADA)
+      return
     }
+    avisar(resultado === 'activo' ? AVISO_AVISOS_ACTIVOS : AVISO_AVISOS_NO_ACTIVADOS)
   }, [activar, userId])
 }
 
@@ -70,28 +85,32 @@ interface ContenidoProps {
   variante: 'activar' | 'entrar'
   onPrincipal: () => void
   onDescartar: () => void
+  /** La tarjeta de Inicio lleva la X; la hoja no (su salida es "Ahora no", tocar afuera o Atrás). */
+  conCerrar: boolean
 }
 
-function ContenidoInvitacion({ variante, onPrincipal, onDescartar }: ContenidoProps) {
+function ContenidoInvitacion({ variante, onPrincipal, onDescartar, conCerrar }: ContenidoProps) {
   const colores = useColoresQPS()
   const etiquetaPrincipal = variante === 'activar' ? 'Activar' : 'Entrar'
 
   return (
     <View style={estilos.contenido}>
       <View style={estilos.encabezado}>
-        <Texto peso="bold" style={estilos.titulo}>
+        <Texto peso="bold" accessibilityRole="header" style={estilos.titulo}>
           {variante === 'activar' ? TITULO_INVITACION : TITULO_INVITACION_ENTRAR}
         </Texto>
-        <Pressable
-          onPress={onDescartar}
-          accessibilityRole="button"
-          accessibilityLabel="Cerrar la invitación a activar los avisos"
-          style={estilos.cerrar}
-        >
-          <Texto tono="secundario" style={estilos.equis}>✕</Texto>
-        </Pressable>
+        {conCerrar ? (
+          <Pressable
+            onPress={onDescartar}
+            accessibilityRole="button"
+            accessibilityLabel="Cerrar"
+            style={estilos.cerrar}
+          >
+            <Texto tono="secundario" style={estilos.equis}>✕</Texto>
+          </Pressable>
+        ) : null}
       </View>
-      <Texto tono="secundario">{TEXTO_INVITACION}</Texto>
+      <Texto tono="secundario">{variante === 'activar' ? TEXTO_INVITACION : TEXTO_INVITACION_ENTRAR}</Texto>
       <View style={estilos.botones}>
         <Pressable
           onPress={onPrincipal}
@@ -118,12 +137,15 @@ function ContenidoInvitacion({ variante, onPrincipal, onDescartar }: ContenidoPr
 export function InvitacionAvisos() {
   const colores = useColoresQPS()
   const router = useRouter()
-  const { estado } = usePush()
+  const { estado, sincronizado } = usePush()
+  const { cargando } = useSession()
   const vista = useInvitacionVista()
   const activar = useActivarAvisos()
 
+  // Nada mientras carga la sesión ni antes de la primera sincronización: el
+  // estado de push es provisorio y la tarjeta aparecería un instante.
   if (vista === null) return null
-  const variante = seMuestraInvitacion({ estado, vista })
+  const variante = seMuestraInvitacion({ estado, vista, cargando, sincronizado })
   if (variante === null) return null
 
   return (
@@ -133,6 +155,7 @@ export function InvitacionAvisos() {
         // Sin sesión: lleva a la pantalla de entrar (Cuenta) y no marca la bandera.
         onPrincipal={variante === 'activar' ? () => void activar() : () => router.push('/cuenta')}
         onDescartar={() => void marcarInvitacionVista()}
+        conCerrar
       />
     </View>
   )
@@ -141,24 +164,34 @@ export function InvitacionAvisos() {
 /** Hoja chica después del primer Guardar / Voy. Se monta una vez, en el layout raíz. */
 export function InvitacionTrasAccion() {
   const colores = useColoresQPS()
-  const { estado } = usePush()
+  const insets = useSafeAreaInsets()
+  const { estado, sincronizado } = usePush()
+  const { cargando } = useSession()
   const activar = useActivarAvisos()
   const [abierta, setAbierta] = useState(false)
-  const estadoRef = useRef(estado)
+  const datosRef = useRef({ estado, sincronizado, cargando })
 
   useEffect(() => {
-    estadoRef.current = estado
-  }, [estado])
+    datosRef.current = { estado, sincronizado, cargando }
+  }, [estado, sincronizado, cargando])
 
   useEffect(() => {
     let activo = true
+    let temporizador: ReturnType<typeof setTimeout> | null = null
     const baja = suscribirTrasAccion(() => {
-      invitacionFueVista().then((vista) => {
-        if (activo && seMuestraInvitacion({ estado: estadoRef.current, vista }) === 'activar') setAbierta(true)
-      })
+      // Con retraso, para no tapar el feedback del botón; al abrir se vuelve
+      // a chequear la bandera y el estado (pudieron cambiar en el medio).
+      if (temporizador) clearTimeout(temporizador)
+      temporizador = setTimeout(() => {
+        temporizador = null
+        invitacionFueVista().then((vista) => {
+          if (activo && seMuestraInvitacion({ ...datosRef.current, vista }) === 'activar') setAbierta(true)
+        })
+      }, RETRASO_HOJA_MS)
     })
     return () => {
       activo = false
+      if (temporizador) clearTimeout(temporizador)
       baja()
     }
   }, [])
@@ -170,16 +203,27 @@ export function InvitacionTrasAccion() {
 
   return (
     <Modal visible={abierta} transparent animationType="slide" onRequestClose={cerrar}>
-      <Pressable
-        style={estilos.fondo}
-        onPress={cerrar}
-        accessibilityRole="button"
-        accessibilityLabel="Cerrar la invitación a activar los avisos"
-      >
-        {/* Un View (no Pressable) adentro: toques en la hoja no la cierran. */}
+      <View style={estilos.fondo}>
+        {/* Hermanos (no el fondo envolviendo a la hoja): así el lector de
+            pantalla ve la hoja como un elemento modal con sus botones, y el
+            fondo toca-para-cerrar queda fuera del árbol de accesibilidad
+            (rol y etiqueta solo para el detector de 46-b: con `accessible`
+            falso y oculto, el lector de pantalla no lo anuncia). */}
+        <Pressable
+          style={StyleSheet.absoluteFill}
+          onPress={cerrar}
+          accessible={false}
+          accessibilityRole="button"
+          accessibilityLabel="Cerrar"
+          importantForAccessibility="no"
+          accessibilityElementsHidden
+        />
         <View
-          onStartShouldSetResponder={() => true}
-          style={[estilos.hoja, { backgroundColor: colores.card, borderColor: colores.border }]}
+          accessibilityViewIsModal
+          style={[
+            estilos.hoja,
+            { backgroundColor: colores.card, borderColor: colores.border, paddingBottom: Math.max(28, insets.bottom + 16) },
+          ]}
         >
           <ContenidoInvitacion
             variante="activar"
@@ -188,9 +232,10 @@ export function InvitacionTrasAccion() {
               void activar()
             }}
             onDescartar={cerrar}
+            conCerrar={false}
           />
         </View>
-      </Pressable>
+      </View>
     </Modal>
   )
 }
@@ -205,5 +250,5 @@ const estilos = StyleSheet.create({
   botones: { flexDirection: 'row', gap: 10, marginTop: 4 },
   boton: { flex: 1, minHeight: 48, borderRadius: 10, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 12 },
   fondo: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.4)' },
-  hoja: { borderTopWidth: 1, borderTopLeftRadius: 16, borderTopRightRadius: 16, padding: 16, paddingBottom: 28 },
+  hoja: { borderTopWidth: 1, borderTopLeftRadius: 16, borderTopRightRadius: 16, padding: 16 },
 })

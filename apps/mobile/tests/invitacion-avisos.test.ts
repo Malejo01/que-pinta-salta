@@ -119,6 +119,17 @@ describe('seMuestraInvitacion', () => {
     expect(seMuestraInvitacion({ estado: 'bloqueado', vista: false })).toBeNull()
   })
 
+  it('mientras carga la sesión no se muestra nada (ni "entrar" ni "activar")', () => {
+    expect(seMuestraInvitacion({ estado: 'sin-sesion', vista: false, cargando: true })).toBeNull()
+    expect(seMuestraInvitacion({ estado: 'sin-pedir', vista: false, cargando: true })).toBeNull()
+  })
+
+  it('"activar" espera la primera sincronización; "entrar" sin sesión no la necesita', () => {
+    expect(seMuestraInvitacion({ estado: 'sin-pedir', vista: false, sincronizado: false })).toBeNull()
+    expect(seMuestraInvitacion({ estado: 'sin-pedir', vista: false, sincronizado: true })).toBe('activar')
+    expect(seMuestraInvitacion({ estado: 'sin-sesion', vista: false, cargando: false, sincronizado: false })).toBe('entrar')
+  })
+
   it('con los avisos ya activos no se invita', () => {
     expect(seMuestraInvitacion({ estado: 'activo', vista: false })).toBeNull()
   })
@@ -287,7 +298,33 @@ describe('componentes: la invitación sale solo de un Guardar / Voy exitoso', ()
 
   it('InvitacionAvisos: la hoja de después de la acción solo se abre con la variante "activar"', () => {
     const src = leerFuente('components/InvitacionAvisos.tsx')
-    expect(src).toMatch(/seMuestraInvitacion\(\{ estado: estadoRef\.current, vista \}\) === 'activar'/)
+    expect(src).toMatch(/seMuestraInvitacion\(\{ \.\.\.datosRef\.current, vista \}\) === 'activar'/)
+  })
+
+  it('InvitacionAvisos: la hoja abre con retraso, limpiado en el cleanup', () => {
+    const src = leerFuente('components/InvitacionAvisos.tsx')
+    expect(src).toMatch(/setTimeout\(/)
+    expect(src).toMatch(/clearTimeout\(temporizador\)/)
+  })
+
+  it('InvitacionAvisos: la tarjeta y la hoja esperan la sesión y la primera sincronización', () => {
+    const src = leerFuente('components/InvitacionAvisos.tsx')
+    expect(src).toMatch(/seMuestraInvitacion\(\{ estado, vista, cargando, sincronizado \}\)/)
+    expect(src).toMatch(/datosRef = useRef\(\{ estado, sincronizado, cargando \}\)/)
+  })
+
+  it('InvitacionAvisos: la hoja no envuelve el fondo con un botón (hermanos) y es modal para el lector de pantalla', () => {
+    const src = leerFuente('components/InvitacionAvisos.tsx')
+    expect(src).toMatch(/accessibilityViewIsModal/)
+    expect(src).toMatch(/style=\{StyleSheet\.absoluteFill\}[\s\S]*?accessible=\{false\}/)
+    expect(src).not.toMatch(/style=\{estilos\.fondo\}\s*\n\s*onPress/)
+  })
+
+  it('InvitacionAvisos: tras Activar avisa el resultado y revisa `ok` de cambiarAvisosEquipo', () => {
+    const src = leerFuente('components/InvitacionAvisos.tsx')
+    expect(src).toMatch(/guardado\.ok \? AVISO_AVISOS_ACTIVOS : AVISO_PREFERENCIA_NO_GUARDADA/)
+    expect(src).toMatch(/AVISO_AVISOS_NO_ACTIVADOS/)
+    expect(src).not.toMatch(/cambiarAvisosEquipo\([^)]*\)\.catch/)
   })
 
   it('el userId de "Activar" sale de la sesión, no de ningún parámetro', () => {

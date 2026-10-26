@@ -20,9 +20,21 @@ export type VarianteInvitacion = 'activar' | 'entrar' | null
  * `bloqueado`, `denegado`, `no-disponible`, `error-registro`, `pidiendo`) no
  * aparece: si la persona negó el permiso, no se vuelve a insistir.
  */
-export function seMuestraInvitacion({ estado, vista }: { estado: EstadoPush; vista: boolean }): VarianteInvitacion {
-  if (vista) return null
-  if (estado === 'sin-pedir') return 'activar'
+export function seMuestraInvitacion({
+  estado,
+  vista,
+  cargando = false,
+  sincronizado = true,
+}: {
+  estado: EstadoPush
+  vista: boolean
+  /** La sesión todavía se está leyendo: `sin-sesion` no es confiable, no se muestra nada. */
+  cargando?: boolean
+  /** Terminó la primera sincronización con sesión: antes, `sin-pedir` es solo el valor inicial. */
+  sincronizado?: boolean
+}): VarianteInvitacion {
+  if (vista || cargando) return null
+  if (estado === 'sin-pedir') return sincronizado ? 'activar' : null
   if (estado === 'sin-sesion') return 'entrar'
   return null
 }

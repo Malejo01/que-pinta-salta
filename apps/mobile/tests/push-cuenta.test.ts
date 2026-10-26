@@ -379,6 +379,10 @@ describe('QPS-113 sin confirmar: los textos nuevos de 41-e no prometen cifras ni
     'Te avisamos antes de lo que guardaste y te mandamos novedades de Qué Pinta Salta. Lo cambiás cuando quieras en Cuenta.',
     'Entrá a tu cuenta para activar los avisos',
     'Novedades y avisos del equipo de Qué Pinta Salta.',
+    'Con tu cuenta te avisamos antes de lo que guardes. Lo cambiás cuando quieras en Cuenta.',
+    'Listo, te vamos a avisar.',
+    'No pudimos activar los avisos. Podés probar en Cuenta.',
+    'Los avisos quedaron activos, pero no pudimos guardar tu preferencia. Revisala en Cuenta.',
   ]
 
   // Un tope ("hasta 4 por día", "4 notificaciones diarias") o un horario
