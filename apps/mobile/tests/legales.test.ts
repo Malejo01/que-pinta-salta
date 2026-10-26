@@ -10,8 +10,8 @@ import { enlacesLegales, textoAceptacion, TERMINOS_PUBLICADOS } from '../lib/leg
 import { urlSitio } from '../lib/links'
 
 describe('TERMINOS_PUBLICADOS', () => {
-  it('está en false: /terminos vive en el #74, sin mergear', () => {
-    expect(TERMINOS_PUBLICADOS).toBe(false)
+  it('está en true: /terminos (el #74) ya está publicado (R72, 72-d)', () => {
+    expect(TERMINOS_PUBLICADOS).toBe(true)
   })
 })
 
@@ -27,8 +27,11 @@ describe('enlacesLegales', () => {
     ])
   })
 
-  it('sin argumento, usa TERMINOS_PUBLICADOS (hoy false)', () => {
-    expect(enlacesLegales()).toEqual([{ ruta: '/privacidad', texto: 'Política de privacidad' }])
+  it('sin argumento, usa TERMINOS_PUBLICADOS (hoy true): suma Términos y condiciones', () => {
+    expect(enlacesLegales()).toEqual([
+      { ruta: '/privacidad', texto: 'Política de privacidad' },
+      { ruta: '/terminos', texto: 'Términos y condiciones' },
+    ])
   })
 })
 
@@ -45,9 +48,9 @@ describe('textoAceptacion', () => {
     )
   })
 
-  it('sin argumento, usa TERMINOS_PUBLICADOS (hoy false)', () => {
+  it('sin argumento, usa TERMINOS_PUBLICADOS (hoy true): nombra los dos documentos', () => {
     expect(textoAceptacion()).toBe(
-      'Al crear tu cuenta o continuar con Google aceptás la Política de privacidad.'
+      'Al crear tu cuenta o continuar con Google aceptás los Términos y condiciones y la Política de privacidad.'
     )
   })
 })
@@ -57,8 +60,8 @@ describe('urlSitio: los dos legales', () => {
     expect(urlSitio('/privacidad')).toBe('https://www.quepintasalta.com.ar/privacidad')
   })
 
-  it('/terminos da null mientras TERMINOS_PUBLICADOS sea false', () => {
-    expect(urlSitio('/terminos')).toBeNull()
+  it('/terminos se abre con el flag real en true', () => {
+    expect(urlSitio('/terminos')).toBe('https://www.quepintasalta.com.ar/terminos')
   })
 })
 

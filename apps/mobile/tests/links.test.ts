@@ -94,8 +94,8 @@ describe('urlSitio: rutas legales (QPS-237)', () => {
     expect(urlSitio('/privacidad')).toBe('https://www.quepintasalta.com.ar/privacidad')
   })
 
-  it('/terminos: null (TERMINOS_PUBLICADOS en false)', () => {
-    expect(urlSitio('/terminos')).toBeNull()
+  it('/terminos: se abre (TERMINOS_PUBLICADOS en true)', () => {
+    expect(urlSitio('/terminos')).toBe('https://www.quepintasalta.com.ar/terminos')
   })
 
   it('rutas desconocidas siguen en null', () => {

@@ -5,14 +5,13 @@
  * `TERMINOS_PUBLICADOS` de acá (los dos son puros: no hay ciclo ni problema
  * de polyfill).
  *
- * `TERMINOS_PUBLICADOS`: `/terminos` vive en el #74 (ops/rondas/49-pulido-play/
- * plan.md), todavía sin mergear en `main`. Mientras esté en `false`, el link
- * a "Términos y condiciones" no se muestra y la línea de aceptación nombra
- * solo la Política de privacidad. Se pasa a `true` cuando el #74 esté en
- * producción — y eso pide un build nuevo de EAS, porque esta constante se
- * empaqueta en el binario.
+ * `TERMINOS_PUBLICADOS`: `/terminos` (el #74) ya está en `main` y publicado,
+ * así que está en `true` (R72, 72-d, QPS-333): el link a "Términos y
+ * condiciones" se muestra junto a Privacidad y la línea de aceptación nombra
+ * los dos documentos. Cambiar este valor pide un build nuevo de EAS, porque
+ * la constante se empaqueta en el binario.
  */
-export const TERMINOS_PUBLICADOS = false
+export const TERMINOS_PUBLICADOS = true
 
 export const RUTA_PRIVACIDAD = '/privacidad'
 export const RUTA_TERMINOS = '/terminos'
