@@ -18,16 +18,19 @@ import { existsSync, readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 
 const RUTA_GITHUB = fileURLToPath(new URL('../../../../.github/workflows/publicidad.yml', import.meta.url))
-const RUTA_PROPUESTA = 'D:/Programacion/QuePintaSalta/que-pinta-salta/ops/rondas/58-precios-automaticos/publicidad.yml.propuesto'
-
-const RUTA = existsSync(RUTA_GITHUB) ? RUTA_GITHUB : existsSync(RUTA_PROPUESTA) ? RUTA_PROPUESTA : null
+// QPS-342: el workflow ya vive en .github/; si falta, el test falla (nunca se saltea).
+const RUTA = RUTA_GITHUB
 
 function lineasActivas(yaml: string): string[] {
   return yaml.split('\n').filter((linea) => !/^\s*#/.test(linea))
 }
 
-describe.skipIf(RUTA === null)('workflow de publicidad (solo lectura)', () => {
-  const yaml = RUTA ? readFileSync(RUTA, 'utf8') : ''
+describe('workflow de publicidad (solo lectura)', () => {
+  it('el archivo existe en .github/workflows/publicidad.yml', () => {
+    expect(existsSync(RUTA)).toBe(true)
+  })
+
+  const yaml = existsSync(RUTA) ? readFileSync(RUTA, 'utf8') : ''
   const activas = lineasActivas(yaml)
 
   it('tiene el schedule diario activo, a las 09:00 UTC (06:00 de Salta)', () => {

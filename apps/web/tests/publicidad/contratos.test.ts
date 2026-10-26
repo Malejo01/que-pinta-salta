@@ -320,8 +320,8 @@ describe('contrato: el workflow y la ruta usan el mismo camino', () => {
   // De noche no se puede escribir en .github/: el contenido vive en ops/ hasta que el lead lo copia
   // (igual que tests/app/workflow-publicidad.test.ts). Si existe el real, se prefiere ese.
   const RUTA_GITHUB = `${RAIZ}.github/workflows/publicidad.yml`
-  const RUTA_PROPUESTA = 'D:/Programacion/QuePintaSalta/que-pinta-salta/ops/rondas/58-precios-automaticos/publicidad.yml.propuesto'
-  const RUTA = existsSync(RUTA_GITHUB) ? RUTA_GITHUB : existsSync(RUTA_PROPUESTA) ? RUTA_PROPUESTA : null
+  // QPS-342: el workflow ya vive en .github/; si falta, estos tests fallan (nunca se saltean).
+  const RUTA = RUTA_GITHUB
 
   const CAMINO_RUTA = '/api/cron/publicidad'
 
@@ -332,8 +332,9 @@ describe('contrato: el workflow y la ruta usan el mismo camino', () => {
     expect(readFileSync(archivo, 'utf8')).toMatch(/export async function GET\(/)
   })
 
-  it.skipIf(RUTA === null)('el workflow llama a ese camino, y solo a ese, y la ruta se documenta con el mismo', () => {
-    const yaml = readFileSync(RUTA as string, 'utf8')
+  it('el workflow llama a ese camino, y solo a ese, y la ruta se documenta con el mismo', () => {
+    expect(existsSync(RUTA)).toBe(true)
+    const yaml = readFileSync(RUTA, 'utf8')
     const activas = yaml.split('\n').filter((l) => !/^\s*#/.test(l))
     const caminos = new Set(activas.flatMap((l) => [...l.matchAll(/\/api\/cron\/[a-z0-9-]+/g)].map((m) => m[0])))
     expect([...caminos]).toEqual([CAMINO_RUTA])
@@ -343,8 +344,8 @@ describe('contrato: el workflow y la ruta usan el mismo camino', () => {
     expect(ruta).toContain('publicidad.yml')
   })
 
-  it.skipIf(RUTA === null)('el workflow manda el secreto como Bearer, que es lo que la ruta valida (CRON_SECRET)', () => {
-    const yaml = readFileSync(RUTA as string, 'utf8')
+  it('el workflow manda el secreto como Bearer, que es lo que la ruta valida (CRON_SECRET)', () => {
+    const yaml = readFileSync(RUTA, 'utf8')
     expect(yaml).toMatch(/Authorization:\s*Bearer\s+\$\{?CRON_SECRET\}?/)
     expect(readFileSync(`${APP}app/api/cron/publicidad/route.ts`, 'utf8')).toMatch(/hasBearerSecret\(request, 'CRON_SECRET'\)/)
   })
