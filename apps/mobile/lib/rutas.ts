@@ -26,7 +26,39 @@ export function rutaPorPrefijo(id: string): string | null {
   return null
 }
 
-/** `true` solo si no es película ni flyer: favorito y compartir son de eventos reales. */
+/**
+ * Qué se guarda en `user_favorites` (R69, 69-a, QPS-353): el tipo decide la
+ * columna (`event` → `event_id`, `cinema` → `cinema_movie_id`, `flyer` →
+ * `instagram_flyer_id`, igual que `toggleFavorite` de la web) y el `id` es
+ * SIEMPRE el uuid pelado, nunca `movie-…`/`ig-…`.
+ */
+export type TipoFavorito = 'event' | 'cinema' | 'flyer'
+export interface ObjetivoFavorito {
+  tipo: TipoFavorito
+  id: string
+}
+
+/**
+ * El objetivo del corazón de un item de la portada, Buscar o Favoritos (R69,
+ * 69-a). Misma derivación del id que `rutaDeEvento`. Para película y flyer, si
+ * lo que queda tras sacar el prefijo no es un uuid devuelve `null` (sin
+ * corazón): a la base nunca va un id raro. Para un evento, el id tal cual.
+ */
+export function objetivoDeFavorito(
+  item: Pick<DisplayEvent, 'id' | 'isCinemaMovie' | 'isInstagramFlyer' | 'flyerId'>,
+): ObjetivoFavorito | null {
+  if (item.isCinemaMovie) {
+    const id = item.id.replace(/^movie-/, '')
+    return esUuid(id) ? { tipo: 'cinema', id } : null
+  }
+  if (item.isInstagramFlyer) {
+    const id = item.flyerId || item.id.replace(/^ig-/, '')
+    return esUuid(id) ? { tipo: 'flyer', id } : null
+  }
+  return { tipo: 'event', id: item.id }
+}
+
+/** `true` solo si no es película ni flyer: compartir es de eventos reales (el corazón va para los tres tipos, ver `objetivoDeFavorito`). */
 export function esEventoReal(item: Pick<DisplayEvent, 'isCinemaMovie' | 'isInstagramFlyer'>): boolean {
   return !item.isCinemaMovie && !item.isInstagramFlyer
 }

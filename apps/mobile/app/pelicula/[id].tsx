@@ -17,11 +17,16 @@
 // R67 (67-c): el acordeón de un cine es `components/BloqueCine.tsx`, el mismo
 // que usa `components/TarjetaPelicula.tsx` (Cines y la portada con el chip
 // "Cine"); esta `Ficha` no es una tarjeta y conserva su armado.
+//
+// R69, 69-a (QPS-353): el corazón (`BotonFavorito` de tipo `cinema`) junto al
+// título, 40 y fondo `muted` como en la ficha de evento, para poder sacar la
+// película de Favoritos.
 import { useCallback, useEffect, useState } from 'react'
 import { ScrollView, StyleSheet, View } from 'react-native'
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router'
 import { Afiche } from '@/components/Afiche'
 import { BloqueCine } from '@/components/BloqueCine'
+import { BotonFavorito } from '@/components/BotonFavorito'
 import { Cargando, ErrorCarga, Vacio } from '@/components/EstadoCarga'
 import { Texto } from '@/components/Texto'
 import { useColoresQPS } from '@/lib/colores'
@@ -112,9 +117,16 @@ function Ficha({ pelicula }: { pelicula: Pelicula }) {
         <Afiche url={pelicula.poster_url} llenar />
       </View>
 
-      <Texto peso="bold" accessibilityRole="header" style={estilos.titulo}>
-        {pelicula.title}
-      </Texto>
+      <View style={estilos.filaTitulo}>
+        <Texto peso="bold" accessibilityRole="header" style={[estilos.titulo, estilos.tituloFlex]}>
+          {pelicula.title}
+        </Texto>
+        {/* R69, 69-a (QPS-353): el corazón de la película, con el uuid pelado
+            (`pelicula.id`, nunca `movie-…`). */}
+        <View style={estilos.corazonTitulo}>
+          <BotonFavorito objetivo={{ tipo: 'cinema', id: pelicula.id }} nombre={pelicula.title} tamanio={40} fondo="muted" />
+        </View>
+      </View>
 
       {cines.length === 0 ? (
         <Texto tono="secundario" style={estilos.sinFunciones}>
@@ -140,6 +152,13 @@ const estilos = StyleSheet.create({
   centrado: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24, gap: 12 },
   contenido: { padding: 16, gap: 4 },
   contenedorAfiche: { width: '100%', aspectRatio: 2 / 3, borderRadius: 16, overflow: 'hidden' },
-  titulo: { fontSize: 22, marginTop: 16, marginBottom: 8 },
+  // R69, 69-r1: el corazón se alinea con la PRIMERA línea del título (no
+  // centrado contra 2-3 líneas). El título tiene `lineHeight` fijo de 28 y el
+  // corazón mide 40: para que con una línea queden centrados, el corazón sube
+  // (28 - 40) / 2 = -6 (`corazonTitulo.marginTop`).
+  filaTitulo: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginTop: 16, marginBottom: 8 },
+  tituloFlex: { flex: 1 },
+  titulo: { fontSize: 22, lineHeight: 28 },
+  corazonTitulo: { marginTop: -6 },
   sinFunciones: { textAlign: 'center', fontStyle: 'italic', paddingVertical: 8 },
 })
