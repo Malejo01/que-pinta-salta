@@ -242,6 +242,125 @@ describe('violacionesDeGuarda (fixtures en memoria)', () => {
   })
 })
 
+// ---------------------------------------------------------------------------
+// R69, 69-q (QPS-353): el corazón recibe el objetivo derivado, nunca el id crudo.
+// ---------------------------------------------------------------------------
+/** La etiqueta `<BotonFavorito ... />` (primera), o null. Sin `>` dentro de las props. */
+function etiquetaBotonFavorito(c: string): string | null {
+  return /<BotonFavorito\b[\s\S]*?\/>/.exec(c)?.[0] ?? null
+}
+
+/** TarjetaEvento: `const X = objetivoDeFavorito(evento)` y `<BotonFavorito objetivo={X} ...>`, sin `eventId=` ni `evento.id`. */
+export function violacionesDeObjetivoTarjeta(src: string): string[] {
+  const c = sinComentarios(src)
+  const v: string[] = []
+  if (!/import\s*\{[^}]*\bobjetivoDeFavorito\b[^}]*\}\s*from\s*['"]@\/lib\/rutas['"]/.test(c)) {
+    v.push('no importa objetivoDeFavorito de @/lib/rutas')
+  }
+  const derivado = /const\s+(\w+)\s*=\s*objetivoDeFavorito\(\s*evento\s*\)/.exec(c)
+  if (!derivado) v.push('no deriva el objetivo con objetivoDeFavorito(evento)')
+  const etiqueta = etiquetaBotonFavorito(c)
+  if (!etiqueta) return [...v, 'no renderiza <BotonFavorito']
+  if (/\beventId\s*=/.test(etiqueta)) v.push('<BotonFavorito con eventId=')
+  if (/\bevento\.id\b/.test(etiqueta)) v.push('<BotonFavorito con evento.id crudo')
+  const objetivo = /\bobjetivo=\{\s*(\w+)\s*\}/.exec(etiqueta)
+  if (!objetivo) v.push('<BotonFavorito sin objetivo={<variable>}')
+  else if (derivado && objetivo[1] !== derivado[1]) v.push('<BotonFavorito no recibe el objetivo derivado')
+  return v
+}
+
+/** Una ficha: `<BotonFavorito objetivo={{ tipo: '<tipo>', id: <registro>.id }} ...>`, sin `eventId=` ni otro tipo. */
+export function violacionesDeObjetivoFicha(src: string, tipo: 'cinema' | 'flyer', registro: string): string[] {
+  const c = sinComentarios(src)
+  const v: string[] = []
+  const etiqueta = etiquetaBotonFavorito(c)
+  if (!etiqueta) return ['no renderiza <BotonFavorito']
+  if (/\beventId\s*=/.test(etiqueta)) v.push('<BotonFavorito con eventId=')
+  const m = /\bobjetivo=\{\{\s*tipo:\s*'(\w+)'\s*,\s*id:\s*([\w.]+)\s*\}\}/.exec(etiqueta)
+  if (!m) return [...v, '<BotonFavorito sin objetivo={{ tipo, id }}']
+  if (m[1] !== tipo) v.push(`el tipo es '${m[1]}', debería ser '${tipo}'`)
+  if (m[2] !== `${registro}.id`) v.push(`el id es ${m[2]}, debería ser ${registro}.id`)
+  return v
+}
+
+describe('violacionesDeObjetivoTarjeta / violacionesDeObjetivoFicha (fixtures en memoria)', () => {
+  const tarjetaOk = [
+    "import { esEventoReal, objetivoDeFavorito, rutaDeEvento } from '@/lib/rutas'",
+    'const objetivoFavorito = objetivoDeFavorito(evento)',
+    '{objetivoFavorito ? <BotonFavorito objetivo={objetivoFavorito} tamanio={32} fondo="oscuro" /> : null}',
+  ].join('\n')
+
+  it('acepta la tarjeta que pasa por objetivoDeFavorito', () => {
+    expect(violacionesDeObjetivoTarjeta(tarjetaOk)).toEqual([])
+  })
+  it('rechaza eventId= en el corazón', () => {
+    const malo = tarjetaOk.replace('objetivo={objetivoFavorito}', 'eventId={evento.id}')
+    const v = violacionesDeObjetivoTarjeta(malo)
+    expect(v).toContain('<BotonFavorito con eventId=')
+    expect(v).toContain('<BotonFavorito con evento.id crudo')
+  })
+  it('rechaza el id crudo dentro de objetivo', () => {
+    const malo = tarjetaOk.replace('objetivo={objetivoFavorito}', "objetivo={{ tipo: 'event', id: evento.id }}")
+    expect(violacionesDeObjetivoTarjeta(malo)).toContain('<BotonFavorito con evento.id crudo')
+  })
+  it('rechaza un objetivo que no es el derivado', () => {
+    const malo = tarjetaOk.replace('objetivo={objetivoFavorito}', 'objetivo={otro}')
+    expect(violacionesDeObjetivoTarjeta(malo)).toContain('<BotonFavorito no recibe el objetivo derivado')
+  })
+  it('rechaza la tarjeta que no deriva ni importa objetivoDeFavorito', () => {
+    const malo = '<BotonFavorito objetivo={objetivoFavorito} />'
+    const v = violacionesDeObjetivoTarjeta(malo)
+    expect(v).toContain('no importa objetivoDeFavorito de @/lib/rutas')
+    expect(v).toContain('no deriva el objetivo con objetivoDeFavorito(evento)')
+  })
+  it('un <BotonFavorito solo en un comentario no cuenta', () => {
+    expect(violacionesDeObjetivoTarjeta('// <BotonFavorito objetivo={x} />')).toContain('no renderiza <BotonFavorito')
+  })
+
+  const fichaOk = `<BotonFavorito objetivo={{ tipo: 'cinema', id: pelicula.id }} tamanio={40} fondo="muted" />`
+  it('acepta la ficha con el tipo y el registro correctos', () => {
+    expect(violacionesDeObjetivoFicha(fichaOk, 'cinema', 'pelicula')).toEqual([])
+  })
+  it('rechaza el tipo equivocado', () => {
+    expect(violacionesDeObjetivoFicha(fichaOk.replace("'cinema'", "'event'"), 'cinema', 'pelicula')).toContain(
+      "el tipo es 'event', debería ser 'cinema'"
+    )
+  })
+  it('rechaza un id que no sale del registro cargado', () => {
+    expect(violacionesDeObjetivoFicha(fichaOk.replace('pelicula.id', 'id'), 'cinema', 'pelicula')).toContain('el id es id, debería ser pelicula.id')
+  })
+  it('rechaza eventId=', () => {
+    expect(violacionesDeObjetivoFicha('<BotonFavorito eventId={pelicula.id} />', 'cinema', 'pelicula')).toContain('<BotonFavorito con eventId=')
+  })
+})
+
+describe('components/TarjetaEvento.tsx: el corazón recibe el objetivo derivado (QPS-353)', () => {
+  const real = readFileSync(`${MOBILE_ROOT}/components/TarjetaEvento.tsx`, 'utf8')
+  it('sin violaciones', () => {
+    expect(violacionesDeObjetivoTarjeta(real)).toEqual([])
+  })
+  it('rotura en memoria: el corazón con eventId={evento.id} se detecta', () => {
+    const roto = real.replace('objetivo={objetivoFavorito}', 'eventId={evento.id}')
+    expect(roto).not.toBe(real)
+    expect(violacionesDeObjetivoTarjeta(roto)).toContain('<BotonFavorito con eventId=')
+  })
+})
+
+describe.each([
+  ['app/pelicula/[id].tsx', 'cinema', 'pelicula'],
+  ['app/flyer/[id].tsx', 'flyer', 'flyer'],
+] as const)('%s: el corazón es de tipo %s (QPS-353)', (ruta, tipo, registro) => {
+  const real = readFileSync(`${MOBILE_ROOT}/${ruta}`, 'utf8')
+  it('sin violaciones', () => {
+    expect(violacionesDeObjetivoFicha(real, tipo, registro)).toEqual([])
+  })
+  it('rotura en memoria: el tipo cambiado a event se detecta', () => {
+    const roto = real.replace(`tipo: '${tipo}'`, "tipo: 'event'")
+    expect(roto).not.toBe(real)
+    expect(violacionesDeObjetivoFicha(roto, tipo, registro)).not.toEqual([])
+  })
+})
+
 describe('components/TarjetaEvento.tsx: botones solo en tarjetas de eventos reales', () => {
   it('sin violaciones', () => {
     const v = violacionesDeGuarda(readFileSync(`${MOBILE_ROOT}/components/TarjetaEvento.tsx`, 'utf8'))
