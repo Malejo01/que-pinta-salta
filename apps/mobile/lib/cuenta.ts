@@ -15,6 +15,8 @@ import { SITIO } from '@qps/core/metricas/links'
 import { CLAVE_BIENVENIDA_VISTA } from '@/lib/bienvenida'
 import { supabase } from '@/lib/supabase'
 import { borrarTodaLaCache } from '@/lib/sin-conexion/cache'
+import { removeItem as borrarItemSeguro } from '@/lib/secure-storage'
+import { CLAVE_TOKEN_PUSH } from '@/lib/push/clave-token'
 
 const RUTA_ELIMINAR = `${SITIO}/api/cuenta/eliminar`
 
@@ -88,11 +90,20 @@ export async function eliminarMiCuenta(accessToken: string): Promise<ResultadoEl
  * bandera de "ya se vio la Bienvenida" para que, si alguna vez se vuelve a
  * crear una cuenta en este teléfono, se vuelva a mostrar.
  *
- * Los cuatro pasos van cada uno en su `try/catch` porque cualquiera **puede**
+ * R72, 72-e (QPS-335): también se borra el token de push guardado en el
+ * teléfono (`CLAVE_TOKEN_PUSH`). Se borra con `removeItem` de
+ * `lib/secure-storage.ts` (el token se guarda en pedazos: `push-token.n` y
+ * `push-token.0`...; borrar la clave pelada dejaría los pedazos). Es solo
+ * borrado local: NO se llama a `borrarTokenDeEsteTelefono`, que haría un
+ * `delete` de `push_tokens` contra el servidor con la sesión de una cuenta que
+ * ya no existe (en el servidor la fila se fue con la cuenta). Va justo después
+ * de la caché, antes del `signOut`, porque no depende de la sesión.
+ *
+ * Los cinco pasos van cada uno en su `try/catch` porque cualquiera **puede**
  * tirar (`SecureStore` tira en `deleteItemAsync`, y `signOut` puede tirar por
  * una excepción de verdad: ver el párrafo de QPS-193 más abajo).
  * `borrarTodaLaCache` (`lib/sin-conexion/cache.ts`) ya nunca tira por su
- * cuenta, pero igual se envuelve, como los otros tres. Esta función no
+ * cuenta, pero igual se envuelve, como los otros. Esta función no
  * propaga ninguna: la cuenta ya está borrada para siempre en el servidor en
  * el momento en que se la llama, así que no hay nada que reintentar ni
  * ningún error que mostrarle a la persona si algo de esto falla.
@@ -126,6 +137,13 @@ export async function limpiarTrasEliminarCuenta(entroConGoogle: boolean): Promis
   } catch {
     // Best-effort (ver el comentario de cabecera): la cuenta ya está
     // borrada en el servidor, no hay nada que reintentar.
+  }
+
+  try {
+    await borrarItemSeguro(CLAVE_TOKEN_PUSH)
+  } catch {
+    // Best-effort: un token viejo e inútil (la cuenta ya no existe) que no
+    // se pudo borrar sigue cifrado; no se loguea nada (ni el token).
   }
 
   if (supabase) {

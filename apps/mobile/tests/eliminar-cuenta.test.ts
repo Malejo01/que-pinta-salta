@@ -46,8 +46,10 @@ vi.mock('@react-native-google-signin/google-signin', () => ({
 vi.mock('expo-secure-store', () => ({
   getItemAsync: vi.fn(async () => null),
   setItemAsync: vi.fn(async () => {}),
-  deleteItemAsync: vi.fn(async () => {
-    estado.banderaBienvenidaBorrada++
+  // Solo cuenta el borrado de la bandera de la Bienvenida (72-e: ahora
+  // también se borra el token de push, con otras claves).
+  deleteItemAsync: vi.fn(async (clave: string) => {
+    if (clave === 'qps.bienvenida.vista') estado.banderaBienvenidaBorrada++
   }),
 }))
 

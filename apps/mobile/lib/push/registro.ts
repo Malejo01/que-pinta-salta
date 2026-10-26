@@ -28,8 +28,11 @@ import { getItem as getItemReal, removeItem as removeItemReal, setItem as setIte
 import { TIMEOUT_RED_MS } from '@/lib/red'
 import { estadoDesdePermiso, plataformaPush, type EstadoPush } from './estado'
 
-/** Clave de SecureStore donde se guarda el último token de push registrado en este teléfono. */
-export const CLAVE_TOKEN_PUSH = 'push-token'
+// La constante vive en un módulo puro (`./clave-token`, R72, 72-e) para que
+// `lib/cuenta.ts` la use sin arrastrar módulos nativos; se re-exporta acá con
+// el mismo nombre para no romper a quien ya la importa de `registro.ts`.
+import { CLAVE_TOKEN_PUSH } from './clave-token'
+export { CLAVE_TOKEN_PUSH }
 
 type ClienteSupabase = SupabaseClient<Database> | null
 
