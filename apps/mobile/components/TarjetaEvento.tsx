@@ -6,9 +6,14 @@
 // R29, 29-b (F14, ops/paridad-web-app.md §3.3): el corazón y Compartir ahora
 // viven también acá, arriba a la derecha, en círculos de 32 con fondo
 // oscuro (`bg-black/60` de la web) — igual que la card real. Son
-// `Pressable` propios, anidados dentro del `Pressable` de toda la tarjeta:
-// en React Native el touch no burbujea de un `Pressable` a otro (gana el
-// más anidado), así que tocarlos no dispara la navegación a la ficha.
+// `Pressable` propios (dónde van, en el párrafo de R72 que sigue).
+//
+// R72, 72-b (QPS-360): ya NO van anidados dentro del `Pressable` de la tarjeta.
+// TalkBack y VoiceOver agrupan un elemento accesible con todos sus hijos, y el
+// corazón y Compartir no recibían foco propio. Ahora un `View` contenedor
+// lleva el estilo (tamaño, borde, sombra) y adentro hay dos hermanos: el
+// `Pressable` de la tarjeta (ocupa todo) y las acciones, arriba con `zIndex`
+// y `pointerEvents="box-none"` para no tapar el toque del resto de la tarjeta.
 //
 // R67, 67-a (F6 de la beta): la tarjeta también dibuja películas (`movie-…`) y
 // flyers (`ig-…`). Navega con `rutaDeEvento` (lib/rutas.ts) a la ficha que
@@ -87,91 +92,96 @@ export function TarjetaEvento({ evento }: TarjetaEventoProps) {
     : `${evento.title}, ${fecha}${evento.time ? ` ${evento.time}` : ''}, en ${evento.venue}`
 
   return (
-    <Pressable
-      onPress={() => router.push(rutaDeEvento(evento))}
-      accessibilityRole="button"
-      accessibilityLabel={etiqueta}
-      style={[estilos.contenedor, { backgroundColor: colores.card }]}
-    >
-      <Afiche
-        url={evento.image}
-        llenar
-        fallback={
-          <View style={[estilos.marca, { backgroundColor: colores.primary }]}>
-            <Text style={[estilos.marcaInicial, { color: colores.primaryForeground }]} numberOfLines={1}>
-              {inicialCategoria}
-            </Text>
-            <Text style={[estilos.marcaTexto, { color: colores.primaryForeground }]} numberOfLines={1}>
-              QUÉ PINTA SALTA
+    <View style={[estilos.contenedor, { backgroundColor: colores.card }]}>
+      <Pressable
+        onPress={() => router.push(rutaDeEvento(evento))}
+        accessibilityRole="button"
+        accessibilityLabel={etiqueta}
+        style={estilos.tarjeta}
+      >
+        <Afiche
+          url={evento.image}
+          llenar
+          fallback={
+            <View style={[estilos.marca, { backgroundColor: colores.primary }]}>
+              <Text style={[estilos.marcaInicial, { color: colores.primaryForeground }]} numberOfLines={1}>
+                {inicialCategoria}
+              </Text>
+              <Text style={[estilos.marcaTexto, { color: colores.primaryForeground }]} numberOfLines={1}>
+                QUÉ PINTA SALTA
+              </Text>
+            </View>
+          }
+        />
+
+        <View style={estilos.degrade} pointerEvents="none">
+          <View style={[estilos.franja, { opacity: 0 }]} />
+          <View style={[estilos.franja, { opacity: 0.4 }]} />
+          <View style={[estilos.franja, { opacity: 0.75 }]} />
+          <View style={[estilos.franja, { opacity: 0.9 }]} />
+        </View>
+
+        <View style={[estilos.arriba, { right: derechaArriba }]} pointerEvents="none">
+          <View style={[estilos.badge, { backgroundColor: colores.primary }]}>
+            <Text
+              style={[estilos.textoBadge, { color: colores.primaryForeground }]}
+              numberOfLines={1}
+              maxFontSizeMultiplier={ESCALA_MAXIMA_COMPACTA}
+            >
+              {evento.categoryName}
             </Text>
           </View>
-        }
-      />
-
-      <View style={estilos.degrade} pointerEvents="none">
-        <View style={[estilos.franja, { opacity: 0 }]} />
-        <View style={[estilos.franja, { opacity: 0.4 }]} />
-        <View style={[estilos.franja, { opacity: 0.75 }]} />
-        <View style={[estilos.franja, { opacity: 0.9 }]} />
-      </View>
-
-      <View style={[estilos.arriba, { right: derechaArriba }]} pointerEvents="none">
-        <View style={[estilos.badge, { backgroundColor: colores.primary }]}>
-          <Text
-            style={[estilos.textoBadge, { color: colores.primaryForeground }]}
-            numberOfLines={1}
-            maxFontSizeMultiplier={ESCALA_MAXIMA_COMPACTA}
-          >
-            {evento.categoryName}
-          </Text>
+          <InsigniaDestacado visible={evento.isFeatured} />
         </View>
-        <InsigniaDestacado visible={evento.isFeatured} />
-      </View>
 
+        <View style={estilos.abajo} pointerEvents="none">
+          <Text style={estilos.titulo} numberOfLines={2} maxFontSizeMultiplier={ESCALA_MAXIMA_COMPACTA}>
+            {evento.title}
+          </Text>
+
+          <View style={estilos.filaLugar}>
+            <Icono nombre="MapPin" tamanio={12} color="rgba(255,255,255,0.8)" />
+            <Text style={estilos.lugar} numberOfLines={1} maxFontSizeMultiplier={ESCALA_MAXIMA_COMPACTA}>
+              {evento.venue}
+            </Text>
+          </View>
+
+          <Text style={estilos.fecha} numberOfLines={1} maxFontSizeMultiplier={ESCALA_MAXIMA_COMPACTA}>
+            {/* R69, 69-b (QPS-338): una película no tiene "fecha" (la de hoy no
+                significa nada); lo visible coincide con la etiqueta de accesibilidad. */}
+            {evento.isCinemaMovie ? 'En cartel' : `${fecha}${evento.time ? ` ${evento.time}` : ''}`}
+          </Text>
+
+          {otrasFechas > 0 ? (
+            <Text style={estilos.masFechas} numberOfLines={1} maxFontSizeMultiplier={ESCALA_MAXIMA_COMPACTA}>
+              +{otrasFechas} fechas
+            </Text>
+          ) : null}
+
+          {precio ? (
+            <Text
+              style={[estilos.precio, evento.price === 'gratis' && estilos.precioGratis]}
+              numberOfLines={1}
+              maxFontSizeMultiplier={ESCALA_MAXIMA_COMPACTA}
+            >
+              {precio}
+            </Text>
+          ) : null}
+        </View>
+      </Pressable>
+
+      {/* R72, 72-b: hermanos del Pressable, no hijos. Orden de foco del lector:
+          primero la tarjeta (título, fecha, lugar), después Compartir y por
+          último el corazón (el orden del árbol es el del foco: no reordenar). */}
       {botonesArriba > 0 ? (
-        <View style={estilos.accionesArriba}>
+        <View style={estilos.accionesArriba} pointerEvents="box-none">
           {esEventoReal(evento) ? (
             <BotonCompartir eventId={evento.id} titulo={evento.title} fecha={fecha} hora={evento.time} lugar={evento.venue} tamanio={32} fondo="oscuro" />
           ) : null}
           {objetivoFavorito ? <BotonFavorito objetivo={objetivoFavorito} nombre={evento.title} tamanio={32} fondo="oscuro" /> : null}
         </View>
       ) : null}
-
-      <View style={estilos.abajo} pointerEvents="none">
-        <Text style={estilos.titulo} numberOfLines={2} maxFontSizeMultiplier={ESCALA_MAXIMA_COMPACTA}>
-          {evento.title}
-        </Text>
-
-        <View style={estilos.filaLugar}>
-          <Icono nombre="MapPin" tamanio={12} color="rgba(255,255,255,0.8)" />
-          <Text style={estilos.lugar} numberOfLines={1} maxFontSizeMultiplier={ESCALA_MAXIMA_COMPACTA}>
-            {evento.venue}
-          </Text>
-        </View>
-
-        <Text style={estilos.fecha} numberOfLines={1} maxFontSizeMultiplier={ESCALA_MAXIMA_COMPACTA}>
-          {/* R69, 69-b (QPS-338): una película no tiene "fecha" (la de hoy no
-              significa nada); lo visible coincide con la etiqueta de accesibilidad. */}
-          {evento.isCinemaMovie ? 'En cartel' : `${fecha}${evento.time ? ` ${evento.time}` : ''}`}
-        </Text>
-
-        {otrasFechas > 0 ? (
-          <Text style={estilos.masFechas} numberOfLines={1} maxFontSizeMultiplier={ESCALA_MAXIMA_COMPACTA}>
-            +{otrasFechas} fechas
-          </Text>
-        ) : null}
-
-        {precio ? (
-          <Text
-            style={[estilos.precio, evento.price === 'gratis' && estilos.precioGratis]}
-            numberOfLines={1}
-            maxFontSizeMultiplier={ESCALA_MAXIMA_COMPACTA}
-          >
-            {precio}
-          </Text>
-        ) : null}
-      </View>
-    </Pressable>
+    </View>
   )
 }
 
@@ -187,6 +197,8 @@ const estilos = StyleSheet.create({
     shadowOpacity: 0.2,
     shadowRadius: 4,
   },
+  // R72, 72-b: el Pressable accesible ocupa todo el contenedor.
+  tarjeta: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
   marca: {
     width: '100%',
     height: '100%',
