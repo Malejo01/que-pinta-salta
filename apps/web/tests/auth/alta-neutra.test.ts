@@ -59,12 +59,12 @@ describe('app/auth/sign-up/page.tsx: usa resultadoAlta para decidir el camino', 
   })
 
   it('llama a resultadoAlta con la respuesta de signUp y decide con resultado.tipo', () => {
-    expect(src).toMatch(/resultadoAlta\(respuesta\)/)
+    expect(src).toMatch(/resultadoAltaConSesion\(respuesta\)/)
     expect(src).toMatch(/resultado\.tipo\s*===\s*['"]enviado['"]/)
   })
 
   it('con "enviado", redirige a /auth/sign-up-success', () => {
-    const bloque = src.slice(src.indexOf('resultadoAlta('))
+    const bloque = src.slice(src.indexOf('resultadoAltaConSesion('))
     expect(bloque).toMatch(/router\.push\(['"]\/auth\/sign-up-success['"]\)/)
   })
 

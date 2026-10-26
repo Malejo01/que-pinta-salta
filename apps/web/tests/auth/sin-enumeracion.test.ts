@@ -100,8 +100,8 @@ describe('CAPA DE COMPORTAMIENTO: resultadoAlta da el mismo resultado para "nuev
 })
 
 describe('CAPA DE CABLEADO: app/auth/sign-up/page.tsx (alta de la página)', () => {
-  it('decide el camino con resultadoAlta, no con una rama propia', () => {
-    expect(SRC_SIGNUP).toMatch(/resultadoAlta\(respuesta\)/)
+  it('decide el camino con resultadoAltaConSesion, no con una rama propia', () => {
+    expect(SRC_SIGNUP).toMatch(/resultadoAltaConSesion\(respuesta\)/)
     expect(SRC_SIGNUP).toMatch(/resultado\.tipo\s*===\s*['"]enviado['"]/)
   })
 
@@ -115,8 +115,8 @@ describe('CAPA DE CABLEADO: app/auth/sign-up/page.tsx (alta de la página)', () 
 })
 
 describe('CAPA DE CABLEADO: components/auth-modal.tsx (alta del modal)', () => {
-  it('decide el camino con resultadoAlta, no con una rama propia', () => {
-    expect(SRC_MODAL).toMatch(/resultadoAlta\(respuesta\)/)
+  it('decide el camino con resultadoAltaConSesion, no con una rama propia', () => {
+    expect(SRC_MODAL).toMatch(/resultadoAltaConSesion\(respuesta\)/)
     expect(SRC_MODAL).toMatch(/resultado\.tipo\s*===\s*["']error["']/)
   })
 
