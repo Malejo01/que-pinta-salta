@@ -33,6 +33,7 @@ import { desmarcarFavorito, marcarFavorito, obtenerEsFavorito } from '@/lib/favo
 import { Icono } from '@/components/Icono'
 import { hitSlopPara } from '@/lib/accesibilidad'
 import { useColoresQPS } from '@/lib/colores'
+import { invitarTrasAccion } from '@/lib/push/invitacion'
 import type { ObjetivoFavorito } from '@/lib/rutas'
 import { useSession } from '@/lib/session'
 
@@ -128,6 +129,7 @@ export function BotonFavorito({ objetivo, tamanio = 40, fondo = 'muted', nombre 
       }
     } else {
       const resultado = await marcarFavorito(id, userId, tipoFavorito)
+      if (resultado.ok) invitarTrasAccion()
       setEstado(resultado.ok ? { tipo: 'ok', marcado: true } : { tipo: 'error', error: resultado.error })
     }
 

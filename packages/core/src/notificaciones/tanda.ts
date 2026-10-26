@@ -42,7 +42,7 @@ import {
   type NovedadParaAgrupar,
   type TipoEnvioNotificacion,
 } from './reglas'
-import { CATEGORIA_PATROCINADO, tituloAvisoPatrocinado } from './patrocinados'
+import { contenidoAvisoPatrocinado } from './patrocinados'
 import { PREFERENCIAS_POR_DEFECTO, type PreferenciasNotificacion } from './preferencias'
 import { urlEvento, type MetricOrigin } from '../metricas/links'
 
@@ -432,24 +432,18 @@ function candidatoPatrocinado(
   )
   if (yaEnviadoEstaSemana) return null
 
-  const url = urlEvento(campania.eventId, ORIGEN_PUSH)
-  if (!url) return null
+  const contenido = contenidoAvisoPatrocinado(campania)
+  if (!contenido) return null
 
   return {
     kind: 'patrocinado',
     eventId: campania.eventId,
     dedupeKey: claveDedupePatrocinado(usuario.userId, semana),
-    title: tituloAvisoPatrocinado(campania.titulo),
-    body: campania.cuerpo,
-    categoryId: CATEGORIA_PATROCINADO,
+    title: contenido.title,
+    body: contenido.body,
+    categoryId: contenido.categoryId,
     campaignId: campania.id,
-    // `tipo` con la MISMA constante que `categoryId`, no con el string
-    // literal: `esAvisoPatrocinado` (`apps/mobile/lib/push/tap.ts`) usa
-    // `data.tipo` como respaldo de `categoryIdentifier` para cuando
-    // `registrarCategoriasPush` falla en silencio, así que si los dos
-    // valores se separaran, ese respaldo dejaría de reconocer el aviso sin
-    // que nada se pusiera en rojo.
-    data: { url, tipo: CATEGORIA_PATROCINADO },
+    data: contenido.data,
   }
 }
 

@@ -17,8 +17,10 @@ import type { EstadoPush } from './estado'
 
 export interface ContextoPush {
   estado: EstadoPush
+  /** `true` cuando ya resolvió la primera sincronización con sesión de esta persona; antes, `estado` es provisorio. */
+  sincronizado: boolean
   /** `sincronizarPush({ preguntar: true })`: el botón de "activar notificaciones". */
-  activar: () => Promise<void>
+  activar: () => Promise<EstadoPush>
   /** Igual que `activar`, pero para el botón de "reintentar" en los estados que fallaron. Siempre manual, nunca automático. */
   reintentar: () => Promise<void>
   /** `Linking.openSettings()`, con `.catch(() => {})`: nunca deja una excepción sin atrapar. */
@@ -29,10 +31,15 @@ function sinEfecto(): Promise<void> {
   return Promise.resolve()
 }
 
+function sinEfectoSinSesion(): Promise<EstadoPush> {
+  return Promise.resolve('sin-sesion')
+}
+
 /** Sin `PushProvider` montado, un contexto que no rompe: `sin-sesion` y funciones que no hacen nada. */
 const CONTEXTO_POR_DEFECTO: ContextoPush = {
   estado: 'sin-sesion',
-  activar: sinEfecto,
+  sincronizado: false,
+  activar: sinEfectoSinSesion,
   reintentar: sinEfecto,
   abrirAjustes: () => {},
 }
@@ -47,6 +54,10 @@ export function PushProvider({ children }: { children: ReactNode }) {
   // dentro del efecto (eso dispara "Calling setState synchronously within
   // an effect", `react-hooks/set-state-in-effect`).
   const [estadoSincronizado, setEstadoSincronizado] = useState<EstadoPush>('sin-pedir')
+  // El `user.id` cuya primera sincronización ya resolvió. `sincronizado` se
+  // deriva en el render comparándolo con el `userId` actual; el único
+  // `setState` está dentro de `.then`/`.catch`, nunca sincrónico en el efecto.
+  const [userIdResuelto, setUserIdResuelto] = useState<string | null>(null)
   const ultimoUserIdSincronizado = useRef<string | null>(null)
 
   const userId = session?.user?.id ?? null
@@ -74,7 +85,9 @@ export function PushProvider({ children }: { children: ReactNode }) {
     let vigente = true
     sincronizarPush({ preguntar: false })
       .then((resultado) => {
-        if (vigente) setEstadoSincronizado(resultado)
+        if (!vigente) return
+        setEstadoSincronizado(resultado)
+        setUserIdResuelto(userId)
       })
       .catch(() => {
         // `sincronizarPush` ya no debería tirar (registro.ts protege las
@@ -83,7 +96,9 @@ export function PushProvider({ children }: { children: ReactNode }) {
         // `estadoSincronizado` se congela en `'sin-pedir'` para siempre
         // (el hallazgo del revisor). Red de última instancia: deja el
         // botón de "Reintentar" en vez de nada.
-        if (vigente) setEstadoSincronizado('error-registro')
+        if (!vigente) return
+        setEstadoSincronizado('error-registro')
+        setUserIdResuelto(userId)
       })
 
     return () => {
@@ -95,12 +110,14 @@ export function PushProvider({ children }: { children: ReactNode }) {
   // `ultimoUserIdSincronizado` todavía tiene el resultado de una sesión
   // anterior): no hace falta "limpiar" nada en el efecto de arriba.
   const estado: EstadoPush = !userId ? 'sin-sesion' : estadoSincronizado
+  const sincronizado = userId !== null && userIdResuelto === userId
 
-  const correr = useCallback(async (preguntar: boolean) => {
+  const correr = useCallback(async (preguntar: boolean): Promise<EstadoPush> => {
     setEstadoSincronizado('pidiendo')
     try {
       const resultado = await sincronizarPush({ preguntar })
       setEstadoSincronizado(resultado)
+      return resultado
     } catch {
       // Red de última instancia (igual razón que el `.catch()` del efecto
       // de arriba): sin esto, una excepción inesperada deja el `await`
@@ -108,16 +125,19 @@ export function PushProvider({ children }: { children: ReactNode }) {
       // estado (y el botón) quedan clavados en `'pidiendo'` para siempre,
       // sin mensaje y sin forma de reintentar sin reiniciar la app.
       setEstadoSincronizado('error-registro')
+      return 'error-registro'
     }
   }, [])
 
   const activar = useCallback(() => correr(true), [correr])
-  const reintentar = useCallback(() => correr(true), [correr])
+  const reintentar = useCallback(async () => {
+    await correr(true)
+  }, [correr])
   const abrirAjustes = useCallback(() => {
     Linking.openSettings().catch(() => {})
   }, [])
 
-  const value: ContextoPush = { estado, activar, reintentar, abrirAjustes }
+  const value: ContextoPush = { estado, sincronizado, activar, reintentar, abrirAjustes }
 
   return <PushContext.Provider value={value}>{children}</PushContext.Provider>
 }

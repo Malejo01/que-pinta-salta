@@ -20,6 +20,7 @@ import { iniciarAnuncios } from '@/lib/anuncios/consentimiento'
 import { SessionProvider } from '@/lib/session'
 import { PushProvider } from '@/lib/push'
 import { ManejadorTapPush } from '@/components/ManejadorTapPush'
+import { InvitacionTrasAccion } from '@/components/InvitacionAvisos'
 
 // Tema con los colores de la web (24-a) y, desde 29-g, con `fonts` en
 // Montserrat (ver `construirTema`). D1 (29-g, decisión de Mauro): la app
@@ -128,6 +129,8 @@ function RootLayout() {
               eso tiene que seguir adentro de `SessionProvider`, como
               `PushProvider`. */}
           <ManejadorTapPush />
+          {/* R70: hoja única de "activá los avisos" tras el primer Guardar/Voy. */}
+          <InvitacionTrasAccion />
           <Stack>
             <Stack.Screen name="bienvenida" options={{ headerShown: false }} />
             <Stack.Screen name="(tabs)" options={{ headerShown: false }} />

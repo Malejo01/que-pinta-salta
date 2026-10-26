@@ -120,6 +120,39 @@ export async function guardarNotificaciones(
   }
 }
 
+export type ResultadoCambiarAvisosEquipo = { ok: true } | { ok: false; mensaje: string }
+
+export const MENSAJE_ERROR_AVISOS_EQUIPO = 'No pudimos guardar tu preferencia de avisos del equipo. Probá de nuevo.'
+
+/**
+ * Ronda 70, 70-a: prende/apaga `announcements` (avisos del equipo de Qué
+ * Pinta Salta) en un toque. Mismo patrón que `cambiarPatrocinados`: el upsert
+ * manda solo `user_id` y `announcements`, así nunca pisa las demás columnas.
+ * `userId` sale siempre de `useSession()` de quien llama.
+ */
+export async function cambiarAvisosEquipo(userId: string, valor: boolean): Promise<ResultadoCambiarAvisosEquipo> {
+  if (!supabase) return { ok: false, mensaje: MENSAJE_SIN_CONFIGURACION }
+
+  try {
+    const { error } = await supabase
+      .from('notification_preferences')
+      .upsert({ user_id: userId, announcements: valor }, { onConflict: 'user_id' })
+
+    if (error) {
+      const resultado = resultadoDeError(error, MENSAJE_ERROR_AVISOS_EQUIPO)
+      return resultado.tipo === 'no-disponible'
+        ? { ok: false, mensaje: MENSAJE_NO_DISPONIBLE }
+        : { ok: false, mensaje: resultado.error }
+    }
+    return { ok: true }
+  } catch (excepcion) {
+    const resultado = resultadoDeError(excepcion, MENSAJE_ERROR_AVISOS_EQUIPO)
+    return resultado.tipo === 'no-disponible'
+      ? { ok: false, mensaje: MENSAJE_NO_DISPONIBLE }
+      : { ok: false, mensaje: resultado.error }
+  }
+}
+
 export type ResultadoCambiarPatrocinados = { ok: true } | { ok: false; mensaje: string }
 
 export const MENSAJE_ERROR_PATROCINADOS = 'No pudimos guardar tu preferencia de avisos patrocinados. Probá de nuevo.'

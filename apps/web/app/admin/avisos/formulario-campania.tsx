@@ -31,7 +31,7 @@ import {
   TEXTO_BOTON_BAJA,
   tituloAvisoPatrocinado,
 } from '@qps/core/notificaciones/patrocinados'
-import { cancelarCampania, guardarCampania } from '@/lib/admin/avisos-patrocinados-actions'
+import { cancelarCampania, enviarmePruebaCampania, guardarCampania } from '@/lib/admin/avisos-patrocinados-actions'
 
 /**
  * Saca el uuid de un evento de lo que pegue el admin: el id solo, o el link
@@ -83,13 +83,45 @@ export function FormularioCampania({ campaniaInicial = null }: FormularioCampani
   const [erroresPorCampo, setErroresPorCampo] = useState<Record<string, string>>({})
   const [mensaje, setMensaje] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
+  const [probando, setProbando] = useState(false)
+  const [resultadoPrueba, setResultadoPrueba] = useState<string | null>(null)
 
   const eventoId = useMemo(() => extraerEventoId(eventoTexto), [eventoTexto])
   const tituloVistaPrevia = tituloAvisoPatrocinado(titulo.trim() || 'Título de la campaña')
 
+  const enVuelo = isPending || probando
+
+  const handlePrueba = () => {
+    if (enVuelo) return
+    setResultadoPrueba(null)
+    setErroresPorCampo({})
+    setProbando(true)
+    void (async () => {
+      try {
+        const resultado = await enviarmePruebaCampania({ titulo, cuerpo, eventId: eventoId })
+        if (resultado.ok) {
+          setResultadoPrueba(
+            resultado.simulado
+              ? 'Simulado: no se envió'
+              : `Enviada a tus ${resultado.telefonos} ${resultado.telefonos === 1 ? 'teléfono' : 'teléfonos'}`,
+          )
+        } else {
+          const porCampo: Record<string, string> = {}
+          for (const error of resultado.errores) porCampo[error.campo] = error.mensaje
+          setErroresPorCampo(porCampo)
+          setResultadoPrueba(resultado.errores[0]?.mensaje ?? 'No se pudo enviar la prueba.')
+        }
+      } catch {
+        setResultadoPrueba('No se pudo enviar la prueba. Intentá de nuevo.')
+      } finally {
+        setProbando(false)
+      }
+    })()
+  }
+
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault()
-    if (isPending) return
+    if (enVuelo) return
     setMensaje(null)
     setErroresPorCampo({})
 
@@ -236,8 +268,20 @@ export function FormularioCampania({ campaniaInicial = null }: FormularioCampani
             </Button>
           </div>
 
+          <div className="space-y-1">
+            <Button type="button" variant="outline" size="sm" disabled={enVuelo} onClick={handlePrueba}>
+              Enviarme una prueba
+            </Button>
+            <p className="text-xs text-muted-foreground">
+              La prueba llega solo a tus teléfonos, no cuenta para el tope semanal ni marca la campaña como enviada.
+            </p>
+            <p aria-live="polite" className="min-h-4 text-xs text-muted-foreground">
+              {resultadoPrueba}
+            </p>
+          </div>
+
           <div className="flex gap-2">
-            <Button type="submit" disabled={isPending}>
+            <Button type="submit" disabled={enVuelo}>
               {campaniaInicial ? 'Guardar cambios' : 'Cargar campaña'}
             </Button>
             {campaniaInicial && (

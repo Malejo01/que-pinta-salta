@@ -42,6 +42,7 @@ import type { DatosTarjetaCompartir } from '@/lib/compartir'
 import { marcarAsistencia, obtenerAsistencia } from '@/lib/asistencia'
 import { useColoresQPS } from '@/lib/colores'
 import { desmarcarFavorito, marcarFavorito } from '@/lib/favoritos'
+import { invitarTrasAccion } from '@/lib/push/invitacion'
 import { useSession } from '@/lib/session'
 
 export interface FilaAccionesEventoProps {
@@ -177,6 +178,7 @@ export function FilaAccionesEvento({ eventId, titulo, fecha, hora, lugar, status
     if (!guardado) {
       const resultado = await marcarFavorito(eventId, userId)
       if (resultado.ok) {
+        invitarTrasAccion()
         setEstado({ tipo: 'ok', guardado: true, voy, cantidadVoy })
       } else {
         setEstado({ tipo: 'error', error: resultado.error })
@@ -228,6 +230,7 @@ export function FilaAccionesEvento({ eventId, titulo, fecha, hora, lugar, status
       setEstado({ tipo: 'ok', guardado: resultado.guardado, voy, cantidadVoy })
     } else {
       const nuevoVoy = !actual.voy
+      if (nuevoVoy) invitarTrasAccion()
       setEstado({
         tipo: 'ok',
         guardado: resultado.guardado,

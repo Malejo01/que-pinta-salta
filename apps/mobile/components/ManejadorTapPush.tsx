@@ -158,6 +158,14 @@ export function ManejadorTapPush() {
         return
       }
 
+      if (resultado.accion === 'abrir-cines') {
+        // Ronda 70: aviso del equipo con destino Cines. Ruta fija, nada del
+        // push viaja a la navegación. La doble entrega ya quedó cubierta por
+        // `clavesProcesadas` más arriba.
+        router.push('/cines')
+        return
+      }
+
       if (resultado.accion === 'baja-patrocinados') {
         // El `userId` sale SOLO de la sesión activa del teléfono
         // (`estadoCuentaRef.current`, nunca del `data` del push: la única
