@@ -149,14 +149,19 @@ describe('components/ChipsCategorias.tsx', () => {
 
   // Mutación: poner `backgroundColor: '#F59E0B'` en el chip activo.
   it('los colores salen de useColoresQPS(): ningún color literal (hex, rgb, hsl)', () => {
-    expect(codigo).toMatch(/import\s*\{\s*useColoresQPS\s*\}\s*from\s*'@\/lib\/colores'/)
+    // R69, 69-b: el import suma `bordeChipInactivo` (sigue saliendo de `@/lib/colores`).
+    expect(codigo).toMatch(/import\s*\{[^}]*\buseColoresQPS\b[^}]*\}\s*from\s*'@\/lib\/colores'/)
     expect(codigo).toMatch(/const colores = useColoresQPS\(\)/)
     expect(codigo).toMatch(/colores\.primary\b/)
     // 66-r1 (N1): el chip activo ya no es relleno (tinte + contorno de
     // `primary` con texto `foreground`), así que no usa `primaryForeground`.
     expect(codigo).toMatch(/colores\.foreground\b/)
     expect(codigo).toMatch(/`\$\{colores\.primary\}26`/)
-    expect(codigo).toMatch(/colores\.border\b/)
+    // R69, 69-b (QPS-338): el borde de los inactivos ya no es `colores.border`
+    // (no llegaba a 3:1) sino `bordeChipInactivo(colores)` de `lib/colores`,
+    // que tampoco es un literal en el componente.
+    expect(codigo).toMatch(/bordeChipInactivo\(colores\)/)
+    expect(codigo).not.toMatch(/colores\.border\b/)
     expect(codigo).not.toMatch(/#[0-9a-fA-F]{3,8}\b/)
     expect(codigo).not.toMatch(/\b(?:rgba?|hsla?)\(/)
   })
