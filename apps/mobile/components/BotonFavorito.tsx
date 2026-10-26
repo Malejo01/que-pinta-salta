@@ -63,13 +63,24 @@ export interface BotonFavoritoProps {
   tamanio?: number
   /** `'muted'` por defecto (ficha); la tarjeta pasa `'oscuro'` (`bg-black/60`). */
   fondo?: 'muted' | 'oscuro'
+  /**
+   * R69, 69-r1: qué se guarda, para el lector de pantalla ("Agregar <nombre> a
+   * favoritos"). Sin `nombre`, la etiqueta genérica de siempre.
+   */
+  nombre?: string
+}
+
+/** La etiqueta del lector de pantalla; con `nombre` dice qué se guarda. */
+export function etiquetaFavorito(marcado: boolean, nombre?: string): string {
+  if (!nombre) return marcado ? 'Quitar de favoritos' : 'Agregar a favoritos'
+  return marcado ? `Quitar ${nombre} de favoritos` : `Agregar ${nombre} a favoritos`
 }
 
 type Estado = { tipo: 'cargando' } | { tipo: 'ok'; marcado: boolean } | { tipo: 'error'; error: string }
 
 const ROJO_FAVORITO = '#ef4444'
 
-export function BotonFavorito({ objetivo, tamanio = 40, fondo = 'muted' }: BotonFavoritoProps) {
+export function BotonFavorito({ objetivo, tamanio = 40, fondo = 'muted', nombre }: BotonFavoritoProps) {
   const { tipo: tipoFavorito, id } = objetivo
   const router = useRouter()
   const colores = useColoresQPS()
@@ -135,7 +146,8 @@ export function BotonFavorito({ objetivo, tamanio = 40, fondo = 'muted' }: Boton
       onPress={alternar}
       disabled={cargando}
       accessibilityRole="button"
-      accessibilityLabel={marcado ? 'Quitar de favoritos' : 'Agregar a favoritos'}
+      accessibilityLabel={etiquetaFavorito(marcado, nombre)}
+      accessibilityState={{ busy: cargando }}
       hitSlop={hitSlopBotonAccion(tamanio)}
       style={[
         estilos.boton,

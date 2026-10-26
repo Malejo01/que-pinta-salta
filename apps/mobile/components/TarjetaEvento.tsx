@@ -39,6 +39,27 @@ export interface TarjetaEventoProps {
   evento: DisplayEvent
 }
 
+// R69, 69-r1: los botones de arriba a la derecha miden 32, van separados 6 y
+// están a 8 del borde. El badge (arriba a la izquierda) no tiene que pasar por
+// debajo de ellos: su contenedor termina donde empiezan los botones, con 8 de
+// aire. Cuentas (n = cantidad de botones):
+//   0 botones            -> 8 (solo el margen)
+//   1 (solo corazón)     -> 8 + 32 + 8           = 48
+//   2 (Compartir + ♥)    -> 8 + 32 + 6 + 32 + 8  = 86
+// En la tarjeta de ~164 dp de ancho al badge le quedan 164 - 8 - 48 = 108 dp
+// con el corazón solo y 164 - 8 - 86 = 70 dp con los dos.
+// (Los botones llevan `tamanio={32}`, `right: 8` y `gap: 6` literales en el
+// JSX/estilos: los leen tests/tarjeta.test.ts y tests/accesibilidad-hitslop-vecinos.test.ts.
+// Si cambian, cambian también estas tres constantes.)
+const TAMANIO_ACCION = 32
+const GAP_ACCIONES = 6
+const MARGEN_ARRIBA = 8
+
+function derechaDelBadge(botones: number): number {
+  if (botones <= 0) return MARGEN_ARRIBA
+  return MARGEN_ARRIBA + botones * TAMANIO_ACCION + (botones - 1) * GAP_ACCIONES + MARGEN_ARRIBA
+}
+
 export function TarjetaEvento({ evento }: TarjetaEventoProps) {
   const router = useRouter()
   const colores = useColoresQPS()
@@ -54,6 +75,12 @@ export function TarjetaEvento({ evento }: TarjetaEventoProps) {
   // R69, 69-a: el tipo y el uuid pelado que guarda el corazón (evento,
   // película o flyer); `null` si una película/flyer no trae un uuid válido.
   const objetivoFavorito = objetivoDeFavorito(evento)
+
+  // R69, 69-r1: qué botones hay arriba a la derecha, calculado una sola vez y
+  // usado para dibujarlos y para el borde derecho del badge (`estilos.arriba`).
+  const hayCompartir = esEventoReal(evento)
+  const botonesArriba = (hayCompartir ? 1 : 0) + (objetivoFavorito ? 1 : 0)
+  const derechaArriba = derechaDelBadge(botonesArriba)
 
   const etiqueta = evento.isCinemaMovie
     ? `${evento.title}, en cartel`
@@ -88,7 +115,7 @@ export function TarjetaEvento({ evento }: TarjetaEventoProps) {
         <View style={[estilos.franja, { opacity: 0.9 }]} />
       </View>
 
-      <View style={estilos.arriba} pointerEvents="none">
+      <View style={[estilos.arriba, { right: derechaArriba }]} pointerEvents="none">
         <View style={[estilos.badge, { backgroundColor: colores.primary }]}>
           <Text
             style={[estilos.textoBadge, { color: colores.primaryForeground }]}
@@ -101,12 +128,12 @@ export function TarjetaEvento({ evento }: TarjetaEventoProps) {
         <InsigniaDestacado visible={evento.isFeatured} />
       </View>
 
-      {esEventoReal(evento) || objetivoFavorito ? (
+      {botonesArriba > 0 ? (
         <View style={estilos.accionesArriba}>
           {esEventoReal(evento) ? (
             <BotonCompartir eventId={evento.id} titulo={evento.title} fecha={fecha} hora={evento.time} lugar={evento.venue} tamanio={32} fondo="oscuro" />
           ) : null}
-          {objetivoFavorito ? <BotonFavorito objetivo={objetivoFavorito} tamanio={32} fondo="oscuro" /> : null}
+          {objetivoFavorito ? <BotonFavorito objetivo={objetivoFavorito} nombre={evento.title} tamanio={32} fondo="oscuro" /> : null}
         </View>
       ) : null}
 
@@ -174,8 +201,13 @@ const estilos = StyleSheet.create({
   // (4 franjas, opacidad creciente: ver el comentario de arriba).
   degrade: { position: 'absolute', left: 0, right: 0, bottom: 0, top: '50%', flexDirection: 'column' },
   franja: { flex: 1, backgroundColor: '#000' },
-  arriba: { position: 'absolute', left: 8, top: 8, gap: 4, alignItems: 'flex-start' },
-  badge: { borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3, maxWidth: 140 },
+  // `right` se pone en el JSX (`derechaDelBadge`): depende de qué botones hay.
+  // Con `left` y `right` el ancho de `arriba` queda acotado, y el badge
+  // (alineado con `flex-start`) se mide con ese máximo: el texto, con
+  // `numberOfLines={1}`, corta con "…". `flexShrink: 1` queda como defensa
+  // (en esta columna actúa sobre el alto, no sobre el ancho).
+  arriba: { position: 'absolute', left: MARGEN_ARRIBA, top: MARGEN_ARRIBA, gap: 4, alignItems: 'flex-start' },
+  badge: { borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3, flexShrink: 1 },
   textoBadge: { fontSize: 11, fontWeight: '700' },
   accionesArriba: { position: 'absolute', right: 8, top: 8, flexDirection: 'row', gap: 6, zIndex: 10 },
   abajo: { position: 'absolute', left: 0, right: 0, bottom: 0, padding: 12 },
