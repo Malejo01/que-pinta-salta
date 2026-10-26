@@ -16,7 +16,15 @@
 // registrar el botón). Sigue siendo pura: sin imports de React Native ni de
 // Expo.
 import { ACCION_BAJA_PATROCINADOS, CATEGORIA_PATROCINADO } from '@qps/core/notificaciones/patrocinados'
+import { DESTINO_CINES as DESTINO_CINES_CORE } from '@qps/core/notificaciones/equipo'
 import { esUuid, eventoIdDesdeLink } from '@/lib/links'
+
+/**
+ * Ronda 70, tarea 70-b: `data.destino` de un aviso del equipo que abre Cines.
+ * El valor vive en core (`equipo.ts`, lo usa el servidor al armar el push);
+ * acá se re-exporta para que la app tenga un solo lugar donde leerlo.
+ */
+export const DESTINO_CINES = DESTINO_CINES_CORE
 
 // Tope prudente ANTES de aplicar cualquier expresión regular (`eventoIdDesdeLink`
 // usa regex ancladas con `^...$`, así que no hay ReDoS posible, pero un
@@ -120,6 +128,7 @@ function esAvisoPatrocinado(respuesta: RespuestaPushMinima): boolean {
 export type ResultadoInterpretacionPush =
   | { accion: 'abrir'; id: string; patrocinado: boolean }
   | { accion: 'baja-patrocinados' }
+  | { accion: 'abrir-cines' }
   | { accion: 'nada' }
 
 /**
@@ -139,7 +148,9 @@ export type ResultadoInterpretacionPush =
  *    CATEGORIA_PATROCINADO` con comparación EXACTA (ver `esAvisoPatrocinado`
  *    arriba sobre por qué `===` y no una comparación floja o insensible a
  *    mayúsculas).
- * 3. Cualquier otra cosa (sin id válido, un `actionIdentifier` desconocido
+ * 3. Sin id válido, `data.destino === DESTINO_CINES` (comparación exacta,
+ *    Ronda 70): `{ accion: 'abrir-cines' }`. El evento tiene precedencia.
+ * 4. Cualquier otra cosa (sin id válido, un `actionIdentifier` desconocido
  *    sin id, un `data.url` de otro host): `{ accion: 'nada' }`.
  *
  * Nunca devuelve una ruta ni una url que vengan tal cual del push: `id` ya
@@ -152,7 +163,10 @@ export function interpretarRespuestaPush(respuesta: RespuestaPushMinima): Result
 
   const data = respuesta.notification.request.content?.data
   const id = eventoIdDesdeDatosPush(data)
-  if (!id) return { accion: 'nada' }
+  if (!id) {
+    if (esObjetoPlano(data) && data.destino === DESTINO_CINES) return { accion: 'abrir-cines' }
+    return { accion: 'nada' }
+  }
 
   const patrocinado = esObjetoPlano(data) && data.tipo === CATEGORIA_PATROCINADO
   return { accion: 'abrir', id, patrocinado }

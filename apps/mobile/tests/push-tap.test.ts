@@ -282,6 +282,14 @@ function variablesConPathnameSeguro(content: string): Set<string> {
 }
 
 /**
+ * R70 (70-b): el aviso del equipo puede llevar a Cines (`{ accion: 'abrir-cines' }`
+ * de `lib/push/tap.ts`). La ruta es un literal fijo del código, sin nada que
+ * venga del push: se acepta solo así, con comillas simples o dobles y nada más
+ * en el argumento (ni concatenación, ni template string, ni variable).
+ */
+const RUTAS_FIJAS_SEGURAS = new Set(["'/cines'", '"/cines"'])
+
+/**
  * Violaciones de `components/ManejadorTapPush.tsx` (o de cualquier fixture
  * con la misma forma): algo llamado `openURL` en cualquier forma de acceso,
  * o un `router.push`/`router['push']` cuyo argumento no sea, literal o
@@ -309,7 +317,7 @@ export function encontrarEvasionesTapPush(content: string): Violacion[] {
     const inicioArg = m.index + m[0].length
     const arg = leerArgumentoBalanceado(content, inicioArg).trim()
     const esIdentificadorSeguro = /^\w+$/.test(arg) && variablesSeguras.has(arg)
-    if (!esObjetoSeguro(arg) && !esIdentificadorSeguro) {
+    if (!esObjetoSeguro(arg) && !esIdentificadorSeguro && !RUTAS_FIJAS_SEGURAS.has(arg)) {
       violaciones.push({
         line: lineAt(content, m.index),
         message: `router.push(${arg.slice(0, 80)}): el argumento no es { pathname: '/evento/[id]', ... }`,
@@ -329,6 +337,18 @@ describe('encontrarEvasionesTapPush (fixtures en memoria: tiene que fallar de ve
   it('acepta router.push(variable) cuando la variable es, literalmente, ese objeto', () => {
     const content = `const destino = { pathname: '/evento/[id]', params: { id } }\nrouter.push(destino)`
     expect(encontrarEvasionesTapPush(content)).toEqual([])
+  })
+
+  it("acepta router.push('/cines'), la ruta fija del aviso del equipo (R70)", () => {
+    expect(encontrarEvasionesTapPush(`router.push('/cines')`)).toEqual([])
+    expect(encontrarEvasionesTapPush(`router.push("/cines")`)).toEqual([])
+  })
+
+  it('no acepta variantes de /cines que puedan llevar algo del push', () => {
+    expect(encontrarEvasionesTapPush("router.push('/cines' + destino)")).toHaveLength(1)
+    expect(encontrarEvasionesTapPush('router.push(`/cines`)')).toHaveLength(1)
+    expect(encontrarEvasionesTapPush("router.push('/cines/' + id)")).toHaveLength(1)
+    expect(encontrarEvasionesTapPush(`router.push(data.destino)`)).toHaveLength(1)
   })
 
   it('detecta Linking.openURL(...)', () => {
