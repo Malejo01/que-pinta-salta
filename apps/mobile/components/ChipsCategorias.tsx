@@ -5,11 +5,11 @@
 // resaltado animado; el chip activo se trae a la vista con `scrollTo`. El área táctil se resuelve con
 // `minHeight: 48` en la clave de estilo del Pressable, que es lo que mira el
 // detector `area-chica` (mismo criterio que `chipGratis` de Buscar).
-import { useRef } from 'react'
+import { useEffect, useRef } from 'react'
 import { Pressable, ScrollView, StyleSheet } from 'react-native'
 import { Icono, iconoPorCategoria } from '@/components/Icono'
 import { Texto } from '@/components/Texto'
-import { useColoresQPS } from '@/lib/colores'
+import { bordeChipInactivo, useColoresQPS } from '@/lib/colores'
 
 export interface CategoriaChip {
   slug: string
@@ -25,11 +25,25 @@ export interface ChipsCategoriasProps {
 
 export function ChipsCategorias({ categorias, seleccionada, onCambiar }: ChipsCategoriasProps) {
   const colores = useColoresQPS()
+  // R69, 69-b (QPS-338): borde de los inactivos a 3:1 (cálculo en `lib/colores.ts`).
+  const bordeInactivo = bordeChipInactivo(colores)
   // N2: el chip elegido puede quedar fuera de pantalla (la elegida sin eventos
-  // va al final, o se llega a Buscar con una categoría lejana). El ref solo se
-  // usa dentro del `onLayout` del chip activo (un handler, no el render), y no
-  // hay `setState` en efectos.
+  // va al final, o se llega a Buscar con una categoría lejana).
+  // R69, 69-b (QPS-354): antes el `scrollTo` salía solo del `onLayout` del chip
+  // activo, y si `seleccionada` cambiaba desde afuera ("Todas las categorías"
+  // del vacío, "Ver todos" de una fila) sin que el layout se volviera a
+  // disparar, el chip quedaba fuera de vista. Ahora cada chip guarda su `x` en
+  // `posiciones` desde su `onLayout`, y un efecto sobre `seleccionada` hace el
+  // `scrollTo`. El efecto solo toca un ref del ScrollView (no es `setState`);
+  // el `onLayout` del activo se mantiene para el primer posicionamiento al
+  // montar, cuando la `x` todavía no estaba medida al correr el efecto.
   const scrollRef = useRef<ScrollView>(null)
+  const posiciones = useRef<Record<string, number>>({})
+
+  useEffect(() => {
+    const x = posiciones.current[seleccionada ?? 'todas']
+    if (x !== undefined) scrollRef.current?.scrollTo({ x: Math.max(0, x - 16), animated: false })
+  }, [seleccionada])
 
   const chips: { slug: string | null; nombre: string; etiqueta: string }[] = [
     { slug: null, nombre: 'Todas', etiqueta: 'Todas las categorías' },
@@ -44,11 +58,11 @@ export function ChipsCategorias({ categorias, seleccionada, onCambiar }: ChipsCa
           <Pressable
             key={chip.slug ?? 'todas'}
             onPress={() => onCambiar(chip.slug)}
-            onLayout={
-              activo
-                ? (evento) => scrollRef.current?.scrollTo({ x: Math.max(0, evento.nativeEvent.layout.x - 16), animated: false })
-                : undefined
-            }
+            onLayout={(evento) => {
+              const x = evento.nativeEvent.layout.x
+              posiciones.current[chip.slug ?? 'todas'] = x
+              if (activo) scrollRef.current?.scrollTo({ x: Math.max(0, x - 16), animated: false })
+            }}
             accessibilityRole="button"
             accessibilityState={{ selected: activo }}
             accessibilityLabel={chip.etiqueta}
@@ -59,7 +73,7 @@ export function ChipsCategorias({ categorias, seleccionada, onCambiar }: ChipsCa
               // ancho no salta.
               activo
                 ? { backgroundColor: `${colores.primary}26`, borderWidth: 1, borderColor: colores.primary }
-                : { borderWidth: 1, borderColor: colores.border },
+                : { borderWidth: 1, borderColor: bordeInactivo },
             ]}
           >
             {chip.slug !== null ? (

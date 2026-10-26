@@ -65,7 +65,7 @@
 // de esta misma pantalla. El detector que lo exige está en
 // `tests/anuncios-lugares.test.ts`.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native'
+import { AccessibilityInfo, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native'
 import { Redirect, useRouter } from 'expo-router'
 import { formatDateInSalta, transformMovie } from '@qps/core/home/transform'
 import { selectCarouselEvents, sortCategories } from '@qps/core/home/carousel'
@@ -401,6 +401,28 @@ export default function Inicio() {
     scrollRef.current?.scrollTo({ y: 0, animated: false })
   }, [])
 
+  // R69, 69-b (QPS-354): el conteo tiene `accessibilityLiveRegion="polite"`,
+  // pero Android anuncia los cambios de una live region, no su montaje: al
+  // entrar al modo categoría la primera línea no se leía. Se anuncia con
+  // `announceForAccessibility` cuando el conteo pasa de no estar a estar. Para
+  // no leer dos veces el mismo texto, los cambios posteriores (la live region
+  // ya montada) los anuncia la live region en Android y este efecto solo en
+  // iOS, que ignora `accessibilityLiveRegion`. Un anuncio no es `setState`.
+  const textoConteo =
+    datosPortada && categoria !== null && datosPortada.eventosCategoria.length > 0
+      ? conteoCategoria(datosPortada.peliculasCategoria.length, datosPortada.eventosSinPelicula.length)
+      : null
+  const conteoVisible = useRef(false)
+  useEffect(() => {
+    if (textoConteo === null) {
+      conteoVisible.current = false
+      return
+    }
+    const primeraVez = !conteoVisible.current
+    conteoVisible.current = true
+    if (primeraVez || Platform.OS === 'ios') AccessibilityInfo.announceForAccessibility(textoConteo)
+  }, [textoConteo])
+
   if (cargandoBienvenida) return null
   if (!vista) return <Redirect href="/bienvenida" />
 
@@ -475,6 +497,7 @@ export default function Inicio() {
                   <Texto tono="secundario" accessibilityLiveRegion="polite">
                     {conteoCategoria(datosPortada.peliculasCategoria.length, datosPortada.eventosSinPelicula.length)}
                   </Texto>
+                  {/* (el primer anuncio lo hace el efecto de `textoConteo`) */}
                   {/* R67, 67-c: el scroll no salta al abrir el acordeón de la
                       película 2 o 3 porque las tarjetas cuelgan de este mismo
                       `ScrollView` con `key` estables (`pelicula.id`), la lista

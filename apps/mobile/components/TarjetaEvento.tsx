@@ -123,8 +123,9 @@ export function TarjetaEvento({ evento }: TarjetaEventoProps) {
         </View>
 
         <Text style={estilos.fecha} numberOfLines={1} maxFontSizeMultiplier={ESCALA_MAXIMA_COMPACTA}>
-          {fecha}
-          {evento.time ? ` ${evento.time}` : ''}
+          {/* R69, 69-b (QPS-338): una película no tiene "fecha" (la de hoy no
+              significa nada); lo visible coincide con la etiqueta de accesibilidad. */}
+          {evento.isCinemaMovie ? 'En cartel' : `${fecha}${evento.time ? ` ${evento.time}` : ''}`}
         </Text>
 
         {otrasFechas > 0 ? (
