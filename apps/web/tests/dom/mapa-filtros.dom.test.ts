@@ -30,18 +30,35 @@ vi.mock('@/components/mapa/mapa-diferido', () => ({
   MapaDiferido: () => null,
 }))
 
-// `next/link` real necesita el router de la app: un <a> común alcanza para mirar el href.
+// `next/link` real necesita el router de la app: un <a> común alcanza para
+// mirar el href. Imita lo que hace el de verdad con `onNavigate`: en un clic
+// sin modificadores lo llama (y el navegador no sigue el link); con Ctrl o
+// Cmd no, y el link queda para el navegador (abrir en otra pestaña).
 vi.mock('next/link', () => ({
   default: ({
     href,
-    prefetch: _prefetch,
+    onNavigate,
     children,
     ...resto
   }: {
     href: string
-    prefetch?: boolean
+    onNavigate?: (evento: { preventDefault: () => void }) => void
     children?: React.ReactNode
-  } & Record<string, unknown>) => React.createElement('a', { href, ...resto }, children),
+  } & Record<string, unknown>) =>
+    React.createElement(
+      'a',
+      {
+        href,
+        ...resto,
+        prefetch: undefined,
+        onClick: (evento: React.MouseEvent) => {
+          if (evento.ctrlKey || evento.metaKey || evento.shiftKey || evento.altKey || evento.button !== 0) return
+          evento.preventDefault()
+          onNavigate?.({ preventDefault: () => {} })
+        },
+      },
+      children
+    ),
 }))
 
 afterEach(() => {
@@ -88,18 +105,22 @@ function montar(p: Props = {}) {
   return render(React.createElement(MapaContenido, props(p)))
 }
 
-function boton(nombre: string): HTMLButtonElement {
-  return screen.getByRole('button', { name: nombre }) as HTMLButtonElement
+/** Un chip de filtro ("Hoy", "Gratis"…) o "Quitar filtros": son links a su URL, para que anden sin JavaScript. */
+function chip(nombre: string): HTMLAnchorElement {
+  return screen.getByRole('link', { name: nombre }) as HTMLAnchorElement
 }
 
 function selectorDeCategoria(): HTMLSelectElement {
   return screen.getByRole('combobox') as HTMLSelectElement
 }
 
+/** El contador: la región viva que no es el anuncio de la selección (hay exactamente esas dos). */
 function contador(container: HTMLElement): HTMLElement {
   const vivos = container.querySelectorAll('[aria-live="polite"]')
-  expect(vivos).toHaveLength(1)
-  return vivos[0] as HTMLElement
+  expect(vivos).toHaveLength(2)
+  const sinAnuncio = container.querySelectorAll('[aria-live="polite"]:not([data-anuncio-mapa])')
+  expect(sinAnuncio).toHaveLength(1)
+  return sinAnuncio[0] as HTMLElement
 }
 
 /** La última URL que se pidió con `router.replace`. */
@@ -111,37 +132,117 @@ function ultimaUrl(): string {
 }
 
 describe('las dos filas de filtros', () => {
-  it('"Cuándo" y "Qué tipo de plan" son grupos con nombre, y los chips llevan aria-pressed según extra', () => {
+  it('"Cuándo" y "Qué tipo de plan" son grupos con nombre, y los chips llevan aria-current según extra', () => {
     montar({ extra: { gratis: true, chicos: false, categoria: null } })
     const cuando = screen.getByRole('group', { name: 'Cuándo' })
     const que = screen.getByRole('group', { name: 'Qué tipo de plan' })
-    expect(cuando.contains(boton('Hoy'))).toBe(true)
-    expect(que.contains(boton('Gratis'))).toBe(true)
+    expect(cuando.contains(chip('Hoy'))).toBe(true)
+    expect(que.contains(chip('Gratis'))).toBe(true)
     expect(que.contains(selectorDeCategoria())).toBe(true)
 
-    expect(boton('Gratis').getAttribute('aria-pressed')).toBe('true')
-    expect(boton('Para chicos').getAttribute('aria-pressed')).toBe('false')
-    expect(boton('Gratis').className).toContain('bg-primary')
-    expect(boton('Para chicos').className).not.toContain('bg-primary')
+    expect(chip('Gratis').getAttribute('aria-current')).toBe('true')
+    expect(chip('Para chicos').getAttribute('aria-current')).toBeNull()
+    expect(chip('Gratis').className).toContain('bg-primary')
+    expect(chip('Para chicos').className).not.toContain('bg-primary')
+    // En un link aria-pressed no vale (no es un botón): no tiene que quedar ninguno.
+    expect(document.querySelectorAll('[aria-pressed]')).toHaveLength(0)
   })
 
-  it('con Para chicos prendido, el que dice aria-pressed="true" es Para chicos', () => {
+  it('con Para chicos prendido, el que dice aria-current="true" es Para chicos', () => {
     montar({ extra: { gratis: false, chicos: true, categoria: null } })
-    expect(boton('Gratis').getAttribute('aria-pressed')).toBe('false')
-    expect(boton('Para chicos').getAttribute('aria-pressed')).toBe('true')
+    expect(chip('Gratis').getAttribute('aria-current')).toBeNull()
+    expect(chip('Para chicos').getAttribute('aria-current')).toBe('true')
+  })
+
+  it('"Hoy" o "Este finde": el de la fecha activa lleva aria-current, y con una fecha elegida ninguno', () => {
+    montar({ filtro: { tipo: 'finde' } })
+    expect(chip('Hoy').getAttribute('aria-current')).toBeNull()
+    expect(chip('Este finde').getAttribute('aria-current')).toBe('true')
+    cleanup()
+    montar({ filtro: { tipo: 'fecha', dia: '2026-10-25' } })
+    expect(chip('Hoy').getAttribute('aria-current')).toBeNull()
+    expect(chip('Este finde').getAttribute('aria-current')).toBeNull()
+  })
+})
+
+describe('sin JavaScript los filtros andan igual', () => {
+  it('cada chip es un link a la URL que pediría con JavaScript (se puede compartir o abrir en otra pestaña)', () => {
+    montar({ filtro: { tipo: 'finde' }, extra: { gratis: true, chicos: false, categoria: 'teatro' } })
+    expect(chip('Hoy').getAttribute('href')).toBe('/mapa?cuando=hoy&gratis=1&categoria=teatro')
+    expect(chip('Este finde').getAttribute('href')).toBe('/mapa?cuando=finde&gratis=1&categoria=teatro')
+    expect(chip('Gratis').getAttribute('href')).toBe('/mapa?cuando=finde&categoria=teatro')
+    expect(chip('Para chicos').getAttribute('href')).toBe('/mapa?cuando=finde&gratis=1&chicos=1&categoria=teatro')
+    expect(chip('Quitar filtros').getAttribute('href')).toBe('/mapa?cuando=finde')
+  })
+
+  it('el día y la categoría van en un <form action="/mapa" method="get"> con los nombres que lee el servidor', () => {
+    const { container } = montar({ filtro: { tipo: 'fecha', dia: '2026-10-25' }, extra: { gratis: true, chicos: true, categoria: null } })
+    const form = container.querySelector('form') as HTMLFormElement
+    expect(form.getAttribute('action')).toBe('/mapa')
+    expect(form.getAttribute('method')).toBe('get')
+    expect(form.contains(selectorDeCategoria())).toBe(true)
+    expect(selectorDeCategoria().name).toBe('categoria')
+    expect((container.querySelector('input[type="date"]') as HTMLInputElement).name).toBe('dia')
+    const ocultos = Array.from(form.querySelectorAll('input[type="hidden"]')).map((i) => [(i as HTMLInputElement).name, (i as HTMLInputElement).value])
+    expect(ocultos).toEqual([
+      ['gratis', '1'],
+      ['chicos', '1'],
+    ])
+  })
+
+  it('los botones "Ver ese día" y "Aplicar" están solo en <noscript> (con JavaScript no se ven)', () => {
+    const { container } = montar({ filtro: { tipo: 'finde' } })
+    // React no dibuja el contenido de <noscript> en el cliente: con JS no hay botones de enviar.
+    expect(container.querySelectorAll('noscript').length).toBeGreaterThanOrEqual(2)
+    expect(container.querySelectorAll('button[type="submit"]')).toHaveLength(0)
+  })
+
+  it('con JavaScript el formulario no se envía (Enter en el selector de fecha no recarga la página)', () => {
+    const { container } = montar()
+    const form = container.querySelector('form') as HTMLFormElement
+    expect(fireEvent.submit(form)).toBe(false)
+    expect(replace).not.toHaveBeenCalled()
+  })
+
+  it('un clic con Ctrl queda para el navegador: no navega desde la app', () => {
+    montar()
+    // Se mira si la app lo previno y después se lo frena acá (jsdom no sabe abrir otra pestaña).
+    let prevenidoPorLaApp: boolean | null = null
+    const mirar = (evento: Event) => {
+      prevenidoPorLaApp = evento.defaultPrevented
+      evento.preventDefault()
+    }
+    window.addEventListener('click', mirar)
+    try {
+      fireEvent.click(chip('Gratis'), { ctrlKey: true })
+    } finally {
+      window.removeEventListener('click', mirar)
+    }
+    expect(prevenidoPorLaApp).toBe(false)
+    expect(replace).not.toHaveBeenCalled()
+
+    // Y sin Ctrl, el mismo chip sí navega desde la app (el control de arriba no es ciego).
+    window.addEventListener('click', mirar)
+    try {
+      fireEvent.click(chip('Gratis'))
+    } finally {
+      window.removeEventListener('click', mirar)
+    }
+    expect(prevenidoPorLaApp).toBe(true)
+    expect(ultimaUrl()).toBe('/mapa?cuando=hoy&gratis=1')
   })
 })
 
 describe('cada cambio navega con consultaDelMapa', () => {
   it('tocar Gratis desde "hoy" pide /mapa?cuando=hoy&gratis=1', () => {
     montar()
-    fireEvent.click(boton('Gratis'))
+    fireEvent.click(chip('Gratis'))
     expect(ultimaUrl()).toBe('/mapa?cuando=hoy&gratis=1')
   })
 
   it('tocar Gratis cuando ya está prendido lo apaga y conserva lo demás', () => {
     montar({ filtro: { tipo: 'finde' }, extra: { gratis: true, chicos: true, categoria: null } })
-    fireEvent.click(boton('Gratis'))
+    fireEvent.click(chip('Gratis'))
     expect(ultimaUrl()).toBe('/mapa?cuando=finde&chicos=1')
   })
 
@@ -151,7 +252,7 @@ describe('cada cambio navega con consultaDelMapa', () => {
     fireEvent.change(fecha, { target: { value: '2026-10-25' } })
     expect(ultimaUrl()).toBe('/mapa?cuando=fecha&dia=2026-10-25&gratis=1')
 
-    fireEvent.click(boton('Este finde'))
+    fireEvent.click(chip('Este finde'))
     expect(ultimaUrl()).toBe('/mapa?cuando=finde&gratis=1')
   })
 
@@ -224,13 +325,13 @@ describe('el contador', () => {
   it('con filtros "qué" y pines, "Quitar filtros" va al lado del contador y conserva la fecha', () => {
     const { container } = montar({ pines: [pin(1, 1)], filtro: { tipo: 'finde' }, extra: { gratis: true, chicos: false, categoria: null } })
     expect(contador(container).textContent).toBe('1 evento en 1 lugar')
-    fireEvent.click(boton('Quitar filtros'))
+    fireEvent.click(chip('Quitar filtros'))
     expect(ultimaUrl()).toBe('/mapa?cuando=finde')
   })
 
   it('sin filtros "qué" no hay "Quitar filtros"', () => {
     montar()
-    expect(screen.queryByRole('button', { name: 'Quitar filtros' })).toBeNull()
+    expect(screen.queryByRole('link', { name: 'Quitar filtros' })).toBeNull()
   })
 })
 
@@ -243,7 +344,7 @@ describe('el vacío con filtros', () => {
     expect(contador(container).textContent).toBe('Ningún evento en el mapa con estos filtros')
     expect(screen.getByRole('heading', { name: 'No hay eventos en el mapa con estos filtros para esta fecha' })).toBeTruthy()
     expect(screen.getByText('Filtros: Gratis · Para chicos · Teatro. Probá con otra fecha o sacá alguno.')).toBeTruthy()
-    expect(screen.getAllByRole('button', { name: 'Quitar filtros' })).toHaveLength(1)
+    expect(screen.getAllByRole('link', { name: 'Quitar filtros' })).toHaveLength(1)
     expect(screen.getByRole('link', { name: 'Ver la agenda completa' }).getAttribute('href')).toBe('/buscar')
   })
 
@@ -256,10 +357,10 @@ describe('el vacío con filtros', () => {
   it('"Quitar filtros" navega sin gratis, chicos ni categoría pero con la fecha, y deja el foco en "Gratis"', async () => {
     montar({ pines: [], filtro: { tipo: 'fecha', dia: '2026-10-25' }, extra, categorias })
     await act(async () => {
-      fireEvent.click(boton('Quitar filtros'))
+      fireEvent.click(chip('Quitar filtros'))
     })
     expect(ultimaUrl()).toBe('/mapa?cuando=fecha&dia=2026-10-25')
-    expect(document.activeElement).toBe(boton('Gratis'))
+    expect(document.activeElement).toBe(chip('Gratis'))
   })
 
   it('sin pines el contador queda solo para el lector de pantalla: a la vista no se repite el vacío', () => {
@@ -272,10 +373,10 @@ describe('el vacío con filtros', () => {
   it('"Quitar filtros" no le saca el foco a otro control que se tocó mientras cargaba', async () => {
     montar({ pines: [], extra, categorias })
     await act(async () => {
-      fireEvent.click(boton('Quitar filtros'))
-      boton('Para chicos').focus()
+      fireEvent.click(chip('Quitar filtros'))
+      chip('Para chicos').focus()
     })
-    expect(document.activeElement).toBe(boton('Para chicos'))
+    expect(document.activeElement).toBe(chip('Para chicos'))
   })
 
   it('sin filtros "qué", el vacío es el de siempre', () => {

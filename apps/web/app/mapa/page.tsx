@@ -79,7 +79,8 @@ export default async function MapaPage({ searchParams }: MapaPageProps) {
   const lugarInicial = lugar && UUID.test(lugar) && pines.some((pin) => pin.venueId === lugar) ? lugar : null
 
   return (
-    <div className="min-h-screen bg-background pb-page sm:pb-0">
+    // `data-pagina-mapa`: sin JavaScript, el <noscript> de `loading.tsx` muestra la página con esto.
+    <div data-pagina-mapa="" className="min-h-screen bg-background pb-page sm:pb-0">
       <Navbar />
       <main className="container mx-auto px-4 py-4 sm:py-8">
         <MapaContenido
