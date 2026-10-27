@@ -3,6 +3,8 @@
 import { createElement } from "react"
 import { Calendar, MapPin, Clock, Users, ExternalLink, Navigation } from "lucide-react"
 import { vibeLabels, EventCategory } from "@/lib/types"
+import { fechaLarga, hora, precio } from "@/lib/i18n/fechas"
+import { useIdioma, useTextos } from "@/lib/i18n/use-idioma"
 
 // Display event type (transformed from database)
 interface DisplayEvent {
@@ -36,7 +38,6 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { InsigniaDestacado } from "@/components/insignia-destacado"
 import { getCategoryIcon } from "@/lib/category-icons"
-import { formatEventDate } from "@/lib/date-format"
 import { capitalizeFirst, cleanDescription } from "@/lib/event-display"
 import { ViewBeacon } from "@/components/view-beacon"
 import { goHref, urlComoLlegar, type MetricOrigin } from "@/lib/metricas/links"
@@ -58,9 +59,14 @@ interface EventModalProps {
 }
 
 export function EventModal({ event, open, onClose, origin = "directo", isFavorite = false, onFavoriteChange, haySesion = false }: EventModalProps) {
+  // Hoy solo lo usa /buscar (que está solo en castellano): en castellano todo
+  // queda como siempre. Antes del `return null` porque son hooks.
+  const idioma = useIdioma()
+  const textos = useTextos()
   if (!event) return null
 
-  const formattedDate = formatEventDate(event.date, true)
+  const formattedDate = fechaLarga(idioma, event.date, true)
+  const langContenido = idioma === "es" ? undefined : "es"
   const description = cleanDescription(event.description)
 
   // La misma URL que la ficha (QPS-130); null sin dirección ni lugar: no hay botón (QPS-137).
@@ -96,7 +102,7 @@ export function EventModal({ event, open, onClose, origin = "directo", isFavorit
 
         <div className="p-6">
           <DialogHeader className="mb-4">
-            <DialogTitle className="text-2xl">{event.title}</DialogTitle>
+            <DialogTitle className="text-2xl" lang={langContenido}>{event.title}</DialogTitle>
           </DialogHeader>
 
           <div className="mb-6 space-y-3">
@@ -108,15 +114,15 @@ export function EventModal({ event, open, onClose, origin = "directo", isFavorit
             {event.time && (
               <div className="flex items-center gap-3 text-muted-foreground">
                 <Clock className="size-5 text-primary" />
-                <span>{event.time} hs</span>
+                <span>{textos.ficha.horaDelEvento(hora(idioma, event.time))}</span>
               </div>
             )}
             
             <div className="flex items-center gap-3 text-muted-foreground">
               <MapPin className="size-5 text-primary" />
               <div>
-                <p className="font-medium text-foreground">{event.venue}</p>
-                <p className="text-sm">{event.address}</p>
+                <p className="font-medium text-foreground" lang={langContenido}>{event.venue}</p>
+                <p className="text-sm" lang={langContenido}>{event.address}</p>
               </div>
             </div>
 
@@ -130,22 +136,22 @@ export function EventModal({ event, open, onClose, origin = "directo", isFavorit
             {event.vibe && vibeLabels[event.vibe as keyof typeof vibeLabels] && (
               <div className="flex items-center gap-3 text-muted-foreground">
                 <Users className="size-5 text-primary" />
-                <span>{vibeLabels[event.vibe as keyof typeof vibeLabels]}</span>
+                <span>{textos.ficha.etiquetasVibe[event.vibe as keyof typeof vibeLabels]}</span>
               </div>
             )}
           </div>
 
           {description && (
-            <p className="mb-6 text-muted-foreground">{description}</p>
+            <p className="mb-6 text-muted-foreground" lang={langContenido}>{description}</p>
           )}
 
           {event.price !== "confirmar" && (
             <div className="mb-6 rounded-lg bg-muted p-4">
-              <p className="mb-1 text-sm text-muted-foreground">Precio de entrada</p>
+              <p className="mb-1 text-sm text-muted-foreground">{textos.ficha.precioDeEntrada}</p>
               <p className="text-2xl font-bold text-foreground">
                 {event.price === "gratis" 
-                  ? "Entrada Gratuita" 
-                  : `$${event.price.toLocaleString("es-AR")}`}
+                  ? textos.portada.entradaGratuita 
+                  : precio(idioma, event.price)}
               </p>
             </div>
           )}
@@ -158,7 +164,7 @@ export function EventModal({ event, open, onClose, origin = "directo", isFavorit
               >
                 <a href={googleMapsUrl} target="_blank" rel="noopener noreferrer">
                   <Navigation className="mr-2 size-4" />
-                  Cómo llegar
+                  {textos.ficha.comoLlegar}
                 </a>
               </Button>
             )}
@@ -167,7 +173,7 @@ export function EventModal({ event, open, onClose, origin = "directo", isFavorit
               <Button variant="outline" className="flex-1" asChild>
                 <a href={goHref(event.id, "ficha")} target="_blank" rel="nofollow noopener noreferrer">
                   <ExternalLink className="mr-2 size-4" />
-                  Comprar tickets
+                  {textos.ficha.comprarTickets}
                 </a>
               </Button>
             )}

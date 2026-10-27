@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils"
 import { fechaCorta, fechaDeFuncion, hora, precio, resumenFunciones } from "@/lib/i18n/fechas"
 import { langDeCategoria } from "@/lib/i18n"
 import { useIdioma, useTextos } from "@/lib/i18n/use-idioma"
+import { rutaEn } from "@/lib/i18n/rutas"
 import { FavoriteButton } from "@/components/favorite-button"
 import { ShareButton } from "@/components/share-button"
 import { FlyerImage } from "@/components/flyer-image"
@@ -57,7 +58,7 @@ export function EventCard({ event, isFavorite, onToggleFavorite, onOpenMovie, cl
 
   const linkHref = event.isInstagramFlyer && event.flyerId
     ? `/flyer/${event.flyerId}`
-    : eventHref(event.id, origin)
+    : rutaEn(idioma, eventHref(event.id, origin))
 
   // Pie de card siempre visible para eventos con varias funciones (QPS-024);
   // el cine tiene su propio overlay de horarios y no usa esta línea.
@@ -92,7 +93,7 @@ export function EventCard({ event, isFavorite, onToggleFavorite, onOpenMovie, cl
     ? `${currentOrigin}/cines`
     : event.isInstagramFlyer && event.flyerId
     ? `${currentOrigin}/flyer/${event.flyerId}`
-    : `${currentOrigin}${eventHref(event.id)}`
+    : `${currentOrigin}${rutaEn(idioma, eventHref(event.id))}`
 
   // Se mantiene el modal de donación de hoy, pero solo si se compartió de
   // verdad o se copió el link (ver `ShareButton`/`shareEvent`), no si se

@@ -3,6 +3,7 @@
  * turistas. `satisfies Diccionario`: si falta o sobra una clave respecto de
  * `es.ts`, tsc lo marca.
  */
+import { cantidadVisible } from '@qps/core/asistencia'
 import type { Diccionario } from './es'
 
 export const en = {
@@ -150,6 +151,49 @@ export const en = {
     sacasteGuardadoConVoy: 'You removed it from your saved events and you are no longer marked as going.',
     errorConexionTitulo: 'Connection error',
     errorConexionTexto: 'We could not reach the server. Please try again.',
+  },
+  ficha: {
+    volverAEventos: 'Back to events',
+    sinCategorizar: 'Uncategorized',
+    // En 12 horas ("9:30 PM") no lleva sufijo.
+    horaDelEvento: (hora: string) => `${hora}`,
+    precioDeEntrada: 'Ticket price',
+    comoLlegar: 'Get directions',
+    comprarTickets: 'Buy tickets',
+    verEnElMapa: 'View on the map',
+    etiquetasVibe: {
+      familiar: 'Family-friendly',
+      adultos: 'Adults only (18+)',
+      exterior: 'Outdoors',
+    },
+  },
+  asistencia: {
+    guardar: 'Save',
+    guardado: 'Saved',
+    esteEvento: 'this event',
+    ariaGuardar: (titulo: string) => `Save ${titulo}`,
+    ariaQuitarGuardado: (titulo: string) => `Remove ${titulo} from your saved events`,
+    // Mismo umbral que el castellano (`cantidadVisible` de core): el número
+    // recién aparece desde UMBRAL_CONTADOR_ASISTENCIA.
+    botonVoy: (cantidad: number) => {
+      const visible = cantidadVisible(cantidad)
+      return visible === null ? "I'm going" : `I'm going · ${visible} going`
+    },
+    ariaVoy: (titulo: string) => `Mark that you are going to ${titulo}`,
+    ariaNoVoy: (titulo: string) => `Mark that you are not going to ${titulo}`,
+    entrarParaMarcar: 'Sign in to mark that you are going.',
+    errorTitulo: 'Error',
+    errorGuardados: 'We could not update your saved events. Please try again.',
+    errorMarca: 'We could not save your answer. Please try again.',
+    eventoNoDisponible: 'This event is no longer available.',
+    sacasteGuardadoConVoy: 'You removed it from your saved events and you are no longer marked as going.',
+    errorConexionTitulo: 'Connection error',
+    errorConexionTexto: 'We could not reach the server. Please try again.',
+  },
+  seguir: {
+    lugar: (siguiendo: boolean) => (siguiendo ? '✓ Following' : '+ Follow'),
+    cuenta: (username: string, siguiendo: boolean) => (siguiendo ? `Following @${username}` : `Follow @${username}`),
+    error: 'We could not save this follow. Please try again.',
   },
   compartir: {
     compartirEvento: 'Share event',
