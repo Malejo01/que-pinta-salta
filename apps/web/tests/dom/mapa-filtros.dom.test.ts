@@ -187,7 +187,7 @@ describe('el selector de categoría', () => {
     expect(selectorDeCategoria().value).toBe('')
   })
 
-  it('la elegida con 0 dice "(sin eventos)", queda seleccionada y el chip se ve activo', () => {
+  it('la elegida con 0 dice "(0)", queda seleccionada y el chip se ve activo', () => {
     montar({
       pines: [],
       extra: { gratis: false, chicos: false, categoria: 'teatro' },
@@ -195,7 +195,7 @@ describe('el selector de categoría', () => {
     })
     const selector = selectorDeCategoria()
     expect(selector.value).toBe('teatro')
-    expect(selector.selectedOptions[0].textContent).toBe('Teatro (sin eventos)')
+    expect(selector.selectedOptions[0].textContent).toBe('Teatro (0)')
     expect(selector.closest('label')!.className).toContain('bg-primary')
   })
 })
@@ -240,8 +240,8 @@ describe('el vacío con filtros', () => {
 
   it('dice qué filtros hay, en el contador y en el vacío, con un solo "Quitar filtros" y el enlace a la agenda', () => {
     const { container } = montar({ pines: [], filtro: { tipo: 'fecha', dia: '2026-10-25' }, extra, categorias })
-    expect(contador(container).textContent).toBe('Ningún evento con estos filtros')
-    expect(screen.getByRole('heading', { name: 'No hay eventos con estos filtros para esta fecha' })).toBeTruthy()
+    expect(contador(container).textContent).toBe('Ningún evento en el mapa con estos filtros')
+    expect(screen.getByRole('heading', { name: 'No hay eventos en el mapa con estos filtros para esta fecha' })).toBeTruthy()
     expect(screen.getByText('Filtros: Gratis · Para chicos · Teatro. Probá con otra fecha o sacá alguno.')).toBeTruthy()
     expect(screen.getAllByRole('button', { name: 'Quitar filtros' })).toHaveLength(1)
     expect(screen.getByRole('link', { name: 'Ver la agenda completa' }).getAttribute('href')).toBe('/buscar')
@@ -249,7 +249,7 @@ describe('el vacío con filtros', () => {
 
   it('solo nombra los filtros prendidos', () => {
     montar({ pines: [], extra: { gratis: false, chicos: true, categoria: null } })
-    expect(screen.getByRole('heading', { name: 'No hay eventos con estos filtros para hoy' })).toBeTruthy()
+    expect(screen.getByRole('heading', { name: 'No hay eventos en el mapa con estos filtros para hoy' })).toBeTruthy()
     expect(screen.getByText('Filtros: Para chicos. Probá con otra fecha o sacá alguno.')).toBeTruthy()
   })
 
@@ -260,6 +260,22 @@ describe('el vacío con filtros', () => {
     })
     expect(ultimaUrl()).toBe('/mapa?cuando=fecha&dia=2026-10-25')
     expect(document.activeElement).toBe(boton('Gratis'))
+  })
+
+  it('sin pines el contador queda solo para el lector de pantalla: a la vista no se repite el vacío', () => {
+    const { container } = montar({ pines: [], extra, categorias })
+    expect(contador(container).className).toBe('sr-only')
+    const conPines = montar({ pines: [pin(1, 1)], extra })
+    expect(contador(conPines.container).className).not.toContain('sr-only')
+  })
+
+  it('"Quitar filtros" no le saca el foco a otro control que se tocó mientras cargaba', async () => {
+    montar({ pines: [], extra, categorias })
+    await act(async () => {
+      fireEvent.click(boton('Quitar filtros'))
+      boton('Para chicos').focus()
+    })
+    expect(document.activeElement).toBe(boton('Para chicos'))
   })
 
   it('sin filtros "qué", el vacío es el de siempre', () => {

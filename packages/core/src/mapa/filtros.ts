@@ -7,10 +7,10 @@
  * llama a `eventoEnAtajo`) y lo demás lo decide `filtrarCombinado`, el mismo
  * filtro de Buscar y de la portada de la app.
  */
-import { categoriasDisponibles, filtrarCombinado } from '../home/filtros-combinados'
-import { transformEvent } from '../home/transform'
-import type { EventWithRelations } from '../home/types'
-import { armarPinesDelMapa, eventoEnFiltroMapa, type FiltroMapa, type PinLugar } from './pines'
+import { categoriasDisponibles, filtrarCombinado, type ItemFiltrable } from '../home/filtros-combinados'
+import type { DisplayEvent, EventWithRelations } from '../home/types'
+import { estaDestacado } from '../events/destacados'
+import { agruparEnPines, eventoEnFiltroMapa, ubicacionDelEvento, type FiltroMapa, type PinLugar } from './pines'
 
 /** Los filtros "qué" del mapa. `categoria: null` = todas. */
 export interface FiltrosExtraMapa {
@@ -73,30 +73,57 @@ export function categoriasDeLosEventos(eventos: readonly EventWithRelations[]): 
     .sort((a, b) => a.name.localeCompare(b.name, 'es'))
 }
 
+/**
+ * Un evento como lo filtra `filtrarCombinado`, con solo lo que miran sus
+ * filtros (categoría, gratis y tags; el texto el mapa no lo usa). Más barato
+ * que `transformEvent`, que limpia descripciones y arma fechas en cada pedido;
+ * el precio sigue su misma regla: `'gratis'` si y solo si `is_free`. Un evento
+ * sin categoría va con `''`: pasa Gratis y Para chicos si corresponde, pero
+ * ninguna categoría elegida.
+ */
+function aItemFiltrable(evento: EventWithRelations, ahora: Date): ItemFiltrable {
+  const filtrable: DisplayEvent = {
+    id: evento.id,
+    slug: evento.slug,
+    title: evento.title,
+    venue: evento.venue?.name ?? '',
+    date: '',
+    time: '',
+    category: evento.category?.slug ?? '',
+    categoryName: evento.category?.name ?? '',
+    price: evento.is_free ? 'gratis' : 'confirmar',
+    image: '',
+    description: '',
+    address: evento.venue?.address ?? '',
+    startDateTime: evento.start_date,
+    tags: evento.tags ?? null,
+    // La misma regla que `transformEvent` (QPS-239), aunque el mapa no la mire.
+    isFeatured: estaDestacado(evento.featured_until, ahora),
+  }
+  return { evento: filtrable, paraAtajo: null }
+}
+
 /** Pasa por `filtrarCombinado` (sin atajo: la fecha ya se filtró) y devuelve los eventos originales que quedan. */
 function conFiltrosExtra(eventos: EventWithRelations[], extra: FiltrosExtraMapa, ahora: Date): EventWithRelations[] {
   if (!hayFiltrosExtra(extra)) return eventos
-  const items = eventos
-    .filter((evento) => evento.category)
-    .map((evento) => ({ evento: transformEvent(evento), paraAtajo: null }))
   const quedan = new Set(
-    filtrarCombinado(items, { atajo: null, categoria: extra.categoria, soloGratis: extra.gratis, paraChicos: extra.chicos }, ahora).map(
-      (evento) => evento.id
-    )
+    filtrarCombinado(
+      eventos.map((evento) => aItemFiltrable(evento, ahora)),
+      // Sin atajo: la fecha ya la decidió `eventoEnFiltroMapa`.
+      { atajo: null, categoria: extra.categoria, soloGratis: extra.gratis, paraChicos: extra.chicos },
+      ahora
+    ).map((evento) => evento.id)
   )
   return eventos.filter((evento) => quedan.has(evento.id))
 }
 
 /**
  * El mapa filtrado: los pines (y los eventos sin ubicación) de lo que cae en
- * la fecha `filtro` y pasa los filtros "qué", más las categorías para los
- * chips. Las categorías se cuentan con la fecha y con Gratis / Para chicos,
- * pero sin la categoría elegida (si no, quedaría un solo chip); la elegida
- * aparece siempre, aunque tenga 0 (`categoriasDisponibles`).
- *
- * Con un filtro "qué" prendido, un evento sin categoría no pasa (no se puede
- * saber si es gratis ni para quién es en el formato de Buscar); sin filtros
- * "qué", el mapa es exactamente el de `armarPinesDelMapa`.
+ * la fecha `filtro` y pasa los filtros "qué", más las categorías para el
+ * selector. Las categorías cuentan los eventos con pin de la fecha, con
+ * Gratis / Para chicos pero sin la categoría elegida (si no, quedaría una
+ * sola); la elegida aparece siempre, aunque tenga 0 (`categoriasDisponibles`).
+ * Sin filtros "qué", los pines son exactamente los de `armarPinesDelMapa`.
  */
 export function armarMapaFiltrado(
   eventos: EventWithRelations[],
@@ -108,11 +135,9 @@ export function armarMapaFiltrado(
   const sinCategoriaElegida = conFiltrosExtra(enFecha, { ...extra, categoria: null }, ahora)
   const filtrados = extra.categoria === null ? sinCategoriaElegida : conFiltrosExtra(sinCategoriaElegida, extra, ahora)
 
-  const categorias = categoriasDisponibles(
-    sinCategoriaElegida.filter((evento) => evento.category).map(transformEvent),
-    categoriasDeLosEventos(eventos),
-    extra.categoria
-  )
+  // Se cuentan solo los que tienen pin: elegir "Teatro (2)" tiene que dibujar dos eventos.
+  const conPin = sinCategoriaElegida.filter((evento) => ubicacionDelEvento(evento) !== null)
+  const categorias = categoriasDisponibles(conPin.map((evento) => aItemFiltrable(evento, ahora).evento), categoriasDeLosEventos(eventos), extra.categoria)
 
-  return { ...armarPinesDelMapa(filtrados, filtro, ahora), categorias }
+  return { ...agruparEnPines(filtrados), categorias }
 }

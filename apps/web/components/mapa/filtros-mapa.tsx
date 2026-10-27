@@ -19,9 +19,9 @@ interface FiltrosQueProps {
   refGratis?: Ref<HTMLButtonElement>
 }
 
-/** El texto de una opción del selector: "Música (5)", o "Teatro (sin eventos)" si la elegida quedó en 0. */
+/** El texto de una opción del selector: "Música (5)", o "Teatro (0)" si la elegida quedó sin eventos (corto: a 320 px no se corta). */
 function textoDeCategoria(categoria: CategoriaDelMapa): string {
-  return categoria.cantidad === 0 ? `${categoria.name} (sin eventos)` : `${categoria.name} (${categoria.cantidad})`
+  return `${categoria.name} (${categoria.cantidad})`
 }
 
 /** Los filtros "qué" prendidos, por su nombre: "Gratis · Para chicos · Teatro". */

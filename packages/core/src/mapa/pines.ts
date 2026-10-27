@@ -180,33 +180,38 @@ function compararPines(a: PinLugar, b: PinLugar): number {
 }
 
 /**
- * Arma los pines del mapa: uno por lugar, con sus eventos que caen en
- * `filtro` para `ahora`. Un `id` repetido cuenta una sola vez. Un evento sin
- * lugar, o con coordenadas que no caen en `coordenadasEnSalta`, no tiene pin:
- * suma a `sinUbicacion` (un evento que no entra en el filtro no suma a nada).
+ * La ubicación de un evento para el mapa, o `null` si no tiene lugar o sus
+ * coordenadas no caen en `coordenadasEnSalta` (entonces no tiene pin).
  */
-export function armarPinesDelMapa(
-  eventos: EventoParaMapa[],
-  filtro: FiltroMapa,
-  ahora: Date
-): { pines: PinLugar[]; sinUbicacion: number } {
+export function ubicacionDelEvento(evento: EventoParaMapa): { lat: number; lng: number } | null {
+  const venue = evento.venue
+  const lat = venue ? aCoordenada(venue.latitude) : null
+  const lng = venue ? aCoordenada(venue.longitude) : null
+  if (!venue || lat === null || lng === null || !coordenadasEnSalta(lat, lng)) return null
+  return { lat, lng }
+}
+
+/**
+ * Agrupa en pines eventos que YA pasaron el filtro: uno por lugar. Un `id`
+ * repetido cuenta una sola vez; un evento sin ubicación (`ubicacionDelEvento`)
+ * suma a `sinUbicacion`. Lo usan `armarPinesDelMapa` y `mapa/filtros.ts`, que
+ * filtra la fecha una sola vez.
+ */
+export function agruparEnPines(eventosEnFiltro: EventoParaMapa[]): { pines: PinLugar[]; sinUbicacion: number } {
   const vistos = new Set<string>()
   const porLugar = new Map<string, PinLugar>()
   let sinUbicacion = 0
 
-  for (const evento of eventos) {
+  for (const evento of eventosEnFiltro) {
     if (vistos.has(evento.id)) continue
-    if (!eventoEnFiltroMapa(evento, filtro, ahora)) continue
     vistos.add(evento.id)
 
-    const venue = evento.venue
-    const lat = venue ? aCoordenada(venue.latitude) : null
-    const lng = venue ? aCoordenada(venue.longitude) : null
-
-    if (!venue || lat === null || lng === null || !coordenadasEnSalta(lat, lng)) {
+    const ubicacion = ubicacionDelEvento(evento)
+    if (!evento.venue || !ubicacion) {
       sinUbicacion += 1
       continue
     }
+    const venue = evento.venue
 
     const eventoDelPin: EventoDelPin = {
       id: evento.id,
@@ -223,8 +228,8 @@ export function armarPinesDelMapa(
         venueId: venue.id,
         nombre: venue.name,
         direccion: venue.address,
-        lat,
-        lng,
+        lat: ubicacion.lat,
+        lng: ubicacion.lng,
         eventos: [eventoDelPin],
       })
     }
@@ -235,6 +240,20 @@ export function armarPinesDelMapa(
   pines.sort(compararPines)
 
   return { pines, sinUbicacion }
+}
+
+/**
+ * Arma los pines del mapa: uno por lugar, con sus eventos que caen en
+ * `filtro` para `ahora`. Un `id` repetido cuenta una sola vez. Un evento sin
+ * lugar, o con coordenadas que no caen en `coordenadasEnSalta`, no tiene pin:
+ * suma a `sinUbicacion` (un evento que no entra en el filtro no suma a nada).
+ */
+export function armarPinesDelMapa(
+  eventos: EventoParaMapa[],
+  filtro: FiltroMapa,
+  ahora: Date
+): { pines: PinLugar[]; sinUbicacion: number } {
+  return agruparEnPines(eventos.filter((evento) => eventoEnFiltroMapa(evento, filtro, ahora)))
 }
 
 /** Una `Feature` GeoJSON de punto, sin tipar toda la librería geojson (que no es una dependencia del proyecto). */

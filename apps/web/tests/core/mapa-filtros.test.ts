@@ -171,13 +171,32 @@ describe('armarMapaFiltrado', () => {
     expect(idsDe(armarMapaFiltrado(todos, diaSabado, { ...SIN_FILTROS_EXTRA, gratis: true }, AHORA).pines)).toEqual([delSabado.id])
   })
 
-  it('las categorías cuentan fecha + gratis + chicos, sin la categoría elegida', () => {
+  it('las categorías cuentan los eventos con pin de la fecha + gratis + chicos, sin la categoría elegida', () => {
     const { categorias } = armarMapaFiltrado(todos, HOY, { gratis: true, chicos: false, categoria: 'musica' }, AHORA)
-    // Gratis de hoy: gratisMusica, teatroFamilia y el gratis sin ubicación (musica).
+    // Gratis de hoy con pin: gratisMusica y teatroFamilia (el gratis sin ubicación no cuenta).
     expect(categorias).toEqual([
-      { slug: 'musica', name: 'Música', cantidad: 2 },
+      { slug: 'musica', name: 'Música', cantidad: 1 },
       { slug: 'teatro', name: 'Teatro', cantidad: 1 },
     ])
+  })
+
+  it('una categoría con eventos solo sin ubicación no se ofrece', () => {
+    const soloSinUbicacion = [evento({ categoria: 'teatro', conUbicacion: false }), evento({ categoria: 'musica' })]
+    const { categorias } = armarMapaFiltrado(soloSinUbicacion, HOY, SIN_FILTROS_EXTRA, AHORA)
+    expect(categorias.map((categoria) => categoria.slug)).toEqual(['musica'])
+  })
+
+  it('un evento sin categoría pasa Gratis y Para chicos si corresponde, pero no una categoría elegida', () => {
+    const sinCategoriaGratisFamilia = evento({ categoria: null, gratis: true, tags: ['familia'] })
+    const lista = [sinCategoriaGratisFamilia, pagaMusica]
+    expect(idsDe(armarMapaFiltrado(lista, HOY, { ...SIN_FILTROS_EXTRA, gratis: true }, AHORA).pines)).toEqual([sinCategoriaGratisFamilia.id])
+    expect(idsDe(armarMapaFiltrado(lista, HOY, { ...SIN_FILTROS_EXTRA, chicos: true }, AHORA).pines)).toEqual([sinCategoriaGratisFamilia.id])
+    expect(idsDe(armarMapaFiltrado(lista, HOY, { ...SIN_FILTROS_EXTRA, categoria: 'musica' }, AHORA).pines)).toEqual([pagaMusica.id])
+  })
+
+  it('Gratis sigue la regla de transformEvent: is_free, aunque price_min sea 0 en un evento pago', () => {
+    const precioCeroNoGratis = { ...evento({ categoria: 'musica' }), price_min: 0 } as EventWithRelations
+    expect(armarMapaFiltrado([precioCeroNoGratis], HOY, { ...SIN_FILTROS_EXTRA, gratis: true }, AHORA).pines).toEqual([])
   })
 
   it('la categoría elegida sin eventos en la fecha queda al final, con 0', () => {

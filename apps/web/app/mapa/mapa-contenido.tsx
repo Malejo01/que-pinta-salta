@@ -96,7 +96,10 @@ export function MapaContenido({ pines, sinUbicacion, filtro, extra, categorias, 
   useEffect(() => {
     if (cambiando || !enfocarGratisAlTerminar.current) return
     enfocarGratisAlTerminar.current = false
-    chipGratis.current?.focus()
+    // Solo si el foco quedó en el aire (el botón se fue): si mientras tanto
+    // la persona ya pasó a otro control, no se lo sacamos.
+    const activo = document.activeElement
+    if (activo === null || activo === document.body) chipGratis.current?.focus()
   }, [cambiando])
 
   // Si el filtro nuevo no trae el lugar seleccionado, no hay nada que resaltar.
@@ -197,11 +200,12 @@ export function MapaContenido({ pines, sinUbicacion, filtro, extra, categorias, 
       <div className={`mt-4 transition-opacity ${cambiando ? "opacity-60" : ""}`}>
         {/* Siempre montado: un aria-live que aparece junto con su texto no siempre se anuncia. */}
         <div className="flex flex-wrap items-center gap-x-3">
-          <p aria-live="polite" className="text-sm font-medium text-foreground">
+          {/* Sin pines lo dice el vacío de abajo: acá queda solo para el lector de pantalla (no se repite a la vista). */}
+          <p aria-live="polite" className={pines.length > 0 ? "text-sm font-medium text-foreground" : "sr-only"}>
             {pines.length > 0
               ? textoDelContador(pines)
               : conFiltrosExtra
-                ? "Ningún evento con estos filtros"
+                ? "Ningún evento en el mapa con estos filtros"
                 : `No hay eventos con ubicación para ${textoDelFiltro}`}
           </p>
           {/* Sin pines, el "Quitar filtros" grande del vacío alcanza: no van dos botones iguales. */}
@@ -209,7 +213,7 @@ export function MapaContenido({ pines, sinUbicacion, filtro, extra, categorias, 
             <button
               type="button"
               onClick={quitarFiltros}
-              className="inline-flex min-h-11 items-center rounded-sm text-sm font-medium text-primary underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+              className="inline-flex min-h-11 items-center rounded-sm text-sm font-medium text-primary underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
             >
               Quitar filtros
             </button>
@@ -227,7 +231,7 @@ export function MapaContenido({ pines, sinUbicacion, filtro, extra, categorias, 
 
         {pines.length === 0 && conFiltrosExtra ? (
           <div className="mt-6 rounded-2xl border border-border bg-card p-8 text-center">
-            <h2 className="font-semibold text-foreground">No hay eventos con estos filtros para {textoDelFiltro}</h2>
+            <h2 className="font-semibold text-foreground">No hay eventos en el mapa con estos filtros para {textoDelFiltro}</h2>
             <p className="mt-2 text-sm text-muted-foreground">
               Filtros: {nombresDeFiltrosExtra(extra, categorias)}. Probá con otra fecha o sacá alguno.
             </p>
@@ -239,9 +243,10 @@ export function MapaContenido({ pines, sinUbicacion, filtro, extra, categorias, 
               >
                 Quitar filtros
               </button>
+              {/* text-foreground y subrayado: el primario sobre bg-card no llega a 4,5:1 en el tema oscuro. */}
               <Link
                 href="/buscar"
-                className="inline-flex min-h-11 items-center text-sm font-medium text-primary underline-offset-2 hover:underline"
+                className="inline-flex min-h-11 items-center rounded-sm text-sm font-medium text-foreground underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
               >
                 Ver la agenda completa
               </Link>
