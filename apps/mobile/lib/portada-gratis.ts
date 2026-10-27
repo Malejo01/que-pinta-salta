@@ -120,3 +120,34 @@ export function segundaSalidaVacioGratis(categoria: string | null, atajo: Atajo)
   if (atajo !== 'semana') return { tipo: 'esta-semana', texto: 'Ver esta semana' }
   return null
 }
+
+/** Texto del vacío del modo categoría sin "Gratis" (R66, 66-c): "No hay eventos de Música para hoy." */
+export function textoVacioCategoria(nombreCategoria: string, atajo: Atajo): string {
+  return `No hay eventos de ${nombreCategoria} para ${FRASE_ATAJO[atajo]}.`
+}
+
+/**
+ * Qué nodo muestra el texto que se anuncia. Cada uno es un elemento distinto
+ * en pantalla: al pasar de uno a otro se monta uno nuevo, y Android no anuncia
+ * el montaje de una live region (solo sus cambios).
+ */
+export type TipoAnuncioGrilla = 'conteo' | 'vacio-categoria' | 'vacio-gratis'
+
+/**
+ * Lo que se anuncia en el modo grilla (A2, ronda de correcciones): el conteo
+ * ("N eventos") si hay resultados, o el texto del vacío si no — antes, con
+ * "Gratis" prendido y sin resultados, no se oía nada. `null` fuera del modo
+ * grilla. El efecto de la portada lo anuncia al aparecer cada nodo (`tipo`
+ * distinto del anterior) y, en iOS, en cada cambio (QPS-354).
+ */
+export function anuncioDeLaGrilla(p: {
+  modoGrilla: boolean
+  gratis: boolean
+  cantidad: number
+  textoConteo: string
+  textoVacio: string
+}): { texto: string; tipo: TipoAnuncioGrilla } | null {
+  if (!p.modoGrilla) return null
+  if (p.cantidad > 0) return { texto: p.textoConteo, tipo: 'conteo' }
+  return { texto: p.textoVacio, tipo: p.gratis ? 'vacio-gratis' : 'vacio-categoria' }
+}

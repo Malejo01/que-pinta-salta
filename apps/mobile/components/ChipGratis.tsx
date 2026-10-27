@@ -14,7 +14,8 @@
 //     como "Solo gratis" de Buscar y los demás chips: es la convención de la
 //     app para un botón que se prende y se apaga (ver `tests/a11y/rol-estado.ts`;
 //     "switch" haría que TalkBack lo lea como un interruptor de ajustes, y
-//     acá es un chip más de la fila).
+//     acá es un chip más de la fila). Etiqueta "Solo eventos gratis": dice
+//     qué hace, y contiene la palabra visible "Gratis" (control por voz).
 //   - Área táctil: `minHeight: 48` en la clave de estilo del Pressable (la
 //     mira el detector `area-chica`).
 //   - Prendido se distingue por la forma y no solo por el color (R72, 72-c):
@@ -43,7 +44,9 @@ export function ChipGratis({ activo, onCambiar }: ChipGratisProps) {
       onPress={() => onCambiar(!activo)}
       accessibilityRole="button"
       accessibilityState={{ selected: activo }}
-      accessibilityLabel="Gratis"
+      // A2, ronda de correcciones: "Gratis, botón" sonaba a una categoría más;
+      // la etiqueta dice qué filtra (el texto visible sigue siendo "Gratis").
+      accessibilityLabel="Solo eventos gratis"
       style={[
         estilos.chipGratis,
         // 2 + 15 = 1 + 16 y 2 + 9 = 1 + 10: mide lo mismo prendido y apagado.

@@ -1,7 +1,8 @@
 // A2 (nube Q1): chip "Gratis" de la portada. Dos partes:
-//   1. La lógica pura de `lib/portada-gratis.ts`, importada de verdad (no es
-//      una copia): combinaciones de fecha + categoría + gratis con datos
-//      inventados, los chips, el cine, el título y el vacío.
+//   1. La lógica pura de `lib/portada-gratis.ts` y `lib/chips-desplazamiento.ts`,
+//      importada de verdad (no es una copia): combinaciones de fecha +
+//      categoría + gratis con datos inventados, los chips, el cine, el título,
+//      el vacío, el anuncio y a dónde se desplaza la fila de chips.
 //   2. Detectores sobre el fuente sin comentarios de `components/ChipGratis.tsx`,
 //      `components/ChipsCategorias.tsx`, `app/(tabs)/index.tsx` y
 //      `app/(tabs)/buscar.tsx` (no hay runner de React Native: se leen como
@@ -15,13 +16,16 @@ import { categoriasDisponibles, filtrarCombinado, type ItemFiltrable } from '@qp
 import { transformMovie } from '@qps/core/home/transform'
 import type { DisplayEvent } from '@qps/core/home/types'
 import { quitarComentarios } from '@qps/core/tests/convencion-entorno'
+import { AIRE_CHIP, destinoScrollChip } from '../lib/chips-desplazamiento'
 import {
+  anuncioDeLaGrilla,
   chipsDeLaPortada,
   enModoGrilla,
   ETIQUETA_ATAJO,
   eventosDeLaGrilla,
   FRASE_ATAJO,
   segundaSalidaVacioGratis,
+  textoVacioCategoria,
   textoVacioGratis,
   tituloGratis,
 } from '../lib/portada-gratis'
@@ -280,6 +284,75 @@ describe('segundaSalidaVacioGratis', () => {
   })
 })
 
+describe('textoVacioCategoria (el vacío de siempre del modo categoría)', () => {
+  it.each([
+    ['Música', 'hoy', 'No hay eventos de Música para hoy.'],
+    ['Teatro', 'finde', 'No hay eventos de Teatro para el finde.'],
+  ] as const)('%s + %s -> "%s"', (nombre, atajo, esperado) => {
+    expect(textoVacioCategoria(nombre, atajo)).toBe(esperado)
+  })
+})
+
+describe('anuncioDeLaGrilla: el conteo si hay resultados, el vacío si no', () => {
+  const base = { textoConteo: '3 eventos', textoVacio: 'No hay eventos gratis para hoy.' }
+
+  it('fuera del modo grilla no se anuncia nada', () => {
+    expect(anuncioDeLaGrilla({ ...base, modoGrilla: false, gratis: false, cantidad: 3 })).toBeNull()
+    expect(anuncioDeLaGrilla({ ...base, modoGrilla: false, gratis: false, cantidad: 0 })).toBeNull()
+  })
+
+  it('con resultados, el conteo (con o sin Gratis)', () => {
+    expect(anuncioDeLaGrilla({ ...base, modoGrilla: true, gratis: true, cantidad: 3 })).toEqual({ texto: '3 eventos', tipo: 'conteo' })
+    expect(anuncioDeLaGrilla({ ...base, modoGrilla: true, gratis: false, cantidad: 3 })).toEqual({ texto: '3 eventos', tipo: 'conteo' })
+  })
+
+  it('sin resultados y con Gratis, el texto del vacío de Gratis', () => {
+    expect(anuncioDeLaGrilla({ ...base, modoGrilla: true, gratis: true, cantidad: 0 })).toEqual({
+      texto: 'No hay eventos gratis para hoy.',
+      tipo: 'vacio-gratis',
+    })
+  })
+
+  it('sin resultados y sin Gratis, el vacío de categoría (otro nodo: otro tipo)', () => {
+    const vacio = 'No hay eventos de Música para hoy.'
+    expect(anuncioDeLaGrilla({ ...base, textoVacio: vacio, modoGrilla: true, gratis: false, cantidad: 0 })).toEqual({ texto: vacio, tipo: 'vacio-categoria' })
+  })
+})
+
+describe('destinoScrollChip: la fila solo se desplaza si el chip elegido no entra', () => {
+  // A 360 dp: Gratis (16..120) + separador (130) + "Todas" (141..221) + Música
+  // (231..341) + Teatro (351..461)…
+  const ANCHO = 360
+
+  it('sin medir el chip o el ancho visible: no se desplaza todavía (null)', () => {
+    expect(destinoScrollChip(undefined, ANCHO)).toBeNull()
+    expect(destinoScrollChip({ x: 141, width: 80 }, null)).toBeNull()
+  })
+
+  it('"Todas" detrás de Gratis entra: la fila va al principio (0) y Gratis queda a la vista', () => {
+    expect(destinoScrollChip({ x: 141, width: 80 }, ANCHO)).toBe(0)
+  })
+
+  it('una categoría que entra entera (con su aire) también va a 0, no a x - 16', () => {
+    expect(destinoScrollChip({ x: 231, width: 110 }, ANCHO)).toBe(0)
+    // Justo en el borde: 234 + 110 + 16 = 360.
+    expect(destinoScrollChip({ x: 234, width: 110 }, ANCHO)).toBe(0)
+  })
+
+  it('una que no entra va a x - 16 (como antes de A2)', () => {
+    expect(destinoScrollChip({ x: 235, width: 110 }, ANCHO)).toBe(235 - AIRE_CHIP)
+    expect(destinoScrollChip({ x: 351, width: 110 }, ANCHO)).toBe(335)
+  })
+
+  it('sin Gratis, "Todas" (x = 16) va a 0 como antes', () => {
+    expect(destinoScrollChip({ x: 16, width: 80 }, ANCHO)).toBe(0)
+  })
+
+  it('nunca da negativo', () => {
+    expect(destinoScrollChip({ x: 4, width: 900 }, ANCHO)).toBe(0)
+  })
+})
+
 describe('lib/portada-gratis.ts usa core, no reglas propias', () => {
   const fuente = quitarComentarios(leer('../lib/portada-gratis.ts'))
 
@@ -336,6 +409,8 @@ function violacionesChipGratis(fuenteCruda: string): string[] {
   if (!/accessibilityState=\{\{\s*selected:\s*activo\s*\}\}/.test(pressable)) v.push('estado: falta accessibilityState={{ selected: activo }}')
   if (!/onPress=\{\(\) => onCambiar\(!activo\)\}/.test(pressable)) v.push('no es un interruptor: onPress no llama onCambiar(!activo)')
   if (!/>\s*Gratis\s*</.test(pressable)) v.push('el texto visible no es "Gratis"')
+  // Ronda de correcciones: "Gratis, botón" sonaba a categoría.
+  if (!/accessibilityLabel="Solo eventos gratis"/.test(pressable)) v.push('etiqueta: falta accessibilityLabel="Solo eventos gratis"')
 
   // Área táctil: la clave de estilo del Pressable con minHeight >= 48 (detector `area-chica`).
   const clave = /style=\{\[\s*estilos\.(\w+)/.exec(pressable)
@@ -399,6 +474,7 @@ describe('components/ChipGratis.tsx', () => {
     ['sin rol', (s: string) => s.replace('accessibilityRole="button"\n      accessibilityState', 'accessibilityState'), 'rol: el chip no es accessibilityRole="button"'],
     ['estado fijo', (s: string) => s.replace('selected: activo', 'selected: false'), 'estado: falta accessibilityState={{ selected: activo }}'],
     ['checked en vez de selected', (s: string) => s.replace('selected: activo', 'checked: activo'), 'estado: falta accessibilityState={{ selected: activo }}'],
+    ['etiqueta "Gratis"', (s: string) => s.replace('accessibilityLabel="Solo eventos gratis"', 'accessibilityLabel="Gratis"'), 'etiqueta: falta accessibilityLabel="Solo eventos gratis"'],
     ['no alterna', (s: string) => s.replace('onCambiar(!activo)', 'onCambiar(true)'), 'no es un interruptor: onPress no llama onCambiar(!activo)'],
     ['minHeight 40', (s: string) => s.replace('minHeight: 48,\n  },\n})', 'minHeight: 40,\n  },\n})'), 'área: la clave "chipGratis" no tiene minHeight >= 48'],
     ['contorno igual', (s: string) => s.replace('borderWidth: 2', 'borderWidth: 1'), 'forma: el activo no tiene un contorno más grueso que el inactivo'],
@@ -424,6 +500,9 @@ function violacionesChipsCategorias(fuenteCruda: string): string[] {
   const chip = c.indexOf('<ChipGratis')
   const todas = c.indexOf('chips.map(')
   if (chip < 0 || todas < 0 || chip > todas) v.push('el chip Gratis no va antes de "Todas"')
+  // Ronda de correcciones: la barra de desplazamiento solo con `gratis` (la portada).
+  if (!/showsHorizontalScrollIndicator=\{gratis !== undefined\}/.test(c)) v.push('la barra no depende de la prop gratis')
+  if (!/persistentScrollbar=\{gratis !== undefined\}/.test(c)) v.push('persistentScrollbar no depende de la prop gratis')
   return v
 }
 
@@ -437,6 +516,8 @@ describe('components/ChipsCategorias.tsx: el chip Gratis es aditivo', () => {
   it.each([
     ['prop obligatoria', (s: string) => s.replace('gratis?: {', 'gratis: {'), 'la prop gratis no es opcional'],
     ['siempre dibujado', (s: string) => s.replace('{gratis ? (', '{true ? ('), 'ChipGratis no depende de la prop gratis'],
+    ['barra también en Buscar', (s: string) => s.replace('showsHorizontalScrollIndicator={gratis !== undefined}', 'showsHorizontalScrollIndicator'), 'la barra no depende de la prop gratis'],
+    ['barra persistente siempre', (s: string) => s.replace('persistentScrollbar={gratis !== undefined}', 'persistentScrollbar'), 'persistentScrollbar no depende de la prop gratis'],
   ])('rotura en memoria: %s -> detectada', (_nombre, romper, esperada) => {
     const roto = romper(real)
     expect(roto).not.toBe(real)
@@ -467,24 +548,48 @@ function violacionesPortada(fuenteCruda: string): string[] {
     if (!/\.scrollTo\(\{\s*y:\s*0\b/.test(handler[1])) v.push('cambiarGratis no vuelve el scroll arriba')
   }
 
-  // Modo grilla: sin Hero, sin InvitacionAvisos, sin secciones (banners/anuncio).
-  if (!/\{categoria === null && !gratis && datosPortada\.carrusel\.length > 0 \? <Hero/.test(c)) v.push('el Hero no se apaga con Gratis')
-  if (!/\{categoria === null && !gratis \? <InvitacionAvisos/.test(c)) v.push('InvitacionAvisos no se apaga con Gratis')
-  if (!/datosPortada && categoria === null && !gratis \? seccionesPortada\(/.test(c)) v.push('las secciones (banners y anuncio) no se apagan con Gratis')
-  if (!/\{categoria !== null \|\| gratis \? \(\s*<View style=\{estilos\.bloqueCategoria\}>/.test(c)) v.push('la grilla no se dibuja con Gratis')
+  // El modo grilla sale de enModoGrilla (categoría o Gratis), sin repetirlo en línea.
+  if (!/const modoGrilla = enModoGrilla\(\{ categoria, gratis \}\)/.test(c)) v.push('modoGrilla no es enModoGrilla({ categoria, gratis })')
+  if (!/if \(enModoGrilla\(\{ categoria, gratis \}\)\) \{/.test(c)) v.push('la grilla del useMemo no se arma con enModoGrilla')
+  if (/categoria !== null \|\| gratis/.test(c)) v.push('se repite `categoria !== null || gratis` en línea')
 
-  // Mismo conteo y mismo anuncio que el modo categoría.
-  if (!/const textoConteo =\s*datosPortada && \(categoria !== null \|\| gratis\) &&/.test(c)) v.push('el conteo/anuncio no cubre el modo Gratis')
+  // Sin Hero, sin InvitacionAvisos, sin secciones (banners/anuncio).
+  if (!/\{!modoGrilla && datosPortada\.carrusel\.length > 0 \? <Hero/.test(c)) v.push('el Hero no se apaga con Gratis')
+  if (!/\{!modoGrilla \? <InvitacionAvisos/.test(c)) v.push('InvitacionAvisos no se apaga con Gratis')
+  if (!/datosPortada && !modoGrilla \? seccionesPortada\(/.test(c)) v.push('las secciones (banners y anuncio) no se apagan con Gratis')
+  if (!/\{modoGrilla \? \(\s*<View style=\{estilos\.bloqueCategoria\}>/.test(c)) v.push('la grilla no se dibuja con Gratis')
+
+  // La fila de chips va siempre en modo grilla (con Gratis, aunque no queden categorías).
+  if (!/\{datosPortada\.chips\.length > 0 \|\| modoGrilla \? \(\s*<ChipsCategorias/.test(c)) v.push('la fila de chips no se dibuja con Gratis')
+  if (!/<View style=\{datosPortada\.chips\.length > 0 \|\| modoGrilla \? estilos\.pillsBajoChips/.test(c)) v.push('las pills no se acomodan bajo la fila con Gratis')
+
+  // El vacío de categoría solo sin Gratis (con Gratis va el de Gratis).
+  if (!/datosPortada\.eventosCategoria\.length === 0 && categoria !== null && !gratis \? \(/.test(c)) v.push('el vacío de categoría también se muestra con Gratis')
+
+  // El anuncio: el conteo o el vacío, con el mismo texto que se ve.
+  if (!/const anuncio = datosPortada\s*\?\s*anuncioDeLaGrilla\(\{\s*modoGrilla,\s*gratis,/.test(c)) v.push('el anuncio no sale de anuncioDeLaGrilla')
+  if (!/const textoVacio = gratis \? textoVacioGratis\(categoria, nombreCategoria, atajo\) : textoVacioCategoria\(nombreCategoria, atajo\)/.test(c)) v.push('el texto del vacío no sale de textoVacioGratis/textoVacioCategoria')
+  if (!/accessibilityLiveRegion="polite">\s*\{textoVacio\}/.test(c)) v.push('el vacío de categoría no muestra textoVacio en una live region')
+  if (!/texto=\{textoVacio\}/.test(c)) v.push('el vacío de Gratis no recibe textoVacio')
 
   // Filtros y chips por lib/portada-gratis.
   if (!/eventosCategoria = eventosDeLaGrilla\(items, \{ atajo, categoria, gratis \}, ahora\)/.test(c)) v.push('la grilla no filtra con gratis')
   if (!/const chips = chipsDeLaPortada\(todosLosEventos, estado\.categorias, categoria, gratis\)/.test(c)) v.push('los chips no salen de chipsDeLaPortada con gratis')
   if (!/\}, \[estado, atajo, categoria, gratis\]\)/.test(c)) v.push('datosPortada no depende de gratis')
 
-  // Título y vacío.
+  // Título.
   if (!/tituloGratis\(categoria === null \? null : nombreCategoria, atajo\)/.test(c)) v.push('el título de Gratis no sale de tituloGratis')
-  if (!/textoVacioGratis\(categoria, nombreCategoria, atajo\)/.test(c)) v.push('el vacío de Gratis no sale de textoVacioGratis')
+
+  // Cada salida del vacío de Gratis llama a su handler.
   if (!/onVerTodosLosPrecios=\{\(\) => cambiarGratis\(false\)\}/.test(c)) v.push('"Ver todos los precios" no apaga Gratis')
+  if (!/onTodasLasCategorias=\{\(\) => cambiarCategoria\(null\)\}/.test(c)) v.push('"Todas las categorías" no vuelve a "Todas"')
+  if (!/onEstaSemana=\{\(\) => cambiarAtajo\('semana'\)\}/.test(c)) v.push('"Ver esta semana" no pasa a la semana')
+
+  // Los botones secundarios de los dos vacíos con el borde de 3:1.
+  if (!/onPress=\{\(\) => cambiarCategoria\(null\)\}\s*accessibilityRole="button"\s*style=\{\[estilos\.vacioHoyBoton, estilos\.botonVacio, \{ borderWidth: 1, borderColor: bordeInactivo \}\]\}/.test(c)) {
+    v.push('el secundario del vacío de categoría no usa bordeInactivo')
+  }
+  if (!/bordeSecundario=\{bordeInactivo\}/.test(c)) v.push('el secundario del vacío de Gratis no usa bordeInactivo')
 
   const vacio = /function VacioGratis\([\s\S]*?\n\}\n/.exec(c)
   if (!vacio) v.push('no hay function VacioGratis')
@@ -495,6 +600,9 @@ function violacionesPortada(fuenteCruda: string): string[] {
     if (!/>\s*Ver todos los precios\s*</.test(cuerpo)) v.push('el vacío no ofrece "Ver todos los precios"')
     if (pressables.length !== roles.length) v.push('un botón del vacío no tiene accessibilityRole="button"')
     if (!/<Pressable\s+onPress=\{onVerTodosLosPrecios\}/.test(cuerpo)) v.push('"Ver todos los precios" no llama onVerTodosLosPrecios')
+    if (!/onPress=\{segunda\.tipo === 'todas-las-categorias' \? onTodasLasCategorias : onEstaSemana\}/.test(cuerpo)) v.push('la segunda salida no despacha a su handler')
+    if (!/borderColor: bordeSecundario/.test(cuerpo)) v.push('el secundario del vacío de Gratis no usa bordeSecundario')
+    if (!/accessibilityLiveRegion="polite">\s*\{texto\}/.test(cuerpo)) v.push('el texto del vacío de Gratis no es una live region')
     if (/BannerAnuncio|BannerRadar/.test(cuerpo)) v.push('hay un banner en el vacío')
   }
   return v
@@ -510,11 +618,20 @@ describe('app/(tabs)/index.tsx: el modo "Gratis"', () => {
   it.each([
     ['arranca prendido', (s: string) => s.replace('useState(false)', 'useState(true)'), 'Gratis no arranca apagado'],
     ['sin scroll arriba', (s: string) => s.replace(/(const cambiarGratis[\s\S]*?)scrollRef\.current\?\.scrollTo\(\{ y: 0, animated: false \}\)/, '$1void 0'), 'cambiarGratis no vuelve el scroll arriba'],
-    ['Hero con Gratis', (s: string) => s.replace('{categoria === null && !gratis && datosPortada.carrusel', '{categoria === null && datosPortada.carrusel'), 'el Hero no se apaga con Gratis'],
-    ['banners con Gratis', (s: string) => s.replace('datosPortada && categoria === null && !gratis ? seccionesPortada(', 'datosPortada && categoria === null ? seccionesPortada('), 'las secciones (banners y anuncio) no se apagan con Gratis'],
-    ['conteo sin Gratis', (s: string) => s.replace('datosPortada && (categoria !== null || gratis) &&', 'datosPortada && categoria !== null &&'), 'el conteo/anuncio no cubre el modo Gratis'],
+    ['modo grilla sin Gratis', (s: string) => s.replace('const modoGrilla = enModoGrilla({ categoria, gratis })', 'const modoGrilla = enModoGrilla({ categoria, gratis: false })'), 'modoGrilla no es enModoGrilla({ categoria, gratis })'],
+    ['condición repetida en línea', (s: string) => s.replace('if (enModoGrilla({ categoria, gratis })) {', 'if (categoria !== null || gratis) {'), 'se repite `categoria !== null || gratis` en línea'],
+    ['Hero con Gratis', (s: string) => s.replace('{!modoGrilla && datosPortada.carrusel', '{categoria === null && datosPortada.carrusel'), 'el Hero no se apaga con Gratis'],
+    ['banners con Gratis', (s: string) => s.replace('datosPortada && !modoGrilla ? seccionesPortada(', 'datosPortada && categoria === null ? seccionesPortada('), 'las secciones (banners y anuncio) no se apagan con Gratis'],
+    ['fila de chips sin Gratis', (s: string) => s.replace('{datosPortada.chips.length > 0 || modoGrilla ? (', '{datosPortada.chips.length > 0 || categoria !== null ? ('), 'la fila de chips no se dibuja con Gratis'],
+    ['vacío de categoría con Gratis', (s: string) => s.replace('eventosCategoria.length === 0 && categoria !== null && !gratis ? (', 'eventosCategoria.length === 0 && categoria !== null ? ('), 'el vacío de categoría también se muestra con Gratis'],
+    ['vacío sin anuncio', (s: string) => s.replace('const anuncio = datosPortada\n    ? anuncioDeLaGrilla({', 'const anuncio = datosPortada && false\n    ? anuncioDeLaGrilla({'), 'el anuncio no sale de anuncioDeLaGrilla'],
+    ['vacío de categoría sin live region', (s: string) => s.replace(/accessibilityLiveRegion="polite">(\s*)\{textoVacio\}/, '>$1{textoVacio}'), 'el vacío de categoría no muestra textoVacio en una live region'],
     ['grilla sin gratis', (s: string) => s.replace('{ atajo, categoria, gratis }, ahora)', '{ atajo, categoria, gratis: false }, ahora)'), 'la grilla no filtra con gratis'],
     ['"Ver todos los precios" que no apaga', (s: string) => s.replace('onVerTodosLosPrecios={() => cambiarGratis(false)}', 'onVerTodosLosPrecios={() => cambiarCategoria(null)}'), '"Ver todos los precios" no apaga Gratis'],
+    ['"Todas las categorías" que apaga Gratis', (s: string) => s.replace('onTodasLasCategorias={() => cambiarCategoria(null)}', 'onTodasLasCategorias={() => cambiarGratis(false)}'), '"Todas las categorías" no vuelve a "Todas"'],
+    ['"Ver esta semana" a hoy', (s: string) => s.replace("onEstaSemana={() => cambiarAtajo('semana')}", "onEstaSemana={() => cambiarAtajo('hoy')}"), '"Ver esta semana" no pasa a la semana'],
+    ['segunda salida cruzada', (s: string) => s.replace("segunda.tipo === 'todas-las-categorias' ? onTodasLasCategorias : onEstaSemana", "segunda.tipo === 'todas-las-categorias' ? onEstaSemana : onTodasLasCategorias"), 'la segunda salida no despacha a su handler'],
+    ['secundario de categoría con colores.border', (s: string) => s.replace('{ borderWidth: 1, borderColor: bordeInactivo }]}\n                  >\n                    <Texto peso="bold">Todas las categorías', '{ borderWidth: 1, borderColor: colores.border }]}\n                  >\n                    <Texto peso="bold">Todas las categorías'), 'el secundario del vacío de categoría no usa bordeInactivo'],
     ['sin "Ver todos los precios"', (s: string) => s.replace('Ver todos los precios\n', 'Ver más\n'), 'el vacío no ofrece "Ver todos los precios"'],
     ['botón del vacío sin rol', (s: string) => s.replace(/(onPress=\{onVerTodosLosPrecios\}\s*)accessibilityRole="button"/, '$1'), 'un botón del vacío no tiene accessibilityRole="button"'],
   ])('rotura en memoria: %s -> detectada', (_nombre, romper, esperada) => {

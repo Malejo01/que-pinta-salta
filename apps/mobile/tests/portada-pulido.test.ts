@@ -7,9 +7,11 @@
 // aplicada (nunca se edita producción): si la rotura no produce violaciones, el
 // test falla. Las roturas probadas:
 //   - efecto de ChipsCategorias con deps `[]` en vez de `[seleccionada]`
-//   - efecto sin `scrollTo`
+//   - efecto que no trae el chip a la vista
 //   - efecto con otra clave de respaldo (`?? 'todos'`) que la del onLayout/key
-//   - efecto con otro offset (8) que el del onLayout (16)
+//   - (A2, ronda de correcciones) efecto que no limpia `posicionada`, sin la
+//     guarda de una sola vez, o con el destino calculado a mano (en vez del
+//     viejo "otro offset que el del onLayout", que ya no aplica)
 //   - la tarjeta mostrando la fecha para una película (sin "En cartel")
 //   - la tarjeta mostrando "En cartel" para todos
 //   - borde inactivo más claro que el mínimo (#555555 / #9a9a9a)
@@ -33,6 +35,13 @@ function sinComentarios(src: string): string {
 // ---------------------------------------------------------------------------
 // 4. ChipsCategorias: el chip elegido vuelve a la vista
 // ---------------------------------------------------------------------------
+// A2 (nube Q1, ronda de correcciones): el desplazamiento cambió de forma —
+// el destino sale de `destinoScrollChip` (0 si el chip entra en la ventana
+// visible, `x - 16` si no; lógica pura probada en `tests/portada-gratis.test.ts`)
+// y se hace una sola vez por cada `seleccionada` (`traerALaVista` con la guarda
+// `posicionada`, que el efecto limpia). El arreglo QPS-354 sigue igual de
+// exigido: el efecto sobre `seleccionada` trae el chip a la vista (selección
+// que cambia desde afuera), con la misma clave que el onLayout y el key.
 export function violacionesDeScrollChip(fuente: string): string[] {
   const c = sinComentarios(fuente)
   const v: string[] = []
@@ -42,25 +51,29 @@ export function violacionesDeScrollChip(fuente: string): string[] {
   const [, cuerpo, deps] = efecto
 
   if (!/\bseleccionada\b/.test(deps)) v.push('el efecto no depende de seleccionada')
-  if (!/\bscrollTo\(/.test(cuerpo)) v.push('el efecto no llama a scrollTo')
+  if (!/\btraerALaVista\(/.test(cuerpo)) v.push('el efecto no trae el chip a la vista')
+  if (!/posicionada\.current = null/.test(cuerpo)) v.push('el efecto no limpia posicionada (una selección nueva no se volvería a posicionar)')
 
   // Clave: la misma `?? '<literal>'` en el efecto, en el onLayout y en el key.
-  const claveEfecto = /posiciones\.current\[\s*seleccionada\s*\?\?\s*(['"][^'"]+['"])\s*\]/.exec(cuerpo)
-  const claveLayout = /posiciones\.current\[\s*chip\.slug\s*\?\?\s*(['"][^'"]+['"])\s*\]\s*=/.exec(c)
+  const claveEfecto = /traerALaVista\([^)]*seleccionada\s*\?\?\s*(['"][^'"]+['"])\s*\)/.exec(cuerpo)
+  const claveLayout = /posiciones\.current\[\s*chip\.slug\s*\?\?\s*(['"][^'"]+['"])\s*\]\s*=\s*\{\s*x,\s*width\s*\}/.exec(c)
   const claveKey = /key=\{\s*chip\.slug\s*\?\?\s*(['"][^'"]+['"])\s*\}/.exec(c)
-  if (!claveEfecto) v.push('el efecto no lee posiciones.current[seleccionada ?? <clave>]')
-  if (!claveLayout) v.push('el onLayout no guarda posiciones.current[chip.slug ?? <clave>]')
+  if (!claveEfecto) v.push('el efecto no llama traerALaVista(…, seleccionada ?? <clave>)')
+  if (!claveLayout) v.push('el onLayout no guarda posiciones.current[chip.slug ?? <clave>] = { x, width }')
   if (!claveKey) v.push('el chip no tiene key={chip.slug ?? <clave>}')
   if (claveEfecto && claveLayout && claveEfecto[1] !== claveLayout[1]) v.push('la clave de respaldo del efecto no es la del onLayout')
   if (claveEfecto && claveKey && claveEfecto[1] !== claveKey[1]) v.push('la clave de respaldo del efecto no es la del key')
 
-  // Offset: `x - N` del scrollTo del efecto igual al del onLayout.
-  const offsetEfecto = /scrollTo\(\{\s*x:\s*Math\.max\(0,\s*x\s*-\s*(\d+)\)/.exec(cuerpo)
-  const resto = c.slice(c.indexOf(efecto[0]) + efecto[0].length)
-  const offsetLayout = /scrollTo\(\{\s*x:\s*Math\.max\(0,\s*x\s*-\s*(\d+)\)/.exec(resto)
-  if (!offsetEfecto) v.push('el scrollTo del efecto no es Math.max(0, x - N)')
-  if (!offsetLayout) v.push('el scrollTo del onLayout no es Math.max(0, x - N)')
-  if (offsetEfecto && offsetLayout && offsetEfecto[1] !== offsetLayout[1]) v.push('el offset del efecto no es el del onLayout')
+  // El destino y la guarda de "una sola vez".
+  const funcion = /function traerALaVista\([\s\S]*?\n\}\n/.exec(c)
+  if (!funcion) v.push('no hay function traerALaVista')
+  else {
+    if (!/if \(posicionada\.current === clave\) return/.test(funcion[0])) v.push('traerALaVista no tiene la guarda de una sola vez por selección')
+    if (!/destinoScrollChip\(posiciones\.current\[clave\], anchoVisible\.current\)/.test(funcion[0])) v.push('el destino no sale de destinoScrollChip')
+    if (!/scrollTo\(\{\s*x:\s*destino\b/.test(funcion[0])) v.push('traerALaVista no desplaza al destino')
+  }
+  if (!/anchoVisible\.current = evento\.nativeEvent\.layout\.width/.test(c)) v.push('el ScrollView no mide su ancho visible')
+  if (/scrollTo\(\{\s*x:\s*Math\.max/.test(c)) v.push('hay un scrollTo con el destino calculado a mano')
 
   return v
 }
@@ -73,26 +86,40 @@ describe('components/ChipsCategorias.tsx: el chip elegido vuelve a la vista (QPS
   })
 
   it('el onLayout del activo se mantiene (primer posicionamiento al montar)', () => {
-    expect(sinComentarios(real)).toMatch(/if \(activo\) scrollRef\.current\?\.scrollTo\(/)
+    expect(sinComentarios(real)).toMatch(/if \(activo\) traerALaVista\(/)
   })
 
   it.each([
     ['deps vacías', (s: string) => s.replace('}, [seleccionada])', '}, [])'), 'el efecto no depende de seleccionada'],
-    ['efecto sin scrollTo', (s: string) => s.replace(/if \(x !== undefined\) scrollRef\.current\?\.scrollTo\([^\n]*\)\n/, ''), 'el efecto no llama a scrollTo'],
+    [
+      'efecto sin traer a la vista',
+      (s: string) => s.replace("    traerALaVista(scrollRef, posiciones, anchoVisible, posicionada, seleccionada ?? 'todas')\n  }, [seleccionada])", '  }, [seleccionada])'),
+      'el efecto no trae el chip a la vista',
+    ],
+    [
+      'efecto que no limpia posicionada',
+      (s: string) => s.replace('    posicionada.current = null\n', ''),
+      'el efecto no limpia posicionada (una selección nueva no se volvería a posicionar)',
+    ],
     [
       "clave del efecto distinta ('todos')",
-      (s: string) => s.replace("posiciones.current[seleccionada ?? 'todas']", "posiciones.current[seleccionada ?? 'todos']"),
+      (s: string) => s.replace("posicionada, seleccionada ?? 'todas')\n  }, [seleccionada])", "posicionada, seleccionada ?? 'todos')\n  }, [seleccionada])"),
       'la clave de respaldo del efecto no es la del onLayout',
     ],
     [
-      'offset del efecto distinto (8)',
-      (s: string) => s.replace('const x = posiciones.current[seleccionada ?? \'todas\']\n    if (x !== undefined) scrollRef.current?.scrollTo({ x: Math.max(0, x - 16)', 'const x = posiciones.current[seleccionada ?? \'todas\']\n    if (x !== undefined) scrollRef.current?.scrollTo({ x: Math.max(0, x - 8)'),
-      'el offset del efecto no es el del onLayout',
+      'onLayout que no guarda la medida',
+      (s: string) => s.replace("posiciones.current[chip.slug ?? 'todas'] = { x, width }", 'void x'),
+      'el onLayout no guarda posiciones.current[chip.slug ?? <clave>] = { x, width }',
     ],
     [
-      'onLayout que no guarda la x',
-      (s: string) => s.replace("posiciones.current[chip.slug ?? 'todas'] = x", 'void x'),
-      'el onLayout no guarda posiciones.current[chip.slug ?? <clave>]',
+      'sin la guarda de una sola vez (la fila salta)',
+      (s: string) => s.replace('  if (posicionada.current === clave) return\n', ''),
+      'traerALaVista no tiene la guarda de una sola vez por selección',
+    ],
+    [
+      'destino a mano (x - 16 siempre)',
+      (s: string) => s.replace('scroll.current?.scrollTo({ x: destino, animated: false })', 'scroll.current?.scrollTo({ x: Math.max(0, (posiciones.current[clave]?.x ?? 0) - 16), animated: false })'),
+      'hay un scrollTo con el destino calculado a mano',
     ],
   ])('rotura en memoria: %s -> detectada', (_nombre, romper, esperada) => {
     const roto = romper(real)
@@ -205,14 +232,20 @@ describe('bordeChipInactivo: contraste >= 3:1 contra el fondo de la portada (QPS
 // ---------------------------------------------------------------------------
 // Anuncio del conteo al aparecer (QPS-354)
 // ---------------------------------------------------------------------------
+// A2 (nube Q1, ronda de correcciones): lo que se anuncia pasó a ser
+// `textoAnuncio` (el conteo si hay resultados, el texto del vacío si no;
+// `anuncioDeLaGrilla`, probada en `tests/portada-gratis.test.ts`), y "primera
+// vez" es que cambie el `tipoAnuncio` (cada nodo es otro en pantalla). La
+// guarda contra la doble lectura en Android sigue igual.
 export function violacionesDeAnuncio(fuente: string): string[] {
   const c = sinComentarios(fuente)
   const v: string[] = []
-  if (!/announceForAccessibility\(\s*textoConteo\s*\)/.test(c)) v.push('no anuncia textoConteo')
+  if (!/announceForAccessibility\(\s*textoAnuncio\s*\)/.test(c)) v.push('no anuncia textoAnuncio')
   if (!/primeraVez\s*\|\|\s*Platform\.OS\s*===\s*'ios'\s*\)\s*AccessibilityInfo\.announceForAccessibility/.test(c)) {
     v.push("el anuncio no está guardado por `primeraVez || Platform.OS === 'ios'`")
   }
-  if (!/\}, \[textoConteo\]\)/.test(c)) v.push('el efecto del anuncio no depende de textoConteo')
+  if (!/const primeraVez = tipoAnunciado\.current !== tipoAnuncio/.test(c)) v.push('primeraVez no sale del cambio de tipo')
+  if (!/\}, \[textoAnuncio, tipoAnuncio\]\)/.test(c)) v.push('el efecto del anuncio no depende de textoAnuncio y tipoAnuncio')
   return v
 }
 
@@ -225,8 +258,9 @@ describe('app/(tabs)/index.tsx: anuncio del conteo de la categoría (QPS-354)', 
 
   it.each([
     ['anuncia siempre (doble lectura en Android)', (s: string) => s.replace("if (primeraVez || Platform.OS === 'ios') AccessibilityInfo", 'if (true) AccessibilityInfo')],
-    ['sin dependencia textoConteo', (s: string) => s.replace('}, [textoConteo])', '}, [])')],
-    ['no anuncia', (s: string) => s.replace('announceForAccessibility(textoConteo)', 'announceForAccessibility("")')],
+    ['sin dependencia textoAnuncio', (s: string) => s.replace('}, [textoAnuncio, tipoAnuncio])', '}, [tipoAnuncio])')],
+    ['no anuncia', (s: string) => s.replace('announceForAccessibility(textoAnuncio)', 'announceForAccessibility("")')],
+    ['primera vez sin mirar el tipo', (s: string) => s.replace('const primeraVez = tipoAnunciado.current !== tipoAnuncio', 'const primeraVez = tipoAnunciado.current === null')],
   ])('rotura en memoria: %s -> detectada', (_nombre, romper) => {
     const roto = romper(real)
     expect(roto).not.toBe(real)
