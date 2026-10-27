@@ -44,6 +44,8 @@ export function sitioWebJsonLd(): NodoJsonLd {
     '@id': ID_SITIO,
     url: `${SITE_URL}/`,
     name: SITE_NAME,
+    // La otra grafía con la que aparece la marca (pie, páginas legales).
+    alternateName: ['Qué Pinta Salta'],
     inLanguage: 'es-AR',
     publisher: { '@id': ID_ORGANIZACION },
     // La búsqueda apunta a la portada con `?search=` y no a /buscar: hoy

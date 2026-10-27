@@ -42,9 +42,12 @@ describe('descripcionParaMeta', () => {
   })
 
   it('con max chico también corta en palabra y no se pasa', () => {
-    const r = descripcionParaMeta('Gran peña folclórica en la Balderrama', 20)!
-    expect(r).toBe('Gran peña…')
-    expect(r.length).toBeLessThanOrEqual(20)
+    // La ventana (23) termina justo al final de «en»: entra entera.
+    expect(descripcionParaMeta('Gran peña folclórica en la Balderrama', 24)).toBe('Gran peña folclórica en…')
+    // La ventana (21) termina en «folclórica »: se corta en ese espacio.
+    const r = descripcionParaMeta('Gran peña folclórica en la Balderrama', 22)!
+    expect(r).toBe('Gran peña folclórica…')
+    expect(r.length).toBeLessThanOrEqual(22)
   })
 
   it('no deja una coma colgando antes del «…»', () => {
@@ -55,6 +58,42 @@ describe('descripcionParaMeta', () => {
   it('una sola palabra más larga que max se corta a max - 1 más el «…»', () => {
     const r = descripcionParaMeta('a'.repeat(300))!
     expect(r).toBe(`${'a'.repeat(159)}…`)
+    expect(r.length).toBe(160)
+  })
+
+  it('keycaps: queda el dígito, sin espacios en el medio de un número', () => {
+    expect(descripcionParaMeta('📅 2️⃣5️⃣/1️⃣0️⃣ desde las 2️⃣2️⃣hs')).toBe('25/10 desde las 22hs')
+    expect(descripcionParaMeta('Sala 1️⃣0️⃣')).toBe('Sala 10')
+  })
+
+  it('sin espacio suelto antes de comillas de cierre, pero sí antes de las de apertura', () => {
+    expect(descripcionParaMeta('«Noche 🔥» y "Peña 🎶"')).toBe('«Noche» y "Peña"')
+    expect(descripcionParaMeta('Show “Gran Final 🎤” hoy')).toBe('Show “Gran Final” hoy')
+    expect(descripcionParaMeta("Ciclo 'Rock 🎸' en vivo")).toBe("Ciclo 'Rock' en vivo")
+  })
+
+  it('no parte un par sustituto: el último carácter queda entero', () => {
+    const r = descripcionParaMeta('𝐆𝐑𝐀𝐍𝐃𝐄'.repeat(30))!
+    expect(r.length).toBeLessThanOrEqual(160)
+    expect(r.endsWith('…')).toBe(true)
+    // Ningún sustituto suelto (alto sin bajo atrás, o bajo sin alto adelante).
+    expect(r).not.toMatch(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/)
+    expect(r.slice(0, -1)).toBe('𝐆𝐑𝐀𝐍𝐃𝐄'.repeat(30).slice(0, r.length - 1))
+  })
+
+  it('no deja una tilde combinada (NFD) separada de su letra', () => {
+    const e = 'e\u0301' // «é» en NFD: dos code points
+    const r = descripcionParaMeta(e.repeat(200))!
+    expect(r.length).toBeLessThanOrEqual(160)
+    const cuerpo = r.slice(0, -1)
+    expect(cuerpo.endsWith(e)).toBe(true)
+    expect(cuerpo).toBe(e.repeat(cuerpo.length / 2))
+  })
+
+  it('si el último espacio queda muy al principio, corte duro en vez de casi nada', () => {
+    const r = descripcionParaMeta(`¡ ${'a'.repeat(300)}`)!
+    expect(r).not.toBe('¡…')
+    expect(r).toBe(`¡ ${'a'.repeat(157)}…`)
     expect(r.length).toBe(160)
   })
 

@@ -14,7 +14,7 @@ import { obtenerSeguimientoDeEvento } from "@/lib/actions/radar"
 import { JsonLd } from "@/components/json-ld"
 import { conContexto, migasJsonLd } from "@/lib/seo/json-ld"
 import { descripcionParaMeta } from "@/lib/seo/descripcion"
-import { SITE_URL, tituloConMarca } from "@/lib/seo/sitio"
+import { SITE_NAME, SITE_URL, tituloConMarca } from "@/lib/seo/sitio"
 import type { Metadata } from "next"
 
 interface EventPageProps {
@@ -56,6 +56,10 @@ export async function generateMetadata({ params }: EventPageProps): Promise<Meta
       description,
       type: 'article',
       url: `${SITE_URL}/evento/${id}`,
+      // El bloque de la página reemplaza al del layout entero: sin esto se
+      // perdían og:site_name y og:locale (B2).
+      siteName: SITE_NAME,
+      locale: 'es_AR',
       images: [
         {
           url: imageUrl,
@@ -218,8 +222,16 @@ export default async function EventPage({ params, searchParams }: EventPageProps
       '@type': 'Offer',
       'name': event.is_free ? 'Entrada libre y gratuita' : 'Entrada',
       'url': event.ticket_url || eventUrl,
-      'price': event.is_free ? 0 : (event.price_min ?? 0),
-      'priceCurrency': 'ARS',
+      // B2: precio 0 solo si es gratis. Antes un evento pago sin precio
+      // cargado decía 0, que para Google es «gratis». Sin precio conocido no
+      // va ni `price` ni `priceCurrency`. Un `price_min` de 0 en un evento
+      // pago también es «sin precio»: el sitio lo muestra como «A confirmar»
+      // (`transformEvent` en @qps/core/home/transform).
+      ...(event.is_free
+        ? { 'price': 0, 'priceCurrency': 'ARS' }
+        : typeof event.price_min === 'number' && event.price_min > 0
+          ? { 'price': event.price_min, 'priceCurrency': 'ARS' }
+          : {}),
       'availability': isCancelled
         ? 'https://schema.org/SoldOut'
         : 'https://schema.org/InStock',

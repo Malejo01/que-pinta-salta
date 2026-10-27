@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { CinemaMovie } from '@/lib/types'
 import { MovieCard } from '@/components/movie-card'
+import { anclaDePelicula } from '@/lib/seo/anclas'
 import { Input } from '@/components/ui/input'
 import { Search, Film, X, Clapperboard } from 'lucide-react'
 
@@ -46,7 +47,7 @@ export function CinesView({ movies }: CinesViewProps) {
       {filteredMovies.length > 0 ? (
         <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
           {filteredMovies.map((movie) => (
-            <MovieCard key={movie.id} movie={movie} />
+            <MovieCard key={movie.id} movie={movie} id={anclaDePelicula(movie.slug)} />
           ))}
         </div>
       ) : (

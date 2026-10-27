@@ -21,12 +21,13 @@ const MESES = [
 ]
 
 /**
- * «23 de octubre de 2026» → las 00:00 de ese día en Salta (UTC−3). `null`
- * si el texto no tiene esa forma (por ejemplo un «[COMPLETAR…]»): quien
- * llama decide el respaldo.
+ * «23 de octubre de 2026» → las 00:00 de ese día en Salta (UTC−3). También
+ * «1° de noviembre de 2026» / «1º de …» (el ordinal del primer día) y «… del
+ * 2026». `null` si el texto no tiene esa forma (por ejemplo un
+ * «[COMPLETAR…]»): quien llama decide el respaldo.
  */
 export function fechaDeTextoEnCastellano(texto: string): Date | null {
-  const m = /^\s*(\d{1,2})\s+de\s+([a-záéíóú]+)\s+de\s+(\d{4})\s*$/i.exec(texto)
+  const m = /^\s*(\d{1,2})\s*[°º]?\s+de\s+([a-záéíóú]+)\s+del?\s+(\d{4})\s*$/i.exec(texto)
   if (!m) return null
   const dia = Number(m[1])
   // «setiembre» también es correcto en castellano.

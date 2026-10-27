@@ -3,29 +3,32 @@
  * puras, aparte de las páginas porque un `page.tsx` no puede exportar
  * nada que no sea de Next.
  */
-import { isVigente } from '@/lib/events/vigencia'
-import { groupEventItems } from '@/lib/home/transform'
+import { buildDisplayData } from '@/lib/home/transform'
 import type { EventWithRelations } from '@/lib/home/types'
 import type { CinemaMovie } from '@/lib/types'
+import { anclaDePelicula } from './anclas'
 import { listaJsonLd, type NodoJsonLd } from './json-ld'
-import { urlAbsoluta } from './sitio'
+import { SITE_URL, urlAbsoluta } from './sitio'
 
 export const MAX_EVENTOS_EN_LISTA = 20
 
 /**
- * Los próximos eventos tal como los muestra la agenda de la portada: los
- * vigentes (fin real o estimado todavía no pasó: hoy y lo que viene), con
- * categoría y con las funciones repetidas (mismo título y lugar) juntadas en
- * la primera, igual que `buildDisplayData`. Ordenados por fecha de inicio,
- * los primeros `max`.
+ * Los próximos eventos tal como los muestra la agenda de la portada. Usa el
+ * mismo `buildDisplayData` que `HomeContent` (es puro, sin hooks), así la
+ * lista no se puede separar de lo que se ve: los vigentes (fin real o
+ * estimado todavía no pasó: hoy y lo que viene), con categoría y con las
+ * funciones repetidas (mismo título y lugar) juntadas en la primera. Sin
+ * flyers ni películas: no tienen ficha `/evento/<id>`. Ordenados por fecha
+ * de inicio, los primeros `max`.
  */
 export function eventosParaListaDeLaPortada(
   events: EventWithRelations[],
   now: Date,
   max = MAX_EVENTOS_EN_LISTA
 ): { id: string; titulo: string }[] {
-  return groupEventItems(events.filter((e) => isVigente(e, now)))
-    .sort((a, b) => new Date(a.startDateTime).getTime() - new Date(b.startDateTime).getTime())
+  // El mapa de nombres de categoría solo lo usan los flyers, que acá no van.
+  return buildDisplayData(events, [], [], new Map(), now)
+    .all.sort((a, b) => new Date(a.startDateTime).getTime() - new Date(b.startDateTime).getTime())
     .slice(0, max)
     .map((e) => ({ id: e.id, titulo: e.title }))
 }
@@ -38,17 +41,26 @@ export function listaDeEventosJsonLd(eventos: { id: string; titulo: string }[]):
 
 /**
  * `ItemList` de las películas en cartel. Las películas no tienen página
- * propia en el sitio, así que cada una va embebida como `Movie` (nombre y
- * afiche), sin `url`. `null` si no hay ninguna.
+ * propia en el sitio, así que cada una va embebida como `Movie` con su
+ * nombre, su afiche y como `url` el ancla de su tarjeta en /cines
+ * (`anclaDePelicula`, el mismo `id` que le pone `components/cines-view.tsx`).
+ *
+ * Quedan afuera las que no tienen un afiche usable (`null` o vacío: el
+ * scraper guarda '' cuando el afiche no responde): Google pide `image` en
+ * cada `Movie` del carrusel. `null` si no queda ninguna.
  */
-export function listaDePeliculasJsonLd(peliculas: Pick<CinemaMovie, 'title' | 'poster_url'>[]): NodoJsonLd | null {
-  if (peliculas.length === 0) return null
+export function listaDePeliculasJsonLd(
+  peliculas: Pick<CinemaMovie, 'title' | 'poster_url' | 'slug'>[]
+): NodoJsonLd | null {
+  const conAfiche = peliculas.filter((p) => p.poster_url?.trim())
+  if (conAfiche.length === 0) return null
   return listaJsonLd(
-    peliculas.map((p) => ({
+    conAfiche.map((p) => ({
       item: {
         '@type': 'Movie',
         name: p.title,
-        ...(p.poster_url && { image: urlAbsoluta(p.poster_url) }),
+        url: `${SITE_URL}/cines#${anclaDePelicula(p.slug)}`,
+        image: urlAbsoluta(p.poster_url!.trim()),
       },
     })),
     { nombre: 'Películas en cartel en Salta', url: '/cines' }

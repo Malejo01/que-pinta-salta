@@ -87,6 +87,10 @@ describe('ficha /evento/[id]', () => {
     expect((meta.twitter as { title?: string } | undefined)?.title).toBe(meta.openGraph?.title)
   })
 
+  it('openGraph con siteName y locale (el bloque de la página reemplaza al del layout)', async () => {
+    expect((await metaFicha()).openGraph).toMatchObject({ siteName: 'Que pinta Salta', locale: 'es_AR' })
+  })
+
   it('descripción sin emojis ni saltos, y de 160 como mucho', async () => {
     const caption = `🎶🔥 ¡UNA NOCHE CON ARTISTAS IMPERDIBLES EN CASA GRANDE! 🔥🎶\n\n${'Vení a disfrutar. '.repeat(20)}`
     const meta = await metaFicha({ description: caption })
@@ -117,6 +121,7 @@ describe('flyer /flyer/[id]', () => {
     expect(tieneLaMarca(meta.title)).toBe(false)
     expect(meta.openGraph?.title).toBe('Flyer de Casa Grande | Que pinta Salta')
     expect(meta.description).toBe('Flyer y novedades de Casa Grande Salta en Salta.')
+    expect(meta.openGraph).toMatchObject({ siteName: 'Que pinta Salta', locale: 'es_AR' })
   })
 
   it('el caption, limpio', async () => {

@@ -2,6 +2,7 @@
 // JSON-LD que de verdad sale en el HTML de la portada, la ficha y /cines:
 // se renderiza cada página con datos falsos, se sacan los
 // <script type="application/ld+json"> y se parsean. Sin red ni base.
+import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -67,6 +68,8 @@ import {
 } from '@/lib/seo/json-ld'
 import { IMAGEN_OG_POR_DEFECTO } from '@/lib/seo/sitio'
 import { eventosParaListaDeLaPortada, MAX_EVENTOS_EN_LISTA } from '@/lib/seo/listas'
+import { anclaDePelicula } from '@/lib/seo/anclas'
+import { buildDisplayData } from '@/lib/home/transform'
 
 // ---------------------------------------------------------------------------
 // Ayudas
@@ -158,6 +161,7 @@ describe('constructores de lib/seo/json-ld', () => {
       '@type': 'WebSite',
       '@id': `${SITE_URL}/#sitio`,
       inLanguage: 'es-AR',
+      alternateName: ['Qué Pinta Salta'],
       publisher: { '@id': `${SITE_URL}/#organizacion` },
     })
     const accion = sitio.potentialAction as { target: { urlTemplate: string }; 'query-input': string }
@@ -239,6 +243,24 @@ describe('eventosParaListaDeLaPortada', () => {
     const muchos = Array.from({ length: 30 }, (_, i) => evento(i + 1))
     expect(eventosParaListaDeLaPortada(muchos as never, now)).toHaveLength(MAX_EVENTOS_EN_LISTA)
   })
+
+  it('son los mismos eventos que la agenda de la portada (buildDisplayData), sin flyers ni películas', () => {
+    const eventos = [
+      evento(5),
+      evento(1, { title: 'Repetida' }),
+      evento(2, { title: 'Repetida' }),
+      evento(3, { category: null }),
+      evento(4, { start_date: enDias(-3), end_date: enDias(-2) }),
+      evento(6, { start_date: enDias(-10), end_date: enDias(10) }), // en curso
+    ]
+    const pelicula = { id: 'm1', slug: 'peli', title: 'Peli', poster_url: null, showings: {}, is_currently_showing: true }
+    const deLaPortada = buildDisplayData(eventos as never, [], [pelicula] as never, new Map(), now)
+      .all.filter((e) => !e.isCinemaMovie && !e.isInstagramFlyer)
+      .map((e) => e.id)
+    const enLaLista = eventosParaListaDeLaPortada(eventos as never, now).map((e) => e.id)
+    expect([...enLaLista].sort()).toEqual([...deLaPortada].sort())
+    expect(enLaLista).toEqual([uid(6), uid(1), uid(5)])
+  })
 })
 
 // ---------------------------------------------------------------------------
@@ -315,17 +337,37 @@ describe('ficha: JSON-LD en el HTML', () => {
     expect(items.map((i) => i.item)).toEqual([`${SITE_URL}/`, `${SITE_URL}/evento/${uid(1)}`])
   })
 
+  it('offers: gratis → precio 0; pago con precio → ese precio; pago sin precio (null o 0) → sin price ni priceCurrency', async () => {
+    const oferta = async (over: Record<string, unknown>) =>
+      deTipo(await renderFicha(evento(1, over)), 'Event')[0].offers as Record<string, unknown>
+
+    expect(await oferta({ is_free: true, price_min: null })).toMatchObject({ price: 0, priceCurrency: 'ARS' })
+    expect(await oferta({ is_free: false, price_min: 15000 })).toMatchObject({ price: 15000, priceCurrency: 'ARS' })
+    for (const price_min of [null, 0]) {
+      const o = await oferta({ is_free: false, price_min })
+      expect(o).not.toHaveProperty('price')
+      expect(o).not.toHaveProperty('priceCurrency')
+      // El resto de la oferta, igual.
+      expect(o).toMatchObject({ '@type': 'Offer', name: 'Entrada', availability: 'https://schema.org/InStock' })
+    }
+  })
+
   it('un evento que no es público (DRAFT) no publica ni el Event ni las migas', async () => {
     expect(await renderFicha(evento(1, { status: 'DRAFT' }))).toEqual([])
   })
 })
 
 describe('/cines: JSON-LD en el HTML', () => {
-  it('ItemList de Movie con nombre y afiche', async () => {
-    peliculas = [
-      { id: 'm1', title: 'Película Uno', poster_url: 'https://cinemark.example/uno.jpg' },
-      { id: 'm2', title: 'Película Dos', poster_url: null },
-    ]
+  const PELICULAS = [
+    { id: 'm1', slug: 'pelicula-uno', title: 'Película Uno', poster_url: 'https://cinemark.example/uno.jpg', showings: {} },
+    // Sin afiche usable: null, o '' (lo que guarda el scraper cuando no responde).
+    { id: 'm2', slug: 'pelicula-dos', title: 'Película Dos', poster_url: null, showings: {} },
+    { id: 'm3', slug: 'pelicula-tres', title: 'Película Tres', poster_url: '', showings: {} },
+    { id: 'm4', slug: 'la-cuarta', title: 'La Cuarta', poster_url: '/afiches/cuarta.jpg', showings: {} },
+  ]
+
+  it('ItemList de Movie con nombre, afiche absoluto y el ancla de su tarjeta; sin las que no tienen afiche', async () => {
+    peliculas = PELICULAS
     const todos = nodos(bloquesJsonLd(renderToStaticMarkup(await CinesPage())))
     const [lista] = deTipo(todos, 'ItemList')
     expect(lista['@context']).toBe('https://schema.org')
@@ -334,13 +376,49 @@ describe('/cines: JSON-LD en el HTML', () => {
       {
         '@type': 'ListItem',
         position: 1,
-        item: { '@type': 'Movie', name: 'Película Uno', image: 'https://cinemark.example/uno.jpg' },
+        item: {
+          '@type': 'Movie',
+          name: 'Película Uno',
+          url: `${SITE_URL}/cines#pelicula-pelicula-uno`,
+          image: 'https://cinemark.example/uno.jpg',
+        },
       },
-      { '@type': 'ListItem', position: 2, item: { '@type': 'Movie', name: 'Película Dos' } },
+      {
+        '@type': 'ListItem',
+        position: 2,
+        item: {
+          '@type': 'Movie',
+          name: 'La Cuarta',
+          url: `${SITE_URL}/cines#pelicula-la-cuarta`,
+          image: `${SITE_URL}/afiches/cuarta.jpg`,
+        },
+      },
     ])
   })
 
-  it('sin películas en cartel no hay JSON-LD', async () => {
+  it('el ancla de cada Movie existe como id (único y válido) en la grilla de /cines', async () => {
+    const { CinesView } = await vi.importActual<typeof import('@/components/cines-view')>('@/components/cines-view')
+    const html = renderToStaticMarkup(createElement(CinesView, { movies: PELICULAS as never }))
+    const ids = [...html.matchAll(/\sid="([^"]+)"/g)].map((m) => m[1]).filter((id) => id.startsWith('pelicula-'))
+    expect(ids).toEqual(['pelicula-pelicula-uno', 'pelicula-pelicula-dos', 'pelicula-pelicula-tres', 'pelicula-la-cuarta'])
+    expect(new Set(ids).size).toBe(ids.length)
+    for (const id of ids) expect(id).toMatch(/^[a-z][a-z0-9-]*$/)
+
+    peliculas = PELICULAS
+    const [lista] = deTipo(nodos(bloquesJsonLd(renderToStaticMarkup(await CinesPage()))), 'ItemList')
+    for (const el of lista.itemListElement as { item: { url: string } }[]) {
+      expect(ids).toContain(new URL(el.item.url).hash.slice(1))
+    }
+  })
+
+  it('anclaDePelicula normaliza lo que no sirve para un id de HTML', () => {
+    expect(anclaDePelicula('Toy Story 5')).toBe('pelicula-toy-story-5')
+    expect(anclaDePelicula('-rara--')).toBe('pelicula-rara')
+  })
+
+  it('sin películas con afiche no hay JSON-LD', async () => {
+    peliculas = [PELICULAS[1], PELICULAS[2]]
+    expect(bloquesJsonLd(renderToStaticMarkup(await CinesPage()))).toEqual([])
     peliculas = []
     expect(bloquesJsonLd(renderToStaticMarkup(await CinesPage()))).toEqual([])
   })

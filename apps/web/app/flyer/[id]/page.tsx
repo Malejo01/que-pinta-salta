@@ -10,7 +10,7 @@ import { FlyerImage } from "@/components/flyer-image"
 import { createClient } from "@/lib/supabase/server"
 import Link from "next/link"
 import { descripcionParaMeta } from "@/lib/seo/descripcion"
-import { SITE_URL, tituloConMarca } from "@/lib/seo/sitio"
+import { SITE_NAME, SITE_URL, tituloConMarca } from "@/lib/seo/sitio"
 import type { Metadata } from "next"
 
 interface FlyerPageProps {
@@ -42,6 +42,10 @@ export async function generateMetadata({ params }: FlyerPageProps): Promise<Meta
       description,
       type: 'article',
       url: `${SITE_URL}/flyer/${id}`,
+      // El bloque de la página reemplaza al del layout entero: sin esto se
+      // perdían og:site_name y og:locale (B2).
+      siteName: SITE_NAME,
+      locale: 'es_AR',
       images: [
         {
           url: imageUrl,
