@@ -1,7 +1,8 @@
 /**
- * `filtros/publico.ts` (Q3, C1): "Para chicos". La regla está acordada entre
- * sesiones: categoría `infantil` o un tag `infantil`, `apto-chicos`, `ninos`,
- * `chicos` o `familia`, sin importar mayúsculas ni tildes.
+ * `filtros/publico.ts`: "Para chicos". La regla está acordada entre sesiones:
+ * categoría `infantil` o un tag `infantil`, `apto-chicos`, `ninos`, `chicos`
+ * o `familia`, sin importar mayúsculas ni tildes. El archivo es idéntico al
+ * de la app (PR #117, nube Q1), así git los junta sin conflicto.
  */
 import { describe, expect, it } from 'vitest'
 import { esParaChicos } from '@qps/core/filtros/publico'
@@ -16,7 +17,8 @@ describe('esParaChicos', () => {
     expect(esParaChicos({ categorySlug: 'teatro', tags: [tag] })).toBe(true)
   })
 
-  it('ignora mayúsculas y tildes', () => {
+  it('ignora mayúsculas y tildes (también en la categoría)', () => {
+    expect(esParaChicos({ categorySlug: 'Infantil' })).toBe(true)
     expect(esParaChicos({ tags: ['Niños'] })).toBe(true)
     expect(esParaChicos({ tags: ['FAMILIA'] })).toBe(true)
     expect(esParaChicos({ tags: [' Apto-Chicos '] })).toBe(true)
@@ -25,7 +27,6 @@ describe('esParaChicos', () => {
   it('no alcanza con otra categoría, otros tags o tags que solo contienen la palabra', () => {
     expect(esParaChicos({ categorySlug: 'boliches', tags: ['noche', '+18'] })).toBe(false)
     expect(esParaChicos({ categorySlug: 'teatro', tags: ['familiares', 'chicos-grandes', 'infantiles'] })).toBe(false)
-    expect(esParaChicos({ categorySlug: 'Infantil' })).toBe(false)
   })
 
   it('sin datos: false, sin tirar', () => {
