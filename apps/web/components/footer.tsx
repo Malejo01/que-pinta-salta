@@ -1,16 +1,16 @@
-"use client"
-
 import Link from "next/link"
 import Image from "next/image"
-import { useEffect, useState } from "react"
 import { Github, Linkedin, Globe, MessageCircle, Coffee } from "lucide-react"
-import { createClient } from "@/lib/supabase/client"
-import { useDonation } from "@/components/donation-context"
 import { DONATIONS_ENABLED } from "@/lib/config/monetization"
 import { ANUNCIANTES } from "@/lib/config/anunciantes"
 import { TEXTO_ANUNCIAR, whatsappUrl } from "@/lib/contacto"
-import { dispatchConsentEvent, writeConsent } from "@/lib/consent"
-import type { User } from "@supabase/supabase-js"
+import { BotonAporte, BotonPreferenciasCookies, EnlaceAgregarEvento } from "@/components/footer-acciones"
+
+// B3: el pie es un Server Component. Antes era cliente entero (219 líneas
+// que se hidrataban en todas las páginas) por tres cosas chicas: la sesión
+// para el link "Agregar Evento", el botón de cookies y el de donaciones.
+// Esas tres viven ahora en `footer-acciones.tsx`; el marcado es el mismo.
+// `app/layout.tsx` lo sigue importando igual (mismo nombre y ruta).
 
 const socialLinks = [
   {
@@ -33,25 +33,7 @@ const socialLinks = [
 const CONTACT_URL = "https://www.linkedin.com/in/mauro-alejandro-lizarraga-8260711a3/"
 
 export function Footer() {
-  const [user, setUser] = useState<User | null>(null)
-  const { openDonationModal } = useDonation()
-  
   const anunciarWhatsappUrl = whatsappUrl(TEXTO_ANUNCIAR)
-
-  useEffect(() => {
-    const supabase = createClient()
-    const getSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession()
-      setUser(session?.user ?? null)
-    }
-    getSession()
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null)
-    })
-
-    return () => subscription.unsubscribe()
-  }, [])
 
   return (
     <footer className="relative border-t border-border/40 bg-card/80 backdrop-blur-sm">
@@ -117,13 +99,7 @@ export function Footer() {
                   Anunciantes
                 </Link>
               )}
-              <Link
-                href={user ? "/nuevo-evento" : "/auth/login?next=/nuevo-evento"}
-                prefetch={user ? undefined : false}
-                className="text-sm text-muted-foreground transition-colors hover:text-foreground"
-              >
-                Agregar Evento
-              </Link>
+              <EnlaceAgregarEvento />
               <a
                 href={anunciarWhatsappUrl}
                 target="_blank"
@@ -132,16 +108,7 @@ export function Footer() {
               >
                 Anunciar / Publicidad 📢
               </a>
-              <button
-                type="button"
-                onClick={() => {
-                  writeConsent(window.localStorage, null)
-                  dispatchConsentEvent()
-                }}
-                className="text-left text-sm text-muted-foreground transition-colors hover:text-foreground"
-              >
-                Preferencias de cookies
-              </button>
+              <BotonPreferenciasCookies />
             </nav>
           </div>
 
@@ -187,12 +154,7 @@ export function Footer() {
               Ayudanos a llevarla a tu celular. Hacé tu aporte para fondear el desarrollo de la futura aplicación móvil oficial (Android/iOS) de Qué Pinta Salta.
             </p>
           </div>
-          <button
-            onClick={() => openDonationModal("Ayudanos a llevar Qué Pinta Salta a tu celular. Tu aporte es clave para el desarrollo de la App.")}
-            className="shrink-0 rounded-xl bg-[#C12026] px-6 py-3 text-sm font-bold text-white shadow-lg shadow-[#C12026]/20 transition-all hover:scale-105 hover:bg-[#A0191F]"
-          >
-            Hacer un aporte
-          </button>
+          <BotonAporte />
         </div>
         )}
 

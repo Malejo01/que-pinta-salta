@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { CinemaMovie } from '@/lib/types'
 import { MovieCard } from '@/components/movie-card'
+import { cargaPorIndice } from '@/lib/images/carga'
 import { Input } from '@/components/ui/input'
 import { Search, Film, X, Clapperboard } from 'lucide-react'
 
@@ -45,8 +46,11 @@ export function CinesView({ movies }: CinesViewProps) {
       {/* Grid de Películas */}
       {filteredMovies.length > 0 ? (
         <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
-          {filteredMovies.map((movie) => (
-            <MovieCard key={movie.id} movie={movie} />
+          {/* B3: los dos primeros pósters (la primera fila en celular y lo
+              que entra arriba en pantallas anchas) cargan sin esperar al
+              lazy-load; el primero, con prioridad alta porque es el LCP. */}
+          {filteredMovies.map((movie, index) => (
+            <MovieCard key={movie.id} movie={movie} carga={cargaPorIndice(index)} />
           ))}
         </div>
       ) : (

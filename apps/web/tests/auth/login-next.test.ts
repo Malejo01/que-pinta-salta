@@ -1,14 +1,16 @@
 /**
  * 48-b: `/auth/login` respeta `next` (con `rutaSiguienteSegura`), no deja
  * ningún `router.push('/')` fijo en el camino de éxito, nunca muestra
- * `error.message`, y `useSearchParams` queda dentro de un `<Suspense>`.
+ * `error.message`.
+ *
+ * B3: ya no se usa `useSearchParams` (obligaba a envolver todo el formulario
+ * en un `<Suspense>` y el prerender estático mandaba un fallback vacío). El
+ * `next` se lee de `window.location.search` al enviar el formulario; el
+ * render del HTML completo lo prueba `tests/rendimiento/b3-login-y-pie.test.ts`.
  *
  * Sin red ni base: lectura estática del código fuente con `fs` (si la ruta
  * no existe, `readFileSync` tira y el test falla ruidosamente, nunca un "no
- * hay nada que revisar"). La única verificación real de que el `<Suspense>`
- * alcanza para que `next build` no falle es el propio `next build`, que de
- * noche no se corre: este test solo confirma que el patrón está en el
- * código, no que compile.
+ * hay nada que revisar").
  */
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
@@ -23,8 +25,10 @@ describe('/auth/login: usa rutaSiguienteSegura sobre el next', () => {
     expect(src).toMatch(/import\s*\{[^}]*rutaSiguienteSegura[^}]*\}\s*from\s*['"]@qps\/core\/auth\/cuenta['"]/)
   })
 
-  it('lee next de useSearchParams y lo pasa por rutaSiguienteSegura', () => {
-    expect(src).toMatch(/rutaSiguienteSegura\(\s*searchParams\.get\(['"]next['"]\)\s*\)/)
+  it('lee next de la URL del navegador al enviar y lo pasa por rutaSiguienteSegura', () => {
+    expect(src).toMatch(
+      /rutaSiguienteSegura\(\s*new URLSearchParams\(window\.location\.search\)\.get\(['"]next['"]\)\s*\)/,
+    )
   })
 
   it('el router.push del camino de éxito usa la variable saneada, no un router.push(\'/\') fijo', () => {
@@ -47,22 +51,19 @@ describe('/auth/login: los errores de signInWithPassword pasan por mensajeErrorI
   })
 })
 
-describe('/auth/login: useSearchParams está dentro de un <Suspense>', () => {
-  it('importa Suspense de react y useSearchParams de next/navigation', () => {
-    expect(src).toMatch(/import\s*\{[^}]*Suspense[^}]*\}\s*from\s*['"]react['"]/)
-    expect(src).toMatch(/import\s*\{[^}]*useSearchParams[^}]*\}\s*from\s*['"]next\/navigation['"]/)
+describe('/auth/login: sin useSearchParams ni <Suspense> (B3, la ruta prerenderiza la pantalla entera)', () => {
+  // Antes este bloque exigía el `<Suspense>` alrededor de `useSearchParams`.
+  // B3 sacó los dos: con ellos, el HTML estático era el fallback vacío.
+  const codigo = src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1')
+
+  it('no importa useSearchParams ni Suspense', () => {
+    expect(codigo).not.toMatch(/useSearchParams/)
+    expect(codigo).not.toMatch(/\bSuspense\b/)
   })
 
-  it('el default export envuelve el componente que usa useSearchParams en un <Suspense fallback={...}>', () => {
-    expect(src).toMatch(/export default function LoginPage/)
-    const bloqueDefault = src.slice(src.indexOf('export default function LoginPage'))
-    expect(bloqueDefault).toMatch(/<Suspense\s+fallback=/)
-  })
-
-  it('useSearchParams se llama en un componente distinto del default export (el que queda envuelto, no el que envuelve)', () => {
-    const inicioDefault = src.indexOf('export default function LoginPage')
-    const usoSearchParams = src.indexOf('useSearchParams()')
-    expect(usoSearchParams).toBeGreaterThan(-1)
-    expect(usoSearchParams).toBeLessThan(inicioDefault)
+  it('el next se lee dentro del handler del formulario, no en el render', () => {
+    const handler = codigo.slice(codigo.indexOf('const handleLogin'), codigo.indexOf('return (', codigo.indexOf('const handleLogin')))
+    expect(handler).toMatch(/window\.location\.search/)
+    expect(handler).toMatch(/router\.push\(next\)/)
   })
 })

@@ -16,8 +16,8 @@ import { mensajeErrorIngreso } from '@/lib/auth/mensajes'
 import { rutaSiguienteSegura } from '@qps/core/auth/cuenta'
 import Image from 'next/image'
 import Link from 'next/link'
-import { useRouter, useSearchParams } from 'next/navigation'
-import { Suspense, useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { useState } from 'react'
 import { ArrowLeft } from 'lucide-react'
 
 const GoogleIcon = () => (
@@ -29,20 +29,20 @@ const GoogleIcon = () => (
   </svg>
 )
 
-// `useSearchParams` en un client component necesita un `<Suspense>` alrededor
-// (si no, `next build` falla al intentar generar la ruta de forma estática).
-// Por eso el contenido vive en `LoginForm` y el default export de abajo solo
-// la envuelve. No hay otra página en el repo que use `useSearchParams` para
-// copiar el patrón (`components/home-content.tsx` lo usa pero no está
-// envuelta en ningún `Suspense`); este es el patrón recomendado por Next.js.
-function LoginForm() {
+// B3: el `next` se lee recién al enviar el formulario, de la URL del
+// navegador, y no con `useSearchParams`. Con `useSearchParams` todo el
+// formulario tenía que ir dentro de un `<Suspense>` y el prerender estático
+// mandaba el fallback vacío (sin <main>, sin <h1>, sin formulario): el LCP
+// esperaba al JS (7,6 s en la auditoría B1). Así la ruta sigue estática y el
+// HTML ya trae la pantalla completa. El único que necesita `next` es el
+// `router.push` del ingreso con contraseña (el de Google lo lee por su cuenta
+// en `signInWithGoogle`, también de `window.location`).
+export default function LoginPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const router = useRouter()
-  const searchParams = useSearchParams()
-  const next = rutaSiguienteSegura(searchParams.get('next'))
 
   const handleGoogleLogin = async () => {
     setIsLoading(true)
@@ -71,12 +71,15 @@ function LoginForm() {
       setIsLoading(false)
       return
     }
+    const next = rutaSiguienteSegura(new URLSearchParams(window.location.search).get('next'))
     router.push(next)
     router.refresh()
   }
 
   return (
-    <div className="relative flex min-h-svh w-full flex-col items-center justify-center p-6 md:p-10 bg-background overflow-hidden">
+    // B3/B4: `<main>` en vez de `<div>` (mismas clases, mismo aspecto) para
+    // que la pantalla de ingreso tenga su región principal.
+    <main className="relative flex min-h-svh w-full flex-col items-center justify-center p-6 md:p-10 bg-background overflow-hidden">
       {/* Patrón de fondo de marca */}
       <div
         className="pointer-events-none absolute inset-0 bg-repeat opacity-[0.06] dark:opacity-[0.035] dark:invert dark:hue-rotate-180"
@@ -123,7 +126,12 @@ function LoginForm() {
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-2xl">Iniciar sesión</CardTitle>
+            {/* B3/B4: `CardTitle` pinta un <div>; el <h1> adentro hereda
+                tamaño y peso (el reset de Tailwind no les pone estilo
+                propio a los encabezados), así que se ve igual. */}
+            <CardTitle className="text-2xl">
+              <h1>Iniciar sesión</h1>
+            </CardTitle>
             <CardDescription>
               Ingresá tu email y contraseña para entrar
             </CardDescription>
@@ -212,25 +220,6 @@ function LoginForm() {
           </CardContent>
         </Card>
       </div>
-    </div>
-  )
-}
-
-// El fallback repite el armazón visual (mismo fondo, mismo ancho) para que
-// no haya un salto de layout mientras se resuelve `useSearchParams` (en la
-// práctica, instantáneo en una navegación de cliente).
-function LoginFallback() {
-  return (
-    <div className="relative flex min-h-svh w-full flex-col items-center justify-center p-6 md:p-10 bg-background overflow-hidden">
-      <div className="relative w-full max-w-sm" />
-    </div>
-  )
-}
-
-export default function LoginPage() {
-  return (
-    <Suspense fallback={<LoginFallback />}>
-      <LoginForm />
-    </Suspense>
+    </main>
   )
 }

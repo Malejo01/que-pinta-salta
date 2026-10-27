@@ -2,6 +2,7 @@
 
 import { CinemaMovie } from '@/lib/types'
 import Image from 'next/image'
+import { pistasDeCarga, type CargaImagen } from '@/lib/images/carga'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
@@ -9,9 +10,15 @@ import { Ticket, Film, Calendar } from 'lucide-react'
 
 interface MovieCardProps {
   movie: CinemaMovie
+  /**
+   * B3: cómo carga el póster (ver `lib/images/carga.ts`). Por defecto lazy;
+   * `CinesView` pide `'ansiosa'` para la primera fila y `'prioritaria'` para
+   * el primer póster, que es el LCP de /cines.
+   */
+  carga?: CargaImagen
 }
 
-export function MovieCard({ movie }: MovieCardProps) {
+export function MovieCard({ movie, carga = 'diferida' }: MovieCardProps) {
   // Encontrar cuántas salas tienen la película disponible
   const cinemasCount = Object.keys(movie.showings).length
 
@@ -27,6 +34,7 @@ export function MovieCard({ movie }: MovieCardProps) {
             sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
             className="object-cover object-center transition-transform duration-500 group-hover:scale-105 group-hover:brightness-110"
             unoptimized
+            {...pistasDeCarga(carga)}
           />
         ) : (
           <div className="flex h-full w-full flex-col items-center justify-center bg-muted text-muted-foreground">
