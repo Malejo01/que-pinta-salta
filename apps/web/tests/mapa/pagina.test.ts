@@ -129,10 +129,53 @@ describe('el filtro y los datos', () => {
   })
 })
 
+describe('Gratis, Para chicos y categoría (Q3, C1)', () => {
+  const OTRO_VENUE = { ...VENUE, id: OTRO_UUID, name: 'Plaza de prueba' }
+  function conPublico() {
+    return [
+      { ...evento('paga', VENUE), is_free: false, tags: [] },
+      { ...evento('gratis-infantil', OTRO_VENUE), is_free: true, tags: [], category: { slug: 'infantil', name: 'Infantil' } },
+    ]
+  }
+
+  it('sin parámetros: sin filtros, y las categorías del día con su cantidad', async () => {
+    getEvents.mockResolvedValue(conPublico())
+    const props = await propsDeContenido()
+    expect(props.extra).toEqual({ gratis: false, chicos: false, categoria: null })
+    expect((props.pines as unknown[]).length).toBe(2)
+    expect(props.categorias).toEqual([
+      { slug: 'infantil', name: 'Infantil', cantidad: 1 },
+      { slug: 'musica', name: 'Música', cantidad: 1 },
+    ])
+  })
+
+  it('gratis=1, chicos=1 y categoria filtran los pines y llegan al cliente', async () => {
+    getEvents.mockResolvedValue(conPublico())
+    const props = await propsDeContenido({ gratis: '1', chicos: '1', categoria: 'infantil' })
+    expect(props.extra).toEqual({ gratis: true, chicos: true, categoria: 'infantil' })
+    const pines = props.pines as { venueId: string }[]
+    expect(pines.map((pin) => pin.venueId)).toEqual([OTRO_UUID])
+  })
+
+  it('una categoría desconocida se ignora y un parámetro repetido usa el primero', async () => {
+    getEvents.mockResolvedValue(conPublico())
+    const props = await propsDeContenido({ categoria: 'inventada', gratis: ['1', '0'] })
+    expect(props.extra).toEqual({ gratis: true, chicos: false, categoria: null })
+  })
+
+  it('?lugar= de un lugar que el filtro deja afuera no abre nada', async () => {
+    getEvents.mockResolvedValue(conPublico())
+    const props = await propsDeContenido({ gratis: '1', lugar: VENUE_ID })
+    expect(props.lugarInicial).toBeNull()
+    const conLugarQueQueda = await propsDeContenido({ gratis: '1', lugar: OTRO_UUID })
+    expect(conLugarQueQueda.lugarInicial).toBe(OTRO_UUID)
+  })
+})
+
 describe('qué llega al cliente', () => {
   it('solo las props esperadas, y los pines solo con los campos de PinLugar', async () => {
     const props = await propsDeContenido()
-    expect(Object.keys(props).sort()).toEqual(['ahoraISO', 'filtro', 'lugarInicial', 'pines', 'sinUbicacion'])
+    expect(Object.keys(props).sort()).toEqual(['ahoraISO', 'categorias', 'extra', 'filtro', 'lugarInicial', 'pines', 'sinUbicacion'])
     const pines = props.pines as Record<string, unknown>[]
     expect(pines).toHaveLength(1)
     expect(Object.keys(pines[0]).sort()).toEqual(['direccion', 'eventos', 'lat', 'lng', 'nombre', 'venueId'])
