@@ -34,10 +34,18 @@
 // en un `try/catch`: si `datos` no tiene la forma de `DatosAgenda`, se trata
 // exactamente igual que "no hay caché" (el error de siempre), nunca se
 // escapa la excepción.
+//
+// A3 (nube Q1): los eventos de la agenda traen `paraChicos` (el chip "Para
+// chicos"). Una caché guardada antes de A3 no lo tiene: `paraMostrar` lo
+// completa con `completarParaChicos` (`lib/para-chicos.ts`: la categoría
+// `infantil`, porque la caché no guarda los tags), así la pantalla siempre
+// recibe un booleano. No se sube `VERSION_CACHE` (`./cache.ts`): subirla
+// tiraría la caché de los testers por un dato que se puede completar.
 import { isVigente } from '@qps/core/events/vigencia'
 import { formatDateInSalta } from '@qps/core/home/transform'
 import type { CategoriaBasica, EventoVigenteParaInicio } from '@/lib/datos/eventos'
 import type { Pelicula } from '@/lib/datos/cines'
+import { completarParaChicos } from '@/lib/para-chicos'
 import type { Almacen } from './almacen'
 import {
   CLAVE_AGENDA,
@@ -145,9 +153,12 @@ export async function cargarAgendaConCache(deps: DepsCargarAgenda): Promise<Resu
  * vigentes (con la `ahora` de la pantalla, no la de cuando se guardó) y deja
  * las películas solo si se guardaron el mismo día de Salta que `ahora` — si
  * no, `peliculas: []` (la cartelera de ayer no sirve).
+ *
+ * A3 (nube Q1): cada evento sale con `paraChicos` booleano; si la caché es
+ * anterior a A3 y no lo tiene, se completa (`completarParaChicos`).
  */
 export function paraMostrar(datos: DatosAgenda, guardadoEn: Date, ahora: Date): DatosAgenda {
-  const eventos = datos.eventos.filter((item) => isVigente(item.paraAtajo, ahora))
+  const eventos = datos.eventos.filter((item) => isVigente(item.paraAtajo, ahora)).map(completarParaChicos)
   const mismoDia = formatDateInSalta(guardadoEn) === formatDateInSalta(ahora)
   return { eventos, categorias: datos.categorias, peliculas: mismoDia ? datos.peliculas : [] }
 }

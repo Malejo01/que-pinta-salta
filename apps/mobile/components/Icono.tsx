@@ -52,6 +52,9 @@ import Palette from 'lucide-react-native/icons/palette'
 import Star from 'lucide-react-native/icons/star'
 import Smile from 'lucide-react-native/icons/face-slightly-smiling'
 import Baby from 'lucide-react-native/icons/baby'
+// A3 (nube Q1, ronda de correcciones): el chip "Para chicos" (`Baby` sonaba a
+// bebés y repetía el de la categoría Infantil).
+import Balloon from 'lucide-react-native/icons/balloon'
 import Trophy from 'lucide-react-native/icons/trophy'
 import Zap from 'lucide-react-native/icons/zap'
 import Landmark from 'lucide-react-native/icons/landmark'
@@ -88,6 +91,7 @@ const ICONOS_LUCIDE = {
   Star,
   Smile,
   Baby,
+  Balloon,
   Trophy,
   Zap,
   Landmark,

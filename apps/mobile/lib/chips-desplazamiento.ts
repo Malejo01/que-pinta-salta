@@ -12,6 +12,11 @@
 // Ahora: si el chip entra entero en la ventana visible con la fila al
 // principio, la fila va al principio (0), así "Gratis" y "Todas" siguen a la
 // vista; si no entra, a `x - 16` como antes.
+//
+// A3 (nube Q1, ronda de correcciones): "Gratis" y "Para chicos" ya no van en
+// esta fila (tienen una fila propia, fija, en la cabecera de la portada), así
+// que "Todas" vuelve a arrancar en x = 16 y entra siempre: el criterio es el
+// mismo y ya no hace falta un caso aparte para "Todas".
 
 /** Posición y ancho de un chip dentro del contenido de la fila (de su `onLayout`). */
 export interface MedidaChip {

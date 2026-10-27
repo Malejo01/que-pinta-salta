@@ -209,9 +209,15 @@ describe('buscar.tsx: lectura estática', () => {
   // R66 (66-b): el filtro de texto + gratis + categoría + fecha lo hace
   // `filtrarCombinado` (core), que por dentro usa `buscarEventosPorTexto` y
   // `soloGratis` — ya no se importan sueltos en la pantalla.
+  // A3 (nube Q1): la pantalla llama a `filtrarConPublico` (`lib/para-chicos.ts`),
+  // que filtra por "Para chicos" y después llama a `filtrarCombinado` de core:
+  // se exigen los dos eslabones, así no aparece una regla propia en el medio.
   it('usa filtrarCombinado de @qps/core/home/filtros-combinados (no una regla propia)', () => {
-    expect(SRC_BUSCAR).toMatch(/import\s*\{[^}]*\bfiltrarCombinado\b[^}]*\}\s*from\s*['"]@qps\/core\/home\/filtros-combinados['"]/)
-    expect(SRC_BUSCAR).toMatch(/\bfiltrarCombinado\(/)
+    expect(SRC_BUSCAR).toMatch(/import\s*\{[^}]*\bfiltrarConPublico\b[^}]*\}\s*from\s*['"]@\/lib\/para-chicos['"]/)
+    expect(SRC_BUSCAR).toMatch(/\bfiltrarConPublico\(/)
+    const paraChicos = readFileSync(fileURLToPath(new URL('../lib/para-chicos.ts', import.meta.url)), 'utf8')
+    expect(paraChicos).toMatch(/import\s*\{[^}]*\bfiltrarCombinado\b[^}]*\}\s*from\s*['"]@qps\/core\/home\/filtros-combinados['"]/)
+    expect(paraChicos).toMatch(/return filtrarCombinado\(filtrarParaChicos\(items, paraChicos\), resto, ahora\)/)
   })
 
   it('lee "categoria", "atajo" y el nonce "v" de useLocalSearchParams (punto 5: "Ver todos" de la portada)', () => {

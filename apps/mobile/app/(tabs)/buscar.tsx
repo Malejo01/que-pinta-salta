@@ -46,16 +46,32 @@
 // a aplicar categoría y fecha aunque sean iguales a los de antes. Los conteos de la grilla "Explorar por categoria" siguen
 // siendo sobre todos los eventos. Sin resultados, el vacío ofrece salir de la
 // fecha y/o de la categoría. Buscar sigue sin caché offline.
+//
+// A3 (nube Q1): chip "Para chicos" al lado de "Solo gratis", con el mismo
+// estilo (la misma clave `chipGratis`, que ahora comparten los dos chips de
+// filtro), el mismo rol (`button` + `selected`) y etiqueta "Solo eventos para
+// chicos". Se combina con texto, fecha, categoría y gratis: los items se
+// filtran por `paraChicos` antes de `filtrarCombinado` (`filtrarConPublico`,
+// `lib/para-chicos.ts`), tanto para los resultados como para los chips de
+// categoría (que siguen saliendo SIN la categoría). Cuenta como filtro
+// (`mostrarResultados`). El conteo y el vacío lo nombran como a "Solo gratis"
+// (los textos se movieron a `lib/buscar-filtros.ts` para probarlos) y el
+// vacío suma "Ver todas las edades" (primera salida, la que apaga el filtro
+// más probable; con Infantil elegida no se ofrece, porque no cambiaría nada,
+// ronda de correcciones de A3). Los dos chips van en la MISMA fila
+// (`filaFiltros`), así que con la fuente normal la cabecera fija no crece: la
+// cuenta de alturas de la regla (a) (~228 dp de cabecera, ver el
+// `ListFooterComponent` de los resultados) sigue igual. Con la fuente al
+// 200 % la fila de filtros pasa a dos líneas (`flexWrap`) y la cabecera crece
+// ~56 dp: eso solo empuja el banner más abajo, así que la regla (a) y el
+// mínimo de 3 resultados para el anuncio siguen valiendo. La grilla
+// "Explorar por categoria" sigue contando sobre todos los eventos (solo se ve
+// sin ningún filtro, y "Para chicos" es un filtro).
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { FlatList, Pressable, RefreshControl, StyleSheet, View } from 'react-native'
 import { useLocalSearchParams } from 'expo-router'
 import type { Atajo } from '@qps/core/home/atajos'
-import {
-  atajoDesdeParametro,
-  categoriasDisponibles,
-  filtrarCombinado,
-  type ItemFiltrable,
-} from '@qps/core/home/filtros-combinados'
+import { atajoDesdeParametro, categoriasDisponibles } from '@qps/core/home/filtros-combinados'
 import { BannerAnuncio } from '@/components/BannerAnuncio'
 import { CampoTexto } from '@/components/CampoTexto'
 import { ChipsCategorias } from '@/components/ChipsCategorias'
@@ -65,7 +81,14 @@ import { PillsAtajos } from '@/components/PillsAtajos'
 import { TarjetaEvento } from '@/components/TarjetaEvento'
 import { Texto } from '@/components/Texto'
 import { bordeChipInactivo, useColoresQPS } from '@/lib/colores'
-import { obtenerCategorias, obtenerEventosVigentesParaInicio, type CategoriaBasica } from '@/lib/datos/eventos'
+import { textoResultadosBuscar, textoSinResultadosBuscar } from '@/lib/buscar-filtros'
+import {
+  obtenerCategorias,
+  obtenerEventosVigentesParaInicio,
+  type CategoriaBasica,
+  type EventoVigenteParaInicio,
+} from '@/lib/datos/eventos'
+import { filtrarConPublico, SLUG_INFANTIL, TEXTO_VER_TODAS_LAS_EDADES } from '@/lib/para-chicos'
 
 /**
  * Cuántos resultados tienen que haber para que el banner de abajo se dibuje
@@ -81,15 +104,11 @@ type EstadoLista =
   | { tipo: 'error'; error: string }
   // `ahora`: un único instante por carga (el mismo que decidió qué eventos
   // siguen vigentes), para que el filtro de fecha no use otro reloj.
-  | { tipo: 'ok'; items: ItemFiltrable[]; categorias: CategoriaBasica[]; ahora: Date }
+  // A3 (nube Q1): los items con `paraChicos` (de `obtenerEventosVigentesParaInicio`).
+  | { tipo: 'ok'; items: EventoVigenteParaInicio[]; categorias: CategoriaBasica[]; ahora: Date }
 
-// Cómo se nombra cada fecha dentro de una frase ("... · el finde", "... para hoy").
-const NOMBRE_ATAJO: Record<Atajo, string> = {
-  hoy: 'hoy',
-  'esta-noche': 'esta noche',
-  finde: 'el finde',
-  semana: 'esta semana',
-}
+// `NOMBRE_ATAJO` (cómo se nombra cada fecha dentro de una frase) vive en
+// `lib/buscar-filtros.ts` desde A3 (nube Q1), con los textos del conteo y del vacío.
 
 // El ícono por categoría (R29-q, integración de la tanda 3, punto D): sale
 // de `iconoPorCategoria`, `components/Icono.tsx` — el mismo mapeo que usa
@@ -115,6 +134,8 @@ export default function Buscar() {
   const [refrescando, setRefrescando] = useState(false)
   const [texto, setTexto] = useState('')
   const [soloGratisActivo, setSoloGratisActivo] = useState(false)
+  // A3 (nube Q1): el chip "Para chicos", como "Solo gratis" (no viene por la ruta).
+  const [paraChicosActivo, setParaChicosActivo] = useState(false)
 
   // Sincroniza `categoriaFiltro` con el parámetro de la ruta sin `setState`
   // sincrónico dentro de un `useEffect` (mismo patrón que `idAnterior` en
@@ -193,30 +214,31 @@ export default function Buscar() {
   // "Solo gratis" se ven resultados en vez de la grilla de categorías); acá
   // se suma `categoriaFiltro`, que la web no tiene en Buscar (es la llegada
   // desde "Ver todos" de una fila de la portada, 29-h).
-  // R66: también con una fecha elegida (`atajo`).
-  const mostrarResultados = Boolean(texto) || soloGratisActivo || Boolean(categoriaFiltro) || atajo !== null
+  // R66: también con una fecha elegida (`atajo`). A3: y con "Para chicos".
+  const mostrarResultados = Boolean(texto) || soloGratisActivo || paraChicosActivo || Boolean(categoriaFiltro) || atajo !== null
 
   const resultadosMostrados = useMemo(() => {
     if (estado.tipo !== 'ok') return []
-    return filtrarCombinado(
+    // A3: `filtrarCombinado` (core) con los items filtrados antes por "Para chicos".
+    return filtrarConPublico(
       estado.items,
-      { atajo, categoria: categoriaFiltro, soloGratis: soloGratisActivo, texto },
+      { atajo, categoria: categoriaFiltro, soloGratis: soloGratisActivo, texto, paraChicos: paraChicosActivo },
       estado.ahora,
     )
-  }, [estado, texto, atajo, categoriaFiltro, soloGratisActivo])
+  }, [estado, texto, atajo, categoriaFiltro, soloGratisActivo, paraChicosActivo])
 
   // Los chips de categoría salen de lo filtrado por fecha + texto + gratis,
   // SIN la categoría: así se puede cambiar de categoría (o sacarla) y cada
   // chip muestra lo que daría elegirla.
   const categoriasParaChips = useMemo(() => {
     if (estado.tipo !== 'ok') return []
-    const sinCategoria = filtrarCombinado(
+    const sinCategoria = filtrarConPublico(
       estado.items,
-      { atajo, categoria: null, soloGratis: soloGratisActivo, texto },
+      { atajo, categoria: null, soloGratis: soloGratisActivo, texto, paraChicos: paraChicosActivo },
       estado.ahora,
     )
     return categoriasDisponibles(sinCategoria, estado.categorias, categoriaFiltro)
-  }, [estado, texto, atajo, categoriaFiltro, soloGratisActivo])
+  }, [estado, texto, atajo, categoriaFiltro, soloGratisActivo, paraChicosActivo])
 
   // Los conteos de la grilla "Explorar por categoria" son sobre TODOS los
   // eventos (sin fecha ni texto): esa grilla solo se ve sin filtros.
@@ -225,26 +247,25 @@ export default function Buscar() {
     [estado],
   )
 
-  const sufijoFecha = atajo ? ` · ${NOMBRE_ATAJO[atajo]}` : ''
-  const enCategoria = nombreCategoriaFiltro ? ` en ${nombreCategoriaFiltro}` : ''
-
-  function textoResultados(cantidad: number): string {
-    const plural = cantidad !== 1 ? 's' : ''
-    if (texto) return `${cantidad} resultado${plural} para "${texto}"${enCategoria}${sufijoFecha}`
-    const gratis = soloGratisActivo ? ' gratis' : ''
-    return `${cantidad} evento${plural}${gratis}${enCategoria}${sufijoFecha}`
-  }
-
-  function textoSinResultados(): string {
-    if (texto) return `No se encontraron eventos para "${texto}"${enCategoria}${sufijoFecha}`
-    const gratis = soloGratisActivo ? ' gratis' : ''
-    const cuando = atajo ? ` para ${NOMBRE_ATAJO[atajo]}` : ' por ahora'
-    return `No hay eventos${gratis}${enCategoria}${cuando}.`
+  // A3 (nube Q1): los textos salen de `lib/buscar-filtros.ts` (los mismos de
+  // antes, más "para chicos").
+  const filtrosTexto = {
+    texto,
+    soloGratis: soloGratisActivo,
+    paraChicos: paraChicosActivo,
+    categoria: categoriaFiltro,
+    nombreCategoria: nombreCategoriaFiltro,
+    atajo,
   }
 
   // Salidas del vacío (R66): sacar la fecha y/o la categoría. Un botón por
-  // cada filtro que se puede sacar.
+  // cada filtro que se puede sacar. A3: y "Para chicos", primero (la salida
+  // principal, rellena), salvo con Infantil elegida: ahí apagarlo no cambia
+  // nada (ronda de correcciones de A3).
   const accionesVacio: { texto: string; alTocar: () => void }[] = []
+  if (paraChicosActivo && categoriaFiltro !== SLUG_INFANTIL) {
+    accionesVacio.push({ texto: TEXTO_VER_TODAS_LAS_EDADES, alTocar: () => setParaChicosActivo(false) })
+  }
   if (atajo !== null) accionesVacio.push({ texto: 'Ver todas las fechas', alTocar: () => setAtajo(null) })
   if (categoriaFiltro !== null) accionesVacio.push({ texto: 'Todas las categorías', alTocar: () => setCategoriaFiltro(null) })
 
@@ -276,23 +297,45 @@ export default function Buscar() {
 
         <PillsAtajos atajo={atajo} onCambiar={setAtajo} etiquetaTodas="Cualquier fecha" />
 
-        <Pressable
-          onPress={() => setSoloGratisActivo((valor) => !valor)}
-          accessibilityRole="button"
-          accessibilityState={{ selected: soloGratisActivo }}
-          style={[
-            estilos.chipGratis,
-            {
-              borderColor: soloGratisActivo ? colores.primary : bordeInactivo,
-              backgroundColor: soloGratisActivo ? colores.primary : colores.card,
-            },
-          ]}
-        >
-          {/* R72, 72-c: activo = relleno (no solo matiz) + negrita. */}
-          <Texto peso={soloGratisActivo ? 'bold' : 'semibold'} style={{ color: soloGratisActivo ? colores.primaryForeground : colores.foreground }}>
-            Solo gratis
-          </Texto>
-        </Pressable>
+        {/* A3 (nube Q1): "Solo gratis" y "Para chicos" en la misma fila. */}
+        <View style={estilos.filaFiltros}>
+          <Pressable
+            onPress={() => setSoloGratisActivo((valor) => !valor)}
+            accessibilityRole="button"
+            accessibilityState={{ selected: soloGratisActivo }}
+            style={[
+              estilos.chipGratis,
+              {
+                borderColor: soloGratisActivo ? colores.primary : bordeInactivo,
+                backgroundColor: soloGratisActivo ? colores.primary : colores.card,
+              },
+            ]}
+          >
+            {/* R72, 72-c: activo = relleno (no solo matiz) + negrita. */}
+            <Texto peso={soloGratisActivo ? 'bold' : 'semibold'} style={{ color: soloGratisActivo ? colores.primaryForeground : colores.foreground }}>
+              Solo gratis
+            </Texto>
+          </Pressable>
+          {/* A3 (nube Q1): mismo estilo, rol y estado que "Solo gratis"; la
+              etiqueta dice qué filtra y contiene el texto visible. */}
+          <Pressable
+            onPress={() => setParaChicosActivo((valor) => !valor)}
+            accessibilityRole="button"
+            accessibilityState={{ selected: paraChicosActivo }}
+            accessibilityLabel="Solo eventos para chicos"
+            style={[
+              estilos.chipGratis,
+              {
+                borderColor: paraChicosActivo ? colores.primary : bordeInactivo,
+                backgroundColor: paraChicosActivo ? colores.primary : colores.card,
+              },
+            ]}
+          >
+            <Texto peso={paraChicosActivo ? 'bold' : 'semibold'} style={{ color: paraChicosActivo ? colores.primaryForeground : colores.foreground }}>
+              Para chicos
+            </Texto>
+          </Pressable>
+        </View>
       </View>
 
       {estado.tipo === 'cargando' ? <Cargando /> : null}
@@ -370,13 +413,13 @@ export default function Buscar() {
                 <ChipsCategorias categorias={categoriasParaChips} seleccionada={categoriaFiltro} onCambiar={setCategoriaFiltro} />
               </View>
               <Texto tono="secundario" accessibilityLiveRegion="polite" style={estilos.tituloSeccion}>
-                {textoResultados(resultadosMostrados.length)}
+                {textoResultadosBuscar(resultadosMostrados.length, filtrosTexto)}
               </Texto>
             </>
           }
           ListEmptyComponent={
             <View style={estilos.vacio}>
-              <Vacio mensaje={textoSinResultados()} />
+              <Vacio mensaje={textoSinResultadosBuscar(filtrosTexto)} />
               {accionesVacio.map((accion, indice) => (
                 <Pressable
                   key={accion.texto}
@@ -470,10 +513,13 @@ const estilos = StyleSheet.create({
   // mirar `hitSlop`; la única excepción documentada (`EXCEPCIONES_AREA_CHICA`)
   // vive en ese mismo archivo, que esta tarea no puede tocar. 44 -> 48 (4dp
   // más de alto, casi imperceptible en una pill chica).
+  // A3 (nube Q1): la comparten "Solo gratis" y "Para chicos"; el lugar (antes
+  // `alignSelf`, `marginLeft: 16` y `marginBottom: 8` de esta clave) lo da
+  // `filaFiltros`. Los dos chips entran de sobra en una fila a 360 dp
+  // (~110 + 8 + ~120 dp, más los 16 de cada lado); con la fuente al 200 %
+  // pasan a dos líneas (`flexWrap`).
+  filaFiltros: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingHorizontal: 16, marginBottom: 8 },
   chipGratis: {
-    alignSelf: 'flex-start',
-    marginLeft: 16,
-    marginBottom: 8,
     borderWidth: 1,
     borderRadius: 999,
     minHeight: 48,

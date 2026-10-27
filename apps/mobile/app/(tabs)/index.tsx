@@ -54,7 +54,8 @@
 //
 // A2 (nube Q1): chip "Gratis" (`components/ChipGratis.tsx`), adelante de
 // "Todas" en la fila de chips de la cabecera fija (prop `gratis` de
-// `ChipsCategorias`; Buscar no la usa). Es un interruptor aparte de la
+// `ChipsCategorias`; Buscar no la usa; desde la ronda de correcciones de A3,
+// en una fila de filtros propia, ver más abajo). Es un interruptor aparte de la
 // categoría y de la fecha: los tres se combinan con `filtrarCombinado` (core,
 // `soloGratis` = `price === 'gratis'`, o sea `is_free = true`), a través de
 // `eventosDeLaGrilla` (`lib/portada-gratis.ts`, donde está la lógica pura y
@@ -77,6 +78,42 @@
 // conteo si hay resultados o el texto del vacío si no (`anuncioDeLaGrilla`);
 // los botones secundarios de los dos vacíos usan `bordeChipInactivo` (3:1).
 //
+// A3 (nube Q1): chip "Para chicos" (`components/ChipParaChicos.tsx`), después
+// de "Gratis" en la misma fila (la fila fija de filtros, ver abajo). Otro
+// interruptor aparte, que se combina con fecha, categoría y "Gratis" a la vez
+// (los dos prendidos = eventos gratis Y para chicos). `filtrarCombinado` no
+// sabe de público: `eventosDeLaGrilla` filtra los items por `paraChicos`
+// antes (`lib/para-chicos.ts`, donde está la regla y el caso de la caché
+// vieja). Prendido pasa al modo grilla como "Gratis": título "Para chicos ·
+// Finde", "Música para chicos · Hoy" o "Gratis para chicos · Hoy"
+// (`tituloParaChicos`, `lib/portada-para-chicos.ts`), la misma línea "N
+// eventos" y el mismo anuncio (`anuncioDeLaGrilla`). Los chips de categoría
+// salen de lo que queda (`eventosDeLosChips` + `chipsDeLaPortada`). Las
+// películas no son para chicos (su categoría es `cine`): con "Cine" quedan
+// afuera y el vacío lo explica. El vacío (`VacioParaChicos`) dice por qué
+// está vacío y ofrece "Ver todas las edades" (apaga "Para chicos") y una
+// segunda salida (`salidasVacioParaChicos`). Cambiarlo vuelve el scroll
+// arriba (`cambiarParaChicos`).
+//
+// Ronda de correcciones de A3:
+//   - "Gratis" y "Para chicos" salen de la fila con scroll de los chips de
+//     categoría a una fila propia, fija y sin scroll (`estilos.filaFiltros`:
+//     row + wrap + gap 8, como `filaFiltros` de Buscar), ARRIBA de los chips de
+//     categoría, dentro de la cabecera fija; las pills de fecha siguen abajo
+//     de todo. Arriba porque: (1) el orden de lectura y de foco queda como en
+//     A2 (filtros, "Todas", categorías, fecha); (2) la fila de filtros va
+//     siempre, y la de categorías puede no estar (sin chips que elegir), así
+//     que el borde de arriba de la cabecera no se mueve; (3) los chips de
+//     categoría quedan pegados a las pills, las dos filas que se desplazan.
+//     Antes, con los dos filtros y el separador adentro de la fila con
+//     scroll, a 360 dp "Todas" quedaba cortada, no asomaba ninguna categoría
+//     y elegir cualquiera sacaba los filtros de la vista. La fila con scroll
+//     vuelve a ser "Todas" + categorías (con la barra, `mostrarBarra`) y solo
+//     se dibuja si hay chips, como antes de A2: los filtros ya no dependen de
+//     ella para poder apagarse.
+//   - Con Infantil elegida, el vacío no ofrece "Ver todas las edades" (no
+//     cambiaría nada): ver `salidasVacioParaChicos`.
+//
 // Lo que no se copia, a propósito (ops/paridad-web-app.md, inventario
 // "Portada" y la tarea 29-h): "Más filtros" (lugar/zona) y el switch
 // "Mostrar flyers de redes" — ninguno de los dos tiene un equivalente de
@@ -96,12 +133,13 @@ import { formatDateInSalta, transformMovie } from '@qps/core/home/transform'
 import { selectCarouselEvents, sortCategories } from '@qps/core/home/carousel'
 import { groupByCategory, selectTodayRow, type CategoryEventsRow } from '@qps/core/home/filters'
 import { eventoEnAtajo, type Atajo } from '@qps/core/home/atajos'
-import type { ItemFiltrable } from '@qps/core/home/filtros-combinados'
 import type { DisplayEvent } from '@qps/core/home/types'
 import type { Category } from '@qps/core/types'
 import { AvisoSinConexion } from '@/components/AvisoSinConexion'
 import { BannerAnuncio } from '@/components/BannerAnuncio'
 import { BannerRadar } from '@/components/BannerRadar'
+import { ChipGratis } from '@/components/ChipGratis'
+import { ChipParaChicos } from '@/components/ChipParaChicos'
 import { ChipsCategorias } from '@/components/ChipsCategorias'
 import { Cargando, ErrorCarga } from '@/components/EstadoCarga'
 import { FilaCategoria } from '@/components/FilaCategoria'
@@ -121,12 +159,14 @@ import {
   type EventoVigenteParaInicio,
 } from '@/lib/datos/eventos'
 import { cargarAgendaConCache } from '@/lib/sin-conexion/agenda'
+import type { ItemConPublico } from '@/lib/para-chicos'
 import {
   anuncioDeLaGrilla,
   chipsDeLaPortada,
   enModoGrilla,
   ETIQUETA_ATAJO,
   eventosDeLaGrilla,
+  eventosDeLosChips,
   segundaSalidaVacioGratis,
   textoVacioCategoria,
   textoVacioGratis,
@@ -134,6 +174,12 @@ import {
   type SegundaSalidaGratis,
   type TipoAnuncioGrilla,
 } from '@/lib/portada-gratis'
+import {
+  salidasVacioParaChicos,
+  textoVacioParaChicos,
+  tituloParaChicos,
+  type SalidaParaChicos,
+} from '@/lib/portada-para-chicos'
 
 type EstadoPortada =
   | { tipo: 'cargando' }
@@ -205,6 +251,16 @@ export const FILAS_MINIMAS_PARA_ANUNCIO = 2
  * 326), todavía dentro de los ~649 dp sin scrollear; y la cabecera fija tapa
  * ~113 dp del área visible útil al scrollear (quedan ~536 dp). O sea que el anuncio queda más abajo, nunca más arriba: la regla y
  * el umbral siguen valiendo sin cambios.
+ *
+ * A3 (nube Q1, ronda de correcciones): la cabecera suma la fila fija de
+ * filtros ("Gratis" y "Para chicos", 48 + 12 de aire = 60 dp) arriba de los
+ * chips: ≈173 dp con chips (8 + 60 de filtros + 60 de chips + 56 de pills − 12
+ * + 1) y ≈113 dp sin chips (8 + 60 + 56 − 12 + 1); con la fuente al 200 % la
+ * fila de filtros puede pasar a dos líneas y crecer otro tanto. Más cabecera
+ * solo empuja el banner más abajo: con 0 filas arrancaría a ~361 dp y con 1 a
+ * ~687 dp (173 + 188 + 326), y con menos de 2 filas igual no hay anuncio; con
+ * 2 o más sigue arriba de los 900 dp. La regla y el umbral siguen valiendo
+ * sin cambios. Lo que sí baja es el área útil al scrollear (~476 dp con chips).
  *
  * Ojo con el porqué de las filas, que es contraintuitivo: `groupByCategory`
  * devuelve **una fila por cada categoría configurada en el admin**, con
@@ -306,6 +362,72 @@ function VacioGratis({
   )
 }
 
+/**
+ * Vacío del modo "Para chicos" (A3, nube Q1): dice por qué está vacío
+ * (`textoVacioParaChicos`) y ofrece las salidas de `salidasVacioParaChicos`:
+ * la principal (rellena), casi siempre "Ver todas las edades" (apaga "Para
+ * chicos" y deja fecha, categoría y "Gratis"), y una segunda que lo deja
+ * prendido. Con Infantil (ronda de correcciones de A3) no hay "Ver todas las
+ * edades": la principal es la fecha, los precios o la categoría. Misma caja,
+ * mismos botones y misma live region que `VacioGratis`. Con "Gratis" y "Para
+ * chicos" prendidos, el vacío es este.
+ */
+function VacioParaChicos({
+  texto,
+  principal,
+  segunda,
+  onTodasLasEdades,
+  onTodasLasCategorias,
+  onEstaSemana,
+  onTodosLosPrecios,
+  bordeSecundario,
+}: {
+  texto: string
+  principal: SalidaParaChicos
+  segunda: SalidaParaChicos | null
+  onTodasLasEdades: () => void
+  onTodasLasCategorias: () => void
+  onEstaSemana: () => void
+  onTodosLosPrecios: () => void
+  bordeSecundario: string
+}) {
+  const colores = useColoresQPS()
+  // Cada tipo de salida, a su handler (las dos salidas pasan por acá).
+  const alTocar = (salida: SalidaParaChicos) =>
+    salida.tipo === 'todas-las-edades'
+      ? onTodasLasEdades
+      : salida.tipo === 'todas-las-categorias'
+        ? onTodasLasCategorias
+        : salida.tipo === 'esta-semana'
+          ? onEstaSemana
+          : onTodosLosPrecios
+  return (
+    <View style={[estilos.vacioHoy, estilos.vacioCategoria, { backgroundColor: colores.card, borderColor: colores.border }]}>
+      <Texto tono="secundario" accessibilityLiveRegion="polite">
+        {texto}
+      </Texto>
+      <Pressable
+        onPress={alTocar(principal)}
+        accessibilityRole="button"
+        style={[estilos.vacioHoyBoton, estilos.botonVacio, { backgroundColor: colores.primary }]}
+      >
+        <Texto peso="bold" style={{ color: colores.primaryForeground }}>
+          {principal.texto}
+        </Texto>
+      </Pressable>
+      {segunda !== null ? (
+        <Pressable
+          onPress={alTocar(segunda)}
+          accessibilityRole="button"
+          style={[estilos.vacioHoyBoton, estilos.botonVacio, { borderWidth: 1, borderColor: bordeSecundario }]}
+        >
+          <Texto peso="bold">{segunda.texto}</Texto>
+        </Pressable>
+      ) : null}
+    </View>
+  )
+}
+
 export default function Inicio() {
   const { cargando: cargandoBienvenida, vista } = useBienvenidaVista()
   const colores = useColoresQPS()
@@ -317,8 +439,10 @@ export default function Inicio() {
   const [categoria, setCategoria] = useState<string | null>(null)
   // A2 (nube Q1): el chip "Gratis" (prendido/apagado), aparte de la categoría.
   const [gratis, setGratis] = useState(false)
-  // Modo grilla (título + "N eventos" + 2 columnas): con categoría o con "Gratis".
-  const modoGrilla = enModoGrilla({ categoria, gratis })
+  // A3 (nube Q1): el chip "Para chicos" (prendido/apagado), aparte de los otros dos.
+  const [paraChicos, setParaChicos] = useState(false)
+  // Modo grilla (título + "N eventos" + 2 columnas): con categoría, "Gratis" o "Para chicos".
+  const modoGrilla = enModoGrilla({ categoria, gratis, paraChicos })
   const [estado, setEstado] = useState<EstadoPortada>({ tipo: 'cargando' })
   // Estado de refresco aparte del de carga (28-c): mientras se refresca, lo
   // que ya está armado sigue a la vista en vez de pasar a `Cargando`.
@@ -438,10 +562,20 @@ export default function Inicio() {
     const filas = groupByCategory(categoriasOrdenadas, todosLosEventos, null, null, ahora)
     const hoyEventos = selectTodayRow(todosLosEventos, saltaTodayStr, ahora)
 
+    // Los eventos (con su `paraAtajo` y su `paraChicos`) más las películas
+    // (`paraAtajo: null`, sin `paraChicos`: no son para chicos, A3).
+    const items: ItemConPublico[] = [
+      ...estado.eventos,
+      ...peliculasComoEventos.map((evento) => ({ evento, paraAtajo: null })),
+    ]
+
     // R66, 66-a: chips y modo "categoría elegida", sobre lo mismo ya cargado.
     // A2 (nube Q1): con "Gratis", los chips salen solo de los eventos gratis
     // (sin "Gratis", la misma `categoriasDisponibles` de siempre).
-    const chips = chipsDeLaPortada(todosLosEventos, estado.categorias, categoria, gratis)
+    // A3 (nube Q1): con "Para chicos", solo de los eventos para chicos de la
+    // fecha (`eventosDeLosChips`; sin "Para chicos" son los mismos que
+    // `todosLosEventos`).
+    const chips = chipsDeLaPortada(eventosDeLosChips(items, { atajo, paraChicos }, ahora), estado.categorias, categoria, gratis)
     let eventosCategoria: DisplayEvent[] = []
     let nombreCategoria = ''
     // R67, 67-c: con "Cine", las películas (`isCinemaMovie`, id `movie-<uuid>`)
@@ -450,13 +584,11 @@ export default function Inicio() {
     const peliculasCategoria: Pelicula[] = []
     let eventosSinPelicula: DisplayEvent[] = []
     // A2 (nube Q1): la grilla también se arma con "Gratis" prendido y "Todas".
-    if (enModoGrilla({ categoria, gratis })) {
-      const items: ItemFiltrable[] = [
-        ...estado.eventos,
-        ...peliculasComoEventos.map((evento) => ({ evento, paraAtajo: null })),
-      ]
-      // `filtrarCombinado` (core) con atajo + categoría + gratis (A2).
-      eventosCategoria = eventosDeLaGrilla(items, { atajo, categoria, gratis }, ahora)
+    // A3: y con "Para chicos".
+    if (enModoGrilla({ categoria, gratis, paraChicos })) {
+      // `filtrarCombinado` (core) con atajo + categoría + gratis (A2), con los
+      // items filtrados antes por "Para chicos" (A3).
+      eventosCategoria = eventosDeLaGrilla(items, { atajo, categoria, gratis, paraChicos }, ahora)
       nombreCategoria = categoria === null ? '' : (estado.categorias.find((c) => c.slug === categoria)?.name ?? categoria)
       if (categoria === 'cine') {
         const porId = new Map(estado.peliculas.map((pelicula) => [`movie-${pelicula.id}`, pelicula]))
@@ -471,7 +603,7 @@ export default function Inicio() {
     }
 
     return { carrusel, filas, hoyEventos, chips, eventosCategoria, peliculasCategoria, eventosSinPelicula, nombreCategoria }
-  }, [estado, atajo, categoria, gratis])
+  }, [estado, atajo, categoria, gratis, paraChicos])
 
   // Con una categoría elegida (R66) o con "Gratis" prendido (A2) no hay
   // secciones: ni "Hoy en Salta", ni filas, ni banners — el cuerpo es la
@@ -499,6 +631,12 @@ export default function Inicio() {
     setGratis(nuevo)
     scrollRef.current?.scrollTo({ y: 0, animated: false })
   }, [])
+  // A3 (nube Q1): lo mismo con "Para chicos" (también desde "Ver para todas
+  // las edades" del vacío).
+  const cambiarParaChicos = useCallback((nuevo: boolean) => {
+    setParaChicos(nuevo)
+    scrollRef.current?.scrollTo({ y: 0, animated: false })
+  }, [])
 
   // R69, 69-b (QPS-354): el conteo tiene `accessibilityLiveRegion="polite"`,
   // pero Android anuncia los cambios de una live region, no su montaje: al
@@ -514,11 +652,15 @@ export default function Inicio() {
   // nodo (conteo, vacío de categoría, vacío de "Gratis") es uno distinto en
   // pantalla, así que "primera vez" es que cambie el `tipo`: al pasar del
   // conteo al vacío se monta otro nodo y Android no lo anunciaría solo.
-  const textoVacio = gratis ? textoVacioGratis(categoria, nombreCategoria, atajo) : textoVacioCategoria(nombreCategoria, atajo)
+  // A3 (nube Q1): con "Para chicos", su vacío (también con "Gratis" prendido).
+  const textoVacio = paraChicos
+    ? textoVacioParaChicos(categoria, nombreCategoria, atajo, gratis)
+    : gratis ? textoVacioGratis(categoria, nombreCategoria, atajo) : textoVacioCategoria(nombreCategoria, atajo)
   const anuncio = datosPortada
     ? anuncioDeLaGrilla({
         modoGrilla,
         gratis,
+        paraChicos,
         cantidad: datosPortada.eventosCategoria.length,
         textoConteo: conteoCategoria(datosPortada.peliculasCategoria.length, datosPortada.eventosSinPelicula.length),
         textoVacio,
@@ -557,19 +699,20 @@ export default function Inicio() {
         >
           {/* R67, 67-b: cabecera fija (primer hijo, siempre presente: el índice 0
               de `stickyHeaderIndices`). Fondo opaco para que el contenido no se
-              vea por detrás. Chips arriba, pills de fecha debajo. */}
+              vea por detrás. Chips arriba, pills de fecha debajo.
+              A3 (nube Q1, ronda de correcciones): arriba de todo, la fila fija
+              de filtros ("Gratis" y "Para chicos", sin scroll); después los
+              chips de categoría (con scroll, solo si hay) y las pills. */}
           <View style={[estilos.cabecera, { backgroundColor: colores.background, borderBottomColor: colores.border }]}>
-            {/* A2 (nube Q1): con "Gratis" prendido la fila va siempre (aunque
-                no queden chips de categoría), para poder apagarlo desde acá. */}
-            {datosPortada.chips.length > 0 || modoGrilla ? (
-              <ChipsCategorias
-                categorias={datosPortada.chips}
-                seleccionada={categoria}
-                onCambiar={cambiarCategoria}
-                gratis={{ activo: gratis, onCambiar: cambiarGratis }}
-              />
+            <View style={estilos.filaFiltros}>
+              <ChipGratis activo={gratis} onCambiar={cambiarGratis} />
+              <ChipParaChicos activo={paraChicos} onCambiar={cambiarParaChicos} />
+            </View>
+            {datosPortada.chips.length > 0 ? (
+              <ChipsCategorias categorias={datosPortada.chips} seleccionada={categoria} onCambiar={cambiarCategoria} mostrarBarra />
             ) : null}
-            <View style={datosPortada.chips.length > 0 || modoGrilla ? estilos.pillsBajoChips : null}>
+            {/* Siempre hay una fila arriba (la de filtros): las pills descuentan su padding superior. */}
+            <View style={estilos.pillsBajoChips}>
               <PillsAtajos atajo={atajo} onCambiar={cambiarAtajo} />
             </View>
           </View>
@@ -586,8 +729,12 @@ export default function Inicio() {
                 {/* R67, 67-r1: las películas no se filtran por fecha, así que
                     con "Cine" el título dice "En cartel" y no el atajo.
                     A2 (nube Q1): con "Gratis", "Gratis · Hoy" o "Música gratis ·
-                    Finde" (con "Cine" también va la fecha: no hay películas). */}
-                {gratis ? (
+                    Finde" (con "Cine" también va la fecha: no hay películas).
+                    A3 (nube Q1): con "Para chicos", "Para chicos · Finde",
+                    "Música para chicos · Hoy" o "Gratis para chicos · Hoy". */}
+                {paraChicos ? (
+                  tituloParaChicos(categoria === null ? null : nombreCategoria, categoria, atajo, gratis)
+                ) : gratis ? (
                   tituloGratis(categoria === null ? null : nombreCategoria, atajo)
                 ) : (
                   <>
@@ -595,9 +742,9 @@ export default function Inicio() {
                   </>
                 )}
               </Texto>
-              {/* El vacío del modo categoría va primero; el de "Gratis" (A2),
-                  en la rama siguiente. */}
-              {datosPortada.eventosCategoria.length === 0 && categoria !== null && !gratis ? (
+              {/* El vacío del modo categoría va primero; el de "Para chicos"
+                  (A3), después; el de "Gratis" (A2), en la última. */}
+              {datosPortada.eventosCategoria.length === 0 && categoria !== null && !gratis && !paraChicos ? (
                 <View style={[estilos.vacioHoy, estilos.vacioCategoria, { backgroundColor: colores.card, borderColor: colores.border }]}>
                   <Texto tono="secundario" accessibilityLiveRegion="polite">
                     {textoVacio}
@@ -625,6 +772,16 @@ export default function Inicio() {
                     <Texto peso="bold">Todas las categorías</Texto>
                   </Pressable>
                 </View>
+              ) : datosPortada.eventosCategoria.length === 0 && paraChicos ? (
+                <VacioParaChicos
+                  texto={textoVacio}
+                  {...salidasVacioParaChicos(categoria, atajo, gratis)}
+                  onTodasLasEdades={() => cambiarParaChicos(false)}
+                  onTodasLasCategorias={() => cambiarCategoria(null)}
+                  onEstaSemana={() => cambiarAtajo('semana')}
+                  onTodosLosPrecios={() => cambiarGratis(false)}
+                  bordeSecundario={bordeInactivo}
+                />
               ) : datosPortada.eventosCategoria.length === 0 ? (
                 <VacioGratis
                   texto={textoVacio}
@@ -743,7 +900,13 @@ const estilos = StyleSheet.create({
   // padding) + 56 de pills − 12 (`pillsBajoChips`, que descuenta el padding
   // superior de las pills) + 1 del borde inferior (R67, 67-r1, para que se
   // distinga del contenido que pasa por debajo). Sin chips: ≈65 dp.
+  // A3 (nube Q1, ronda de correcciones): más la fila de filtros (60 dp):
+  // ≈173 dp con chips y ≈113 dp sin chips (ver `seccionesPortada`).
   cabecera: { paddingTop: 8, borderBottomWidth: 1 },
+  // La fila fija de "Gratis" y "Para chicos": sin scroll, con wrap (con la
+  // fuente grande pasa a dos líneas en vez de cortarse). El aire de abajo (12)
+  // es el mismo que deja la fila de chips de categoría.
+  filaFiltros: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingHorizontal: 16, paddingBottom: 12 },
   pillsBajoChips: { marginTop: -12 },
   vacioHoy: {
     marginHorizontal: 16,

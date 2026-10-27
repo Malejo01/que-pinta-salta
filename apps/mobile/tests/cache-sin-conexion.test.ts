@@ -79,6 +79,8 @@ function crearEventoAgendaFixture(indice: number): EventoVigenteParaInicio {
       end_date: null,
       category: 'recitales',
     },
+    // A3 (nube Q1): el campo nuevo de `EventoVigenteParaInicio` (recitales: no es para chicos).
+    paraChicos: false,
   }
 }
 

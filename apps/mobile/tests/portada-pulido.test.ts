@@ -69,6 +69,8 @@ export function violacionesDeScrollChip(fuente: string): string[] {
   if (!funcion) v.push('no hay function traerALaVista')
   else {
     if (!/if \(posicionada\.current === clave\) return/.test(funcion[0])) v.push('traerALaVista no tiene la guarda de una sola vez por selección')
+    // A3 (nube Q1, ronda de correcciones): vuelve al criterio de A2 (los filtros
+    // salieron de la fila, así que "Todas" arranca en x = 16 y entra siempre).
     if (!/destinoScrollChip\(posiciones\.current\[clave\], anchoVisible\.current\)/.test(funcion[0])) v.push('el destino no sale de destinoScrollChip')
     if (!/scrollTo\(\{\s*x:\s*destino\b/.test(funcion[0])) v.push('traerALaVista no desplaza al destino')
   }

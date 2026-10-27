@@ -16,10 +16,20 @@
 //     con "Gratis" prendido quedan afuera — también con el chip "Cine", donde
 //     solo quedan los eventos reales gratis de la categoría y el vacío explica
 //     por qué no aparecen las películas.
+//
+// A3 (nube Q1): "Para chicos" es un tercer filtro, otro interruptor aparte
+// (`paraChicos` en `FiltrosPortada`, opcional: sin él, todo queda como en
+// A2). Se suma por el mismo camino: prende el modo grilla (`enModoGrilla`),
+// filtra la grilla (`eventosDeLaGrilla`, con `filtrarConPublico` de
+// `lib/para-chicos.ts`, que filtra por público antes de `filtrarCombinado`),
+// los chips de categoría salen de lo que queda (`eventosDeLosChips`) y el
+// anuncio tiene su propio nodo de vacío (`anuncioDeLaGrilla`). Los textos del
+// título y del vacío de "Para chicos" están en `lib/portada-para-chicos.ts`.
 import type { Atajo } from '@qps/core/home/atajos'
-import { categoriasDisponibles, filtrarCombinado, type ItemFiltrable } from '@qps/core/home/filtros-combinados'
+import { categoriasDisponibles, filtrarCombinado } from '@qps/core/home/filtros-combinados'
 import { soloGratis } from '@qps/core/home/filtros-extra'
 import type { DisplayEvent } from '@qps/core/home/types'
+import { filtrarConPublico, filtrarParaChicos, type ItemConPublico } from '@/lib/para-chicos'
 
 /** Etiqueta del atajo para el título de la grilla ("Música · Finde"). */
 export const ETIQUETA_ATAJO: Record<Atajo, string> = {
@@ -37,29 +47,56 @@ export const FRASE_ATAJO: Record<Atajo, string> = {
   semana: 'esta semana',
 }
 
-/** Los tres filtros de la portada. `categoria: null` = "Todas". */
+/**
+ * Los filtros de la portada. `categoria: null` = "Todas". `paraChicos` (A3)
+ * es opcional: ausente es lo mismo que apagado.
+ */
 export interface FiltrosPortada {
   atajo: Atajo
   categoria: string | null
   gratis: boolean
+  paraChicos?: boolean
 }
 
 /**
  * Si el cuerpo de la portada es la grilla (título + "N eventos" + 2 columnas)
  * en vez de Hero + filas: con una categoría elegida (R66, 66-a) o con
- * "Gratis" prendido (A2).
+ * "Gratis" prendido (A2) o con "Para chicos" prendido (A3).
  */
-export function enModoGrilla(filtros: Pick<FiltrosPortada, 'categoria' | 'gratis'>): boolean {
-  return filtros.categoria !== null || filtros.gratis
+export function enModoGrilla(filtros: Pick<FiltrosPortada, 'categoria' | 'gratis' | 'paraChicos'>): boolean {
+  return filtros.categoria !== null || filtros.gratis || filtros.paraChicos === true
 }
 
 /**
  * Los eventos de la grilla: `filtrarCombinado` (core) con atajo + categoría +
  * gratis. Las películas van en `items` con `paraAtajo: null` (no se filtran
  * por fecha); con `gratis` quedan afuera porque no son gratis.
+ *
+ * A3 (nube Q1): con `paraChicos`, antes se dejan solo los items para chicos
+ * (`filtrarConPublico`); las películas tampoco son para chicos (su categoría
+ * es `cine`, ver `lib/para-chicos.ts`), así que quedan afuera.
  */
-export function eventosDeLaGrilla(items: ItemFiltrable[], filtros: FiltrosPortada, ahora: Date): DisplayEvent[] {
-  return filtrarCombinado(items, { atajo: filtros.atajo, categoria: filtros.categoria, soloGratis: filtros.gratis }, ahora)
+export function eventosDeLaGrilla(items: ItemConPublico[], filtros: FiltrosPortada, ahora: Date): DisplayEvent[] {
+  return filtrarConPublico(
+    items,
+    { atajo: filtros.atajo, categoria: filtros.categoria, soloGratis: filtros.gratis, paraChicos: filtros.paraChicos },
+    ahora,
+  )
+}
+
+/**
+ * A3 (nube Q1): los eventos de la fecha (más las películas) sobre los que se
+ * cuentan los chips de categoría: todos los `items` del atajo y, con "Para
+ * chicos", solo los para chicos (sin películas). Sin "Para chicos" es lo
+ * mismo que `todosLosEventos` de la portada. Después va `chipsDeLaPortada`,
+ * que suma "Gratis" como antes.
+ */
+export function eventosDeLosChips(
+  items: ItemConPublico[],
+  filtros: Pick<FiltrosPortada, 'atajo' | 'paraChicos'>,
+  ahora: Date,
+): DisplayEvent[] {
+  return filtrarCombinado(filtrarParaChicos(items, filtros.paraChicos), { atajo: filtros.atajo, categoria: null }, ahora)
 }
 
 /**
@@ -131,7 +168,7 @@ export function textoVacioCategoria(nombreCategoria: string, atajo: Atajo): stri
  * en pantalla: al pasar de uno a otro se monta uno nuevo, y Android no anuncia
  * el montaje de una live region (solo sus cambios).
  */
-export type TipoAnuncioGrilla = 'conteo' | 'vacio-categoria' | 'vacio-gratis'
+export type TipoAnuncioGrilla = 'conteo' | 'vacio-categoria' | 'vacio-gratis' | 'vacio-para-chicos'
 
 /**
  * Lo que se anuncia en el modo grilla (A2, ronda de correcciones): el conteo
@@ -139,15 +176,20 @@ export type TipoAnuncioGrilla = 'conteo' | 'vacio-categoria' | 'vacio-gratis'
  * "Gratis" prendido y sin resultados, no se oía nada. `null` fuera del modo
  * grilla. El efecto de la portada lo anuncia al aparecer cada nodo (`tipo`
  * distinto del anterior) y, en iOS, en cada cambio (QPS-354).
+ *
+ * A3 (nube Q1): con "Para chicos" prendido el vacío es el de "Para chicos"
+ * (otro nodo: `VacioParaChicos`), también con "Gratis" prendido.
  */
 export function anuncioDeLaGrilla(p: {
   modoGrilla: boolean
   gratis: boolean
+  paraChicos?: boolean
   cantidad: number
   textoConteo: string
   textoVacio: string
 }): { texto: string; tipo: TipoAnuncioGrilla } | null {
   if (!p.modoGrilla) return null
   if (p.cantidad > 0) return { texto: p.textoConteo, tipo: 'conteo' }
+  if (p.paraChicos) return { texto: p.textoVacio, tipo: 'vacio-para-chicos' }
   return { texto: p.textoVacio, tipo: p.gratis ? 'vacio-gratis' : 'vacio-categoria' }
 }
