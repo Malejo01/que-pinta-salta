@@ -496,7 +496,9 @@ function violacionesChipsCategorias(fuenteCruda: string): string[] {
   const v: string[] = []
   if (!/\bgratis\?:\s*\{\s*activo:\s*boolean;\s*onCambiar:\s*\(activo:\s*boolean\)\s*=>\s*void\s*\}/.test(c)) v.push('la prop gratis no es opcional')
   if (!/import\s*\{\s*ChipGratis\s*\}\s*from\s*'@\/components\/ChipGratis'/.test(c)) v.push('no importa ChipGratis')
-  if (!/\{gratis \? \(\s*<>\s*<ChipGratis activo=\{gratis\.activo\} onCambiar=\{gratis\.onCambiar\} \/>/.test(c)) v.push('ChipGratis no depende de la prop gratis')
+  // A3 (nube Q1): cada chip de filtro se dibuja por su prop ("Gratis" y "Para
+  // chicos"), ya no dentro de un fragmento con el separador.
+  if (!/\{gratis \? <ChipGratis activo=\{gratis\.activo\} onCambiar=\{gratis\.onCambiar\} \/> : null\}/.test(c)) v.push('ChipGratis no depende de la prop gratis')
   const chip = c.indexOf('<ChipGratis')
   const todas = c.indexOf('chips.map(')
   if (chip < 0 || todas < 0 || chip > todas) v.push('el chip Gratis no va antes de "Todas"')
@@ -515,7 +517,7 @@ describe('components/ChipsCategorias.tsx: el chip Gratis es aditivo', () => {
 
   it.each([
     ['prop obligatoria', (s: string) => s.replace('gratis?: {', 'gratis: {'), 'la prop gratis no es opcional'],
-    ['siempre dibujado', (s: string) => s.replace('{gratis ? (', '{true ? ('), 'ChipGratis no depende de la prop gratis'],
+    ['siempre dibujado', (s: string) => s.replace('{gratis ? <ChipGratis', '{true ? <ChipGratis'), 'ChipGratis no depende de la prop gratis'],
     ['barra también en Buscar', (s: string) => s.replace('showsHorizontalScrollIndicator={gratis !== undefined}', 'showsHorizontalScrollIndicator'), 'la barra no depende de la prop gratis'],
     ['barra persistente siempre', (s: string) => s.replace('persistentScrollbar={gratis !== undefined}', 'persistentScrollbar'), 'persistentScrollbar no depende de la prop gratis'],
   ])('rotura en memoria: %s -> detectada', (_nombre, romper, esperada) => {
@@ -549,8 +551,9 @@ function violacionesPortada(fuenteCruda: string): string[] {
   }
 
   // El modo grilla sale de enModoGrilla (categoría o Gratis), sin repetirlo en línea.
-  if (!/const modoGrilla = enModoGrilla\(\{ categoria, gratis \}\)/.test(c)) v.push('modoGrilla no es enModoGrilla({ categoria, gratis })')
-  if (!/if \(enModoGrilla\(\{ categoria, gratis \}\)\) \{/.test(c)) v.push('la grilla del useMemo no se arma con enModoGrilla')
+  // A3 (nube Q1): más `paraChicos` (lo prueba también `tests/para-chicos.test.ts`).
+  if (!/const modoGrilla = enModoGrilla\(\{ categoria, gratis, paraChicos \}\)/.test(c)) v.push('modoGrilla no es enModoGrilla({ categoria, gratis })')
+  if (!/if \(enModoGrilla\(\{ categoria, gratis, paraChicos \}\)\) \{/.test(c)) v.push('la grilla del useMemo no se arma con enModoGrilla')
   if (/categoria !== null \|\| gratis/.test(c)) v.push('se repite `categoria !== null || gratis` en línea')
 
   // Sin Hero, sin InvitacionAvisos, sin secciones (banners/anuncio).
@@ -564,32 +567,38 @@ function violacionesPortada(fuenteCruda: string): string[] {
   if (!/<View style=\{datosPortada\.chips\.length > 0 \|\| modoGrilla \? estilos\.pillsBajoChips/.test(c)) v.push('las pills no se acomodan bajo la fila con Gratis')
 
   // El vacío de categoría solo sin Gratis (con Gratis va el de Gratis).
-  if (!/datosPortada\.eventosCategoria\.length === 0 && categoria !== null && !gratis \? \(/.test(c)) v.push('el vacío de categoría también se muestra con Gratis')
+  // A3 (nube Q1): ni con "Para chicos" (va el suyo).
+  if (!/datosPortada\.eventosCategoria\.length === 0 && categoria !== null && !gratis && !paraChicos \? \(/.test(c)) v.push('el vacío de categoría también se muestra con Gratis')
 
   // El anuncio: el conteo o el vacío, con el mismo texto que se ve.
   if (!/const anuncio = datosPortada\s*\?\s*anuncioDeLaGrilla\(\{\s*modoGrilla,\s*gratis,/.test(c)) v.push('el anuncio no sale de anuncioDeLaGrilla')
-  if (!/const textoVacio = gratis \? textoVacioGratis\(categoria, nombreCategoria, atajo\) : textoVacioCategoria\(nombreCategoria, atajo\)/.test(c)) v.push('el texto del vacío no sale de textoVacioGratis/textoVacioCategoria')
+  // A3 (nube Q1): sin "Para chicos" (la rama del medio de `textoVacio`, que va primero con `paraChicos ?`).
+  if (!/const textoVacio = paraChicos[\s\S]{0,120}?:\s*gratis \? textoVacioGratis\(categoria, nombreCategoria, atajo\) : textoVacioCategoria\(nombreCategoria, atajo\)/.test(c)) v.push('el texto del vacío no sale de textoVacioGratis/textoVacioCategoria')
   if (!/accessibilityLiveRegion="polite">\s*\{textoVacio\}/.test(c)) v.push('el vacío de categoría no muestra textoVacio en una live region')
   if (!/texto=\{textoVacio\}/.test(c)) v.push('el vacío de Gratis no recibe textoVacio')
 
   // Filtros y chips por lib/portada-gratis.
-  if (!/eventosCategoria = eventosDeLaGrilla\(items, \{ atajo, categoria, gratis \}, ahora\)/.test(c)) v.push('la grilla no filtra con gratis')
-  if (!/const chips = chipsDeLaPortada\(todosLosEventos, estado\.categorias, categoria, gratis\)/.test(c)) v.push('los chips no salen de chipsDeLaPortada con gratis')
-  if (!/\}, \[estado, atajo, categoria, gratis\]\)/.test(c)) v.push('datosPortada no depende de gratis')
+  // A3 (nube Q1): la grilla suma `paraChicos` y los chips salen de `eventosDeLosChips` (que es
+  // `todosLosEventos` sin "Para chicos"); `chipsDeLaPortada` sigue sumando "Gratis".
+  if (!/eventosCategoria = eventosDeLaGrilla\(items, \{ atajo, categoria, gratis, paraChicos \}, ahora\)/.test(c)) v.push('la grilla no filtra con gratis')
+  if (!/const chips = chipsDeLaPortada\(eventosDeLosChips\(items, \{ atajo, paraChicos \}, ahora\), estado\.categorias, categoria, gratis\)/.test(c)) v.push('los chips no salen de chipsDeLaPortada con gratis')
+  if (!/\}, \[estado, atajo, categoria, gratis, paraChicos\]\)/.test(c)) v.push('datosPortada no depende de gratis')
 
   // Título.
   if (!/tituloGratis\(categoria === null \? null : nombreCategoria, atajo\)/.test(c)) v.push('el título de Gratis no sale de tituloGratis')
 
-  // Cada salida del vacío de Gratis llama a su handler.
-  if (!/onVerTodosLosPrecios=\{\(\) => cambiarGratis\(false\)\}/.test(c)) v.push('"Ver todos los precios" no apaga Gratis')
-  if (!/onTodasLasCategorias=\{\(\) => cambiarCategoria\(null\)\}/.test(c)) v.push('"Todas las categorías" no vuelve a "Todas"')
-  if (!/onEstaSemana=\{\(\) => cambiarAtajo\('semana'\)\}/.test(c)) v.push('"Ver esta semana" no pasa a la semana')
+  // Cada salida del vacío de Gratis llama a su handler. A3 (nube Q1): se mira
+  // solo el `<VacioGratis … />` (el de "Para chicos" usa los mismos handlers).
+  const usoVacio = /<VacioGratis\b[\s\S]*?\/>/.exec(c)?.[0] ?? ''
+  if (!/onVerTodosLosPrecios=\{\(\) => cambiarGratis\(false\)\}/.test(usoVacio)) v.push('"Ver todos los precios" no apaga Gratis')
+  if (!/onTodasLasCategorias=\{\(\) => cambiarCategoria\(null\)\}/.test(usoVacio)) v.push('"Todas las categorías" no vuelve a "Todas"')
+  if (!/onEstaSemana=\{\(\) => cambiarAtajo\('semana'\)\}/.test(usoVacio)) v.push('"Ver esta semana" no pasa a la semana')
 
   // Los botones secundarios de los dos vacíos con el borde de 3:1.
   if (!/onPress=\{\(\) => cambiarCategoria\(null\)\}\s*accessibilityRole="button"\s*style=\{\[estilos\.vacioHoyBoton, estilos\.botonVacio, \{ borderWidth: 1, borderColor: bordeInactivo \}\]\}/.test(c)) {
     v.push('el secundario del vacío de categoría no usa bordeInactivo')
   }
-  if (!/bordeSecundario=\{bordeInactivo\}/.test(c)) v.push('el secundario del vacío de Gratis no usa bordeInactivo')
+  if (!/bordeSecundario=\{bordeInactivo\}/.test(usoVacio)) v.push('el secundario del vacío de Gratis no usa bordeInactivo')
 
   const vacio = /function VacioGratis\([\s\S]*?\n\}\n/.exec(c)
   if (!vacio) v.push('no hay function VacioGratis')
@@ -608,6 +617,16 @@ function violacionesPortada(fuenteCruda: string): string[] {
   return v
 }
 
+/**
+ * A3 (nube Q1): reemplaza `a` por `b` solo dentro del `<VacioGratis … />` (el
+ * de "Para chicos" usa los mismos handlers y un `replace` suelto lo tocaría a él).
+ */
+function enVacioGratis(fuente: string, a: string, b: string): string {
+  const uso = /<VacioGratis\b[\s\S]*?\/>/.exec(fuente)
+  if (!uso) return fuente
+  return fuente.slice(0, uso.index) + uso[0].replace(a, b) + fuente.slice(uso.index + uso[0].length)
+}
+
 describe('app/(tabs)/index.tsx: el modo "Gratis"', () => {
   const real = leer('../app/(tabs)/index.tsx')
 
@@ -618,18 +637,19 @@ describe('app/(tabs)/index.tsx: el modo "Gratis"', () => {
   it.each([
     ['arranca prendido', (s: string) => s.replace('useState(false)', 'useState(true)'), 'Gratis no arranca apagado'],
     ['sin scroll arriba', (s: string) => s.replace(/(const cambiarGratis[\s\S]*?)scrollRef\.current\?\.scrollTo\(\{ y: 0, animated: false \}\)/, '$1void 0'), 'cambiarGratis no vuelve el scroll arriba'],
-    ['modo grilla sin Gratis', (s: string) => s.replace('const modoGrilla = enModoGrilla({ categoria, gratis })', 'const modoGrilla = enModoGrilla({ categoria, gratis: false })'), 'modoGrilla no es enModoGrilla({ categoria, gratis })'],
-    ['condición repetida en línea', (s: string) => s.replace('if (enModoGrilla({ categoria, gratis })) {', 'if (categoria !== null || gratis) {'), 'se repite `categoria !== null || gratis` en línea'],
+    ['modo grilla sin Gratis', (s: string) => s.replace('const modoGrilla = enModoGrilla({ categoria, gratis, paraChicos })', 'const modoGrilla = enModoGrilla({ categoria, gratis: false, paraChicos })'), 'modoGrilla no es enModoGrilla({ categoria, gratis })'],
+    ['condición repetida en línea', (s: string) => s.replace('if (enModoGrilla({ categoria, gratis, paraChicos })) {', 'if (categoria !== null || gratis || paraChicos) {'), 'se repite `categoria !== null || gratis` en línea'],
     ['Hero con Gratis', (s: string) => s.replace('{!modoGrilla && datosPortada.carrusel', '{categoria === null && datosPortada.carrusel'), 'el Hero no se apaga con Gratis'],
     ['banners con Gratis', (s: string) => s.replace('datosPortada && !modoGrilla ? seccionesPortada(', 'datosPortada && categoria === null ? seccionesPortada('), 'las secciones (banners y anuncio) no se apagan con Gratis'],
     ['fila de chips sin Gratis', (s: string) => s.replace('{datosPortada.chips.length > 0 || modoGrilla ? (', '{datosPortada.chips.length > 0 || categoria !== null ? ('), 'la fila de chips no se dibuja con Gratis'],
-    ['vacío de categoría con Gratis', (s: string) => s.replace('eventosCategoria.length === 0 && categoria !== null && !gratis ? (', 'eventosCategoria.length === 0 && categoria !== null ? ('), 'el vacío de categoría también se muestra con Gratis'],
+    ['vacío de categoría con Gratis', (s: string) => s.replace('eventosCategoria.length === 0 && categoria !== null && !gratis && !paraChicos ? (', 'eventosCategoria.length === 0 && categoria !== null && !paraChicos ? ('), 'el vacío de categoría también se muestra con Gratis'],
     ['vacío sin anuncio', (s: string) => s.replace('const anuncio = datosPortada\n    ? anuncioDeLaGrilla({', 'const anuncio = datosPortada && false\n    ? anuncioDeLaGrilla({'), 'el anuncio no sale de anuncioDeLaGrilla'],
     ['vacío de categoría sin live region', (s: string) => s.replace(/accessibilityLiveRegion="polite">(\s*)\{textoVacio\}/, '>$1{textoVacio}'), 'el vacío de categoría no muestra textoVacio en una live region'],
-    ['grilla sin gratis', (s: string) => s.replace('{ atajo, categoria, gratis }, ahora)', '{ atajo, categoria, gratis: false }, ahora)'), 'la grilla no filtra con gratis'],
+    ['grilla sin gratis', (s: string) => s.replace('{ atajo, categoria, gratis, paraChicos }, ahora)', '{ atajo, categoria, gratis: false, paraChicos }, ahora)'), 'la grilla no filtra con gratis'],
     ['"Ver todos los precios" que no apaga', (s: string) => s.replace('onVerTodosLosPrecios={() => cambiarGratis(false)}', 'onVerTodosLosPrecios={() => cambiarCategoria(null)}'), '"Ver todos los precios" no apaga Gratis'],
-    ['"Todas las categorías" que apaga Gratis', (s: string) => s.replace('onTodasLasCategorias={() => cambiarCategoria(null)}', 'onTodasLasCategorias={() => cambiarGratis(false)}'), '"Todas las categorías" no vuelve a "Todas"'],
-    ['"Ver esta semana" a hoy', (s: string) => s.replace("onEstaSemana={() => cambiarAtajo('semana')}", "onEstaSemana={() => cambiarAtajo('hoy')}"), '"Ver esta semana" no pasa a la semana'],
+    ['"Todas las categorías" que apaga Gratis', (s: string) => enVacioGratis(s, 'onTodasLasCategorias={() => cambiarCategoria(null)}', 'onTodasLasCategorias={() => cambiarGratis(false)}'), '"Todas las categorías" no vuelve a "Todas"'],
+    ['"Ver esta semana" a hoy', (s: string) => enVacioGratis(s, "onEstaSemana={() => cambiarAtajo('semana')}", "onEstaSemana={() => cambiarAtajo('hoy')}"), '"Ver esta semana" no pasa a la semana'],
+    ['secundario del vacío de Gratis sin bordeInactivo', (s: string) => enVacioGratis(s, 'bordeSecundario={bordeInactivo}', 'bordeSecundario={colores.border}'), 'el secundario del vacío de Gratis no usa bordeInactivo'],
     ['segunda salida cruzada', (s: string) => s.replace("segunda.tipo === 'todas-las-categorias' ? onTodasLasCategorias : onEstaSemana", "segunda.tipo === 'todas-las-categorias' ? onEstaSemana : onTodasLasCategorias"), 'la segunda salida no despacha a su handler'],
     ['secundario de categoría con colores.border', (s: string) => s.replace('{ borderWidth: 1, borderColor: bordeInactivo }]}\n                  >\n                    <Texto peso="bold">Todas las categorías', '{ borderWidth: 1, borderColor: colores.border }]}\n                  >\n                    <Texto peso="bold">Todas las categorías'), 'el secundario del vacío de categoría no usa bordeInactivo'],
     ['sin "Ver todos los precios"', (s: string) => s.replace('Ver todos los precios\n', 'Ver más\n'), 'el vacío no ofrece "Ver todos los precios"'],

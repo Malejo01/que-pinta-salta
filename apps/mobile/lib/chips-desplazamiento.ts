@@ -36,3 +36,25 @@ export function destinoScrollChip(medida: MedidaChip | undefined, anchoVisible: 
   if (medida.x + medida.width + AIRE_CHIP <= anchoVisible) return 0
   return Math.max(0, medida.x - AIRE_CHIP)
 }
+
+/** La clave con que `ChipsCategorias` guarda la medida de "Todas" (`slug: null`). */
+export const CLAVE_TODAS = 'todas'
+
+/**
+ * A3 (nube Q1): el destino para la clave elegida de la fila. "Todas" va
+ * siempre al principio (0); el resto, `destinoScrollChip`.
+ *
+ * Por qué: con "Gratis" y "Para chicos" adelante, a 360 dp "Todas" ya no entra
+ * entero (Gratis ~106 + Para chicos ~141 + separador + aires: "Todas" arranca
+ * cerca de los 294 dp y termina pasando los 360), y `destinoScrollChip` la
+ * llevaría a `x - 16`: al abrir la portada (con "Todas", la selección por
+ * defecto) la fila arrancaría corrida y los dos filtros quedarían afuera por
+ * la izquierda. El principio de la fila es el "inicio" de "Todas": se ven los
+ * dos filtros y "Todas" asoma (con la barra de desplazamiento de A2, que
+ * avisa que hay más). Devuelve 0 aunque no estén las medidas: ir al principio
+ * no necesita saber dónde está nada.
+ */
+export function destinoScrollFila(clave: string, medida: MedidaChip | undefined, anchoVisible: number | null): number | null {
+  if (clave === CLAVE_TODAS) return 0
+  return destinoScrollChip(medida, anchoVisible)
+}

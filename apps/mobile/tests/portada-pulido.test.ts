@@ -69,7 +69,8 @@ export function violacionesDeScrollChip(fuente: string): string[] {
   if (!funcion) v.push('no hay function traerALaVista')
   else {
     if (!/if \(posicionada\.current === clave\) return/.test(funcion[0])) v.push('traerALaVista no tiene la guarda de una sola vez por selección')
-    if (!/destinoScrollChip\(posiciones\.current\[clave\], anchoVisible\.current\)/.test(funcion[0])) v.push('el destino no sale de destinoScrollChip')
+    // A3 (nube Q1): `destinoScrollFila` ("Todas" al principio; el resto, `destinoScrollChip`).
+    if (!/destinoScrollFila\(clave, posiciones\.current\[clave\], anchoVisible\.current\)/.test(funcion[0])) v.push('el destino no sale de destinoScrollFila')
     if (!/scrollTo\(\{\s*x:\s*destino\b/.test(funcion[0])) v.push('traerALaVista no desplaza al destino')
   }
   if (!/anchoVisible\.current = evento\.nativeEvent\.layout\.width/.test(c)) v.push('el ScrollView no mide su ancho visible')

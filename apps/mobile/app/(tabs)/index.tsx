@@ -77,6 +77,23 @@
 // conteo si hay resultados o el texto del vacío si no (`anuncioDeLaGrilla`);
 // los botones secundarios de los dos vacíos usan `bordeChipInactivo` (3:1).
 //
+// A3 (nube Q1): chip "Para chicos" (`components/ChipParaChicos.tsx`), después
+// de "Gratis" en la misma fila (prop `paraChicos` de `ChipsCategorias`). Otro
+// interruptor aparte, que se combina con fecha, categoría y "Gratis" a la vez
+// (los dos prendidos = eventos gratis Y para chicos). `filtrarCombinado` no
+// sabe de público: `eventosDeLaGrilla` filtra los items por `paraChicos`
+// antes (`lib/para-chicos.ts`, donde está la regla y el caso de la caché
+// vieja). Prendido pasa al modo grilla como "Gratis": título "Para chicos ·
+// Finde", "Música para chicos · Hoy" o "Gratis para chicos · Hoy"
+// (`tituloParaChicos`, `lib/portada-para-chicos.ts`), la misma línea "N
+// eventos" y el mismo anuncio (`anuncioDeLaGrilla`). Los chips de categoría
+// salen de lo que queda (`eventosDeLosChips` + `chipsDeLaPortada`). Las
+// películas no son para chicos (su categoría es `cine`): con "Cine" quedan
+// afuera y el vacío lo explica. El vacío (`VacioParaChicos`) dice por qué
+// está vacío y ofrece "Ver para todas las edades" (apaga "Para chicos") y una
+// segunda salida (`segundaSalidaVacioParaChicos`). Cambiarlo vuelve el scroll
+// arriba (`cambiarParaChicos`).
+//
 // Lo que no se copia, a propósito (ops/paridad-web-app.md, inventario
 // "Portada" y la tarea 29-h): "Más filtros" (lugar/zona) y el switch
 // "Mostrar flyers de redes" — ninguno de los dos tiene un equivalente de
@@ -96,7 +113,6 @@ import { formatDateInSalta, transformMovie } from '@qps/core/home/transform'
 import { selectCarouselEvents, sortCategories } from '@qps/core/home/carousel'
 import { groupByCategory, selectTodayRow, type CategoryEventsRow } from '@qps/core/home/filters'
 import { eventoEnAtajo, type Atajo } from '@qps/core/home/atajos'
-import type { ItemFiltrable } from '@qps/core/home/filtros-combinados'
 import type { DisplayEvent } from '@qps/core/home/types'
 import type { Category } from '@qps/core/types'
 import { AvisoSinConexion } from '@/components/AvisoSinConexion'
@@ -121,12 +137,14 @@ import {
   type EventoVigenteParaInicio,
 } from '@/lib/datos/eventos'
 import { cargarAgendaConCache } from '@/lib/sin-conexion/agenda'
+import type { ItemConPublico } from '@/lib/para-chicos'
 import {
   anuncioDeLaGrilla,
   chipsDeLaPortada,
   enModoGrilla,
   ETIQUETA_ATAJO,
   eventosDeLaGrilla,
+  eventosDeLosChips,
   segundaSalidaVacioGratis,
   textoVacioCategoria,
   textoVacioGratis,
@@ -134,6 +152,13 @@ import {
   type SegundaSalidaGratis,
   type TipoAnuncioGrilla,
 } from '@/lib/portada-gratis'
+import {
+  segundaSalidaVacioParaChicos,
+  TEXTO_VER_TODAS_LAS_EDADES,
+  textoVacioParaChicos,
+  tituloParaChicos,
+  type SegundaSalidaParaChicos,
+} from '@/lib/portada-para-chicos'
 
 type EstadoPortada =
   | { tipo: 'cargando' }
@@ -306,6 +331,61 @@ function VacioGratis({
   )
 }
 
+/**
+ * Vacío del modo "Para chicos" (A3, nube Q1): dice por qué está vacío
+ * (`textoVacioParaChicos`) y ofrece "Ver para todas las edades" (apaga "Para
+ * chicos" y deja fecha, categoría y "Gratis") y, si corresponde, una segunda
+ * salida que lo deja prendido (`segundaSalidaVacioParaChicos`). Misma caja,
+ * mismos botones y misma live region que `VacioGratis`. Con "Gratis" y "Para
+ * chicos" prendidos, el vacío es este.
+ */
+function VacioParaChicos({
+  texto,
+  segunda,
+  onTodasLasEdades,
+  onTodasLasCategorias,
+  onEstaSemana,
+  onTodosLosPrecios,
+  bordeSecundario,
+}: {
+  texto: string
+  segunda: SegundaSalidaParaChicos | null
+  onTodasLasEdades: () => void
+  onTodasLasCategorias: () => void
+  onEstaSemana: () => void
+  onTodosLosPrecios: () => void
+  bordeSecundario: string
+}) {
+  const colores = useColoresQPS()
+  const alTocarSegunda =
+    segunda?.tipo === 'todas-las-categorias' ? onTodasLasCategorias : segunda?.tipo === 'esta-semana' ? onEstaSemana : onTodosLosPrecios
+  return (
+    <View style={[estilos.vacioHoy, estilos.vacioCategoria, { backgroundColor: colores.card, borderColor: colores.border }]}>
+      <Texto tono="secundario" accessibilityLiveRegion="polite">
+        {texto}
+      </Texto>
+      <Pressable
+        onPress={onTodasLasEdades}
+        accessibilityRole="button"
+        style={[estilos.vacioHoyBoton, estilos.botonVacio, { backgroundColor: colores.primary }]}
+      >
+        <Texto peso="bold" style={{ color: colores.primaryForeground }}>
+          {TEXTO_VER_TODAS_LAS_EDADES}
+        </Texto>
+      </Pressable>
+      {segunda !== null ? (
+        <Pressable
+          onPress={alTocarSegunda}
+          accessibilityRole="button"
+          style={[estilos.vacioHoyBoton, estilos.botonVacio, { borderWidth: 1, borderColor: bordeSecundario }]}
+        >
+          <Texto peso="bold">{segunda.texto}</Texto>
+        </Pressable>
+      ) : null}
+    </View>
+  )
+}
+
 export default function Inicio() {
   const { cargando: cargandoBienvenida, vista } = useBienvenidaVista()
   const colores = useColoresQPS()
@@ -317,8 +397,10 @@ export default function Inicio() {
   const [categoria, setCategoria] = useState<string | null>(null)
   // A2 (nube Q1): el chip "Gratis" (prendido/apagado), aparte de la categoría.
   const [gratis, setGratis] = useState(false)
-  // Modo grilla (título + "N eventos" + 2 columnas): con categoría o con "Gratis".
-  const modoGrilla = enModoGrilla({ categoria, gratis })
+  // A3 (nube Q1): el chip "Para chicos" (prendido/apagado), aparte de los otros dos.
+  const [paraChicos, setParaChicos] = useState(false)
+  // Modo grilla (título + "N eventos" + 2 columnas): con categoría, "Gratis" o "Para chicos".
+  const modoGrilla = enModoGrilla({ categoria, gratis, paraChicos })
   const [estado, setEstado] = useState<EstadoPortada>({ tipo: 'cargando' })
   // Estado de refresco aparte del de carga (28-c): mientras se refresca, lo
   // que ya está armado sigue a la vista en vez de pasar a `Cargando`.
@@ -438,10 +520,20 @@ export default function Inicio() {
     const filas = groupByCategory(categoriasOrdenadas, todosLosEventos, null, null, ahora)
     const hoyEventos = selectTodayRow(todosLosEventos, saltaTodayStr, ahora)
 
+    // Los eventos (con su `paraAtajo` y su `paraChicos`) más las películas
+    // (`paraAtajo: null`, sin `paraChicos`: no son para chicos, A3).
+    const items: ItemConPublico[] = [
+      ...estado.eventos,
+      ...peliculasComoEventos.map((evento) => ({ evento, paraAtajo: null })),
+    ]
+
     // R66, 66-a: chips y modo "categoría elegida", sobre lo mismo ya cargado.
     // A2 (nube Q1): con "Gratis", los chips salen solo de los eventos gratis
     // (sin "Gratis", la misma `categoriasDisponibles` de siempre).
-    const chips = chipsDeLaPortada(todosLosEventos, estado.categorias, categoria, gratis)
+    // A3 (nube Q1): con "Para chicos", solo de los eventos para chicos de la
+    // fecha (`eventosDeLosChips`; sin "Para chicos" son los mismos que
+    // `todosLosEventos`).
+    const chips = chipsDeLaPortada(eventosDeLosChips(items, { atajo, paraChicos }, ahora), estado.categorias, categoria, gratis)
     let eventosCategoria: DisplayEvent[] = []
     let nombreCategoria = ''
     // R67, 67-c: con "Cine", las películas (`isCinemaMovie`, id `movie-<uuid>`)
@@ -450,13 +542,11 @@ export default function Inicio() {
     const peliculasCategoria: Pelicula[] = []
     let eventosSinPelicula: DisplayEvent[] = []
     // A2 (nube Q1): la grilla también se arma con "Gratis" prendido y "Todas".
-    if (enModoGrilla({ categoria, gratis })) {
-      const items: ItemFiltrable[] = [
-        ...estado.eventos,
-        ...peliculasComoEventos.map((evento) => ({ evento, paraAtajo: null })),
-      ]
-      // `filtrarCombinado` (core) con atajo + categoría + gratis (A2).
-      eventosCategoria = eventosDeLaGrilla(items, { atajo, categoria, gratis }, ahora)
+    // A3: y con "Para chicos".
+    if (enModoGrilla({ categoria, gratis, paraChicos })) {
+      // `filtrarCombinado` (core) con atajo + categoría + gratis (A2), con los
+      // items filtrados antes por "Para chicos" (A3).
+      eventosCategoria = eventosDeLaGrilla(items, { atajo, categoria, gratis, paraChicos }, ahora)
       nombreCategoria = categoria === null ? '' : (estado.categorias.find((c) => c.slug === categoria)?.name ?? categoria)
       if (categoria === 'cine') {
         const porId = new Map(estado.peliculas.map((pelicula) => [`movie-${pelicula.id}`, pelicula]))
@@ -471,7 +561,7 @@ export default function Inicio() {
     }
 
     return { carrusel, filas, hoyEventos, chips, eventosCategoria, peliculasCategoria, eventosSinPelicula, nombreCategoria }
-  }, [estado, atajo, categoria, gratis])
+  }, [estado, atajo, categoria, gratis, paraChicos])
 
   // Con una categoría elegida (R66) o con "Gratis" prendido (A2) no hay
   // secciones: ni "Hoy en Salta", ni filas, ni banners — el cuerpo es la
@@ -499,6 +589,12 @@ export default function Inicio() {
     setGratis(nuevo)
     scrollRef.current?.scrollTo({ y: 0, animated: false })
   }, [])
+  // A3 (nube Q1): lo mismo con "Para chicos" (también desde "Ver para todas
+  // las edades" del vacío).
+  const cambiarParaChicos = useCallback((nuevo: boolean) => {
+    setParaChicos(nuevo)
+    scrollRef.current?.scrollTo({ y: 0, animated: false })
+  }, [])
 
   // R69, 69-b (QPS-354): el conteo tiene `accessibilityLiveRegion="polite"`,
   // pero Android anuncia los cambios de una live region, no su montaje: al
@@ -514,11 +610,15 @@ export default function Inicio() {
   // nodo (conteo, vacío de categoría, vacío de "Gratis") es uno distinto en
   // pantalla, así que "primera vez" es que cambie el `tipo`: al pasar del
   // conteo al vacío se monta otro nodo y Android no lo anunciaría solo.
-  const textoVacio = gratis ? textoVacioGratis(categoria, nombreCategoria, atajo) : textoVacioCategoria(nombreCategoria, atajo)
+  // A3 (nube Q1): con "Para chicos", su vacío (también con "Gratis" prendido).
+  const textoVacio = paraChicos
+    ? textoVacioParaChicos(categoria, nombreCategoria, atajo, gratis)
+    : gratis ? textoVacioGratis(categoria, nombreCategoria, atajo) : textoVacioCategoria(nombreCategoria, atajo)
   const anuncio = datosPortada
     ? anuncioDeLaGrilla({
         modoGrilla,
         gratis,
+        paraChicos,
         cantidad: datosPortada.eventosCategoria.length,
         textoConteo: conteoCategoria(datosPortada.peliculasCategoria.length, datosPortada.eventosSinPelicula.length),
         textoVacio,
@@ -567,6 +667,7 @@ export default function Inicio() {
                 seleccionada={categoria}
                 onCambiar={cambiarCategoria}
                 gratis={{ activo: gratis, onCambiar: cambiarGratis }}
+                paraChicos={{ activo: paraChicos, onCambiar: cambiarParaChicos }}
               />
             ) : null}
             <View style={datosPortada.chips.length > 0 || modoGrilla ? estilos.pillsBajoChips : null}>
@@ -586,8 +687,12 @@ export default function Inicio() {
                 {/* R67, 67-r1: las películas no se filtran por fecha, así que
                     con "Cine" el título dice "En cartel" y no el atajo.
                     A2 (nube Q1): con "Gratis", "Gratis · Hoy" o "Música gratis ·
-                    Finde" (con "Cine" también va la fecha: no hay películas). */}
-                {gratis ? (
+                    Finde" (con "Cine" también va la fecha: no hay películas).
+                    A3 (nube Q1): con "Para chicos", "Para chicos · Finde",
+                    "Música para chicos · Hoy" o "Gratis para chicos · Hoy". */}
+                {paraChicos ? (
+                  tituloParaChicos(categoria === null ? null : nombreCategoria, categoria, atajo, gratis)
+                ) : gratis ? (
                   tituloGratis(categoria === null ? null : nombreCategoria, atajo)
                 ) : (
                   <>
@@ -595,9 +700,9 @@ export default function Inicio() {
                   </>
                 )}
               </Texto>
-              {/* El vacío del modo categoría va primero; el de "Gratis" (A2),
-                  en la rama siguiente. */}
-              {datosPortada.eventosCategoria.length === 0 && categoria !== null && !gratis ? (
+              {/* El vacío del modo categoría va primero; el de "Para chicos"
+                  (A3), después; el de "Gratis" (A2), en la última. */}
+              {datosPortada.eventosCategoria.length === 0 && categoria !== null && !gratis && !paraChicos ? (
                 <View style={[estilos.vacioHoy, estilos.vacioCategoria, { backgroundColor: colores.card, borderColor: colores.border }]}>
                   <Texto tono="secundario" accessibilityLiveRegion="polite">
                     {textoVacio}
@@ -625,6 +730,16 @@ export default function Inicio() {
                     <Texto peso="bold">Todas las categorías</Texto>
                   </Pressable>
                 </View>
+              ) : datosPortada.eventosCategoria.length === 0 && paraChicos ? (
+                <VacioParaChicos
+                  texto={textoVacio}
+                  segunda={segundaSalidaVacioParaChicos(categoria, atajo, gratis)}
+                  onTodasLasEdades={() => cambiarParaChicos(false)}
+                  onTodasLasCategorias={() => cambiarCategoria(null)}
+                  onEstaSemana={() => cambiarAtajo('semana')}
+                  onTodosLosPrecios={() => cambiarGratis(false)}
+                  bordeSecundario={bordeInactivo}
+                />
               ) : datosPortada.eventosCategoria.length === 0 ? (
                 <VacioGratis
                   texto={textoVacio}

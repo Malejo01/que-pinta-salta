@@ -63,6 +63,8 @@ function crearEvento(over: Partial<{
       end_date: over.end_date ?? null,
       category: over.category ?? 'recitales',
     },
+    // A3 (nube Q1): el campo nuevo de `EventoVigenteParaInicio` (recitales: no es para chicos).
+    paraChicos: false,
   }
 }
 

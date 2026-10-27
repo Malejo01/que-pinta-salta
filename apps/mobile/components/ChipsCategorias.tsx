@@ -18,12 +18,22 @@
 // A2, ronda de correcciones: el chip elegido se trae a la vista solo si no
 // entra en la ventana visible (`destinoScrollChip`, `lib/chips-desplazamiento.ts`),
 // y una sola vez por cada `seleccionada`. Ver el comentario de los refs.
+//
+// A3 (nube Q1): prop opcional `paraChicos`. Si viene (la portada), el chip
+// "Para chicos" (`components/ChipParaChicos.tsx`) va después de "Gratis" y
+// antes del separador: los dos filtros juntos, aparte de las categorías. Cada
+// prop dibuja su chip por su cuenta, y el separador va si hay alguno. Buscar
+// no pasa ninguna de las dos y queda igual. "Para chicos" tampoco entra en
+// `posiciones`. Con los dos filtros, a 360 dp "Todas" ya no entra entera:
+// "Todas" vuelve siempre al principio de la fila (`destinoScrollFila`), así
+// al abrir la portada se ven los dos filtros.
 import { useEffect, useRef, type RefObject } from 'react'
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native'
 import { ChipGratis } from '@/components/ChipGratis'
+import { ChipParaChicos } from '@/components/ChipParaChicos'
 import { Icono, iconoPorCategoria } from '@/components/Icono'
 import { Texto } from '@/components/Texto'
-import { destinoScrollChip, type MedidaChip } from '@/lib/chips-desplazamiento'
+import { destinoScrollFila, type MedidaChip } from '@/lib/chips-desplazamiento'
 import { bordeChipInactivo, useColoresQPS } from '@/lib/colores'
 
 export interface CategoriaChip {
@@ -38,6 +48,8 @@ export interface ChipsCategoriasProps {
   onCambiar: (slug: string | null) => void
   /** A2 (nube Q1): el chip "Gratis" adelante de "Todas". Sin esta prop no se dibuja. */
   gratis?: { activo: boolean; onCambiar: (activo: boolean) => void }
+  /** A3 (nube Q1): el chip "Para chicos", después de "Gratis". Sin esta prop no se dibuja. */
+  paraChicos?: { activo: boolean; onCambiar: (activo: boolean) => void }
 }
 
 /**
@@ -54,13 +66,14 @@ function traerALaVista(
   clave: string,
 ): void {
   if (posicionada.current === clave) return
-  const destino = destinoScrollChip(posiciones.current[clave], anchoVisible.current)
+  // A3 (nube Q1): "Todas" va siempre al principio (`destinoScrollFila`).
+  const destino = destinoScrollFila(clave, posiciones.current[clave], anchoVisible.current)
   if (destino === null) return
   scroll.current?.scrollTo({ x: destino, animated: false })
   posicionada.current = clave
 }
 
-export function ChipsCategorias({ categorias, seleccionada, onCambiar, gratis }: ChipsCategoriasProps) {
+export function ChipsCategorias({ categorias, seleccionada, onCambiar, gratis, paraChicos }: ChipsCategoriasProps) {
   const colores = useColoresQPS()
   // R69, 69-b (QPS-338): borde de los inactivos a 3:1 (cálculo en `lib/colores.ts`).
   const bordeInactivo = bordeChipInactivo(colores)
@@ -112,14 +125,12 @@ export function ChipsCategorias({ categorias, seleccionada, onCambiar, gratis }:
       }}
       contentContainerStyle={estilos.contenido}
     >
-      {gratis ? (
-        <>
-          <ChipGratis activo={gratis.activo} onCambiar={gratis.onCambiar} />
-          {/* Separador decorativo (una View sin texto ni rol: los lectores de
-              pantalla la saltean), con el mismo borde de 3:1 de los chips. */}
-          <View style={[estilos.separador, { backgroundColor: bordeInactivo }]} />
-        </>
-      ) : null}
+      {gratis ? <ChipGratis activo={gratis.activo} onCambiar={gratis.onCambiar} /> : null}
+      {paraChicos ? <ChipParaChicos activo={paraChicos.activo} onCambiar={paraChicos.onCambiar} /> : null}
+      {/* Separador decorativo (una View sin texto ni rol: los lectores de
+          pantalla la saltean), con el mismo borde de 3:1 de los chips. Va si
+          hay algún chip de filtro (A3: "Gratis" o "Para chicos"). */}
+      {gratis || paraChicos ? <View style={[estilos.separador, { backgroundColor: bordeInactivo }]} /> : null}
       {chips.map((chip) => {
         const activo = chip.slug === seleccionada
         return (

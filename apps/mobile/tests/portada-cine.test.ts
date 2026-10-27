@@ -84,7 +84,8 @@ function entreONull(texto: string, inicio: string, fin: string): string | null {
 
 const INICIO_MEMO = 'const datosPortada = useMemo('
 // A2 (nube Q1): el useMemo suma la dependencia `gratis` (el chip "Gratis").
-const FIN_MEMO = '}, [estado, atajo, categoria, gratis])'
+// A3 (nube Q1): suma la dependencia `paraChicos`.
+const FIN_MEMO = '}, [estado, atajo, categoria, gratis, paraChicos])'
 
 // ---------------------------------------------------------------------------
 // 0. Guarda del scanner
@@ -148,7 +149,7 @@ describe('conteoCategoria (la función real de app/(tabs)/index.tsx)', () => {
 function violacionesSeparacion(codigo: string): string[] {
   const v: string[] = []
   const memo = entreONull(codigo, INICIO_MEMO, FIN_MEMO)
-  if (memo === null) return ['no se encuentra el useMemo de datosPortada con sus dependencias [estado, atajo, categoria, gratis]']
+  if (memo === null) return ['no se encuentra el useMemo de datosPortada con sus dependencias [estado, atajo, categoria, gratis, paraChicos]']
   const bloqueCine = entreONull(memo, "if (categoria === 'cine') {", '} else {')
   if (bloqueCine === null) return ["dentro del useMemo no hay un bloque `if (categoria === 'cine') { ... } else {`"]
   if (!/evento\.isCinemaMovie\s*\?\s*porId\.get\(evento\.id\)/.test(bloqueCine)) v.push('el bloque no separa por evento.isCinemaMovie con porId.get(evento.id)')
@@ -212,7 +213,7 @@ describe('app/(tabs)/index.tsx con el chip "Cine"', () => {
     })
 
     it('un useMemo sin la dependencia categoria', () => {
-      const roto = codigo.replace(FIN_MEMO, '}, [estado, atajo, gratis])')
+      const roto = codigo.replace(FIN_MEMO, '}, [estado, atajo, gratis, paraChicos])')
       expect(violacionesSeparacion(roto)).toHaveLength(1)
     })
 

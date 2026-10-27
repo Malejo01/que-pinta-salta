@@ -14,8 +14,18 @@
 // `EventoParaAtajo` (start_date, end_date y el slug de la categoría: lo que
 // `eventoEnAtajo` necesita y que `DisplayEvent` no tiene, en particular
 // `end_date`). `obtenerEventosDeAtajo` queda borrada: no tiene más uso.
+//
+// A3 (nube Q1): cada evento viaja también con `paraChicos` (el chip "Para
+// chicos" de la portada y de Buscar), calculado ACÁ, al armar cada item, con
+// `esParaChicos` de `@qps/core/filtros/publico` sobre el slug de la categoría
+// y los `tags` crudos de la fila (`events.tags` ya viene en
+// `PUBLIC_EVENT_SELECT`). `DisplayEvent` no tiene tags y `transformEvent` no
+// se toca: por eso el dato va aparte, como `paraAtajo`. Una caché sin
+// conexión guardada antes de A3 no lo trae: lo completa `paraMostrar`
+// (`lib/sin-conexion/agenda.ts`), ver `lib/para-chicos.ts`.
 import { PUBLIC_EVENT_SELECT } from '@qps/core/events/public-select'
 import { applyVigenciaPrefilter, isVigente } from '@qps/core/events/vigencia'
+import { esParaChicos } from '@qps/core/filtros/publico'
 import type { EventoParaAtajo } from '@qps/core/home/atajos'
 import { transformEvent } from '@qps/core/home/transform'
 import type { DisplayEvent, EventWithRelations } from '@qps/core/home/types'
@@ -101,6 +111,13 @@ export async function obtenerEventosVigentes(ahora: Date = new Date()): Promise<
 export interface EventoVigenteParaInicio {
   evento: DisplayEvent
   paraAtajo: EventoParaAtajo
+  /**
+   * A3 (nube Q1): si es para chicos (`esParaChicos` de core, con la categoría
+   * y los `tags` de la fila). Siempre un booleano en lo que devuelve
+   * `obtenerEventosVigentesParaInicio`; un item de una caché anterior a A3 no
+   * lo tiene y `paraMostrar` lo completa (`completarParaChicos`).
+   */
+  paraChicos: boolean
 }
 
 export type ResultadoEventosParaInicio =
@@ -121,6 +138,8 @@ export async function obtenerEventosVigentesParaInicio(ahora: Date = new Date())
   const eventos = resultado.filas.map((fila) => ({
     evento: transformEvent(fila),
     paraAtajo: { start_date: fila.start_date, end_date: fila.end_date, category: fila.category?.slug ?? null },
+    // A3 (nube Q1): con los `tags` crudos de la fila, que `DisplayEvent` no conserva.
+    paraChicos: esParaChicos({ categorySlug: fila.category?.slug ?? null, tags: fila.tags }),
   }))
 
   return { ok: true, eventos }
