@@ -29,6 +29,7 @@
 import { Fragment, useState, type ReactNode } from "react"
 import { Heart } from "lucide-react"
 import {
+  MENSAJE_EVENTO_NO_DISPONIBLE,
   ORDEN_FILA_ACCIONES,
   TEXTO_ENTRAR_PARA_MARCAR,
   TEXTO_SACASTE_GUARDADO_CON_VOY,
@@ -258,7 +259,10 @@ export function FilaAccionesEvento({
         } else {
           toast({
             title: "Error",
-            description: "No pudimos guardar tu marca. Probá de nuevo.",
+            description:
+              resultado.error === "INVALID"
+                ? MENSAJE_EVENTO_NO_DISPONIBLE
+                : "No pudimos guardar tu marca. Probá de nuevo.",
             variant: "destructive",
           })
         }
