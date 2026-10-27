@@ -582,7 +582,8 @@ function violacionesPortada(fuenteCruda: string): string[] {
   // A8 (nube Q1, QPS-339): el vacío ya NO es una live region (lo anuncia
   // `useAnunciarConteo`, un solo anuncio por cambio; ver `tests/anunciar-conteos.test.ts`).
   if (!/<Texto tono="secundario">\s*\{textoVacio\}/.test(c)) v.push('el vacío de categoría no muestra textoVacio (sin live region)')
-  if (/accessibilityLiveRegion/.test(c)) v.push('queda una live region en la portada (doble lectura con el anuncio)')
+  // (Ronda de correcciones de A8: la prohibición es por nodo, no por archivo:
+  // otras live regions de la portada, como la de `AvisoSinConexion`, siguen.)
   // (más abajo, dentro del uso de `<VacioGratis>`: `<VacioParaChicos>` también recibe `texto={textoVacio}`)
 
   // Filtros y chips por lib/portada-gratis.

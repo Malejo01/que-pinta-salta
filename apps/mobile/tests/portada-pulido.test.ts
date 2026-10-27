@@ -253,8 +253,11 @@ export function violacionesDeAnuncio(fuente: string): string[] {
     v.push('la portada no anuncia con useAnunciarConteo(estadoAnunciablePortada({ …, anuncio }))')
   }
   if (!/estadoAnunciablePortada\(\{[^}]*\btituloGrilla\s*[,}]/.test(c)) v.push('el anuncio no lleva el título de la grilla')
-  if (/announceForAccessibility/.test(c)) v.push('queda un announceForAccessibility suelto (doble anuncio)')
-  if (/accessibilityLiveRegion/.test(c)) v.push('queda una live region (doble lectura con el anuncio)')
+  // Ronda de correcciones de A8: los anuncios pasan por `anunciar`
+  // (`lib/anunciar.ts`), y la prohibición de live regions es POR NODO (el
+  // conteo; los vacíos los miran `portada-gratis` y `para-chicos`), no por archivo.
+  if (/AccessibilityInfo\.announceForAccessibility/.test(c)) v.push('queda un announceForAccessibility suelto (doble anuncio)')
+  if (/<Texto\b[^>]*accessibilityLiveRegion[^>]*>\s*\{conteoCategoria\(/.test(c)) v.push('el conteo tiene una live region (doble lectura con el anuncio)')
   return v
 }
 

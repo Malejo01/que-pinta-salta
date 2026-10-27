@@ -79,6 +79,12 @@
 // nada y el usuario tocó "Ver todos"), y al volver a "Explorar por categoría".
 // Lo tipeado NO se anuncia en cada tecla: espera `DEMORA_TEXTO_MS` sin teclas
 // nuevas (o al toque si el campo queda vacío, como con "Limpiar búsqueda").
+// Ronda de correcciones de A8: enviar con la tecla del teclado
+// (`onSubmitEditing`, que `CampoTexto` pasa al `TextInput`) sube el nonce
+// `toqueTexto` y se anuncia al toque, sin doble anuncio; A5 usa el mismo
+// nonce al tocar una búsqueda reciente (ver `lib/anunciar-conteo-hook.ts`).
+// La clave del anuncio suma `vParam`: volver desde "Ver todos" con el mismo
+// `?categoria=` (otra `v`) vuelve a anunciar.
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { FlatList, Pressable, RefreshControl, StyleSheet, View } from 'react-native'
 import { useLocalSearchParams } from 'expo-router'
@@ -150,6 +156,9 @@ export default function Buscar() {
   const [soloGratisActivo, setSoloGratisActivo] = useState(false)
   // A3 (nube Q1): el chip "Para chicos", como "Solo gratis" (no viene por la ruta).
   const [paraChicosActivo, setParaChicosActivo] = useState(false)
+  // A8 (nube Q1, QPS-339, ronda de correcciones): nonce del texto que llega por
+  // un toque (enviar con el teclado; A5: tocar una búsqueda reciente).
+  const [toqueTexto, setToqueTexto] = useState(0)
 
   // Sincroniza `categoriaFiltro` con el parámetro de la ruta sin `setState`
   // sincrónico dentro de un `useEffect` (mismo patrón que `idAnterior` en
@@ -276,7 +285,7 @@ export default function Buscar() {
   // `null` mientras carga o con error: "no hay nada".
   useAnunciarConteo(
     estado.tipo === 'ok'
-      ? estadoAnunciableBuscar({ mostrarResultados, cantidad: resultadosMostrados.length, filtros: filtrosTexto })
+      ? estadoAnunciableBuscar({ mostrarResultados, cantidad: resultadosMostrados.length, filtros: filtrosTexto, v: vParam, toque: toqueTexto })
       : null,
   )
 
@@ -299,6 +308,7 @@ export default function Buscar() {
             label="Buscar"
             value={texto}
             onChangeText={setTexto}
+            onSubmitEditing={() => setToqueTexto((n) => n + 1)}
             placeholder="Buscar por evento, lugar o descripcion..."
             autoCapitalize="none"
             accionDerecha={

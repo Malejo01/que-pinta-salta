@@ -119,10 +119,12 @@
 // mano en Android y en iOS (`useAnunciarConteo`, `lib/anunciar-conteo-hook.ts`;
 // la decisión pura de qué y cuándo, en `lib/anunciar-conteo.ts`), y esos nodos
 // ya no son live regions: un solo anuncio por cambio. Se anuncia la entrada al
-// modo grilla y cada cambio de filtro (título + conteo, aunque el número sea el
-// mismo: "Música gratis, Hoy: 3 eventos"), y la salida ("Todos los eventos,
-// Hoy"). El título de la grilla es un solo string (`tituloGrilla`) que usan el
-// encabezado y el anuncio.
+// modo grilla y cada cambio de filtro (conteo + título, aunque el número sea el
+// mismo: "3 eventos, Música gratis, Hoy"), y la salida ("Sin filtros: todos
+// los eventos de hoy"). El título de la grilla es un solo string
+// (`tituloGrilla`) que usan el encabezado y el anuncio. Ronda de correcciones
+// de A8: la prohibición de live regions es por nodo (el conteo y los tres
+// vacíos), no por archivo: otras (p. ej. `AvisoSinConexion`) siguen.
 //
 // Lo que no se copia, a propósito (ops/paridad-web-app.md, inventario
 // "Portada" y la tarea 29-h): "Más filtros" (lugar/zona) y el switch
@@ -660,12 +662,13 @@ export default function Inicio() {
   // A8 (nube Q1, QPS-339): se anuncia SIEMPRE a mano, en Android y en iOS, con
   // `useAnunciarConteo` (reglas en `lib/anunciar-conteo.ts`), y el conteo y
   // los tres vacíos ya no son live regions (para no leer dos veces). Así se
-  // anuncia también un cambio de filtro con el mismo número ("Música gratis,
-  // Hoy: 3 eventos" después de "Música, Hoy: 3 eventos"), con el título de la
-  // grilla para desambiguar, y la salida del modo grilla ("Todos los eventos,
-  // Hoy": apagar el último filtro, "Todas las categorías", "Ver todos los
-  // precios" o "Ver todas las edades" que vuelven a la portada normal). El
-  // montaje no se anuncia (la portada arranca sin filtros).
+  // anuncia también un cambio de filtro con el mismo número ("3 eventos,
+  // Música gratis, Hoy" después de "3 eventos, Música, Hoy"), con el título de
+  // la grilla para desambiguar, y la salida del modo grilla ("Sin filtros:
+  // todos los eventos de hoy": apagar el último filtro, "Todas las categorías",
+  // "Ver todos los precios" o "Ver todas las edades" que vuelven a la portada
+  // normal). El montaje no se anuncia (la portada arranca sin filtros). En
+  // Android lo que viene de un toque espera 400 ms (ver el hook).
   const textoVacio = paraChicos
     ? textoVacioParaChicos(categoria, nombreCategoria, atajo, gratis)
     : gratis ? textoVacioGratis(categoria, nombreCategoria, atajo) : textoVacioCategoria(nombreCategoria, atajo)
