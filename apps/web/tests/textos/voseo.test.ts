@@ -52,6 +52,9 @@ const FORMAS_TUTEO_SACADAS: { archivo: string; texto: string }[] = [
   // Toasts de favoritos (components/favorite-button.tsx, tarea 33-e, ronda 33)
   { archivo: 'components/favorite-button.tsx', texto: 'Inténtalo de nuevo' },
   { archivo: 'components/favorite-button.tsx', texto: 'invitamos un cafecito' },
+  // Desde Q3 los textos de favorite-button.tsx viven en el diccionario.
+  { archivo: 'lib/i18n/diccionarios/es.ts', texto: 'Inténtalo de nuevo' },
+  { archivo: 'lib/i18n/diccionarios/es.ts', texto: 'invitamos un cafecito' },
 ]
 
 describe('Voseo rioplatense (30-e): las formas de tuteo que se sacaron no vuelven a aparecer', () => {
@@ -63,18 +66,29 @@ describe('Voseo rioplatense (30-e): las formas de tuteo que se sacaron no vuelve
 
 describe('Toasts de favoritos (33-e): el pedido del cafecito está en voseo y es idéntico en los dos lugares', () => {
   const contenido = read('components/favorite-button.tsx')
+  // Desde Q3 el texto vive una sola vez en el diccionario (`favorito.pedidoCafecito`)
+  // y favorite-button.tsx lo usa en los dos lugares por su clave.
+  const diccionario = read('lib/i18n/diccionarios/es.ts')
 
   it('no contiene "invitamos un cafecito" (tuteo invertido: el pedido es que nos inviten)', () => {
     expect(contenido).not.toContain('invitamos un cafecito')
+    expect(diccionario).not.toContain('invitamos un cafecito')
   })
 
-  it('el texto del toast y el del onClick del botón de donación son idénticos', () => {
-    // Las dos ocurrencias del mismo pedido de cafecito en el archivo: la del
-    // description del toast y la del mensaje que recibe openDonationModal.
+  it('el diccionario tiene el pedido en voseo, exactamente una vez', () => {
     const coincidencias = [
-      ...contenido.matchAll(/Si Qué Pinta Salta te ayuda a organizar tu finde, invitanos un cafecito para ayudarnos a crear la App móvil\./g),
+      ...diccionario.matchAll(/pedidoCafecito:\s*'¡Plan guardado! ❤️ Si Qué Pinta Salta te ayuda a organizar tu finde, invitanos un cafecito para ayudarnos a crear la App móvil\.'/g),
     ]
-    expect(coincidencias.length).toBe(2)
+    expect(coincidencias.length).toBe(1)
+  })
+
+  it('el texto del toast y el del onClick del botón de donación son idénticos (la misma clave en los dos lugares)', () => {
+    // La description del toast y el mensaje que recibe openDonationModal.
+    expect(contenido).toMatch(/\?\s*t\.pedidoCafecito\s*:/)
+    expect(contenido).toMatch(/openDonationModal\(t\.pedidoCafecito\)/)
+    expect([...contenido.matchAll(/t\.pedidoCafecito\b/g)].length).toBe(2)
+    // Ningún literal suelto del pedido que pueda separarse del diccionario.
+    expect(contenido).not.toMatch(/invitanos un cafecito/)
   })
 })
 

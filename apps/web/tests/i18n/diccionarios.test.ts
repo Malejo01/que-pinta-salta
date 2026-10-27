@@ -10,7 +10,7 @@ import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { es } from '@/lib/i18n/diccionarios/es'
 import { en } from '@/lib/i18n/diccionarios/en'
-import { nombreCategoria, textosDe } from '@/lib/i18n'
+import { langDeCategoria, nombreCategoria, textosDe } from '@/lib/i18n'
 
 /** El mapa de categorías por slug es abierto a propósito (en castellano va vacío). */
 const CLAVES_ABIERTAS = new Set(['portada.nombresCategorias'])
@@ -92,11 +92,35 @@ describe('textosDe y nombreCategoria', () => {
     expect(nombreCategoria(en, 'slug-nuevo', 'Algo nuevo')).toBe('Algo nuevo')
   })
 
-  it('todos los slugs conocidos (los de lib/category-icons.ts) tienen nombre en inglés', () => {
+  // La lista real de slugs: la que el clasificador puede asignar (lib/ai/types.ts).
+  function slugsReales(): string[] {
+    const fuente = readFileSync(join(__dirname, '..', '..', 'lib', 'ai', 'types.ts'), 'utf8')
+    const inicio = fuente.indexOf('export type GeminiCategorySlug')
+    const bloque = fuente.slice(inicio, fuente.indexOf('\n\n', inicio))
+    return [...bloque.matchAll(/\|\s*'([a-z]+)'/g)].map((m) => m[1])
+  }
+
+  it('todos los slugs reales (GeminiCategorySlug de lib/ai/types.ts) tienen nombre en inglés', () => {
+    const slugs = slugsReales()
+    // Sanidad: si el recorte de la fuente se rompe, esto no puede pasar en verde con 0.
+    expect(slugs.length).toBeGreaterThanOrEqual(16)
+    expect(slugs).toContain('congresos')
+    expect(slugs).toContain('automovilismo')
+    expect(slugs.filter((slug) => !(slug in en.portada.nombresCategorias))).toEqual([])
+  })
+
+  it('y los de lib/category-icons.ts también', () => {
     const fuente = readFileSync(join(__dirname, '..', '..', 'lib', 'category-icons.ts'), 'utf8')
     const bloque = fuente.slice(fuente.indexOf('const categoryIcons'), fuente.indexOf('export function'))
     const slugs = [...bloque.matchAll(/^\s+([a-z]+):/gm)].map((m) => m[1])
     expect(slugs.length).toBeGreaterThanOrEqual(14)
     expect(slugs.filter((slug) => !(slug in en.portada.nombresCategorias))).toEqual([])
+  })
+
+  it('langDeCategoria: "es" solo en inglés y cuando el nombre quedó el de la base', () => {
+    expect(langDeCategoria('es', 'penas')).toBeUndefined()
+    expect(langDeCategoria('es', 'slug-nuevo')).toBeUndefined()
+    expect(langDeCategoria('en', 'penas')).toBeUndefined()
+    expect(langDeCategoria('en', 'slug-nuevo')).toBe('es')
   })
 })

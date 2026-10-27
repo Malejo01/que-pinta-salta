@@ -23,3 +23,13 @@ export function textosDe(idioma: Idioma): Diccionario {
 export function nombreCategoria(textos: Diccionario, slug: string, nombreDeLaBase: string): string {
   return textos.portada.nombresCategorias[slug] ?? nombreDeLaBase
 }
+
+/**
+ * `lang` para donde se dibuja el nombre de una categoría: "es" cuando la
+ * página está en inglés pero el nombre quedó el de la base (slug sin
+ * traducción); si no, nada.
+ */
+export function langDeCategoria(idioma: Idioma, slug: string): 'es' | undefined {
+  if (idioma === 'es') return undefined
+  return slug in textosDe(idioma).portada.nombresCategorias ? undefined : 'es'
+}

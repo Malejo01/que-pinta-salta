@@ -1,6 +1,6 @@
 /** Rutas en inglés (Q3): `rutaEn`, `separarIdioma` y `rutaEnOtroIdioma`. Puro, sin red. */
 import { describe, expect, it } from 'vitest'
-import { RUTAS_EN_INGLES, rutaEn, rutaEnOtroIdioma, separarIdioma } from '@/lib/i18n/rutas'
+import { RUTAS_EN_INGLES, hrefLangDestino, rutaEn, rutaEnOtroIdioma, separarIdioma } from '@/lib/i18n/rutas'
 
 describe('RUTAS_EN_INGLES', () => {
   it('en este PR solo la portada y /cines', () => {
@@ -84,5 +84,23 @@ describe('rutaEnOtroIdioma', () => {
   it('pedir el mismo idioma en el que ya se está no rompe nada', () => {
     expect(rutaEnOtroIdioma('/en/cines', 'en')).toBe('/en/cines')
     expect(rutaEnOtroIdioma('/cines', 'es')).toBe('/cines')
+  })
+})
+
+describe('hrefLangDestino', () => {
+  it('en castellano, nunca', () => {
+    expect(hrefLangDestino('es', '/buscar')).toBeUndefined()
+    expect(hrefLangDestino('es', '/')).toBeUndefined()
+  })
+
+  it('en inglés, "es-AR" solo para las páginas que existen solo en castellano', () => {
+    expect(hrefLangDestino('en', '/buscar')).toBe('es-AR')
+    expect(hrefLangDestino('en', '/mapa')).toBe('es-AR')
+    expect(hrefLangDestino('en', '/radar')).toBe('es-AR')
+    expect(hrefLangDestino('en', '/favoritos')).toBe('es-AR')
+    expect(hrefLangDestino('en', '/auth/login?next=/nuevo-evento')).toBe('es-AR')
+    expect(hrefLangDestino('en', '/')).toBeUndefined()
+    expect(hrefLangDestino('en', '/?category=cine')).toBeUndefined()
+    expect(hrefLangDestino('en', '/cines#x')).toBeUndefined()
   })
 })

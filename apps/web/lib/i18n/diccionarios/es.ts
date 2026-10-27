@@ -7,6 +7,8 @@
  * literal), y el inglés puede decir otra cosa. Los textos con número son
  * funciones `(n: number) => string`, para que cada idioma arme su plural.
  */
+import { TEXTO_SACASTE_GUARDADO_CON_VOY } from '@qps/core/asistencia'
+
 export const es = {
   nav: {
     buscarEventos: 'Buscar eventos',
@@ -133,16 +135,54 @@ export const es = {
     noHayFunciones: 'No hay funciones disponibles para hoy.',
     horariosActualizados: 'Horarios actualizados para hoy',
   },
+  // Corazón de las tarjetas y del modal (favorite-button.tsx)
+  favorito: {
+    guardar: 'Guardar en favoritos',
+    quitar: 'Quitar de favoritos',
+    errorTitulo: 'Error',
+    errorTexto: 'No se pudo actualizar el favorito.',
+    guardadoTitulo: 'Favorito guardado',
+    // El mismo texto va en el toast y en el modal de donación (tests/textos/voseo.test.ts).
+    pedidoCafecito:
+      '¡Plan guardado! ❤️ Si Qué Pinta Salta te ayuda a organizar tu finde, invitanos un cafecito para ayudarnos a crear la App móvil.',
+    guardadoTexto: 'El elemento se agregó a tu agenda.',
+    donarAhora: 'Donar ahora',
+    eliminadoTitulo: 'Favorito eliminado',
+    eliminadoTexto: 'El elemento se quitó de tu agenda.',
+    // El texto único de core para cuando sacar el ♥ también saca el Voy (QPS-197).
+    sacasteGuardadoConVoy: TEXTO_SACASTE_GUARDADO_CON_VOY,
+    errorConexionTitulo: 'Error de conexión',
+    errorConexionTexto: 'No pudimos conectarnos al servidor. Intentalo de nuevo.',
+  },
+  // Botón de compartir (share-button.tsx)
+  compartir: {
+    compartirEvento: 'Compartir evento',
+    linkCopiado: 'Link copiado',
+    noSePudoCopiar: 'No se pudo copiar el link',
+  },
+  // Aviso de cookies (consent-banner.tsx)
+  cookies: {
+    region: 'Aviso de cookies',
+    textoConAnuncios: 'Usamos Google Analytics y anuncios de Google. Si aceptás, los anuncios pueden ser personalizados.',
+    textoSinAnuncios: 'Usamos Google Analytics para saber qué se usa del sitio. Solo si aceptás.',
+    masInfoAria: 'Más información sobre cookies en la Política de Privacidad',
+    masInfo: 'Más info',
+    rechazar: 'Rechazar',
+    aceptar: 'Aceptar',
+  },
   comun: {
     // Solo se muestra en inglés (aviso-contenido-es.tsx); acá va su equivalente.
-    avisoContenidoEs: 'Los detalles de los eventos están en castellano',
+    avisoContenidoEs:
+      'Los detalles de los eventos están en castellano: los nombres y las descripciones se muestran como los publican los lugares.',
   },
   idioma: {
     // El selector muestra el OTRO idioma, escrito en ese idioma.
     otro: 'English',
     // Versión corta para el header en celular (donde no entra la palabra entera).
     otroCorto: 'EN',
-    otroAria: 'View this site in English',
+    // WCAG 2.5.3: el nombre accesible contiene el texto visible («EN» en
+    // celular, «English» desde sm:).
+    otroAria: 'English (EN): view this site in English',
   },
 }
 

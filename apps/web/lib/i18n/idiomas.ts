@@ -19,13 +19,6 @@ export const LANG_HTML: Record<Idioma, string> = {
   en: 'en',
 }
 
-/**
- * Header interno con el que el middleware le avisa al layout raíz en qué
- * idioma está el pedido. El middleware lo pisa SIEMPRE (también si vino del
- * cliente), así que el layout puede confiar en él.
- */
-export const ENCABEZADO_IDIOMA = 'x-qps-idioma'
-
 export function esIdioma(x: unknown): x is Idioma {
   return x === 'es' || x === 'en'
 }

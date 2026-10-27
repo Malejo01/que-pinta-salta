@@ -23,7 +23,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 import { createClient } from "@/lib/supabase/client"
-import { rutaEn } from "@/lib/i18n/rutas"
+import { hrefLangDestino, rutaEn } from "@/lib/i18n/rutas"
 import { useIdioma, useTextos } from "@/lib/i18n/use-idioma"
 import { SelectorIdioma } from "@/components/selector-idioma"
 import type { User as SupabaseUser } from "@supabase/supabase-js"
@@ -79,7 +79,8 @@ export function Navbar() {
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <nav className="container mx-auto flex h-16 items-center justify-between px-4">
-        <Link href={rutaEn(idioma, "/")} className="flex items-center gap-2.5">
+        {/* `shrink-0`: a 320 px el logo no se aplasta cuando el lado derecho se llena. */}
+        <Link href={rutaEn(idioma, "/")} className="flex shrink-0 items-center gap-2.5">
           {/* Wrapper con ring rojo en dark mode para reemplazar el halo crema */}
           <div className="rounded-full dark:ring-2 dark:ring-[#C12026]/70 dark:ring-offset-1 dark:ring-offset-background">
             <Image
@@ -109,18 +110,20 @@ export function Navbar() {
           </div>
         </Link>
 
-        {/* `gap-1.5` en celular (antes `gap-2`): con el selector de idioma, el
-            header con sesión y el botón de Apoyar no entraba en 360 px. */}
-        <div className="flex items-center gap-1.5 sm:gap-2">
+        {/* `gap-1` solo por debajo de 360 px (antes, `gap-2` en todos lados): a
+            320 px, sin sesión y con «Apoyar» + el selector de idioma + «Ingresar»
+            (115 px), no entraba por 7 px. Desde 360 px queda como siempre.
+            Medido con Playwright a 320 y 360 px, con y sin sesión. */}
+        <div className="flex items-center gap-1 min-[360px]:gap-2">
           <Button asChild variant="ghost" size="icon" className="hidden sm:inline-flex text-muted-foreground hover:text-primary transition-colors">
-            <Link href={rutaEn(idioma, "/buscar")} aria-label={t.buscarEventos} prefetch={false}>
+            <Link href={rutaEn(idioma, "/buscar")} hrefLang={hrefLangDestino(idioma, "/buscar")} aria-label={t.buscarEventos} prefetch={false}>
               <Search className="size-5" />
             </Link>
           </Button>
 
           <Button asChild variant="ghost" size="icon" className="hidden sm:inline-flex text-muted-foreground hover:text-primary transition-colors">
             {/* /mapa todavía no tiene versión en inglés (llega en el PR siguiente). */}
-            <Link href="/mapa" aria-label={t.verMapa} prefetch={false}>
+            <Link href="/mapa" hrefLang={hrefLangDestino(idioma, "/mapa")} aria-label={t.verMapa} prefetch={false}>
               <Map className="size-5" />
             </Link>
           </Button>
@@ -148,12 +151,14 @@ export function Navbar() {
             <Moon className="absolute size-5 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
           </Button>
           
+          {/* Favoritos y Radar: ocultos en celular (están en la barra inferior,
+              mobile-nav.tsx); así el header con sesión entra en 320 px. */}
           {user && (
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button asChild variant="ghost" className="text-muted-foreground hover:text-red-500 transition-colors mr-1 gap-2 font-semibold text-sm">
-                    <Link href={rutaEn(idioma, "/favoritos")}>
+                  <Button asChild variant="ghost" className="hidden sm:inline-flex text-muted-foreground hover:text-red-500 transition-colors mr-1 gap-2 font-semibold text-sm">
+                    <Link href={rutaEn(idioma, "/favoritos")} hrefLang={hrefLangDestino(idioma, "/favoritos")}>
                       <Heart className="size-4.5 text-red-500 fill-red-500/10" />
                       <span className="hidden sm:inline">{t.misEventos}</span>
                     </Link>
@@ -166,8 +171,8 @@ export function Navbar() {
 
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button asChild variant="ghost" className="text-muted-foreground hover:text-primary transition-colors mr-1 gap-2 font-semibold text-sm">
-                    <Link href={rutaEn(idioma, "/radar")}>
+                  <Button asChild variant="ghost" className="hidden sm:inline-flex text-muted-foreground hover:text-primary transition-colors mr-1 gap-2 font-semibold text-sm">
+                    <Link href={rutaEn(idioma, "/radar")} hrefLang={hrefLangDestino(idioma, "/radar")}>
                       <Radio className="size-4.5 text-primary" />
                       <span className="hidden sm:inline">{t.radarSalteno}</span>
                     </Link>
@@ -182,7 +187,7 @@ export function Navbar() {
 
           {isAdmin && (
             <Button asChild variant="outline" className="hidden sm:inline-flex">
-              <Link href={rutaEn(idioma, "/nuevo-evento")}>
+              <Link href={rutaEn(idioma, "/nuevo-evento")} hrefLang={hrefLangDestino(idioma, "/nuevo-evento")}>
                 <Plus className="mr-2 size-4" />
                 {t.agregarEvento}
               </Link>
@@ -211,19 +216,19 @@ export function Navbar() {
                     <DropdownMenuSeparator />
                     {/* Grupo 1: Perfil, Favoritos, Radar */}
                     <DropdownMenuItem asChild>
-                      <Link href={rutaEn(idioma, "/perfil")}>
+                      <Link href={rutaEn(idioma, "/perfil")} hrefLang={hrefLangDestino(idioma, "/perfil")}>
                         <User className="mr-2 size-4" />
                         {t.miPerfil}
                       </Link>
                     </DropdownMenuItem>
                     <DropdownMenuItem asChild>
-                      <Link href={rutaEn(idioma, "/favoritos")}>
+                      <Link href={rutaEn(idioma, "/favoritos")} hrefLang={hrefLangDestino(idioma, "/favoritos")}>
                         <Heart className="mr-2 size-4 text-red-500" />
                         {t.misEventos}
                       </Link>
                     </DropdownMenuItem>
                     <DropdownMenuItem asChild>
-                      <Link href={rutaEn(idioma, "/radar")}>
+                      <Link href={rutaEn(idioma, "/radar")} hrefLang={hrefLangDestino(idioma, "/radar")}>
                         <Radio className="mr-2 size-4 text-primary" />
                         {t.miRadarSalteno}
                       </Link>
@@ -233,7 +238,7 @@ export function Navbar() {
                     
                     {/* Grupo 2: Mis Eventos */}
                     <DropdownMenuItem asChild>
-                      <Link href={rutaEn(idioma, "/mis-eventos")}>
+                      <Link href={rutaEn(idioma, "/mis-eventos")} hrefLang={hrefLangDestino(idioma, "/mis-eventos")}>
                         <Calendar className="mr-2 size-4" />
                         {t.eventosQueCargaste}
                       </Link>
@@ -275,7 +280,7 @@ export function Navbar() {
                 </DropdownMenu>
               ) : (
                 <Button asChild variant="default" className="min-w-[115px]">
-                  <Link href={rutaEn(idioma, "/auth/login")} prefetch={false}>
+                  <Link href={rutaEn(idioma, "/auth/login")} hrefLang={hrefLangDestino(idioma, "/auth/login")} prefetch={false}>
                     <LogIn className="mr-2 size-4" />
                     {t.ingresar}
                   </Link>

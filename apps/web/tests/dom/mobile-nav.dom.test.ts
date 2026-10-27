@@ -101,6 +101,15 @@ describe('MobileNav en inglés (/en, /en/cines)', () => {
     expect(links[0].getAttribute('aria-current')).toBe('page')
   })
 
+  it('en /en, los ítems que llevan a páginas solo en castellano tienen hrefLang="es-AR"; Home no', () => {
+    const links = enlaces('/en')
+    expect(links.map((a) => a.getAttribute('hreflang'))).toEqual([null, 'es-AR', 'es-AR', 'es-AR', 'es-AR'])
+  })
+
+  it('en castellano ningún ítem lleva hrefLang', () => {
+    expect(enlaces('/').some((a) => a.hasAttribute('hreflang'))).toBe(false)
+  })
+
   it('en /en/cines ningún ítem lleva aria-current (cines no está en la barra)', () => {
     const links = enlaces('/en/cines')
     expect(links.some((a) => a.hasAttribute('aria-current'))).toBe(false)

@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation"
 import { Home, Search, Radio, Heart, Map } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { Diccionario } from "@/lib/i18n"
-import { rutaEn, separarIdioma } from "@/lib/i18n/rutas"
+import { hrefLangDestino, rutaEn, separarIdioma } from "@/lib/i18n/rutas"
 import { useTextos } from "@/lib/i18n/use-idioma"
 
 // Nota (12-f): se dejó el prefetch por defecto (no se puso `prefetch={false}`)
@@ -49,6 +49,8 @@ export function MobileNav() {
             <Link
               key={item.href}
               href={rutaEn(idioma, item.href)}
+              // En /en, los que solo existen en castellano lo avisan.
+              hrefLang={hrefLangDestino(idioma, item.href)}
               prefetch={item.prefetch}
               aria-current={isActive ? "page" : undefined}
               className={cn(

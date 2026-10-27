@@ -4,7 +4,8 @@ import { useEffect, useState } from "react"
 import Link from "next/link"
 import { motion, AnimatePresence } from "framer-motion"
 import { ChevronLeft, ChevronRight, Calendar, MapPin, Ticket } from "lucide-react"
-import { fechaLarga, precio } from "@/lib/i18n/fechas"
+import { fechaLarga, hora, precio } from "@/lib/i18n/fechas"
+import { langDeCategoria } from "@/lib/i18n"
 import { useIdioma, useTextos } from "@/lib/i18n/use-idioma"
 import { capitalizeFirst, cleanDescription } from "@/lib/event-display"
 import { Button } from "@/components/ui/button"
@@ -116,6 +117,7 @@ export function HeroCarousel({ events }: HeroCarouselProps) {
               variant={800}
               src={currentEvent.image}
               alt={currentEvent.title}
+              lang={langContenido}
               fill
               sizes="(max-width: 640px) 100vw, (max-width: 1024px) 80vw, 1200px"
               className="object-contain"
@@ -137,7 +139,7 @@ export function HeroCarousel({ events }: HeroCarouselProps) {
           transition={{ duration: 0.5, delay: 0.2 }}
           className="container mx-auto max-w-4xl"
         >
-          <Badge className="mb-1 bg-primary text-[10px] text-primary-foreground sm:mb-3 sm:text-xs">
+          <Badge lang={langDeCategoria(idioma, currentEvent.category)} className="mb-1 bg-primary text-[10px] text-primary-foreground sm:mb-3 sm:text-xs">
             {currentEvent.categoryName}
           </Badge>
           <InsigniaDestacado visible={currentEvent.isFeatured} className="ml-2 mb-1 sm:mb-3" />
@@ -149,7 +151,7 @@ export function HeroCarousel({ events }: HeroCarouselProps) {
           <div className="mb-2 flex min-w-0 flex-nowrap items-center gap-2 text-xs text-zinc-300 sm:mb-3 sm:flex-wrap sm:gap-3 sm:text-sm drop-shadow-sm">
             <div className="flex min-w-0 items-center gap-1 sm:gap-2">
               <Calendar className="size-3 shrink-0 text-primary sm:size-4" />
-              <span className="truncate sm:overflow-visible sm:whitespace-normal">{capitalizeFirst(formattedDate)}{currentEvent.time ? ` - ${currentEvent.time}` : ""}</span>
+              <span className="truncate sm:overflow-visible sm:whitespace-normal">{capitalizeFirst(formattedDate)}{currentEvent.time ? ` - ${hora(idioma, currentEvent.time)}` : ""}</span>
             </div>
             <div className="flex min-w-0 items-center gap-1 sm:gap-2">
               <MapPin className="size-3 shrink-0 text-primary sm:size-4" />

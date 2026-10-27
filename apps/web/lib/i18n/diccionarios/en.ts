@@ -112,6 +112,8 @@ export const en = {
       espectaculos: 'Shows',
       museos: 'Museums',
       alternativo: 'Alternative',
+      congresos: 'Conferences',
+      automovilismo: 'Motorsport',
     },
   },
   cines: {
@@ -133,12 +135,43 @@ export const en = {
     noHayFunciones: 'No showtimes available today.',
     horariosActualizados: 'Showtimes updated for today',
   },
+  favorito: {
+    guardar: 'Save to favorites',
+    quitar: 'Remove from favorites',
+    errorTitulo: 'Error',
+    errorTexto: 'Could not update your favorites.',
+    guardadoTitulo: 'Saved to favorites',
+    pedidoCafecito:
+      'Plan saved! ❤️ If Qué Pinta Salta helps you plan your weekend, buy us a coffee to help us build the mobile app.',
+    guardadoTexto: 'It was added to your schedule.',
+    donarAhora: 'Donate now',
+    eliminadoTitulo: 'Removed from favorites',
+    eliminadoTexto: 'It was removed from your schedule.',
+    sacasteGuardadoConVoy: 'You removed it from your saved events and you are no longer marked as going.',
+    errorConexionTitulo: 'Connection error',
+    errorConexionTexto: 'We could not reach the server. Please try again.',
+  },
+  compartir: {
+    compartirEvento: 'Share event',
+    linkCopiado: 'Link copied',
+    noSePudoCopiar: 'Could not copy the link',
+  },
+  cookies: {
+    region: 'Cookie notice',
+    textoConAnuncios: 'We use Google Analytics and Google ads. If you accept, ads may be personalized.',
+    textoSinAnuncios: 'We use Google Analytics to learn which parts of the site are used. Only if you accept.',
+    masInfoAria: 'More info about cookies in our Privacy Policy (in Spanish)',
+    masInfo: 'More info',
+    rechazar: 'Reject',
+    aceptar: 'Accept',
+  },
   comun: {
-    avisoContenidoEs: 'Event details in Spanish',
+    avisoContenidoEs: 'Event details in Spanish: names and descriptions are shown as published by the venues.',
   },
   idioma: {
     otro: 'Español',
     otroCorto: 'ES',
-    otroAria: 'Ver el sitio en español',
+    // WCAG 2.5.3: el nombre accesible contiene el texto visible («ES» / «Español»).
+    otroAria: 'Español (ES): ver el sitio en español',
   },
 } satisfies Diccionario

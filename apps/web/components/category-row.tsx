@@ -11,6 +11,7 @@ import type { DisplayEvent } from "@/components/home-content"
 import type { MetricOrigin } from "@/lib/metricas/links"
 import { rutaEn } from "@/lib/i18n/rutas"
 import { useIdioma, useTextos } from "@/lib/i18n/use-idioma"
+import { langDeCategoria } from "@/lib/i18n"
 
 interface CategoryRowProps {
   category: string
@@ -53,7 +54,8 @@ export function CategoryRow({
         <div className="mb-5 flex items-center justify-between">
           <div className="flex items-center gap-2">
             {createElement(iconComponent, { className: "size-5 text-primary" })}
-            <h2 className="text-xl font-bold text-foreground">{title}</h2>
+            {/* "hoy" no es una categoría: su título sale del diccionario. */}
+            <h2 lang={category === "hoy" ? undefined : langDeCategoria(idioma, category)} className="text-xl font-bold text-foreground">{title}</h2>
             <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
               {events.length}
             </span>

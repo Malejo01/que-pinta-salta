@@ -25,11 +25,16 @@ interface SelectorIdiomaProps {
  *
  * Es un `<a>` común y no un `<Link>` a propósito: el cambio de idioma recarga
  * la página entera, así el servidor arma `<html lang>` y la metadata en el
- * idioma nuevo. Conserva la query (`/cines?x=1` → `/en/cines?x=1`); si la
- * página no existe en inglés, lleva a `/en`.
+ * idioma nuevo. Conserva la query y el hash (`/cines?x=1` → `/en/cines?x=1`);
+ * si la página no existe en inglés, lleva a `/en`.
  *
- * `useSearchParams` va adentro de un Suspense (lo pide Next en las páginas
- * que se prerenderizan); mientras tanto, el mismo link sin la query.
+ * El destino de verdad se calcula al hacer click, con `window.location`: la
+ * portada sincroniza sus filtros con `history.replaceState` y conserva el
+ * estado de Next, así que `useSearchParams` no se entera de `?date=semana`
+ * (y nunca ve el `#hash`). El `href` del render queda como respaldo (para
+ * abrir en otra pestaña con el botón del medio o el menú contextual, o antes
+ * de hidratar). `useSearchParams` va adentro de un Suspense (lo pide Next en
+ * las páginas que se prerenderizan); mientras tanto, el mismo link sin la query.
  */
 export function SelectorIdioma(props: SelectorIdiomaProps) {
   return (
@@ -52,12 +57,21 @@ function EnlaceIdioma({ className, compacto = false, query }: SelectorIdiomaProp
   const destino: Idioma = idioma === "es" ? "en" : "es"
   const href = rutaEnOtroIdioma(query ? `${pathname}?${query}` : pathname, destino)
 
+  // Antes de que el navegador siga el link (también con Ctrl/Cmd o el botón
+  // del medio), el href pasa a ser el de la URL real de ese momento.
+  const actualizarDestino = (e: React.MouseEvent<HTMLAnchorElement>) => {
+    const { pathname: ruta, search, hash } = window.location
+    e.currentTarget.href = rutaEnOtroIdioma(`${ruta}${search}${hash}`, destino)
+  }
+
   return (
     <a
       href={href}
       hrefLang={LANG_HTML[destino]}
       lang={destino}
       aria-label={textos.idioma.otroAria}
+      onClick={actualizarDestino}
+      onAuxClick={actualizarDestino}
       // Alto mínimo de 44 px (área táctil) y foco visible con teclado, como la
       // barra inferior: anillo `inset` y `outline-hidden` (ver mobile-nav.tsx).
       className={cn(

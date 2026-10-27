@@ -22,7 +22,7 @@ import { sortCategories, selectCarouselEvents } from "@/lib/home/carousel"
 import { filterEvents, groupByCategory, selectTodayRow } from "@/lib/home/filters"
 import { nextHomeUrl, shouldReplaceUrl } from "@/lib/home/url-sync"
 import { AvisoContenidoEs } from "@/components/aviso-contenido-es"
-import { textosDe } from "@/lib/i18n"
+import { langDeCategoria, textosDe } from "@/lib/i18n"
 import type { Idioma } from "@/lib/i18n/idiomas"
 import { rutaEn } from "@/lib/i18n/rutas"
 import { localizarCategorias, localizarEventos } from "@/lib/i18n/portada"
@@ -209,6 +209,8 @@ export function HomeContent({
 
       <main>
         <h1 className="sr-only">{t.tituloOculto}</h1>
+        {/* Arriba de todo, debajo del h1: lo primero que se lee en /en. */}
+        {idioma === "en" && <AvisoContenidoEs className="container mx-auto px-4 py-2" />}
         {!hasFilters && carouselEvents.length > 0 && (
           <HeroCarousel
             events={carouselEvents}
@@ -236,9 +238,6 @@ export function HomeContent({
             if (updates.instagram !== undefined) setInstagram(updates.instagram)
           }}
         />
-
-        {idioma === "en" && <AvisoContenidoEs />}
-
 
         {!hasFilters && allDisplayEvents.length > 0 && (
           <div className="pt-4">
@@ -333,7 +332,7 @@ export function HomeContent({
         {showFilteredGrid && (
           <div className="container mx-auto px-4 py-8">
             <h2 className="mb-6 text-2xl font-bold text-foreground">
-              {filteredTitle} ({filteredEvents.length})
+              <span lang={langDeCategoria(idioma, category)}>{filteredTitle}</span> ({filteredEvents.length})
             </h2>
             <motion.div
               layout

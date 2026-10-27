@@ -23,7 +23,7 @@ import {
 import { cn } from "@/lib/utils"
 import { getCategoryIcon } from "@/lib/category-icons"
 import { Switch } from "@/components/ui/switch"
-import type { Diccionario } from "@/lib/i18n"
+import { langDeCategoria, type Diccionario } from "@/lib/i18n"
 import type { Idioma } from "@/lib/i18n/idiomas"
 import { fechaDeFiltro } from "@/lib/i18n/fechas"
 import { useIdioma, useTextos } from "@/lib/i18n/use-idioma"
@@ -192,7 +192,7 @@ export function FiltersBar({ categories, filters, onFilterChange }: FiltersBarPr
     ? categories.find((c) => c.slug === selectedCategory)?.name || selectedCategory
     : null
 
-  const activeChips = []
+  const activeChips: { id: string; label: string; onClear: () => void; lang?: string }[] = []
   if (searchQuery) {
     activeChips.push({
       id: "search",
@@ -224,6 +224,7 @@ export function FiltersBar({ categories, filters, onFilterChange }: FiltersBarPr
     activeChips.push({
       id: "category",
       label: activeCategoryName || selectedCategory,
+      lang: langDeCategoria(idioma, selectedCategory),
       onClear: () => onFilterChange({ category: null }),
     })
   }
@@ -446,7 +447,7 @@ export function FiltersBar({ categories, filters, onFilterChange }: FiltersBarPr
                       )}
                     >
                       <Icon className="mr-1.5 size-4 relative z-10" />
-                      <span className="relative z-10">{category.name}</span>
+                      <span lang={langDeCategoria(idioma, category.slug)} className="relative z-10">{category.name}</span>
                       {isActive && (
                         <motion.div
                           layoutId="activeCategoryPill"
@@ -557,7 +558,7 @@ export function FiltersBar({ categories, filters, onFilterChange }: FiltersBarPr
                     key={chip.id}
                     className="inline-flex items-center gap-1.5 rounded-full bg-muted/60 border border-border/80 px-2.5 py-0.5 text-xs text-foreground font-medium transition-colors hover:bg-muted"
                   >
-                    {chip.label}
+                    <span lang={chip.lang}>{chip.label}</span>
                     {/* Área de toque ampliada con pseudo-elemento invisible: el botón
                         visible (16x16) no cambia. A la izquierda se limita a 3px (mitad
                         del gap-1.5 con la etiqueta) y arriba/abajo a 6px (la píldora mide

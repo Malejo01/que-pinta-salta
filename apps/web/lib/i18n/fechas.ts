@@ -29,24 +29,48 @@ export function diaMes(idioma: Idioma, input: string | Date): string {
   return idioma === 'es' ? formatEventDayMonth(input) : formatEventDayMonth(input, LOCALE_INTL[idioma])
 }
 
+const ZONA_SALTA = 'America/Argentina/Salta'
+
 /**
- * Etiqueta del filtro de fecha exacta ("YYYY-MM-DD") de la portada: la misma
- * cuenta que hacía `formatDateLabel` en filters-bar.tsx, con el locale del idioma.
+ * Un día calendario "YYYY-MM-DD" como instante: el mediodía de ese día en
+ * Salta. Antes se parseaba `${valor}T00:00:00` (medianoche en la zona de la
+ * máquina) y se formateaba en Salta, así que en un servidor UTC o en un
+ * navegador de Europa `?dateExact=2026-10-30` decía 29. Al mediodía, con la
+ * zona explícita, el día no se corre en ninguna zona horaria.
  */
-export function fechaDeFiltro(idioma: Idioma, valor: string): string {
-  const parsed = new Date(`${valor}T00:00:00`)
-  return new Intl.DateTimeFormat(LOCALE_INTL[idioma], {
-    dateStyle: 'medium',
-    timeZone: 'America/Argentina/Salta',
-  }).format(parsed)
+function mediodiaEnSalta(dia: string): Date {
+  return new Date(`${dia}T12:00:00-03:00`)
 }
 
-/** Día de una función en el hover de la tarjeta: misma cuenta que antes en event-card.tsx. */
+/** Etiqueta del filtro de fecha exacta ("YYYY-MM-DD") de la portada ("30 oct 2026" / "Oct 30, 2026"). */
+export function fechaDeFiltro(idioma: Idioma, valor: string): string {
+  return new Intl.DateTimeFormat(LOCALE_INTL[idioma], {
+    dateStyle: 'medium',
+    timeZone: ZONA_SALTA,
+  }).format(mediodiaEnSalta(valor))
+}
+
+/** Día de una función en el hover de la tarjeta ("16 oct" / "Oct 16"). */
 export function fechaDeFuncion(idioma: Idioma, fecha: string): string {
-  return new Date(`${fecha}T00:00:00`).toLocaleDateString(LOCALE_INTL[idioma], {
+  return mediodiaEnSalta(fecha).toLocaleDateString(LOCALE_INTL[idioma], {
     day: 'numeric',
     month: 'short',
+    timeZone: ZONA_SALTA,
   })
+}
+
+/**
+ * Una hora de pared "HH:mm" (como las guarda el sitio: eventos, funciones de
+ * cine). En castellano queda igual ("19:00"); en inglés va en 12 horas
+ * ("7:00 PM"). Si el texto no tiene esa forma, se devuelve tal cual.
+ */
+export function hora(idioma: Idioma, hhmm: string): string {
+  if (idioma === 'es') return hhmm
+  const m = /^(\d{1,2}):(\d{2})$/.exec(hhmm.trim())
+  if (!m) return hhmm
+  const h = Number(m[1])
+  if (h > 23) return hhmm
+  return `${((h + 11) % 12) + 1}:${m[2]} ${h < 12 ? 'AM' : 'PM'}`
 }
 
 /**
@@ -84,5 +108,5 @@ export function resumenFunciones(idioma: Idioma, funciones: OccurrenceSummaryInp
 
   const proxima = proximas[0]
   const dia = diaMes(idioma, proxima.date)
-  return `${cantidad} · ${proxima.time ? `${dia} ${proxima.time}` : dia}`
+  return `${cantidad} · ${proxima.time ? `${dia} ${hora(idioma, proxima.time)}` : dia}`
 }

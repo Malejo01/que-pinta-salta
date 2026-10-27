@@ -118,6 +118,25 @@ describe('shareEvent', () => {
     expect(toast).toHaveBeenCalledTimes(1)
     expect(toast).toHaveBeenCalledWith({ title: 'No se pudo copiar el link', variant: 'destructive' })
   })
+
+  // Q3: en /en, ShareButton le pasa los textos del diccionario en inglés.
+  it('con los textos en inglés: "Link copied" y "Could not copy the link"', async () => {
+    const { en } = await import('@/lib/i18n/diccionarios/en')
+    const toast = vi.fn()
+    await shareEvent(data, { writeText: vi.fn().mockResolvedValue(undefined), toast, textos: en.compartir })
+    expect(toast).toHaveBeenCalledWith({ title: 'Link copied' })
+
+    toast.mockClear()
+    await shareEvent(data, { writeText: vi.fn().mockRejectedValue(new Error('NotAllowedError')), toast, textos: en.compartir })
+    expect(toast).toHaveBeenCalledWith({ title: 'Could not copy the link', variant: 'destructive' })
+  })
+
+  it('ShareButton le pasa a shareEvent los textos del idioma de la página', () => {
+    const src = readFileSync(join(__dirname, '..', '..', 'components', 'share-button.tsx'), 'utf8')
+    expect(src).toMatch(/const textos = useTextos\(\)\.compartir/)
+    expect(src).toMatch(/shareEvent\(data, \{[\s\S]*?\btextos,[\s\S]*?\}\)/)
+    expect(src).toMatch(/aria-label=\{textos\.compartirEvento\}/)
+  })
 })
 
 // ---------------------------------------------------------------------------

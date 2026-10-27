@@ -11,7 +11,7 @@ import { ANUNCIANTES } from "@/lib/config/anunciantes"
 import { TEXTO_ANUNCIAR, whatsappUrl } from "@/lib/contacto"
 import { dispatchConsentEvent, writeConsent } from "@/lib/consent"
 import type { User } from "@supabase/supabase-js"
-import { rutaEn } from "@/lib/i18n/rutas"
+import { hrefLangDestino, rutaEn } from "@/lib/i18n/rutas"
 import { useIdioma, useTextos } from "@/lib/i18n/use-idioma"
 import { SelectorIdioma } from "@/components/selector-idioma"
 
@@ -124,6 +124,7 @@ export function Footer() {
               {ANUNCIANTES.publicada && (
                 <Link
                   href={rutaEn(idioma, "/anunciantes")}
+                  hrefLang={hrefLangDestino(idioma, "/anunciantes")}
                   className="text-sm text-muted-foreground transition-colors hover:text-foreground"
                 >
                   {t.anunciantes}
@@ -131,6 +132,7 @@ export function Footer() {
               )}
               <Link
                 href={rutaEn(idioma, user ? "/nuevo-evento" : "/auth/login?next=/nuevo-evento")}
+                hrefLang={hrefLangDestino(idioma, "/nuevo-evento")}
                 prefetch={user ? undefined : false}
                 className="text-sm text-muted-foreground transition-colors hover:text-foreground"
               >

@@ -4,6 +4,7 @@ import { Navbar } from '@/components/navbar'
 import { MobileNav } from '@/components/mobile-nav'
 import { Film } from 'lucide-react'
 import { textosDe } from '@/lib/i18n'
+import { AvisoContenidoEs } from '@/components/aviso-contenido-es'
 import type { Idioma } from '@/lib/i18n/idiomas'
 
 /**
@@ -48,6 +49,7 @@ export async function PaginaCines({ idioma }: { idioma: Idioma }) {
           <p className="text-sm font-medium text-muted-foreground max-w-xl md:text-base leading-relaxed">
             {t.bajadaInicio}<span className="text-foreground dark:text-zinc-200 font-semibold">Cinemark Alto NOA</span>{t.bajadaSeparador}<span className="text-foreground dark:text-zinc-200 font-semibold">Cinemark Paseo Salta</span>{t.bajadaY}<span className="text-foreground dark:text-zinc-200 font-semibold">Cine Ópera</span>{t.bajadaFin}
           </p>
+          {idioma === 'en' && <AvisoContenidoEs className="justify-center text-center" />}
         </div>
 
         {/* Componente de búsqueda y grid */}

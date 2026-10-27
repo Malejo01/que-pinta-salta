@@ -15,7 +15,9 @@ export function PaginaDeError({ titulo, texto, children }: PaginaDeErrorProps) {
   return (
     <div className="min-h-screen bg-background pb-page sm:pb-0">
       <Navbar />
-      <main className="container mx-auto flex max-w-xl flex-col items-center px-4 py-20 text-center">
+      {/* Los textos de esta página están solo en castellano: `lang="es"` para
+          que en /en/lo-que-sea (bajo <html lang="en">) se lean bien. */}
+      <main lang="es" className="container mx-auto flex max-w-xl flex-col items-center px-4 py-20 text-center">
         <p className="text-sm font-semibold uppercase tracking-wide text-primary">Qué Pinta Salta</p>
         <h1 className="mt-3 text-3xl font-bold text-foreground">{titulo}</h1>
         <p className="mt-3 text-muted-foreground">{texto}</p>

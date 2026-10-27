@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
 import { Ticket, Film, Calendar } from 'lucide-react'
 import { useIdioma, useTextos } from '@/lib/i18n/use-idioma'
+import { hora } from '@/lib/i18n/fechas'
 
 interface MovieCardProps {
   movie: CinemaMovie
@@ -26,6 +27,7 @@ export function MovieCard({ movie }: MovieCardProps) {
           <Image
             src={movie.poster_url}
             alt={movie.title}
+            lang={idioma === 'es' ? undefined : 'es'}
             fill
             sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
             className="object-cover object-center transition-transform duration-500 group-hover:scale-105 group-hover:brightness-110"
@@ -87,7 +89,7 @@ export function MovieCard({ movie }: MovieCardProps) {
                                 key={tIdx}
                                 className="inline-flex items-center justify-center rounded-md bg-muted hover:bg-muted/70 text-foreground font-medium border border-border px-2 py-1 text-xs transition-colors shadow-sm"
                               >
-                                {time}
+                                {hora(idioma, time)}
                               </span>
                             ))}
                           </div>

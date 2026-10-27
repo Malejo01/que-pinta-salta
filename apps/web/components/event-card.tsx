@@ -7,7 +7,8 @@ import { Calendar, MapPin, Instagram, Film } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { InsigniaDestacado } from "@/components/insignia-destacado"
 import { cn } from "@/lib/utils"
-import { fechaCorta, fechaDeFuncion, precio, resumenFunciones } from "@/lib/i18n/fechas"
+import { fechaCorta, fechaDeFuncion, hora, precio, resumenFunciones } from "@/lib/i18n/fechas"
+import { langDeCategoria } from "@/lib/i18n"
 import { useIdioma, useTextos } from "@/lib/i18n/use-idioma"
 import { FavoriteButton } from "@/components/favorite-button"
 import { ShareButton } from "@/components/share-button"
@@ -130,6 +131,7 @@ export function EventCard({ event, isFavorite, onToggleFavorite, onOpenMovie, cl
             variant={400}
             src={imgSrc}
             alt={event.title}
+            lang={idioma === "es" ? undefined : "es"}
             fill
             className="object-cover transition-transform duration-300 group-hover/card:scale-105"
             onError={() => {
@@ -162,7 +164,7 @@ export function EventCard({ event, isFavorite, onToggleFavorite, onOpenMovie, cl
                           key={tIdx} 
                           className="bg-zinc-800 text-zinc-200 text-[11px] px-1 py-0.5 rounded border border-zinc-700/30"
                         >
-                          {time}
+                          {hora(idioma, time)}
                         </span>
                       ))}
                     </div>
@@ -193,7 +195,7 @@ export function EventCard({ event, isFavorite, onToggleFavorite, onOpenMovie, cl
                         {formattedOccDate}
                       </span>
                       <span className="bg-zinc-850 text-zinc-300 border border-zinc-700/20 px-1 py-0.5 rounded text-[11px] font-semibold">
-                        {occ.time || t.sinHora}
+                        {occ.time ? hora(idioma, occ.time) : t.sinHora}
                       </span>
                     </div>
                   )
@@ -226,6 +228,7 @@ export function EventCard({ event, isFavorite, onToggleFavorite, onOpenMovie, cl
 
         <Badge 
           variant="secondary" 
+          lang={langDeCategoria(idioma, event.category)}
           className="absolute left-2 top-2 bg-primary text-primary-foreground"
         >
           {event.categoryName}
@@ -254,7 +257,7 @@ export function EventCard({ event, isFavorite, onToggleFavorite, onOpenMovie, cl
             <div className="flex items-center gap-1 text-xs text-white/80">
               <Calendar className="size-3" />
               <span>{formattedDate}</span>
-              {event.time && <span className="ml-1">{event.time}</span>}
+              {event.time && <span className="ml-1">{hora(idioma, event.time)}</span>}
             </div>
           </div>
 

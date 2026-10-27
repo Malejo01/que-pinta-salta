@@ -45,6 +45,15 @@ export function rutaEn(idioma: Idioma, ruta: string): string {
 }
 
 /**
+ * `hrefLang` para un link interno: en inglés, los links a páginas que solo
+ * existen en castellano lo avisan con "es-AR"; si no, nada.
+ */
+export function hrefLangDestino(idioma: Idioma, ruta: string): 'es-AR' | undefined {
+  if (idioma === 'es') return undefined
+  return tieneVersionEnIngles(separarCamino(ruta).camino) ? undefined : 'es-AR'
+}
+
+/**
  * El idioma de un pathname y la ruta equivalente en castellano. `/en` y
  * `/en/...` son inglés; `/entradas` (o cualquier otra ruta que solo empiece
  * con las letras "en") no.

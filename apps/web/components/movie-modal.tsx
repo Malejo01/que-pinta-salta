@@ -16,6 +16,7 @@ import type { DisplayEvent } from "@/components/home-content"
 import type { MovieShowings } from "@/lib/types"
 import { FavoriteButton } from "@/components/favorite-button"
 import { useIdioma, useTextos } from "@/lib/i18n/use-idioma"
+import { hora } from "@/lib/i18n/fechas"
 
 interface MovieModalProps {
   movie: DisplayEvent
@@ -45,6 +46,7 @@ export function MovieModal({ movie, isFavorite = false, onClose }: MovieModalPro
                 <Image
                   src={imgSrc}
                   alt={movie.title}
+                  lang={idioma === "es" ? undefined : "es"}
                   fill
                   sizes="(max-width: 768px) 100vw, 240px"
                   className="object-cover"
@@ -130,7 +132,7 @@ export function MovieModal({ movie, isFavorite = false, onClose }: MovieModalPro
                                   key={tIdx}
                                   className="inline-flex items-center justify-center rounded-md bg-muted text-foreground font-medium px-2 py-1 text-xs border border-border"
                                 >
-                                  {time}
+                                  {hora(idioma, time)}
                                 </span>
                               ))}
                             </div>
