@@ -26,8 +26,8 @@ const CREMA_LOGO = '#FCF4EA'
  */
 export type Plugin = string | [string, Record<string, unknown>]
 
-/** `oklchToHex('oklch(0.55 0.2 25)')`, el primario del tema oscuro. */
-export const COLOR_NOTIFICACION = '#cc272e'
+/** `oklchToHex('oklch(0.59 0.2 25)')`, el primario del tema oscuro (73-a). */
+export const COLOR_NOTIFICACION = '#db373a'
 
 /**
  * Textos de permiso (chore/deps-app-v1, 17/10). En Android el diálogo de

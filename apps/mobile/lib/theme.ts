@@ -44,7 +44,8 @@ export const TOKENS_OSCURO: ColoresQPS = {
   background: 'oklch(0.1 0 0)',
   foreground: 'oklch(0.95 0 0)',
   card: 'oklch(0.15 0 0)',
-  primary: 'oklch(0.55 0.2 25)',
+  // 73-a (QPS-326): 0.59 en vez de 0.55, 4,5:1 contra el fondo y con el blanco.
+  primary: 'oklch(0.59 0.2 25)',
   primaryForeground: 'oklch(1 0 0)',
   muted: 'oklch(0.2 0 0)',
   mutedForeground: 'oklch(0.6 0 0)',
