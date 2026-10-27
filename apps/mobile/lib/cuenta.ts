@@ -13,7 +13,6 @@ import { GoogleSignin } from '@react-native-google-signin/google-signin'
 import { CONTACTO_EMAIL } from '@qps/core/contacto'
 import { SITIO } from '@qps/core/metricas/links'
 import { CLAVE_BIENVENIDA_VISTA } from '@/lib/bienvenida'
-import { borrarHistorialDeBusquedas } from '@/lib/busquedas-recientes'
 import { supabase } from '@/lib/supabase'
 import { borrarTodaLaCache } from '@/lib/sin-conexion/cache'
 import { removeItem as borrarItemSeguro } from '@/lib/secure-storage'
@@ -100,14 +99,7 @@ export async function eliminarMiCuenta(accessToken: string): Promise<ResultadoEl
  * ya no existe (en el servidor la fila se fue con la cuenta). Va justo después
  * de la caché, antes del `signOut`, porque no depende de la sesión.
  *
- * A5 (nube Q1): también se borra el historial de búsquedas recientes de
- * Buscar (`borrarHistorialDeBusquedas`, `lib/busquedas-recientes.ts`). No es
- * de la cuenta (funciona sin cuenta y sobrevive a cerrar sesión: ver la
- * cabecera de ese archivo), pero al eliminar la cuenta la persona pide que no
- * quede nada suyo en el teléfono. Va junto a la caché: es local y no depende
- * de la sesión. Nunca tira, pero se envuelve igual que `borrarTodaLaCache`.
- *
- * Los seis pasos van cada uno en su `try/catch` porque cualquiera **puede**
+ * Los cinco pasos van cada uno en su `try/catch` porque cualquiera **puede**
  * tirar (`SecureStore` tira en `deleteItemAsync`, y `signOut` puede tirar por
  * una excepción de verdad: ver el párrafo de QPS-193 más abajo).
  * `borrarTodaLaCache` (`lib/sin-conexion/cache.ts`) ya nunca tira por su
@@ -145,12 +137,6 @@ export async function limpiarTrasEliminarCuenta(entroConGoogle: boolean): Promis
   } catch {
     // Best-effort (ver el comentario de cabecera): la cuenta ya está
     // borrada en el servidor, no hay nada que reintentar.
-  }
-
-  try {
-    await borrarHistorialDeBusquedas()
-  } catch {
-    // Best-effort, igual que la caché (A5).
   }
 
   try {

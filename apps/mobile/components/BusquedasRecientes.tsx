@@ -4,7 +4,7 @@
 // guarda una búsqueda.
 //
 // Dónde va (A5): en el `ListHeaderComponent` de la lista «Explorar por
-// categoria» — o sea, solo con el campo vacío y sin filtros —, arriba del
+// categoría» — o sea, solo con el campo vacío y sin filtros —, arriba del
 // título de la grilla. El banner de Buscar va en el `ListFooterComponent`,
 // debajo de toda la grilla: esta sección suma alto ARRIBA de la grilla, así
 // que lo empuja más abajo del pliegue, nunca lo sube (regla (a) de Mauro,
@@ -12,22 +12,29 @@
 // comentario del `ListFooterComponent` de resultados, en buscar.tsx). Sin
 // búsquedas guardadas no dibuja nada (ni el título).
 //
-// Forma (A5): chips que hacen salto de línea (`flexWrap`), no filas de 48 dp
-// una abajo de la otra — cinco filas son ~260 dp y a 360 dp de ancho tapaban
-// la grilla de categorías; los chips entran en dos o tres líneas. Cada chip
-// es un botón «Buscar de nuevo: <texto>» de 48 dp de alto como mínimo
-// (`AREA_TACTIL_MINIMA`, en la clave de estilo del Pressable: es lo que mira
-// el detector `area-chica` de `tests/accesibilidad-detector.test.ts`, mismo
-// criterio que `ChipsCategorias`). Borde de `bordeChipInactivo` (>= 3:1 en
-// claro y oscuro, R72 72-c) y colores de `useColoresQPS()`.
+// Forma (A5, vuelta 1): UNA sola fila de chips con scroll horizontal (como
+// `ChipsCategorias`), no chips que hacen salto de línea: a 360 dp, cinco
+// búsquedas largas eran cinco renglones (~336 dp) y empujaban la grilla de
+// categorías fuera de la pantalla. Así la sección ocupa siempre lo mismo:
+// título (~24) + una fila de 48 + «Borrar historial» (48) + 24 de aire, unos
+// 150 dp. Cada chip tiene `maxWidth` (`ANCHO_MAXIMO_CHIP`) y una sola línea
+// con puntos suspensivos; la etiqueta accesible lleva el texto completo
+// («Buscar de nuevo: <texto>»). Alto mínimo `AREA_TACTIL_MINIMA` en la clave
+// de estilo del Pressable (es lo que mira el detector `area-chica` de
+// `tests/accesibilidad-detector.test.ts`, mismo criterio que
+// `ChipsCategorias`). Borde de `bordeChipInactivo` (>= 3:1 en claro y oscuro,
+// R72 72-c) y colores de `useColoresQPS()`.
 //
-// «Borrar historial» pide confirmación (A5) con `Alert.alert` de React Native
-// — nada que instalar, y el diálogo nativo ya maneja el foco del lector de
-// pantalla. Son pocas búsquedas, pero no se pueden recuperar, y el botón
-// queda al lado de los chips: un toque de más no tiene que borrarlas. Al
-// borrar, la sección desaparece (y con ella el foco), así que se anuncia
-// `ANUNCIO_HISTORIAL_BORRADO` con `announceForAccessibility`.
-import { AccessibilityInfo, Alert, Pressable, StyleSheet, View } from 'react-native'
+// «Borrar historial» va DESPUÉS de los chips en el árbol (debajo, alineado a
+// la derecha): en el orden de foco del lector de pantalla, la acción
+// destructiva no queda antes que el contenido. Pide confirmación (A5) con
+// `Alert.alert` de React Native — nada que instalar, y el diálogo nativo ya
+// maneja el foco. `cancelable: true` para que el botón atrás de Android y el
+// toque afuera lo cierren (en RN 0.86 no lo hacen por defecto). Al borrar, la
+// sección desaparece (y con ella el foco), así que se anuncia
+// `ANUNCIO_HISTORIAL_BORRADO`, postergado `DEMORA_ANUNCIO_BORRADO_MS`: si se
+// anuncia en el mismo instante, TalkBack lo tapa con el cierre del diálogo.
+import { AccessibilityInfo, Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native'
 import { Icono } from '@/components/Icono'
 import { Texto } from '@/components/Texto'
 import { AREA_TACTIL_MINIMA } from '@/lib/accesibilidad'
@@ -35,6 +42,12 @@ import { bordeChipInactivo, useColoresQPS } from '@/lib/colores'
 
 /** Lo que lee el lector de pantalla después de borrar el historial. */
 export const ANUNCIO_HISTORIAL_BORRADO = 'Listo, borraste tus búsquedas recientes.'
+
+/** Cuánto se posterga ese anuncio (ms), para que no lo tape el cierre del diálogo. */
+export const DEMORA_ANUNCIO_BORRADO_MS = 400
+
+/** Ancho máximo de un chip (dp): a 360 dp entra más de uno por pantalla. */
+const ANCHO_MAXIMO_CHIP = 240
 
 /** La etiqueta de cada chip: el lector de pantalla dice qué hace, no solo el texto. */
 export function etiquetaBusquedaReciente(busqueda: string): string {
@@ -54,37 +67,40 @@ export function BusquedasRecientes({ busquedas, onElegir, onBorrarHistorial }: B
   if (busquedas.length === 0) return null
 
   function confirmarBorrado() {
-    Alert.alert('¿Borrar el historial?', 'Se borran tus búsquedas recientes de este teléfono.', [
-      { text: 'Cancelar', style: 'cancel' },
-      {
-        text: 'Borrar',
-        style: 'destructive',
-        onPress: () => {
-          onBorrarHistorial()
-          AccessibilityInfo.announceForAccessibility(ANUNCIO_HISTORIAL_BORRADO)
+    Alert.alert(
+      '¿Borrar el historial?',
+      'Se borran tus búsquedas recientes de este teléfono.',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Borrar',
+          style: 'destructive',
+          onPress: () => {
+            onBorrarHistorial()
+            setTimeout(() => AccessibilityInfo.announceForAccessibility(ANUNCIO_HISTORIAL_BORRADO), DEMORA_ANUNCIO_BORRADO_MS)
+          },
         },
-      },
-    ])
+      ],
+      { cancelable: true },
+    )
   }
 
   return (
     <View style={estilos.seccion}>
-      <View style={estilos.cabecera}>
-        <Texto peso="semibold" accessibilityRole="header" style={estilos.titulo}>
-          Búsquedas recientes
-        </Texto>
-        <Pressable
-          onPress={confirmarBorrado}
-          accessibilityRole="button"
-          accessibilityLabel="Borrar historial de búsquedas"
-          style={estilos.botonBorrar}
-        >
-          <Texto peso="semibold" style={estilos.subrayado}>
-            Borrar historial
-          </Texto>
-        </Pressable>
-      </View>
-      <View style={estilos.chips}>
+      <Texto peso="semibold" accessibilityRole="header" style={estilos.titulo}>
+        Búsquedas recientes
+      </Texto>
+      {/* Mismo truco que `ChipsCategorias` en Buscar: la lista ya trae 16 de
+          padding horizontal, así que el scroll lo compensa con margen
+          negativo y lo vuelve a poner adentro (los chips scrollean hasta el
+          borde de la pantalla y el primero queda alineado con el título). */}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        style={estilos.scroll}
+        contentContainerStyle={estilos.chips}
+      >
         {busquedas.map((busqueda) => (
           <Pressable
             key={busqueda}
@@ -99,18 +115,42 @@ export function BusquedasRecientes({ busquedas, onElegir, onBorrarHistorial }: B
             </Texto>
           </Pressable>
         ))}
-      </View>
+      </ScrollView>
+      <Pressable
+        onPress={confirmarBorrado}
+        accessibilityRole="button"
+        accessibilityLabel="Borrar historial de búsquedas"
+        style={estilos.botonBorrar}
+      >
+        <Texto peso="semibold" style={estilos.subrayado}>
+          Borrar historial
+        </Texto>
+      </Pressable>
     </View>
   )
 }
 
 const estilos = StyleSheet.create({
-  seccion: { marginBottom: 16 },
-  cabecera: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
-  titulo: { fontSize: 16, flexShrink: 1 },
-  // Botón de texto sin borde: el alto mínimo va en la clave de estilo (no en
-  // `hitSlop`), así el área táctil no depende de cómo lo mida un detector.
+  seccion: { marginBottom: 24 },
+  titulo: { fontSize: 16, marginBottom: 8 },
+  scroll: { marginHorizontal: -16 },
+  chips: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16 },
+  chip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    maxWidth: ANCHO_MAXIMO_CHIP,
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: 14,
+    minHeight: AREA_TACTIL_MINIMA,
+  },
+  textoChip: { flexShrink: 1 },
+  // Botón de texto sin borde, debajo de los chips y a la derecha: el alto
+  // mínimo va en la clave de estilo (no en `hitSlop`), así el área táctil no
+  // depende de cómo lo mida un detector.
   botonBorrar: {
+    alignSelf: 'flex-end',
     minHeight: AREA_TACTIL_MINIMA,
     minWidth: AREA_TACTIL_MINIMA,
     paddingHorizontal: 8,
@@ -122,16 +162,4 @@ const estilos = StyleSheet.create({
   // en `foreground` y subrayado para marcarse como tocable — nunca `primary`
   // para texto chico (`tests/primario-texto.test.ts`).
   subrayado: { textDecorationLine: 'underline' },
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  chip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    maxWidth: '100%',
-    borderWidth: 1,
-    borderRadius: 999,
-    paddingHorizontal: 14,
-    minHeight: AREA_TACTIL_MINIMA,
-  },
-  textoChip: { flexShrink: 1 },
 })

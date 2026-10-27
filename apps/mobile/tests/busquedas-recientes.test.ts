@@ -2,6 +2,7 @@
 // el resto de `tests/`:
 //   1. La lógica pura de `lib/busquedas-recientes.ts` (normalizar, dedupe sin
 //      distinguir mayúsculas/tildes, orden, tope, sobre roto).
+//      Más la decisión de guardar (`busquedaParaGuardar`).
 //   2. Lectura/escritura con un `Almacen` doble en memoria (y uno que falla),
 //      más el `almacenPorDefecto` real sobre el doble de
 //      `tests/dobles/async-storage.ts` (alias de `vitest.config.ts`), y las
@@ -13,7 +14,7 @@
 import { readFileSync, readdirSync, statSync } from 'node:fs'
 import { join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { reiniciar } from './dobles/async-storage'
 import type { Almacen } from '@/lib/sin-conexion/almacen'
@@ -21,6 +22,7 @@ import {
   agregarBusqueda,
   armarSobreBusquedas,
   borrarHistorialDeBusquedas,
+  busquedaParaGuardar,
   CLAVE_BUSQUEDAS_RECIENTES,
   claveDeComparacion,
   guardarBusquedaReciente,
@@ -30,8 +32,6 @@ import {
   leerSobreBusquedas,
   normalizarBusqueda,
   PREFIJO_BUSQUEDAS,
-  quitarBusqueda,
-  quitarBusquedaReciente,
   TOPE_BUSQUEDAS_RECIENTES,
   VERSION_BUSQUEDAS,
 } from '@/lib/busquedas-recientes'
@@ -41,18 +41,6 @@ import {
   limpiarVersionesViejas,
   PREFIJO_CACHE,
 } from '@/lib/sin-conexion/cache'
-import { limpiarTrasEliminarCuenta } from '@/lib/cuenta'
-
-// `lib/cuenta.ts` (para `limpiarTrasEliminarCuenta`) trae Supabase, Google y
-// SecureStore: mismos dobles que `tests/eliminar-cuenta.test.ts` (`vi.mock`
-// se iza arriba de los imports, así que el import de `@/lib/cuenta` ya los ve).
-vi.mock('@/lib/supabase', () => ({ supabase: { auth: { signOut: vi.fn(async () => {}) } } }))
-vi.mock('@react-native-google-signin/google-signin', () => ({ GoogleSignin: { signOut: vi.fn(async () => {}) } }))
-vi.mock('expo-secure-store', () => ({
-  getItemAsync: vi.fn(async () => null),
-  setItemAsync: vi.fn(async () => {}),
-  deleteItemAsync: vi.fn(async () => {}),
-}))
 
 // ---------------------------------------------------------------------------
 // Dobles de `Almacen`.
@@ -158,11 +146,34 @@ describe('agregarBusqueda', () => {
   it('guarda el texto normalizado (sin espacios de más)', () => {
     expect(agregarBusqueda([], '  rock   nacional ')).toEqual(['rock nacional'])
   })
+
+  it('«jaz» se va cuando llega «jazz» (prefijo, sin distinguir mayúsculas ni tildes)', () => {
+    expect(agregarBusqueda(['jaz', 'teatro'], 'jazz')).toEqual(['jazz', 'teatro'])
+    expect(agregarBusqueda(['Pe', 'teatro', 'peñ'], 'Peña')).toEqual(['Peña', 'teatro'])
+  })
+
+  it('al revés no: «jazz» se queda si después llega «jaz»', () => {
+    expect(agregarBusqueda(['jazz'], 'jaz')).toEqual(['jaz', 'jazz'])
+  })
+
+  it('solo cuenta el prefijo del comienzo: «nacional» no se va cuando llega «rock nacional»', () => {
+    expect(agregarBusqueda(['nacional'], 'rock nacional')).toEqual(['rock nacional', 'nacional'])
+  })
 })
 
-describe('quitarBusqueda', () => {
-  it('saca una sola, sin distinguir mayúsculas ni tildes', () => {
-    expect(quitarBusqueda(['Peña', 'jazz'], 'pena')).toEqual(['jazz'])
+describe('busquedaParaGuardar: la decisión de guardar', () => {
+  it.each(['enviar', 'repetir', 'abrir-resultado'] as const)('%s: guarda el texto normalizado', (motivo) => {
+    expect(busquedaParaGuardar('  jazz   en vivo ', motivo)).toBe('jazz en vivo')
+  })
+
+  it.each(['enviar', 'repetir', 'abrir-resultado'] as const)('%s: campo vacío, solo espacios o muy corto → no guarda', (motivo) => {
+    expect(busquedaParaGuardar('', motivo)).toBeNull()
+    expect(busquedaParaGuardar('   ', motivo)).toBeNull()
+    expect(busquedaParaGuardar('j', motivo)).toBeNull()
+  })
+
+  it('abrir un resultado al que se llegó solo por categoría o fecha (campo vacío) no guarda nada', () => {
+    expect(busquedaParaGuardar('', 'abrir-resultado')).toBeNull()
   })
 })
 
@@ -232,6 +243,13 @@ describe('guardar y leer con un almacén doble', () => {
     expect(await leerBusquedasRecientes(almacen)).toEqual(['teatro', 'jazz'])
   })
 
+  it('«jaz» y después «jazz» deja solo «jazz» en el disco', async () => {
+    const almacen = almacenEnMemoria()
+    await guardarBusquedaReciente('jaz', almacen)
+    await guardarBusquedaReciente('jazz', almacen)
+    expect(await leerBusquedasRecientes(almacen)).toEqual(['jazz'])
+  })
+
   it('JSON corrupto en el almacén → lista vacía, sin tirar, y la clave rota se borra', async () => {
     const almacen = almacenEnMemoria({ [CLAVE_BUSQUEDAS_RECIENTES]: '{roto' })
     expect(await leerBusquedasRecientes(almacen)).toEqual([])
@@ -239,14 +257,56 @@ describe('guardar y leer con un almacén doble', () => {
     // Y se puede volver a guardar encima.
     expect(await guardarBusquedaReciente('jazz', almacen)).toEqual(['jazz'])
   })
+})
 
-  it('quitarBusquedaReciente saca una; si era la última, borra la clave', async () => {
+// Lo que hace buscar.tsx: cada respuesta de la fila REEMPLAZA el estado
+// (`.then(setRecientes)`), en el orden en que llegan. Acá se simula con un
+// `estado` que se pisa en cada `.then`, y se prueba que el último valor es
+// siempre el correcto aunque la lectura del foco se pida antes de que termine
+// un guardado o un borrado (o al revés).
+describe('la fila: la lectura del foco no pisa un guardado ni un borrado en curso', () => {
+  function pantalla() {
+    let estado: string[] = []
+    const reemplazar = (lista: string[]) => {
+      estado = lista
+    }
+    return { reemplazar, actual: () => estado }
+  }
+
+  it('lectura pedida ANTES de un guardado: resuelve primero (lista vieja) y el guardado la reemplaza después', async () => {
+    const almacen = almacenEnMemoria({ [CLAVE_BUSQUEDAS_RECIENTES]: armarSobreBusquedas(['teatro']) })
+    const vista = pantalla()
+    const orden: string[] = []
+    const lectura = leerBusquedasRecientes(almacen).then((lista) => {
+      orden.push('lectura')
+      vista.reemplazar(lista)
+    })
+    const guardado = guardarBusquedaReciente('jazz', almacen).then((lista) => {
+      orden.push('guardado')
+      vista.reemplazar(lista)
+    })
+    await Promise.all([lectura, guardado])
+    expect(orden).toEqual(['lectura', 'guardado'])
+    expect(vista.actual()).toEqual(['jazz', 'teatro'])
+  })
+
+  it('lectura pedida DESPUÉS de un guardado que no terminó: ya ve el guardado', async () => {
     const almacen = almacenEnMemoria()
-    await guardarBusquedaReciente('jazz', almacen)
-    await guardarBusquedaReciente('teatro', almacen)
-    expect(await quitarBusquedaReciente('TEATRO', almacen)).toEqual(['jazz'])
-    expect(await quitarBusquedaReciente('jazz', almacen)).toEqual([])
-    expect(almacen.memoria.has(CLAVE_BUSQUEDAS_RECIENTES)).toBe(false)
+    const guardado = guardarBusquedaReciente('jazz', almacen)
+    const lectura = leerBusquedasRecientes(almacen)
+    expect(await lectura).toEqual(['jazz'])
+    await guardado
+  })
+
+  it('lectura pedida después de un borrado que no terminó: da [] (no resucita lo borrado)', async () => {
+    const almacen = almacenEnMemoria({ [CLAVE_BUSQUEDAS_RECIENTES]: armarSobreBusquedas(['jazz']) })
+    const vista = pantalla()
+    vista.reemplazar(['jazz'])
+    const borrado = borrarHistorialDeBusquedas(almacen)
+    vista.reemplazar([]) // buscar.tsx vacía en el momento
+    await leerBusquedasRecientes(almacen).then(vista.reemplazar)
+    await borrado
+    expect(vista.actual()).toEqual([])
   })
 })
 
@@ -275,10 +335,6 @@ describe('un almacén que falla no rompe Buscar (nunca tira)', () => {
 
   it('guardar → la lista en memoria igual (la pantalla la muestra en esta sesión)', async () => {
     await expect(guardarBusquedaReciente('jazz', almacenQueFalla)).resolves.toEqual(['jazz'])
-  })
-
-  it('quitar → no tira', async () => {
-    await expect(quitarBusquedaReciente('jazz', almacenQueFalla)).resolves.toEqual([])
   })
 
   it('borrar historial → false, sin tirar', async () => {
@@ -323,17 +379,10 @@ describe('la clave y las limpiezas por prefijo del repo', () => {
     expect(await leerBusquedasRecientes()).toEqual(['jazz'])
   })
 
-  it('borrarTodaLaCache sola no lo toca (no vive bajo qps:cache:)…', async () => {
+  it('sobrevive a borrarTodaLaCache (el borrado de la caché al eliminar la cuenta: no vive bajo qps:cache:)', async () => {
     await guardarBusquedaReciente('jazz')
     await borrarTodaLaCache()
     expect(await leerBusquedasRecientes()).toEqual(['jazz'])
-  })
-
-  it('…pero eliminar la cuenta (limpiarTrasEliminarCuenta) sí lo borra', async () => {
-    await guardarBusquedaReciente('jazz')
-    await limpiarTrasEliminarCuenta(false)
-    expect(await leerBusquedasRecientes()).toEqual([])
-    expect(await AsyncStorage.getItem(CLAVE_BUSQUEDAS_RECIENTES)).toBeNull()
   })
 })
 
@@ -363,7 +412,6 @@ function listarCodigo(dir: string): string[] {
 const SRC_MODULO = leer('lib', 'busquedas-recientes.ts')
 const SRC_COMPONENTE = leer('components', 'BusquedasRecientes.tsx')
 const SRC_BUSCAR = leer('app', '(tabs)', 'buscar.tsx')
-const SRC_CUENTA = leer('lib', 'cuenta.ts')
 
 describe('detector: solo lib/sin-conexion/almacen.ts importa AsyncStorage', () => {
   it('ningún archivo de lib/, components/ o app/ fuera de almacen.ts lo nombra (ni el módulo ni la sección nuevos)', () => {
@@ -423,10 +471,33 @@ describe('detector: la sección de búsquedas recientes', () => {
     )
   })
 
-  it('pide confirmación sin dependencias (Alert de react-native) y anuncia el borrado', () => {
+  it('pide confirmación sin dependencias (Alert de react-native), que se puede cerrar con atrás', () => {
     expect(COMPONENTE).toMatch(/import \{[^}]*\bAlert\b[^}]*\} from 'react-native'/)
-    expect(COMPONENTE).toMatch(/Alert\.alert\(/)
-    expect(COMPONENTE).toMatch(/AccessibilityInfo\.announceForAccessibility\(ANUNCIO_HISTORIAL_BORRADO\)/)
+    expect(COMPONENTE).toMatch(/Alert\.alert\([\s\S]*?\{ cancelable: true \},?\s*\)/)
+  })
+
+  it('anuncia el borrado postergado DEMORA_ANUNCIO_BORRADO_MS (~400 ms), no en el mismo instante', () => {
+    expect(COMPONENTE).toMatch(/DEMORA_ANUNCIO_BORRADO_MS = 400\b/)
+    expect(COMPONENTE).toMatch(
+      /setTimeout\(\(\) => AccessibilityInfo\.announceForAccessibility\(ANUNCIO_HISTORIAL_BORRADO\), DEMORA_ANUNCIO_BORRADO_MS\)/,
+    )
+  })
+
+  it('una sola fila con scroll horizontal (no flexWrap) y chips de una línea con ancho máximo', () => {
+    expect(COMPONENTE).toMatch(/<ScrollView\s+horizontal\b/)
+    expect(COMPONENTE).not.toMatch(/flexWrap/)
+    expect(COMPONENTE).toMatch(/ANCHO_MAXIMO_CHIP = 240\b/)
+    expect(COMPONENTE).toMatch(/chip: \{[^}]*maxWidth: ANCHO_MAXIMO_CHIP/)
+    expect(COMPONENTE).toMatch(/<Texto numberOfLines=\{1\}[^>]*>\s*\{busqueda\}/)
+  })
+
+  it('«Borrar historial» va DESPUÉS de los chips en el árbol (orden de foco), a la derecha', () => {
+    const finChips = COMPONENTE.indexOf('</ScrollView>')
+    const borrar = COMPONENTE.indexOf('accessibilityLabel="Borrar historial de búsquedas"')
+    expect(finChips).toBeGreaterThan(0)
+    expect(borrar).toBeGreaterThan(finChips)
+    expect(COMPONENTE).toMatch(/botonBorrar: \{[^}]*alignSelf: 'flex-end'/)
+    expect(COMPONENTE).toMatch(/seccion: \{ marginBottom: 24 \}/)
   })
 
   it('cada búsqueda es un botón con la etiqueta «Buscar de nuevo: <texto>»', () => {
@@ -454,30 +525,59 @@ describe('detector: cómo lo usa buscar.tsx', () => {
     expect(BUSCAR).toMatch(/onChangeText=\{setTexto\}/)
   })
 
-  it('guarda al enviar con el teclado (returnKeyType="search" + onSubmitEditing)', () => {
+  it('guarda al enviar con el teclado (returnKeyType="search" + onSubmitEditing, motivo «enviar»)', () => {
     expect(BUSCAR).toMatch(/returnKeyType="search"/)
-    expect(BUSCAR).toMatch(/onSubmitEditing=\{\(evento\) => recordarBusqueda\(evento\.nativeEvent\.text\)\}/)
+    expect(BUSCAR).toMatch(/onSubmitEditing=\{\(evento\) => recordarBusqueda\(evento\.nativeEvent\.text, 'enviar'\)\}/)
   })
 
-  it('guarda al salir de la pantalla solo con resultados a la vista (useFocusEffect)', () => {
+  it('guarda al abrir un resultado (onAbrir de TarjetaEvento, motivo «abrir-resultado»)', () => {
+    expect(BUSCAR).toMatch(/<TarjetaEvento evento=\{item\} onAbrir=\{\(\) => recordarBusqueda\(texto, 'abrir-resultado'\)\} \/>/)
+  })
+
+  it('guarda al tocar una reciente (motivo «repetir») y anuncia los resultados sin mover el foco', () => {
+    const repetir = BUSCAR.slice(BUSCAR.indexOf('function repetirBusqueda'), BUSCAR.indexOf('function textoSinResultados'))
+    expect(repetir).toMatch(/setTexto\(busqueda\)/)
+    expect(repetir).toMatch(/recordarBusqueda\(busqueda, 'repetir'\)/)
+    expect(repetir).toMatch(/AccessibilityInfo\.announceForAccessibility\(textoResultados\(cantidad, busqueda\)\)/)
+    expect(repetir).not.toMatch(/findNodeHandle|setAccessibilityFocus|\.focus\(/)
+  })
+
+  it('la decisión de guardar pasa por busquedaParaGuardar (no una regla propia de la pantalla)', () => {
+    expect(BUSCAR).toMatch(/const aGuardar = busquedaParaGuardar\(valor, motivo\)/)
+  })
+
+  it('NO guarda al salir de la pestaña: useFocusEffect solo relee, sin función de limpieza', () => {
     expect(BUSCAR).toMatch(/import \{[^}]*\buseFocusEffect\b[^}]*\} from 'expo-router'/)
-    expect(BUSCAR).toMatch(/if \(cantidad > 0\) recordarBusqueda\(alSalir\)/)
+    const foco = BUSCAR.slice(BUSCAR.indexOf('useFocusEffect('), BUSCAR.indexOf('const recordarBusqueda'))
+    expect(foco).toMatch(/useCallback\(\(\) => \{\s*leerBusquedasRecientes\(\)\.then\(setRecientes\)\s*\}, \[\]\)/)
+    expect(foco).not.toMatch(/return\s*\(\)\s*=>|=> \(\) =>/)
+    expect(BUSCAR).not.toMatch(/useRef/)
   })
 
-  it('la sección va en el ListHeaderComponent de «Explorar por categoria» (arriba de la grilla, nunca en un footer con el banner)', () => {
-    expect(BUSCAR).toMatch(/ListHeaderComponent=\{\s*<>\s*<BusquedasRecientes\b[\s\S]*?Explorar por categoria/)
+  it('la sección va en el ListHeaderComponent de «Explorar por categoría» (arriba de la grilla, nunca en un footer con el banner)', () => {
+    expect(BUSCAR).toMatch(/ListHeaderComponent=\{\s*<>\s*<BusquedasRecientes\b[\s\S]*?Explorar por categoría/)
     expect(BUSCAR).not.toMatch(/ListFooterComponent=\{[^}]*BusquedasRecientes/)
     expect(BUSCAR.match(/<BusquedasRecientes\b/g) ?? []).toHaveLength(1)
   })
 
-  it('el estado se carga en el callback de la promesa, no en el cuerpo del efecto', () => {
-    expect(BUSCAR).toMatch(/leerBusquedasRecientes\(\)\.then\(\(guardadas\) => \{\s*if \(!cancelado\) setRecientes\(/)
+  it('el estado sale de las promesas de la fila (setState en el .then, nunca sincrónico en un efecto)', () => {
+    expect(BUSCAR).toMatch(/guardarBusquedaReciente\(aGuardar\)\.then\(setRecientes\)/)
   })
 })
 
-describe('detector: eliminar la cuenta borra el historial', () => {
-  it('limpiarTrasEliminarCuenta llama a borrarHistorialDeBusquedas()', () => {
-    const cuerpo = SRC_CUENTA.slice(SRC_CUENTA.indexOf('export async function limpiarTrasEliminarCuenta'))
-    expect(cuerpo).toMatch(/await borrarHistorialDeBusquedas\(\)/)
+describe('detector: TarjetaEvento.onAbrir (aditiva)', () => {
+  const TARJETA = sinComentarios(leer('components', 'TarjetaEvento.tsx'))
+
+  it('es opcional y se llama justo antes de navegar', () => {
+    expect(TARJETA).toMatch(/onAbrir\?: \(\) => void/)
+    expect(TARJETA).toMatch(/onPress=\{\(\) => \{\s*onAbrir\?\.\(\)\s*router\.push\(rutaDeEvento\(evento\)\)\s*\}\}/)
+  })
+
+  it('el resto de las pantallas la usan sin onAbrir (no cambia nada para ellas)', () => {
+    const usos = ['app', 'components']
+      .flatMap((carpeta) => listarCodigo(join(RAIZ, carpeta)))
+      .filter((archivo) => /onAbrir=/.test(readFileSync(archivo, 'utf8')))
+      .map((archivo) => relative(RAIZ, archivo))
+    expect(usos).toEqual([join('app', '(tabs)', 'buscar.tsx')])
   })
 })

@@ -42,6 +42,13 @@ import { esEventoReal, objetivoDeFavorito, rutaDeEvento } from '@/lib/rutas'
 
 export interface TarjetaEventoProps {
   evento: DisplayEvent
+  /**
+   * A5 (nube Q1): opcional, se llama justo ANTES de navegar a la ficha. Lo
+   * usa Buscar para guardar la búsqueda reciente cuando la persona abre un
+   * resultado. Aditiva: sin ella (Inicio, Favoritos) la tarjeta navega igual
+   * que antes. No recibe nada: quien la pasa ya sabe qué evento dibujó.
+   */
+  onAbrir?: () => void
 }
 
 // R69, 69-r1: los botones de arriba a la derecha miden 32, van separados 6 y
@@ -77,7 +84,7 @@ function derechaDelBadge(botones: number): number {
   return MARGEN_ARRIBA + botones * TAMANIO_ACCION + (botones - 1) * GAP_ACCIONES + MARGEN_ARRIBA
 }
 
-export function TarjetaEvento({ evento }: TarjetaEventoProps) {
+export function TarjetaEvento({ evento, onAbrir }: TarjetaEventoProps) {
   const router = useRouter()
   const colores = useColoresQPS()
 
@@ -112,7 +119,10 @@ export function TarjetaEvento({ evento }: TarjetaEventoProps) {
   return (
     <View style={[estilos.contenedor, { backgroundColor: colores.card }]}>
       <Pressable
-        onPress={() => router.push(rutaDeEvento(evento))}
+        onPress={() => {
+          onAbrir?.()
+          router.push(rutaDeEvento(evento))
+        }}
         accessibilityRole="button"
         accessibilityLabel={etiqueta}
         style={estilos.tarjeta}

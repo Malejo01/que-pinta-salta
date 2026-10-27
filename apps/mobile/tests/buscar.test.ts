@@ -197,8 +197,11 @@ describe('buscar.tsx: lectura estática', () => {
     expect(SRC_BUSCAR.match(/<TextInput\b/g) ?? []).toHaveLength(0)
   })
 
-  it('el placeholder es el texto literal de la web', () => {
-    expect(SRC_BUSCAR).toMatch(/placeholder="Buscar por evento, lugar o descripcion\.\.\."/)
+  // A5 (nube Q1): con tilde, como la web (`apps/web/app/buscar/buscar-content.tsx`,
+  // que fija `apps/web/tests/buscar/buscar-tildes.test.ts`).
+  it('el placeholder es el texto literal de la web (con tilde en «descripción»)', () => {
+    expect(SRC_BUSCAR).toMatch(/placeholder="Buscar por evento, lugar o descripción\.\.\."/)
+    expect(SRC_BUSCAR).not.toMatch(/lugar o descripcion/)
   })
 
   it('usa TarjetaEvento (la grilla de resultados), no una fila propia', () => {
@@ -227,8 +230,10 @@ describe('buscar.tsx: lectura estática', () => {
     expect(SRC_BUSCAR).toMatch(/Solo gratis/)
   })
 
-  it('"Explorar por categoria" es el texto literal de la web', () => {
-    expect(SRC_BUSCAR).toMatch(/Explorar por categoria/)
+  // A5 (nube Q1): con tilde, como la web (mismo test de tildes de la web).
+  it('"Explorar por categoría" es el texto literal de la web (con tilde)', () => {
+    expect(SRC_BUSCAR).toMatch(/Explorar por categoría/)
+    expect(SRC_BUSCAR).not.toMatch(/Explorar por categoria/)
   })
 })
 

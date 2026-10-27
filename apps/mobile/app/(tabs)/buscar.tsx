@@ -1,6 +1,6 @@
 // Buscar (R29, 29-j; ops/paridad-web-app.md §3.5): un solo input ("evento,
-// lugar o descripcion", con lupa y botón para limpiar) + chip "Solo gratis".
-// Sin búsqueda ni filtro, "Explorar por categoria" (grilla de 2 tiles con
+// lugar o descripción", con lupa y botón para limpiar) + chip "Solo gratis".
+// Sin búsqueda ni filtro, "Explorar por categoría" (grilla de 2 tiles con
 // ícono y "N eventos"); con búsqueda, con "Solo gratis" o con `categoria` de
 // la ruta, "N resultados..." y la grilla de 2 de `TarjetaEvento`.
 //
@@ -8,8 +8,11 @@
 // `buscarEventosPorTexto` de `@qps/core/home/busqueda` (nueva, movida desde
 // el `useMemo` que tenía inline `apps/web/app/buscar/buscar-content.tsx`,
 // con un test de equivalencia en `apps/web/tests/core/busqueda.test.ts`):
-// ya no es `filterEvents`/`home/filters.ts` (esa es la de Inicio, que
-// normaliza acentos y no mira la descripción — un criterio distinto).
+// ya no es `filterEvents`/`home/filters.ts` (esa es la de Inicio, que no
+// mira la descripción — un criterio distinto). Las dos ignoran tildes y
+// mayúsculas con `normalizeFilterText` desde QPS-021 (R30): «pena» encuentra
+// «Peña» (A5: corregido, este párrafo decía que solo la de Inicio
+// normalizaba acentos).
 //
 // `categoria` llega por querystring desde "Ver todos" de una fila de la
 // portada (29-h, `/(tabs)/buscar?categoria=<slug>`): mismo patrón
@@ -43,7 +46,7 @@
 // querystring junto con `categoria` y un nonce `v` desde "Ver todos" de la
 // portada (`/buscar?categoria=<slug>&atajo=<atajo>&v=<Date.now()>`), con el
 // mismo patrón comparar-y-ajustar, cuya clave incluye `v`: un toque nuevo vuelve
-// a aplicar categoría y fecha aunque sean iguales a los de antes. Los conteos de la grilla "Explorar por categoria" siguen
+// a aplicar categoría y fecha aunque sean iguales a los de antes. Los conteos de la grilla "Explorar por categoría" siguen
 // siendo sobre todos los eventos. Sin resultados, el vacío ofrece salir de la
 // fecha y/o de la categoría. Buscar sigue sin caché offline.
 //
@@ -51,23 +54,22 @@
 // guardadas solo en el teléfono (`lib/busquedas-recientes.ts`, sobre el
 // `Almacen` de `lib/sin-conexion/almacen.ts`; nunca van al servidor, a
 // métricas ni a Sentry) y dibujadas por `components/BusquedasRecientes.tsx`
-// en la cabecera de «Explorar por categoria» (con el campo vacío y sin
+// en la cabecera de «Explorar por categoría» (con el campo vacío y sin
 // filtros, arriba de la grilla: empuja el banner más abajo, nunca lo sube).
 // Tocar una carga su texto en el campo (y la vuelve a poner primera).
-// Cuándo se guarda una búsqueda — nunca en cada tecla:
-//   1. Al enviarla con el teclado (`onSubmitEditing`, tecla «Buscar» por
-//      `returnKeyType="search"`), aunque no dé resultados: la persona dijo
-//      «esto es lo que busco», y la agenda cambia de un día para el otro.
-//   2. Al salir de Buscar con texto y al menos un resultado a la vista
-//      (`useFocusEffect`, en la limpieza del foco): cubre tocar un resultado
-//      (la ficha se abre encima y Buscar pierde el foco) y cambiar de pestaña
-//      después de buscar sin tocar «Buscar» en el teclado — mucha gente nunca
-//      lo toca. Sin resultados no se guarda: un texto a medio escribir que no
-//      encontró nada no es una búsqueda que valga repetir.
-//   3. Al tocar una reciente (sube al primer lugar).
-// Mínimo 2 caracteres y tope de largo, en el módulo.
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { FlatList, Pressable, RefreshControl, StyleSheet, View } from 'react-native'
+// Cuándo se guarda una búsqueda — nunca en cada tecla ni al salir de la
+// pestaña (vuelta 1: eso guardaba «jaz» a medio escribir): los tres
+// `MotivoGuardado` de `lib/busquedas-recientes.ts`, con la decisión en
+// `busquedaParaGuardar` (pura y testeada):
+//   1. `enviar`: la tecla «Buscar» del teclado (`onSubmitEditing`, con
+//      `returnKeyType="search"`), aunque no dé resultados.
+//   2. `repetir`: tocar una reciente (sube al primer lugar).
+//   3. `abrir-resultado`: abrir una tarjeta de los resultados (`onAbrir` de
+//      `TarjetaEvento`, que se llama justo antes de navegar).
+// Mínimo 2 caracteres, tope de largo y «jaz» que se va cuando llega «jazz»,
+// en el módulo.
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { AccessibilityInfo, FlatList, Pressable, RefreshControl, StyleSheet, View } from 'react-native'
 import { useFocusEffect, useLocalSearchParams } from 'expo-router'
 import type { Atajo } from '@qps/core/home/atajos'
 import {
@@ -86,11 +88,11 @@ import { PillsAtajos } from '@/components/PillsAtajos'
 import { TarjetaEvento } from '@/components/TarjetaEvento'
 import { Texto } from '@/components/Texto'
 import {
-  agregarBusqueda,
   borrarHistorialDeBusquedas,
+  busquedaParaGuardar,
   guardarBusquedaReciente,
   leerBusquedasRecientes,
-  normalizarBusqueda,
+  type MotivoGuardado,
 } from '@/lib/busquedas-recientes'
 import { bordeChipInactivo, useColoresQPS } from '@/lib/colores'
 import { obtenerCategorias, obtenerEventosVigentesParaInicio, type CategoriaBasica } from '@/lib/datos/eventos'
@@ -143,9 +145,9 @@ export default function Buscar() {
   const [refrescando, setRefrescando] = useState(false)
   const [texto, setTexto] = useState('')
   const [soloGratisActivo, setSoloGratisActivo] = useState(false)
-  // A5 (nube Q1): el historial que se ve. Arranca vacío y se llena con lo
-  // guardado (efecto de abajo); después, esta pantalla es la única que lo
-  // cambia, así que el estado manda y el almacén se actualiza en segundo plano.
+  // A5 (nube Q1): el historial que se ve. Arranca vacío; lo llena (y lo
+  // reemplaza) solo lo que devuelve la fila de `lib/busquedas-recientes.ts`
+  // — la lectura al enfocar y cada guardado —, en el orden en que se pidió.
   const [recientes, setRecientes] = useState<string[]>([])
 
   // Sincroniza `categoriaFiltro` con el parámetro de la ruta sin `setState`
@@ -208,38 +210,31 @@ export default function Buscar() {
     }
   }, [obtenerDatos, intento])
 
-  // A5: lee el historial una vez al montar. El `setState` va en el callback
-  // de la promesa, no en el cuerpo del efecto (react-hooks/set-state-in-effect).
-  // `leerBusquedasRecientes` nunca tira: un almacén roto da `[]` y Buscar
-  // sigue igual. Si la persona ya guardó algo antes de que esto resuelva, se
-  // mezcla (lo nuevo primero) en vez de pisarlo.
-  useEffect(() => {
-    let cancelado = false
-    leerBusquedasRecientes().then((guardadas) => {
-      if (!cancelado) setRecientes((actuales) => actuales.reduceRight(agregarBusqueda, guardadas))
-    })
-    return () => {
-      cancelado = true
-    }
-  }, [])
-
-  // A5: guarda una búsqueda (si vale: mínimo 2 caracteres, ver
-  // `normalizarBusqueda`). El estado se actualiza en el momento con la misma
-  // función pura que usa el módulo; el almacén, sin esperarlo (nunca tira).
-  const recordarBusqueda = useCallback((valor: string) => {
-    if (normalizarBusqueda(valor) === null) return
-    setRecientes((actuales) => agregarBusqueda(actuales, valor))
-    void guardarBusquedaReciente(valor)
-  }, [])
-
-  const repetirBusqueda = useCallback(
-    (busqueda: string) => {
-      setTexto(busqueda)
-      recordarBusqueda(busqueda)
-    },
-    [recordarBusqueda],
+  // A5, vuelta 1: relee el historial cada vez que Buscar toma el foco (en el
+  // efecto de `useFocusEffect`, no en su limpieza), así la pantalla no queda
+  // con datos viejos. La lectura va en la fila del módulo: si hay un guardado
+  // o un borrado en curso, resuelve después de ellos y no los pisa. El
+  // estado se REEMPLAZA con lo que vuelve, y el `setState` va en el callback
+  // de la promesa, nunca sincrónico (react-hooks/set-state-in-effect).
+  // `leerBusquedasRecientes` nunca tira: un almacén roto da `[]`.
+  useFocusEffect(
+    useCallback(() => {
+      leerBusquedasRecientes().then(setRecientes)
+    }, []),
   )
 
+  // A5: guarda una búsqueda si `busquedaParaGuardar` dice que corresponde.
+  // El estado sale de lo que devuelve la fila (no se calcula acá aparte): un
+  // guardado pedido después de una lectura resuelve después de ella, así que
+  // la última respuesta es siempre la lista más nueva.
+  const recordarBusqueda = useCallback((valor: string, motivo: MotivoGuardado) => {
+    const aGuardar = busquedaParaGuardar(valor, motivo)
+    if (aGuardar === null) return
+    guardarBusquedaReciente(aGuardar).then(setRecientes)
+  }, [])
+
+  // A5: se vacía en el momento (la sección desaparece ya); el borrado va en
+  // la fila, después de cualquier guardado pendiente.
   const borrarHistorial = useCallback(() => {
     setRecientes([])
     void borrarHistorialDeBusquedas()
@@ -287,41 +282,41 @@ export default function Buscar() {
     return categoriasDisponibles(sinCategoria, estado.categorias, categoriaFiltro)
   }, [estado, texto, atajo, categoriaFiltro, soloGratisActivo])
 
-  // Los conteos de la grilla "Explorar por categoria" son sobre TODOS los
+  // Los conteos de la grilla "Explorar por categoría" son sobre TODOS los
   // eventos (sin fecha ni texto): esa grilla solo se ve sin filtros.
   const cantidadPorCategoria = useCallback(
     (slug: string) => (estado.tipo === 'ok' ? estado.items.filter((item) => item.evento.category === slug).length : 0),
     [estado],
   )
 
-  // A5, criterio 2 (ver la cabecera): al perder el foco, guarda el texto si
-  // había resultados a la vista. La limpieza de `useFocusEffect` corre al
-  // salir, no en cada tecla; como no puede depender de `texto` (si dependiera,
-  // la limpieza correría en cada cambio), lee lo último desde un ref, que se
-  // actualiza en un efecto (nunca durante el render).
-  const busquedaALaVista = useRef({ texto: '', cantidad: 0 })
-  const cantidadConTexto = texto ? resultadosMostrados.length : 0
-  useEffect(() => {
-    busquedaALaVista.current = { texto, cantidad: cantidadConTexto }
-  }, [texto, cantidadConTexto])
-  useFocusEffect(
-    useCallback(
-      () => () => {
-        const { texto: alSalir, cantidad } = busquedaALaVista.current
-        if (cantidad > 0) recordarBusqueda(alSalir)
-      },
-      [recordarBusqueda],
-    ),
-  )
-
   const sufijoFecha = atajo ? ` · ${NOMBRE_ATAJO[atajo]}` : ''
   const enCategoria = nombreCategoriaFiltro ? ` en ${nombreCategoriaFiltro}` : ''
 
-  function textoResultados(cantidad: number): string {
+  // A5: `textoBuscado` es opcional para poder armar el texto de una búsqueda
+  // que todavía no está en el estado (la reciente que se acaba de tocar).
+  function textoResultados(cantidad: number, textoBuscado: string = texto): string {
     const plural = cantidad !== 1 ? 's' : ''
-    if (texto) return `${cantidad} resultado${plural} para "${texto}"${enCategoria}${sufijoFecha}`
+    if (textoBuscado) return `${cantidad} resultado${plural} para "${textoBuscado}"${enCategoria}${sufijoFecha}`
     const gratis = soloGratisActivo ? ' gratis' : ''
     return `${cantidad} evento${plural}${gratis}${enCategoria}${sufijoFecha}`
+  }
+
+  // A5: tocar una reciente carga el texto, la guarda (sube al primer lugar) y
+  // anuncia cuántos resultados dio. La lista de resultados se monta nueva y
+  // Android no anuncia el MONTAJE de una live region (mismo hallazgo que el
+  // conteo de `app/(tabs)/index.tsx`, R69 69-b, QPS-354), y iOS ignora
+  // `accessibilityLiveRegion`: sin esto, el lector de pantalla no diría nada.
+  // No mueve el foco. Un anuncio no es `setState`.
+  function repetirBusqueda(busqueda: string) {
+    setTexto(busqueda)
+    recordarBusqueda(busqueda, 'repetir')
+    if (estado.tipo !== 'ok') return
+    const cantidad = filtrarCombinado(
+      estado.items,
+      { atajo, categoria: categoriaFiltro, soloGratis: soloGratisActivo, texto: busqueda },
+      estado.ahora,
+    ).length
+    AccessibilityInfo.announceForAccessibility(textoResultados(cantidad, busqueda))
   }
 
   function textoSinResultados(): string {
@@ -345,12 +340,12 @@ export default function Buscar() {
             label="Buscar"
             value={texto}
             onChangeText={setTexto}
-            placeholder="Buscar por evento, lugar o descripcion..."
+            placeholder="Buscar por evento, lugar o descripción..."
             autoCapitalize="none"
             // A5, criterio 1: la tecla del teclado dice «Buscar» y al tocarla
             // se guarda la búsqueda (ver la cabecera del archivo).
             returnKeyType="search"
-            onSubmitEditing={(evento) => recordarBusqueda(evento.nativeEvent.text)}
+            onSubmitEditing={(evento) => recordarBusqueda(evento.nativeEvent.text, 'enviar')}
             accionDerecha={
               texto ? (
                 <Pressable
@@ -411,7 +406,7 @@ export default function Buscar() {
             <>
               <BusquedasRecientes busquedas={recientes} onElegir={repetirBusqueda} onBorrarHistorial={borrarHistorial} />
               <Texto peso="semibold" accessibilityRole="header" style={estilos.tituloSeccion}>
-                Explorar por categoria
+                Explorar por categoría
               </Texto>
             </>
           }
@@ -527,7 +522,8 @@ export default function Buscar() {
           }
           renderItem={({ item }) => (
             <View style={estilos.celda}>
-              <TarjetaEvento evento={item} />
+              {/* A5: abrir un resultado guarda el texto del campo como búsqueda reciente. */}
+              <TarjetaEvento evento={item} onAbrir={() => recordarBusqueda(texto, 'abrir-resultado')} />
             </View>
           )}
         />
