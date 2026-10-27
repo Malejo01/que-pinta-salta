@@ -2,7 +2,6 @@
 
 import { useState } from "react"
 import { Heart } from "lucide-react"
-import { TEXTO_SACASTE_GUARDADO_CON_VOY } from "@qps/core/asistencia"
 import { toggleFavorite } from "@/lib/actions/favorites"
 import { useAuthModal } from "./auth-modal"
 import { cn } from "@/lib/utils"
@@ -10,6 +9,7 @@ import { useToast } from "@/hooks/use-toast"
 import { ToastAction } from "@/components/ui/toast"
 import { useDonation } from "@/components/donation-context"
 import { DONATIONS_ENABLED } from "@/lib/config/monetization"
+import { useTextos } from "@/lib/i18n/use-idioma"
 
 interface FavoriteButtonProps {
   itemId: string
@@ -44,6 +44,8 @@ export function FavoriteButton({
   const { open: openAuthModal } = useAuthModal()
   const { toast } = useToast()
   const { openDonationModal } = useDonation()
+  // Textos en el idioma de la página (lib/i18n/diccionarios, sección `favorito`).
+  const t = useTextos().favorito
 
   const handleToggle = async (e: React.MouseEvent) => {
     e.preventDefault()
@@ -70,8 +72,8 @@ export function FavoriteButton({
       if (result.error) {
         setIsFavorite(previousState)
         toast({
-          title: "Error",
-          description: result.message || "No se pudo actualizar el favorito.",
+          title: t.errorTitulo,
+          description: result.message || t.errorTexto,
           variant: "destructive",
         })
         return
@@ -87,35 +89,35 @@ export function FavoriteButton({
         const shouldShowDonation = DONATIONS_ENABLED && count % 2 !== 0; // 1, 3, 5, etc.
 
         toast({
-          title: "Favorito guardado",
+          title: t.guardadoTitulo,
           description: shouldShowDonation 
-            ? "¡Plan guardado! ❤️ Si Qué Pinta Salta te ayuda a organizar tu finde, invitanos un cafecito para ayudarnos a crear la App móvil."
-            : "El elemento se agregó a tu agenda.",
+            ? t.pedidoCafecito
+            : t.guardadoTexto,
           action: shouldShowDonation ? (
             <ToastAction
-              altText="Donar ahora"
-              onClick={() => openDonationModal("¡Plan guardado! ❤️ Si Qué Pinta Salta te ayuda a organizar tu finde, invitanos un cafecito para ayudarnos a crear la App móvil.")}
+              altText={t.donarAhora}
+              onClick={() => openDonationModal(t.pedidoCafecito)}
               className="bg-[#C12026] text-white hover:bg-[#A0191F] border-none"
             >
-              Donar ahora
+              {t.donarAhora}
             </ToastAction>
           ) : undefined,
         })
       } else if (result.voyQuitado) {
         // Sacar el ♥ de un evento con Voy también saca el Voy (QPS-197):
         // avisar con el texto único de core, no "Favorito eliminado".
-        toast({ description: TEXTO_SACASTE_GUARDADO_CON_VOY })
+        toast({ description: t.sacasteGuardadoConVoy })
       } else {
         toast({
-          title: "Favorito eliminado",
-          description: "El elemento se quitó de tu agenda.",
+          title: t.eliminadoTitulo,
+          description: t.eliminadoTexto,
         })
       }
     } catch (err) {
       setIsFavorite(previousState)
       toast({
-        title: "Error de conexión",
-        description: "No pudimos conectarnos al servidor. Intentalo de nuevo.",
+        title: t.errorConexionTitulo,
+        description: t.errorConexionTexto,
         variant: "destructive",
       })
     } finally {
@@ -139,7 +141,7 @@ export function FavoriteButton({
         "relative flex size-8 items-center justify-center rounded-full bg-black/60 text-white backdrop-blur-md transition-all hover:scale-110 active:scale-95 cursor-pointer z-10 after:absolute after:content-[''] after:-left-1 after:-right-2 after:-top-1.5 after:-bottom-1.5",
         className
       )}
-      aria-label={isFavorite ? "Quitar de favoritos" : "Guardar en favoritos"}
+      aria-label={isFavorite ? t.quitar : t.guardar}
     >
       <Heart
         className={cn(

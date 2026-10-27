@@ -23,6 +23,9 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 import { createClient } from "@/lib/supabase/client"
+import { hrefLangDestino, rutaEn } from "@/lib/i18n/rutas"
+import { useIdioma, useTextos } from "@/lib/i18n/use-idioma"
+import { SelectorIdioma } from "@/components/selector-idioma"
 import type { User as SupabaseUser } from "@supabase/supabase-js"
 
 export function Navbar() {
@@ -32,6 +35,9 @@ export function Navbar() {
   const [isAdmin, setIsAdmin] = useState(false)
   const [loading, setLoading] = useState(true)
   const { openDonationModal } = useDonation()
+  const idioma = useIdioma()
+  const textos = useTextos()
+  const t = textos.nav
 
   useEffect(() => {
     const supabase = createClient()
@@ -73,7 +79,8 @@ export function Navbar() {
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <nav className="container mx-auto flex h-16 items-center justify-between px-4">
-        <Link href="/" className="flex items-center gap-2.5">
+        {/* `shrink-0`: a 320 px el logo no se aplasta cuando el lado derecho se llena. */}
+        <Link href={rutaEn(idioma, "/")} className="flex shrink-0 items-center gap-2.5">
           {/* Wrapper con ring rojo en dark mode para reemplazar el halo crema */}
           <div className="rounded-full dark:ring-2 dark:ring-[#C12026]/70 dark:ring-offset-1 dark:ring-offset-background">
             <Image
@@ -103,15 +110,20 @@ export function Navbar() {
           </div>
         </Link>
 
-        <div className="flex items-center gap-2">
+        {/* `gap-1` solo por debajo de 360 px (antes, `gap-2` en todos lados): a
+            320 px, sin sesión y con «Apoyar» + el selector de idioma + «Ingresar»
+            (115 px), no entraba por 7 px. Desde 360 px queda como siempre.
+            Medido con Playwright a 320 y 360 px, con y sin sesión. */}
+        <div className="flex items-center gap-1 min-[360px]:gap-2">
           <Button asChild variant="ghost" size="icon" className="hidden sm:inline-flex text-muted-foreground hover:text-primary transition-colors">
-            <Link href="/buscar" aria-label="Buscar eventos" prefetch={false}>
+            <Link href={rutaEn(idioma, "/buscar")} hrefLang={hrefLangDestino(idioma, "/buscar")} aria-label={t.buscarEventos} prefetch={false}>
               <Search className="size-5" />
             </Link>
           </Button>
 
           <Button asChild variant="ghost" size="icon" className="hidden sm:inline-flex text-muted-foreground hover:text-primary transition-colors">
-            <Link href="/mapa" aria-label="Ver el mapa" prefetch={false}>
+            {/* /mapa todavía no tiene versión en inglés (llega en el PR siguiente). */}
+            <Link href="/mapa" hrefLang={hrefLangDestino(idioma, "/mapa")} aria-label={t.verMapa} prefetch={false}>
               <Map className="size-5" />
             </Link>
           </Button>
@@ -122,10 +134,10 @@ export function Navbar() {
               size="sm"
               onClick={() => openDonationModal()}
               className="flex items-center justify-center border-[#C12026]/30 text-[#C12026] hover:bg-[#C12026]/10 hover:text-[#C12026] transition-colors p-2 sm:px-3"
-              title="Apoyar a Qué Pinta Salta"
+              title={t.apoyarTitulo}
             >
               <Coffee className="size-4 sm:mr-2" />
-              <span className="hidden sm:inline">Apoyar</span>
+              <span className="hidden sm:inline">{t.apoyar}</span>
             </Button>
           )}
 
@@ -133,39 +145,41 @@ export function Navbar() {
             variant="ghost"
             size="icon"
             onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
-            aria-label="Toggle theme"
+            aria-label={t.cambiarTema}
           >
             <Sun className="size-5 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
             <Moon className="absolute size-5 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
           </Button>
           
+          {/* Favoritos y Radar: ocultos en celular (están en la barra inferior,
+              mobile-nav.tsx); así el header con sesión entra en 320 px. */}
           {user && (
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button asChild variant="ghost" className="text-muted-foreground hover:text-red-500 transition-colors mr-1 gap-2 font-semibold text-sm">
-                    <Link href="/favoritos">
+                  <Button asChild variant="ghost" className="hidden sm:inline-flex text-muted-foreground hover:text-red-500 transition-colors mr-1 gap-2 font-semibold text-sm">
+                    <Link href={rutaEn(idioma, "/favoritos")} hrefLang={hrefLangDestino(idioma, "/favoritos")}>
                       <Heart className="size-4.5 text-red-500 fill-red-500/10" />
-                      <span className="hidden sm:inline">Mis eventos</span>
+                      <span className="hidden sm:inline">{t.misEventos}</span>
                     </Link>
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>
-                  <p>Mis eventos</p>
+                  <p>{t.misEventos}</p>
                 </TooltipContent>
               </Tooltip>
 
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button asChild variant="ghost" className="text-muted-foreground hover:text-primary transition-colors mr-1 gap-2 font-semibold text-sm">
-                    <Link href="/radar">
+                  <Button asChild variant="ghost" className="hidden sm:inline-flex text-muted-foreground hover:text-primary transition-colors mr-1 gap-2 font-semibold text-sm">
+                    <Link href={rutaEn(idioma, "/radar")} hrefLang={hrefLangDestino(idioma, "/radar")}>
                       <Radio className="size-4.5 text-primary" />
-                      <span className="hidden sm:inline">Radar Salteño</span>
+                      <span className="hidden sm:inline">{t.radarSalteno}</span>
                     </Link>
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>
-                  <p>Radar Salteño</p>
+                  <p>{t.radarSalteno}</p>
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
@@ -173,12 +187,14 @@ export function Navbar() {
 
           {isAdmin && (
             <Button asChild variant="outline" className="hidden sm:inline-flex">
-              <Link href="/nuevo-evento">
+              <Link href={rutaEn(idioma, "/nuevo-evento")} hrefLang={hrefLangDestino(idioma, "/nuevo-evento")}>
                 <Plus className="mr-2 size-4" />
-                Agregar Evento
+                {t.agregarEvento}
               </Link>
             </Button>
           )}
+
+          <SelectorIdioma compacto />
 
           {loading && <div aria-hidden className="h-9 min-w-[115px]" />}
           {!loading && (
@@ -194,27 +210,27 @@ export function Navbar() {
                     <div className="px-2 py-1.5">
                       <p className="text-sm font-medium">{user.email}</p>
                       {isAdmin && (
-                        <p className="text-xs text-primary">Administrador</p>
+                        <p className="text-xs text-primary">{t.administrador}</p>
                       )}
                     </div>
                     <DropdownMenuSeparator />
                     {/* Grupo 1: Perfil, Favoritos, Radar */}
                     <DropdownMenuItem asChild>
-                      <Link href="/perfil">
+                      <Link href={rutaEn(idioma, "/perfil")} hrefLang={hrefLangDestino(idioma, "/perfil")}>
                         <User className="mr-2 size-4" />
-                        Mi Perfil
+                        {t.miPerfil}
                       </Link>
                     </DropdownMenuItem>
                     <DropdownMenuItem asChild>
-                      <Link href="/favoritos">
+                      <Link href={rutaEn(idioma, "/favoritos")} hrefLang={hrefLangDestino(idioma, "/favoritos")}>
                         <Heart className="mr-2 size-4 text-red-500" />
-                        Mis eventos
+                        {t.misEventos}
                       </Link>
                     </DropdownMenuItem>
                     <DropdownMenuItem asChild>
-                      <Link href="/radar">
+                      <Link href={rutaEn(idioma, "/radar")} hrefLang={hrefLangDestino(idioma, "/radar")}>
                         <Radio className="mr-2 size-4 text-primary" />
-                        Mi Radar Salteño
+                        {t.miRadarSalteno}
                       </Link>
                     </DropdownMenuItem>
                     
@@ -222,15 +238,15 @@ export function Navbar() {
                     
                     {/* Grupo 2: Mis Eventos */}
                     <DropdownMenuItem asChild>
-                      <Link href="/mis-eventos">
+                      <Link href={rutaEn(idioma, "/mis-eventos")} hrefLang={hrefLangDestino(idioma, "/mis-eventos")}>
                         <Calendar className="mr-2 size-4" />
-                        Eventos que cargaste
+                        {t.eventosQueCargaste}
                       </Link>
                     </DropdownMenuItem>
 
                     <DropdownMenuSeparator />
 
-                    {/* Grupo 3: Admin */}
+                    {/* Grupo 3: Admin (herramienta interna, solo en castellano: sin traducir) */}
                     {isAdmin && (
                       <>
                         <DropdownMenuItem asChild>
@@ -258,15 +274,15 @@ export function Navbar() {
                     {/* Grupo 4: Logout */}
                     <DropdownMenuItem onClick={handleSignOut}>
                       <LogOut className="mr-2 size-4" />
-                      Cerrar sesión
+                      {t.cerrarSesion}
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
               ) : (
                 <Button asChild variant="default" className="min-w-[115px]">
-                  <Link href="/auth/login" prefetch={false}>
+                  <Link href={rutaEn(idioma, "/auth/login")} hrefLang={hrefLangDestino(idioma, "/auth/login")} prefetch={false}>
                     <LogIn className="mr-2 size-4" />
-                    Ingresar
+                    {t.ingresar}
                   </Link>
                 </Button>
               )}

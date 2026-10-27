@@ -5,6 +5,7 @@ import { CinemaMovie } from '@/lib/types'
 import { MovieCard } from '@/components/movie-card'
 import { Input } from '@/components/ui/input'
 import { Search, Film, X, Clapperboard } from 'lucide-react'
+import { useTextos } from '@/lib/i18n/use-idioma'
 
 interface CinesViewProps {
   movies: CinemaMovie[]
@@ -12,6 +13,7 @@ interface CinesViewProps {
 
 export function CinesView({ movies }: CinesViewProps) {
   const [searchQuery, setSearchQuery] = useState('')
+  const t = useTextos().cines
 
   // Filtrar películas por título
   const filteredMovies = movies.filter(movie =>
@@ -27,7 +29,7 @@ export function CinesView({ movies }: CinesViewProps) {
         </div>
         <Input
           type="text"
-          placeholder="Buscar película por nombre..."
+          placeholder={t.buscarPelicula}
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           className="w-full pl-10 pr-10 rounded-xl h-11 bg-card/50 focus-visible:ring-primary/40 focus-visible:border-primary/50 transition-all backdrop-blur-sm"
@@ -54,11 +56,11 @@ export function CinesView({ movies }: CinesViewProps) {
           <div className="flex size-14 items-center justify-center rounded-full bg-muted border border-border mb-4 text-muted-foreground">
             <Clapperboard className="size-6 stroke-[1.5]" />
           </div>
-          <h3 className="text-lg font-bold text-foreground">No se encontraron películas</h3>
+          <h3 className="text-lg font-bold text-foreground">{t.sinPeliculas}</h3>
           <p className="mt-1 text-sm text-muted-foreground max-w-xs">
             {searchQuery
-              ? `No hay resultados para "${searchQuery}". Probá buscando con otro título.`
-              : 'No hay películas en cartelera actualmente.'}
+              ? t.sinResultados(searchQuery)
+              : t.sinCartelera}
           </p>
         </div>
       )}

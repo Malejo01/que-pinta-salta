@@ -4,6 +4,9 @@ import { Share2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useToast } from "@/hooks/use-toast"
 import { urlEvento } from "@/lib/metricas/links"
+import { es } from "@/lib/i18n/diccionarios/es"
+import type { Diccionario } from "@/lib/i18n"
+import { useTextos } from "@/lib/i18n/use-idioma"
 
 export interface ShareData {
   title: string
@@ -35,6 +38,8 @@ interface ShareDeps {
    * modal de donación que se abre después de compartir desde la tarjeta.
    */
   onShared?: () => void
+  /** Textos de los toasts en el idioma de la página; sin pasarlos, en castellano. */
+  textos?: Diccionario["compartir"]
 }
 
 /**
@@ -63,10 +68,10 @@ export async function shareEvent(data: ShareData, deps: ShareDeps): Promise<void
     try {
       await deps.writeText(data.url)
     } catch {
-      deps.toast({ title: "No se pudo copiar el link", variant: "destructive" })
+      deps.toast({ title: (deps.textos ?? es.compartir).noSePudoCopiar, variant: "destructive" })
       return
     }
-    deps.toast({ title: "Link copiado" })
+    deps.toast({ title: (deps.textos ?? es.compartir).linkCopiado })
     deps.onShared?.()
   }
 }
@@ -90,6 +95,7 @@ interface ShareButtonProps {
 
 export function ShareButton({ eventId, title, className, url, onShared }: ShareButtonProps) {
   const { toast } = useToast()
+  const textos = useTextos().compartir
 
   const handleShare = async (e: React.MouseEvent) => {
     e.preventDefault()
@@ -106,6 +112,7 @@ export function ShareButton({ eventId, title, className, url, onShared }: ShareB
       writeText: canCopy ? (text) => navigator.clipboard.writeText(text) : undefined,
       toast,
       onShared,
+      textos,
     })
   }
 
@@ -120,7 +127,7 @@ export function ShareButton({ eventId, title, className, url, onShared }: ShareB
         "relative flex size-8 items-center justify-center rounded-full bg-black/60 text-white backdrop-blur-md transition-all hover:scale-110 active:scale-95 cursor-pointer z-10 after:absolute after:content-[''] after:-inset-2",
         className
       )}
-      aria-label="Compartir evento"
+      aria-label={textos.compartirEvento}
     >
       <Share2 className="size-4.5" />
     </button>

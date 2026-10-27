@@ -10,6 +10,8 @@ import { AuthModalProvider } from '@/components/auth-modal'
 import { DonationProvider } from '@/components/donation-context'
 import { DonationModal } from '@/components/donation-modal'
 import { AdsenseLoader } from '@/components/adsense-loader'
+import { IdiomaDocumento } from '@/components/idioma-documento'
+import { IDIOMA_INIT_SCRIPT } from '@/lib/i18n/idioma-init'
 import './globals.css'
 
 const montserrat = Montserrat({
@@ -118,14 +120,21 @@ export default function RootLayout({
   modal: React.ReactNode
 }>) {
   return (
-    <html lang="es" className={`${montserrat.variable} ${yellowtail.variable} ${poppins.variable} bg-background`} suppressHydrationWarning>
+    <html lang="es-AR" className={`${montserrat.variable} ${yellowtail.variable} ${poppins.variable} bg-background`} suppressHydrationWarning>
       <head>
         {/* Aplica el tema antes del primer pintado (misma clave y default que ThemeProvider). */}
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
+        {/* `lang="en"` en /en/... antes del primer pintado. El layout raíz no
+            lee headers() a propósito: así ninguna página se vuelve dinámica
+            (ver lib/i18n/idioma-init.ts). */}
+        <script dangerouslySetInnerHTML={{ __html: IDIOMA_INIT_SCRIPT }} />
         <AdsenseLoader />
       </head>
       <AnalyticsConsent />
       <body className="font-sans antialiased bg-background">
+        {/* El layout raíz no se vuelve a renderizar al navegar del lado del
+            cliente: esto mantiene `lang` al día si se pasa de / a /en sin recargar. */}
+        <IdiomaDocumento />
         <ThemeProvider
           attribute="class"
           defaultTheme="dark"
