@@ -10,8 +10,8 @@
 // Lo que no se prueba acá (navbar, barra inferior, tarjeta, modales,
 // anuncio) se reemplaza por stubs: la tarjeta es un <article> con el título.
 import * as React from 'react'
-import { describe, expect, it, vi, afterEach } from 'vitest'
-import { render, cleanup, fireEvent, screen, within } from '@testing-library/react'
+import { describe, expect, it, vi, afterEach, beforeEach } from 'vitest'
+import { act, render, cleanup, fireEvent, screen, within } from '@testing-library/react'
 
 import { BuscarContent } from '@/app/buscar/buscar-content'
 
@@ -32,7 +32,12 @@ vi.mock('@/components/home-content', async () => ({
   transformEvent: (await import('@/lib/home/transform')).transformEvent,
 }))
 
+beforeEach(() => {
+  vi.useFakeTimers()
+})
+
 afterEach(() => {
+  vi.useRealTimers()
   cleanup()
 })
 
@@ -103,7 +108,13 @@ const region = () => {
   if (!p) throw new Error('no está la región viva')
   return p
 }
-const buscar = (texto: string) => fireEvent.change(screen.getByRole('searchbox'), { target: { value: texto } })
+/** Tipea y deja pasar la espera del anuncio (la región viva no habla en cada tecla). */
+const buscar = (texto: string) => {
+  fireEvent.change(screen.getByRole('searchbox'), { target: { value: texto } })
+  act(() => {
+    vi.advanceTimersByTime(700)
+  })
+}
 
 describe('/buscar: chips "Solo gratis" y "Para chicos" en un DOM real', () => {
   it('sin texto ni chips: la grilla de categorías, los dos chips apagados y la región viva montada y vacía', () => {
@@ -170,6 +181,31 @@ describe('/buscar: chips "Solo gratis" y "Para chicos" en un DOM real', () => {
     expect(region().textContent).toBe('1 resultado para "rock"')
     expect(document.activeElement).toBe(chip('Solo gratis'))
     expect(screen.queryByRole('button', { name: 'Quitar filtros' })).toBeNull()
+  })
+
+  it('la región viva no anuncia cada tecla: espera a que se deje de tipear (la vista sí cambia al instante)', () => {
+    montar()
+    const caja = screen.getByRole('searchbox')
+    for (const parcial of ['p', 'pl', 'pla', 'plaz']) {
+      fireEvent.change(caja, { target: { value: parcial } })
+      act(() => {
+        vi.advanceTimersByTime(200)
+      })
+    }
+    expect(region().textContent).toBe('')
+    expect(titulos().length).toBeGreaterThan(0)
+    act(() => {
+      vi.advanceTimersByTime(700)
+    })
+    expect(region().textContent).toBe('4 resultados para "plaz"')
+  })
+
+  it('el contador visible queda fuera del árbol accesible (lo dice la región viva)', () => {
+    montar()
+    fireEvent.click(chip('Solo gratis'))
+    const visible = screen.getByText('3 eventos gratis', { selector: 'p[aria-hidden="true"]' })
+    expect(visible).toBeTruthy()
+    expect(region().className).toBe('sr-only')
   })
 
   it('vacío sin chips (solo texto): no hay "Quitar filtros"', () => {

@@ -1,6 +1,6 @@
 "use client"
 
-import { useDeferredValue, useMemo, useRef, useState } from "react"
+import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
 import { ArrowLeft, Search } from "lucide-react"
 import type { Category, CinemaMovie } from "@/lib/types"
@@ -17,6 +17,9 @@ import { getCategoryIcon } from "@/lib/category-icons"
 import { AdSenseBanner } from "@/components/adsense-banner"
 import { transformEvent, type DisplayEvent } from "@/components/home-content"
 import { filtrarCombinado, type ItemFiltrable } from "@qps/core/home/filtros-combinados"
+
+/** Cuánto se espera a que se deje de tipear para anunciar el contador. */
+const ESPERA_ANUNCIO_MS = 700
 
 function formatDateInSalta(date: Date): string {
   return new Intl.DateTimeFormat("en-CA", {
@@ -222,6 +225,17 @@ export function BuscarContent({
   }
   const sinResultados = mostrarListaResultados && cantidad === 0
 
+  // La región viva anuncia el texto cuando se deja de tipear (~700 ms), no en
+  // cada tecla («1 resultado para "tit"», «…"tite"»…). Un chip, en cambio, se
+  // anuncia al toque: el texto no cambió, así que ya está "quieto".
+  const [textoQuieto, setTextoQuieto] = useState(textoBuscado)
+  useEffect(() => {
+    const espera = window.setTimeout(() => setTextoQuieto(textoBuscado), ESPERA_ANUNCIO_MS)
+    return () => window.clearTimeout(espera)
+  }, [textoBuscado])
+  const [anuncioVivo, setAnuncioVivo] = useState(anuncio)
+  if (textoBuscado === textoQuieto && anuncioVivo !== anuncio) setAnuncioVivo(anuncio)
+
   // Apaga los dos chips (el texto queda) y deja el foco en "Solo gratis":
   // el botón que se tocó se va con el vacío.
   const quitarFiltros = () => {
@@ -321,13 +335,17 @@ export function BuscarContent({
           </div>
         )}
 
-        {/* Contador o vacío en una sola región viva, siempre montada (vacía
-            con la grilla): el lector de pantalla anuncia cada cambio de
-            texto o de chip. `break-words`: un texto largo sin espacios no
+        {/* El contador o el vacío: a la vista, al instante (aria-hidden, porque
+            lo dice la región viva de al lado); para el lector de pantalla, una
+            región viva siempre montada (vacía con la grilla) que espera a que
+            se deje de tipear. `break-words`: un texto largo sin espacios no
             ensancha la página en 360 px. */}
         <div className={sinResultados ? "py-16 text-center" : undefined}>
+          <p aria-live="polite" className="sr-only">
+            {anuncioVivo}
+          </p>
           <p
-            aria-live="polite"
+            aria-hidden="true"
             className={sinResultados ? "text-lg break-words text-muted-foreground" : anuncio ? "mb-4 break-words text-muted-foreground" : undefined}
           >
             {anuncio}
