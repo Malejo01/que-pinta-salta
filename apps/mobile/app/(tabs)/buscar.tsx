@@ -92,11 +92,13 @@ export const RESULTADOS_MINIMOS_PARA_ANUNCIO = 3
  * `FlatList` cuenta FILAS: 4 filas = 8 tarjetas, lo que entra en el primer
  * pantallazo (cabecera fija ~228 dp + chips y conteo + filas de ~249 dp en
  * 360×800) con una fila de reserva; antes eran 10 filas (20 tarjetas, el valor
- * por omisión). Lotes de 3 filas al scrollear y `windowSize: 7` (~3 pantallas
- * a cada lado, en vez de 21). Sin `removeClippedSubviews`: en Android saca de la
- * jerarquía las celdas fuera de pantalla y TalkBack puede perder el foco.
+ * por omisión). Vuelta 1: lotes de 4 filas y `windowSize: 9` (~4 pantallas a
+ * cada lado, en vez de 21), para que un scroll rápido en gama baja no deje
+ * huecos ni remonte corazones. Las dos listas de esta pantalla llevan
+ * `removeClippedSubviews={false}`: `FlatList` lo prende por omisión en Android
+ * y TalkBack pierde las celdas que saca de la jerarquía.
  */
-export const VENTANA_RESULTADOS = { initialNumToRender: 4, maxToRenderPerBatch: 3, windowSize: 7 } as const
+export const VENTANA_RESULTADOS = { initialNumToRender: 4, maxToRenderPerBatch: 4, windowSize: 9 } as const
 
 /**
  * Ventana de la grilla de categorías (A7, nube Q1): tiles chicos (~84 dp por
@@ -347,6 +349,7 @@ export default function Buscar() {
           initialNumToRender={VENTANA_CATEGORIAS.initialNumToRender}
           maxToRenderPerBatch={VENTANA_CATEGORIAS.maxToRenderPerBatch}
           windowSize={VENTANA_CATEGORIAS.windowSize}
+          removeClippedSubviews={false}
           columnWrapperStyle={estilos.filaGrilla}
           contentContainerStyle={estilos.lista}
           keyboardShouldPersistTaps="handled"
@@ -399,6 +402,7 @@ export default function Buscar() {
           initialNumToRender={VENTANA_RESULTADOS.initialNumToRender}
           maxToRenderPerBatch={VENTANA_RESULTADOS.maxToRenderPerBatch}
           windowSize={VENTANA_RESULTADOS.windowSize}
+          removeClippedSubviews={false}
           columnWrapperStyle={estilos.filaGrilla}
           contentContainerStyle={estilos.lista}
           keyboardShouldPersistTaps="handled"

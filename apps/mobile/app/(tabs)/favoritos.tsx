@@ -54,12 +54,16 @@
 // como acá abajo.
 //
 // A7 (nube Q1), rendimiento: la clave de cada fila de 2 era la unión de sus
-// ids (`fila.map(id).join('-')`), que cambia apenas cambia la composición de
-// la fila — sacar un favorito corre todas las filas siguientes y las
-// remontaba enteras, tarjetas incluidas. Ahora la fila se identifica por el
-// id de su PRIMER evento (`claveDeFila`) y cada tarjeta, adentro, por el suyo:
-// una fila que conserva su primer evento sigue montada y solo se monta la
-// tarjeta que llega. No hay `index` en la clave. No se pasó a `FlatList` con
+// ids (`fila.map(id).join('-')`), que cambia con cualquier cambio de la fila.
+// Ahora la fila se identifica por el id de su PRIMER evento (`claveDeFila`) y
+// cada tarjeta, adentro, por el suyo. Lo que gana es poco y conviene decirlo
+// (vuelta 1): solo la fila cuyo primer evento no cambió sigue montada (y esa
+// tarjeta con ella). Sacar un favorito corre todas las filas siguientes un
+// lugar, así que cambian de primer evento y se remontan igual que antes. En la
+// medición (`tests/renders-listas.test.ts`, escenario (c)) casi toda la baja
+// de 26 renders / 7 montajes a 5 / 5 viene de la ventana más chica
+// (`VENTANA_FAVORITOS`) y del `memo` de la tarjeta; la clave aporta un
+// montaje (6 -> 5). No hay `index` en la clave. No se pasó a `FlatList` con
 // `numColumns={2}`: esta pantalla necesita las secciones (Voy, flexibles y
 // los días) y, además, `FlatList` con columnas une las claves de la fila con
 // ':' por dentro, o sea el mismo problema. `renderItem` es una función de
@@ -109,9 +113,9 @@ interface SeccionFavoritos {
  * encabezado, uno por fila de 2 y uno por pie de cada sección: 6 alcanza para
  * el primer pantallazo (cabecera de "Mis eventos", un encabezado y 2 filas de
  * ~249 dp en 360×800) con reserva; antes eran 10 (hasta 13 tarjetas). Lotes de
- * 4 y `windowSize: 7` en vez de 21. Sin `removeClippedSubviews`: en Android
- * saca de la jerarquía las celdas fuera de pantalla y TalkBack puede perder
- * el foco.
+ * 4 y `windowSize: 7` en vez de 21. `removeClippedSubviews` no hace falta
+ * apagarlo acá: a diferencia de `FlatList` (que lo prende por omisión en
+ * Android), `SectionList` no le pone valor y el `ScrollView` lo deja apagado.
  */
 export const VENTANA_FAVORITOS = { initialNumToRender: 6, maxToRenderPerBatch: 4, windowSize: 7 } as const
 

@@ -11,8 +11,13 @@
 //     se busca su definición en el mismo archivo.
 //  2. Ventana: cada `FlatList`/`SectionList` de esas pantallas lleva
 //     `initialNumToRender`, `maxToRenderPerBatch` y `windowSize`, con valores
-//     razonables (abajo de los de omisión: 10, 10 y 21), y nadie activa
-//     `removeClippedSubviews` (en Android puede dejar a TalkBack sin foco).
+//     razonables (abajo de los de omisión: 10, 10 y 21). Y
+//     `removeClippedSubviews`: `FlatList` lo PRENDE por omisión en Android
+//     (`removeClippedSubviewsOrDefault` en `FlatList.js`) y TalkBack pierde las
+//     celdas que saca de la jerarquía, así que cada `FlatList` tiene que traer
+//     `removeClippedSubviews={false}` explícito; ninguna lista lo prende
+//     (`={true}` o la prop sola). `SectionList` no tiene ese valor por
+//     omisión: puede no traerlo.
 //  3. `getItemLayout` solo donde la medida es fija: la fila horizontal de
 //     `FilaCategoria` (180 de ancho, siempre), y sus cuentas salen de las
 //     mismas constantes que los estilos. Buscar y Favoritos NO lo llevan (el
@@ -204,8 +209,13 @@ const RANGOS_VENTANA = {
 
 export function violacionesDeVentana(fuente: string): string[] {
   const violaciones: string[] = []
-  if (/removeClippedSubviews/.test(fuente)) violaciones.push('activa removeClippedSubviews (en Android puede dejar a TalkBack sin foco)')
   for (const { tipo, props } of listasDe(fuente)) {
+    const recorte = valorDeProp(props, 'removeClippedSubviews')
+    if (/(?:^|\s)removeClippedSubviews(?!\s*=)/.test(props) || (recorte !== null && recorte !== 'false')) {
+      violaciones.push(`${tipo}: prende removeClippedSubviews (en Android TalkBack pierde las celdas fuera de pantalla)`)
+    } else if (tipo === 'FlatList' && recorte === null) {
+      violaciones.push('FlatList sin removeClippedSubviews={false} (FlatList lo prende por omisión en Android)')
+    }
     for (const [prop, [minimo, maximo]] of Object.entries(RANGOS_VENTANA)) {
       const valor = valorDeProp(props, prop)
       if (valor === null) {
@@ -222,36 +232,44 @@ export function violacionesDeVentana(fuente: string): string[] {
 }
 
 describe('violacionesDeVentana (fixtures en memoria: tiene que fallar de verdad)', () => {
-  const completa = 'initialNumToRender={4} maxToRenderPerBatch={3} windowSize={7}'
+  const completa = 'initialNumToRender={4} maxToRenderPerBatch={3} windowSize={7} removeClippedSubviews={false}'
   it('acepta números literales y constantes VENTANA_*', () => {
     expect(violacionesDeVentana(`<FlatList ${completa} />`)).toEqual([])
     expect(
       violacionesDeVentana(
         'const VENTANA = { initialNumToRender: 3, maxToRenderPerBatch: 3, windowSize: 5 } as const\n' +
-          '<FlatList initialNumToRender={VENTANA.initialNumToRender} maxToRenderPerBatch={VENTANA.maxToRenderPerBatch} windowSize={VENTANA.windowSize} />',
+          '<FlatList initialNumToRender={VENTANA.initialNumToRender} maxToRenderPerBatch={VENTANA.maxToRenderPerBatch} windowSize={VENTANA.windowSize} removeClippedSubviews={false} />',
       ),
     ).toEqual([])
   })
   it('detecta una lista con los valores por omisión (sin las props)', () => {
     expect(violacionesDeVentana('<FlatList data={a} />')).toEqual([
+      'FlatList sin removeClippedSubviews={false} (FlatList lo prende por omisión en Android)',
       'FlatList sin initialNumToRender',
       'FlatList sin maxToRenderPerBatch',
       'FlatList sin windowSize',
     ])
   })
-  it('detecta valores fuera de rango y removeClippedSubviews', () => {
+  it('detecta valores fuera de rango (una SectionList sin removeClippedSubviews está bien: no lo prende por omisión)', () => {
     expect(violacionesDeVentana('<SectionList initialNumToRender={30} maxToRenderPerBatch={3} windowSize={21} />')).toEqual([
       'SectionList: initialNumToRender=30 fuera de [1, 8]',
       'SectionList: windowSize=21 fuera de [3, 11]',
     ])
-    expect(violacionesDeVentana(`<FlatList ${completa} removeClippedSubviews />`)).toEqual([
-      'activa removeClippedSubviews (en Android puede dejar a TalkBack sin foco)',
+  })
+  it('detecta removeClippedSubviews prendido: la prop sola, ={true} o una expresión', () => {
+    const sinRecorte = 'initialNumToRender={4} maxToRenderPerBatch={3} windowSize={7}'
+    const prendido = 'FlatList: prende removeClippedSubviews (en Android TalkBack pierde las celdas fuera de pantalla)'
+    expect(violacionesDeVentana(`<FlatList ${sinRecorte} removeClippedSubviews />`)).toEqual([prendido])
+    expect(violacionesDeVentana(`<FlatList ${sinRecorte} removeClippedSubviews={true} />`)).toEqual([prendido])
+    expect(violacionesDeVentana(`<FlatList ${sinRecorte} removeClippedSubviews={esAndroid} />`)).toEqual([prendido])
+    expect(violacionesDeVentana(`<SectionList ${sinRecorte} removeClippedSubviews />`)).toEqual([
+      'SectionList: prende removeClippedSubviews (en Android TalkBack pierde las celdas fuera de pantalla)',
     ])
   })
 })
 
 describe.each(ARCHIVOS_CON_LISTAS)('%s: valores de ventana', (_ruta, partes) => {
-  it('cada lista trae initialNumToRender, maxToRenderPerBatch y windowSize razonables, sin removeClippedSubviews', () => {
+  it('cada lista trae initialNumToRender, maxToRenderPerBatch y windowSize razonables, y ninguna prende removeClippedSubviews', () => {
     expect(violacionesDeVentana(leer(...partes))).toEqual([])
   })
 })
@@ -277,8 +295,9 @@ describe('getItemLayout: solo en la fila horizontal de FilaCategoria', () => {
 
   it('las cuentas salen de las mismas constantes que los estilos (ancho fijo, gap y margen)', () => {
     const definicion = definicionDe(fila, 'layoutDeTarjetaEnFila') ?? ''
-    expect(definicion).toMatch(/ANCHO_TARJETA \+ SEPARACION/)
-    expect(definicion).toMatch(/offset: MARGEN_LATERAL \+ paso \* index/)
+    // `length` es solo el ancho (sin el gap): ver el test del hueco en tests/renders-listas.test.ts.
+    expect(definicion).toMatch(/length: ANCHO_TARJETA,/)
+    expect(definicion).toMatch(/offset: MARGEN_LATERAL \+ \(ANCHO_TARJETA \+ SEPARACION\) \* index/)
     expect(fila).toMatch(/lista: \{ paddingHorizontal: MARGEN_LATERAL, gap: SEPARACION \}/)
     expect(fila).toMatch(/celda: \{ width: ANCHO_TARJETA, height: ALTO_TARJETA \}/)
   })
@@ -302,9 +321,15 @@ export function violacionesDeMemo(tarjeta: string, rutas: string): string[] {
   if (/export function TarjetaEvento\b/.test(tarjeta)) violaciones.push('TarjetaEvento se exporta sin memo')
   const campos = camposComparados(tarjeta)
   if (campos.size === 0) violaciones.push('no se encontró CAMPOS_QUE_USA_LA_TARJETA')
-  for (const [, campo] of tarjeta.matchAll(/\bevento\.(\w+)/g)) {
+  // `evento.x` y `evento?.x` se pueden seguir; lo demás (`evento[x]`, copiarlo
+  // a otra variable, desestructurarlo o esparcirlo) se prohíbe: el detector no
+  // podría saber qué campos se leen.
+  for (const [, campo] of tarjeta.matchAll(/\bevento\??\.(\w+)/g)) {
     if (!campos.has(campo)) violaciones.push(`lee evento.${campo} y la comparación del memo no lo mira`)
   }
+  if (/\bevento\s*(?:\?\.)?\[/.test(tarjeta)) violaciones.push('lee evento[…] (prohibido: no se puede saber qué campo)')
+  if (/(?<![=!<>])=\s*evento\b(?!\s*(?:\?\.|\.|\[))/.test(tarjeta)) violaciones.push('copia o desestructura evento (prohibido: no se puede saber qué campos lee)')
+  if (/\.\.\.\s*evento\b/.test(tarjeta)) violaciones.push('esparce evento (prohibido: no se puede saber qué campos lee)')
   for (const [, llamada] of tarjeta.matchAll(/(\w+)\(evento\)/g)) {
     if (!(RUTAS_CON_EVENTO as readonly string[]).includes(llamada)) violaciones.push(`le pasa el evento entero a ${llamada}`)
   }
@@ -345,10 +370,50 @@ describe('violacionesDeMemo (fixtures en memoria: tiene que fallar de verdad)', 
       'lee evento.venue y la comparación del memo no lo mira',
     ])
     expect(violacionesDeMemo(buena.replace('rutaDeEvento(evento)', 'otraCosa(evento)'), rutas)).toEqual(['le pasa el evento entero a otraCosa'])
+    expect(violacionesDeMemo(buena.replace('evento.title', 'evento?.venue'), rutas)).toEqual([
+      'lee evento.venue y la comparación del memo no lo mira',
+    ])
     expect(violacionesDeMemo(buena.replace("'isCinemaMovie'", "'image'"), rutas)).toEqual([
       'rutaDeEvento mira isCinemaMovie y la comparación del memo no',
       'esEventoReal mira isCinemaMovie y la comparación del memo no',
     ])
+  })
+})
+
+describe('violacionesDeMemo: accesos a evento que el detector no puede seguir', () => {
+  const rutas =
+    "export function rutaDeEvento(item: Pick<DisplayEvent, 'id'>): string {}\n" +
+    "export function objetivoDeFavorito(item: Pick<DisplayEvent, 'id'>) {}\n" +
+    "export function esEventoReal(item: Pick<DisplayEvent, 'id'>): boolean {}"
+  const con = (cuerpo: string) =>
+    "export const CAMPOS_QUE_USA_LA_TARJETA = ['id', 'title'] as const\n" +
+    `function Base({ evento }) { ${cuerpo} }\n` +
+    'export const TarjetaEvento = memo(Base, sonPropsDeTarjetaIguales)'
+
+  it('la base (evento.title) pasa', () => {
+    expect(violacionesDeMemo(con('return evento.title'), rutas)).toEqual([])
+  })
+  it('desestructurar evento falla', () => {
+    expect(violacionesDeMemo(con('const { venue } = evento; return venue'), rutas)).toEqual([
+      'copia o desestructura evento (prohibido: no se puede saber qué campos lee)',
+    ])
+  })
+  it('copiarlo a otra variable falla', () => {
+    expect(violacionesDeMemo(con('const e = evento; return e.venue'), rutas)).toEqual([
+      'copia o desestructura evento (prohibido: no se puede saber qué campos lee)',
+    ])
+  })
+  it('evento[campo] y evento?.[campo] fallan', () => {
+    expect(violacionesDeMemo(con("return evento['venue']"), rutas)).toEqual(['lee evento[…] (prohibido: no se puede saber qué campo)'])
+    expect(violacionesDeMemo(con('return evento?.[campo]'), rutas)).toEqual(['lee evento[…] (prohibido: no se puede saber qué campo)'])
+  })
+  it('esparcir evento falla', () => {
+    expect(violacionesDeMemo(con('return mostrar({ ...evento })'), rutas)).toEqual([
+      'esparce evento (prohibido: no se puede saber qué campos lee)',
+    ])
+  })
+  it('comparar con === no cuenta como copiarlo', () => {
+    expect(violacionesDeMemo(con('return evento.title === otro ? evento.id : null'), rutas)).toEqual([])
   })
 })
 

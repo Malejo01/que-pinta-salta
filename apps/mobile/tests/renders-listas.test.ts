@@ -294,14 +294,34 @@ describe('sonPropsDeTarjetaIguales (la comparación del memo de TarjetaEvento)',
 })
 
 describe('layoutDeTarjetaEnFila (getItemLayout de la fila horizontal)', () => {
-  it('cada celda arranca después del margen de 16 y de las anteriores (180 + 20 de gap)', () => {
-    expect(layoutDeTarjetaEnFila(null, 0)).toEqual({ length: 200, offset: 16, index: 0 })
-    expect(layoutDeTarjetaEnFila(null, 3)).toEqual({ length: 200, offset: 616, index: 3 })
+  // A7 (nube Q1), vuelta 1: `length` es el ancho de la celda (180), sin el gap.
+  const ANCHO = 180
+  const GAP = 20
+
+  it('cada celda mide 180 y arranca después del margen de 16 y de las anteriores (180 + 20 de gap)', () => {
+    expect(layoutDeTarjetaEnFila(null, 0)).toEqual({ length: ANCHO, offset: 16, index: 0 })
+    expect(layoutDeTarjetaEnFila(null, 3)).toEqual({ length: ANCHO, offset: 616, index: 3 })
   })
-  it('los marcos quedan pegados: offset(i + 1) = offset(i) + length(i)', () => {
+
+  it('entre un marco y el siguiente queda exactamente el gap: offset(i + 1) = offset(i) + length(i) + 20', () => {
     for (let i = 0; i < 20; i++) {
       const a = layoutDeTarjetaEnFila(null, i)
-      expect(layoutDeTarjetaEnFila(null, i + 1).offset).toBe(a.offset + a.length)
+      expect(layoutDeTarjetaEnFila(null, i + 1).offset).toBe(a.offset + a.length + GAP)
+    }
+  })
+
+  // El hueco con que `VirtualizedList` reemplaza las celdas desmontadas
+  // (first..last) mide `last.offset + last.length − first.offset`, y Yoga le
+  // pone el `gap` del contenedor a cada lado, como a cualquier hijo. Para que
+  // la fila no salte, hueco + 2 gaps tiene que ocupar lo mismo que esas n
+  // celdas reales con sus n + 1 gaps (el de antes de la primera, los n − 1 de
+  // entre ellas y el de después de la última).
+  it.each([1, 2, 5, 12])('el hueco de %i celdas escondidas + 2 gaps = esas celdas reales + (n + 1) gaps', (n) => {
+    for (const primera of [0, 3, 10]) {
+      const desde = layoutDeTarjetaEnFila(null, primera)
+      const hasta = layoutDeTarjetaEnFila(null, primera + n - 1)
+      const hueco = hasta.offset + hasta.length - desde.offset
+      expect(hueco + 2 * GAP).toBe(n * ANCHO + (n + 1) * GAP)
     }
   })
 })
@@ -371,9 +391,10 @@ describe('Favoritos (SectionList de filas de 2)', () => {
     expect(b2).toEqual({ renders: 1, montajes: 0 })
     medicion.favoritos = FAVORITOS.filter((e) => e.id !== 'ev-101')
     const c = (resultados['Favoritos · (c) sacar el 2.º favorito (filas se corren)'] = await medir(refrescar))
-    // Con la clave por el primer id: la fila de ev-100 sigue montada (y ev-100
-    // con ella) y solo se montan las tarjetas que cambian de fila (con el join
-    // de main se remontaban las 7 de la ventana).
+    // Con la clave por el primer id, solo la fila de ev-100 sigue montada (y
+    // ev-100 con ella); las filas siguientes se corren, cambian de primer
+    // evento y se remontan con sus tarjetas. Casi toda la baja contra main
+    // (26/7) es de la ventana más chica y del memo, no de la clave.
     expect(c).toEqual({ renders: 5, montajes: 5 })
     act(() => raiz.unmount())
   })

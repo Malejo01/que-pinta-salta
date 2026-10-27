@@ -38,27 +38,33 @@ const MARGEN_LATERAL = 16
  * de ancho, siempre (no depende del texto ni de la escala de fuente: la
  * tarjeta es 180×270 fija, `estilos.celda`); entre celda y celda hay
  * `SEPARACION` (el `gap` del contenedor) y antes de la primera,
- * `MARGEN_LATERAL` (su `paddingHorizontal`). `length` toma el ancho más la
- * separación que la sigue, así los marcos quedan pegados uno al otro sin
- * huecos; `offset` = margen + índice × (ancho + separación), que es donde
- * arranca de verdad la celda `index`.
+ * `MARGEN_LATERAL` (su `paddingHorizontal`).
+ *
+ * `length` es SOLO el ancho de la celda, sin el gap (corrección de A7, vuelta
+ * 1): la lista reemplaza las celdas desmontadas por un hueco de
+ * `último.offset + último.length − primero.offset`, y Yoga le pone al hueco
+ * su propio `gap` a cada lado, como a una celda más. Con `length` = ancho +
+ * gap el hueco quedaba 20 dp largo: en filas de 10+ eventos las tarjetas
+ * saltaban 20 dp al desmontarse celdas y sobraba blanco al final. Con
+ * `length` = 180, n celdas escondidas dan 180·n + 20·(n − 1), y con los 2 gaps
+ * del hueco suman lo mismo que n celdas reales con sus n + 1 gaps
+ * (`tests/renders-listas.test.ts` lo cuenta). `offset` = margen + índice ×
+ * (ancho + separación): donde arranca de verdad la celda `index`.
  */
 export function layoutDeTarjetaEnFila(_data: ArrayLike<DisplayEvent> | null | undefined, index: number) {
-  const paso = ANCHO_TARJETA + SEPARACION
-  return { length: paso, offset: MARGEN_LATERAL + paso * index, index }
+  return { length: ANCHO_TARJETA, offset: MARGEN_LATERAL + (ANCHO_TARJETA + SEPARACION) * index, index }
 }
 
 /**
  * Ventana de la fila horizontal (A7, nube Q1). En 360 dp de ancho entran ~1,8
  * tarjetas (16 + 180 + 20 + 180…), así que 3 alcanzan para el primer
  * pantallazo con una de reserva (antes eran 10 por fila, el valor por
- * omisión, y la portada tiene una fila por categoría). Los lotes al
- * deslizar van de a 3, y `windowSize: 5` mantiene dibujadas ~2 pantallas a
- * cada lado (~9 tarjetas) en vez de 21. Sin `removeClippedSubviews`: en
- * Android saca de la jerarquía las celdas fuera de pantalla y TalkBack
- * pierde el foco al recorrer la fila.
+ * omisión, y la portada tiene una fila por categoría). Vuelta 1: lotes de 4
+ * y `windowSize: 9` (~4 pantallas a cada lado, en vez de 21): con 3/5 un
+ * deslizamiento rápido en un teléfono de gama baja dejaba huecos en blanco y
+ * remontaba corazones (cada remontaje vuelve a consultar si es favorito).
  */
-export const VENTANA_FILA = { initialNumToRender: 3, maxToRenderPerBatch: 3, windowSize: 5 } as const
+export const VENTANA_FILA = { initialNumToRender: 3, maxToRenderPerBatch: 4, windowSize: 9 } as const
 
 const claveDeEvento = (evento: DisplayEvent) => evento.id
 const dibujarCelda: ListRenderItem<DisplayEvent> = ({ item }) => <CeldaEvento evento={item} />
@@ -115,6 +121,11 @@ export function FilaCategoria({ categoria, titulo, eventos, alVerTodos }: FilaCa
         initialNumToRender={VENTANA_FILA.initialNumToRender}
         maxToRenderPerBatch={VENTANA_FILA.maxToRenderPerBatch}
         windowSize={VENTANA_FILA.windowSize}
+        // A7 (nube Q1), vuelta 1: `FlatList` lo PRENDE por omisión en Android
+        // (`removeClippedSubviewsOrDefault`): saca de la jerarquía las
+        // tarjetas fuera de pantalla y TalkBack deja de encontrarlas al
+        // recorrer la fila. Apagado a propósito.
+        removeClippedSubviews={false}
       />
     </View>
   )

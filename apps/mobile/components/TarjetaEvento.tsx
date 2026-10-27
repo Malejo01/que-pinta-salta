@@ -29,10 +29,13 @@
 //
 // A7 (nube Q1): la tarjeta es `memo` con una comparación propia
 // (`sonPropsDeTarjetaIguales`, abajo de todo). Por qué no la comparación por
-// defecto: cada recarga (tirar para refrescar en las tres pantallas, y en
-// Favoritos cada vez que la pestaña toma foco) trae objetos `DisplayEvent`
-// NUEVOS aunque el contenido sea el mismo, y con `memo` a secas se volvían a
-// dibujar todas las tarjetas igual. La comparación mira solo los campos que
+// defecto: tirar para refrescar (en las tres pantallas) trae objetos
+// `DisplayEvent` NUEVOS aunque el contenido sea el mismo, y con `memo` a secas
+// se volvían a dibujar todas las tarjetas igual. Ojo (vuelta 1): en Favoritos,
+// al volver a la pestaña, el memo NO ahorra nada: `cargar()` pasa por
+// `'cargando'`, la lista se desmonta y las tarjetas se montan de nuevo. Eso
+// es de la pantalla, no de la tarjeta, y queda como propuesta (otro ticket
+// toca Favoritos). La comparación mira solo los campos que
 // esta tarjeta dibuja o usa para navegar y para el corazón
 // (`CAMPOS_QUE_USA_LA_TARJETA`); `tests/listas-rendimiento.test.ts` falla si
 // el componente lee un campo de `evento` que no está en esa lista (así no
