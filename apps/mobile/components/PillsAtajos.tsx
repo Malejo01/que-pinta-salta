@@ -23,7 +23,7 @@ import { Animated, Pressable, ScrollView, StyleSheet, type LayoutChangeEvent } f
 import type { Atajo } from '@qps/core/home/atajos'
 import { Texto } from '@/components/Texto'
 import { AREA_TACTIL_MINIMA, hitSlopPara } from '@/lib/accesibilidad'
-import { useColoresQPS } from '@/lib/colores'
+import { bordeChipInactivo, useColoresQPS } from '@/lib/colores'
 
 // 46-c: `estilos.pill` mide 44 de alto (minHeight), 4dp corto de
 // `AREA_TACTIL_MINIMA`. El ancho sí llega (paddingHorizontal 16 + texto), así
@@ -59,6 +59,8 @@ export function PillsAtajos(props: PillsAtajosProps) {
   const { atajo, etiquetaTodas } = props
   const onCambiar = props.onCambiar as (atajo: Atajo | null) => void
   const colores = useColoresQPS()
+  // R72, 72-c (QPS-362): borde de la pill inactiva a >= 3:1 (cálculo en `lib/colores.ts`).
+  const bordeInactivo = bordeChipInactivo(colores)
   const [medidas, setMedidas] = useState<Record<string, Medida>>({})
   const pills: { id: Atajo | null; etiqueta: string }[] = etiquetaTodas
     ? [{ id: null, etiqueta: etiquetaTodas }, ...ATAJOS]
@@ -95,9 +97,13 @@ export function PillsAtajos(props: PillsAtajosProps) {
             accessibilityState={{ selected: activo }}
             accessibilityLabel={item.etiqueta}
             hitSlop={HIT_SLOP_PILL}
-            style={[estilos.pill, !activo && { borderWidth: 1, borderColor: colores.border }]}
+            // R72, 72-c (vuelta 1): borde de 1 en los dos estados (el activo,
+            // del color del relleno) para que no se achique 2 dp al tocarla.
+            style={[estilos.pill, { borderWidth: 1, borderColor: activo ? colores.primary : bordeInactivo }]}
           >
-            <Texto peso="semibold" style={{ color: activo ? colores.primaryForeground : colores.foreground }}>
+            {/* R72, 72-c: la activa ya se distingue por el relleno (claro contra
+                oscuro, no solo matiz); se suma la negrita como segunda señal. */}
+            <Texto peso={activo ? 'bold' : 'semibold'} style={{ color: activo ? colores.primaryForeground : colores.foreground }}>
               {item.etiqueta}
             </Texto>
           </Pressable>

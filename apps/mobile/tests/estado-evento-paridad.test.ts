@@ -162,7 +162,7 @@ describe.each(CASOS)(
     it(permiteAgregar ? 'PUBLISHED: inserta' : `${status}: error sin insert`, async () => {
       estado.eventoStatus = status
 
-      const resultado = await marcarFavorito(EVENT_ID, USER_ID)
+      const resultado = await marcarFavorito(EVENT_ID, USER_ID, 'event')
 
       if (permiteAgregar) {
         expect(resultado).toEqual({ ok: true })
@@ -180,7 +180,7 @@ describe.each(CASOS)('app, desmarcarFavorito SACAR (con una fila "voy" previa): 
     estado.eventoStatus = status
     estado.asistenciaDeleteResultado = { data: [{ kind: 'voy' }], error: null }
 
-    const resultado = await desmarcarFavorito(EVENT_ID, USER_ID)
+    const resultado = await desmarcarFavorito(EVENT_ID, USER_ID, 'event')
 
     expect(resultado).toEqual({ ok: true, voyQuitado: true })
     expect(estado.llamadas.eventoSelect).toBe(0)

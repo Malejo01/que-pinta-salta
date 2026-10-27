@@ -49,7 +49,7 @@ export function EnlacesLegales({ conAceptacion = false }: EnlacesLegalesProps) {
 
   // Misma forma que abrirRecuperarContrasenia (cuenta.tsx): urlSitio valida
   // contra la lista cerrada y devuelve null si la ruta no está habilitada
-  // (p. ej. /terminos mientras TERMINOS_PUBLICADOS sea false); nunca se abre
+  // (p. ej. /terminos si TERMINOS_PUBLICADOS vuelve a false); nunca se abre
   // una URL armada a mano.
   function abrir(ruta: string) {
     const url = urlSitio(ruta)

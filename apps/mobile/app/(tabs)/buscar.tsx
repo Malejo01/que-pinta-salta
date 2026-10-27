@@ -64,7 +64,7 @@ import { Icono, iconoPorCategoria } from '@/components/Icono'
 import { PillsAtajos } from '@/components/PillsAtajos'
 import { TarjetaEvento } from '@/components/TarjetaEvento'
 import { Texto } from '@/components/Texto'
-import { useColoresQPS } from '@/lib/colores'
+import { bordeChipInactivo, useColoresQPS } from '@/lib/colores'
 import { obtenerCategorias, obtenerEventosVigentesParaInicio, type CategoriaBasica } from '@/lib/datos/eventos'
 
 /**
@@ -98,6 +98,9 @@ const NOMBRE_ATAJO: Record<Atajo, string> = {
 
 export default function Buscar() {
   const colores = useColoresQPS()
+  // R72, 72-c (QPS-362): borde de chip gratis, tiles y botón secundario a >= 3:1
+  // (antes `colores.border`, ~1,3:1; cálculo en `lib/colores.ts`).
+  const bordeInactivo = bordeChipInactivo(colores)
   const params = useLocalSearchParams<{ categoria?: string; atajo?: string; v?: string }>()
   const categoriaParam = typeof params.categoria === 'string' && params.categoria ? params.categoria : null
   const atajoParam = atajoDesdeParametro(params.atajo)
@@ -280,12 +283,13 @@ export default function Buscar() {
           style={[
             estilos.chipGratis,
             {
-              borderColor: soloGratisActivo ? colores.primary : colores.border,
+              borderColor: soloGratisActivo ? colores.primary : bordeInactivo,
               backgroundColor: soloGratisActivo ? colores.primary : colores.card,
             },
           ]}
         >
-          <Texto peso="semibold" style={{ color: soloGratisActivo ? colores.primaryForeground : colores.foreground }}>
+          {/* R72, 72-c: activo = relleno (no solo matiz) + negrita. */}
+          <Texto peso={soloGratisActivo ? 'bold' : 'semibold'} style={{ color: soloGratisActivo ? colores.primaryForeground : colores.foreground }}>
             Solo gratis
           </Texto>
         </Pressable>
@@ -325,7 +329,7 @@ export default function Buscar() {
               <Pressable
                 onPress={() => alTocarCategoria(item.slug)}
                 accessibilityRole="button"
-                style={[estilos.tileCategoria, { backgroundColor: colores.card, borderColor: colores.border }]}
+                style={[estilos.tileCategoria, { backgroundColor: colores.card, borderColor: bordeInactivo }]}
               >
                 <View style={[estilos.iconoCategoria, { backgroundColor: `${colores.primary}1A` }]}>
                   <Icono nombre={iconoPorCategoria(item.slug)} tamanio={20} color={colores.primary} />
@@ -382,7 +386,7 @@ export default function Buscar() {
                   // portada); el segundo, con contorno.
                   style={[
                     estilos.botonVacio,
-                    indice === 0 ? { backgroundColor: colores.primary, borderColor: colores.primary } : { borderColor: colores.border },
+                    indice === 0 ? { backgroundColor: colores.primary, borderColor: colores.primary } : { borderColor: bordeInactivo },
                   ]}
                 >
                   <Texto peso="semibold" style={{ color: indice === 0 ? colores.primaryForeground : colores.foreground }}>

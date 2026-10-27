@@ -120,7 +120,7 @@ export function violacionesDeEnCartel(fuente: string): string[] {
   } else if (!/\$\{fecha\}/.test(m[1])) {
     v.push('la rama de eventos no muestra la fecha')
   }
-  if (!/isCinemaMovie\s*\?\s*`\$\{evento\.title\}, en cartel`/.test(sinComentarios(fuente))) {
+  if (!/isCinemaMovie\s*\?\s*`\$\{evento\.title\}, en cartel/.test(sinComentarios(fuente))) {
     v.push('la etiqueta de accesibilidad de la película no dice "en cartel"')
   }
   return v

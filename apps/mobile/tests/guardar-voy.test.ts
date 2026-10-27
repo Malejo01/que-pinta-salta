@@ -131,7 +131,7 @@ describe('orden de las escrituras', () => {
   })
 
   it('sacar el ♥ (desmarcarFavorito): primero asistencia (delete + select kind), después el favorito', async () => {
-    const resultado = await desmarcarFavorito(EVENT_ID, USER_ID)
+    const resultado = await desmarcarFavorito(EVENT_ID, USER_ID, 'event')
 
     expect(resultado).toEqual({ ok: true, voyQuitado: false })
     expect(estado.orden).toEqual(['event_attendance:delete', 'user_favorites:delete'])
@@ -188,7 +188,7 @@ describe('desmarcarFavorito: voyQuitado', () => {
   it('voyQuitado = true cuando la fila borrada tenía kind "voy"', async () => {
     estado.asistenciaDeleteResultado = { data: [{ kind: 'voy' }], error: null }
 
-    const resultado = await desmarcarFavorito(EVENT_ID, USER_ID)
+    const resultado = await desmarcarFavorito(EVENT_ID, USER_ID, 'event')
 
     expect(resultado).toEqual({ ok: true, voyQuitado: true })
   })
@@ -196,7 +196,7 @@ describe('desmarcarFavorito: voyQuitado', () => {
   it('voyQuitado = false cuando la fila borrada era un "me_interesa" viejo (se borra igual, pero no es Voy)', async () => {
     estado.asistenciaDeleteResultado = { data: [{ kind: 'me_interesa' }], error: null }
 
-    const resultado = await desmarcarFavorito(EVENT_ID, USER_ID)
+    const resultado = await desmarcarFavorito(EVENT_ID, USER_ID, 'event')
 
     expect(resultado).toEqual({ ok: true, voyQuitado: false })
   })
@@ -204,7 +204,7 @@ describe('desmarcarFavorito: voyQuitado', () => {
   it('voyQuitado = false cuando no había ninguna fila propia en event_attendance', async () => {
     estado.asistenciaDeleteResultado = { data: [], error: null }
 
-    const resultado = await desmarcarFavorito(EVENT_ID, USER_ID)
+    const resultado = await desmarcarFavorito(EVENT_ID, USER_ID, 'event')
 
     expect(resultado).toEqual({ ok: true, voyQuitado: false })
   })
@@ -214,7 +214,7 @@ describe('desmarcarFavorito: si falla el primer delete, no hay segundo', () => {
   it('error en el delete de event_attendance: ok=false, y el delete de user_favorites nunca se intenta', async () => {
     estado.asistenciaDeleteResultado = { data: null, error: { code: '42501', message: 'boom' } }
 
-    const resultado = await desmarcarFavorito(EVENT_ID, USER_ID)
+    const resultado = await desmarcarFavorito(EVENT_ID, USER_ID, 'event')
 
     expect(resultado.ok).toBe(false)
     expect(estado.llamadas.favoritoDelete).toBe(0)

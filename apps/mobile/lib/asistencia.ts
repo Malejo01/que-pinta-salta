@@ -118,7 +118,7 @@ export async function obtenerAsistencia(eventId: string, userId: string | null):
     // (acotada por RLS al usuario), así que no se repite esa consulta acá.
     const [resultadoPropia, resultadoFavorito] = await Promise.all([
       supabase.from('event_attendance').select('kind').eq('event_id', eventId).maybeSingle(),
-      obtenerEsFavorito(eventId, userId),
+      obtenerEsFavorito(eventId, userId, 'event'),
     ])
 
     const { data: filaPropia, error: errorPropia } = resultadoPropia
@@ -214,7 +214,7 @@ export async function marcarAsistencia(
   try {
     for (const paso of pasos) {
       if (paso === 'guardar') {
-        const resultado = await marcarFavorito(eventId, userId)
+        const resultado = await marcarFavorito(eventId, userId, 'event')
         if (!resultado.ok) {
           return { tipo: 'error', error: MENSAJE_ERROR, guardado: estadoTrasPasos(actual, pasosHechos).guardado }
         }

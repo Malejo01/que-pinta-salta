@@ -146,8 +146,8 @@ describe('RUTAS_SITIO_PERMITIDAS extraídas de lib/links.ts', () => {
 })
 
 describe('con el flag real (TERMINOS_PUBLICADOS de lib/legales.ts): cada ruta permitida cumple contra la web real', () => {
-  it('TERMINOS_PUBLICADOS sigue en false (si esto cambió, el cruce de arriba con el flag real ya debería ejercitarse solo)', () => {
-    expect(TERMINOS_PUBLICADOS).toBe(false)
+  it('TERMINOS_PUBLICADOS está en true (R72, 72-d): el cruce con el flag real exige que la página exista', () => {
+    expect(TERMINOS_PUBLICADOS).toBe(true)
   })
 
   for (const ruta of RUTAS_SITIO_PERMITIDAS) {

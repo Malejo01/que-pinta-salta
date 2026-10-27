@@ -59,7 +59,7 @@ export function eventoIdDesdeLink(url: string): string | null {
 // y los dos legales de QPS-237 (ronda 49), `/privacidad` y `/terminos`.
 // Cualquier otra ruta, relativa o no, da `null`. `/terminos` además pasa por
 // la guarda explícita de abajo: estar en esta lista no alcanza para abrirla
-// mientras `TERMINOS_PUBLICADOS` sea `false`.
+// si `TERMINOS_PUBLICADOS` es `false`.
 const RUTAS_SITIO_PERMITIDAS = ['/auth/recuperar', '/privacidad', RUTA_TERMINOS] as const
 
 /**
@@ -71,9 +71,9 @@ const RUTAS_SITIO_PERMITIDAS = ['/auth/recuperar', '/privacidad', RUTA_TERMINOS]
  *
  * Guarda aparte para `/terminos` (QPS-237): aunque esté en la lista cerrada
  * de arriba (para que esa lista siga siendo la única fuente de rutas),
- * mientras `TERMINOS_PUBLICADOS` sea `false` (`/terminos` vive en el #74,
- * sin mergear) esta función la rechaza igual — así ningún componente puede
- * abrir un 404 por error, aunque la pida.
+ * si `TERMINOS_PUBLICADOS` es `false` (hoy está en `true`: `/terminos` ya
+ * está publicado) esta función la rechaza igual — así ningún componente
+ * puede abrir un 404 por error, aunque la pida.
  */
 export function urlSitio(ruta: string): string | null {
   if (ruta === RUTA_TERMINOS && !TERMINOS_PUBLICADOS) return null
