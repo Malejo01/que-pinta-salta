@@ -1,7 +1,8 @@
 import { Skeleton } from "@/components/ui/skeleton"
 
 // Esqueleto de carga de /mapa: mismo contenedor que la página, con el título,
-// los filtros, el bloque del mapa (mismo alto fijo) y tres tarjetas de lugares.
+// las dos filas de filtros ("Cuándo" y "Qué"), el bloque del mapa (mismo alto
+// fijo) y tres tarjetas de lugares.
 export default function Loading() {
   return (
     <div role="status" aria-busy="true" className="min-h-screen bg-background pb-page sm:pb-0">
@@ -14,6 +15,11 @@ export default function Loading() {
           <Skeleton className="h-11 w-20 rounded-full" />
           <Skeleton className="h-11 w-28 rounded-full" />
           <Skeleton className="h-11 w-48 rounded-full" />
+        </div>
+        <div className="mt-2 flex flex-wrap gap-2">
+          <Skeleton className="h-11 w-20 rounded-full" />
+          <Skeleton className="h-11 w-28 rounded-full" />
+          <Skeleton className="h-11 w-40 rounded-full" />
         </div>
         <Skeleton className="mt-4 h-5 w-40" />
         <div className="mt-4 space-y-4 lg:grid lg:grid-cols-[minmax(0,1fr)_26rem] lg:items-start lg:gap-6 lg:space-y-0">

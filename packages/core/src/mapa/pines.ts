@@ -4,7 +4,7 @@
  * parámetro). La R55 (mapa en la app) importa este archivo tal cual.
  */
 import { formatSaltaDayKey, saltaWallClockToDate } from '../date-format'
-import { ventanaDeAtajo } from '../home/atajos'
+import { eventoEnAtajo, ventanaDeAtajo } from '../home/atajos'
 import { estimatedEnd, isVigente } from '../events/vigencia'
 import { coordenadasEnSalta } from './zona'
 
@@ -114,17 +114,21 @@ export function ventanaDeFiltroMapa(filtro: FiltroMapa, ahora: Date): { desde: D
  * (`isVigente`) y, o bien su inicio cae en la ventana (`ventanaDeFiltroMapa`),
  * o bien empezó antes de la ventana (dura varios días: un festival que arrancó
  * anteayer) y su fin estimado (`estimatedEnd`) llega hasta el principio de la
- * ventana. Para `hoy`/`finde` es `eventoEnAtajo` más ese arrastre: el mapa
- * muestra lo que sigue en curso (la portada, `atajos.ts`, no cambia).
+ * ventana. Para `hoy`/`finde` es `eventoEnAtajo` (se lo llama, no se copia)
+ * más ese arrastre: el mapa muestra lo que sigue en curso (la portada,
+ * `atajos.ts`, no cambia).
  */
 export function eventoEnFiltroMapa(evento: EventoParaMapa, filtro: FiltroMapa, ahora: Date): boolean {
+  // Sin la categoría a propósito: la regla extra de "esta noche" no aplica a hoy ni a finde.
+  if (filtro.tipo !== 'fecha' && eventoEnAtajo({ start_date: evento.start_date, end_date: evento.end_date }, filtro.tipo, ahora)) return true
+
   if (!isVigente(evento, ahora)) return false
 
   const inicio = new Date(evento.start_date)
   if (Number.isNaN(inicio.getTime())) return false
 
   const { desde, hasta } = ventanaDeFiltroMapa(filtro, ahora)
-  if (inicio.getTime() >= desde.getTime() && inicio.getTime() <= hasta.getTime()) return true
+  if (filtro.tipo === 'fecha' && inicio.getTime() >= desde.getTime() && inicio.getTime() <= hasta.getTime()) return true
 
   // Evento de varios días que ya empezó antes de ese día, pero sigue vigente
   // durante él (su fin estimado llega hasta el principio de la ventana).
@@ -176,33 +180,38 @@ function compararPines(a: PinLugar, b: PinLugar): number {
 }
 
 /**
- * Arma los pines del mapa: uno por lugar, con sus eventos que caen en
- * `filtro` para `ahora`. Un `id` repetido cuenta una sola vez. Un evento sin
- * lugar, o con coordenadas que no caen en `coordenadasEnSalta`, no tiene pin:
- * suma a `sinUbicacion` (un evento que no entra en el filtro no suma a nada).
+ * La ubicación de un evento para el mapa, o `null` si no tiene lugar o sus
+ * coordenadas no caen en `coordenadasEnSalta` (entonces no tiene pin).
  */
-export function armarPinesDelMapa(
-  eventos: EventoParaMapa[],
-  filtro: FiltroMapa,
-  ahora: Date
-): { pines: PinLugar[]; sinUbicacion: number } {
+export function ubicacionDelEvento(evento: EventoParaMapa): { lat: number; lng: number } | null {
+  const venue = evento.venue
+  const lat = venue ? aCoordenada(venue.latitude) : null
+  const lng = venue ? aCoordenada(venue.longitude) : null
+  if (!venue || lat === null || lng === null || !coordenadasEnSalta(lat, lng)) return null
+  return { lat, lng }
+}
+
+/**
+ * Agrupa en pines eventos que YA pasaron el filtro: uno por lugar. Un `id`
+ * repetido cuenta una sola vez; un evento sin ubicación (`ubicacionDelEvento`)
+ * suma a `sinUbicacion`. Lo usan `armarPinesDelMapa` y `mapa/filtros.ts`, que
+ * filtra la fecha una sola vez.
+ */
+export function agruparEnPines(eventosEnFiltro: EventoParaMapa[]): { pines: PinLugar[]; sinUbicacion: number } {
   const vistos = new Set<string>()
   const porLugar = new Map<string, PinLugar>()
   let sinUbicacion = 0
 
-  for (const evento of eventos) {
+  for (const evento of eventosEnFiltro) {
     if (vistos.has(evento.id)) continue
-    if (!eventoEnFiltroMapa(evento, filtro, ahora)) continue
     vistos.add(evento.id)
 
-    const venue = evento.venue
-    const lat = venue ? aCoordenada(venue.latitude) : null
-    const lng = venue ? aCoordenada(venue.longitude) : null
-
-    if (!venue || lat === null || lng === null || !coordenadasEnSalta(lat, lng)) {
+    const ubicacion = ubicacionDelEvento(evento)
+    if (!evento.venue || !ubicacion) {
       sinUbicacion += 1
       continue
     }
+    const venue = evento.venue
 
     const eventoDelPin: EventoDelPin = {
       id: evento.id,
@@ -219,8 +228,8 @@ export function armarPinesDelMapa(
         venueId: venue.id,
         nombre: venue.name,
         direccion: venue.address,
-        lat,
-        lng,
+        lat: ubicacion.lat,
+        lng: ubicacion.lng,
         eventos: [eventoDelPin],
       })
     }
@@ -231,6 +240,20 @@ export function armarPinesDelMapa(
   pines.sort(compararPines)
 
   return { pines, sinUbicacion }
+}
+
+/**
+ * Arma los pines del mapa: uno por lugar, con sus eventos que caen en
+ * `filtro` para `ahora`. Un `id` repetido cuenta una sola vez. Un evento sin
+ * lugar, o con coordenadas que no caen en `coordenadasEnSalta`, no tiene pin:
+ * suma a `sinUbicacion` (un evento que no entra en el filtro no suma a nada).
+ */
+export function armarPinesDelMapa(
+  eventos: EventoParaMapa[],
+  filtro: FiltroMapa,
+  ahora: Date
+): { pines: PinLugar[]; sinUbicacion: number } {
+  return agruparEnPines(eventos.filter((evento) => eventoEnFiltroMapa(evento, filtro, ahora)))
 }
 
 /** Una `Feature` GeoJSON de punto, sin tipar toda la librería geojson (que no es una dependencia del proyecto). */

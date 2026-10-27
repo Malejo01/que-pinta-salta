@@ -62,28 +62,34 @@ export function saltaWallClockToDate(value: string): Date {
   return new Date(saltaWallClockToUtcISO(value))
 }
 
+// Un solo formateador por formato: armar un `Intl.DateTimeFormat` es caro y
+// estas dos se llaman por cada evento (vigencia, atajos y el mapa).
+const FORMATO_DIA_SALTA = new Intl.DateTimeFormat('en-CA', {
+  timeZone: DEFAULT_TIME_ZONE,
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+})
+
+const FORMATO_HORA_SALTA = new Intl.DateTimeFormat('en-GB', {
+  timeZone: DEFAULT_TIME_ZONE,
+  hour: '2-digit',
+  minute: '2-digit',
+  hourCycle: 'h23',
+})
+
 /**
  * Día calendario en Salta, formato "YYYY-MM-DD".
  * Reemplaza a los `.split('T')[0]` y `.toISOString().split('T')[0]`, que
  * devuelven el día UTC y corren la fecha en eventos de la noche.
  */
 export function formatSaltaDayKey(input: string | Date): string {
-  return new Intl.DateTimeFormat('en-CA', {
-    timeZone: DEFAULT_TIME_ZONE,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).format(toDate(input))
+  return FORMATO_DIA_SALTA.format(toDate(input))
 }
 
 /** Hora de pared en Salta, formato "HH:mm" en 24 horas. */
 export function formatSaltaClock(input: string | Date): string {
-  return new Intl.DateTimeFormat('en-GB', {
-    timeZone: DEFAULT_TIME_ZONE,
-    hour: '2-digit',
-    minute: '2-digit',
-    hourCycle: 'h23',
-  }).format(toDate(input))
+  return FORMATO_HORA_SALTA.format(toDate(input))
 }
 
 /** Partes separadas, para editores con inputs de fecha y hora por separado. */

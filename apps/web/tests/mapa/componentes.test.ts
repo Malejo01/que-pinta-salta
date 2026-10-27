@@ -16,10 +16,11 @@ const WEB_ROOT = fileURLToPath(new URL('../../', import.meta.url))
 const MAPLIBRE = 'components/mapa/mapa-maplibre.tsx'
 const DIFERIDO = 'components/mapa/mapa-diferido.tsx'
 const LISTA = 'components/mapa/lista-lugares.tsx'
+const FILTROS = 'components/mapa/filtros-mapa.tsx'
 const CONTENIDO = 'app/mapa/mapa-contenido.tsx'
 const PAGINA = 'app/mapa/page.tsx'
 const LOADING = 'app/mapa/loading.tsx'
-const NUEVOS = [MAPLIBRE, DIFERIDO, LISTA, CONTENIDO, PAGINA, LOADING]
+const NUEVOS = [MAPLIBRE, DIFERIDO, LISTA, FILTROS, CONTENIDO, PAGINA, LOADING]
 const CLIENTE = [CONTENIDO, DIFERIDO, MAPLIBRE]
 
 /** El código sin comentarios de bloque ni de línea completa. */

@@ -3,7 +3,8 @@ import { Navbar } from "@/components/navbar"
 import { MobileNav } from "@/components/mobile-nav"
 import { PaginaDeError } from "@/components/pagina-de-error"
 import { getEvents } from "@/lib/data"
-import { armarPinesDelMapa, parsearFiltroMapa } from "@qps/core/mapa/pines"
+import { parsearFiltroMapa } from "@qps/core/mapa/pines"
+import { armarMapaFiltrado, categoriasDeLosEventos, parsearFiltrosExtraMapa } from "@qps/core/mapa/filtros"
 import { MapaContenido } from "./mapa-contenido"
 
 export const metadata: Metadata = {
@@ -26,7 +27,14 @@ export const metadata: Metadata = {
 type ParametroDeUrl = string | string[] | undefined
 
 interface MapaPageProps {
-  searchParams?: Promise<{ cuando?: ParametroDeUrl; dia?: ParametroDeUrl; lugar?: ParametroDeUrl }>
+  searchParams?: Promise<{
+    cuando?: ParametroDeUrl
+    dia?: ParametroDeUrl
+    lugar?: ParametroDeUrl
+    gratis?: ParametroDeUrl
+    chicos?: ParametroDeUrl
+    categoria?: ParametroDeUrl
+  }>
 }
 
 /** Un query param repetido (`?a=1&a=2`) llega como arreglo: se toma el primero. */
@@ -38,8 +46,9 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 /**
  * `/mapa`: pública y igual para todos (sin sesión, favoritos ni nada
- * personal). El servidor arma los pines del filtro y le pasa al cliente solo lo
- * que dibuja (`PinLugar`): ni descripciones ni imágenes.
+ * personal). El servidor arma los pines del filtro (fecha más Gratis, Para
+ * chicos y categoría) y le pasa al cliente solo lo que dibuja (`PinLugar`):
+ * ni descripciones ni imágenes.
  */
 export default async function MapaPage({ searchParams }: MapaPageProps) {
   const params = (await searchParams) ?? {}
@@ -59,7 +68,12 @@ export default async function MapaPage({ searchParams }: MapaPageProps) {
     )
   }
 
-  const { pines, sinUbicacion } = armarPinesDelMapa(eventos, filtro, ahora)
+  const slugsValidos = new Set(categoriasDeLosEventos(eventos).map((categoria) => categoria.slug))
+  const extra = parsearFiltrosExtraMapa(
+    { gratis: primero(params.gratis), chicos: primero(params.chicos), categoria: primero(params.categoria) },
+    slugsValidos
+  )
+  const { pines, sinUbicacion, categorias } = armarMapaFiltrado(eventos, filtro, extra, ahora)
 
   const lugar = primero(params.lugar)
   const lugarInicial = lugar && UUID.test(lugar) && pines.some((pin) => pin.venueId === lugar) ? lugar : null
@@ -72,6 +86,8 @@ export default async function MapaPage({ searchParams }: MapaPageProps) {
           pines={pines}
           sinUbicacion={sinUbicacion}
           filtro={filtro}
+          extra={extra}
+          categorias={categorias}
           lugarInicial={lugarInicial}
           ahoraISO={ahora.toISOString()}
         />
