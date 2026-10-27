@@ -4,7 +4,7 @@
  * parámetro). La R55 (mapa en la app) importa este archivo tal cual.
  */
 import { formatSaltaDayKey, saltaWallClockToDate } from '../date-format'
-import { ventanaDeAtajo } from '../home/atajos'
+import { eventoEnAtajo, ventanaDeAtajo } from '../home/atajos'
 import { estimatedEnd, isVigente } from '../events/vigencia'
 import { coordenadasEnSalta } from './zona'
 
@@ -114,17 +114,21 @@ export function ventanaDeFiltroMapa(filtro: FiltroMapa, ahora: Date): { desde: D
  * (`isVigente`) y, o bien su inicio cae en la ventana (`ventanaDeFiltroMapa`),
  * o bien empezó antes de la ventana (dura varios días: un festival que arrancó
  * anteayer) y su fin estimado (`estimatedEnd`) llega hasta el principio de la
- * ventana. Para `hoy`/`finde` es `eventoEnAtajo` más ese arrastre: el mapa
- * muestra lo que sigue en curso (la portada, `atajos.ts`, no cambia).
+ * ventana. Para `hoy`/`finde` es `eventoEnAtajo` (se lo llama, no se copia)
+ * más ese arrastre: el mapa muestra lo que sigue en curso (la portada,
+ * `atajos.ts`, no cambia).
  */
 export function eventoEnFiltroMapa(evento: EventoParaMapa, filtro: FiltroMapa, ahora: Date): boolean {
+  // Sin la categoría a propósito: la regla extra de "esta noche" no aplica a hoy ni a finde.
+  if (filtro.tipo !== 'fecha' && eventoEnAtajo({ start_date: evento.start_date, end_date: evento.end_date }, filtro.tipo, ahora)) return true
+
   if (!isVigente(evento, ahora)) return false
 
   const inicio = new Date(evento.start_date)
   if (Number.isNaN(inicio.getTime())) return false
 
   const { desde, hasta } = ventanaDeFiltroMapa(filtro, ahora)
-  if (inicio.getTime() >= desde.getTime() && inicio.getTime() <= hasta.getTime()) return true
+  if (filtro.tipo === 'fecha' && inicio.getTime() >= desde.getTime() && inicio.getTime() <= hasta.getTime()) return true
 
   // Evento de varios días que ya empezó antes de ese día, pero sigue vigente
   // durante él (su fin estimado llega hasta el principio de la ventana).

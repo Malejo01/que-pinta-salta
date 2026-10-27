@@ -1,11 +1,13 @@
 /**
  * Filtro combinado de la portada de la app y de Buscar (R66, 66-a): fecha
- * (atajo) + categoría + texto + gratis, todo a la vez y en memoria. Sin React
- * ni next/*.
+ * (atajo) + categoría + texto + gratis + para chicos, todo a la vez y en
+ * memoria. También lo usa `/mapa` de la web (`mapa/filtros.ts`). Sin React ni
+ * next/*.
  */
 import { eventoEnAtajo, type Atajo, type EventoParaAtajo } from "./atajos"
 import { buscarEventosPorTexto } from "./busqueda"
 import { soloGratis } from "./filtros-extra"
+import { esParaChicos } from "../filtros/publico"
 import type { DisplayEvent } from "./types"
 
 /**
@@ -22,14 +24,16 @@ export interface FiltrosCombinados {
   atajo: Atajo | null
   categoria: string | null
   soloGratis?: boolean
+  /** Solo lo que es para ir con chicos (`esParaChicos`). */
+  paraChicos?: boolean
   texto?: string
 }
 
 const ATAJOS_VALIDOS: readonly Atajo[] = ["hoy", "esta-noche", "finde", "semana"]
 
 /**
- * Aplica a la vez atajo, categoría, texto y gratis (en ese orden) y conserva
- * el orden de entrada.
+ * Aplica a la vez atajo, categoría, texto, gratis y para chicos (en ese
+ * orden) y conserva el orden de entrada.
  */
 export function filtrarCombinado(items: ItemFiltrable[], filtros: FiltrosCombinados, ahora: Date): DisplayEvent[] {
   const { atajo, categoria } = filtros
@@ -44,6 +48,8 @@ export function filtrarCombinado(items: ItemFiltrable[], filtros: FiltrosCombina
   if (texto) eventos = buscarEventosPorTexto(eventos, texto)
 
   if (filtros.soloGratis) eventos = soloGratis(eventos)
+
+  if (filtros.paraChicos) eventos = eventos.filter((evento) => esParaChicos({ categorySlug: evento.category, tags: evento.tags }))
 
   return eventos
 }
