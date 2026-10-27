@@ -10,9 +10,19 @@
 // como color de texto: lo usa `CampoTexto` para el placeholder). Es el
 // mismo token que ya usan `PantallaRadar`/`SeccionNotificaciones` para sus
 // mensajes secundarios ("No hay categorías todavía.", etc.).
+//
+// A6 (nube Q1): el botón de "Reintentar" pasa a ser un componente propio,
+// `BotonReintentar`, para poder ponerlo también fuera de `ErrorCarga` — junto
+// a `AvisoSinConexion` (con lo guardado a la vista) y en los vacíos que
+// necesitan volver a pedir (Buscar sin categorías, Mis eventos y Radar sin
+// sesión por falta de red) — sin que ninguna pantalla vuelva a escribir su
+// propio `<Text>Reintentar</Text>` (`tests/estado-carga-detector.test.ts`).
+// Los botones de este archivo dejan `useTheme()` de expo-router por
+// `useColoresQPS()`: el texto en `foreground` y el borde en
+// `bordeChipInactivo` (R72, 72-c: >= 3:1 contra el fondo; `colores.border`
+// daba ~1,3:1 y el botón casi no se distinguía como botón).
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native'
-import { useTheme } from 'expo-router'
-import { useColoresQPS } from '@/lib/colores'
+import { bordeChipInactivo, useColoresQPS } from '@/lib/colores'
 
 /** Indicador de carga centrado. Sin texto: el mensaje de cada pantalla, si
  * lo tiene, vive afuera (por ejemplo, un título que ya se ve). */
@@ -30,20 +40,41 @@ export interface ErrorCargaProps {
   onReintentar: () => void
 }
 
+export interface BotonReintentarProps {
+  onReintentar: () => void
+  /** Mientras se reintenta (por ejemplo, un refresco en curso): el botón se apaga para no disparar dos pedidos. */
+  deshabilitado?: boolean
+}
+
+/**
+ * El botón "Reintentar", solo (A6): el mismo de `ErrorCarga`, para usarlo
+ * afuera de un error a pantalla completa — por ejemplo al lado del aviso de
+ * sin conexión, AFUERA del `View accessible` del aviso (ahí adentro no se
+ * podría tocar con el lector de pantalla: `accessible` agrupa todo en un solo
+ * elemento).
+ */
+export function BotonReintentar({ onReintentar, deshabilitado = false }: BotonReintentarProps) {
+  const colores = useColoresQPS()
+  return (
+    <Pressable
+      onPress={onReintentar}
+      disabled={deshabilitado}
+      accessibilityRole="button"
+      accessibilityState={{ disabled: deshabilitado }}
+      style={[estilos.boton, { borderColor: bordeChipInactivo(colores), opacity: deshabilitado ? 0.6 : 1 }]}
+    >
+      <Text style={[estilos.textoBoton, { color: colores.foreground }]}>Reintentar</Text>
+    </Pressable>
+  )
+}
+
 /** Mensaje de error + botón "Reintentar". */
 export function ErrorCarga({ mensaje, onReintentar }: ErrorCargaProps) {
-  const { colors } = useTheme()
   const colores = useColoresQPS()
   return (
     <View style={estilos.contenedor}>
       <Text style={[estilos.mensaje, { color: colores.mutedForeground }]}>{mensaje}</Text>
-      <Pressable
-        onPress={onReintentar}
-        accessibilityRole="button"
-        style={[estilos.boton, { borderColor: colors.border }]}
-      >
-        <Text style={[estilos.textoBoton, { color: colors.text }]}>Reintentar</Text>
-      </Pressable>
+      <BotonReintentar onReintentar={onReintentar} />
     </View>
   )
 }
@@ -59,7 +90,6 @@ export interface VacioProps {
 
 /** Mensaje de "no hay nada" + acción opcional. */
 export function Vacio({ mensaje, textoAccion, onAccion }: VacioProps) {
-  const { colors } = useTheme()
   const colores = useColoresQPS()
   return (
     <View style={estilos.contenedor}>
@@ -68,9 +98,9 @@ export function Vacio({ mensaje, textoAccion, onAccion }: VacioProps) {
         <Pressable
           onPress={onAccion}
           accessibilityRole="button"
-          style={[estilos.boton, { borderColor: colors.border }]}
+          style={[estilos.boton, { borderColor: bordeChipInactivo(colores) }]}
         >
-          <Text style={[estilos.textoBoton, { color: colors.text }]}>{textoAccion}</Text>
+          <Text style={[estilos.textoBoton, { color: colores.foreground }]}>{textoAccion}</Text>
         </Pressable>
       ) : null}
     </View>

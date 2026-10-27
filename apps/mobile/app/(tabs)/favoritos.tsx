@@ -52,23 +52,41 @@
 // `urlEvento(id, 'app')`, justamente para este caso (agenda entera, no un
 // evento puntual): acepta que `message` salga de `armarMensajeWhatsApp(...)`,
 // como acá abajo.
+//
+// A6 (nube Q1) · Vacíos y sin conexión. (1) Un error de carga distingue "no
+// hay conexión y todavía no hay nada guardado" de un error del servidor
+// (`mensajeErrorCarga`, `lib/vacios.ts`; `cargarFavoritosConCache` ahora trae
+// `sinConexion` en la rama de error). (2) El vacío dice por qué y ofrece "Ver
+// la agenda" (Inicio); mostrando lo guardado, que los eventos que ya pasaron
+// no se muestran (también como línea de más en el aviso). (3) Con lo guardado
+// a la vista, "Reintentar" al lado del aviso (`refrescar`), y si vuelve a caer
+// en lo guardado, "Seguimos sin conexión" (`decidirRefresco`, anunciado). (4)
+// Sin sesión porque no se pudo confirmar por falta de red (`sinConexion` de
+// `useSession()`) y sin nada guardado, ya no dice "Entrá…"/"Ingresar": dice
+// que no hay conexión y ofrece "Reintentar" (`reintentarSesion`, que vuelve a
+// probar la sesión, más una relectura de lo guardado). `decidirVistaFavoritos`
+// NO cambia (el test tiene una copia literal): la diferencia se resuelve al
+// dibujar la vista 'invitar'.
 import { useCallback, useMemo, useState } from 'react'
-import { Image, Pressable, RefreshControl, SectionList, Share, StyleSheet, View } from 'react-native'
+import { AccessibilityInfo, Image, Pressable, RefreshControl, SectionList, Share, StyleSheet, View } from 'react-native'
 import { useFocusEffect, useRouter, useTheme } from 'expo-router'
 import { capitalizeFirst } from '@qps/core/event-display'
 import { formatEventDate } from '@qps/core/date-format'
 import { armarMensajeWhatsApp } from '@qps/core/favoritos/armar'
 import type { DisplayEvent } from '@qps/core/home/types'
 import LOGO_MARCA from '@/assets/logo-circular.png'
-import { AvisoSinConexion } from '@/components/AvisoSinConexion'
+import { AvisoNoSeActualizo, AvisoSinConexion } from '@/components/AvisoSinConexion'
 import { AvisoActivarPush } from '@/components/AvisoActivarPush'
-import { Cargando, ErrorCarga, Vacio } from '@/components/EstadoCarga'
+import { BotonReintentar, Cargando, ErrorCarga, Vacio } from '@/components/EstadoCarga'
 import { Icono } from '@/components/Icono'
 import { TarjetaEvento } from '@/components/TarjetaEvento'
 import { Texto } from '@/components/Texto'
 import { useColoresQPS } from '@/lib/colores'
-import { esperarBorradoDeCache, useSession } from '@/lib/session'
+import { MENSAJE_SEGUIMOS_SIN_CONEXION_SIN_SESION, MENSAJE_SESION_SIN_CONEXION } from '@/lib/mensajes'
+import { esperarBorradoDeCache, reintentarSesion, useSession } from '@/lib/session'
+import { TITULO_SIN_CONEXION } from '@/lib/sin-conexion/aviso'
 import { cargarFavoritosConCache, leerFavoritosGuardados } from '@/lib/sin-conexion/favoritos'
+import { DETALLE_FAVORITOS_GUARDADO, decidirRefresco, mensajeErrorCarga, VACIO_FAVORITOS_GUARDADO } from '@/lib/vacios'
 
 // R43, 43-c: `desdeCache` en la rama 'ok' (cuándo se guardó lo que se está
 // mostrando, `null` con una carga fresca) y una variante nueva, 'invitar',
@@ -78,7 +96,8 @@ import { cargarFavoritosConCache, leerFavoritosGuardados } from '@/lib/sin-conex
 // `decidirVistaFavoritos`, más abajo).
 type EstadoLista =
   | { tipo: 'cargando' }
-  | { tipo: 'error'; error: string }
+  // A6: `error` ya es el texto para la pantalla (`mensajeErrorCarga`).
+  | { tipo: 'error'; error: string; sinConexion?: boolean }
   | { tipo: 'ok'; voy: DisplayEvent[]; eventos: DisplayEvent[]; desdeCache: { guardadoEn: Date } | null }
   | { tipo: 'invitar' }
 
@@ -198,6 +217,9 @@ export default function Favoritos() {
   // Estado de refresco aparte del de carga (28-c): mientras se refresca, la
   // grilla sigue a la vista en vez de pasar a `Cargando`.
   const [refrescando, setRefrescando] = useState(false)
+  // A6: lo que pasó con el último refresco/reintento ("Seguimos sin
+  // conexión...", "No pudimos actualizar..."), o `null`.
+  const [notaRefresco, setNotaRefresco] = useState<string | null>(null)
 
   // R43, 43-c: `cargarFavoritosConCache` en vez de `obtenerFavoritos` — si
   // falla por red, muestra la última caché buena (`desdeCache` distinto de
@@ -207,13 +229,17 @@ export default function Favoritos() {
   const cargar = useCallback(async () => {
     if (!userId) return
     setEstado({ tipo: 'cargando' })
+    setNotaRefresco(null)
     await esperarBorradoDeCache()
     const resultado = await cargarFavoritosConCache(userId)
     setEstado(
       resultado.tipo === 'ok'
         ? { tipo: 'ok', voy: resultado.voy, eventos: resultado.eventos, desdeCache: resultado.desdeCache }
-        : { tipo: 'error', error: resultado.error },
+        : { tipo: 'error', error: mensajeErrorCarga('favoritos', resultado), sinConexion: resultado.sinConexion },
     )
+    // A6: Android no anuncia la live region del aviso al montarse (R69) e
+    // iOS las ignora: se anuncia acá.
+    if (resultado.tipo === 'ok' && resultado.desdeCache) AccessibilityInfo.announceForAccessibility(TITULO_SIN_CONEXION)
   }, [userId])
 
   // Repite el cuerpo de `cargar` en vez de llamarla (ver el comentario de
@@ -232,18 +258,33 @@ export default function Favoritos() {
   // pantalla vuelve a pedir por red (vía `cargar`, en el próximo foco) y el
   // aviso de `AvisoSinConexion` desaparece. Sin sinConexion (vista
   // 'invitar', sin RefreshControl) sigue sin hacer nada, como antes.
+  //
+  // A6: es también el "Reintentar" del aviso y de la vista sin sesión por
+  // falta de red. Sin sesión, primero vuelve a probar la sesión
+  // (`reintentarSesion`: si vuelve, cambia `userId` y el `useFocusEffect` de
+  // abajo carga por red solo); después relee lo guardado como antes. Con
+  // sesión, `decidirRefresco` conserva lo que se veía (`estado`, por eso está
+  // en las dependencias) si el refresco falla, y avisa "Seguimos sin
+  // conexión" si vuelve a caer en lo guardado.
   const refrescar = useCallback(async () => {
     if (!userId) {
       if (!sinConexion) return
       setRefrescando(true)
       try {
         await esperarBorradoDeCache()
+        const volvioLaSesion = await reintentarSesion()
         const cache = await leerFavoritosGuardados()
-        setEstado(
-          cache
-            ? { tipo: 'ok', voy: cache.voy, eventos: cache.eventos, desdeCache: { guardadoEn: cache.guardadoEn } }
-            : { tipo: 'invitar' },
-        )
+        const nuevo: EstadoLista = cache
+          ? { tipo: 'ok', voy: cache.voy, eventos: cache.eventos, desdeCache: { guardadoEn: cache.guardadoEn } }
+          : { tipo: 'invitar' }
+        const decision = decidirRefresco(estado, nuevo)
+        setEstado(decision.estado)
+        // Si la sesión volvió, no hay nada que avisar: en un instante carga
+        // por red. Si no, y no había nada guardado, "Seguimos sin conexión".
+        const nota = volvioLaSesion ? null : (decision.nota ?? (cache ? null : MENSAJE_SEGUIMOS_SIN_CONEXION_SIN_SESION))
+        setNotaRefresco(nota)
+        const anuncio = volvioLaSesion ? null : (decision.anuncio ?? nota)
+        if (anuncio) AccessibilityInfo.announceForAccessibility(anuncio)
       } finally {
         // Si `leerFavoritosGuardados` tirara, el spinner no puede quedar
         // girando (misma familia de bloqueante que R41/R42).
@@ -254,13 +295,17 @@ export default function Favoritos() {
     setRefrescando(true)
     await esperarBorradoDeCache()
     const resultado = await cargarFavoritosConCache(userId)
-    setEstado(
+    const decision = decidirRefresco<EstadoLista>(
+      estado,
       resultado.tipo === 'ok'
         ? { tipo: 'ok', voy: resultado.voy, eventos: resultado.eventos, desdeCache: resultado.desdeCache }
-        : { tipo: 'error', error: resultado.error },
+        : { tipo: 'error', error: mensajeErrorCarga('favoritos', resultado), sinConexion: resultado.sinConexion },
     )
+    setEstado(decision.estado)
+    setNotaRefresco(decision.nota)
+    if (decision.anuncio) AccessibilityInfo.announceForAccessibility(decision.anuncio)
     setRefrescando(false)
-  }, [userId, sinConexion])
+  }, [userId, sinConexion, estado])
 
   useFocusEffect(
     useCallback(() => {
@@ -329,6 +374,27 @@ export default function Favoritos() {
     )
   }
 
+  if (vista === 'invitar' && sinConexion) {
+    // A6: sin sesión porque no se pudo confirmar por falta de red, y sin nada
+    // guardado: "Entrá…"/"Ingresar" mentía (la persona puede tener sesión).
+    // Texto propio + "Reintentar" (`refrescar`, que vuelve a probar la
+    // sesión) + la nota del último intento.
+    return (
+      <View style={[estilos.centrado, { backgroundColor: colors.background, flex: 1 }]}>
+        <Image source={LOGO_MARCA} style={estilos.logoVacio} resizeMode="contain" />
+        <Texto tono="secundario" style={estilos.mensajeVacio}>
+          {MENSAJE_SESION_SIN_CONEXION}
+        </Texto>
+        <BotonReintentar onReintentar={refrescar} deshabilitado={refrescando} />
+        {notaRefresco ? (
+          <Texto tono="secundario" style={estilos.mensajeVacio}>
+            {notaRefresco}
+          </Texto>
+        ) : null}
+      </View>
+    )
+  }
+
   if (vista === 'invitar') {
     // Sin sesión y sin caché que mostrar (o con red, nunca se la lee):
     // pantalla de siempre, sin RefreshControl (28-c: no hay nada propio que
@@ -389,7 +455,18 @@ export default function Favoritos() {
                   también con la lista vacía (`totalFavoritos === 0`) — por
                   eso va afuera del `totalFavoritos > 0` de abajo. */}
               {estado.tipo === 'ok' && estado.desdeCache ? (
-                <AvisoSinConexion guardadoEn={estado.desdeCache.guardadoEn} />
+                <AvisoSinConexion
+                  guardadoEn={estado.desdeCache.guardadoEn}
+                  detalle={DETALLE_FAVORITOS_GUARDADO}
+                  onReintentar={refrescar}
+                  reintentando={refrescando}
+                  nota={notaRefresco}
+                />
+              ) : null}
+              {/* A6: un refresco que falló con una carga fresca a la vista:
+                  se conserva y se avisa. */}
+              {estado.tipo === 'ok' && estado.desdeCache === null && notaRefresco ? (
+                <AvisoNoSeActualizo texto={notaRefresco} onReintentar={refrescar} reintentando={refrescando} />
               ) : null}
               {totalFavoritos > 0 ? (
                 <View style={[estilos.encabezado, { borderBottomColor: colors.border }]}>
@@ -465,7 +542,25 @@ export default function Favoritos() {
               {fila.length === 1 ? <View style={estilos.celda} /> : null}
             </View>
           )}
-          ListEmptyComponent={<Vacio mensaje="Todavía no tenés nada en Mis eventos" />}
+          // A6: porqué + acción. Mostrando lo guardado, la lista vacía es
+          // porque lo que había ya pasó (`VACIO_FAVORITOS_GUARDADO`); con red,
+          // el literal de siempre con "Mis eventos" (lo fija
+          // tests/favoritos-pantalla.test.ts; espejo en `VACIO_FAVORITOS`).
+          ListEmptyComponent={
+            estado.tipo === 'ok' && estado.desdeCache ? (
+              <Vacio
+                mensaje={VACIO_FAVORITOS_GUARDADO.mensaje}
+                textoAccion={VACIO_FAVORITOS_GUARDADO.textoAccion}
+                onAccion={() => router.push('/')}
+              />
+            ) : (
+              <Vacio
+                mensaje="Todavía no guardaste ningún evento en Mis eventos. Tocá el corazón o “Voy” en un evento y aparece acá."
+                textoAccion="Ver la agenda"
+                onAccion={() => router.push('/')}
+              />
+            )
+          }
         />
       ) : null}
     </View>

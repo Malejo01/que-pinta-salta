@@ -9,16 +9,28 @@
 // `email_target`: lo pone la base, como en la web). El guardado sigue
 // siendo `lib/radar.ts` (27-c), sin cambios: esta pantalla solo cambia cómo
 // se ve y se edita.
+//
+// A6 (nube Q1) · Vacíos y sin conexión. `lib/radar.ts` ahora detecta la red
+// (`esErrorDeRed`) y trae `sinConexion`: al abrir sin red, el error dice que
+// no hay conexión (`mensajeErrorCarga`, `lib/vacios.ts`); al guardar sin red,
+// el aviso deja claro que los cambios siguen en pantalla (no se pierde nada:
+// el estado editado y "Tenés cambios sin guardar" quedan). Sin sesión por
+// falta de red (`sinConexion` de `useSession()`) ya no ofrece "Ingresar": dice
+// que no hay conexión y da "Reintentar" (`reintentarSesion`). Y los vacíos
+// que no decían nada ahora dicen por qué: sin sesión (arriba de "Ingresar
+// para armar tu Radar"), sin categorías, y el buscador sin coincidencias (con
+// "Limpiar").
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Animated, Pressable, ScrollView, StyleSheet, View } from 'react-native'
+import { AccessibilityInfo, Animated, Pressable, ScrollView, StyleSheet, View } from 'react-native'
 import { useRouter } from 'expo-router'
 import type { EmailFrequency } from '@qps/core/radar/preferencias'
 import { CampoTexto } from '@/components/CampoTexto'
-import { Cargando, ErrorCarga } from '@/components/EstadoCarga'
+import { BotonReintentar, Cargando, ErrorCarga } from '@/components/EstadoCarga'
 import { Icono } from '@/components/Icono'
 import { Texto } from '@/components/Texto'
 import { hitSlopPara } from '@/lib/accesibilidad'
-import { useColoresQPS } from '@/lib/colores'
+import { bordeChipInactivo, useColoresQPS } from '@/lib/colores'
+import { MENSAJE_SEGUIMOS_SIN_CONEXION_SIN_SESION, MENSAJE_SESION_SIN_CONEXION } from '@/lib/mensajes'
 import { esAdminRadar, guardarRadar, obtenerRadar, probarEnvioRadar, type OpcionesRadar } from '@/lib/radar'
 import {
   buscarSeguibles,
@@ -27,7 +39,13 @@ import {
   type EstadoRadarComparable,
   type Seguible,
 } from '@/lib/radar-vista'
-import { useSession } from '@/lib/session'
+import { reintentarSesion, useSession } from '@/lib/session'
+import {
+  mensajeErrorCarga,
+  TEXTO_RADAR_SIN_CATEGORIAS,
+  TEXTO_RADAR_SIN_SESION,
+  vacioBuscadorRadar,
+} from '@/lib/vacios'
 
 // Mismos colores que la web para los badges/chips (Tailwind emerald-400 y
 // pink-400): no son tokens de `useColoresQPS()`, son decorativos y fijos,
@@ -64,7 +82,7 @@ function alternarEnConjunto(conjunto: Set<string>, id: string): Set<string> {
 export function PantallaRadar() {
   const colores = useColoresQPS()
   const router = useRouter()
-  const { session, cargando: cargandoSesion } = useSession()
+  const { session, cargando: cargandoSesion, sinConexion: sesionSinConexion } = useSession()
   const userId = session?.user.id ?? null
   const email = session?.user.email ?? ''
 
@@ -78,6 +96,9 @@ export function PantallaRadar() {
   // `POST /api/radar/prueba` (`esAdminRadar` lee `profiles.role` con RLS).
   const [esAdmin, setEsAdmin] = useState(false)
   const [enviandoPrueba, setEnviandoPrueba] = useState(false)
+  // A6: "Reintentar" sin sesión por falta de red (ver `reintentarLaSesion`).
+  const [reintentandoSesion, setReintentandoSesion] = useState(false)
+  const [notaSesion, setNotaSesion] = useState<string | null>(null)
   // Cuenta de "reintentos" (mismo patrón que `app/pelicula/[id].tsx`, 28-l):
   // el efecto de carga no puede llamar, de forma sincrónica, a una función
   // que haga `setState` (lint react-hooks/set-state-in-effect). El fetch va
@@ -141,7 +162,8 @@ export function PantallaRadar() {
     obtenerRadar(userId).then((resultado) => {
       if (cancelado) return
       if (!resultado.ok) {
-        setEstado({ tipo: 'error', error: resultado.error })
+        // A6: sin red, "No hay conexión..."; si no, el texto neutro.
+        setEstado({ tipo: 'error', error: mensajeErrorCarga('radar', resultado) })
         return
       }
       const original: EstadoRadarComparable = {
@@ -171,6 +193,21 @@ export function PantallaRadar() {
     setIntento((valor) => valor + 1)
   }, [])
 
+  // A6: sin sesión porque no se pudo confirmar por falta de red. Si vuelve,
+  // `useSession()` trae el `userId` y los efectos de arriba cargan solos; si
+  // no, se ve y se anuncia "Seguimos sin conexión".
+  async function reintentarLaSesion() {
+    if (reintentandoSesion) return
+    setReintentandoSesion(true)
+    setNotaSesion(null)
+    const volvio = await reintentarSesion()
+    setReintentandoSesion(false)
+    if (!volvio) {
+      setNotaSesion(MENSAJE_SEGUIMOS_SIN_CONEXION_SIN_SESION)
+      AccessibilityInfo.announceForAccessibility(MENSAJE_SEGUIMOS_SIN_CONEXION_SIN_SESION)
+    }
+  }
+
   function actualizarOk(cambio: (previo: EstadoOk) => EstadoOk) {
     setEstado((previo) => (previo.tipo === 'ok' ? cambio(previo) : previo))
   }
@@ -196,6 +233,20 @@ export function PantallaRadar() {
     () => buscarSeguibles(lugaresDisponibles, cuentasDisponibles, busqueda),
     [lugaresDisponibles, cuentasDisponibles, busqueda],
   )
+  // A6: si lo buscado coincide con algo que ya se sigue (las sugerencias
+  // excluyen lo ya elegido), el vacío lo dice en vez de "no hay nada".
+  const coincidenciasYaSeguidas = useMemo(
+    () =>
+      opcionesActuales && venueIdsActuales && instagramIdsActuales
+        ? buscarSeguibles(
+            opcionesActuales.lugares.filter((l) => venueIdsActuales.has(l.id)),
+            opcionesActuales.cuentasInstagram.filter((c) => instagramIdsActuales.has(c.id)),
+            busqueda,
+          )
+        : [],
+    [opcionesActuales, venueIdsActuales, instagramIdsActuales, busqueda],
+  )
+  const vacioBuscador = vacioBuscadorRadar({ busqueda, coincideConLoQueYaSeguis: coincidenciasYaSeguidas.length > 0 })
   const lugaresSeleccionados = useMemo(
     () => (opcionesActuales && venueIdsActuales ? opcionesActuales.lugares.filter((l) => venueIdsActuales.has(l.id)) : []),
     [opcionesActuales, venueIdsActuales],
@@ -258,7 +309,10 @@ export function PantallaRadar() {
       })
       actualizarOk((previo) => ({ ...previo, original: datos }))
     } else {
-      setMensaje({ tipo: 'error', texto: 'Error al guardar', detalle: resultado.error })
+      // A6: sin red, `resultado.error` ya es el texto que dice que los
+      // cambios siguen acá (`MENSAJE_RADAR_GUARDAR_SIN_CONEXION`): no se toca
+      // el estado editado, así que también queda "Tenés cambios sin guardar".
+      setMensaje({ tipo: 'error', texto: resultado.sinConexion ? 'Sin conexión' : 'Error al guardar', detalle: resultado.error })
     }
     setGuardando(false)
   }
@@ -289,17 +343,38 @@ export function PantallaRadar() {
   let cuerpo: React.ReactNode
   if (cargandoSesion) {
     cuerpo = <Cargando />
-  } else if (!userId) {
+  } else if (!userId && sesionSinConexion) {
+    // A6: la sesión no se pudo confirmar por falta de red: "Ingresar" mentía.
     cuerpo = (
-      <Pressable
-        onPress={() => router.push('/cuenta')}
-        accessibilityRole="button"
-        style={[estilos.botonPrimario, { backgroundColor: colores.primary }]}
-      >
-        <Texto peso="bold" style={{ color: colores.primaryForeground }}>
-          Ingresar para armar tu Radar
+      <View style={estilos.vacio}>
+        <Texto tono="secundario" style={estilos.textoVacio}>
+          {MENSAJE_SESION_SIN_CONEXION}
         </Texto>
-      </Pressable>
+        <BotonReintentar onReintentar={reintentarLaSesion} deshabilitado={reintentandoSesion} />
+        {notaSesion ? (
+          <Texto tono="secundario" style={estilos.textoVacio}>
+            {notaSesion}
+          </Texto>
+        ) : null}
+      </View>
+    )
+  } else if (!userId) {
+    // A6: el porqué, arriba del botón (antes era el botón solo).
+    cuerpo = (
+      <View style={estilos.vacio}>
+        <Texto tono="secundario" style={estilos.textoVacio}>
+          {TEXTO_RADAR_SIN_SESION}
+        </Texto>
+        <Pressable
+          onPress={() => router.push('/cuenta')}
+          accessibilityRole="button"
+          style={[estilos.botonPrimario, estilos.anchoCompleto, { backgroundColor: colores.primary }]}
+        >
+          <Texto peso="bold" style={{ color: colores.primaryForeground }}>
+            Ingresar para armar tu Radar
+          </Texto>
+        </Pressable>
+      </View>
     )
   } else if (estado.tipo === 'cargando') {
     cuerpo = <Cargando />
@@ -368,6 +443,13 @@ export function PantallaRadar() {
           <Texto tono="secundario" style={estilos.textoChico}>
             Recibirás alertas de todos los eventos que se clasifiquen en las categorías seleccionadas.
           </Texto>
+
+          {/* A6: sin categorías para elegir, el porqué (antes, una grilla vacía). */}
+          {opciones.categorias.length === 0 ? (
+            <Texto tono="secundario" style={estilos.textoChico}>
+              {TEXTO_RADAR_SIN_CATEGORIAS}
+            </Texto>
+          ) : null}
 
           <View style={estilos.grillaCategorias}>
             {opciones.categorias.map((categoria) => {
@@ -455,9 +537,22 @@ export function PantallaRadar() {
                 ))}
               </View>
             ) : (
-              <Texto tono="secundario" style={estilos.sinCoincidencias}>
-                No se encontraron coincidencias.
-              </Texto>
+              // A6: qué se buscó y por qué no hay nada (o que ya lo seguís),
+              // con "Limpiar" para vaciar el buscador.
+              <View style={estilos.vacio}>
+                <Texto tono="secundario" style={estilos.sinCoincidencias}>
+                  {vacioBuscador.texto}
+                </Texto>
+                <Pressable
+                  onPress={() => setBusqueda('')}
+                  accessibilityRole="button"
+                  style={[estilos.botonContorno, { borderColor: bordeChipInactivo(colores) }]}
+                >
+                  <Texto peso="semibold" style={{ color: colores.foreground }}>
+                    {vacioBuscador.textoAccion}
+                  </Texto>
+                </Pressable>
+              </View>
             )
           ) : null}
 
@@ -648,6 +743,20 @@ const estilos = StyleSheet.create({
   badge: { borderWidth: 1, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 },
   textoBadge: { fontSize: 10, fontWeight: '700', textTransform: 'uppercase' },
   sinCoincidencias: { fontSize: 12, textAlign: 'center', paddingVertical: 12 },
+  // A6: los vacíos con texto + acción (sin sesión, buscador sin coincidencias).
+  vacio: { alignItems: 'center', gap: 12 },
+  textoVacio: { fontSize: 14, textAlign: 'center' },
+  // El botón de "Ingresar" sigue a todo el ancho, como antes de A6 (el
+  // contenedor `vacio` centra, y sin esto se achicaba al texto).
+  anchoCompleto: { alignSelf: 'stretch' },
+  botonContorno: {
+    borderWidth: 1,
+    borderRadius: 20,
+    paddingHorizontal: 16,
+    minHeight: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: {
     flexDirection: 'row',
