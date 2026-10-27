@@ -54,7 +54,8 @@ export function CinesView({ movies }: CinesViewProps) {
           <div className="flex size-14 items-center justify-center rounded-full bg-muted border border-border mb-4 text-muted-foreground">
             <Clapperboard className="size-6 stroke-[1.5]" />
           </div>
-          <h3 className="text-lg font-bold text-foreground">No se encontraron películas</h3>
+          {/* B4: <h2>, como los títulos de las tarjetas: va después del <h1> de /cines. */}
+          <h2 className="text-lg font-bold text-foreground">No se encontraron películas</h2>
           <p className="mt-1 text-sm text-muted-foreground max-w-xs">
             {searchQuery
               ? `No hay resultados para "${searchQuery}". Probá buscando con otro título.`

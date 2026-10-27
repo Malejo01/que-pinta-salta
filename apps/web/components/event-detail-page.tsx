@@ -167,7 +167,8 @@ export function EventDetailPage({
       <ViewBeacon eventId={event.id} origin={origin} />
       <Navbar />
       
-      <main className="container mx-auto px-4 py-8">
+      {/* B4: destino del "Saltar al contenido" (ver components/home-content.tsx). */}
+      <main id="contenido" tabIndex={-1} className="container mx-auto px-4 py-8 scroll-mt-16 focus:outline-hidden">
         <Link 
           href="/"
           className="mb-6 inline-flex items-center gap-2 text-muted-foreground hover:text-foreground"

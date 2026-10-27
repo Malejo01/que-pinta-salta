@@ -17,6 +17,14 @@ import { eventHref, type MetricOrigin } from "@/lib/metricas/links"
 import { summarizeOccurrences } from "@/lib/events/occurrences-summary"
 import type { MovieShowings } from "@/lib/types"
 
+/**
+ * B4: cuántas funciones entran en la capa de hover de una tarjeta de 180 px
+ * de ancho (270 de alto) sin scroll: cada fila mide ~32 px con su separación,
+ * y entre el rótulo, el "+N fechas más" y el pie quedan ~160 px para la
+ * lista. Las demás se resumen en "+N fechas más".
+ */
+export const FUNCIONES_EN_CAPA = 4
+
 interface EventCardProps {
   event: DisplayEvent
   isFavorite?: boolean
@@ -140,14 +148,27 @@ export function EventCard({ event, isFavorite, onToggleFavorite, onOpenMovie, cl
           />
         )}
 
-        {/* Hover overlay con horarios de cine */}
+        {/* Hover overlay con horarios de cine.
+            B4: `overflow-hidden` y no `overflow-y-auto`. Con scroll, la capa
+            era una región desplazable que no se alcanza con el teclado
+            (axe: scrollable-region-focusable, en /favoritos), y darle
+            `tabIndex` sumaría una parada de Tab por tarjeta para una capa que
+            solo aparece con el mouse. No hace falta el scroll: los horarios ya
+            se cortan en 5 por cine, y la lista completa está en el modal de
+            la película (el click de la tarjeta). Si igual no entra (tres
+            cines con muchos horarios), se corta el bloque de arriba y el pie
+            queda a la vista (`min-h-0` + `shrink-0`). El título de la capa es
+            un <p> y no un <h4>: no hay <h3> arriba (heading-order) y no es un
+            encabezado de la página, es un rótulo de la capa. Va en #E8555A
+            fijo y no en `text-primary`: la capa es negra en los dos temas, y
+            el primario del tema claro (#a20519) da ~2,5:1 sobre negro. */}
         {event.isCinemaMovie && event.showings && (
-          <div className="absolute inset-0 bg-black/95 p-3 opacity-0 group-hover/card:opacity-100 transition-all duration-300 flex flex-col justify-between z-20 text-white overflow-y-auto scrollbar-hide">
-            <div className="space-y-3">
-              <h4 className="text-xs font-bold text-primary border-b border-primary/20 pb-1 flex items-center gap-1.5">
+          <div className="absolute inset-0 bg-black/95 p-3 opacity-0 group-hover/card:opacity-100 transition-all duration-300 flex flex-col justify-between z-20 text-white overflow-hidden">
+            <div className="min-h-0 space-y-3 overflow-hidden">
+              <p className="text-xs font-bold text-[#E8555A] border-b border-primary/20 pb-1 flex items-center gap-1.5">
                 <Film className="size-3.5" />
                 Funciones Hoy
-              </h4>
+              </p>
               <div className="space-y-2">
                 {Object.entries(event.showings as MovieShowings).map(([cinemaKey, details]) => (
                   <div key={cinemaKey} className="space-y-0.5">
@@ -168,22 +189,26 @@ export function EventCard({ event, isFavorite, onToggleFavorite, onOpenMovie, cl
                 ))}
               </div>
             </div>
-            <p className="text-[11px] text-zinc-400 text-center italic mt-2 border-t border-zinc-800/80 pt-1">
+            <p className="shrink-0 text-[11px] text-zinc-400 text-center italic mt-2 border-t border-zinc-800/80 pt-1">
               Click para ver horarios y comprar
             </p>
           </div>
         )}
 
-        {/* Hover overlay para eventos con múltiples fechas/horarios */}
+        {/* Hover overlay para eventos con múltiples fechas/horarios.
+            B4: sin scroll, por lo mismo que la capa de cine. La lista interna
+            tenía su propio `overflow-y-auto` (120 px, unas 3 filas): ahora
+            muestra las primeras `FUNCIONES_EN_CAPA` y un "+N fechas más"; la
+            lista completa está en la ficha (el click de la tarjeta). */}
         {!event.isCinemaMovie && event.occurrences && event.occurrences.length > 1 && (
-          <div className="absolute inset-0 bg-black/95 p-3 opacity-0 group-hover/card:opacity-100 transition-all duration-300 flex flex-col justify-between z-20 text-white overflow-y-auto scrollbar-hide">
-            <div className="space-y-3">
-              <h4 className="text-xs font-bold text-primary border-b border-primary/20 pb-1 flex items-center gap-1.5">
+          <div className="absolute inset-0 bg-black/95 p-3 opacity-0 group-hover/card:opacity-100 transition-all duration-300 flex flex-col justify-between z-20 text-white overflow-hidden">
+            <div className="min-h-0 space-y-3 overflow-hidden">
+              <p className="text-xs font-bold text-[#E8555A] border-b border-primary/20 pb-1 flex items-center gap-1.5">
                 <Calendar className="size-3.5" />
                 Próximas Funciones
-              </h4>
-              <div className="space-y-1.5 max-h-[120px] overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-zinc-800 scrollbar-track-transparent">
-                {event.occurrences.map((occ, idx) => {
+              </p>
+              <div className="space-y-1.5 overflow-hidden pr-1">
+                {event.occurrences.slice(0, FUNCIONES_EN_CAPA).map((occ, idx) => {
                   const dateObj = new Date(occ.date + 'T00:00:00')
                   const formattedOccDate = dateObj.toLocaleDateString("es-AR", {
                     day: "numeric",
@@ -201,8 +226,13 @@ export function EventCard({ event, isFavorite, onToggleFavorite, onOpenMovie, cl
                   )
                 })}
               </div>
+              {event.occurrences.length > FUNCIONES_EN_CAPA && (
+                <p className="text-[10px] text-zinc-300">
+                  +{event.occurrences.length - FUNCIONES_EN_CAPA} {event.occurrences.length - FUNCIONES_EN_CAPA === 1 ? "fecha más" : "fechas más"}
+                </p>
+              )}
             </div>
-            <p className="text-[11px] text-zinc-400 text-center italic mt-2 border-t border-zinc-800/80 pt-1">
+            <p className="shrink-0 text-[11px] text-zinc-400 text-center italic mt-2 border-t border-zinc-800/80 pt-1">
               Click para ver detalles
             </p>
           </div>

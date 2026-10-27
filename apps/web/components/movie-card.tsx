@@ -45,11 +45,14 @@ export function MovieCard({ movie }: MovieCardProps) {
         </div>
       </div>
 
-      {/* Título de la película */}
+      {/* Título de la película.
+          B4: <h2> y no <h3> (heading-order): MovieCard solo se usa en la
+          grilla de /cines (components/cines-view.tsx), que viene justo
+          después del <h1> "Cartelera de Cines". Mismas clases, mismo aspecto. */}
       <div className="mt-4 flex flex-col gap-1 min-h-[3.5rem]">
-        <h3 className="text-lg font-bold tracking-tight text-foreground group-hover:text-primary transition-colors duration-300 line-clamp-2">
+        <h2 className="text-lg font-bold tracking-tight text-foreground group-hover:text-primary transition-colors duration-300 line-clamp-2">
           {movie.title}
-        </h3>
+        </h2>
       </div>
 
       <div className="mt-2 border-t border-border pt-3 flex-1 flex flex-col justify-end">

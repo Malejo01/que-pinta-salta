@@ -192,7 +192,12 @@ export function HomeContent({
     <div className="min-h-screen bg-background pb-page sm:pb-0">
       <Navbar />
 
-      <main>
+      {/* B4: destino del link "Saltar al contenido" de la Navbar.
+          `tabIndex={-1}` para que el <main> pueda recibir el foco al seguir
+          el ancla (no entra en el orden de Tab); `scroll-mt-16` deja el
+          comienzo debajo del header fijo (h-16), y `focus:outline-hidden`
+          evita un anillo alrededor de toda la página. */}
+      <main id="contenido" tabIndex={-1} className="scroll-mt-16 focus:outline-hidden">
         <h1 className="sr-only">Que pinta Salta - Agenda de Eventos, Peñas y Boliches en Salta Capital</h1>
         {!hasFilters && carouselEvents.length > 0 && (
           <HeroCarousel

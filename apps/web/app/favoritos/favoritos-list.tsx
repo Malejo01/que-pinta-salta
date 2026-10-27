@@ -190,9 +190,11 @@ export function FavoritosList({ voy, flexibles, porDia }: FavoritosListProps) {
           </p>
         </div>
 
+        {/* B4: emerald-700 y no 600: el blanco sobre emerald-600 daba 3,7:1
+            (los dos temas); sobre 700, 5,4:1. El hover baja a 800. */}
         <Button
           onClick={handleShareWhatsApp}
-          className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl shadow-md transition-all self-start sm:self-auto cursor-pointer"
+          className="bg-emerald-700 hover:bg-emerald-800 text-white font-semibold flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl shadow-md transition-all self-start sm:self-auto cursor-pointer"
         >
           <MessageCircle className="size-5 fill-white/10" />
           Compartir agenda por WhatsApp
@@ -236,7 +238,8 @@ export function FavoritosList({ voy, flexibles, porDia }: FavoritosListProps) {
             <div className="space-y-4">
               <div className="flex items-center gap-3">
                 <div className="h-px bg-zinc-800 flex-1" />
-                <h3 className="text-xs font-bold text-zinc-500 uppercase tracking-widest px-2">
+                {/* B4: en oscuro, zinc-400 (zinc-500 daba 4,3:1 sobre el fondo). */}
+                <h3 className="text-xs font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-widest px-2">
                   Plan flexible / Sin fecha definida ({flexibles.length})
                 </h3>
                 <div className="h-px bg-zinc-800 flex-1" />
@@ -262,7 +265,9 @@ export function FavoritosList({ voy, flexibles, porDia }: FavoritosListProps) {
               <div key={dia} className="space-y-4">
                 <div className="flex items-center gap-3">
                   <div className="h-px bg-primary/20 flex-1" />
-                  <h3 className="text-xs font-extrabold text-primary uppercase tracking-widest px-2 bg-primary/5 py-1 rounded-md border border-primary/10">
+                  {/* B4: en oscuro, #E8555A (5,6:1 sobre el bg-primary/5;
+                      `--primary` daba 4,4:1). */}
+                  <h3 className="text-xs font-extrabold text-primary dark:text-[#E8555A] uppercase tracking-widest px-2 bg-primary/5 py-1 rounded-md border border-primary/10">
                     {formatHeaderDate(dia)} ({items.length})
                   </h3>
                   <div className="h-px bg-primary/20 flex-1" />

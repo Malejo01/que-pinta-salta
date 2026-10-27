@@ -16,6 +16,7 @@ import {
   type ModoContrasena,
 } from "@qps/core/auth/cuenta"
 import { mensajeErrorContrasena } from "@qps/core/auth/mensajes"
+import { ariaDelCampo, CLASES_TEXTO_ERROR } from "@/lib/accesibilidad/formularios"
 
 interface ChangePasswordFormProps {
   /**
@@ -32,6 +33,10 @@ export function ChangePasswordForm({ modo = "email" }: ChangePasswordFormProps) 
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
+  // B4: el error de validación (corta o no coinciden) marca las dos
+  // contraseñas con aria-invalid; el de Supabase solo se asocia (ver
+  // lib/accesibilidad/formularios.ts).
+  const [contrasenasInvalidas, setContrasenasInvalidas] = useState(false)
 
   const { titulo, descripcion, boton } = textosContrasena(modo)
 
@@ -41,6 +46,7 @@ export function ChangePasswordForm({ modo = "email" }: ChangePasswordFormProps) 
     setSuccess(false)
 
     const validacion = validarContrasenaNueva(password, confirmPassword)
+    setContrasenasInvalidas(!validacion.ok)
     if (!validacion.ok) {
       setError(validacion.mensaje)
       return
@@ -94,15 +100,20 @@ export function ChangePasswordForm({ modo = "email" }: ChangePasswordFormProps) 
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-4">
+          {/* B4: role="alert" + id para el aria-describedby de los campos.
+              El texto en red-700 / red-400: `text-destructive` daba 3,9:1
+              en claro y 1,9:1 en oscuro sobre este fondo. */}
           {error && (
-            <div className="flex items-start gap-2 rounded-lg border border-destructive bg-destructive/10 p-3 text-sm text-destructive">
+            <div id="error-contrasena" role="alert" className={`flex items-start gap-2 rounded-lg border border-destructive bg-destructive/10 p-3 text-sm ${CLASES_TEXTO_ERROR}`}>
               <AlertCircle className="size-4 shrink-0 mt-0.5" />
               <span>{error}</span>
             </div>
           )}
 
           {success && (
-            <div className="flex items-start gap-2 rounded-lg border border-green-500/20 bg-green-500/10 p-3 text-sm text-green-600 dark:text-green-400">
+            // B4: role="status" (se anuncia) y green-800 en claro: green-600
+            // daba 2,9:1 sobre el fondo verde claro.
+            <div role="status" className="flex items-start gap-2 rounded-lg border border-green-500/20 bg-green-500/10 p-3 text-sm text-green-800 dark:text-green-400">
               <CheckCircle2 className="size-4 shrink-0 mt-0.5" />
               <span>
                 {modo === "restablecer" ? (
@@ -126,6 +137,7 @@ export function ChangePasswordForm({ modo = "email" }: ChangePasswordFormProps) 
               placeholder="••••••••"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
+              {...ariaDelCampo("error-contrasena", error !== null, contrasenasInvalidas)}
               required
               minLength={LARGO_MINIMO_CONTRASENA}
               disabled={isSubmitting}
@@ -140,6 +152,7 @@ export function ChangePasswordForm({ modo = "email" }: ChangePasswordFormProps) 
               placeholder="••••••••"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
+              {...ariaDelCampo("error-contrasena", error !== null, contrasenasInvalidas)}
               required
               minLength={LARGO_MINIMO_CONTRASENA}
               disabled={isSubmitting}

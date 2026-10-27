@@ -221,7 +221,9 @@ describe('mobile-nav.tsx: los 5 ítems respetan el área táctil mínima y escal
 
   it('el cuerpo de letra va en rem, no en px: un px literal no escala si la persona agrandó la letra del sistema', () => {
     const src = sinComentarios(readSource('components/mobile-nav.tsx'))
-    const clasesDeTexto = src.match(/text-\[[^\]]+\]/g) ?? []
+    // B4: se excluyen los colores arbitrarios (`dark:text-[#E8555A]`, el rojo
+    // del ítem activo en oscuro): `text-[…]` con un `#` es color, no tamaño.
+    const clasesDeTexto = src.match(/text-\[(?!#)[^\]]+\]/g) ?? []
     expect(clasesDeTexto.length).toBeGreaterThan(0)
     for (const clase of clasesDeTexto) {
       expect(clase).toMatch(/rem\]$/)

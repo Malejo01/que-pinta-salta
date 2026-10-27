@@ -31,7 +31,10 @@ export function MobileNav() {
     // quedaría debajo de la barra de gestos de Android o del home indicator de iOS.
     // El padding la levanta solo en los teléfonos que lo necesitan (en el resto el
     // valor es 0 y nada cambia).
-    <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-background/95 pb-[env(safe-area-inset-bottom)] backdrop-blur supports-[backdrop-filter]:bg-background/60 sm:hidden">
+    //
+    // B4: `aria-label` porque convive con el <nav> "Principal" de la Navbar:
+    // dos regiones de navegación sin nombre no se distinguen en un lector.
+    <nav aria-label="Navegación inferior" className="fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-background/95 pb-[env(safe-area-inset-bottom)] backdrop-blur supports-[backdrop-filter]:bg-background/60 sm:hidden">
       <div className="flex h-16 items-center justify-around">
         {navItems.map((item) => {
           const isActive = pathname === item.href
@@ -65,8 +68,11 @@ export function MobileNav() {
                 // `outline-hidden` y no `outline-none`: en alto contraste de
                 // Windows la sombra no se pinta y el contorno transparente sí.
                 "flex min-w-[48px] flex-col items-center gap-0.5 rounded-md px-1.5 py-2 text-[0.6875rem] whitespace-nowrap transition-colors outline-hidden focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
+                // B4: el activo en oscuro va con un rojo más claro que
+                // `--primary` (#db373a daba 4,43:1 a 11 px sobre la barra
+                // translúcida; #E8555A da más de 5:1). En claro, el primario.
                 isActive
-                  ? "text-primary"
+                  ? "text-primary dark:text-[#E8555A]"
                   : "text-muted-foreground hover:text-foreground"
               )}
             >

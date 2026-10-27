@@ -21,6 +21,7 @@ import {
 } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { ariaDelCampo, CLASES_TEXTO_ERROR } from '@/lib/accesibilidad/formularios'
 import Image from 'next/image'
 import Link from 'next/link'
 import { useState } from 'react'
@@ -82,7 +83,9 @@ export default function RecuperarPage() {
   }
 
   return (
-    <div className="relative flex min-h-svh w-full flex-col items-center justify-center p-6 md:p-10 bg-background overflow-hidden">
+    // B4: <main> en vez de <div> (mismas clases, mismo aspecto): la pantalla
+    // no tenía región principal.
+    <main className="relative flex min-h-svh w-full flex-col items-center justify-center p-6 md:p-10 bg-background overflow-hidden">
       {/* Patrón de fondo de marca */}
       <div
         className="pointer-events-none absolute inset-0 bg-repeat opacity-[0.06] dark:opacity-[0.035] dark:invert dark:hue-rotate-180"
@@ -111,9 +114,10 @@ export default function RecuperarPage() {
             />
           </div>
           <div className="text-center leading-none">
+            {/* B4: en oscuro, #E8555A (el #C12026 de marca da 3,3:1). */}
             <p
-              className="text-2xl leading-snug"
-              style={{ fontFamily: 'var(--font-yellowtail)', color: '#C12026' }}
+              className="text-2xl leading-snug text-[#C12026] dark:text-[#E8555A]"
+              style={{ fontFamily: 'var(--font-yellowtail)' }}
             >
               Que pinta?
             </p>
@@ -128,14 +132,22 @@ export default function RecuperarPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-2xl">Recuperar contraseña</CardTitle>
+            {/* B4: la página no tenía <h1>. `CardTitle` pinta un <div>; el
+                <h1> adentro hereda tamaño y peso (el reset de Tailwind no les
+                da estilo propio a los encabezados), así que se ve igual. Mismo
+                arreglo que el ingreso. */}
+            <CardTitle className="text-2xl">
+              <h1>Recuperar contraseña</h1>
+            </CardTitle>
             <CardDescription>
               Ingresá tu email y te mandamos un link para elegir una contraseña nueva
             </CardDescription>
           </CardHeader>
           <CardContent>
             {enviado ? (
-              <div className="space-y-2">
+              // B4: role="status" para que el lector anuncie el resultado
+              // cuando reemplaza al formulario.
+              <div className="space-y-2" role="status">
                 <p className="rounded-md bg-muted p-3 text-sm text-foreground">{MENSAJE_ENVIADO}</p>
                 <p className="text-sm text-muted-foreground">{MENSAJE_GOOGLE}</p>
               </div>
@@ -151,10 +163,14 @@ export default function RecuperarPage() {
                       required
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
+                      // B4: el único error posible acá es de red o de límite
+                      // de envíos, no del email escrito: se asocia al campo
+                      // pero no lo marca inválido.
+                      {...ariaDelCampo('error-recuperar', errorLimite, false)}
                     />
                   </div>
                   {errorLimite && (
-                    <p className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
+                    <p id="error-recuperar" role="alert" className={`rounded-md bg-destructive/10 p-3 text-sm ${CLASES_TEXTO_ERROR}`}>
                       {MENSAJE_LIMITE}
                     </p>
                   )}
@@ -167,6 +183,6 @@ export default function RecuperarPage() {
           </CardContent>
         </Card>
       </div>
-    </div>
+    </main>
   )
 }

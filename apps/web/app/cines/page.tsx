@@ -35,15 +35,19 @@ export default async function CinesPage() {
 
   const activeMovies = movies || []
 
+  // B4: el fondo y las luces van en un <div>; el <main> envuelve solo el
+  // contenido, con la Navbar y la MobileNav afuera (antes las dos barras de
+  // navegación quedaban dentro del contenido principal). Las clases del
+  // <main> viejo pasan al <div> tal cual, así que se ve igual.
   return (
-    <main className="min-h-screen bg-background text-foreground pb-page relative overflow-hidden">
+    <div className="min-h-screen bg-background text-foreground pb-page relative overflow-hidden">
       {/* Luces de fondo decorativas (Aesthetics) */}
       <div className="absolute top-[-10%] left-[-20%] w-[600px] h-[600px] rounded-full bg-primary/5 blur-[120px] pointer-events-none" />
       <div className="absolute top-[30%] right-[-25%] w-[500px] h-[500px] rounded-full bg-primary/5 blur-[100px] pointer-events-none" />
 
       <Navbar />
 
-      <div className="container mx-auto px-4 pt-12 md:pt-16 max-w-7xl">
+      <main id="contenido" tabIndex={-1} className="container mx-auto px-4 pt-12 md:pt-16 max-w-7xl scroll-mt-16 focus:outline-hidden">
         {/* Header Seccion */}
         <div className="flex flex-col items-center text-center mb-12 space-y-4">
           <div className="flex items-center justify-center size-14 rounded-2xl bg-primary/10 border border-primary/20 text-primary shadow-inner shadow-primary/20 mb-2">
@@ -59,9 +63,9 @@ export default async function CinesPage() {
 
         {/* Componente de búsqueda y grid */}
         <CinesView movies={activeMovies} />
-      </div>
+      </main>
 
       <MobileNav />
-    </main>
+    </div>
   )
 }

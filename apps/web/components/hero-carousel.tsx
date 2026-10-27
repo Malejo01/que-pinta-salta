@@ -25,14 +25,22 @@ export function HeroCarousel({ events }: HeroCarouselProps) {
   // deja de aplicar aunque el índice vuelva a 0 en una vuelta completa.
   const [isInitialSlide, setIsInitialSlide] = useState(true)
 
+  // B4: el carrusel avanza solo cada 5 s y cada diapositiva se vuelve a
+  // montar (AnimatePresence con `key`): si el foco del teclado estaba en
+  // "Ver detalles" o en un punto, desaparecía con la diapositiva y volvía al
+  // <body>. Mientras el foco o el mouse están adentro, el avance automático
+  // se pausa (además, así se puede leer sin que cambie).
+  const [enPausa, setEnPausa] = useState(false)
+
   useEffect(() => {
+    if (enPausa) return
     const timer = setInterval(() => {
       setDirection(1)
       setIsInitialSlide(false)
       setCurrentIndex((prev) => (prev + 1) % events.length)
     }, 5000)
     return () => clearInterval(timer)
-  }, [events.length])
+  }, [events.length, enPausa])
 
   const goToPrevious = () => {
     setDirection(-1)
@@ -68,7 +76,17 @@ export function HeroCarousel({ events }: HeroCarouselProps) {
   const description = cleanDescription(currentEvent.description)
 
   return (
-    <div className="relative h-[200px] w-full overflow-hidden sm:h-[320px] lg:h-[360px] bg-black">
+    <div
+      className="relative h-[200px] w-full overflow-hidden sm:h-[320px] lg:h-[360px] bg-black"
+      onFocus={() => setEnPausa(true)}
+      onBlur={(e) => {
+        // Solo se reanuda si el foco sale del carrusel, no al pasar de un
+        // botón a otro adentro.
+        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setEnPausa(false)
+      }}
+      onMouseEnter={() => setEnPausa(true)}
+      onMouseLeave={() => setEnPausa(false)}
+    >
       <AnimatePresence mode="wait" initial={false} custom={direction}>
         <motion.div
           key={currentIndex}
@@ -218,6 +236,8 @@ export function HeroCarousel({ events }: HeroCarouselProps) {
                 : "w-2 bg-foreground/30 hover:bg-foreground/50"
             }`}
             aria-label={`Ir al evento ${index + 1}`}
+            // B4: el punto activo solo se distinguía por el color y el ancho.
+            aria-current={index === currentIndex ? "true" : undefined}
           />
         ))}
       </div>

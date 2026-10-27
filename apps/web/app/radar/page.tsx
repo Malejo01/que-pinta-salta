@@ -40,7 +40,8 @@ export default async function RadarPage() {
 
       <Navbar />
 
-      <main className="container mx-auto px-4 py-12 max-w-4xl relative z-10">
+      {/* B4: destino del "Saltar al contenido" (ver components/home-content.tsx). */}
+      <main id="contenido" tabIndex={-1} className="container mx-auto px-4 py-12 max-w-4xl relative z-10 scroll-mt-16 focus:outline-hidden">
         {/* Encabezado Principal */}
         <div className="flex flex-col items-center text-center mb-10 space-y-3">
           <div className="flex items-center justify-center size-14 rounded-2xl bg-primary/10 border border-primary/20 text-primary shadow-inner shadow-primary/20 mb-1">

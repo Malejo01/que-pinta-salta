@@ -12,6 +12,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
+import { useVolverAlFocoDeOrigen } from "@/lib/accesibilidad/foco-de-origen"
 import { Badge } from "@/components/ui/badge"
 
 interface FlyerModalProps {
@@ -23,6 +24,8 @@ export function FlyerModal({ flyer }: FlyerModalProps) {
   // Estado local: el Dialog se cierra al instante (como `movie-modal.tsx`) y
   // recién después se navega hacia atrás. Ver tarea 18-f.
   const [open, setOpen] = useState(true)
+  // B4: al cerrar, el foco vuelve a la tarjeta que abrió el modal.
+  const volverAlOrigen = useVolverAlFocoDeOrigen()
 
   const handleClose = (nextOpen: boolean) => {
     if (nextOpen) return
@@ -37,7 +40,7 @@ export function FlyerModal({ flyer }: FlyerModalProps) {
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-h-[90vh] max-w-lg overflow-y-auto p-0">
+      <DialogContent className="max-h-[90vh] max-w-lg overflow-y-auto p-0" onCloseAutoFocus={volverAlOrigen}>
         {/* Imagen del flyer */}
         <div className="relative aspect-square w-full">
           <FlyerImage

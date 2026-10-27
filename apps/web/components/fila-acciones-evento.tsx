@@ -90,9 +90,11 @@ export function FilaAccionesEventoVista({
                 className="min-h-11 flex-1 sm:flex-none"
                 disabled={pendiente}
                 aria-pressed={guardado}
+                // B4: el nombre accesible empieza con el texto visible
+                // ("Guardar" / "Guardado"), igual que el del Voy.
                 aria-label={
                   guardado
-                    ? `Quitar ${titulo ?? "este evento"} de tus guardados`
+                    ? `Guardado: quitar ${titulo ?? "este evento"} de tus guardados`
                     : `Guardar ${titulo ?? "este evento"}`
                 }
                 onClick={onClickGuardar}

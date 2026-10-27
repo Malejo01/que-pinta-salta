@@ -84,7 +84,8 @@ export default async function FlyerPage({ params }: FlyerPageProps) {
     <div className="min-h-screen bg-background pb-page sm:pb-0">
       <Navbar />
 
-      <main className="container mx-auto max-w-2xl px-4 py-8">
+      {/* B4: destino del "Saltar al contenido" (ver components/home-content.tsx). */}
+      <main id="contenido" tabIndex={-1} className="container mx-auto max-w-2xl px-4 py-8 scroll-mt-16 focus:outline-hidden">
         {/* Botón volver */}
         <Link
           href="/"

@@ -12,6 +12,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { PasswordInput } from '@/components/ui/password-input'
 import { Label } from '@/components/ui/label'
+import { ariaDelCampo, CLASES_TEXTO_ERROR } from '@/lib/accesibilidad/formularios'
 import { mensajeErrorIngreso } from '@/lib/auth/mensajes'
 import { rutaSiguienteSegura } from '@qps/core/auth/cuenta'
 import Image from 'next/image'
@@ -40,6 +41,9 @@ function LoginForm() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
+  // B4: si el error es de los campos (email o contraseña) o de otra cosa
+  // (Google): solo el primero marca los campos con aria-invalid.
+  const [errorEnCampos, setErrorEnCampos] = useState(false)
   const router = useRouter()
   const searchParams = useSearchParams()
   const next = rutaSiguienteSegura(searchParams.get('next'))
@@ -51,6 +55,7 @@ function LoginForm() {
       const { error } = await signInWithGoogle()
       if (error) throw error
     } catch {
+      setErrorEnCampos(false)
       setError('Ocurrió un error al iniciar sesión con Google. Probá de nuevo.')
       setIsLoading(false)
     }
@@ -67,6 +72,7 @@ function LoginForm() {
       password,
     })
     if (error) {
+      setErrorEnCampos(true)
       setError(mensajeErrorIngreso(error))
       setIsLoading(false)
       return
@@ -105,9 +111,10 @@ function LoginForm() {
             />
           </div>
           <div className="text-center leading-none">
+            {/* B4: en oscuro, #E8555A (el #C12026 de marca da 3,3:1). */}
             <p
-              className="text-2xl leading-snug"
-              style={{ fontFamily: 'var(--font-yellowtail)', color: '#C12026' }}
+              className="text-2xl leading-snug text-[#C12026] dark:text-[#E8555A]"
+              style={{ fontFamily: 'var(--font-yellowtail)' }}
             >
               Que pinta?
             </p>
@@ -140,6 +147,7 @@ function LoginForm() {
                     required
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
+                    {...ariaDelCampo('error-ingreso', error !== null, errorEnCampos)}
                   />
                 </div>
                 <div className="grid gap-2">
@@ -149,6 +157,7 @@ function LoginForm() {
                     required
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
+                    {...ariaDelCampo('error-ingreso', error !== null, errorEnCampos)}
                   />
                   <Link
                     href="/auth/recuperar"
@@ -157,8 +166,11 @@ function LoginForm() {
                     ¿Olvidaste tu contraseña?
                   </Link>
                 </div>
+                {/* B4: el error se anuncia al aparecer (role="alert") y los
+                    campos lo referencian con aria-describedby (ver
+                    lib/accesibilidad/formularios.ts). */}
                 {error && (
-                  <p className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
+                  <p id="error-ingreso" role="alert" className={`rounded-md bg-destructive/10 p-3 text-sm ${CLASES_TEXTO_ERROR}`}>
                     {error}
                   </p>
                 )}
@@ -190,11 +202,13 @@ function LoginForm() {
 
             <p className="mt-4 text-xs text-muted-foreground text-center">
               Al continuar con Google aceptás los{' '}
-              <Link href="/terminos" className="text-primary underline underline-offset-4">
+              {/* B4: los links rojos sobre la tarjeta, en oscuro con #E8555A
+                  (el `--primary` da 4,3:1 sobre `--card`). */}
+              <Link href="/terminos" className="text-primary dark:text-[#E8555A] underline underline-offset-4">
                 Términos y condiciones
               </Link>{' '}
               y la{' '}
-              <Link href="/privacidad" className="text-primary underline underline-offset-4">
+              <Link href="/privacidad" className="text-primary dark:text-[#E8555A] underline underline-offset-4">
                 Política de Privacidad
               </Link>
               .
@@ -204,7 +218,7 @@ function LoginForm() {
               ¿No tenés cuenta?{' '}
               <Link
                 href="/auth/sign-up"
-                className="text-primary underline underline-offset-4"
+                className="text-primary dark:text-[#E8555A] underline underline-offset-4"
               >
                 Registrate
               </Link>

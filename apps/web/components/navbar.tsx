@@ -23,6 +23,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 import { createClient } from "@/lib/supabase/client"
+import { asegurarDestino, ID_CONTENIDO, saltarAlContenido } from "@/lib/accesibilidad/saltar-al-contenido"
 import type { User as SupabaseUser } from "@supabase/supabase-js"
 
 export function Navbar() {
@@ -64,6 +65,14 @@ export function Navbar() {
     return () => subscription.unsubscribe()
   }, [])
 
+  // B4: en las páginas cuyo <main> no trae `id="contenido"` (mapa, buscar,
+  // legales: otras zonas), se lo pone al montar, para que el "Saltar al
+  // contenido" tenga destino también para axe/Lighthouse. Ver
+  // lib/accesibilidad/saltar-al-contenido.ts.
+  useEffect(() => {
+    asegurarDestino(document)
+  }, [])
+
   const handleSignOut = async () => {
     const supabase = createClient()
     await supabase.auth.signOut()
@@ -72,7 +81,28 @@ export function Navbar() {
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      <nav className="container mx-auto flex h-16 items-center justify-between px-4">
+      {/*
+        B4: "Saltar al contenido", el primer elemento con foco de toda página
+        que monta la Navbar (el layout es de otra zona, así que vive acá).
+        Oculto (sr-only) hasta que recibe foco con el teclado; ahí aparece
+        arriba a la izquierda, con los colores del tema y anillo de foco.
+        `absolute` y no `fixed`: el `backdrop-blur` del header lo vuelve el
+        bloque contenedor de los `fixed`, así que daría lo mismo, y el header
+        ya es `sticky` (posicionado). El destino y el plan B (páginas sin
+        `#contenido`) están en `lib/accesibilidad/saltar-al-contenido.ts`.
+      */}
+      <a
+        href={`#${ID_CONTENIDO}`}
+        onClick={(e) => {
+          if (saltarAlContenido(document)) e.preventDefault()
+        }}
+        className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-3 focus:z-[60] focus:rounded-md focus:bg-background focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-foreground focus:shadow-lg focus:outline-hidden focus:ring-2 focus:ring-ring"
+      >
+        Saltar al contenido
+      </a>
+      {/* B4: dos <nav> en la misma página (esta y la barra inferior de
+          celular) necesitan nombres distintos para los lectores de pantalla. */}
+      <nav aria-label="Principal" className="container mx-auto flex h-16 items-center justify-between px-4">
         <Link href="/" className="flex items-center gap-2.5">
           {/* Wrapper con ring rojo en dark mode para reemplazar el halo crema */}
           <div className="rounded-full dark:ring-2 dark:ring-[#C12026]/70 dark:ring-offset-1 dark:ring-offset-background">
@@ -86,9 +116,12 @@ export function Navbar() {
             />
           </div>
           <div className="hidden sm:block leading-none">
+            {/* B4: el rojo de marca (#C12026) da 3,3:1 sobre el fondo
+                oscuro; en oscuro va un rojo más claro (#E8555A, más de 5:1).
+                En claro queda el de marca (más de 5:1). */}
             <span
-              className="block text-lg leading-tight"
-              style={{ fontFamily: 'var(--font-yellowtail)', color: '#C12026' }}
+              className="block text-lg leading-tight text-[#C12026] dark:text-[#E8555A]"
+              style={{ fontFamily: 'var(--font-yellowtail)' }}
               suppressHydrationWarning
             >
               Que pinta?
@@ -133,7 +166,9 @@ export function Navbar() {
             variant="ghost"
             size="icon"
             onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
-            aria-label="Toggle theme"
+            // B4: en castellano y fijo. Un texto que dependa de
+            // `resolvedTheme` no coincide entre el servidor y la hidratación.
+            aria-label="Cambiar tema"
           >
             <Sun className="size-5 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
             <Moon className="absolute size-5 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
@@ -144,7 +179,10 @@ export function Navbar() {
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button asChild variant="ghost" className="text-muted-foreground hover:text-red-500 transition-colors mr-1 gap-2 font-semibold text-sm">
-                    <Link href="/favoritos">
+                    {/* B4: a 375 px el texto está oculto (`hidden sm:inline`)
+                        y el link se quedaba sin nombre; el aria-label es el
+                        mismo texto visible, así que vale en todos los anchos. */}
+                    <Link href="/favoritos" aria-label="Mis eventos">
                       <Heart className="size-4.5 text-red-500 fill-red-500/10" />
                       <span className="hidden sm:inline">Mis eventos</span>
                     </Link>
@@ -158,7 +196,7 @@ export function Navbar() {
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button asChild variant="ghost" className="text-muted-foreground hover:text-primary transition-colors mr-1 gap-2 font-semibold text-sm">
-                    <Link href="/radar">
+                    <Link href="/radar" aria-label="Radar Salteño">
                       <Radio className="size-4.5 text-primary" />
                       <span className="hidden sm:inline">Radar Salteño</span>
                     </Link>
@@ -186,7 +224,8 @@ export function Navbar() {
               {user ? (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon">
+                    {/* B4: botón de ícono sin texto: necesita nombre propio. */}
+                    <Button variant="ghost" size="icon" aria-label="Menú de tu cuenta">
                       <User className="size-5" />
                     </Button>
                   </DropdownMenuTrigger>

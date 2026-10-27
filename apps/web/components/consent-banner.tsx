@@ -126,10 +126,14 @@ export function ConsentBanner() {
           {ADS_ENABLED
             ? 'Usamos Google Analytics y anuncios de Google. Si aceptás, los anuncios pueden ser personalizados.'
             : 'Usamos Google Analytics para saber qué se usa del sitio. Solo si aceptás.'}{' '}
+          {/* B4: el nombre accesible empieza con el texto visible ("Más
+              info"), así quien maneja la compu con la voz puede decir lo que
+              ve (label-content-name-mismatch). En oscuro, #E8555A: el
+              `--primary` da 4,3:1 sobre la tarjeta del aviso. */}
           <Link
             href="/privacidad"
-            aria-label="Más información sobre cookies en la Política de Privacidad"
-            className="text-primary underline underline-offset-4 hover:text-primary/80"
+            aria-label="Más info sobre cookies en la Política de Privacidad"
+            className="text-primary dark:text-[#E8555A] underline underline-offset-4 hover:text-primary/80 dark:hover:text-red-300"
           >
             Más info
           </Link>

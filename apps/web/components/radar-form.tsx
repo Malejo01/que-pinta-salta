@@ -359,9 +359,12 @@ export function RadarForm({ initialSettings, categories, venues, instagramAccoun
                     <span className="font-semibold text-foreground">{item.name}</span>
                     <span className="text-xs text-muted-foreground truncate">{item.subtitle}</span>
                   </div>
+                  {/* B4: en claro, pink/emerald-800 (los -400 daban menos de
+                      3:1 sobre el popover blanco); en oscuro, los -400 de
+                      siempre. */}
                   <Badge variant="outline" className={cn(
                     "text-[10px] uppercase font-bold",
-                    item.type === "instagram" ? "border-pink-500/30 text-pink-400 bg-pink-500/5" : "border-emerald-500/30 text-emerald-400 bg-emerald-500/5"
+                    item.type === "instagram" ? "border-pink-500/30 text-pink-800 dark:text-pink-400 bg-pink-500/5" : "border-emerald-500/30 text-emerald-800 dark:text-emerald-400 bg-emerald-500/5"
                   )}>
                     {item.type === "instagram" ? "Instagram" : "Lugar"}
                   </Badge>
@@ -380,14 +383,18 @@ export function RadarForm({ initialSettings, categories, venues, instagramAccoun
         {/* Lista de Suscripciones Seleccionadas */}
         {(selectedVenues.length > 0 || selectedInstagrams.length > 0) ? (
           <div className="flex flex-wrap gap-2 pt-2">
-            {/* Locales Físicos */}
+            {/* Locales Físicos.
+                B4: el chip estaba pensado solo para oscuro: en claro,
+                emerald-300 sobre el verde translúcido daba 1,1:1. En claro va
+                emerald-50 con texto emerald-800; en oscuro, las clases de
+                siempre (con `dark:`). Lo mismo para el chip de Instagram. */}
             {selectedVenues.map((venue) => (
               <Badge
                 key={venue.id}
                 variant="secondary"
-                className="bg-emerald-950/20 border border-emerald-800/40 text-emerald-300 font-semibold px-3 py-1.5 rounded-lg flex items-center gap-1.5"
+                className="bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800/40 text-emerald-800 dark:text-emerald-300 font-semibold px-3 py-1.5 rounded-lg flex items-center gap-1.5"
               >
-                <MapPin className="size-3.5 text-emerald-400 flex-shrink-0" />
+                <MapPin className="size-3.5 text-emerald-600 dark:text-emerald-400 flex-shrink-0" />
                 <span>{venue.name}</span>
                 <button
                   type="button"
@@ -405,9 +412,9 @@ export function RadarForm({ initialSettings, categories, venues, instagramAccoun
               <Badge
                 key={ig.id}
                 variant="secondary"
-                className="bg-pink-950/20 border border-pink-800/40 text-pink-300 font-semibold px-3 py-1.5 rounded-lg flex items-center gap-1.5"
+                className="bg-pink-50 dark:bg-pink-950/20 border border-pink-200 dark:border-pink-800/40 text-pink-800 dark:text-pink-300 font-semibold px-3 py-1.5 rounded-lg flex items-center gap-1.5"
               >
-                <Instagram className="size-3.5 text-pink-400 flex-shrink-0" />
+                <Instagram className="size-3.5 text-pink-600 dark:text-pink-400 flex-shrink-0" />
                 <span>@{ig.username}</span>
                 <button
                   type="button"

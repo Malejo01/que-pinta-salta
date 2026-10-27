@@ -12,6 +12,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { PasswordInput } from '@/components/ui/password-input'
 import { Label } from '@/components/ui/label'
+import { ariaDelCampo, CLASES_TEXTO_ERROR } from '@/lib/accesibilidad/formularios'
 import { mensajeErrorAlta, resultadoAltaConSesion, MENSAJE_ALTA_CON_SESION } from '@/lib/auth/mensajes'
 import { useToast } from '@/hooks/use-toast'
 import { validarContrasenaNueva } from '@qps/core/auth/cuenta'
@@ -36,6 +37,11 @@ export default function SignUpPage() {
   const [repeatPassword, setRepeatPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
+  // B4: qué campos marca el error con aria-invalid. Las contraseñas cuando
+  // falla la validación (muy corta o no coinciden); ninguno cuando el error
+  // viene de Supabase o de Google (red, límite, email ya usado: el mensaje se
+  // anuncia igual, pero no es "lo que escribiste en este campo está mal").
+  const [contrasenasInvalidas, setContrasenasInvalidas] = useState(false)
   const router = useRouter()
   const { toast } = useToast()
 
@@ -46,6 +52,7 @@ export default function SignUpPage() {
       const { error } = await signInWithGoogle()
       if (error) throw error
     } catch {
+      setContrasenasInvalidas(false)
       setError('Ocurrió un error al registrarse con Google. Probá de nuevo.')
       setIsLoading(false)
     }
@@ -58,6 +65,7 @@ export default function SignUpPage() {
     setError(null)
 
     const validacion = validarContrasenaNueva(password, repeatPassword)
+    setContrasenasInvalidas(!validacion.ok)
     if (!validacion.ok) {
       setError(validacion.mensaje)
       setIsLoading(false)
@@ -99,8 +107,12 @@ export default function SignUpPage() {
     }
   }
 
+  const hayError = error !== null
+
   return (
-    <div className="flex min-h-svh w-full flex-col items-center justify-center bg-background p-6 md:p-10">
+    // B4: <main> en vez de <div> (mismas clases): la pantalla de alta no
+    // tenía región principal (como el ingreso, que lo cambia en su PR).
+    <main className="flex min-h-svh w-full flex-col items-center justify-center bg-background p-6 md:p-10">
       <div className="w-full max-w-sm">
         <Link 
           href="/" 
@@ -142,6 +154,7 @@ export default function SignUpPage() {
                     required
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
+                    {...ariaDelCampo('error-alta', hayError, false)}
                   />
                 </div>
                 <div className="grid gap-2">
@@ -151,6 +164,7 @@ export default function SignUpPage() {
                     required
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
+                    {...ariaDelCampo('error-alta', hayError, contrasenasInvalidas)}
                   />
                 </div>
                 <div className="grid gap-2">
@@ -160,10 +174,12 @@ export default function SignUpPage() {
                     required
                     value={repeatPassword}
                     onChange={(e) => setRepeatPassword(e.target.value)}
+                    {...ariaDelCampo('error-alta', hayError, contrasenasInvalidas)}
                   />
                 </div>
+                {/* B4: ver lib/accesibilidad/formularios.ts. */}
                 {error && (
-                  <p className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
+                  <p id="error-alta" role="alert" className={`rounded-md bg-destructive/10 p-3 text-sm ${CLASES_TEXTO_ERROR}`}>
                     {error}
                   </p>
                 )}
@@ -195,11 +211,12 @@ export default function SignUpPage() {
 
             <p className="mt-4 text-xs text-muted-foreground text-center">
               Al crear tu cuenta aceptás los{' '}
-              <Link href="/terminos" className="text-primary underline underline-offset-4">
+              {/* B4: en oscuro, #E8555A (el `--primary` da 4,3:1 sobre `--card`). */}
+              <Link href="/terminos" className="text-primary dark:text-[#E8555A] underline underline-offset-4">
                 Términos y condiciones
               </Link>{' '}
               y la{' '}
-              <Link href="/privacidad" className="text-primary underline underline-offset-4">
+              <Link href="/privacidad" className="text-primary dark:text-[#E8555A] underline underline-offset-4">
                 Política de Privacidad
               </Link>
               .
@@ -209,7 +226,7 @@ export default function SignUpPage() {
               ¿Ya tenés cuenta?{' '}
               <Link
                 href="/auth/login"
-                className="text-primary underline underline-offset-4"
+                className="text-primary dark:text-[#E8555A] underline underline-offset-4"
               >
                 Iniciar sesión
               </Link>
@@ -217,6 +234,6 @@ export default function SignUpPage() {
           </CardContent>
         </Card>
       </div>
-    </div>
+    </main>
   )
 }

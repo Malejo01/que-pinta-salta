@@ -73,9 +73,11 @@ export function Footer() {
                 />
               </div>
               <div className="leading-none">
+                {/* B4: #C12026 sobre el pie oscuro da 3,3:1; en oscuro va un
+                    rojo más claro (#E8555A, más de 5:1). En claro, el de marca. */}
                 <p
-                  className="text-base leading-tight"
-                  style={{ fontFamily: 'var(--font-yellowtail)', color: '#C12026' }}
+                  className="text-base leading-tight text-[#C12026] dark:text-[#E8555A]"
+                  style={{ fontFamily: 'var(--font-yellowtail)' }}
                 >
                   Que pinta?
                 </p>
@@ -94,8 +96,12 @@ export function Footer() {
 
           {/* Links */}
           <div className="flex flex-col gap-3">
-            <h3 className="text-sm font-semibold text-foreground">Enlaces</h3>
-            <nav className="flex flex-col gap-2">
+            {/* B4: <h2> y no <h3> (heading-order): en la ficha el pie viene
+                después del <h1> sin ningún <h2> en el medio. Mismas clases:
+                ningún estilo apunta al nivel del encabezado. El <nav> lleva
+                nombre porque en la página ya hay otros dos. */}
+            <h2 className="text-sm font-semibold text-foreground">Enlaces</h2>
+            <nav aria-label="Enlaces del pie" className="flex flex-col gap-2">
               <Link
                 href="/privacidad"
                 className="text-sm text-muted-foreground transition-colors hover:text-foreground"
@@ -147,7 +153,7 @@ export function Footer() {
 
           {/* Social & Contact */}
           <div className="flex flex-col gap-3">
-            <h3 className="text-sm font-semibold text-foreground">Conectá conmigo</h3>
+            <h2 className="text-sm font-semibold text-foreground">Conectá conmigo</h2>
             <div className="flex items-center gap-3">
               {socialLinks.map((link) => (
                 <a
@@ -167,7 +173,9 @@ export function Footer() {
               href={CONTACT_URL}
               target="_blank"
               rel="noopener noreferrer"
-              className="mt-1 inline-flex w-fit items-center gap-2 rounded-lg bg-primary/10 px-4 py-2 text-sm font-medium text-primary transition-all duration-200 hover:bg-primary/20 hover:scale-[1.02]"
+              // B4: en oscuro, #E8555A (5,2:1 sobre el bg-primary/10 del pie;
+              // `--primary` daba 4,1:1).
+              className="mt-1 inline-flex w-fit items-center gap-2 rounded-lg bg-primary/10 px-4 py-2 text-sm font-medium text-primary dark:text-[#E8555A] transition-all duration-200 hover:bg-primary/20 hover:scale-[1.02]"
             >
               <MessageCircle className="size-4" />
               Contactame
@@ -207,7 +215,10 @@ export function Footer() {
               href="https://malejoportfolio.netlify.app"
               target="_blank"
               rel="noopener noreferrer"
-              className="font-medium text-primary transition-colors hover:text-primary/80"
+              // B4: en oscuro, #E8555A (5,6:1; `--primary` daba 4,4:1 sobre el
+              // pie). El hover en oscuro aclara (red-300) en vez de bajar la
+              // opacidad, que lo dejaba por debajo de 4,5:1.
+              className="font-medium text-primary dark:text-[#E8555A] transition-colors hover:text-primary/80 dark:hover:text-red-300"
             >
               Mauro Lizarraga
             </a>

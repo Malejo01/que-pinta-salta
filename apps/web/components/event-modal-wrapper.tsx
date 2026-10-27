@@ -36,6 +36,7 @@ import { InsigniaDestacado } from "@/components/insignia-destacado"
 import { estaDestacado } from "@qps/core/events/destacados"
 import type { CantidadesAsistencia } from "@/lib/asistencia"
 import { debenMostrarseBotonesAsistencia } from "@/lib/asistencia-visibilidad"
+import { useVolverAlFocoDeOrigen } from "@/lib/accesibilidad/foco-de-origen"
 import type { TipoAsistencia } from "@qps/core/asistencia"
 import type { obtenerSeguimientoDeEvento } from "@/lib/actions/radar"
 
@@ -75,6 +76,8 @@ export function EventModalWrapper({
   // Estado local: el Dialog se cierra al instante (como `movie-modal.tsx`) y
   // recién después se navega hacia atrás. Ver tarea 18-f.
   const [open, setOpen] = useState(true)
+  // B4: al cerrar, el foco vuelve a la tarjeta que abrió el modal.
+  const volverAlOrigen = useVolverAlFocoDeOrigen()
   const [localCategories, setLocalCategories] = useState<Category[]>(categories)
   const [hasCategoryChanges, setHasCategoryChanges] = useState(false)
   const [isEditingCategory, setIsEditingCategory] = useState(false)
@@ -176,7 +179,7 @@ export function EventModalWrapper({
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-h-[90vh] max-w-lg overflow-y-auto p-0">
+      <DialogContent className="max-h-[90vh] max-w-lg overflow-y-auto p-0" onCloseAutoFocus={volverAlOrigen}>
         <ViewBeacon eventId={event.id} origin={origin} />
         <div className="relative aspect-[3/2] w-full">
           <FlyerImage

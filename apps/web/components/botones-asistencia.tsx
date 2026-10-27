@@ -32,6 +32,7 @@ export interface BotonVoyProps {
 
 /** Pieza presentacional del botón de "Voy": sin estado, sin hooks. La usa `FilaAccionesEventoVista`. */
 export function BotonVoy({ voy, cantidadVoy, pendiente, onClick, titulo, className }: BotonVoyProps) {
+  const texto = textoBotonVoy(cantidadVoy)
   return (
     <Button
       type="button"
@@ -40,13 +41,18 @@ export function BotonVoy({ voy, cantidadVoy, pendiente, onClick, titulo, classNa
       className={cn("min-h-11 flex-1 sm:flex-none", className)}
       disabled={pendiente}
       aria-pressed={voy}
-      aria-label={
-        voy ? `Marcar que no vas a ${titulo ?? "este evento"}` : `Marcar que vas a ${titulo ?? "este evento"}`
-      }
+      // B4 (label-content-name-mismatch): el nombre accesible arranca con el
+      // texto visible ("Voy" o "Voy · 12 van") y después suma la acción con
+      // el título del evento. Antes era solo "Marcar que vas a …", sin la
+      // palabra que se ve en el botón: quien usa control por voz dice "Voy" y
+      // no le encontraba el botón.
+      aria-label={`${texto}: ${
+        voy ? `marcar que no vas a ${titulo ?? "este evento"}` : `marcar que vas a ${titulo ?? "este evento"}`
+      }`}
       onClick={onClick}
     >
       <Check className="mr-2 size-4" />
-      {textoBotonVoy(cantidadVoy)}
+      {texto}
     </Button>
   )
 }
