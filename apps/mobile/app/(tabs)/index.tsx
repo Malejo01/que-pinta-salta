@@ -52,6 +52,31 @@
 // los chips quedaban debajo del Hero y no se descubrían. Cambiar de chip o de
 // pill vuelve el scroll arriba (`scrollTo` en el handler, no en un efecto).
 //
+// A2 (nube Q1): chip "Gratis" (`components/ChipGratis.tsx`), adelante de
+// "Todas" en la fila de chips de la cabecera fija (prop `gratis` de
+// `ChipsCategorias`; Buscar no la usa). Es un interruptor aparte de la
+// categoría y de la fecha: los tres se combinan con `filtrarCombinado` (core,
+// `soloGratis` = `price === 'gratis'`, o sea `is_free = true`), a través de
+// `eventosDeLaGrilla` (`lib/portada-gratis.ts`, donde está la lógica pura y
+// sus reglas). Con "Gratis" apagado la portada queda exactamente como antes.
+// Prendido, la portada pasa al modo grilla (como con una categoría): título
+// "Gratis · Hoy" o "Música gratis · Finde" (`tituloGratis`), la misma línea
+// "N eventos" con su live region y su anuncio, y la grilla de 2 columnas; sin
+// Hero, sin `InvitacionAvisos`, sin banners ni anuncio. Los chips de categoría
+// salen solo de los eventos gratis de la fecha (`chipsDeLaPortada`), con la
+// elegida siempre presente. Las películas no son gratis: con "Cine" + "Gratis"
+// quedan afuera (el título va con la fecha, no "En cartel") y, si no hay
+// eventos de cine gratis, el vacío lo explica. El vacío de "Gratis" dice por
+// qué está vacío (`textoVacioGratis`) y ofrece "Ver todos los precios" (apaga
+// "Gratis" y deja fecha y categoría) y una segunda salida que deja "Gratis"
+// prendido (`segundaSalidaVacioGratis`: "Todas las categorías" o "Ver esta
+// semana"). Cambiar "Gratis" vuelve el scroll arriba (`cambiarGratis`), igual
+// que el chip y la pill.
+// Ronda de correcciones de A2: "categoría o Gratis" sale siempre de
+// `enModoGrilla` (`modoGrilla`); el anuncio para lectores de pantalla es el
+// conteo si hay resultados o el texto del vacío si no (`anuncioDeLaGrilla`);
+// los botones secundarios de los dos vacíos usan `bordeChipInactivo` (3:1).
+//
 // Lo que no se copia, a propósito (ops/paridad-web-app.md, inventario
 // "Portada" y la tarea 29-h): "Más filtros" (lugar/zona) y el switch
 // "Mostrar flyers de redes" — ninguno de los dos tiene un equivalente de
@@ -71,7 +96,7 @@ import { formatDateInSalta, transformMovie } from '@qps/core/home/transform'
 import { selectCarouselEvents, sortCategories } from '@qps/core/home/carousel'
 import { groupByCategory, selectTodayRow, type CategoryEventsRow } from '@qps/core/home/filters'
 import { eventoEnAtajo, type Atajo } from '@qps/core/home/atajos'
-import { categoriasDisponibles, filtrarCombinado, type ItemFiltrable } from '@qps/core/home/filtros-combinados'
+import type { ItemFiltrable } from '@qps/core/home/filtros-combinados'
 import type { DisplayEvent } from '@qps/core/home/types'
 import type { Category } from '@qps/core/types'
 import { AvisoSinConexion } from '@/components/AvisoSinConexion'
@@ -87,7 +112,7 @@ import { TarjetaEvento } from '@/components/TarjetaEvento'
 import { TarjetaPelicula } from '@/components/TarjetaPelicula'
 import { Texto } from '@/components/Texto'
 import { useBienvenidaVista } from '@/lib/bienvenida'
-import { useColoresQPS } from '@/lib/colores'
+import { bordeChipInactivo, useColoresQPS } from '@/lib/colores'
 import { obtenerCines, type Pelicula } from '@/lib/datos/cines'
 import {
   obtenerCategorias,
@@ -96,6 +121,19 @@ import {
   type EventoVigenteParaInicio,
 } from '@/lib/datos/eventos'
 import { cargarAgendaConCache } from '@/lib/sin-conexion/agenda'
+import {
+  anuncioDeLaGrilla,
+  chipsDeLaPortada,
+  enModoGrilla,
+  ETIQUETA_ATAJO,
+  eventosDeLaGrilla,
+  segundaSalidaVacioGratis,
+  textoVacioCategoria,
+  textoVacioGratis,
+  tituloGratis,
+  type SegundaSalidaGratis,
+  type TipoAnuncioGrilla,
+} from '@/lib/portada-gratis'
 
 type EstadoPortada =
   | { tipo: 'cargando' }
@@ -193,20 +231,9 @@ export function seccionesPortada(filas: CategoryEventsRow[], hoyEventos: Display
   return secciones
 }
 
-const ETIQUETA_ATAJO: Record<Atajo, string> = {
-  hoy: 'Hoy',
-  'esta-noche': 'Esta noche',
-  finde: 'Finde',
-  semana: 'Semana',
-}
-
-// Frase para el vacío ("No hay eventos de Música para hoy.").
-const FRASE_ATAJO: Record<Atajo, string> = {
-  hoy: 'hoy',
-  'esta-noche': 'esta noche',
-  finde: 'el finde',
-  semana: 'esta semana',
-}
+// `ETIQUETA_ATAJO` (título, "Música · Finde") y `FRASE_ATAJO` (vacío, "No hay
+// eventos de Música para hoy.") viven en `lib/portada-gratis.ts` desde A2 (nube
+// Q1): los usan también el título y el vacío de "Gratis".
 
 /**
  * Línea de conteo bajo el título de la categoría (R67, 67-c): "N eventos" como
@@ -226,12 +253,72 @@ function enFilasDeDos<T>(lista: T[]): T[][] {
   return filas
 }
 
+/**
+ * Vacío del modo "Gratis" (A2, nube Q1): dice por qué está vacío
+ * (`textoVacioGratis`) y ofrece "Ver todos los precios" (apaga "Gratis" y deja
+ * fecha y categoría) y, si corresponde, una segunda salida que deja "Gratis"
+ * prendido (`segundaSalidaVacioGratis`). Misma caja y mismos botones que el
+ * vacío del modo categoría: principal relleno de `primary`, secundario con
+ * contorno `bordeChipInactivo` (3:1; los dos vacíos lo usan desde la ronda de
+ * correcciones de A2). El texto es una live region, como el conteo (ver el
+ * efecto del anuncio en `Inicio`).
+ */
+function VacioGratis({
+  texto,
+  segunda,
+  onVerTodosLosPrecios,
+  onTodasLasCategorias,
+  onEstaSemana,
+  bordeSecundario,
+}: {
+  texto: string
+  segunda: SegundaSalidaGratis | null
+  onVerTodosLosPrecios: () => void
+  onTodasLasCategorias: () => void
+  onEstaSemana: () => void
+  bordeSecundario: string
+}) {
+  const colores = useColoresQPS()
+  return (
+    <View style={[estilos.vacioHoy, estilos.vacioCategoria, { backgroundColor: colores.card, borderColor: colores.border }]}>
+      <Texto tono="secundario" accessibilityLiveRegion="polite">
+        {texto}
+      </Texto>
+      <Pressable
+        onPress={onVerTodosLosPrecios}
+        accessibilityRole="button"
+        style={[estilos.vacioHoyBoton, estilos.botonVacio, { backgroundColor: colores.primary }]}
+      >
+        <Texto peso="bold" style={{ color: colores.primaryForeground }}>
+          Ver todos los precios
+        </Texto>
+      </Pressable>
+      {segunda !== null ? (
+        <Pressable
+          onPress={segunda.tipo === 'todas-las-categorias' ? onTodasLasCategorias : onEstaSemana}
+          accessibilityRole="button"
+          style={[estilos.vacioHoyBoton, estilos.botonVacio, { borderWidth: 1, borderColor: bordeSecundario }]}
+        >
+          <Texto peso="bold">{segunda.texto}</Texto>
+        </Pressable>
+      ) : null}
+    </View>
+  )
+}
+
 export default function Inicio() {
   const { cargando: cargandoBienvenida, vista } = useBienvenidaVista()
   const colores = useColoresQPS()
+  // A2 (nube Q1): borde del botón secundario de los dos vacíos (categoría y
+  // "Gratis") a 3:1; antes el de categoría usaba `colores.border` (~1,2:1).
+  const bordeInactivo = bordeChipInactivo(colores)
   const router = useRouter()
   const [atajo, setAtajo] = useState<Atajo>('hoy')
   const [categoria, setCategoria] = useState<string | null>(null)
+  // A2 (nube Q1): el chip "Gratis" (prendido/apagado), aparte de la categoría.
+  const [gratis, setGratis] = useState(false)
+  // Modo grilla (título + "N eventos" + 2 columnas): con categoría o con "Gratis".
+  const modoGrilla = enModoGrilla({ categoria, gratis })
   const [estado, setEstado] = useState<EstadoPortada>({ tipo: 'cargando' })
   // Estado de refresco aparte del de carga (28-c): mientras se refresca, lo
   // que ya está armado sigue a la vista en vez de pasar a `Cargando`.
@@ -352,7 +439,9 @@ export default function Inicio() {
     const hoyEventos = selectTodayRow(todosLosEventos, saltaTodayStr, ahora)
 
     // R66, 66-a: chips y modo "categoría elegida", sobre lo mismo ya cargado.
-    const chips = categoriasDisponibles(todosLosEventos, estado.categorias, categoria)
+    // A2 (nube Q1): con "Gratis", los chips salen solo de los eventos gratis
+    // (sin "Gratis", la misma `categoriasDisponibles` de siempre).
+    const chips = chipsDeLaPortada(todosLosEventos, estado.categorias, categoria, gratis)
     let eventosCategoria: DisplayEvent[] = []
     let nombreCategoria = ''
     // R67, 67-c: con "Cine", las películas (`isCinemaMovie`, id `movie-<uuid>`)
@@ -360,13 +449,15 @@ export default function Inicio() {
     // `eventosCategoria`; los eventos reales de la categoría quedan aparte.
     const peliculasCategoria: Pelicula[] = []
     let eventosSinPelicula: DisplayEvent[] = []
-    if (categoria !== null) {
+    // A2 (nube Q1): la grilla también se arma con "Gratis" prendido y "Todas".
+    if (enModoGrilla({ categoria, gratis })) {
       const items: ItemFiltrable[] = [
         ...estado.eventos,
         ...peliculasComoEventos.map((evento) => ({ evento, paraAtajo: null })),
       ]
-      eventosCategoria = filtrarCombinado(items, { atajo, categoria }, ahora)
-      nombreCategoria = estado.categorias.find((c) => c.slug === categoria)?.name ?? categoria
+      // `filtrarCombinado` (core) con atajo + categoría + gratis (A2).
+      eventosCategoria = eventosDeLaGrilla(items, { atajo, categoria, gratis }, ahora)
+      nombreCategoria = categoria === null ? '' : (estado.categorias.find((c) => c.slug === categoria)?.name ?? categoria)
       if (categoria === 'cine') {
         const porId = new Map(estado.peliculas.map((pelicula) => [`movie-${pelicula.id}`, pelicula]))
         for (const evento of eventosCategoria) {
@@ -380,14 +471,15 @@ export default function Inicio() {
     }
 
     return { carrusel, filas, hoyEventos, chips, eventosCategoria, peliculasCategoria, eventosSinPelicula, nombreCategoria }
-  }, [estado, atajo, categoria])
+  }, [estado, atajo, categoria, gratis])
 
-  // Con una categoría elegida (R66) no hay secciones: ni "Hoy en Salta", ni
-  // filas, ni banners — el cuerpo es la grilla de más abajo.
+  // Con una categoría elegida (R66) o con "Gratis" prendido (A2) no hay
+  // secciones: ni "Hoy en Salta", ni filas, ni banners — el cuerpo es la
+  // grilla de más abajo.
   const nombreCategoria = datosPortada?.nombreCategoria ?? ''
   const secciones = useMemo(
-    () => (datosPortada && categoria === null ? seccionesPortada(datosPortada.filas, datosPortada.hoyEventos) : []),
-    [datosPortada, categoria]
+    () => (datosPortada && !modoGrilla ? seccionesPortada(datosPortada.filas, datosPortada.hoyEventos) : []),
+    [datosPortada, modoGrilla]
   )
 
   // R67, 67-b: al cambiar de pill o de chip la portada vuelve arriba (así, con
@@ -401,6 +493,12 @@ export default function Inicio() {
     setCategoria(nueva)
     scrollRef.current?.scrollTo({ y: 0, animated: false })
   }, [])
+  // A2 (nube Q1): lo mismo al prender o apagar "Gratis" (también desde "Ver
+  // todos los precios" del vacío).
+  const cambiarGratis = useCallback((nuevo: boolean) => {
+    setGratis(nuevo)
+    scrollRef.current?.scrollTo({ y: 0, animated: false })
+  }, [])
 
   // R69, 69-b (QPS-354): el conteo tiene `accessibilityLiveRegion="polite"`,
   // pero Android anuncia los cambios de una live region, no su montaje: al
@@ -409,20 +507,35 @@ export default function Inicio() {
   // no leer dos veces el mismo texto, los cambios posteriores (la live region
   // ya montada) los anuncia la live region en Android y este efecto solo en
   // iOS, que ignora `accessibilityLiveRegion`. Un anuncio no es `setState`.
-  const textoConteo =
-    datosPortada && categoria !== null && datosPortada.eventosCategoria.length > 0
-      ? conteoCategoria(datosPortada.peliculasCategoria.length, datosPortada.eventosSinPelicula.length)
-      : null
-  const conteoVisible = useRef(false)
+  // A2 (nube Q1): el modo "Gratis" usa la misma línea y el mismo anuncio.
+  // Ronda de correcciones: lo que se anuncia es el conteo si hay resultados o
+  // el texto del vacío si no (`anuncioDeLaGrilla`): antes, con "Gratis" y sin
+  // resultados, no se oía nada. El vacío también es una live region, y cada
+  // nodo (conteo, vacío de categoría, vacío de "Gratis") es uno distinto en
+  // pantalla, así que "primera vez" es que cambie el `tipo`: al pasar del
+  // conteo al vacío se monta otro nodo y Android no lo anunciaría solo.
+  const textoVacio = gratis ? textoVacioGratis(categoria, nombreCategoria, atajo) : textoVacioCategoria(nombreCategoria, atajo)
+  const anuncio = datosPortada
+    ? anuncioDeLaGrilla({
+        modoGrilla,
+        gratis,
+        cantidad: datosPortada.eventosCategoria.length,
+        textoConteo: conteoCategoria(datosPortada.peliculasCategoria.length, datosPortada.eventosSinPelicula.length),
+        textoVacio,
+      })
+    : null
+  const textoAnuncio = anuncio?.texto ?? null
+  const tipoAnuncio = anuncio?.tipo ?? null
+  const tipoAnunciado = useRef<TipoAnuncioGrilla | null>(null)
   useEffect(() => {
-    if (textoConteo === null) {
-      conteoVisible.current = false
+    if (textoAnuncio === null || tipoAnuncio === null) {
+      tipoAnunciado.current = null
       return
     }
-    const primeraVez = !conteoVisible.current
-    conteoVisible.current = true
-    if (primeraVez || Platform.OS === 'ios') AccessibilityInfo.announceForAccessibility(textoConteo)
-  }, [textoConteo])
+    const primeraVez = tipoAnunciado.current !== tipoAnuncio
+    tipoAnunciado.current = tipoAnuncio
+    if (primeraVez || Platform.OS === 'ios') AccessibilityInfo.announceForAccessibility(textoAnuncio)
+  }, [textoAnuncio, tipoAnuncio])
 
   if (cargandoBienvenida) return null
   if (!vista) return <Redirect href="/bienvenida" />
@@ -446,31 +559,48 @@ export default function Inicio() {
               de `stickyHeaderIndices`). Fondo opaco para que el contenido no se
               vea por detrás. Chips arriba, pills de fecha debajo. */}
           <View style={[estilos.cabecera, { backgroundColor: colores.background, borderBottomColor: colores.border }]}>
-            {datosPortada.chips.length > 0 || categoria !== null ? (
-              <ChipsCategorias categorias={datosPortada.chips} seleccionada={categoria} onCambiar={cambiarCategoria} />
+            {/* A2 (nube Q1): con "Gratis" prendido la fila va siempre (aunque
+                no queden chips de categoría), para poder apagarlo desde acá. */}
+            {datosPortada.chips.length > 0 || modoGrilla ? (
+              <ChipsCategorias
+                categorias={datosPortada.chips}
+                seleccionada={categoria}
+                onCambiar={cambiarCategoria}
+                gratis={{ activo: gratis, onCambiar: cambiarGratis }}
+              />
             ) : null}
-            <View style={datosPortada.chips.length > 0 || categoria !== null ? estilos.pillsBajoChips : null}>
+            <View style={datosPortada.chips.length > 0 || modoGrilla ? estilos.pillsBajoChips : null}>
               <PillsAtajos atajo={atajo} onCambiar={cambiarAtajo} />
             </View>
           </View>
 
           {estado.desdeCache ? <AvisoSinConexion guardadoEn={estado.desdeCache.guardadoEn} /> : null}
 
-          {categoria === null && datosPortada.carrusel.length > 0 ? <Hero eventos={datosPortada.carrusel} /> : null}
+          {!modoGrilla && datosPortada.carrusel.length > 0 ? <Hero eventos={datosPortada.carrusel} /> : null}
 
-          {categoria === null ? <InvitacionAvisos /> : null}
+          {!modoGrilla ? <InvitacionAvisos /> : null}
 
-          {categoria !== null ? (
+          {modoGrilla ? (
             <View style={estilos.bloqueCategoria}>
               <Texto peso="bold" accessibilityRole="header" style={estilos.tituloCategoria}>
                 {/* R67, 67-r1: las películas no se filtran por fecha, así que
-                    con "Cine" el título dice "En cartel" y no el atajo. */}
-                {nombreCategoria} · {categoria === 'cine' ? 'En cartel' : ETIQUETA_ATAJO[atajo]}
+                    con "Cine" el título dice "En cartel" y no el atajo.
+                    A2 (nube Q1): con "Gratis", "Gratis · Hoy" o "Música gratis ·
+                    Finde" (con "Cine" también va la fecha: no hay películas). */}
+                {gratis ? (
+                  tituloGratis(categoria === null ? null : nombreCategoria, atajo)
+                ) : (
+                  <>
+                    {nombreCategoria} · {categoria === 'cine' ? 'En cartel' : ETIQUETA_ATAJO[atajo]}
+                  </>
+                )}
               </Texto>
-              {datosPortada.eventosCategoria.length === 0 ? (
+              {/* El vacío del modo categoría va primero; el de "Gratis" (A2),
+                  en la rama siguiente. */}
+              {datosPortada.eventosCategoria.length === 0 && categoria !== null && !gratis ? (
                 <View style={[estilos.vacioHoy, estilos.vacioCategoria, { backgroundColor: colores.card, borderColor: colores.border }]}>
-                  <Texto tono="secundario">
-                    No hay eventos de {nombreCategoria} para {FRASE_ATAJO[atajo]}.
+                  <Texto tono="secundario" accessibilityLiveRegion="polite">
+                    {textoVacio}
                   </Texto>
                   <Pressable
                     onPress={() => {
@@ -490,17 +620,26 @@ export default function Inicio() {
                   <Pressable
                     onPress={() => cambiarCategoria(null)}
                     accessibilityRole="button"
-                    style={[estilos.vacioHoyBoton, estilos.botonVacio, { borderWidth: 1, borderColor: colores.border }]}
+                    style={[estilos.vacioHoyBoton, estilos.botonVacio, { borderWidth: 1, borderColor: bordeInactivo }]}
                   >
                     <Texto peso="bold">Todas las categorías</Texto>
                   </Pressable>
                 </View>
+              ) : datosPortada.eventosCategoria.length === 0 ? (
+                <VacioGratis
+                  texto={textoVacio}
+                  segunda={segundaSalidaVacioGratis(categoria, atajo)}
+                  onVerTodosLosPrecios={() => cambiarGratis(false)}
+                  onTodasLasCategorias={() => cambiarCategoria(null)}
+                  onEstaSemana={() => cambiarAtajo('semana')}
+                  bordeSecundario={bordeInactivo}
+                />
               ) : (
                 <>
                   <Texto tono="secundario" accessibilityLiveRegion="polite">
                     {conteoCategoria(datosPortada.peliculasCategoria.length, datosPortada.eventosSinPelicula.length)}
                   </Texto>
-                  {/* (el primer anuncio lo hace el efecto de `textoConteo`) */}
+                  {/* (el primer anuncio lo hace el efecto de `textoAnuncio`) */}
                   {/* R67, 67-c: el scroll no salta al abrir el acordeón de la
                       película 2 o 3 porque las tarjetas cuelgan de este mismo
                       `ScrollView` con `key` estables (`pelicula.id`), la lista

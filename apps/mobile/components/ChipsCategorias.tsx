@@ -5,10 +5,25 @@
 // resaltado animado; el chip activo se trae a la vista con `scrollTo`. El área táctil se resuelve con
 // `minHeight: 48` en la clave de estilo del Pressable, que es lo que mira el
 // detector `area-chica` (mismo criterio que `chipGratis` de Buscar).
-import { useEffect, useRef } from 'react'
-import { Pressable, ScrollView, StyleSheet } from 'react-native'
+//
+// A2 (nube Q1): prop opcional `gratis`. Si viene (la portada), adelante de
+// "Todas" va el chip "Gratis" (`components/ChipGratis.tsx`), un interruptor
+// aparte de la categoría, y un separador vertical que lo aparta de los chips
+// de categoría. Si no viene (Buscar, que tiene su propio "Solo gratis"), la
+// fila queda igual que antes. El chip "Gratis" no entra en `posiciones`.
+// En la portada, además, la fila muestra su barra de desplazamiento (en
+// Android, siempre): con "Gratis" y el separador, a 360 dp casi no asoma la
+// segunda categoría y la fila parecía completa.
+//
+// A2, ronda de correcciones: el chip elegido se trae a la vista solo si no
+// entra en la ventana visible (`destinoScrollChip`, `lib/chips-desplazamiento.ts`),
+// y una sola vez por cada `seleccionada`. Ver el comentario de los refs.
+import { useEffect, useRef, type RefObject } from 'react'
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native'
+import { ChipGratis } from '@/components/ChipGratis'
 import { Icono, iconoPorCategoria } from '@/components/Icono'
 import { Texto } from '@/components/Texto'
+import { destinoScrollChip, type MedidaChip } from '@/lib/chips-desplazamiento'
 import { bordeChipInactivo, useColoresQPS } from '@/lib/colores'
 
 export interface CategoriaChip {
@@ -21,9 +36,31 @@ export interface ChipsCategoriasProps {
   categorias: CategoriaChip[]
   seleccionada: string | null
   onCambiar: (slug: string | null) => void
+  /** A2 (nube Q1): el chip "Gratis" adelante de "Todas". Sin esta prop no se dibuja. */
+  gratis?: { activo: boolean; onCambiar: (activo: boolean) => void }
 }
 
-export function ChipsCategorias({ categorias, seleccionada, onCambiar }: ChipsCategoriasProps) {
+/**
+ * Desplaza la fila para que se vea el chip `clave`, si todavía no se hizo para
+ * esta selección (`posicionada`) y ya están las dos medidas (el chip y el
+ * ancho visible). Fuera del componente para que el efecto no dependa de una
+ * función nueva en cada render: solo toca refs, nunca `setState`.
+ */
+function traerALaVista(
+  scroll: RefObject<ScrollView | null>,
+  posiciones: RefObject<Record<string, MedidaChip>>,
+  anchoVisible: RefObject<number | null>,
+  posicionada: RefObject<string | null>,
+  clave: string,
+): void {
+  if (posicionada.current === clave) return
+  const destino = destinoScrollChip(posiciones.current[clave], anchoVisible.current)
+  if (destino === null) return
+  scroll.current?.scrollTo({ x: destino, animated: false })
+  posicionada.current = clave
+}
+
+export function ChipsCategorias({ categorias, seleccionada, onCambiar, gratis }: ChipsCategoriasProps) {
   const colores = useColoresQPS()
   // R69, 69-b (QPS-338): borde de los inactivos a 3:1 (cálculo en `lib/colores.ts`).
   const bordeInactivo = bordeChipInactivo(colores)
@@ -37,12 +74,24 @@ export function ChipsCategorias({ categorias, seleccionada, onCambiar }: ChipsCa
   // `scrollTo`. El efecto solo toca un ref del ScrollView (no es `setState`);
   // el `onLayout` del activo se mantiene para el primer posicionamiento al
   // montar, cuando la `x` todavía no estaba medida al correr el efecto.
+  //
+  // A2 (nube Q1, ronda de correcciones): cada chip guarda `x` y `width`, y el
+  // ScrollView su ancho visible (`anchoVisible`, de su `onLayout`). El destino
+  // sale de `destinoScrollChip`: 0 si el chip entra con la fila al principio
+  // (así "Gratis" no se va por la izquierda al elegir una categoría cercana),
+  // `x - 16` si no. Y se desplaza UNA vez por cada `seleccionada`
+  // (`posicionada`): el efecto la limpia y prueba; si falta una medida, la
+  // prueban el `onLayout` del chip activo o el del ScrollView cuando llega.
+  // Antes el `onLayout` del activo desplazaba cada vez que el chip cambiaba
+  // de lugar (con "Gratis" la lista de chips cambia), y la fila saltaba.
   const scrollRef = useRef<ScrollView>(null)
-  const posiciones = useRef<Record<string, number>>({})
+  const posiciones = useRef<Record<string, MedidaChip>>({})
+  const anchoVisible = useRef<number | null>(null)
+  const posicionada = useRef<string | null>(null)
 
   useEffect(() => {
-    const x = posiciones.current[seleccionada ?? 'todas']
-    if (x !== undefined) scrollRef.current?.scrollTo({ x: Math.max(0, x - 16), animated: false })
+    posicionada.current = null
+    traerALaVista(scrollRef, posiciones, anchoVisible, posicionada, seleccionada ?? 'todas')
   }, [seleccionada])
 
   const chips: { slug: string | null; nombre: string; etiqueta: string }[] = [
@@ -51,7 +100,26 @@ export function ChipsCategorias({ categorias, seleccionada, onCambiar }: ChipsCa
   ]
 
   return (
-    <ScrollView ref={scrollRef} horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={estilos.contenido}>
+    <ScrollView
+      ref={scrollRef}
+      horizontal
+      // A2: la barra solo en la portada (con `gratis`); Buscar queda sin barra.
+      showsHorizontalScrollIndicator={gratis !== undefined}
+      persistentScrollbar={gratis !== undefined}
+      onLayout={(evento) => {
+        anchoVisible.current = evento.nativeEvent.layout.width
+        traerALaVista(scrollRef, posiciones, anchoVisible, posicionada, seleccionada ?? 'todas')
+      }}
+      contentContainerStyle={estilos.contenido}
+    >
+      {gratis ? (
+        <>
+          <ChipGratis activo={gratis.activo} onCambiar={gratis.onCambiar} />
+          {/* Separador decorativo (una View sin texto ni rol: los lectores de
+              pantalla la saltean), con el mismo borde de 3:1 de los chips. */}
+          <View style={[estilos.separador, { backgroundColor: bordeInactivo }]} />
+        </>
+      ) : null}
       {chips.map((chip) => {
         const activo = chip.slug === seleccionada
         return (
@@ -59,9 +127,11 @@ export function ChipsCategorias({ categorias, seleccionada, onCambiar }: ChipsCa
             key={chip.slug ?? 'todas'}
             onPress={() => onCambiar(chip.slug)}
             onLayout={(evento) => {
-              const x = evento.nativeEvent.layout.x
-              posiciones.current[chip.slug ?? 'todas'] = x
-              if (activo) scrollRef.current?.scrollTo({ x: Math.max(0, x - 16), animated: false })
+              const { x, width } = evento.nativeEvent.layout
+              posiciones.current[chip.slug ?? 'todas'] = { x, width }
+              // Primer posicionamiento al montar (o cuando el chip elegido
+              // recién aparece); `traerALaVista` no repite si ya se hizo.
+              if (activo) traerALaVista(scrollRef, posiciones, anchoVisible, posicionada, chip.slug ?? 'todas')
             }}
             accessibilityRole="button"
             accessibilityState={{ selected: activo }}
@@ -105,4 +175,5 @@ const estilos = StyleSheet.create({
     paddingVertical: 10,
     minHeight: 48,
   },
+  separador: { width: 1, height: 28 },
 })
