@@ -3,12 +3,7 @@ import { saveEventsToSupabase, type SaveResult } from './save-to-supabase';
 import { inferCategorySlug } from './categorize';
 import type { Event } from '../types';
 import { slugConFechaHora } from '@qps/core/scraper/slug-fecha-hora';
-
-function isTextFree(title: string, description: string): boolean {
-  const text = `${title} ${description}`.toLowerCase()
-    .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-  return /gratis|gratuito|entrada libre|sin costo|libre y gratuit/.test(text);
-}
+import { textoIndicaGratis } from '@qps/core/events/gratis';
 
 const ALPOGO_API_URL = 'https://alpogo.com/api/events/getEvents2';
 
@@ -129,7 +124,7 @@ export async function scrapeAlpogoSalta(): Promise<SaveResult> {
 
       // Prices & Free status
       const priceMin = parseInt(item.menor_precio || item.botonPrecio || '0', 10) || 0;
-      const isFree = item.gratuito === '1' || (priceMin === 0 && isTextFree(item.nombre, description || ''));
+      const isFree = item.gratuito === '1' || (priceMin === 0 && textoIndicaGratis(item.nombre, description));
 
       // Image
       const imageUrl = item.imagen_grilla || item.imagen_logo || null;

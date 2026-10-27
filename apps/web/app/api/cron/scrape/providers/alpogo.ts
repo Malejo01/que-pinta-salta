@@ -1,5 +1,6 @@
 import { saltaWallClockToDate } from '@/lib/date-format'
 import { ScrapedEvent } from '../types'
+import { textoIndicaGratis } from '@qps/core/events/gratis'
 
 const ALPOGO_API_URL = 'https://alpogo.com/api/events/getEvents2'
 
@@ -17,12 +18,6 @@ interface AlpogoEvento {
   urlCompra?: string
   url?: string
   lugar?: string
-}
-
-function isTextFree(title: string, description: string = ''): boolean {
-  const text = `${title} ${description}`.toLowerCase()
-    .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-  return /gratis|gratuito|entrada libre|sin costo|libre y gratuit/.test(text);
 }
 
 /**
@@ -68,7 +63,7 @@ export async function scrapeAlpogo(): Promise<ScrapedEvent[]> {
       // La API entrega hora de pared de Salta sin zona ("2026-08-07 21:00:00").
       const dateTime = saltaWallClockToDate(item.fecha_funcion)
       const priceFrom = parseInt(item.menor_precio || item.botonPrecio || '0', 10) || 0
-      const isFree = item.gratuito === '1' || (priceFrom === 0 && isTextFree(item.nombre, item.descripcion || ''))
+      const isFree = item.gratuito === '1' || (priceFrom === 0 && textoIndicaGratis(item.nombre, item.descripcion))
       const flyerUrl = item.imagen_grilla || item.imagen_logo || ''
       const ticketLink = item.urlCompra || item.url || ''
 
