@@ -72,14 +72,17 @@ describe('maplibre-gl se importa en un solo archivo', () => {
     expect(codigo).toMatch(/setWorkerUrl\(\s*new URL\(\s*['"]maplibre-gl\/dist\/maplibre-gl-worker\.mjs['"],\s*import\.meta\.url\s*\)\.href\s*\)/)
   })
 
-  it('mapa-diferido carga maplibre-worker con import() y recién después el mapa; nadie más lo importa', () => {
+  it('mapa-diferido carga maplibre-worker con import() y recién después el mapa; fuera de components/mapa nadie lo importa', () => {
     const codigo = leer(DIFERIDO)
     const worker = codigo.search(/import\(\s*['"]\.\/maplibre-worker['"]\s*\)/)
     const mapa = codigo.search(IMPORT_DINAMICO_MAPA)
     expect(worker).toBeGreaterThan(-1)
     expect(mapa).toBeGreaterThan(worker)
+    // Solo los módulos del mapa lo cargan (el pin de /admin/lugares del PR #98
+    // puede sumarlo); la carga inicial de una página nunca.
     const loNombran = CODIGO.filter((ruta) => ruta !== WORKER && leer(ruta).includes('maplibre-worker'))
-    expect(loNombran).toEqual([DIFERIDO])
+    expect(loNombran).toContain(DIFERIDO)
+    for (const ruta of loNombran) expect(ruta.startsWith('components/mapa/')).toBe(true)
     expect(codigo).not.toMatch(/from\s*['"][^'"]*maplibre-worker['"]/)
   })
 

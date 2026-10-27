@@ -397,11 +397,12 @@ describe('MapLibre en un solo archivo y solo con import() desde mapa-diferido', 
     expect(importan.sort()).toEqual([ARCHIVO_MAPLIBRE, 'components/mapa/maplibre-worker.ts'].sort())
   })
 
-  it('maplibre-worker solo lo nombra mapa-diferido, con import()', () => {
+  it('maplibre-worker lo cargan solo módulos del mapa, y mapa-diferido con import()', () => {
     const nombran = archivos
       .filter((archivo) => /maplibre-worker["'`]/.test(sinComentarios(readFileSync(archivo, 'utf8'))))
       .map(relativo)
-    expect(nombran).toEqual(['components/mapa/mapa-diferido.tsx'])
+    expect(nombran).toContain('components/mapa/mapa-diferido.tsx')
+    for (const ruta of nombran) expect(ruta.startsWith('components/mapa/')).toBe(true)
     const diferido = sinComentarios(readFileSync(path.join(WEB_ROOT, 'components/mapa/mapa-diferido.tsx'), 'utf8'))
     expect(diferido).toMatch(/import\(\s*["']\.\/maplibre-worker["']\s*\)/)
   })
