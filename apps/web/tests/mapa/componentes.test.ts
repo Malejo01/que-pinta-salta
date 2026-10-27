@@ -19,6 +19,7 @@ const LISTA = 'components/mapa/lista-lugares.tsx'
 const CONTENIDO = 'app/mapa/mapa-contenido.tsx'
 const PAGINA = 'app/mapa/page.tsx'
 const LOADING = 'app/mapa/loading.tsx'
+const WORKER = 'components/mapa/maplibre-worker.ts'
 const NUEVOS = [MAPLIBRE, DIFERIDO, LISTA, CONTENIDO, PAGINA, LOADING]
 const CLIENTE = [CONTENIDO, DIFERIDO, MAPLIBRE]
 
@@ -56,9 +57,30 @@ describe('el barrido mira algo', () => {
 })
 
 describe('maplibre-gl se importa en un solo archivo', () => {
-  it('solo components/mapa/mapa-maplibre.tsx nombra el paquete (o su CSS) en app, components y lib', () => {
+  it('solo mapa-maplibre.tsx y maplibre-worker.ts nombran el paquete (o su CSS) en app, components y lib', () => {
     const nombran = CODIGO.filter((ruta) => NOMBRA_MAPLIBRE.test(leer(ruta)))
-    expect(nombran).toEqual([MAPLIBRE])
+    expect(nombran.sort()).toEqual([WORKER, MAPLIBRE].sort())
+  })
+
+  // Q3: Turbopack reemplaza el `import.meta.url` de MapLibre por un file:///
+  // del servidor y el worker no arranca (en `next build` también). La URL se
+  // fija con setWorkerUrl en un módulo aparte, que mapa-diferido carga con
+  // import() antes que el mapa: sigue sin haber MapLibre en la carga inicial.
+  it('maplibre-worker fija la URL del worker con new URL(…, import.meta.url)', () => {
+    const codigo = leer(WORKER)
+    expect(codigo).toMatch(/import\s*\{\s*setWorkerUrl\s*\}\s*from\s*['"]maplibre-gl['"]/)
+    expect(codigo).toMatch(/setWorkerUrl\(\s*new URL\(\s*['"]maplibre-gl\/dist\/maplibre-gl-worker\.mjs['"],\s*import\.meta\.url\s*\)\.href\s*\)/)
+  })
+
+  it('mapa-diferido carga maplibre-worker con import() y recién después el mapa; nadie más lo importa', () => {
+    const codigo = leer(DIFERIDO)
+    const worker = codigo.search(/import\(\s*['"]\.\/maplibre-worker['"]\s*\)/)
+    const mapa = codigo.search(IMPORT_DINAMICO_MAPA)
+    expect(worker).toBeGreaterThan(-1)
+    expect(mapa).toBeGreaterThan(worker)
+    const loNombran = CODIGO.filter((ruta) => ruta !== WORKER && leer(ruta).includes('maplibre-worker'))
+    expect(loNombran).toEqual([DIFERIDO])
+    expect(codigo).not.toMatch(/from\s*['"][^'"]*maplibre-worker['"]/)
   })
 
   it('mapa-maplibre importa el paquete y su CSS', () => {

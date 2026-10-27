@@ -388,11 +388,22 @@ describe('MapLibre en un solo archivo y solo con import() desde mapa-diferido', 
     expect(archivos.length).toBeGreaterThan(100)
   })
 
-  it('solo components/mapa/mapa-maplibre.tsx importa maplibre-gl (estático o dinámico)', () => {
+  // Q3: maplibre-worker.ts también importa el paquete (solo `setWorkerUrl`),
+  // y lo carga mapa-diferido con import(), igual que al mapa.
+  it('solo mapa-maplibre.tsx y maplibre-worker.ts importan maplibre-gl (estático o dinámico)', () => {
     const importan = archivos
       .filter((archivo) => /(?:from\s+|import\s*\(?\s*|require\s*\(\s*)["'`]maplibre-gl(?:\/[^"'`]*)?["'`]/.test(sinComentarios(readFileSync(archivo, 'utf8'))))
       .map(relativo)
-    expect(importan).toEqual([ARCHIVO_MAPLIBRE])
+    expect(importan.sort()).toEqual([ARCHIVO_MAPLIBRE, 'components/mapa/maplibre-worker.ts'].sort())
+  })
+
+  it('maplibre-worker solo lo nombra mapa-diferido, con import()', () => {
+    const nombran = archivos
+      .filter((archivo) => /maplibre-worker["'`]/.test(sinComentarios(readFileSync(archivo, 'utf8'))))
+      .map(relativo)
+    expect(nombran).toEqual(['components/mapa/mapa-diferido.tsx'])
+    const diferido = sinComentarios(readFileSync(path.join(WEB_ROOT, 'components/mapa/mapa-diferido.tsx'), 'utf8'))
+    expect(diferido).toMatch(/import\(\s*["']\.\/maplibre-worker["']\s*\)/)
   })
 
   it('solo mapa-diferido.tsx nombra mapa-maplibre, y lo hace con import() (el import type de mapa-maplibre hacia mapa-diferido es al revés)', () => {
