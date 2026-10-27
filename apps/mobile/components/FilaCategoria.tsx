@@ -10,7 +10,16 @@
 // (`apps/web/lib/category-icons.ts`): "cine" y el resto de las categorías
 // reales tienen su ícono propio; "hoy" (la fila "Hoy en Salta", que no es
 // una categoría real) cae en el mismo fallback que la web, `Calendar`.
-import { FlatList, Pressable, StyleSheet, View } from 'react-native'
+//
+// A7 (nube Q1), rendimiento: la fila es una `FlatList` horizontal de ancho
+// FIJO por tarjeta, así que lleva `getItemLayout` (la lista no tiene que
+// medir cada celda para saber dónde está la siguiente). Las medidas salen de
+// las mismas constantes que los estilos (`ANCHO_TARJETA`, `SEPARACION`,
+// `MARGEN_LATERAL`), así no se pueden desfasar. `keyExtractor` y
+// `renderItem` son funciones de módulo (no flechas nuevas en cada render): con
+// la misma `eventos`, la `FlatList` (PureComponent) ni se vuelve a dibujar
+// cuando Inicio sí. Ventana: ver `VENTANA_FILA`.
+import { FlatList, Pressable, StyleSheet, View, type ListRenderItem } from 'react-native'
 import type { DisplayEvent } from '@qps/core/home/types'
 import { Icono, iconoPorCategoria } from '@/components/Icono'
 import { TarjetaEvento } from '@/components/TarjetaEvento'
@@ -19,6 +28,40 @@ import { useColoresQPS } from '@/lib/colores'
 
 const ANCHO_TARJETA = 180
 const ALTO_TARJETA = 270
+// A7 (nube Q1): el `gap` y el `paddingHorizontal` de `estilos.lista`, con
+// nombre porque también los usa `layoutDeTarjetaEnFila`.
+const SEPARACION = 20
+const MARGEN_LATERAL = 16
+
+/**
+ * `getItemLayout` de la fila (A7, nube Q1). Cada celda mide `ANCHO_TARJETA`
+ * de ancho, siempre (no depende del texto ni de la escala de fuente: la
+ * tarjeta es 180×270 fija, `estilos.celda`); entre celda y celda hay
+ * `SEPARACION` (el `gap` del contenedor) y antes de la primera,
+ * `MARGEN_LATERAL` (su `paddingHorizontal`). `length` toma el ancho más la
+ * separación que la sigue, así los marcos quedan pegados uno al otro sin
+ * huecos; `offset` = margen + índice × (ancho + separación), que es donde
+ * arranca de verdad la celda `index`.
+ */
+export function layoutDeTarjetaEnFila(_data: ArrayLike<DisplayEvent> | null | undefined, index: number) {
+  const paso = ANCHO_TARJETA + SEPARACION
+  return { length: paso, offset: MARGEN_LATERAL + paso * index, index }
+}
+
+/**
+ * Ventana de la fila horizontal (A7, nube Q1). En 360 dp de ancho entran ~1,8
+ * tarjetas (16 + 180 + 20 + 180…), así que 3 alcanzan para el primer
+ * pantallazo con una de reserva (antes eran 10 por fila, el valor por
+ * omisión, y la portada tiene una fila por categoría). Los lotes al
+ * deslizar van de a 3, y `windowSize: 5` mantiene dibujadas ~2 pantallas a
+ * cada lado (~9 tarjetas) en vez de 21. Sin `removeClippedSubviews`: en
+ * Android saca de la jerarquía las celdas fuera de pantalla y TalkBack
+ * pierde el foco al recorrer la fila.
+ */
+export const VENTANA_FILA = { initialNumToRender: 3, maxToRenderPerBatch: 3, windowSize: 5 } as const
+
+const claveDeEvento = (evento: DisplayEvent) => evento.id
+const dibujarCelda: ListRenderItem<DisplayEvent> = ({ item }) => <CeldaEvento evento={item} />
 
 export interface FilaCategoriaProps {
   /** Slug de la categoría (o `'hoy'` para la fila "Hoy en Salta": no es una
@@ -63,11 +106,15 @@ export function FilaCategoria({ categoria, titulo, eventos, alVerTodos }: FilaCa
 
       <FlatList
         data={eventos}
-        keyExtractor={(item) => item.id}
+        keyExtractor={claveDeEvento}
         horizontal
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={estilos.lista}
-        renderItem={({ item }) => <CeldaEvento evento={item} />}
+        renderItem={dibujarCelda}
+        getItemLayout={layoutDeTarjetaEnFila}
+        initialNumToRender={VENTANA_FILA.initialNumToRender}
+        maxToRenderPerBatch={VENTANA_FILA.maxToRenderPerBatch}
+        windowSize={VENTANA_FILA.windowSize}
       />
     </View>
   )
@@ -101,6 +148,6 @@ const estilos = StyleSheet.create({
   // `foreground` (ver el comentario de arriba) — subrayado para seguir
   // marcándose como tocable sin volver a usar `primary`.
   subrayado: { textDecorationLine: 'underline' },
-  lista: { paddingHorizontal: 16, gap: 20 },
+  lista: { paddingHorizontal: MARGEN_LATERAL, gap: SEPARACION },
   celda: { width: ANCHO_TARJETA, height: ALTO_TARJETA },
 })

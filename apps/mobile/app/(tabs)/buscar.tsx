@@ -46,10 +46,21 @@
 // a aplicar categoría y fecha aunque sean iguales a los de antes. Los conteos de la grilla "Explorar por categoria" siguen
 // siendo sobre todos los eventos. Sin resultados, el vacío ofrece salir de la
 // fecha y/o de la categoría. Buscar sigue sin caché offline.
+//
+// A7 (nube Q1), rendimiento de las dos grillas: `keyExtractor` por id (de
+// módulo, no una flecha nueva por render), ventana acotada (`VENTANA_*`,
+// abajo) y la celda de resultados como función de módulo. SIN
+// `getItemLayout`, a propósito: el alto de la tarjeta sale del ancho de la
+// pantalla (`aspectRatio: 2/3` sobre media columna) y, sobre todo, la lista
+// arranca con un `ListHeaderComponent` (chips + conteo) cuyo alto depende de
+// la escala de fuente y de si hay chips; un `offset` mal calculado deja al
+// `scrollToIndex` y al recorrido de TalkBack apuntando a la celda equivocada.
+// Los tiles de categoría tampoco: su alto es el de dos renglones de texto.
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { FlatList, Pressable, RefreshControl, StyleSheet, View } from 'react-native'
+import { FlatList, Pressable, RefreshControl, StyleSheet, View, type ListRenderItem } from 'react-native'
 import { useLocalSearchParams } from 'expo-router'
 import type { Atajo } from '@qps/core/home/atajos'
+import type { DisplayEvent } from '@qps/core/home/types'
 import {
   atajoDesdeParametro,
   categoriasDisponibles,
@@ -75,6 +86,35 @@ import { obtenerCategorias, obtenerEventosVigentesParaInicio, type CategoriaBasi
  * resultados, más abajo. `tests/buscar.test.ts` exige que siga en 3.
  */
 export const RESULTADOS_MINIMOS_PARA_ANUNCIO = 3
+
+/**
+ * Ventana de la grilla de resultados (A7, nube Q1). Con `numColumns={2}`,
+ * `FlatList` cuenta FILAS: 4 filas = 8 tarjetas, lo que entra en el primer
+ * pantallazo (cabecera fija ~228 dp + chips y conteo + filas de ~249 dp en
+ * 360×800) con una fila de reserva; antes eran 10 filas (20 tarjetas, el valor
+ * por omisión). Lotes de 3 filas al scrollear y `windowSize: 7` (~3 pantallas
+ * a cada lado, en vez de 21). Sin `removeClippedSubviews`: en Android saca de la
+ * jerarquía las celdas fuera de pantalla y TalkBack puede perder el foco.
+ */
+export const VENTANA_RESULTADOS = { initialNumToRender: 4, maxToRenderPerBatch: 3, windowSize: 7 } as const
+
+/**
+ * Ventana de la grilla de categorías (A7, nube Q1): tiles chicos (~84 dp por
+ * fila de 2), 8 filas = 16 categorías, que hoy son todas. No hay
+ * `TarjetaEvento` acá; se acota igual para no dibujar 21 pantallas.
+ */
+export const VENTANA_CATEGORIAS = { initialNumToRender: 8, maxToRenderPerBatch: 8, windowSize: 7 } as const
+
+const claveDeCategoria = (categoria: CategoriaBasica) => categoria.id
+const claveDeEvento = (evento: DisplayEvent) => evento.id
+
+// A7 (nube Q1): no depende de nada del render (solo de `estilos`), así que
+// es la misma función siempre; `TarjetaEvento` es `memo`.
+const dibujarResultado: ListRenderItem<DisplayEvent> = ({ item }) => (
+  <View style={estilos.celda}>
+    <TarjetaEvento evento={item} />
+  </View>
+)
 
 type EstadoLista =
   | { tipo: 'cargando' }
@@ -302,8 +342,11 @@ export default function Buscar() {
       {estado.tipo === 'ok' && !mostrarResultados ? (
         <FlatList
           data={estado.categorias}
-          keyExtractor={(categoria) => categoria.id}
+          keyExtractor={claveDeCategoria}
           numColumns={2}
+          initialNumToRender={VENTANA_CATEGORIAS.initialNumToRender}
+          maxToRenderPerBatch={VENTANA_CATEGORIAS.maxToRenderPerBatch}
+          windowSize={VENTANA_CATEGORIAS.windowSize}
           columnWrapperStyle={estilos.filaGrilla}
           contentContainerStyle={estilos.lista}
           keyboardShouldPersistTaps="handled"
@@ -351,8 +394,11 @@ export default function Buscar() {
       {estado.tipo === 'ok' && mostrarResultados ? (
         <FlatList
           data={resultadosMostrados}
-          keyExtractor={(item) => item.id}
+          keyExtractor={claveDeEvento}
           numColumns={2}
+          initialNumToRender={VENTANA_RESULTADOS.initialNumToRender}
+          maxToRenderPerBatch={VENTANA_RESULTADOS.maxToRenderPerBatch}
+          windowSize={VENTANA_RESULTADOS.windowSize}
           columnWrapperStyle={estilos.filaGrilla}
           contentContainerStyle={estilos.lista}
           keyboardShouldPersistTaps="handled"
@@ -426,11 +472,7 @@ export default function Buscar() {
           ListFooterComponent={
             resultadosMostrados.length < RESULTADOS_MINIMOS_PARA_ANUNCIO ? null : <BannerAnuncio lugar="buscar" />
           }
-          renderItem={({ item }) => (
-            <View style={estilos.celda}>
-              <TarjetaEvento evento={item} />
-            </View>
-          )}
+          renderItem={dibujarResultado}
         />
       ) : null}
     </View>

@@ -26,6 +26,18 @@
 // El degradé no usa `expo-linear-gradient` (no es dependencia aprobada):
 // son 4 `View` absolutos apilados, con negro de opacidad creciente hacia
 // abajo, sobre la mitad inferior de la tarjeta.
+//
+// A7 (nube Q1): la tarjeta es `memo` con una comparación propia
+// (`sonPropsDeTarjetaIguales`, abajo de todo). Por qué no la comparación por
+// defecto: cada recarga (tirar para refrescar en las tres pantallas, y en
+// Favoritos cada vez que la pestaña toma foco) trae objetos `DisplayEvent`
+// NUEVOS aunque el contenido sea el mismo, y con `memo` a secas se volvían a
+// dibujar todas las tarjetas igual. La comparación mira solo los campos que
+// esta tarjeta dibuja o usa para navegar y para el corazón
+// (`CAMPOS_QUE_USA_LA_TARJETA`); `tests/listas-rendimiento.test.ts` falla si
+// el componente lee un campo de `evento` que no está en esa lista (así no
+// queda una tarjeta vieja en pantalla por un campo nuevo sin comparar).
+import { memo } from 'react'
 import { Pressable, StyleSheet, Text, View } from 'react-native'
 import { useRouter } from 'expo-router'
 import { formatEventDateShort } from '@qps/core/date-format'
@@ -77,7 +89,7 @@ function derechaDelBadge(botones: number): number {
   return MARGEN_ARRIBA + botones * TAMANIO_ACCION + (botones - 1) * GAP_ACCIONES + MARGEN_ARRIBA
 }
 
-export function TarjetaEvento({ evento }: TarjetaEventoProps) {
+function TarjetaEventoSinMemo({ evento }: TarjetaEventoProps) {
   const router = useRouter()
   const colores = useColoresQPS()
 
@@ -214,6 +226,55 @@ export function TarjetaEvento({ evento }: TarjetaEventoProps) {
     </View>
   )
 }
+
+/**
+ * Los campos de `DisplayEvent` que la tarjeta lee (A7, nube Q1): los que
+ * dibuja (título, lugar, fecha, hora, precio, categoría, afiche, destacado,
+ * "En cartel"), los que deciden la ruta y el corazón (`rutaDeEvento`,
+ * `objetivoDeFavorito` y `esEventoReal` de `lib/rutas.ts` miran `id`,
+ * `isCinemaMovie`, `isInstagramFlyer` y `flyerId`) y `occurrences`, del que
+ * solo usa la cantidad ("+N fechas"). Lo demás (`description`, `address`,
+ * `showings`, `startDateTime`, …) no cambia nada de lo que se ve.
+ */
+export const CAMPOS_QUE_USA_LA_TARJETA = [
+  'id',
+  'title',
+  'venue',
+  'date',
+  'time',
+  'categoryName',
+  'price',
+  'image',
+  'isFeatured',
+  'isCinemaMovie',
+  'isInstagramFlyer',
+  'flyerId',
+  'occurrences',
+] as const satisfies readonly (keyof DisplayEvent)[]
+
+/**
+ * Comparación del `memo` (A7, nube Q1): `true` = no hace falta volver a
+ * dibujar. La misma referencia, o un evento nuevo con los mismos valores en
+ * `CAMPOS_QUE_USA_LA_TARJETA` (de `occurrences`, solo la cantidad: es lo único
+ * que se muestra). Los valores son primitivos, se comparan con `===`.
+ */
+export function sonPropsDeTarjetaIguales(antes: TarjetaEventoProps, despues: TarjetaEventoProps): boolean {
+  const a = antes.evento
+  const b = despues.evento
+  if (a === b) return true
+  for (const campo of CAMPOS_QUE_USA_LA_TARJETA) {
+    if (campo === 'occurrences') {
+      if ((a.occurrences?.length ?? 0) !== (b.occurrences?.length ?? 0)) return false
+    } else if (a[campo] !== b[campo]) {
+      return false
+    }
+  }
+  return true
+}
+
+// A7 (nube Q1): el componente que importan Inicio (`FilaCategoria` y la
+// grilla del modo categoría), Buscar y Favoritos. Su única prop es `evento`.
+export const TarjetaEvento = memo(TarjetaEventoSinMemo, sonPropsDeTarjetaIguales)
 
 const estilos = StyleSheet.create({
   contenedor: {
