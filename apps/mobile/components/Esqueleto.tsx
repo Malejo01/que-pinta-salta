@@ -17,33 +17,39 @@
 // (`Animated.loop` + dos `Animated.timing`, `useNativeDriver: true`), sin
 // dependencias nuevas. Hay UN solo `Animated.View` por pantalla (el que
 // envuelve todos los bloques), no uno por bloque: una sola animación nativa
-// en vez de decenas, y todos los bloques pulsan juntos. Con "Reducir
-// movimiento" / "Quitar animaciones" prendido (`isReduceMotionEnabled`, y el
-// evento `reduceMotionChanged` si se cambia con la pantalla abierta) no se
-// anima: opacidad fija (`animacionEsqueleto`, lib/esqueleto.ts). El loop se
-// para en el cleanup del efecto (al desmontar o al cambiar el ajuste), y la
-// suscripción se saca en el cleanup del suyo.
+// en vez de decenas, y todos los bloques pulsan juntos. En Android ese
+// `Animated.View` va con `renderToHardwareTextureAndroid` mientras anima: la
+// opacidad se aplica a la capa entera (los bloques encima de las cajas `card`
+// no se transparentan uno sobre otro) y no se vuelve a dibujar en cada cuadro.
+// Con "Reducir movimiento" / "Quitar animaciones" prendido
+// (`useReducirMovimiento`, `lib/reducir-movimiento.ts`, compartido con
+// `PillsAtajos`) no se anima (`animacionEsqueleto`, lib/esqueleto.ts), y
+// además el valor animado ni se conecta al estilo: así un `stop()` tardío del
+// driver nativo no puede dejar la opacidad a mitad de camino. El loop se para
+// en el cleanup del efecto (al desmontar o al cambiar el ajuste).
 //
 // Accesibilidad: el lector de pantalla no lee los bloques (son decorado). El
 // contenedor es el ÚNICO elemento accesible de la pantalla de carga:
 // `accessible` + `accessibilityLabel="Cargando"` + `accessibilityRole=
-// "progressbar"` + `accessibilityState={{ busy: true }}`. `progressbar` y no
-// `text`: TalkBack lo anuncia como "Cargando, barra de progreso" (VoiceOver,
-// como un indicador que se actualiza), que es justo lo que es — y es lo mismo
-// que anunciaba el `ActivityIndicator` de `Cargando`, que en Android es un
-// `ProgressBar` nativo. Con `text` sonaría a un texto suelto de la pantalla.
-// `busy` no lo dice TalkBack, pero lo exponen las APIs de accesibilidad (iOS
-// y la web de RN), así que no está de más. Adentro, la capa de los bloques
-// lleva `accessibilityElementsHidden` (iOS) + `importantForAccessibility=
-// "no-hide-descendants"` (Android), y cada bloque también, por si alguna vez
-// se usa suelto. Ojo: esas dos props van en la capa de ADENTRO, nunca en el
-// contenedor accesible (en Android `no-hide-descendants` lo escondería a él
-// también). Sin texto visible nuevo.
+// "progressbar"` + `accessibilityState={{ busy: true }}`. Se eligió
+// `progressbar` y no `text` porque el rol dice que es algo en curso, no un
+// texto suelto de la pantalla; lo esperable es que TalkBack lo lea como
+// "Cargando" seguido del nombre del rol ("barra de progreso" o similar), pero
+// no está verificado en un teléfono. Tampoco es igual a lo de antes: el
+// `ActivityIndicator` de `Cargando` no tenía etiqueta. `busy` TalkBack no lo
+// dice, pero lo exponen las APIs de accesibilidad (iOS y la web de RN). Adentro,
+// la capa de los bloques lleva `accessibilityElementsHidden` (iOS) +
+// `importantForAccessibility="no-hide-descendants"` (Android), y cada bloque
+// también, por si alguna vez se usa suelto. Ojo: esas dos props van en la capa
+// de ADENTRO, nunca en el contenedor accesible (en Android
+// `no-hide-descendants` lo escondería a él también). Sin texto visible nuevo.
 //
-// Colores: solo tokens de `useColoresQPS()` (`muted` para los bloques,
-// `card` + `border` para las cajas que en la pantalla real tienen fondo y
-// borde, `border` para lo que va encima de un bloque `muted`), así se ve
-// bien en oscuro (D1) y en claro, el día que llegue el selector de tema.
+// Colores: los bloques (y sus fondos llenos: Hero, afiches, caja de precio)
+// usan `colorBloqueEsqueleto` y lo que va encima de ellos `colorBloqueEncima`
+// (`lib/colores.ts`, un tono por esquema, con el porqué de cada valor): el
+// token `muted` casi no se distinguía del fondo en oscuro (~1,14:1). Las cajas
+// que en la pantalla real tienen fondo y borde (tiles de Buscar, tarjetas de
+// película) siguen con `card` + `border`. Nada de colores fijos acá.
 //
 // Ancho: nada de anchos fijos que desborden a 360 dp. Las filas horizontales
 // (chips, pills, tarjetas de `FilaCategoria`) cortan con `overflow: 'hidden'`
@@ -52,7 +58,6 @@
 // el resto va con flex y porcentajes.
 import { useEffect, useState, type ReactNode } from 'react'
 import {
-  AccessibilityInfo,
   Animated,
   Easing,
   StyleSheet,
@@ -63,7 +68,7 @@ import {
   type ViewStyle,
 } from 'react-native'
 import { altoHero } from '@/components/Hero'
-import { useColoresQPS } from '@/lib/colores'
+import { colorBloqueEncima, colorBloqueEsqueleto, useColoresQPS } from '@/lib/colores'
 import {
   animacionEsqueleto,
   cantidadQueAsoma,
@@ -72,49 +77,21 @@ import {
   OPACIDAD_MAXIMA,
   OPACIDAD_MINIMA,
 } from '@/lib/esqueleto'
+import { useReducirMovimiento } from '@/lib/reducir-movimiento'
 
 /**
- * `true`/`false` según "Reducir movimiento" del sistema; `null` mientras la
- * consulta no resolvió (ver `animacionEsqueleto`). Mismo patrón que el
- * `isScreenReaderEnabled` de `components/Hero.tsx`: el `setState` va en el
- * callback de la promesa y en el del listener, nunca sincrónico en el cuerpo
- * del efecto (lint `react-hooks/set-state-in-effect`); `montado` evita
- * aplicar una respuesta que llega después del desmonte.
+ * La opacidad animada del pulso y si se está animando. Iniciar y parar el
+ * `Animated.loop` (y el `setValue` de la opacidad fija) no son `setState`: no
+ * hay render de por medio, así que pueden ir en el cuerpo del efecto. Las
+ * dependencias son solo `anima` (cambia cuando resuelve la consulta o cambia
+ * el ajuste) y `opacidad` (estable, sale de `useState`): el pulso no se
+ * reinicia en cada render.
  */
-function useReducirMovimiento(): boolean | null {
-  const [reducir, setReducir] = useState<boolean | null>(null)
-
-  useEffect(() => {
-    let montado = true
-    AccessibilityInfo.isReduceMotionEnabled()
-      .then((valor) => {
-        if (montado) setReducir(valor)
-      })
-      // Si la consulta falla, queda en `null`: sin animación (lo seguro).
-      .catch(() => {})
-    const suscripcion = AccessibilityInfo.addEventListener('reduceMotionChanged', (valor) => {
-      if (montado) setReducir(valor)
-    })
-    return () => {
-      montado = false
-      suscripcion.remove()
-    }
-  }, [])
-
-  return reducir
-}
-
-/**
- * La opacidad animada del pulso. Iniciar y parar el `Animated.loop` (y el
- * `setValue` de la opacidad fija) no son `setState`: no hay render de por
- * medio, así que pueden ir en el cuerpo del efecto.
- */
-function usePulso(): Animated.Value {
-  const reducir = useReducirMovimiento()
+function usePulso(): { opacidad: Animated.Value; anima: boolean } {
+  const { anima, opacidadFija } = animacionEsqueleto(useReducirMovimiento())
   const [opacidad] = useState(() => new Animated.Value(OPACIDAD_MAXIMA))
 
   useEffect(() => {
-    const { anima, opacidadFija } = animacionEsqueleto(reducir)
     if (!anima) {
       opacidad.setValue(opacidadFija)
       return undefined
@@ -132,16 +109,16 @@ function usePulso(): Animated.Value {
     return () => {
       pulso.stop()
     }
-  }, [reducir, opacidad])
+  }, [anima, opacidadFija, opacidad])
 
-  return opacidad
+  return { opacidad, anima }
 }
 
 interface BloqueProps {
   ancho?: DimensionValue
   alto?: DimensionValue
   radio?: number
-  /** Por defecto `muted`; `encima` usa `border`, para lo que va arriba de otro bloque. */
+  /** Por defecto `colorBloqueEsqueleto`; `encima` usa `colorBloqueEncima`, para lo que va arriba de otro bloque. */
   encima?: boolean
   style?: StyleProp<ViewStyle>
 }
@@ -154,7 +131,7 @@ export function Bloque({ ancho, alto, radio = 6, encima = false, style }: Bloque
       accessibilityElementsHidden
       importantForAccessibility="no-hide-descendants"
       style={[
-        { width: ancho, height: alto, borderRadius: radio, backgroundColor: encima ? colores.border : colores.muted },
+        { width: ancho, height: alto, borderRadius: radio, backgroundColor: encima ? colorBloqueEncima(colores) : colorBloqueEsqueleto(colores) },
         style,
       ]}
     />
@@ -167,7 +144,7 @@ export function Bloque({ ancho, alto, radio = 6, encima = false, style }: Bloque
  */
 export function PantallaEsqueleto({ children, style }: { children: ReactNode; style?: StyleProp<ViewStyle> }) {
   const colores = useColoresQPS()
-  const opacidad = usePulso()
+  const { opacidad, anima } = usePulso()
 
   return (
     <View
@@ -180,7 +157,8 @@ export function PantallaEsqueleto({ children, style }: { children: ReactNode; st
       <Animated.View
         accessibilityElementsHidden
         importantForAccessibility="no-hide-descendants"
-        style={{ opacity: opacidad }}
+        renderToHardwareTextureAndroid={anima}
+        style={anima ? { opacity: opacidad } : undefined}
       >
         {children}
       </Animated.View>
@@ -261,7 +239,7 @@ export function EsqueletoPortada() {
 
   return (
     <PantallaEsqueleto>
-      {/* Cabecera fija de la R67 (67-b): ≈113 dp, igual que la real. */}
+      {/* Cabecera fija de la R67 (67-b): ≈125 dp, igual que la real. */}
       <View style={[estilos.cabeceraPortada, { borderBottomColor: colores.border }]}>
         <FilaQueAsoma ancho={ancho} anchos={ANCHOS_CHIPS} alto={48} radio={999} separacion={SEPARACION_CHIPS} style={estilos.filaChips} />
         <FilaQueAsoma ancho={ancho} anchos={ANCHOS_PILLS_INICIO} alto={44} radio={20} separacion={SEPARACION_CHIPS} style={estilos.filaPills} />
@@ -269,7 +247,7 @@ export function EsqueletoPortada() {
 
       {/* Hero: a sangre, mismo alto que el real; adentro, el badge, el título
           en 2 líneas, los datos y "Ver detalles", abajo a la izquierda. */}
-      <View style={[estilos.hero, { height: altoHero(altoVentana), backgroundColor: colores.muted }]}>
+      <View style={[estilos.hero, { height: altoHero(altoVentana), backgroundColor: colorBloqueEsqueleto(colores) }]}>
         <Bloque ancho={72} alto={18} encima />
         <Bloque ancho="80%" alto={16} encima />
         <Bloque ancho="55%" alto={16} encima />
@@ -304,8 +282,13 @@ export function EsqueletoBuscar({ resultados }: { resultados: boolean }) {
     return (
       <PantallaEsqueleto>
         <View style={estilos.listaBuscar}>
-          <FilaQueAsoma ancho={ancho} anchos={ANCHOS_CHIPS} alto={48} radio={999} separacion={SEPARACION_CHIPS} style={estilos.chipsBuscar} />
-          <Bloque ancho="45%" alto={16} />
+          {/* La cabecera de la lista real es UN solo hijo (los chips, con su
+              `paddingBottom: 12`, y el conteo, ~20 de línea + `marginBottom:
+              12`): entre los chips y el conteo no hay `gap`. */}
+          <View>
+            <FilaQueAsoma ancho={ancho} anchos={ANCHOS_CHIPS} alto={48} radio={999} separacion={SEPARACION_CHIPS} style={estilos.chipsBuscar} />
+            <Bloque ancho="45%" alto={16} style={estilos.tituloBuscar} />
+          </View>
           {filasDeGrilla(TARJETAS_BUSCAR, 2).map((fila) => (
             <View key={fila[0]} style={estilos.filaGrilla}>
               {fila.map((indice) => (
@@ -323,7 +306,9 @@ export function EsqueletoBuscar({ resultados }: { resultados: boolean }) {
   return (
     <PantallaEsqueleto>
       <View style={estilos.listaBuscar}>
-        <Bloque ancho="50%" alto={16} />
+        {/* "Explorar por categoria": ~20 de línea + `marginBottom: 12`, y
+            después el `gap` de 12 de la lista hasta la grilla. */}
+        <Bloque ancho="50%" alto={16} style={estilos.tituloBuscar} />
         {filasDeGrilla(TILES_BUSCAR, 2).map((fila) => (
           <View key={fila[0]} style={estilos.filaGrilla}>
             {fila.map((indice) => (
@@ -359,7 +344,7 @@ export function EsqueletoCines() {
       <View style={estilos.listaCines}>
         {Array.from({ length: TARJETAS_CINES }, (_, indice) => (
           <View key={indice} style={[estilos.tarjetaPelicula, { backgroundColor: colores.card, borderColor: colores.border }]}>
-            <View style={[estilos.afichePelicula, { backgroundColor: colores.muted }]}>
+            <View style={[estilos.afichePelicula, { backgroundColor: colorBloqueEsqueleto(colores) }]}>
               <Bloque ancho={56} alto={22} encima style={estilos.badgePelicula} />
             </View>
             <Bloque ancho="70%" alto={18} style={estilos.tituloPelicula} />
@@ -383,8 +368,10 @@ export function EsqueletoCines() {
 // Ficha de un evento (`app/evento/[id].tsx`): padding 16, gap 16; afiche 3:4
 // a ancho completo (radio 16) con el badge de categoría arriba a la izquierda;
 // título en 2 líneas (fuente 30); filas de datos con ícono de 20 (fecha, hora,
-// lugar con su dirección); la caja de precio (`muted`, radio 12, padding 24);
-// los CTAs ("Cómo llegar", "Comprar tickets").
+// lugar con su dirección); la descripción; la caja de precio (radio 12,
+// padding 24); los CTAs ("Cómo llegar", "Comprar tickets"). La franja de
+// `AvisoPatrocinado` (con `?patrocinado=1`) no va acá: la dibuja la ficha
+// arriba y FUERA de este esqueleto, porque es interactiva y no se oculta.
 // ---------------------------------------------------------------------------
 
 export function EsqueletoFicha() {
@@ -393,13 +380,13 @@ export function EsqueletoFicha() {
   return (
     <PantallaEsqueleto>
       <View style={estilos.contenidoFicha}>
-        <View style={[estilos.aficheFicha, { backgroundColor: colores.muted }]}>
+        <View style={[estilos.aficheFicha, { backgroundColor: colorBloqueEsqueleto(colores) }]}>
           <Bloque ancho={88} alto={24} encima />
         </View>
 
         <View style={estilos.tituloFicha}>
           <Bloque ancho="100%" alto={30} />
-          <Bloque ancho="65%" alto={30} />
+          <Bloque ancho="60%" alto={30} />
         </View>
 
         <View style={estilos.filasDatos}>
@@ -420,7 +407,14 @@ export function EsqueletoFicha() {
           </View>
         </View>
 
-        <View style={[estilos.cajaPrecio, { backgroundColor: colores.muted }]}>
+        {/* La descripción (texto secundario, varias líneas). */}
+        <View style={estilos.descripcionFicha}>
+          <Bloque ancho="100%" alto={14} />
+          <Bloque ancho="100%" alto={14} />
+          <Bloque ancho="70%" alto={14} />
+        </View>
+
+        <View style={[estilos.cajaPrecio, { backgroundColor: colorBloqueEsqueleto(colores) }]}>
           <Bloque ancho="40%" alto={13} encima />
           <Bloque ancho="55%" alto={26} encima />
         </View>
@@ -439,8 +433,9 @@ const estilos = StyleSheet.create({
   sinEncoger: { flexShrink: 0 },
   filaQueAsoma: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: MARGEN_LATERAL, overflow: 'hidden' },
 
-  // Inicio. Cabecera: 8 de aire + chips (48 + 12 abajo) + pills (12 + 44 + 12)
-  // − 12 (`pillsBajoChips` de la portada) + 1 de borde ≈ 113 dp.
+  // Inicio. Cabecera: 8 de aire + 60 de chips (48 + 12 abajo) + 56 de pills
+  // (12 + 44 + 12, − 12 del `pillsBajoChips` de la portada) + 1 de borde =
+  // 125 dp.
   cabeceraPortada: { paddingTop: 8, borderBottomWidth: 1 },
   filaChips: { paddingBottom: 12 },
   filaPills: { paddingVertical: 12, marginTop: -12 },
@@ -460,8 +455,12 @@ const estilos = StyleSheet.create({
 
   // Buscar: mismo padding y gaps que sus `FlatList` (`estilos.lista`).
   listaBuscar: { paddingHorizontal: MARGEN_LATERAL, paddingBottom: 16, gap: 12 },
-  // Los chips traen su propio padding lateral (16), igual que en la lista real.
-  chipsBuscar: { marginHorizontal: -MARGEN_LATERAL },
+  // Los chips traen su propio padding lateral (16) y el de abajo (12) de
+  // `ChipsCategorias`, igual que en la lista real.
+  chipsBuscar: { marginHorizontal: -MARGEN_LATERAL, paddingBottom: 12 },
+  // El título real (fuente 16) mide ~20 de línea: 16 de bloque + 2 arriba y 2
+  // abajo; más su `marginBottom: 12` (`estilos.tituloSeccion` de Buscar).
+  tituloBuscar: { marginTop: 2, marginBottom: 14 },
   filaGrilla: { flexDirection: 'row', gap: 12 },
   celdaGrilla: { flex: 1, maxWidth: '50%' },
   tarjetaGrilla: { width: '100%', aspectRatio: 2 / 3 },
@@ -490,6 +489,7 @@ const estilos = StyleSheet.create({
   contenidoFicha: { padding: MARGEN_LATERAL, gap: 16 },
   aficheFicha: { width: '100%', aspectRatio: 3 / 4, borderRadius: 16, padding: 12 },
   tituloFicha: { gap: 6 },
+  descripcionFicha: { gap: 6 },
   filasDatos: { gap: 12 },
   filaDato: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
   lugarFicha: { flex: 1, gap: 6 },

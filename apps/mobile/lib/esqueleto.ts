@@ -14,10 +14,13 @@
 /** Opacidad de los bloques en el punto alto del pulso, y la fija cuando no se anima. */
 export const OPACIDAD_MAXIMA = 1
 
-/** Opacidad en el punto bajo del pulso. No baja a 0: con el token `muted`
- * sobre `background` los bloques desaparecerían del todo en cada vuelta, y el
- * pulso pasaría a leerse como un parpadeo. */
-export const OPACIDAD_MINIMA = 0.45
+/** Opacidad en el punto bajo del pulso. A1 (nube Q1, ronda de correcciones):
+ * 0,7 y no 0,45. Con 0,45 el bloque casi se fundía con el fondo en el valle
+ * (~1,05:1 con el `muted` de antes); con 0,7 y `colorBloqueEsqueleto`
+ * (`lib/colores.ts`) el bloque sigue entre ~1,2:1 y ~1,3:1 contra el fondo y
+ * contra `card` también en el valle (`tests/esqueletos-contraste.test.ts`), y
+ * el pulso se lee como un "respirar" suave, no como un parpadeo. */
+export const OPACIDAD_MINIMA = 0.7
 
 /** Duración de cada medio pulso (bajar o subir), en ms: una vuelta completa
  * dura el doble (1,6 s). Más lento que el estándar de 1 s a propósito: con

@@ -173,9 +173,60 @@ describe('lib/esqueleto.ts es puro', () => {
 // ===========================================================================
 // 2. Detectores sobre el código
 // ===========================================================================
+/** El cuerpo de `function nombre(...) { ... }` (de la llave que abre la función
+ * hasta su llave de cierre, contando llaves). */
+function cuerpoDeFuncion(src: string, nombre: string): string {
+  const inicio = src.search(new RegExp(`function ${nombre}\\b`))
+  if (inicio === -1) throw new Error(`no está la función ${nombre}`)
+  // La llave del cuerpo es la primera `{` después del `)` que cierra la firma
+  // seguida de `{` (puede haber un tipo de retorno con llaves, `): { ... } {`).
+  const firma = src.slice(inicio).match(/\)(?::\s*(?:\{[^}]*\}|[^{]+))?\s*\{/)
+  if (!firma || firma.index === undefined) throw new Error(`no encuentro el cuerpo de ${nombre}`)
+  const apertura = inicio + firma.index + firma[0].length - 1
+  let profundidad = 0
+  for (let i = apertura; i < src.length; i += 1) {
+    if (src[i] === '{') profundidad += 1
+    else if (src[i] === '}') {
+      profundidad -= 1
+      if (profundidad === 0) return src.slice(apertura, i + 1)
+    }
+  }
+  throw new Error(`la función ${nombre} no cierra`)
+}
+
+/** El cuerpo de `const nombre = useCallback(async () => { ... }`. */
+function cuerpoDeCallback(src: string, nombre: string): string {
+  const inicio = src.search(new RegExp(`const ${nombre} = useCallback\\(`))
+  if (inicio === -1) throw new Error(`no está ${nombre}`)
+  const apertura = src.indexOf('{', inicio)
+  let profundidad = 0
+  for (let i = apertura; i < src.length; i += 1) {
+    if (src[i] === '{') profundidad += 1
+    else if (src[i] === '}') {
+      profundidad -= 1
+      if (profundidad === 0) return src.slice(apertura, i + 1)
+    }
+  }
+  throw new Error(`${nombre} no cierra`)
+}
+
+describe('cuerpoDeFuncion / cuerpoDeCallback (fixtures)', () => {
+  it('recorta el cuerpo con llaves anidadas y tipo de retorno con llaves', () => {
+    const src = 'function f(): { a: number } {\n  if (x) { y() }\n  return z\n}\nfunction g() {}'
+    expect(cuerpoDeFuncion(src, 'f')).toBe('{\n  if (x) { y() }\n  return z\n}')
+  })
+
+  it('recorta el cuerpo de un useCallback', () => {
+    const src = "const refrescar = useCallback(async () => {\n  a()\n  if (b) { c() }\n}, [d])"
+    expect(cuerpoDeCallback(src, 'refrescar')).toBe('{\n  a()\n  if (b) { c() }\n}')
+  })
+})
+
 describe('components/Esqueleto.tsx', () => {
   const crudo = leer('components/Esqueleto.tsx')
   const src = quitarComentarios(crudo)
+  const pulso = cuerpoDeFuncion(src, 'usePulso')
+  const pantalla = cuerpoDeFuncion(src, 'PantallaEsqueleto')
 
   it('exporta las 4 variantes y el contenedor base', () => {
     for (const nombre of ['EsqueletoPortada', 'EsqueletoBuscar', 'EsqueletoCines', 'EsqueletoFicha', 'PantallaEsqueleto', 'Bloque']) {
@@ -213,29 +264,62 @@ describe('components/Esqueleto.tsx', () => {
     expect(apertura?.[0]).not.toMatch(/accessibilityElementsHidden/)
   })
 
-  it('consulta isReduceMotionEnabled y escucha reduceMotionChanged, con remove() al desmontar', () => {
-    expect(src).toMatch(/AccessibilityInfo\.isReduceMotionEnabled\(\)/)
-    expect(src).toMatch(/AccessibilityInfo\.addEventListener\(\s*'reduceMotionChanged'/)
-    expect(src).toMatch(/suscripcion\.remove\(\)/)
+  it('anidado: el View accesible es lo primero que devuelve y CONTIENE al Animated.View oculto (no al revés)', () => {
+    const jsx = pantalla.slice(pantalla.indexOf('return ('))
+    const abreVista = jsx.search(/<View\s+accessible\b/)
+    const abreCapa = jsx.search(/<Animated\.View\s+accessibilityElementsHidden\s+importantForAccessibility="no-hide-descendants"/)
+    const hijos = jsx.indexOf('{children}')
+    const cierraCapa = jsx.indexOf('</Animated.View>')
+    const cierraVista = jsx.lastIndexOf('</View>')
+    // Lo primero después de `return (` es el View accesible.
+    expect(jsx).toMatch(/^return \(\s*<View\s+accessible\b/)
+    expect(abreVista).toBeGreaterThan(-1)
+    expect(abreCapa).toBeGreaterThan(abreVista)
+    expect(hijos).toBeGreaterThan(abreCapa)
+    expect(cierraCapa).toBeGreaterThan(hijos)
+    expect(cierraVista).toBeGreaterThan(cierraCapa)
   })
 
-  it('el setState del ajuste va en el callback (de la promesa y del listener), nunca suelto en el efecto', () => {
-    expect(src).toMatch(/\.then\(\(valor\)\s*=>\s*\{\s*if \(montado\) setReducir\(valor\)/)
-    expect(src).toMatch(/'reduceMotionChanged',\s*\(valor\)\s*=>\s*\{\s*if \(montado\) setReducir\(valor\)/)
-    expect(contar(src, /setReducir\(/g)).toBe(2)
+  it('"Reducir movimiento" sale del hook compartido (lib/reducir-movimiento.ts), no de uno propio', () => {
+    expect(src).toMatch(/import\s*\{\s*useReducirMovimiento\s*\}\s*from\s*'@\/lib\/reducir-movimiento'/)
+    expect(pulso).toMatch(/animacionEsqueleto\(useReducirMovimiento\(\)\)/)
+    expect(src).not.toMatch(/function useReducirMovimiento\b/)
+    expect(src).not.toMatch(/AccessibilityInfo/)
   })
 
-  it('anima con Animated.loop y el driver nativo (nunca useNativeDriver: false), y lo para en el cleanup', () => {
+  it('anima con Animated.loop y el driver nativo (nunca useNativeDriver: false), lo arranca y lo para en el cleanup', () => {
     expect(src).toMatch(/import\s*\{[^}]*\bAnimated\b[^}]*\}\s*from\s*'react-native'/)
-    expect(src).toMatch(/Animated\.loop\(/)
-    expect(contar(src, /useNativeDriver:\s*true/g)).toBeGreaterThanOrEqual(2)
+    expect(pulso).toMatch(/const pulso = Animated\.loop\(/)
+    expect(contar(pulso, /useNativeDriver:\s*true/g)).toBe(2)
     expect(src).not.toMatch(/useNativeDriver:\s*false/)
-    expect(src).toMatch(/return \(\) => \{\s*pulso\.stop\(\)/)
-    // La decisión de animar sale de la función pura.
-    expect(src).toMatch(/animacionEsqueleto\(reducir\)/)
+    expect(pulso).toMatch(/\n\s*pulso\.start\(\)/)
+    expect(pulso).toMatch(/return \(\) => \{\s*pulso\.stop\(\)/)
+    // Sin animación: opacidad fija y salida temprana, antes de armar el loop.
+    expect(pulso).toMatch(/if \(!anima\) \{\s*opacidad\.setValue\(opacidadFija\)\s*return undefined\s*\}/)
   })
 
-  it('solo colores del tema: useColoresQPS, sin hex ni rgb escritos a mano', () => {
+  it('el efecto del pulso depende solo de anima, opacidadFija y opacidad (no se reinicia en cada render)', () => {
+    const deps = pulso.match(/\}, \[([^\]]*)\]\)\s*\n\s*return \{ opacidad, anima \}/)
+    expect(deps).not.toBeNull()
+    const lista = (deps?.[1] ?? '').split(',').map((d) => d.trim()).filter(Boolean).sort()
+    expect(lista).toEqual(['anima', 'opacidad', 'opacidadFija'])
+    // `opacidad` es estable (sale de useState con inicializador), no un `new` por render.
+    expect(pulso).toMatch(/const \[opacidad\] = useState\(\(\) => new Animated\.Value\(OPACIDAD_MAXIMA\)\)/)
+  })
+
+  it('la capa animada tiene la opacidad conectada SOLO cuando anima, y textura de hardware mientras anima', () => {
+    expect(pantalla).toMatch(/const \{ opacidad, anima \} = usePulso\(\)/)
+    const capa = pantalla.match(/<Animated\.View\b[\s\S]*?>/)?.[0] ?? ''
+    expect(capa).toMatch(/style=\{anima \? \{ opacity: opacidad \} : undefined\}/)
+    expect(capa).toMatch(/renderToHardwareTextureAndroid=\{anima\}/)
+  })
+
+  it('colores: los bloques con colorBloqueEsqueleto/colorBloqueEncima (lib/colores.ts), nunca muted; sin hex ni rgb a mano', () => {
+    expect(src).toMatch(/import\s*\{[^}]*\bcolorBloqueEncima\b[^}]*\bcolorBloqueEsqueleto\b[^}]*\}\s*from\s*'@\/lib\/colores'/)
+    expect(src).toMatch(/backgroundColor: encima \? colorBloqueEncima\(colores\) : colorBloqueEsqueleto\(colores\)/)
+    // Los fondos llenos (Hero, afiche de película, afiche de la ficha, caja de precio).
+    expect(contar(src, /backgroundColor: colorBloqueEsqueleto\(colores\) \}/g)).toBe(4)
+    expect(src).not.toMatch(/colores\.muted\b/)
     expect(src).toMatch(/useColoresQPS\(\)/)
     expect(src).not.toMatch(/['"]#[0-9a-fA-F]{3,8}['"]/)
     expect(src).not.toMatch(/rgba?\(/)
@@ -252,6 +336,51 @@ describe('components/Esqueleto.tsx', () => {
     expect(src).not.toMatch(/\bDimensions\.get\b/)
     expect(src).toMatch(/cantidadQueAsoma\(/)
     expect(src).toMatch(/filaQueAsoma:\s*\{[^}]*overflow:\s*'hidden'/)
+  })
+
+  it('Buscar: los chips con el paddingBottom de ChipsCategorias y el título con su línea y su marginBottom', () => {
+    expect(src).toMatch(/chipsBuscar:\s*\{[^}]*paddingBottom:\s*12/)
+    expect(src).toMatch(/tituloBuscar:\s*\{\s*marginTop:\s*2,\s*marginBottom:\s*14\s*\}/)
+    expect(contar(src, /style=\{estilos\.tituloBuscar\}/g)).toBe(2)
+  })
+})
+
+describe('lib/reducir-movimiento.ts (el hook compartido)', () => {
+  const src = quitarComentarios(leer('lib/reducir-movimiento.ts'))
+  const hook = cuerpoDeFuncion(src, 'useReducirMovimiento')
+
+  it('consulta isReduceMotionEnabled y escucha reduceMotionChanged, con remove() al desmontar', () => {
+    expect(hook).toMatch(/AccessibilityInfo\.isReduceMotionEnabled\(\)/)
+    expect(hook).toMatch(/AccessibilityInfo\.addEventListener\(\s*'reduceMotionChanged'/)
+    expect(hook).toMatch(/return \(\) => \{\s*montado = false\s*suscripcion\.remove\(\)/)
+  })
+
+  it('el setState va en el callback (de la promesa y del listener), nunca suelto en el efecto', () => {
+    expect(hook).toMatch(/\.then\(\(valor\)\s*=>\s*\{\s*if \(montado\) setReducir\(valor\)/)
+    expect(hook).toMatch(/'reduceMotionChanged',\s*\(valor\)\s*=>\s*\{\s*if \(montado\) setReducir\(valor\)/)
+    expect(contar(hook, /setReducir\(/g)).toBe(2)
+  })
+
+  it('arranca en null (sin saber) y se exporta', () => {
+    expect(src).toMatch(/export function useReducirMovimiento\(\): boolean \| null/)
+    expect(hook).toMatch(/useState<boolean \| null>\(null\)/)
+  })
+})
+
+describe('components/PillsAtajos.tsx respeta "Quitar animaciones"', () => {
+  const src = quitarComentarios(leer('components/PillsAtajos.tsx'))
+
+  it('usa el hook compartido', () => {
+    expect(src).toMatch(/import\s*\{\s*useReducirMovimiento\s*\}\s*from\s*'@\/lib\/reducir-movimiento'/)
+    expect(src).toMatch(/const reducir = useReducirMovimiento\(\)/)
+  })
+
+  it('sin reducir === false (prendido o sin saber) y en la primera medida: setValue, nunca spring', () => {
+    expect(src).toMatch(
+      /if \(!posicionado\.current \|\| reducir !== false\) \{\s*posicionado\.current = true\s*animX\.setValue\(medida\.x\)\s*animWidth\.setValue\(medida\.width\)\s*return\s*\}\s*Animated\.spring/,
+    )
+    expect(contar(src, /Animated\.spring\(/g)).toBe(2)
+    expect(src).toMatch(/\}, \[atajo, medidas, animX, animWidth, reducir\]\)/)
   })
 })
 
@@ -270,7 +399,11 @@ describe.each(PANTALLAS)('$ruta: esqueleto en vez de <Cargando /> en la carga in
   })
 
   it(`el estado 'cargando' dibuja <${esqueleto}`, () => {
-    expect(src).toMatch(new RegExp(`estado\\.tipo === 'cargando'\\)?\\s*(\\?|return)\\s*<${esqueleto}\\b`))
+    // Ternario en el JSX (`estado.tipo === 'cargando' ? <X`) o rama con
+    // `if (estado.tipo === 'cargando') { return (... <X ...) }` (la ficha).
+    const ternario = new RegExp(`estado\\.tipo === 'cargando' \\? <${esqueleto}\\b`)
+    const rama = new RegExp(`if \\(estado\\.tipo === 'cargando'\\) \\{\\s*return \\([\\s\\S]{0,600}?<${esqueleto} />\\s*</View>\\s*\\)\\s*\\}`)
+    expect(ternario.test(src) || rama.test(src)).toBe(true)
     expect(contar(src, new RegExp(`<${esqueleto}\\b`, 'g'))).toBe(1)
   })
 
@@ -287,7 +420,33 @@ describe.each(PANTALLAS)('$ruta: esqueleto en vez de <Cargando /> en la carga in
     it('el pull-to-refresh no cambia: sigue el RefreshControl con `refrescando`', () => {
       expect(src).toMatch(/<RefreshControl refreshing=\{refrescando\} onRefresh=\{refrescar\}/)
     })
+
+    it('el cuerpo de `refrescar` nunca pasa por el estado cargando (no muestra el esqueleto)', () => {
+      const cuerpo = cuerpoDeCallback(src, 'refrescar')
+      expect(cuerpo).toMatch(/setRefrescando\(true\)/)
+      expect(cuerpo).not.toMatch(/cargando/i)
+      expect(cuerpo).not.toMatch(/\bcargar\(\)/)
+    })
   }
+})
+
+describe('app/(tabs)/buscar.tsx elige el esqueleto con la misma condición que la lista', () => {
+  const src = quitarComentarios(leer('app/(tabs)/buscar.tsx'))
+
+  it('pasa resultados={mostrarResultados}', () => {
+    expect(src).toMatch(/<EsqueletoBuscar resultados=\{mostrarResultados\} \/>/)
+    expect(src).toMatch(/estado\.tipo === 'ok' && mostrarResultados \?/)
+  })
+})
+
+describe('app/evento/[id].tsx: con ?patrocinado=1, la franja real arriba y FUERA del esqueleto', () => {
+  const src = quitarComentarios(leer('app/evento/[id].tsx'))
+
+  it('la rama cargando dibuja AvisoPatrocinado antes de EsqueletoFicha, como hermano (no adentro)', () => {
+    expect(src).toMatch(
+      /if \(estado\.tipo === 'cargando'\) \{\s*return \(\s*<View[^>]*>\s*\{esAvisoPatrocinado && session \? \(\s*<View style=\{estilos\.avisoCargando\}>\s*<AvisoPatrocinado \/>\s*<\/View>\s*\) : null\}\s*<EsqueletoFicha \/>/,
+    )
+  })
 })
 
 describe('Cargando sigue existiendo para las demás pantallas', () => {
