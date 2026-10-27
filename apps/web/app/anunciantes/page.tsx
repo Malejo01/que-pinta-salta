@@ -1,5 +1,5 @@
 import type { Metadata } from "next"
-import { Sparkles, Eye, Radio, Calendar, MessageCircle, Mail, CheckCircle2 } from "lucide-react"
+import { Sparkles, Eye, Radio, Calendar, MessageCircle, Mail, CheckCircle2, Info } from "lucide-react"
 import { Navbar } from "@/components/navbar"
 import { MobileNav } from "@/components/mobile-nav"
 import { createAdminClient } from "@/lib/supabase/server"
@@ -9,6 +9,8 @@ import {
   formatRadarSubscribers,
   type AdvertiserMetrics,
 } from "@/lib/anunciantes/metricas"
+import { cargarTarifarioVigente, type TarifarioVigente } from "@/lib/anunciantes/precios"
+import { formatSaltaDayKey } from "@/lib/date-format"
 import { ANUNCIANTES } from "@/lib/config/anunciantes"
 import { whatsappUrl } from "@/lib/contacto"
 import { CONTACTO_EMAIL, mailtoContacto } from "@qps/core/contacto"
@@ -59,6 +61,21 @@ async function loadMetrics(): Promise<AdvertiserMetrics> {
   }
 }
 
+/** Precios aprobados vigentes hoy (día de Salta); si falla algo, el tarifario de respaldo. */
+async function loadTarifario(): Promise<TarifarioVigente> {
+  try {
+    return await cargarTarifarioVigente(createAdminClient(), formatSaltaDayKey(new Date()))
+  } catch (error) {
+    console.error("[anunciantes] Error cargando los precios vigentes:", error instanceof Error ? error.name : "desconocido")
+    return {
+      productos: [...TARIFARIO],
+      vigencia: VIGENCIA_TARIFARIO,
+      pie: PIE_TARIFARIO,
+      aviso: null,
+    }
+  }
+}
+
 function MetricCard({
   icon: Icon,
   valor,
@@ -84,6 +101,7 @@ function MetricCard({
 
 export default async function AnunciantesPage() {
   const metrics = await loadMetrics()
+  const tarifario = await loadTarifario()
 
   const eventosLabel = formatPublicCount(metrics.eventsLast30)
   const vistasLabel =
@@ -154,11 +172,22 @@ export default async function AnunciantesPage() {
           <div className="space-y-1">
             <h2 className="text-xl font-bold text-foreground">Precios</h2>
             <p className="text-sm text-muted-foreground">
-              Vigentes {VIGENCIA_TARIFARIO}. Precios finales: no se les suma IVA.
+              Vigentes {tarifario.vigencia}. Precios finales: no se les suma IVA.
             </p>
           </div>
+          {tarifario.aviso && (
+            <p
+              role="note"
+              className="flex items-start gap-2 rounded-xl border-2 border-primary bg-card p-4 text-sm font-medium text-foreground"
+            >
+              <Info className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden="true" />
+              <span>
+                <strong className="font-bold">Aviso de cambio de tramo.</strong> {tarifario.aviso}
+              </span>
+            </p>
+          )}
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {TARIFARIO.map((producto) => {
+            {tarifario.productos.map((producto) => {
               const usd = textoUsdAprox(producto.precio)
               return (
                 <div
@@ -185,7 +214,7 @@ export default async function AnunciantesPage() {
               )
             })}
           </div>
-          <p className="text-xs leading-relaxed text-muted-foreground">{PIE_TARIFARIO}</p>
+          <p className="text-xs leading-relaxed text-muted-foreground">{tarifario.pie}</p>
         </section>
 
         <section className="mb-12 space-y-4">

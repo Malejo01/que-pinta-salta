@@ -145,14 +145,25 @@ describe('/anunciantes: el TARIFARIO es exactamente la "Tabla final" del estudio
 })
 
 describe('/anunciantes: la página usa el tarifario de core y los botones de contacto', () => {
-  it('importa TARIFARIO y PIE_TARIFARIO de @qps/core/publicidad/precios', () => {
+  it('el respaldo sigue saliendo de @qps/core/publicidad/precios', () => {
     expect(paginaFuente).toMatch(/import\s*\{[^}]*\bTARIFARIO\b[^}]*\}\s*from\s*["']@qps\/core\/publicidad\/precios["']/)
     expect(paginaFuente).toMatch(/import\s*\{[^}]*\bPIE_TARIFARIO\b[^}]*\}\s*from\s*["']@qps\/core\/publicidad\/precios["']/)
   })
 
-  it('recorre el TARIFARIO y muestra el pie', () => {
-    expect(paginaFuente).toMatch(/TARIFARIO\.map\(/)
-    expect(paginaFuente).toMatch(/\{PIE_TARIFARIO\}/)
+  it('usa cargarTarifarioVigente, recorre los productos y muestra el pie y la vigencia que arma', () => {
+    expect(paginaFuente).toMatch(/import\s*\{[^}]*\bcargarTarifarioVigente\b[^}]*\}\s*from\s*["']@\/lib\/anunciantes\/precios["']/)
+    expect(paginaFuente).toMatch(/cargarTarifarioVigente\(\s*createAdminClient\(\)/)
+    expect(paginaFuente).toMatch(/\.productos\.map\(/)
+    expect(paginaFuente).not.toMatch(/\bTARIFARIO\.map\(/)
+    expect(paginaFuente).toMatch(/\{tarifario\.pie\}/)
+    expect(paginaFuente).toMatch(/\{tarifario\.vigencia\}/)
+  })
+
+  it('la página sigue siendo ISR: sin cookies() ni cliente de sesión', () => {
+    expect(paginaFuente).toContain('export const revalidate = 3600')
+    const sinComentarios = paginaFuente.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '')
+    expect(sinComentarios).not.toMatch(/\bcookies\(/)
+    expect(sinComentarios).not.toMatch(/\bcreateClient\(/)
   })
 
   it('no repite montos en pesos como literal: salen todos de core', () => {
