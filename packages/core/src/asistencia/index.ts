@@ -82,6 +82,12 @@ export function textoBotonVoy(cantidad: number): string {
 /** El texto de invitación a entrar cuando no hay sesión (botones de asistencia). */
 export const TEXTO_ENTRAR_PARA_MARCAR = 'Entrá para marcar si vas.'
 
+/**
+ * Mensaje compartido web/app para un evento que ya no admite marcas nuevas.
+ * No distingue borrador de id inexistente (QPS-195/QPS-307).
+ */
+export const MENSAJE_EVENTO_NO_DISPONIBLE = 'Ese evento ya no está disponible.'
+
 /** El aviso cuando sacar el ♥ de Guardados también saca el ✓ Voy (ver `pasosDeTocar`/`avisoAlQuitarGuardado`). */
 export const TEXTO_SACASTE_GUARDADO_CON_VOY =
   'Lo sacaste de tus guardados y ya no figurás como que vas.'
