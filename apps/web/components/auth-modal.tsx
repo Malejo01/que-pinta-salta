@@ -12,6 +12,8 @@ import { validarContrasenaNueva } from "@qps/core/auth/cuenta"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useToast } from "@/hooks/use-toast"
+import { hrefLangDestino } from "@/lib/i18n/rutas"
+import { useIdioma, useTextos } from "@/lib/i18n/use-idioma"
 
 interface AuthModalContextType {
   open: () => void
@@ -44,6 +46,10 @@ export function AuthModalProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [mode, setMode] = useState<"login" | "signup">("login")
+  // El provider vive en el layout raíz: el idioma sale de la URL de la página
+  // donde se abre (/en/... en inglés).
+  const idioma = useIdioma()
+  const t = useTextos().auth
 
   const handleGoogleLogin = async () => {
     setIsLoading(true)
@@ -52,7 +58,7 @@ export function AuthModalProvider({ children }: { children: ReactNode }) {
       const { error } = await signInWithGoogle()
       if (error) throw error
     } catch {
-      setError("Ocurrió un error al iniciar sesión con Google. Probá de nuevo.")
+      setError(t.errorGoogle)
       setIsLoading(false)
     }
   }
@@ -87,8 +93,8 @@ export function AuthModalProvider({ children }: { children: ReactNode }) {
         }
 
         toast({
-          title: "¡Bienvenido de nuevo!",
-          description: "Sesión iniciada correctamente.",
+          title: t.bienvenidoDeNuevo,
+          description: t.sesionIniciada,
         })
       } else {
         // El modal no pide confirmación de contraseña (un solo campo): se
@@ -117,13 +123,13 @@ export function AuthModalProvider({ children }: { children: ReactNode }) {
         if (resultado.tipo === "sesion") {
           // Supabase confirmó el alta solo: no sale ningún correo.
           toast({
-            title: "¡Bienvenido!",
-            description: MENSAJE_ALTA_CON_SESION,
+            title: t.bienvenido,
+            description: t.mensaje(MENSAJE_ALTA_CON_SESION),
           })
         } else {
           toast({
-            title: "Revisá tu email",
-            description: MENSAJE_ALTA_ENVIADA,
+            title: t.revisaTuEmail,
+            description: t.mensaje(MENSAJE_ALTA_ENVIADA),
           })
         }
       }
@@ -136,6 +142,13 @@ export function AuthModalProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  // El error se guarda como lo da core (en castellano) y se traduce al
+  // mostrarlo; si no tiene traducción, queda en castellano con `lang="es"`.
+  const errorVisible = error === null ? null : t.mensaje(error)
+  const langError = idioma !== "es" && errorVisible === error ? "es" : undefined
+  // Las páginas a las que lleva el modal existen solo en castellano.
+  const langLegales = idioma === "es" ? {} : { hrefLang: "es-AR" }
+
   return (
     <AuthModalContext.Provider value={{ open, close }}>
       {children}
@@ -143,30 +156,29 @@ export function AuthModalProvider({ children }: { children: ReactNode }) {
         <DialogContent className="sm:max-w-[400px]">
           <DialogHeader>
             <DialogTitle className="text-xl font-bold text-center">
-              {mode === "login" ? "Iniciar Sesión" : "Crear Cuenta"}
+              {mode === "login" ? t.tituloIngresar : t.tituloCrear}
             </DialogTitle>
             <DialogDescription className="text-center">
-              {mode === "login"
-                ? "Guardá tus eventos favoritos para tenerlos siempre a mano."
-                : "Sumate para guardar favoritos y personalizar tu agenda."}
+              {mode === "login" ? t.descripcionIngresar : t.descripcionCrear}
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleAuth} className="space-y-4 pt-4">
             <div className="space-y-2">
-              <Label htmlFor="modal-email">Email</Label>
+              <Label htmlFor="modal-email">{t.email}</Label>
               <Input
                 id="modal-email"
                 type="email"
-                placeholder="tu@email.com"
+                placeholder={t.emailPlaceholder}
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="modal-password">Contraseña</Label>
+              <Label htmlFor="modal-password">{t.contrasena}</Label>
               <PasswordInput
                 id="modal-password"
+                etiquetaMostrar={t.mostrarContrasena}
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
@@ -174,16 +186,17 @@ export function AuthModalProvider({ children }: { children: ReactNode }) {
               {mode === "login" && (
                 <Link
                   href="/auth/recuperar"
+                  hrefLang={hrefLangDestino(idioma, "/auth/recuperar")}
                   onClick={close}
                   className="text-sm text-muted-foreground underline underline-offset-4 hover:text-foreground"
                 >
-                  ¿Olvidaste tu contraseña?
+                  {t.olvidasteContrasena}
                 </Link>
               )}
             </div>
-            {error && (
-              <p className="rounded-md bg-destructive/10 p-3 text-sm text-destructive text-center">
-                {error}
+            {errorVisible && (
+              <p className="rounded-md bg-destructive/10 p-3 text-sm text-destructive text-center" lang={langError}>
+                {errorVisible}
               </p>
             )}
             <Button 
@@ -192,8 +205,8 @@ export function AuthModalProvider({ children }: { children: ReactNode }) {
               disabled={isLoading}
             >
               {isLoading 
-                ? (mode === "login" ? "Iniciando sesión..." : "Creando cuenta...") 
-                : (mode === "login" ? "Iniciar Sesión" : "Registrarse")}
+                ? (mode === "login" ? t.iniciandoSesion : t.creandoCuenta) 
+                : (mode === "login" ? t.botonIngresar : t.botonRegistrarse)}
             </Button>
 
             <div className="relative my-2">
@@ -201,7 +214,7 @@ export function AuthModalProvider({ children }: { children: ReactNode }) {
                 <span className="w-full border-t" />
               </div>
               <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-background px-2 text-muted-foreground">O continuar con</span>
+                <span className="bg-background px-2 text-muted-foreground">{t.oContinuarCon}</span>
               </div>
             </div>
 
@@ -219,27 +232,27 @@ export function AuthModalProvider({ children }: { children: ReactNode }) {
             <p className="text-xs text-muted-foreground text-center">
               {mode === "login" ? (
                 <>
-                  Al continuar con Google aceptás los{" "}
-                  <Link href="/terminos" onClick={close} className="text-primary underline underline-offset-4">
-                    Términos y condiciones
+                  {t.aceptasConGoogle}{" "}
+                  <Link href="/terminos" onClick={close} {...langLegales} className="text-primary underline underline-offset-4">
+                    {t.terminos}
                   </Link>{" "}
-                  y la{" "}
-                  <Link href="/privacidad" onClick={close} className="text-primary underline underline-offset-4">
-                    Política de Privacidad
+                  {t.yLa}{" "}
+                  <Link href="/privacidad" onClick={close} {...langLegales} className="text-primary underline underline-offset-4">
+                    {t.privacidad}
                   </Link>
-                  .
+                  {t.cierreLegales}
                 </>
               ) : (
                 <>
-                  Al crear tu cuenta aceptás los{" "}
-                  <Link href="/terminos" onClick={close} className="text-primary underline underline-offset-4">
-                    Términos y condiciones
+                  {t.aceptasAlCrear}{" "}
+                  <Link href="/terminos" onClick={close} {...langLegales} className="text-primary underline underline-offset-4">
+                    {t.terminos}
                   </Link>{" "}
-                  y la{" "}
-                  <Link href="/privacidad" onClick={close} className="text-primary underline underline-offset-4">
-                    Política de Privacidad
+                  {t.yLa}{" "}
+                  <Link href="/privacidad" onClick={close} {...langLegales} className="text-primary underline underline-offset-4">
+                    {t.privacidad}
                   </Link>
-                  .
+                  {t.cierreLegales}
                 </>
               )}
             </p>
@@ -247,7 +260,7 @@ export function AuthModalProvider({ children }: { children: ReactNode }) {
             <div className="text-center text-sm text-muted-foreground mt-4">
               {mode === "login" ? (
                 <>
-                  ¿No tenés cuenta?{" "}
+                  {t.noTenesCuenta}{" "}
                   <button
                     type="button"
                     onClick={() => {
@@ -256,12 +269,12 @@ export function AuthModalProvider({ children }: { children: ReactNode }) {
                     }}
                     className="text-primary hover:underline font-semibold bg-transparent border-none cursor-pointer"
                   >
-                    Registrate
+                    {t.registrate}
                   </button>
                 </>
               ) : (
                 <>
-                  ¿Ya tenés cuenta?{" "}
+                  {t.yaTenesCuenta}{" "}
                   <button
                     type="button"
                     onClick={() => {
@@ -270,7 +283,7 @@ export function AuthModalProvider({ children }: { children: ReactNode }) {
                     }}
                     className="text-primary hover:underline font-semibold bg-transparent border-none cursor-pointer"
                   >
-                    Iniciá Sesión
+                    {t.iniciaSesion}
                   </button>
                 </>
               )}

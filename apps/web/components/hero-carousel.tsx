@@ -7,6 +7,7 @@ import { ChevronLeft, ChevronRight, Calendar, MapPin, Ticket } from "lucide-reac
 import { fechaLarga, hora, precio } from "@/lib/i18n/fechas"
 import { langDeCategoria } from "@/lib/i18n"
 import { useIdioma, useTextos } from "@/lib/i18n/use-idioma"
+import { rutaEn } from "@/lib/i18n/rutas"
 import { capitalizeFirst, cleanDescription } from "@/lib/event-display"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -173,7 +174,7 @@ export function HeroCarousel({ events }: HeroCarouselProps) {
               asChild
               className="h-7 bg-primary px-3 text-xs text-primary-foreground hover:bg-primary/90 sm:h-11 sm:px-8 sm:text-sm"
             >
-              <Link href={eventHref(currentEvent.id, "hero")}>
+              <Link href={rutaEn(idioma, eventHref(currentEvent.id, "hero"))}>
                 <Ticket className="mr-1 size-3.5 sm:mr-2 sm:size-4" />
                 {t.verDetalles}
               </Link>

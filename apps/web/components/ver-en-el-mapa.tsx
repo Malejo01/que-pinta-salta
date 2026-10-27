@@ -5,6 +5,9 @@ import { formatSaltaDayKey } from "@/lib/date-format"
 import { aCoordenada } from "@qps/core/mapa/pines"
 import { coordenadasEnSalta } from "@qps/core/mapa/zona"
 import type { Venue } from "@/lib/types"
+import { textosDe } from "@/lib/i18n"
+import type { Idioma } from "@/lib/i18n/idiomas"
+import { hrefLangDestino, rutaEn } from "@/lib/i18n/rutas"
 
 interface VerEnElMapaProps {
   /** El lugar del evento (`null`/`undefined` si el evento no tiene uno asignado). */
@@ -19,6 +22,11 @@ interface VerEnElMapaProps {
   className?: string
   /** Tamaño del botón: la ficha usa "lg", el modal el tamaño por defecto. */
   size?: "default" | "lg"
+  /**
+   * Idioma del texto del botón (por prop y no con `useTextos()`: este
+   * componente no usa hooks). Por defecto, castellano.
+   */
+  idioma?: Idioma
 }
 
 /**
@@ -29,7 +37,7 @@ interface VerEnElMapaProps {
  * Si el lugar no tiene coordenadas válidas dentro de Salta
  * (`coordenadasEnSalta`), no dibuja nada: ni un contenedor vacío.
  */
-export function VerEnElMapa({ venue, startDate, className = "flex-1", size = "default" }: VerEnElMapaProps) {
+export function VerEnElMapa({ venue, startDate, className = "flex-1", size = "default", idioma = "es" }: VerEnElMapaProps) {
   const lat = aCoordenada(venue?.latitude)
   const lng = aCoordenada(venue?.longitude)
   if (!venue || !coordenadasEnSalta(lat, lng)) return null
@@ -42,13 +50,18 @@ export function VerEnElMapa({ venue, startDate, className = "flex-1", size = "de
   // devuelve siempre `AAAA-MM-DD` y codificarlo no cambia nada, pero así el
   // armado de la URL no depende de esa garantía.
   const dia = formatSaltaDayKey(startDate)
-  const href = `/mapa?cuando=fecha&dia=${encodeURIComponent(dia)}&lugar=${encodeURIComponent(venue.id)}`
+  // En inglés, `/mapa` va a `/en/mapa` cuando exista (`rutaEn`); mientras
+  // tanto queda en castellano y el link lo avisa con `hrefLang`.
+  const href = rutaEn(
+    idioma,
+    `/mapa?cuando=fecha&dia=${encodeURIComponent(dia)}&lugar=${encodeURIComponent(venue.id)}`,
+  )
 
   return (
     <Button variant="outline" size={size} className={className} asChild>
-      <Link href={href} prefetch={false}>
+      <Link href={href} prefetch={false} hrefLang={hrefLangDestino(idioma, href)}>
         <MapPin className="mr-2 size-4" />
-        Ver en el mapa
+        {textosDe(idioma).ficha.verEnElMapa}
       </Link>
     </Button>
   )

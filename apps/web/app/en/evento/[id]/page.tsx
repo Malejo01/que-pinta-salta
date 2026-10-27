@@ -1,0 +1,89 @@
+import type { Metadata } from "next"
+import { permanentRedirect } from "next/navigation"
+// Los mismos helpers que usa `permanentRedirect()` por dentro (lógica pura
+// sobre el `digest` del error); también los usa tests/events/evento-merged-308.test.ts.
+import { getRedirectStatusCodeFromError, getURLFromRedirectError } from "next/dist/client/components/redirect"
+import { isRedirectError } from "next/dist/client/components/redirect-error"
+import EventPage from "@/app/evento/[id]/page"
+import { getEventById } from "@/lib/data"
+import { idiomasAlternos } from "@/lib/i18n/seo"
+import { rutaEn, separarIdioma } from "@/lib/i18n/rutas"
+
+interface EventPageEnProps {
+  params: Promise<{ id: string }>
+  searchParams?: Promise<{ o?: string | string[] }>
+}
+
+// La ficha en inglés (Q3). Metadata propia: el título y la descripción son
+// los del evento (vienen en castellano, como en la ficha de siempre); lo que
+// cambia es la canónica, el hreflang y el locale del openGraph. La ficha en
+// castellano no declara `revalidate`, `dynamic` ni `generateStaticParams`:
+// no hay nada que repetir acá.
+export async function generateMetadata({ params }: EventPageEnProps): Promise<Metadata> {
+  const { id } = await params
+  const event = await getEventById(id)
+
+  if (!event) {
+    return {
+      title: "Event not found",
+    }
+  }
+
+  const title = `${event.title} - Que pinta Salta`
+  const description =
+    event.short_description || event.description?.substring(0, 160) || `Discover ${event.title} in Salta, Argentina.`
+  const imageUrl = event.image_url || "/og-image.png"
+
+  return {
+    title,
+    description,
+    // Canónica sin ?o= (el origen de la métrica), igual que en castellano.
+    alternates: { canonical: `/en/evento/${id}`, languages: idiomasAlternos(`/evento/${id}`) },
+    openGraph: {
+      title,
+      description,
+      type: "article",
+      locale: "en_US",
+      alternateLocale: ["es_AR"],
+      url: `https://www.quepintasalta.com.ar/en/evento/${id}`,
+      images: [
+        {
+          url: imageUrl,
+          alt: event.title,
+        },
+      ],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title,
+      description,
+      images: [imageUrl],
+    },
+  }
+}
+
+/**
+ * El cuerpo es el de `app/evento/[id]/page.tsx`, tal cual (datos, JSON-LD y
+ * `EventDetailPage`): no se movió a un componente aparte para no tocar ese
+ * archivo más que en su hreflang. El idioma de la interfaz lo toman los
+ * componentes de cliente de la URL (`useIdioma()`).
+ *
+ * Lo único que cambia es la redirección de un evento fusionado: la ficha en
+ * castellano hace `permanentRedirect("/evento/<el que quedó>")`, y desde acá
+ * tiene que ir a `/en/evento/<el que quedó>` (con el mismo `?o=`). El 308 se
+ * conserva; cualquier otra cosa (el 404, un error) sigue de largo.
+ */
+export default async function EventPageEn(props: EventPageEnProps) {
+  try {
+    return await EventPage(props)
+  } catch (err) {
+    if (isRedirectError(err) && getRedirectStatusCodeFromError(err) === 308) {
+      const destino = getURLFromRedirectError(err)
+      if (separarIdioma(destino).idioma === "es") {
+        const enIngles = rutaEn("en", destino)
+        if (enIngles !== destino) permanentRedirect(enIngles)
+      }
+    }
+    throw err
+  }
+}

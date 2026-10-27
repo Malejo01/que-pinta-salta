@@ -6,6 +6,7 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
+import { es } from '@/lib/i18n/diccionarios/es'
 
 const ROOT = process.cwd()
 
@@ -75,8 +76,13 @@ describe('components/auth-modal.tsx', () => {
     expect(archivo).toContain('href="/privacidad"')
   })
 
+  // Q3: el texto de aceptación sale del diccionario (`auth.aceptasConGoogle` /
+  // `auth.aceptasAlCrear`), en castellano con el mismo "aceptás".
   it('contiene la cadena "aceptás" (texto de aceptación de legales)', () => {
-    expect(archivo).toContain('aceptás')
+    expect(archivo).toContain('{t.aceptasConGoogle}')
+    expect(archivo).toContain('{t.aceptasAlCrear}')
+    expect(es.auth.aceptasConGoogle).toBe('Al continuar con Google aceptás los')
+    expect(es.auth.aceptasAlCrear).toBe('Al crear tu cuenta aceptás los')
   })
 
   it('el <Link> que lleva a /terminos tiene onClick={close}', () => {

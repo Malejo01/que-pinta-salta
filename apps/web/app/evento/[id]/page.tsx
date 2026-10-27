@@ -11,6 +11,7 @@ import { esEventoFavorito } from "@/lib/favoritos/es-favorito"
 import { leerAsistencia } from "@/lib/asistencia-lectura"
 import { debenMostrarseBotonesAsistencia } from "@/lib/asistencia-visibilidad"
 import { obtenerSeguimientoDeEvento } from "@/lib/actions/radar"
+import { idiomasAlternos } from "@/lib/i18n/seo"
 import type { Metadata } from "next"
 
 interface EventPageProps {
@@ -36,7 +37,7 @@ export async function generateMetadata({ params }: EventPageProps): Promise<Meta
     title,
     description,
     // Canónica sin ?o= (el origen de la métrica): una sola URL por evento.
-    alternates: { canonical: `/evento/${id}` },
+    alternates: { canonical: `/evento/${id}`, languages: idiomasAlternos(`/evento/${id}`) },
     openGraph: {
       title,
       description,

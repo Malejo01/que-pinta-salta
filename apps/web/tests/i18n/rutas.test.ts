@@ -3,8 +3,8 @@ import { describe, expect, it } from 'vitest'
 import { RUTAS_EN_INGLES, hrefLangDestino, rutaEn, rutaEnOtroIdioma, separarIdioma } from '@/lib/i18n/rutas'
 
 describe('RUTAS_EN_INGLES', () => {
-  it('en este PR solo la portada y /cines', () => {
-    expect([...RUTAS_EN_INGLES]).toEqual(['/', '/cines'])
+  it('la portada, /cines y la ficha del evento (/evento/<id>)', () => {
+    expect([...RUTAS_EN_INGLES]).toEqual(['/', '/cines', '/evento/*'])
   })
 })
 
@@ -34,10 +34,30 @@ describe('rutaEn', () => {
   it('las rutas sin versión en inglés quedan en castellano (con su query)', () => {
     expect(rutaEn('en', '/mapa')).toBe('/mapa')
     expect(rutaEn('en', '/buscar?q=pena')).toBe('/buscar?q=pena')
-    expect(rutaEn('en', '/evento/abc')).toBe('/evento/abc')
     expect(rutaEn('en', '/auth/login?next=/nuevo-evento')).toBe('/auth/login?next=/nuevo-evento')
     // "/cinesxyz" no es "/cines".
     expect(rutaEn('en', '/cinesxyz')).toBe('/cinesxyz')
+  })
+})
+
+describe('rutaEn: la ficha del evento (/evento/*, un solo segmento)', () => {
+  it('/evento/<id> va a /en/evento/<id>, con su query y su hash', () => {
+    expect(rutaEn('en', '/evento/abc')).toBe('/en/evento/abc')
+    expect(rutaEn('en', '/evento/abc/')).toBe('/en/evento/abc')
+    expect(rutaEn('en', '/evento/abc?o=hero')).toBe('/en/evento/abc?o=hero')
+    expect(rutaEn('en', '/evento/abc#x')).toBe('/en/evento/abc#x')
+  })
+
+  it('/evento solo, /evento/<id>/otra o /eventos/<id> no tienen versión en inglés', () => {
+    expect(rutaEn('en', '/evento')).toBe('/evento')
+    expect(rutaEn('en', '/evento/')).toBe('/evento/')
+    expect(rutaEn('en', '/evento/abc/otra')).toBe('/evento/abc/otra')
+    expect(rutaEn('en', '/eventos/abc')).toBe('/eventos/abc')
+    expect(rutaEn('en', '/flyer/abc')).toBe('/flyer/abc')
+  })
+
+  it('en castellano no cambia', () => {
+    expect(rutaEn('es', '/evento/abc?o=hero')).toBe('/evento/abc?o=hero')
   })
 })
 
@@ -46,6 +66,7 @@ describe('separarIdioma', () => {
     expect(separarIdioma('/en')).toEqual({ idioma: 'en', ruta: '/' })
     expect(separarIdioma('/en/')).toEqual({ idioma: 'en', ruta: '/' })
     expect(separarIdioma('/en/cines')).toEqual({ idioma: 'en', ruta: '/cines' })
+    expect(separarIdioma('/en/evento/abc')).toEqual({ idioma: 'en', ruta: '/evento/abc' })
   })
 
   it('/entradas (o cualquier ruta que solo empiece con "en") NO es inglés', () => {
@@ -81,6 +102,15 @@ describe('rutaEnOtroIdioma', () => {
     expect(rutaEnOtroIdioma('/en?date=hoy#hoy', 'es')).toBe('/?date=hoy#hoy')
   })
 
+  it('la ficha del evento, ida y vuelta (con la query)', () => {
+    expect(rutaEnOtroIdioma('/evento/abc', 'en')).toBe('/en/evento/abc')
+    expect(rutaEnOtroIdioma('/evento/abc?o=hero', 'en')).toBe('/en/evento/abc?o=hero')
+    expect(rutaEnOtroIdioma('/en/evento/abc', 'es')).toBe('/evento/abc')
+    expect(rutaEnOtroIdioma('/en/evento/abc?o=hero#x', 'es')).toBe('/evento/abc?o=hero#x')
+    // /flyer existe solo en castellano: el destino en inglés es la portada.
+    expect(rutaEnOtroIdioma('/flyer/abc', 'en')).toBe('/en')
+  })
+
   it('pedir el mismo idioma en el que ya se está no rompe nada', () => {
     expect(rutaEnOtroIdioma('/en/cines', 'en')).toBe('/en/cines')
     expect(rutaEnOtroIdioma('/cines', 'es')).toBe('/cines')
@@ -102,5 +132,7 @@ describe('hrefLangDestino', () => {
     expect(hrefLangDestino('en', '/')).toBeUndefined()
     expect(hrefLangDestino('en', '/?category=cine')).toBeUndefined()
     expect(hrefLangDestino('en', '/cines#x')).toBeUndefined()
+    expect(hrefLangDestino('en', '/evento/abc?o=hero')).toBeUndefined()
+    expect(hrefLangDestino('en', '/flyer/abc')).toBe('es-AR')
   })
 })
