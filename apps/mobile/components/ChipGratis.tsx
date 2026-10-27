@@ -1,10 +1,12 @@
 // Chip "Gratis" de la portada (A2, nube Q1): un interruptor (prendido/apagado)
-// aparte de la categoría elegida. Lo dibuja `ChipsCategorias` adelante de
-// "Todas", con un separador vertical en el medio, solo si le pasan la prop
-// `gratis` (la portada); Buscar no se la pasa y tiene su propio "Solo gratis".
+// aparte de la categoría elegida. A3 (nube Q1, ronda de correcciones): va
+// primero en la fila de filtros fija de la cabecera de la portada
+// (`filaFiltros` de `app/(tabs)/index.tsx`, con "Para chicos"); antes lo
+// dibujaba `ChipsCategorias` adelante de "Todas", con un separador. Buscar
+// tiene su propio "Solo gratis".
 //
-// Se distingue de los chips de categoría por ser un filtro aparte: va primero
-// y separado, prendido va RELLENO de `primary` (los de categoría van con tinte
+// Se distingue de los chips de categoría por ser un filtro aparte: va en su
+// propia fila, prendido va RELLENO de `primary` (los de categoría van con tinte
 // y contorno), y lleva su propio ícono. Mismo aspecto que el chip "Solo
 // gratis" de `app/(tabs)/buscar.tsx` (relleno al prenderse), así el filtro se
 // reconoce igual en las dos pantallas.

@@ -10,15 +10,23 @@
  * "contiene", "no-apto-chicos" pasaría por "apto-chicos" y "chicos-grandes" o
  * "infantiles" pasarían sin que nadie lo haya decidido. Una marca nueva se
  * suma a la lista, a propósito.
+ *
+ * A3, ronda de correcciones: el archivo exporta SOLO `esParaChicos` (la web
+ * crea este mismo archivo con la misma firma; cuanto menos exporte, menos
+ * choca y la app no depende de nada que la otra versión no tenga). Las
+ * constantes de abajo quedan privadas.
  */
 
 /** Slug de `categories` que es, toda entera, para chicos. */
-export const CATEGORIA_PARA_CHICOS = "infantil"
+const CATEGORIA_PARA_CHICOS = "infantil"
 
 /** Las marcas de `events.tags` que hacen que un evento sea para chicos (ya normalizadas). */
-export const TAGS_PARA_CHICOS: readonly string[] = ["infantil", "apto-chicos", "ninos", "chicos", "familia"]
+const MARCAS: ReadonlySet<string> = new Set(["infantil", "apto-chicos", "ninos", "chicos", "familia"])
 
-const MARCAS = new Set(TAGS_PARA_CHICOS)
+// U+0300–U+036F: las marcas diacríticas combinantes que deja `normalize("NFD")`,
+// escritas con escapes y no tal cual (regla del repo, ver `../home/filters.ts`:
+// sin caracteres invisibles en el fuente).
+const MARCAS_COMBINANTES = /[\u0300-\u036f]/g
 
 /**
  * Minúsculas, sin tildes (NFD y sin las marcas combinantes: "Niños" -> "ninos")
@@ -26,7 +34,7 @@ const MARCAS = new Set(TAGS_PARA_CHICOS)
  */
 function normalizarMarca(valor: unknown): string {
   if (typeof valor !== "string") return ""
-  return valor.normalize("NFD").replace(/[̀-ͯ]/g, "").trim().toLowerCase()
+  return valor.normalize("NFD").replace(MARCAS_COMBINANTES, "").trim().toLowerCase()
 }
 
 /**

@@ -23,13 +23,15 @@
 // se toca: por eso el dato va aparte, como `paraAtajo`. Una caché sin
 // conexión guardada antes de A3 no lo trae: lo completa `paraMostrar`
 // (`lib/sin-conexion/agenda.ts`), ver `lib/para-chicos.ts`.
+// Ronda de correcciones de A3: un evento con `age_restriction >= 18` nunca es
+// para chicos (`paraChicosDeLaFila`, en la app: core tiene la firma fija).
 import { PUBLIC_EVENT_SELECT } from '@qps/core/events/public-select'
 import { applyVigenciaPrefilter, isVigente } from '@qps/core/events/vigencia'
-import { esParaChicos } from '@qps/core/filtros/publico'
 import type { EventoParaAtajo } from '@qps/core/home/atajos'
 import { transformEvent } from '@qps/core/home/transform'
 import type { DisplayEvent, EventWithRelations } from '@qps/core/home/types'
 import type { Category, Event, Venue } from '@qps/core/types'
+import { paraChicosDeLaFila } from '@/lib/para-chicos'
 import { esErrorDeRed } from '@/lib/red'
 import { MENSAJE_SIN_CONFIGURACION } from '@/lib/mensajes'
 import { supabase } from '@/lib/supabase'
@@ -113,7 +115,7 @@ export interface EventoVigenteParaInicio {
   paraAtajo: EventoParaAtajo
   /**
    * A3 (nube Q1): si es para chicos (`esParaChicos` de core, con la categoría
-   * y los `tags` de la fila). Siempre un booleano en lo que devuelve
+   * y los `tags` de la fila; nunca con `age_restriction >= 18`). Siempre un booleano en lo que devuelve
    * `obtenerEventosVigentesParaInicio`; un item de una caché anterior a A3 no
    * lo tiene y `paraMostrar` lo completa (`completarParaChicos`).
    */
@@ -138,8 +140,9 @@ export async function obtenerEventosVigentesParaInicio(ahora: Date = new Date())
   const eventos = resultado.filas.map((fila) => ({
     evento: transformEvent(fila),
     paraAtajo: { start_date: fila.start_date, end_date: fila.end_date, category: fila.category?.slug ?? null },
-    // A3 (nube Q1): con los `tags` crudos de la fila, que `DisplayEvent` no conserva.
-    paraChicos: esParaChicos({ categorySlug: fila.category?.slug ?? null, tags: fila.tags }),
+    // A3 (nube Q1): con los `tags` crudos de la fila, que `DisplayEvent` no
+    // conserva, y nunca con `age_restriction >= 18`.
+    paraChicos: paraChicosDeLaFila({ categorySlug: fila.category?.slug ?? null, tags: fila.tags, ageRestriction: fila.age_restriction }),
   }))
 
   return { ok: true, eventos }

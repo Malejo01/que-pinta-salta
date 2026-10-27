@@ -6,7 +6,8 @@
 // `minHeight: 48` en la clave de estilo del Pressable, que es lo que mira el
 // detector `area-chica` (mismo criterio que `chipGratis` de Buscar).
 //
-// A2 (nube Q1): prop opcional `gratis`. Si viene (la portada), adelante de
+// A2 (nube Q1; reemplazado en la ronda de correcciones de A3, ver abajo):
+// prop opcional `gratis`. Si viene (la portada), adelante de
 // "Todas" va el chip "Gratis" (`components/ChipGratis.tsx`), un interruptor
 // aparte de la categoría, y un separador vertical que lo aparta de los chips
 // de categoría. Si no viene (Buscar, que tiene su propio "Solo gratis"), la
@@ -19,21 +20,22 @@
 // entra en la ventana visible (`destinoScrollChip`, `lib/chips-desplazamiento.ts`),
 // y una sola vez por cada `seleccionada`. Ver el comentario de los refs.
 //
-// A3 (nube Q1): prop opcional `paraChicos`. Si viene (la portada), el chip
-// "Para chicos" (`components/ChipParaChicos.tsx`) va después de "Gratis" y
-// antes del separador: los dos filtros juntos, aparte de las categorías. Cada
-// prop dibuja su chip por su cuenta, y el separador va si hay alguno. Buscar
-// no pasa ninguna de las dos y queda igual. "Para chicos" tampoco entra en
-// `posiciones`. Con los dos filtros, a 360 dp "Todas" ya no entra entera:
-// "Todas" vuelve siempre al principio de la fila (`destinoScrollFila`), así
-// al abrir la portada se ven los dos filtros.
+// A3 (nube Q1), ronda de correcciones: "Gratis" y "Para chicos" salen de
+// esta fila. Con los dos adelante (más el separador), a 360 dp "Todas"
+// quedaba cortada, no asomaba ninguna categoría al abrir y elegir cualquiera
+// sacaba los filtros de la vista. Ahora los dos filtros van en una fila
+// propia, fija y sin scroll, en la cabecera de la portada (`filaFiltros` de
+// `app/(tabs)/index.tsx`), y esta fila vuelve a ser solo "Todas" + categorías,
+// como antes de A2: "Todas" arranca en x = 16 y el desplazamiento sigue con
+// `destinoScrollChip` (criterio de A2). Se van las props `gratis` y
+// `paraChicos` y el separador. La barra de desplazamiento sigue en la
+// portada (ayuda a descubrir que hay más categorías a la derecha), ahora con
+// su propia prop `mostrarBarra`; Buscar no la pasa y queda sin barra.
 import { useEffect, useRef, type RefObject } from 'react'
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native'
-import { ChipGratis } from '@/components/ChipGratis'
-import { ChipParaChicos } from '@/components/ChipParaChicos'
+import { Pressable, ScrollView, StyleSheet } from 'react-native'
 import { Icono, iconoPorCategoria } from '@/components/Icono'
 import { Texto } from '@/components/Texto'
-import { destinoScrollFila, type MedidaChip } from '@/lib/chips-desplazamiento'
+import { destinoScrollChip, type MedidaChip } from '@/lib/chips-desplazamiento'
 import { bordeChipInactivo, useColoresQPS } from '@/lib/colores'
 
 export interface CategoriaChip {
@@ -46,10 +48,11 @@ export interface ChipsCategoriasProps {
   categorias: CategoriaChip[]
   seleccionada: string | null
   onCambiar: (slug: string | null) => void
-  /** A2 (nube Q1): el chip "Gratis" adelante de "Todas". Sin esta prop no se dibuja. */
-  gratis?: { activo: boolean; onCambiar: (activo: boolean) => void }
-  /** A3 (nube Q1): el chip "Para chicos", después de "Gratis". Sin esta prop no se dibuja. */
-  paraChicos?: { activo: boolean; onCambiar: (activo: boolean) => void }
+  /**
+   * A3 (nube Q1, ronda de correcciones): la barra de desplazamiento horizontal
+   * (persistente en Android). La pasa la portada; Buscar no.
+   */
+  mostrarBarra?: boolean
 }
 
 /**
@@ -66,14 +69,13 @@ function traerALaVista(
   clave: string,
 ): void {
   if (posicionada.current === clave) return
-  // A3 (nube Q1): "Todas" va siempre al principio (`destinoScrollFila`).
-  const destino = destinoScrollFila(clave, posiciones.current[clave], anchoVisible.current)
+  const destino = destinoScrollChip(posiciones.current[clave], anchoVisible.current)
   if (destino === null) return
   scroll.current?.scrollTo({ x: destino, animated: false })
   posicionada.current = clave
 }
 
-export function ChipsCategorias({ categorias, seleccionada, onCambiar, gratis, paraChicos }: ChipsCategoriasProps) {
+export function ChipsCategorias({ categorias, seleccionada, onCambiar, mostrarBarra = false }: ChipsCategoriasProps) {
   const colores = useColoresQPS()
   // R69, 69-b (QPS-338): borde de los inactivos a 3:1 (cálculo en `lib/colores.ts`).
   const bordeInactivo = bordeChipInactivo(colores)
@@ -116,21 +118,16 @@ export function ChipsCategorias({ categorias, seleccionada, onCambiar, gratis, p
     <ScrollView
       ref={scrollRef}
       horizontal
-      // A2: la barra solo en la portada (con `gratis`); Buscar queda sin barra.
-      showsHorizontalScrollIndicator={gratis !== undefined}
-      persistentScrollbar={gratis !== undefined}
+      // A2: la barra solo en la portada; Buscar queda sin barra. A3, ronda de
+      // correcciones: depende de `mostrarBarra` (ya no de la prop `gratis`).
+      showsHorizontalScrollIndicator={mostrarBarra}
+      persistentScrollbar={mostrarBarra}
       onLayout={(evento) => {
         anchoVisible.current = evento.nativeEvent.layout.width
         traerALaVista(scrollRef, posiciones, anchoVisible, posicionada, seleccionada ?? 'todas')
       }}
       contentContainerStyle={estilos.contenido}
     >
-      {gratis ? <ChipGratis activo={gratis.activo} onCambiar={gratis.onCambiar} /> : null}
-      {paraChicos ? <ChipParaChicos activo={paraChicos.activo} onCambiar={paraChicos.onCambiar} /> : null}
-      {/* Separador decorativo (una View sin texto ni rol: los lectores de
-          pantalla la saltean), con el mismo borde de 3:1 de los chips. Va si
-          hay algún chip de filtro (A3: "Gratis" o "Para chicos"). */}
-      {gratis || paraChicos ? <View style={[estilos.separador, { backgroundColor: bordeInactivo }]} /> : null}
       {chips.map((chip) => {
         const activo = chip.slug === seleccionada
         return (
@@ -186,5 +183,4 @@ const estilos = StyleSheet.create({
     paddingVertical: 10,
     minHeight: 48,
   },
-  separador: { width: 1, height: 28 },
 })

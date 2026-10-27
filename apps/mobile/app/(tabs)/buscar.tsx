@@ -56,11 +56,15 @@
 // categoría (que siguen saliendo SIN la categoría). Cuenta como filtro
 // (`mostrarResultados`). El conteo y el vacío lo nombran como a "Solo gratis"
 // (los textos se movieron a `lib/buscar-filtros.ts` para probarlos) y el
-// vacío suma "Ver para todas las edades" (primera salida, la que apaga el
-// filtro más probable). Los dos chips van en la MISMA fila (`filaFiltros`),
-// así que la cabecera fija no crece: la cuenta de alturas de la regla (a)
-// (~228 dp de cabecera, ver el `ListFooterComponent` de los resultados) sigue
-// igual y el mínimo de 3 resultados para el anuncio también. La grilla
+// vacío suma "Ver todas las edades" (primera salida, la que apaga el filtro
+// más probable; con Infantil elegida no se ofrece, porque no cambiaría nada,
+// ronda de correcciones de A3). Los dos chips van en la MISMA fila
+// (`filaFiltros`), así que con la fuente normal la cabecera fija no crece: la
+// cuenta de alturas de la regla (a) (~228 dp de cabecera, ver el
+// `ListFooterComponent` de los resultados) sigue igual. Con la fuente al
+// 200 % la fila de filtros pasa a dos líneas (`flexWrap`) y la cabecera crece
+// ~56 dp: eso solo empuja el banner más abajo, así que la regla (a) y el
+// mínimo de 3 resultados para el anuncio siguen valiendo. La grilla
 // "Explorar por categoria" sigue contando sobre todos los eventos (solo se ve
 // sin ningún filtro, y "Para chicos" es un filtro).
 import { useCallback, useEffect, useMemo, useState } from 'react'
@@ -84,7 +88,7 @@ import {
   type CategoriaBasica,
   type EventoVigenteParaInicio,
 } from '@/lib/datos/eventos'
-import { filtrarConPublico } from '@/lib/para-chicos'
+import { filtrarConPublico, SLUG_INFANTIL, TEXTO_VER_TODAS_LAS_EDADES } from '@/lib/para-chicos'
 
 /**
  * Cuántos resultados tienen que haber para que el banner de abajo se dibuje
@@ -249,15 +253,19 @@ export default function Buscar() {
     texto,
     soloGratis: soloGratisActivo,
     paraChicos: paraChicosActivo,
+    categoria: categoriaFiltro,
     nombreCategoria: nombreCategoriaFiltro,
     atajo,
   }
 
   // Salidas del vacío (R66): sacar la fecha y/o la categoría. Un botón por
   // cada filtro que se puede sacar. A3: y "Para chicos", primero (la salida
-  // principal, rellena).
+  // principal, rellena), salvo con Infantil elegida: ahí apagarlo no cambia
+  // nada (ronda de correcciones de A3).
   const accionesVacio: { texto: string; alTocar: () => void }[] = []
-  if (paraChicosActivo) accionesVacio.push({ texto: 'Ver para todas las edades', alTocar: () => setParaChicosActivo(false) })
+  if (paraChicosActivo && categoriaFiltro !== SLUG_INFANTIL) {
+    accionesVacio.push({ texto: TEXTO_VER_TODAS_LAS_EDADES, alTocar: () => setParaChicosActivo(false) })
+  }
   if (atajo !== null) accionesVacio.push({ texto: 'Ver todas las fechas', alTocar: () => setAtajo(null) })
   if (categoriaFiltro !== null) accionesVacio.push({ texto: 'Todas las categorías', alTocar: () => setCategoriaFiltro(null) })
 
@@ -508,7 +516,8 @@ const estilos = StyleSheet.create({
   // A3 (nube Q1): la comparten "Solo gratis" y "Para chicos"; el lugar (antes
   // `alignSelf`, `marginLeft: 16` y `marginBottom: 8` de esta clave) lo da
   // `filaFiltros`. Los dos chips entran de sobra en una fila a 360 dp
-  // (~110 + 8 + ~120 dp, más los 16 de cada lado).
+  // (~110 + 8 + ~120 dp, más los 16 de cada lado); con la fuente al 200 %
+  // pasan a dos líneas (`flexWrap`).
   filaFiltros: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingHorizontal: 16, marginBottom: 8 },
   chipGratis: {
     borderWidth: 1,

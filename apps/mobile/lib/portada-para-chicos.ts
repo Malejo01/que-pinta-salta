@@ -15,16 +15,23 @@
 //     con "para chicos" sonaba a trabalenguas). Con "Cine" se agrega por qué
 //     no están las películas; con "Infantil", la forma de A2 ("No hay eventos
 //     de Infantil para hoy.").
-//   - Salidas: la primera es siempre "Ver para todas las edades" (apaga
-//     "Para chicos" y deja todo lo demás); la segunda deja "Para chicos"
-//     prendido y afloja otro filtro: "Todas las categorías", si no "Ver esta
-//     semana", si no (con "Gratis") "Ver todos los precios".
+//   - Salidas (`salidasVacioParaChicos`): la principal es "Ver todas las
+//     edades" (apaga "Para chicos" y deja todo lo demás); la segunda deja
+//     "Para chicos" prendido y afloja otro filtro: "Todas las categorías", si
+//     no "Ver esta semana", si no (con "Gratis") "Ver todos los precios".
+//
+// Ronda de correcciones de A3:
+//   - Con Infantil elegida, "Ver todas las edades" no cambia nada (todo
+//     Infantil ya es para chicos): no se ofrece. La principal pasa a ser la
+//     fecha ("Ver esta semana", si no se está en la semana), si no "Ver todos
+//     los precios" (con "Gratis"), si no "Todas las categorías"; la segunda,
+//     "Todas las categorías" si no fue la principal.
+//   - La salida se llama "Ver todas las edades" (paralela a "Ver todos los
+//     precios"), y el caso Cine explica que las películas no tienen la edad
+//     cargada (con "Gratis", que no son gratis, como en A2).
 import type { Atajo } from '@qps/core/home/atajos'
-import { CATEGORIA_PARA_CHICOS } from '@qps/core/filtros/publico'
+import { SLUG_INFANTIL, TEXTO_VER_TODAS_LAS_EDADES } from '@/lib/para-chicos'
 import { ETIQUETA_ATAJO, FRASE_ATAJO } from '@/lib/portada-gratis'
-
-/** Texto de la salida principal del vacío de "Para chicos" (apaga el filtro). */
-export const TEXTO_VER_TODAS_LAS_EDADES = 'Ver para todas las edades'
 
 /**
  * Título de la grilla con "Para chicos" prendido (con o sin "Gratis").
@@ -34,7 +41,7 @@ export function tituloParaChicos(nombreCategoria: string | null, categoria: stri
   const conGratis = gratis ? ' gratis' : ''
   let quien: string
   if (categoria === null || nombreCategoria === null) quien = gratis ? 'Gratis para chicos' : 'Para chicos'
-  else if (categoria === CATEGORIA_PARA_CHICOS) quien = `${nombreCategoria}${conGratis}`
+  else if (categoria === SLUG_INFANTIL) quien = `${nombreCategoria}${conGratis}`
   else quien = `${nombreCategoria}${conGratis} para chicos`
   return `${quien} · ${ETIQUETA_ATAJO[atajo]}`
 }
@@ -44,34 +51,53 @@ export function tituloParaChicos(nombreCategoria: string | null, categoria: stri
  *   - "Todas": "No hay eventos para chicos hoy." (con "Gratis": "No hay eventos gratis para chicos hoy.")
  *   - una categoría: "No hay eventos de Música para chicos el finde."
  *   - "Infantil": "No hay eventos de Infantil para hoy." (sin repetir "para chicos").
- *   - "Cine": lo mismo, más por qué no están las películas.
+ *   - "Cine": lo mismo, más por qué no están las películas (sin la edad
+ *     cargada; con "Gratis", que no son gratis).
  */
 export function textoVacioParaChicos(categoria: string | null, nombreCategoria: string, atajo: Atajo, gratis: boolean): string {
   const conGratis = gratis ? ' gratis' : ''
   if (categoria === null) return `No hay eventos${conGratis} para chicos ${FRASE_ATAJO[atajo]}.`
-  if (categoria === CATEGORIA_PARA_CHICOS) return `No hay eventos${conGratis} de ${nombreCategoria} para ${FRASE_ATAJO[atajo]}.`
+  if (categoria === SLUG_INFANTIL) return `No hay eventos${conGratis} de ${nombreCategoria} para ${FRASE_ATAJO[atajo]}.`
   const base = `No hay eventos${conGratis} de ${nombreCategoria} para chicos ${FRASE_ATAJO[atajo]}.`
   if (categoria !== 'cine') return base
-  return `${base} Las películas en cartel no entran en ${gratis ? 'estos filtros' : 'este filtro'}.`
+  if (gratis) return `${base} Las películas en cartel no son gratis.`
+  return `${base} Las películas en cartel no tienen la edad cargada, así que no aparecen con "Para chicos".`
 }
 
-/** Segunda salida del vacío de "Para chicos" (la primera es siempre "Ver para todas las edades"). */
-export type SegundaSalidaParaChicos =
+/** Una salida del vacío de "Para chicos". */
+export type SalidaParaChicos =
+  | { tipo: 'todas-las-edades'; texto: string }
   | { tipo: 'todas-las-categorias'; texto: string }
   | { tipo: 'esta-semana'; texto: string }
   | { tipo: 'todos-los-precios'; texto: string }
 
+const TODAS_LAS_EDADES: SalidaParaChicos = { tipo: 'todas-las-edades', texto: TEXTO_VER_TODAS_LAS_EDADES }
+const TODAS_LAS_CATEGORIAS: SalidaParaChicos = { tipo: 'todas-las-categorias', texto: 'Todas las categorías' }
+const ESTA_SEMANA: SalidaParaChicos = { tipo: 'esta-semana', texto: 'Ver esta semana' }
+const TODOS_LOS_PRECIOS: SalidaParaChicos = { tipo: 'todos-los-precios', texto: 'Ver todos los precios' }
+
 /**
- * La segunda salida del vacío con "Para chicos" prendido, que lo deja
- * prendido y afloja otro filtro:
- *   - con una categoría: "Todas las categorías";
- *   - con "Todas" y una fecha que no es la semana: "Ver esta semana";
- *   - con "Todas", la semana y "Gratis": "Ver todos los precios" (apaga "Gratis");
- *   - con "Todas", la semana y sin "Gratis": ninguna.
+ * Las salidas del vacío con "Para chicos" prendido: la principal (botón
+ * relleno) y, si hay, una segunda (con contorno).
+ *   - Con una categoría que no es Infantil: "Ver todas las edades" + "Todas las categorías".
+ *   - Con "Todas": "Ver todas las edades" + "Ver esta semana" (si no se está
+ *     en la semana), o + "Ver todos los precios" (en la semana, con "Gratis"),
+ *     o sola (en la semana, sin "Gratis").
+ *   - Con Infantil (apagar "Para chicos" no cambia nada): la principal es
+ *     "Ver esta semana" (si no se está en la semana), si no "Ver todos los
+ *     precios" (con "Gratis"), si no "Todas las categorías"; la segunda,
+ *     "Todas las categorías" si no fue la principal.
  */
-export function segundaSalidaVacioParaChicos(categoria: string | null, atajo: Atajo, gratis: boolean): SegundaSalidaParaChicos | null {
-  if (categoria !== null) return { tipo: 'todas-las-categorias', texto: 'Todas las categorías' }
-  if (atajo !== 'semana') return { tipo: 'esta-semana', texto: 'Ver esta semana' }
-  if (gratis) return { tipo: 'todos-los-precios', texto: 'Ver todos los precios' }
-  return null
+export function salidasVacioParaChicos(
+  categoria: string | null,
+  atajo: Atajo,
+  gratis: boolean,
+): { principal: SalidaParaChicos; segunda: SalidaParaChicos | null } {
+  if (categoria === SLUG_INFANTIL) {
+    const principal = atajo !== 'semana' ? ESTA_SEMANA : gratis ? TODOS_LOS_PRECIOS : TODAS_LAS_CATEGORIAS
+    return { principal, segunda: principal === TODAS_LAS_CATEGORIAS ? null : TODAS_LAS_CATEGORIAS }
+  }
+  if (categoria !== null) return { principal: TODAS_LAS_EDADES, segunda: TODAS_LAS_CATEGORIAS }
+  if (atajo !== 'semana') return { principal: TODAS_LAS_EDADES, segunda: ESTA_SEMANA }
+  return { principal: TODAS_LAS_EDADES, segunda: gratis ? TODOS_LOS_PRECIOS : null }
 }

@@ -10,7 +10,12 @@
 // (el chip prendido está a la vista, justo arriba). Con "para chicos" la fecha
 // del vacío va sin el segundo "para" ("para chicos el finde", no "para chicos
 // para el finde").
+//
+// Ronda de correcciones de A3: con Infantil elegida no se repite "para
+// chicos" ("3 eventos en Infantil"), como ya hace la portada: todo Infantil
+// es para chicos. Por eso los filtros llevan también el slug (`categoria`).
 import type { Atajo } from '@qps/core/home/atajos'
+import { SLUG_INFANTIL } from '@/lib/para-chicos'
 
 /** Cómo se nombra cada fecha dentro de una frase ("... · el finde", "... para hoy"). */
 export const NOMBRE_ATAJO: Record<Atajo, string> = {
@@ -25,8 +30,15 @@ export interface FiltrosTextoBuscar {
   texto: string
   soloGratis: boolean
   paraChicos: boolean
+  /** Slug de la categoría elegida (para no repetir "para chicos" con Infantil). */
+  categoria: string | null
   nombreCategoria: string | null
   atajo: Atajo | null
+}
+
+/** Si el texto nombra "para chicos": con el filtro prendido y sin Infantil elegida. */
+function nombraParaChicos(f: FiltrosTextoBuscar): boolean {
+  return f.paraChicos && f.categoria !== SLUG_INFANTIL
 }
 
 /** La línea de conteo arriba de los resultados ("3 eventos gratis para chicos en Teatro · el finde"). */
@@ -36,7 +48,7 @@ export function textoResultadosBuscar(cantidad: number, f: FiltrosTextoBuscar): 
   const sufijoFecha = f.atajo ? ` · ${NOMBRE_ATAJO[f.atajo]}` : ''
   if (f.texto) return `${cantidad} resultado${plural} para "${f.texto}"${enCategoria}${sufijoFecha}`
   const gratis = f.soloGratis ? ' gratis' : ''
-  const chicos = f.paraChicos ? ' para chicos' : ''
+  const chicos = nombraParaChicos(f) ? ' para chicos' : ''
   return `${cantidad} evento${plural}${gratis}${chicos}${enCategoria}${sufijoFecha}`
 }
 
@@ -48,7 +60,7 @@ export function textoSinResultadosBuscar(f: FiltrosTextoBuscar): string {
     return `No se encontraron eventos para "${f.texto}"${enCategoria}${sufijoFecha}`
   }
   const gratis = f.soloGratis ? ' gratis' : ''
-  if (f.paraChicos) {
+  if (nombraParaChicos(f)) {
     const cuando = f.atajo ? ` ${NOMBRE_ATAJO[f.atajo]}` : ' por ahora'
     return `No hay eventos${gratis} para chicos${enCategoria}${cuando}.`
   }

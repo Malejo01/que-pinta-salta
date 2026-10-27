@@ -18,16 +18,24 @@ import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { saltaWallClockToDate } from '@qps/core/date-format'
-import { CATEGORIA_PARA_CHICOS, esParaChicos, TAGS_PARA_CHICOS } from '@qps/core/filtros/publico'
+import { esParaChicos } from '@qps/core/filtros/publico'
 import type { Atajo } from '@qps/core/home/atajos'
 import { categoriasDisponibles, filtrarCombinado } from '@qps/core/home/filtros-combinados'
 import { transformMovie } from '@qps/core/home/transform'
 import type { DisplayEvent } from '@qps/core/home/types'
 import { quitarComentarios } from '@qps/core/tests/convencion-entorno'
 import { NOMBRE_ATAJO, textoResultadosBuscar, textoSinResultadosBuscar, type FiltrosTextoBuscar } from '../lib/buscar-filtros'
-import { AIRE_CHIP, CLAVE_TODAS, destinoScrollChip, destinoScrollFila } from '../lib/chips-desplazamiento'
 import { obtenerEventosVigentesParaInicio, type EventoVigenteParaInicio } from '../lib/datos/eventos'
-import { completarParaChicos, esItemParaChicos, filtrarConPublico, filtrarParaChicos, type ItemConPublico } from '../lib/para-chicos'
+import {
+  completarParaChicos,
+  esItemParaChicos,
+  filtrarConPublico,
+  filtrarParaChicos,
+  paraChicosDeLaFila,
+  SLUG_INFANTIL,
+  TEXTO_VER_TODAS_LAS_EDADES,
+  type ItemConPublico,
+} from '../lib/para-chicos'
 import {
   anuncioDeLaGrilla,
   chipsDeLaPortada,
@@ -36,12 +44,7 @@ import {
   eventosDeLosChips,
   FRASE_ATAJO,
 } from '../lib/portada-gratis'
-import {
-  segundaSalidaVacioParaChicos,
-  TEXTO_VER_TODAS_LAS_EDADES,
-  textoVacioParaChicos,
-  tituloParaChicos,
-} from '../lib/portada-para-chicos'
+import { salidasVacioParaChicos, textoVacioParaChicos, tituloParaChicos } from '../lib/portada-para-chicos'
 import type { Almacen } from '../lib/sin-conexion/almacen'
 import { cargarAgendaConCache, paraMostrar, type DatosAgenda } from '../lib/sin-conexion/agenda'
 import { CLAVE_AGENDA, guardarCache, reiniciarBanderaDeLimpieza, VERSION_CACHE } from '../lib/sin-conexion/cache'
@@ -78,15 +81,17 @@ describe('esParaChicos (@qps/core/filtros/publico)', () => {
     expect(esParaChicos({ categorySlug: 'infantil' })).toBe(true)
     expect(esParaChicos({ categorySlug: 'infantil', tags: null })).toBe(true)
     expect(esParaChicos({ categorySlug: 'infantil', tags: [] })).toBe(true)
-    expect(CATEGORIA_PARA_CHICOS).toBe('infantil')
+    expect(SLUG_INFANTIL).toBe('infantil')
   })
 
   it.each(['infantil', 'apto-chicos', 'ninos', 'chicos', 'familia'])('el tag "%s", con otra categoría', (tag) => {
     expect(esParaChicos({ categorySlug: 'musica', tags: [tag] })).toBe(true)
   })
 
-  it('la lista de tags es exactamente la del ticket', () => {
-    expect([...TAGS_PARA_CHICOS]).toEqual(['infantil', 'apto-chicos', 'ninos', 'chicos', 'familia'])
+  it('ninguna otra marca parecida cuenta (la lista es exactamente la del ticket)', () => {
+    for (const tag of ['nino', 'nina', 'ninas', 'chico', 'familias', 'kids', 'apto-ninos', 'infancia']) {
+      expect(esParaChicos({ tags: [tag] }), tag).toBe(false)
+    }
   })
 
   it('sin distinguir mayúsculas', () => {
@@ -160,6 +165,40 @@ describe('packages/core/src/filtros/publico.ts: la firma compartida con la web',
     expect(fuente).not.toMatch(/from\s*["']@\//)
   })
 
+  // Ronda de correcciones de A3: la web crea este mismo archivo; cuanto menos
+  // exporte, menos choca y la app no depende de algo que la otra versión no tenga.
+  const exportados = (c: string) => [...c.matchAll(/^export\s+(?:async\s+)?(?:const|let|var|function|class|type|interface|enum)\s+(\w+)/gm)].map((m) => m[1])
+  it('exporta SOLO esParaChicos (sin export default ni export { … })', () => {
+    expect(exportados(fuente)).toEqual(['esParaChicos'])
+    expect(fuente).not.toMatch(/^export\s+(?:default|\{|\*)/m)
+  })
+
+  // Regla del repo (`core/home/filters.ts`): sin caracteres invisibles en el
+  // fuente; el rango de marcas combinantes va con escapes.
+  const MARCA_LITERAL = new RegExp(`[${String.fromCharCode(0x300)}-${String.fromCharCode(0x36f)}]`)
+  it('las marcas combinantes van con escapes, no tal cual', () => {
+    const crudo = leer('../../../packages/core/src/filtros/publico.ts')
+    expect(crudo).not.toMatch(MARCA_LITERAL)
+    expect(crudo).toContain('/[\\u0300-\\u036f]/g')
+  })
+
+  it.each([
+    ['otra constante exportada', (c: string) => c.replace('const MARCAS:', 'export const MARCAS:'), ['MARCAS', 'esParaChicos']],
+    ['export default', (c: string) => `${c}\nexport default esParaChicos\n`, null],
+  ])('rotura en memoria de los exports: %s -> detectada', (_n, romper, nombres) => {
+    const roto = romper(fuente)
+    expect(roto).not.toBe(fuente)
+    if (nombres) expect(exportados(roto)).toEqual(nombres)
+    else expect(roto).toMatch(/^export\s+(?:default|\{|\*)/m)
+  })
+
+  it('rotura en memoria: el rango con los caracteres tal cual -> detectada', () => {
+    const crudo = leer('../../../packages/core/src/filtros/publico.ts')
+    const roto = crudo.replace('\\u0300-\\u036f', `${String.fromCharCode(0x300)}-${String.fromCharCode(0x36f)}`)
+    expect(roto).not.toBe(crudo)
+    expect(roto).toMatch(MARCA_LITERAL)
+  })
+
   it.each([
     ['otro nombre', (s: string) => s.replace('function esParaChicos(', 'function esParaNinos(')],
     ['tags mutable', (s: string) => s.replace('tags?: readonly string[] | null', 'tags?: string[] | null')],
@@ -174,7 +213,7 @@ describe('packages/core/src/filtros/publico.ts: la firma compartida con la web',
 // ---------------------------------------------------------------------------
 // 2. Datos: `paraChicos` sale de la fila (tags crudos), y la caché vieja
 // ---------------------------------------------------------------------------
-function fila(id: string, categoria: { slug: string; name: string }, tags: unknown) {
+function fila(id: string, categoria: { slug: string; name: string }, tags: unknown, ageRestriction: number | null = 0) {
   return {
     id,
     slug: id,
@@ -187,7 +226,7 @@ function fila(id: string, categoria: { slug: string; name: string }, tags: unkno
     is_free: true,
     image_url: null,
     ticket_url: null,
-    age_restriction: 0,
+    age_restriction: ageRestriction,
     is_featured: false,
     tags,
     category: categoria,
@@ -226,6 +265,30 @@ describe('obtenerEventosVigentesParaInicio: paraChicos con los tags de la fila',
     if (!r.ok) throw new Error('no debería fallar')
     expect(r.eventos[0].evento).not.toHaveProperty('tags')
     expect(r.eventos[0].paraChicos).toBe(true)
+  })
+
+  // Ronda de correcciones de A3: `age_restriction >= 18` nunca es para chicos.
+  it('un evento solo para adultos (age_restriction >= 18) no es para chicos, aunque tenga la categoría o el tag', async () => {
+    estadoSupabase.data = [
+      fila('infantil-18', { slug: 'infantil', name: 'Infantil' }, null, 18),
+      fila('familia-21', { slug: 'musica', name: 'Música' }, ['familia'], 21),
+      fila('familia-17', { slug: 'musica', name: 'Música' }, ['familia'], 17),
+      fila('familia-null', { slug: 'musica', name: 'Música' }, ['familia'], null),
+    ]
+    const r = await obtenerEventosVigentesParaInicio(AHORA_DATOS)
+    if (!r.ok) throw new Error('no debería fallar')
+    expect(r.eventos.map((e) => [e.evento.id, e.paraChicos])).toEqual([
+      ['infantil-18', false],
+      ['familia-21', false],
+      ['familia-17', true],
+      ['familia-null', true],
+    ])
+  })
+
+  it('paraChicosDeLaFila: el corte en 18', () => {
+    const f = (ageRestriction: number | null | undefined) => paraChicosDeLaFila({ categorySlug: 'infantil', tags: null, ageRestriction })
+    expect([f(undefined), f(null), f(0), f(13), f(17), f(18), f(99)]).toEqual([true, true, true, true, true, false, false])
+    expect(paraChicosDeLaFila({ categorySlug: 'musica', tags: null, ageRestriction: 0 })).toBe(false)
   })
 
   it('tags raros de la base (no array, con no-strings) no rompen la carga', async () => {
@@ -349,6 +412,11 @@ describe('esItemParaChicos / filtrarParaChicos / completarParaChicos (lib/para-c
     // Un valor que no es booleano (caché tocada) se trata igual que ausente.
     expect(esItemParaChicos({ evento: { category: 'musica' }, paraChicos: 'true' })).toBe(false)
     expect(esItemParaChicos({ evento: { category: 'infantil' }, paraChicos: 1 })).toBe(true)
+  })
+
+  it('sin el booleano, un evento solo para adultos (vibe "adultos", de age_restriction >= 18) no es para chicos', () => {
+    expect(esItemParaChicos({ evento: { category: 'infantil', vibe: 'adultos' } })).toBe(false)
+    expect(esItemParaChicos({ evento: { category: 'infantil', vibe: null } })).toBe(true)
   })
 
   it('las películas no son para chicos (su categoría es cine)', () => {
@@ -535,8 +603,8 @@ describe('vacío de "Para chicos" (textoVacioParaChicos y la segunda salida)', (
     ['musica', 'Música', 'semana', false, 'No hay eventos de Música para chicos esta semana.'],
     ['musica', 'Música', 'hoy', true, 'No hay eventos gratis de Música para chicos hoy.'],
     ['infantil', 'Infantil', 'hoy', false, 'No hay eventos de Infantil para hoy.'],
-    ['cine', 'Cine', 'hoy', false, 'No hay eventos de Cine para chicos hoy. Las películas en cartel no entran en este filtro.'],
-    ['cine', 'Cine', 'finde', true, 'No hay eventos gratis de Cine para chicos el finde. Las películas en cartel no entran en estos filtros.'],
+    ['cine', 'Cine', 'hoy', false, 'No hay eventos de Cine para chicos hoy. Las películas en cartel no tienen la edad cargada, así que no aparecen con "Para chicos".'],
+    ['cine', 'Cine', 'finde', true, 'No hay eventos gratis de Cine para chicos el finde. Las películas en cartel no son gratis.'],
   ] as const)('%s, %s, gratis %s -> "%s"', (categoria, nombre, atajo, gratis, esperado) => {
     expect(textoVacioParaChicos(categoria, nombre, atajo, gratis)).toBe(esperado)
   })
@@ -547,15 +615,48 @@ describe('vacío de "Para chicos" (textoVacioParaChicos y la segunda salida)', (
     }
   })
 
-  it('la salida principal apaga el filtro: "Ver para todas las edades"', () => {
-    expect(TEXTO_VER_TODAS_LAS_EDADES).toBe('Ver para todas las edades')
+  it('la salida que apaga el filtro: "Ver todas las edades" (paralela a "Ver todos los precios")', () => {
+    expect(TEXTO_VER_TODAS_LAS_EDADES).toBe('Ver todas las edades')
   })
 
-  it('segunda salida: categoría -> "Todas las categorías"; si no, fecha -> "Ver esta semana"; si no, gratis -> "Ver todos los precios"', () => {
-    expect(segundaSalidaVacioParaChicos('musica', 'hoy', true)).toEqual({ tipo: 'todas-las-categorias', texto: 'Todas las categorías' })
-    expect(segundaSalidaVacioParaChicos(null, 'hoy', true)).toEqual({ tipo: 'esta-semana', texto: 'Ver esta semana' })
-    expect(segundaSalidaVacioParaChicos(null, 'semana', true)).toEqual({ tipo: 'todos-los-precios', texto: 'Ver todos los precios' })
-    expect(segundaSalidaVacioParaChicos(null, 'semana', false)).toBeNull()
+  const tipos = (categoria: string | null, atajo: Atajo, gratis: boolean) => {
+    const { principal, segunda } = salidasVacioParaChicos(categoria, atajo, gratis)
+    return [principal.tipo, segunda?.tipo ?? null]
+  }
+
+  it('sin Infantil: la principal es "Ver todas las edades"; la segunda, categoría -> fecha -> precios', () => {
+    expect(salidasVacioParaChicos('musica', 'hoy', true)).toEqual({
+      principal: { tipo: 'todas-las-edades', texto: 'Ver todas las edades' },
+      segunda: { tipo: 'todas-las-categorias', texto: 'Todas las categorías' },
+    })
+    expect(tipos(null, 'hoy', true)).toEqual(['todas-las-edades', 'esta-semana'])
+    expect(tipos(null, 'semana', true)).toEqual(['todas-las-edades', 'todos-los-precios'])
+    expect(tipos(null, 'semana', false)).toEqual(['todas-las-edades', null])
+    expect(salidasVacioParaChicos(null, 'semana', true).segunda?.texto).toBe('Ver todos los precios')
+  })
+
+  it('con Infantil no se ofrece "Ver todas las edades" (no cambiaría nada): fecha, si no precios, si no categorías', () => {
+    expect(tipos('infantil', 'hoy', false)).toEqual(['esta-semana', 'todas-las-categorias'])
+    expect(tipos('infantil', 'finde', true)).toEqual(['esta-semana', 'todas-las-categorias'])
+    expect(tipos('infantil', 'semana', true)).toEqual(['todos-los-precios', 'todas-las-categorias'])
+    expect(tipos('infantil', 'semana', false)).toEqual(['todas-las-categorias', null])
+    for (const atajo of ['hoy', 'esta-noche', 'finde', 'semana'] as const) {
+      for (const gratis of [false, true]) {
+        const { principal, segunda } = salidasVacioParaChicos('infantil', atajo, gratis)
+        expect(principal.tipo).not.toBe('todas-las-edades')
+        expect(segunda?.tipo).not.toBe('todas-las-edades')
+      }
+    }
+  })
+
+  it('con Infantil, apagar "Para chicos" de verdad no cambia nada (por eso no se ofrece)', () => {
+    for (const atajo of ['hoy', 'finde', 'semana'] as const) {
+      for (const gratis of [false, true]) {
+        const con = ids(eventosDeLaGrilla(ITEMS, { atajo, categoria: 'infantil', gratis, paraChicos: true }, AHORA))
+        const sin = ids(eventosDeLaGrilla(ITEMS, { atajo, categoria: 'infantil', gratis, paraChicos: false }, AHORA))
+        expect(con).toEqual(sin)
+      }
+    }
   })
 })
 
@@ -606,6 +707,7 @@ describe('Buscar: textos del conteo y del vacío (lib/buscar-filtros.ts)', () =>
     texto: '',
     soloGratis: false,
     paraChicos: false,
+    categoria: null,
     nombreCategoria: null,
     atajo: null,
     ...over,
@@ -614,15 +716,21 @@ describe('Buscar: textos del conteo y del vacío (lib/buscar-filtros.ts)', () =>
   it('conteo: "para chicos" va como "gratis"', () => {
     expect(textoResultadosBuscar(4, f({ paraChicos: true }))).toBe('4 eventos para chicos')
     expect(textoResultadosBuscar(1, f({ paraChicos: true, soloGratis: true }))).toBe('1 evento gratis para chicos')
-    expect(textoResultadosBuscar(3, f({ paraChicos: true, nombreCategoria: 'Teatro', atajo: 'finde' }))).toBe('3 eventos para chicos en Teatro · el finde')
+    expect(textoResultadosBuscar(3, f({ paraChicos: true, categoria: 'teatro', nombreCategoria: 'Teatro', atajo: 'finde' }))).toBe('3 eventos para chicos en Teatro · el finde')
   })
+  it('con Infantil no se repite "para chicos" (como en la portada)', () => {
+    expect(textoResultadosBuscar(3, f({ paraChicos: true, categoria: 'infantil', nombreCategoria: 'Infantil' }))).toBe('3 eventos en Infantil')
+    expect(textoResultadosBuscar(1, f({ paraChicos: true, soloGratis: true, categoria: 'infantil', nombreCategoria: 'Infantil', atajo: 'hoy' }))).toBe('1 evento gratis en Infantil · hoy')
+    expect(textoSinResultadosBuscar(f({ paraChicos: true, categoria: 'infantil', nombreCategoria: 'Infantil', atajo: 'finde' }))).toBe('No hay eventos en Infantil para el finde.')
+  })
+
   it('conteo con texto: como con "Solo gratis", no se nombra', () => {
     expect(textoResultadosBuscar(2, f({ texto: 'títeres', paraChicos: true }))).toBe('2 resultados para "títeres"')
   })
   it('vacío: dice por qué (sin el segundo "para")', () => {
     expect(textoSinResultadosBuscar(f({ paraChicos: true }))).toBe('No hay eventos para chicos por ahora.')
     expect(textoSinResultadosBuscar(f({ paraChicos: true, atajo: 'finde' }))).toBe('No hay eventos para chicos el finde.')
-    expect(textoSinResultadosBuscar(f({ paraChicos: true, soloGratis: true, nombreCategoria: 'Teatro', atajo: 'hoy' }))).toBe(
+    expect(textoSinResultadosBuscar(f({ paraChicos: true, soloGratis: true, categoria: 'teatro', nombreCategoria: 'Teatro', atajo: 'hoy' }))).toBe(
       'No hay eventos gratis para chicos en Teatro hoy.',
     )
   })
@@ -632,23 +740,6 @@ describe('Buscar: textos del conteo y del vacío (lib/buscar-filtros.ts)', () =>
     expect(textoSinResultadosBuscar(f({}))).toBe('No hay eventos por ahora.')
     expect(textoSinResultadosBuscar(f({ texto: 'x', atajo: 'hoy' }))).toBe('No se encontraron eventos para "x" · hoy')
     expect(NOMBRE_ATAJO.finde).toBe('el finde')
-  })
-})
-
-describe('la fila de chips a 360 dp con los dos filtros (destinoScrollFila)', () => {
-  // Gratis (16..122) + Para chicos (132..273) + separador (283) + "Todas"
-  // (294..373): "Todas" ya no entra entera a 360.
-  const ANCHO = 360
-  it('"Todas" va siempre al principio: se ven los dos filtros (aunque no entre entera)', () => {
-    expect(destinoScrollChip({ x: 294, width: 79 }, ANCHO)).toBe(294 - AIRE_CHIP)
-    expect(destinoScrollFila(CLAVE_TODAS, { x: 294, width: 79 }, ANCHO)).toBe(0)
-    // Ir al principio no necesita medidas.
-    expect(destinoScrollFila(CLAVE_TODAS, undefined, null)).toBe(0)
-  })
-  it('las demás claves siguen con destinoScrollChip', () => {
-    expect(destinoScrollFila('musica', { x: 383, width: 100 }, ANCHO)).toBe(383 - AIRE_CHIP)
-    expect(destinoScrollFila('musica', { x: 40, width: 100 }, ANCHO)).toBe(0)
-    expect(destinoScrollFila('musica', undefined, ANCHO)).toBeNull()
   })
 })
 
@@ -736,6 +827,8 @@ function violacionesChipParaChicos(fuenteCruda: string): string[] {
     const nombres = [...icono[1].matchAll(/'(\w+)'/g)].map((m) => m[1])
     if (nombres.length < 2) v.push('el ícono no cambia al prenderse')
     for (const n of nombres) if (!ICONOS.has(n)) v.push(`ícono: "${n}" no existe en components/Icono.tsx`)
+    // Ronda de correcciones de A3: `Baby` sonaba a bebés y repetía el de Infantil.
+    if (nombres.includes('Baby')) v.push('ícono: repite el de la categoría Infantil (Baby)')
   }
   return v
 }
@@ -744,7 +837,7 @@ describe('components/ChipParaChicos.tsx', () => {
   const real = leer('../components/ChipParaChicos.tsx')
 
   it('la guarda: los íconos que usa existen', () => {
-    expect(ICONOS.has('Baby')).toBe(true)
+    expect(ICONOS.has('Balloon')).toBe(true)
     expect(ICONOS.has('Check')).toBe(true)
     expect(ICONOS.has('PersonStanding')).toBe(false)
   })
@@ -767,8 +860,9 @@ describe('components/ChipParaChicos.tsx', () => {
     ['sin negrita', (s: string) => s.replace("peso={activo ? 'bold' : 'semibold'}", "peso={activo ? 'semibold' : 'semibold'}"), "peso: falta peso={activo ? 'bold' : 'semibold'}"],
     ['borde genérico', (s: string) => s.replace('borderColor: bordeInactivo', 'borderColor: colores.border'), 'borde: el inactivo no usa bordeInactivo (3:1)'],
     ['color literal', (s: string) => s.replace('backgroundColor: colores.primary,', "backgroundColor: '#C0392B',"), 'colores: hay un color literal'],
-    ['ícono inventado', (s: string) => s.replace("'Baby'", "'PersonStanding'"), 'ícono: "PersonStanding" no existe en components/Icono.tsx'],
-    ['ícono fijo', (s: string) => s.replace("nombre={activo ? 'Check' : 'Baby'}", "nombre={'Baby'}"), 'el ícono no cambia al prenderse'],
+    ['ícono inventado', (s: string) => s.replace("'Balloon'", "'PersonStanding'"), 'ícono: "PersonStanding" no existe en components/Icono.tsx'],
+    ['ícono fijo', (s: string) => s.replace("nombre={activo ? 'Check' : 'Balloon'}", "nombre={'Balloon'}"), 'el ícono no cambia al prenderse'],
+    ['el de la categoría Infantil', (s: string) => s.replace("'Balloon'", "'Baby'"), 'ícono: repite el de la categoría Infantil (Baby)'],
   ])('rotura en memoria: %s -> detectada', (_nombre, romper, esperada) => {
     const roto = romper(real)
     expect(roto).not.toBe(real)
@@ -776,59 +870,81 @@ describe('components/ChipParaChicos.tsx', () => {
   })
 })
 
-/** "Para chicos" en la fila de chips: aditivo, después de "Gratis", antes del separador y de "Todas". */
-function violacionesFilaDeChips(fuenteCruda: string): string[] {
-  const c = quitarComentarios(fuenteCruda)
+/**
+ * Ronda de correcciones de A3: "Gratis" y "Para chicos" en una fila PROPIA,
+ * fija y sin scroll, primera de la cabecera fija de la portada; después la
+ * fila con scroll de "Todas" + categorías (sin filtros adentro) y al final las
+ * pills de fecha.
+ */
+function violacionesCabeceraFiltros(portadaCruda: string, chipsCrudo: string): string[] {
+  const c = quitarComentarios(portadaCruda)
   const v: string[] = []
-  if (!/\bparaChicos\?:\s*\{\s*activo:\s*boolean;\s*onCambiar:\s*\(activo:\s*boolean\)\s*=>\s*void\s*\}/.test(c)) v.push('la prop paraChicos no es opcional')
-  if (!/import\s*\{\s*ChipParaChicos\s*\}\s*from\s*'@\/components\/ChipParaChicos'/.test(c)) v.push('no importa ChipParaChicos')
-  if (!/\{paraChicos \? <ChipParaChicos activo=\{paraChicos\.activo\} onCambiar=\{paraChicos\.onCambiar\} \/> : null\}/.test(c)) v.push('ChipParaChicos no depende de la prop paraChicos')
-  if (!/\{gratis \|\| paraChicos \? <View style=\{\[estilos\.separador/.test(c)) v.push('el separador no va con cualquiera de los dos filtros')
-  const gratis = c.indexOf('<ChipGratis')
-  const chicos = c.indexOf('<ChipParaChicos')
-  const separador = c.indexOf('estilos.separador')
-  const todas = c.indexOf('chips.map(')
-  if (!(gratis >= 0 && gratis < chicos && chicos < separador && separador < todas)) v.push('el orden no es Gratis, Para chicos, separador, Todas')
-  // "Todas" vuelve al principio (a 360 dp ya no entra entera con los dos filtros).
-  if (!/const destino = destinoScrollFila\(clave, posiciones\.current\[clave\], anchoVisible\.current\)/.test(c)) v.push('traerALaVista no usa destinoScrollFila')
-  const claveTodas = /seleccionada \?\? '([^']+)'/.exec(c)
-  if (!claveTodas || claveTodas[1] !== CLAVE_TODAS) v.push(`la clave de "Todas" no es CLAVE_TODAS ('${CLAVE_TODAS}')`)
+  const ini = c.indexOf('<View style={[estilos.cabecera,')
+  const fila = /<View style=\{estilos\.filaFiltros\}>([\s\S]*?)<\/View>/.exec(c)
+  if (!fila) return ['no hay una fila filaFiltros']
+  if (!/^\s*<ChipGratis activo=\{gratis\} onCambiar=\{cambiarGratis\} \/>\s*<ChipParaChicos activo=\{paraChicos\} onCambiar=\{cambiarParaChicos\} \/>\s*$/.test(fila[1])) {
+    v.push('la fila de filtros no es Gratis y después Para chicos (y nada más)')
+  }
+  if (/ScrollView/.test(fila[1])) v.push('la fila de filtros tiene scroll')
+  const posFila = fila.index
+  const posChips = c.indexOf('<ChipsCategorias')
+  const posPills = c.indexOf('<PillsAtajos')
+  if (!(ini >= 0 && ini < posFila && posFila < posChips && posChips < posPills)) v.push('el orden de la cabecera no es filtros, categorías, fecha')
+  // Primer hijo de la cabecera, sin condición: siempre se puede apagar un filtro.
+  if (!/<View style=\{\[estilos\.cabecera,[^\n]*\]\}>\s*<View style=\{estilos\.filaFiltros\}>/.test(c)) v.push('la fila de filtros no es el primer hijo (sin condición) de la cabecera')
+  const estilo = /\bfilaFiltros:\s*\{([^}]*)\}/.exec(c)?.[1] ?? ''
+  if (!/flexDirection:\s*'row'/.test(estilo) || !/flexWrap:\s*'wrap'/.test(estilo) || numero(estilo, 'gap') !== 8) v.push("filaFiltros no es row + wrap + gap 8")
+  // La fila con scroll ya no tiene filtros.
+  const chips = quitarComentarios(chipsCrudo)
+  if (/\bChipParaChicos\b|\bChipGratis\b/.test(chips)) v.push('un chip de filtro sigue dentro de ChipsCategorias')
+  if (/destinoScrollFila/.test(chips)) v.push('ChipsCategorias usa destinoScrollFila (ya no hace falta)')
+  if (!/const destino = destinoScrollChip\(posiciones\.current\[clave\], anchoVisible\.current\)/.test(chips)) v.push('traerALaVista no usa destinoScrollChip')
   return v
 }
 
-describe('components/ChipsCategorias.tsx: el chip "Para chicos"', () => {
-  const real = leer('../components/ChipsCategorias.tsx')
+describe('la cabecera de la portada: la fila fija de filtros', () => {
+  const portada = leer('../app/(tabs)/index.tsx')
+  const chips = leer('../components/ChipsCategorias.tsx')
 
   it('el fuente real no tiene violaciones', () => {
-    expect(violacionesFilaDeChips(real)).toEqual([])
+    expect(violacionesCabeceraFiltros(portada, chips)).toEqual([])
   })
 
   it.each([
-    ['prop obligatoria', (s: string) => s.replace('paraChicos?: {', 'paraChicos: {'), 'la prop paraChicos no es opcional'],
-    ['siempre dibujado', (s: string) => s.replace('{paraChicos ? <ChipParaChicos', '{true ? <ChipParaChicos'), 'ChipParaChicos no depende de la prop paraChicos'],
-    ['separador solo con Gratis', (s: string) => s.replace('{gratis || paraChicos ? <View', '{gratis ? <View'), 'el separador no va con cualquiera de los dos filtros'],
+    ['sin la fila', (p: string) => p.replace('<View style={estilos.filaFiltros}>', '<View>'), 'no hay una fila filaFiltros'],
     [
       'Para chicos antes de Gratis',
-      (s: string) =>
-        s
-          .replace('{gratis ? <ChipGratis activo={gratis.activo} onCambiar={gratis.onCambiar} /> : null}', '@@G@@')
-          .replace('{paraChicos ? <ChipParaChicos activo={paraChicos.activo} onCambiar={paraChicos.onCambiar} /> : null}', '{gratis ? <ChipGratis activo={gratis.activo} onCambiar={gratis.onCambiar} /> : null}')
-          .replace('@@G@@', '{paraChicos ? <ChipParaChicos activo={paraChicos.activo} onCambiar={paraChicos.onCambiar} /> : null}'),
-      'el orden no es Gratis, Para chicos, separador, Todas',
+      (p: string) =>
+        p.replace(
+          '<ChipGratis activo={gratis} onCambiar={cambiarGratis} />\n              <ChipParaChicos activo={paraChicos} onCambiar={cambiarParaChicos} />',
+          '<ChipParaChicos activo={paraChicos} onCambiar={cambiarParaChicos} />\n              <ChipGratis activo={gratis} onCambiar={cambiarGratis} />',
+        ),
+      'la fila de filtros no es Gratis y después Para chicos (y nada más)',
     ],
-    ['destino sin "Todas" al principio', (s: string) => s.replace('destinoScrollFila(clave, ', 'destinoScrollChip('), 'traerALaVista no usa destinoScrollFila'],
-    ['otra clave para "Todas"', (s: string) => s.replaceAll("?? 'todas'", "?? 'todo'"), `la clave de "Todas" no es CLAVE_TODAS ('${CLAVE_TODAS}')`],
-  ])('rotura en memoria: %s -> detectada', (_nombre, romper, esperada) => {
-    const roto = romper(real)
-    expect(roto).not.toBe(real)
-    expect(violacionesFilaDeChips(roto)).toContain(esperada)
+    ['sin Para chicos', (p: string) => p.replace('<ChipParaChicos activo={paraChicos} onCambiar={cambiarParaChicos} />', ''), 'la fila de filtros no es Gratis y después Para chicos (y nada más)'],
+    ['con scroll', (p: string) => p.replace('<View style={estilos.filaFiltros}>', '<View style={estilos.filaFiltros}><ScrollView horizontal />'), 'la fila de filtros tiene scroll'],
+    ['condicional', (p: string) => p.replace('<View style={estilos.filaFiltros}>', '{modoGrilla ? null : null}<View style={estilos.filaFiltros}>'), 'la fila de filtros no es el primer hijo (sin condición) de la cabecera'],
+    ['sin wrap', (p: string) => p.replace("filaFiltros: { flexDirection: 'row', flexWrap: 'wrap', gap: 8,", "filaFiltros: { flexDirection: 'row', gap: 8,"), 'filaFiltros no es row + wrap + gap 8'],
+  ])('rotura en memoria (portada): %s -> detectada', (_n, romper, esperada) => {
+    const roto = romper(portada)
+    expect(roto).not.toBe(portada)
+    expect(violacionesCabeceraFiltros(roto, chips)).toContain(esperada)
   })
 
-  it('Buscar no le pasa paraChicos (tiene su propio chip, al lado de "Solo gratis")', () => {
+  it.each([
+    ['Para chicos de vuelta en la fila con scroll', (c: string) => c.replace("import { Icono,", "import { ChipParaChicos } from '@/components/ChipParaChicos'\nimport { Icono,"), 'un chip de filtro sigue dentro de ChipsCategorias'],
+    ['otro destino', (c: string) => c.replace('const destino = destinoScrollChip(', 'const destino = destinoScrollFila(clave, '), 'traerALaVista no usa destinoScrollChip'],
+  ])('rotura en memoria (ChipsCategorias): %s -> detectada', (_n, romper, esperada) => {
+    const roto = romper(chips)
+    expect(roto).not.toBe(chips)
+    expect(violacionesCabeceraFiltros(portada, roto)).toContain(esperada)
+  })
+
+  it('Buscar no le pasa nada nuevo a ChipsCategorias (tiene sus propios chips al lado de "Solo gratis")', () => {
     const buscar = quitarComentarios(leer('../app/(tabs)/buscar.tsx'))
     const uso = /<ChipsCategorias\b[^>]*\/>/.exec(buscar)
     expect(uso).not.toBeNull()
-    expect(uso![0]).not.toMatch(/\bparaChicos=/)
+    expect(uso![0]).not.toMatch(/\bparaChicos=|\bgratis=|\bmostrarBarra\b/)
   })
 })
 
@@ -837,7 +953,7 @@ function violacionesPortada(fuenteCruda: string): string[] {
   const c = quitarComentarios(fuenteCruda)
   const v: string[] = []
   if (!/const \[paraChicos, setParaChicos\] = useState\(false\)/.test(c)) v.push('Para chicos no arranca apagado')
-  if (!/paraChicos=\{\{\s*activo:\s*paraChicos,\s*onCambiar:\s*cambiarParaChicos\s*\}\}/.test(c)) v.push('ChipsCategorias no recibe paraChicos={{ activo: paraChicos, onCambiar: cambiarParaChicos }}')
+  if (!/<ChipParaChicos activo=\{paraChicos\} onCambiar=\{cambiarParaChicos\} \/>/.test(c)) v.push('el chip no recibe activo={paraChicos} onCambiar={cambiarParaChicos}')
 
   const handler = /const cambiarParaChicos = useCallback\(\(nuevo: boolean\) => \{([\s\S]*?)\}, \[\]\)/.exec(c)
   if (!handler) v.push('no existe el handler cambiarParaChicos')
@@ -867,8 +983,8 @@ function violacionesPortada(fuenteCruda: string): string[] {
     const uso = rama[0]
     if (c.indexOf(uso) > c.indexOf('<VacioGratis')) v.push('el vacío de Gratis va antes que el de Para chicos')
     if (!/texto=\{textoVacio\}/.test(uso)) v.push('el vacío de Para chicos no recibe textoVacio')
-    if (!/segunda=\{segundaSalidaVacioParaChicos\(categoria, atajo, gratis\)\}/.test(uso)) v.push('la segunda salida no sale de segundaSalidaVacioParaChicos')
-    if (!/onTodasLasEdades=\{\(\) => cambiarParaChicos\(false\)\}/.test(uso)) v.push('"Ver para todas las edades" no apaga Para chicos')
+    if (!/\{\.\.\.salidasVacioParaChicos\(categoria, atajo, gratis\)\}/.test(uso)) v.push('las salidas no salen de salidasVacioParaChicos')
+    if (!/onTodasLasEdades=\{\(\) => cambiarParaChicos\(false\)\}/.test(uso)) v.push('"Ver todas las edades" no apaga Para chicos')
     if (!/onTodasLasCategorias=\{\(\) => cambiarCategoria\(null\)\}/.test(uso)) v.push('"Todas las categorías" no vuelve a "Todas"')
     if (!/onEstaSemana=\{\(\) => cambiarAtajo\('semana'\)\}/.test(uso)) v.push('"Ver esta semana" no pasa a la semana')
     if (!/onTodosLosPrecios=\{\(\) => cambiarGratis\(false\)\}/.test(uso)) v.push('"Ver todos los precios" no apaga Gratis')
@@ -882,9 +998,12 @@ function violacionesPortada(fuenteCruda: string): string[] {
     const pressables = cuerpo.match(/<Pressable\b/g) ?? []
     const roles = cuerpo.match(/accessibilityRole="button"/g) ?? []
     if (pressables.length !== 2 || pressables.length !== roles.length) v.push('un botón del vacío no tiene accessibilityRole="button"')
-    if (!/<Pressable\s+onPress=\{onTodasLasEdades\}[\s\S]*?\{TEXTO_VER_TODAS_LAS_EDADES\}/.test(cuerpo)) v.push('la salida principal no es "Ver para todas las edades" con onTodasLasEdades')
-    if (!/segunda\?\.tipo === 'todas-las-categorias' \? onTodasLasCategorias : segunda\?\.tipo === 'esta-semana' \? onEstaSemana : onTodosLosPrecios/.test(cuerpo)) v.push('la segunda salida no despacha a su handler')
-    if (!/onPress=\{alTocarSegunda\}/.test(cuerpo)) v.push('la segunda salida no usa alTocarSegunda')
+    if (!/<Pressable\s+onPress=\{alTocar\(principal\)\}[\s\S]*?\{principal\.texto\}/.test(cuerpo)) v.push('la salida principal no muestra principal.texto con alTocar(principal)')
+    if (!/<Pressable\s+onPress=\{alTocar\(segunda\)\}[\s\S]*?\{segunda\.texto\}/.test(cuerpo)) v.push('la segunda salida no muestra segunda.texto con alTocar(segunda)')
+    const despacho = /const alTocar = \(salida: SalidaParaChicos\) =>([\s\S]*?)\n  return/.exec(cuerpo)?.[1].replace(/\s+/g, ' ') ?? ''
+    if (despacho.trim() !== "salida.tipo === 'todas-las-edades' ? onTodasLasEdades : salida.tipo === 'todas-las-categorias' ? onTodasLasCategorias : salida.tipo === 'esta-semana' ? onEstaSemana : onTodosLosPrecios") {
+      v.push('una salida no despacha a su handler')
+    }
     if (!/borderColor: bordeSecundario/.test(cuerpo)) v.push('el secundario del vacío de Para chicos no usa bordeSecundario')
     if (!/accessibilityLiveRegion="polite">\s*\{texto\}/.test(cuerpo)) v.push('el texto del vacío de Para chicos no es una live region')
     if (/BannerAnuncio|BannerRadar/.test(cuerpo)) v.push('hay un banner en el vacío')
@@ -902,7 +1021,7 @@ describe('app/(tabs)/index.tsx: el modo "Para chicos"', () => {
 
   it.each([
     ['arranca prendido', (s: string) => s.replace('const [paraChicos, setParaChicos] = useState(false)', 'const [paraChicos, setParaChicos] = useState(true)'), 'Para chicos no arranca apagado'],
-    ['chip sin prop', (s: string) => s.replace('paraChicos={{ activo: paraChicos, onCambiar: cambiarParaChicos }}', ''), 'ChipsCategorias no recibe paraChicos={{ activo: paraChicos, onCambiar: cambiarParaChicos }}'],
+    ['chip con el estado de Gratis', (s: string) => s.replace('<ChipParaChicos activo={paraChicos}', '<ChipParaChicos activo={gratis}'), 'el chip no recibe activo={paraChicos} onCambiar={cambiarParaChicos}'],
     ['sin scroll arriba', (s: string) => s.replace(/(const cambiarParaChicos[\s\S]*?)scrollRef\.current\?\.scrollTo\(\{ y: 0, animated: false \}\)/, '$1void 0'), 'cambiarParaChicos no vuelve el scroll arriba'],
     ['modo grilla sin Para chicos', (s: string) => s.replace('const modoGrilla = enModoGrilla({ categoria, gratis, paraChicos })', 'const modoGrilla = enModoGrilla({ categoria, gratis })'), 'modoGrilla no cuenta Para chicos'],
     ['grilla sin Para chicos', (s: string) => s.replace('{ atajo, categoria, gratis, paraChicos }, ahora)', '{ atajo, categoria, gratis }, ahora)'), 'la grilla no filtra con Para chicos'],
@@ -913,12 +1032,14 @@ describe('app/(tabs)/index.tsx: el modo "Para chicos"', () => {
     ['vacío con el texto de Gratis', (s: string) => s.replace('? textoVacioParaChicos(categoria, nombreCategoria, atajo, gratis)', '? textoVacioGratis(categoria, nombreCategoria, atajo)'), 'el texto del vacío no sale de textoVacioParaChicos'],
     ['anuncio sin Para chicos', (s: string) => s.replace(/(anuncioDeLaGrilla\(\{\s*modoGrilla,\s*gratis,)\s*paraChicos,/, '$1'), 'el anuncio no sabe de Para chicos'],
     ['sin rama del vacío', (s: string) => s.replace('datosPortada.eventosCategoria.length === 0 && paraChicos ? (', 'datosPortada.eventosCategoria.length === 0 && false ? ('), 'no hay rama del vacío de Para chicos'],
-    ['"Ver para todas las edades" que apaga Gratis', (s: string) => s.replace('onTodasLasEdades={() => cambiarParaChicos(false)}', 'onTodasLasEdades={() => cambiarGratis(false)}'), '"Ver para todas las edades" no apaga Para chicos'],
+    ['"Ver todas las edades" que apaga Gratis', (s: string) => s.replace('onTodasLasEdades={() => cambiarParaChicos(false)}', 'onTodasLasEdades={() => cambiarGratis(false)}'), '"Ver todas las edades" no apaga Para chicos'],
     ['"Ver todos los precios" que apaga Para chicos', (s: string) => s.replace('onTodosLosPrecios={() => cambiarGratis(false)}', 'onTodosLosPrecios={() => cambiarParaChicos(false)}'), '"Ver todos los precios" no apaga Gratis'],
-    ['segunda salida fija', (s: string) => s.replace('segunda={segundaSalidaVacioParaChicos(categoria, atajo, gratis)}', 'segunda={null}'), 'la segunda salida no sale de segundaSalidaVacioParaChicos'],
-    ['segunda salida cruzada', (s: string) => s.replace("segunda?.tipo === 'todas-las-categorias' ? onTodasLasCategorias : segunda?.tipo === 'esta-semana' ? onEstaSemana", "segunda?.tipo === 'todas-las-categorias' ? onEstaSemana : segunda?.tipo === 'esta-semana' ? onTodasLasCategorias"), 'la segunda salida no despacha a su handler'],
-    ['salida principal con otro texto', (s: string) => s.replace('{TEXTO_VER_TODAS_LAS_EDADES}', 'Ver todo'), 'la salida principal no es "Ver para todas las edades" con onTodasLasEdades'],
-    ['botón del vacío sin rol', (s: string) => s.replace(/(onPress=\{onTodasLasEdades\}\s*)accessibilityRole="button"/, '$1'), 'un botón del vacío no tiene accessibilityRole="button"'],
+    ['salidas fijas', (s: string) => s.replace('{...salidasVacioParaChicos(categoria, atajo, gratis)}', "principal={{ tipo: 'todas-las-edades', texto: 'Ver todas las edades' }}\n                  segunda={null}"), 'las salidas no salen de salidasVacioParaChicos'],
+    ['salida cruzada', (s: string) => s.replace("salida.tipo === 'todas-las-categorias'\n        ? onTodasLasCategorias", "salida.tipo === 'todas-las-categorias'\n        ? onEstaSemana"), 'una salida no despacha a su handler'],
+    ['"Ver todas las edades" siempre', (s: string) => s.replace("salida.tipo === 'todas-las-edades'\n      ? onTodasLasEdades", "true\n      ? onTodasLasEdades"), 'una salida no despacha a su handler'],
+    ['salida principal con otro texto', (s: string) => s.replace('{principal.texto}', 'Ver todas las edades'), 'la salida principal no muestra principal.texto con alTocar(principal)'],
+    ['segunda con el handler de la principal', (s: string) => s.replace('onPress={alTocar(segunda)}', 'onPress={alTocar(principal)}'), 'la segunda salida no muestra segunda.texto con alTocar(segunda)'],
+    ['botón del vacío sin rol', (s: string) => s.replace(/(onPress=\{alTocar\(principal\)\}\s*)accessibilityRole="button"/, '$1'), 'un botón del vacío no tiene accessibilityRole="button"'],
     ['vacío sin live region', (s: string) => s.replace(/(function VacioParaChicos[\s\S]*?)accessibilityLiveRegion="polite">/, '$1>'), 'el texto del vacío de Para chicos no es una live region'],
     ['secundario con colores.border', (s: string) => s.replace(/(function VacioParaChicos[\s\S]*?)borderColor: bordeSecundario/, '$1borderColor: colores.border'), 'el secundario del vacío de Para chicos no usa bordeSecundario'],
   ])('rotura en memoria: %s -> detectada', (_nombre, romper, esperada) => {
@@ -970,12 +1091,15 @@ function violacionesBuscar(fuenteCruda: string): string[] {
   if (!/estado\.items\.filter\(\(item\) => item\.evento\.category === slug\)\.length/.test(c)) v.push('la grilla "Explorar por categoria" ya no cuenta sobre todos los eventos')
 
   // Textos y vacío.
-  if (!/paraChicos: paraChicosActivo,/.test(/const filtrosTexto = \{[^}]*\}/.exec(c)?.[0] ?? '')) v.push('los textos no saben de Para chicos')
+  const filtrosTexto = /const filtrosTexto = \{[^}]*\}/.exec(c)?.[0] ?? ''
+  if (!/paraChicos: paraChicosActivo,/.test(filtrosTexto)) v.push('los textos no saben de Para chicos')
+  if (!/categoria: categoriaFiltro,/.test(filtrosTexto)) v.push('los textos no saben qué categoría (Infantil) está elegida')
   if (!/textoResultadosBuscar\(resultadosMostrados\.length, filtrosTexto\)/.test(c)) v.push('el conteo no sale de textoResultadosBuscar')
   if (!/textoSinResultadosBuscar\(filtrosTexto\)/.test(c)) v.push('el vacío no sale de textoSinResultadosBuscar')
-  const salida = /if \(paraChicosActivo\) accionesVacio\.push\(\{\s*texto:\s*'Ver para todas las edades',\s*alTocar:\s*\(\) => setParaChicosActivo\(false\)\s*\}\)/.exec(c)
-  if (!salida) v.push('el vacío no ofrece "Ver para todas las edades"')
-  else if (salida.index > c.indexOf("if (atajo !== null) accionesVacio.push(")) v.push('"Ver para todas las edades" no es la salida principal (la primera)')
+  // Ronda de correcciones de A3: con Infantil elegida no se ofrece (no cambiaría nada).
+  const salida = /if \(paraChicosActivo && categoriaFiltro !== SLUG_INFANTIL\) \{\s*accionesVacio\.push\(\{\s*texto:\s*TEXTO_VER_TODAS_LAS_EDADES,\s*alTocar:\s*\(\) => setParaChicosActivo\(false\)\s*\}\)\s*\}/.exec(c)
+  if (!salida) v.push('el vacío no ofrece "Ver todas las edades" (salvo con Infantil)')
+  else if (salida.index > c.indexOf("if (atajo !== null) accionesVacio.push(")) v.push('"Ver todas las edades" no es la salida principal (la primera)')
   return v
 }
 
@@ -999,16 +1123,18 @@ describe('app/(tabs)/buscar.tsx: el chip "Para chicos"', () => {
     ['chips sin Para chicos', (s: string) => s.replace('{ atajo, categoria: null, soloGratis: soloGratisActivo, texto, paraChicos: paraChicosActivo }', '{ atajo, categoria: null, soloGratis: soloGratisActivo, texto }'), 'los chips de categoría no salen de lo que queda con Para chicos'],
     ['sin dependencia', (s: string) => s.replace('}, [estado, texto, atajo, categoriaFiltro, soloGratisActivo, paraChicosActivo])', '}, [estado, texto, atajo, categoriaFiltro, soloGratisActivo])'), 'los resultados no dependen de Para chicos'],
     ['grilla de categorías filtrada', (s: string) => s.replace('estado.items.filter((item) => item.evento.category === slug).length', 'estado.items.filter((item) => item.paraChicos && item.evento.category === slug).length'), 'la grilla "Explorar por categoria" ya no cuenta sobre todos los eventos'],
-    ['textos sin Para chicos', (s: string) => s.replace('    paraChicos: paraChicosActivo,\n    nombreCategoria', '    paraChicos: false,\n    nombreCategoria'), 'los textos no saben de Para chicos'],
-    ['vacío sin la salida', (s: string) => s.replace("texto: 'Ver para todas las edades'", "texto: 'Ver todo'"), 'el vacío no ofrece "Ver para todas las edades"'],
-    ['salida que no apaga', (s: string) => s.replace('alTocar: () => setParaChicosActivo(false)', 'alTocar: () => setAtajo(null)'), 'el vacío no ofrece "Ver para todas las edades"'],
+    ['textos sin Para chicos', (s: string) => s.replace('    paraChicos: paraChicosActivo,\n    categoria', '    paraChicos: false,\n    categoria'), 'los textos no saben de Para chicos'],
+    ['vacío sin la salida', (s: string) => s.replace('texto: TEXTO_VER_TODAS_LAS_EDADES', "texto: 'Ver todo'"), 'el vacío no ofrece "Ver todas las edades" (salvo con Infantil)'],
+    ['salida que no apaga', (s: string) => s.replace('alTocar: () => setParaChicosActivo(false)', 'alTocar: () => setAtajo(null)'), 'el vacío no ofrece "Ver todas las edades" (salvo con Infantil)'],
+    ['salida también con Infantil', (s: string) => s.replace('if (paraChicosActivo && categoriaFiltro !== SLUG_INFANTIL) {', 'if (paraChicosActivo) {'), 'el vacío no ofrece "Ver todas las edades" (salvo con Infantil)'],
+    ['textos sin la categoría', (s: string) => s.replace('    categoria: categoriaFiltro,\n    nombreCategoria', '    categoria: null,\n    nombreCategoria'), 'los textos no saben qué categoría (Infantil) está elegida'],
     [
       'salida al final',
       (s: string) => {
-        const linea = "  if (paraChicosActivo) accionesVacio.push({ texto: 'Ver para todas las edades', alTocar: () => setParaChicosActivo(false) })\n"
-        return moverAlFinal(s.replace(linea, ''), linea)
+        const bloque = "  if (paraChicosActivo && categoriaFiltro !== SLUG_INFANTIL) {\n    accionesVacio.push({ texto: TEXTO_VER_TODAS_LAS_EDADES, alTocar: () => setParaChicosActivo(false) })\n  }\n"
+        return moverAlFinal(s.replace(bloque, ''), bloque)
       },
-      '"Ver para todas las edades" no es la salida principal (la primera)',
+      '"Ver todas las edades" no es la salida principal (la primera)',
     ],
   ])('rotura en memoria: %s -> detectada', (_nombre, romper, esperada) => {
     const roto = romper(real)
@@ -1031,8 +1157,8 @@ describe('los datos y la caché (detectores)', () => {
 
   const violacionesDatos = (c: string): string[] => {
     const v: string[] = []
-    if (!/import \{ esParaChicos \} from '@qps\/core\/filtros\/publico'/.test(c)) v.push('no importa esParaChicos de core')
-    if (!/paraChicos: esParaChicos\(\{ categorySlug: fila\.category\?\.slug \?\? null, tags: fila\.tags \}\)/.test(c)) v.push('paraChicos no sale de la categoría y los tags crudos de la fila')
+    if (!/import \{ paraChicosDeLaFila \} from '@\/lib\/para-chicos'/.test(c)) v.push('no usa paraChicosDeLaFila (esParaChicos de core + la edad)')
+    if (!/paraChicos: paraChicosDeLaFila\(\{ categorySlug: fila\.category\?\.slug \?\? null, tags: fila\.tags, ageRestriction: fila\.age_restriction \}\)/.test(c)) v.push('paraChicos no sale de la categoría, los tags crudos y la edad de la fila')
     if (!/evento: transformEvent\(fila\),/.test(c)) v.push('el evento ya no es transformEvent(fila)')
     return v
   }
@@ -1048,8 +1174,9 @@ describe('los datos y la caché (detectores)', () => {
   })
 
   it.each([
-    ['sin tags', (s: string) => s.replace('tags: fila.tags', 'tags: null'), 'paraChicos no sale de la categoría y los tags crudos de la fila'],
-    ['regla propia', (s: string) => s.replace("import { esParaChicos } from '@qps/core/filtros/publico'", 'const esParaChicos = (_: unknown) => false'), 'no importa esParaChicos de core'],
+    ['sin tags', (s: string) => s.replace('tags: fila.tags', 'tags: null'), 'paraChicos no sale de la categoría, los tags crudos y la edad de la fila'],
+    ['sin la edad', (s: string) => s.replace('ageRestriction: fila.age_restriction', 'ageRestriction: 0'), 'paraChicos no sale de la categoría, los tags crudos y la edad de la fila'],
+    ['regla propia', (s: string) => s.replace("import { paraChicosDeLaFila } from '@/lib/para-chicos'", 'const paraChicosDeLaFila = (_: unknown) => false'), 'no usa paraChicosDeLaFila (esParaChicos de core + la edad)'],
   ])('rotura en memoria (datos): %s -> detectada', (_n, romper, esperada) => {
     const roto = romper(eventos)
     expect(roto).not.toBe(eventos)
