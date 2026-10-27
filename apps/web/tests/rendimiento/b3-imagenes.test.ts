@@ -32,6 +32,7 @@ vi.mock('@/components/donation-context', () => ({ useDonation: () => ({ openDona
 import { HeroCarousel } from '@/components/hero-carousel'
 import { EventCard } from '@/components/event-card'
 import { MovieCard } from '@/components/movie-card'
+import { CinesView } from '@/components/cines-view'
 import { cargaPorIndice, pistasDeCarga } from '@/lib/images/carga'
 import type { CinemaMovie } from '@/lib/types'
 
@@ -174,8 +175,17 @@ describe('MovieCard (/cines): el primer póster carga ansioso', () => {
     expect(attr(img, 'fetchpriority')).toBeNull()
   })
 
-  it('cines-view.tsx le pasa cargaPorIndice(index) a cada tarjeta', () => {
-    expect(readSource('components/cines-view.tsx')).toMatch(/<MovieCard key=\{movie\.id\} movie=\{movie\} carga=\{cargaPorIndice\(index\)\} \/>/)
+  it('CinesView: la prioridad va al primer póster que existe, no a una tarjeta sin afiche', () => {
+    const sinAfiche = { ...pelicula, id: 'peli-0', title: 'Sin afiche', poster_url: null } as unknown as CinemaMovie
+    const segunda = { ...pelicula, id: 'peli-2', title: 'Otra', poster_url: '/posters/peli-2.jpg' } as unknown as CinemaMovie
+    const tercera = { ...pelicula, id: 'peli-3', title: 'Tercera', poster_url: '/posters/peli-3.jpg' } as unknown as CinemaMovie
+    const html = renderToStaticMarkup(React.createElement(CinesView, { movies: [sinAfiche, pelicula, segunda, tercera] }))
+    const [primera, siguiente, ultima] = imgs(html)
+    expect(attr(primera, 'src')).toContain('peli-1')
+    expect(attr(primera, 'fetchpriority')).toBe('high')
+    expect(attr(siguiente, 'loading')).toBe('eager')
+    expect(attr(siguiente, 'fetchpriority')).toBeNull()
+    expect(attr(ultima, 'loading')).toBe('lazy')
   })
 })
 

@@ -6,7 +6,7 @@
  * B3: ya no se usa `useSearchParams` (obligaba a envolver todo el formulario
  * en un `<Suspense>` y el prerender estático mandaba un fallback vacío). El
  * `next` se lee de `window.location.search` al enviar el formulario; el
- * render del HTML completo lo prueba `tests/rendimiento/b3-login-y-pie.test.ts`.
+ * render del HTML completo lo prueba `tests/rendimiento/b3-login.test.ts`.
  *
  * Sin red ni base: lectura estática del código fuente con `fs` (si la ruta
  * no existe, `readFileSync` tira y el test falla ruidosamente, nunca un "no

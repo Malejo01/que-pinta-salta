@@ -104,7 +104,7 @@ export default function LoginPage() {
               width={72}
               height={72}
               className="rounded-full block"
-              priority
+              preload
             />
           </div>
           <div className="text-center leading-none">

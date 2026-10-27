@@ -19,6 +19,15 @@ export function CinesView({ movies }: CinesViewProps) {
     movie.title.toLowerCase().includes(searchQuery.toLowerCase())
   )
 
+  // Posición de cada película entre las que tienen afiche (ver la grilla).
+  const indiceConAfiche = new Map(
+    filteredMovies.filter((movie) => movie.poster_url).map((movie, indice) => [movie.id, indice]),
+  )
+  const cargaDe = (id: string) => {
+    const indice = indiceConAfiche.get(id)
+    return indice === undefined ? 'diferida' : cargaPorIndice(indice)
+  }
+
   return (
     <div className="space-y-8">
       {/* Barra de búsqueda interactiva */}
@@ -46,11 +55,12 @@ export function CinesView({ movies }: CinesViewProps) {
       {/* Grid de Películas */}
       {filteredMovies.length > 0 ? (
         <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
-          {/* B3: los dos primeros pósters (la primera fila en celular y lo
-              que entra arriba en pantallas anchas) cargan sin esperar al
-              lazy-load; el primero, con prioridad alta porque es el LCP. */}
-          {filteredMovies.map((movie, index) => (
-            <MovieCard key={movie.id} movie={movie} carga={cargaPorIndice(index)} />
+          {/* B3: los dos primeros pósters cargan sin esperar al lazy-load;
+              el primero, con prioridad alta porque es el LCP. Se cuentan solo
+              las películas con afiche: una tarjeta sin imagen no gasta el
+              lugar del LCP. */}
+          {filteredMovies.map((movie) => (
+            <MovieCard key={movie.id} movie={movie} carga={cargaDe(movie.id)} />
           ))}
         </div>
       ) : (
