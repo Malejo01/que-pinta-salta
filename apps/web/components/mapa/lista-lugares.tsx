@@ -59,7 +59,7 @@ export function ListaLugares({ pines, seleccionado, onVerEnElMapa }: ListaLugare
             <ul className="mt-3 divide-y divide-border border-t border-border">
               {pin.eventos.map((evento) => (
                 <li key={evento.id} className="flex items-baseline gap-3 py-2">
-                  <time dateTime={evento.inicio} className="w-28 shrink-0 whitespace-nowrap text-sm tabular-nums text-muted-foreground">
+                  <time dateTime={evento.inicio} className="min-w-28 shrink-0 whitespace-nowrap text-sm tabular-nums text-muted-foreground">
                     {formatEventDayMonth(evento.inicio)} · {formatEventTime(evento.inicio)}
                   </time>
                   <Link
