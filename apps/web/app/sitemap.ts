@@ -1,6 +1,8 @@
 import { createClient } from "@supabase/supabase-js"
 import type { MetadataRoute } from "next"
 import { ANUNCIANTES } from "@/lib/config/anunciantes"
+import { VIGENTE_DESDE } from "@/components/legal/vigencia"
+import { fechaDeTextoEnCastellano } from "@/lib/seo/fecha-legal"
 
 const baseUrl = "https://www.quepintasalta.com.ar"
 
@@ -27,6 +29,12 @@ const SITEMAP_PAST_DAYS = 30
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const now = new Date()
+  // /privacidad y /terminos (B2): la fecha desde la que rige la versión
+  // vigente, la misma que muestran arriba. Antes era `now`, que en cada
+  // regeneración decía que habían cambiado. Si el texto no se puede leer
+  // como fecha, `now` como antes. /eliminar-cuenta no tiene una fecha propia
+  // en el código: sigue con `now`.
+  const legalesUpdatedAt = fechaDeTextoEnCastellano(VIGENTE_DESDE) ?? now
   const sitemapCutoff = new Date(now.getTime() - SITEMAP_PAST_DAYS * 24 * 60 * 60 * 1000)
 
   const staticRoute = (
@@ -46,8 +54,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       staticRoute("/cines", now, "daily", 0.8),
       staticRoute("/buscar", now, "weekly", 0.5),
       staticRoute("/mapa", now, "weekly", 0.5),
-      staticRoute("/privacidad", now, "weekly", 0.2),
-      staticRoute("/terminos", now, "weekly", 0.2),
+      staticRoute("/privacidad", legalesUpdatedAt, "weekly", 0.2),
+      staticRoute("/terminos", legalesUpdatedAt, "weekly", 0.2),
       staticRoute("/eliminar-cuenta", now, "weekly", 0.2),
       ...(ANUNCIANTES.publicada ? [staticRoute("/anunciantes", now, "weekly", 0.3)] : []),
     ]
@@ -129,8 +137,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     staticRoute("/cines", cinemaUpdatedAt, "daily", 0.8),
     staticRoute("/buscar", eventsUpdatedAt, "weekly", 0.5),
     staticRoute("/mapa", eventsUpdatedAt, "weekly", 0.5),
-    staticRoute("/privacidad", now, "weekly", 0.2),
-    staticRoute("/terminos", now, "weekly", 0.2),
+    staticRoute("/privacidad", legalesUpdatedAt, "weekly", 0.2),
+    staticRoute("/terminos", legalesUpdatedAt, "weekly", 0.2),
     staticRoute("/eliminar-cuenta", now, "weekly", 0.2),
     // /anunciantes solo mientras ANUNCIANTES.publicada sea true (ver
     // lib/config/anunciantes.ts): mientras haya precios sin completar la
