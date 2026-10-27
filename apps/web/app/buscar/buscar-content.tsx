@@ -1,9 +1,10 @@
 "use client"
 
-import { useDeferredValue, useMemo, useState } from "react"
+import { useDeferredValue, useMemo, useRef, useState } from "react"
 import Link from "next/link"
 import { ArrowLeft, Search } from "lucide-react"
-import type { EventCategory, Category, CinemaMovie } from "@/lib/types"
+import type { Category, CinemaMovie } from "@/lib/types"
+import type { EventWithRelations } from "@/lib/home/types"
 import type { FlyerWithAccount } from "@/lib/instagram-config"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -15,8 +16,7 @@ import { MovieModal } from "@/components/movie-modal"
 import { getCategoryIcon } from "@/lib/category-icons"
 import { AdSenseBanner } from "@/components/adsense-banner"
 import { transformEvent, type DisplayEvent } from "@/components/home-content"
-import { soloGratis } from "@qps/core/home/filtros-extra"
-import { buscarEventosPorTexto } from "@qps/core/home/busqueda"
+import { filtrarCombinado, type ItemFiltrable } from "@qps/core/home/filtros-combinados"
 
 function formatDateInSalta(date: Date): string {
   return new Intl.DateTimeFormat("en-CA", {
@@ -25,6 +25,18 @@ function formatDateInSalta(date: Date): string {
     month: "2-digit",
     day: "2-digit"
   }).format(date)
+}
+
+/**
+ * Los dos chips de filtro ("Solo gratis" y "Para chicos") comparten estilo:
+ * 44 px de alto (h-11), relleno cuando están prendidos y foco visible.
+ */
+function claseChip(activo: boolean): string {
+  return `inline-flex h-11 items-center justify-center rounded-full border px-4 text-sm font-medium transition-colors outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background ${
+    activo
+      ? "border-primary bg-primary text-primary-foreground"
+      : "border-border bg-card text-foreground hover:bg-muted"
+  }`
 }
 
 function transformFlyer(flyer: FlyerWithAccount, categoryNameBySlug: Map<string, string>): DisplayEvent {
@@ -54,7 +66,7 @@ function transformFlyer(flyer: FlyerWithAccount, categoryNameBySlug: Map<string,
 }
 
 interface BuscarContentProps {
-  events: any[] 
+  events: EventWithRelations[]
   categories: Category[]
   serverNowISO: string
   flyers: FlyerWithAccount[]
@@ -78,6 +90,9 @@ export function BuscarContent({
   const [selectedMovie, setSelectedMovie] = useState<DisplayEvent | null>(null)
   const [favorites, setFavorites] = useState<string[]>(userFavorites)
   const [soloGratisActivo, setSoloGratisActivo] = useState(false)
+  const [paraChicosActivo, setParaChicosActivo] = useState(false)
+  // "Quitar filtros" (del vacío) devuelve el foco acá: el botón desaparece.
+  const soloGratisRef = useRef<HTMLButtonElement>(null)
   const deferredSearchQuery = useDeferredValue(searchQuery)
 
   const categoryNameBySlug = useMemo(() => {
@@ -157,22 +172,63 @@ export function BuscarContent({
     return [...finalEventItems, ...flyerItems, ...movieItems]
   }, [events, flyers, cinemaMovies, categoryNameBySlug, serverNowISO])
 
-  // Filtro de texto (título, lugar, descripción) movido a
-  // @qps/core/home/busqueda (R29, cierre de ronda): antes era un useMemo
-  // inline con la misma lógica, duplicada entre la web y la app.
-  const filteredEvents = useMemo(
-    () => buscarEventosPorTexto(allDisplayEvents, deferredSearchQuery),
-    [deferredSearchQuery, allDisplayEvents]
+  // Texto + "Solo gratis" + "Para chicos" (Q3, C2): una sola llamada a
+  // `filtrarCombinado` de core, la misma que usa la app (sin fecha ni
+  // categoría en Buscar). Los flyers y las películas no traen `tags`: pasan
+  // "Para chicos" solo si su categoría es `infantil` (`esParaChicos`).
+  const itemsFiltrables = useMemo(
+    (): ItemFiltrable[] => allDisplayEvents.map((evento) => ({ evento, paraAtajo: null })),
+    [allDisplayEvents]
   )
+  const ahora = useMemo(() => new Date(serverNowISO), [serverNowISO])
 
-  // "Solo gratis" (apagado por defecto): con texto, sobre los resultados de
-  // la búsqueda; sin texto, sobre todos los eventos. Apagado, no cambia nada.
-  const mostrarListaResultados = !!searchQuery || soloGratisActivo
+  // Todo lo de la lista (si se ve, qué trae y qué dice el contador) sale del
+  // valor diferido: mientras React no llega a filtrar con lo último que se
+  // tipeó, queda la pantalla anterior entera, nunca un contador de "x" con
+  // los resultados de otra cosa. Sin texto (o solo espacios) y sin chips, la
+  // grilla de categorías; sin texto y con un chip, todos los eventos que
+  // pasan el chip (`filtrarCombinado` con texto vacío no filtra por texto).
+  const textoBuscado = deferredSearchQuery.trim()
+  const hayChip = soloGratisActivo || paraChicosActivo
+  const mostrarListaResultados = textoBuscado !== "" || hayChip
 
   const resultadosMostrados = useMemo(() => {
-    const base = searchQuery ? filteredEvents : allDisplayEvents
-    return soloGratisActivo ? soloGratis(base) : base
-  }, [searchQuery, filteredEvents, allDisplayEvents, soloGratisActivo])
+    if (!mostrarListaResultados) return []
+    return filtrarCombinado(
+      itemsFiltrables,
+      { atajo: null, categoria: null, texto: deferredSearchQuery, soloGratis: soloGratisActivo, paraChicos: paraChicosActivo },
+      ahora
+    )
+  }, [mostrarListaResultados, itemsFiltrables, deferredSearchQuery, soloGratisActivo, paraChicosActivo, ahora])
+
+  const cantidad = resultadosMostrados.length
+  const plural = cantidad !== 1 ? "s" : ""
+  // Con texto, los chips van de sufijo (" · gratis · para chicos", como la
+  // fecha en la app); sin texto, describen los eventos.
+  const sufijoChips = `${soloGratisActivo ? " · gratis" : ""}${paraChicosActivo ? " · para chicos" : ""}`
+  const queEventos = `${soloGratisActivo ? " gratis" : ""}${paraChicosActivo ? " para chicos" : ""}`
+
+  // Lo que anuncia la región viva (siempre montada): el contador, o el vacío
+  // si no hay resultados, o nada si se ve la grilla.
+  let anuncio = ""
+  if (mostrarListaResultados && cantidad > 0) {
+    anuncio = textoBuscado
+      ? `${cantidad} resultado${plural} para "${textoBuscado}"${sufijoChips}`
+      : `${cantidad} evento${plural}${queEventos}`
+  } else if (mostrarListaResultados) {
+    anuncio = textoBuscado
+      ? `No se encontraron eventos para "${textoBuscado}"${sufijoChips}`
+      : `No hay eventos${queEventos} por ahora.`
+  }
+  const sinResultados = mostrarListaResultados && cantidad === 0
+
+  // Apaga los dos chips (el texto queda) y deja el foco en "Solo gratis":
+  // el botón que se tocó se va con el vacío.
+  const quitarFiltros = () => {
+    setSoloGratisActivo(false)
+    setParaChicosActivo(false)
+    soloGratisRef.current?.focus()
+  }
 
   // Una sola lista de favoritos para la tarjeta y el modal del mismo evento
   // (QPS-158): cada corazón avisa el estado confirmado por el servidor.
@@ -210,18 +266,25 @@ export function BuscarContent({
               autoFocus
             />
           </div>
-          <button
-            type="button"
-            aria-pressed={soloGratisActivo}
-            onClick={() => setSoloGratisActivo((activo) => !activo)}
-            className={`mt-3 inline-flex h-11 items-center justify-center rounded-full border px-4 text-sm font-medium transition-colors ${
-              soloGratisActivo
-                ? "border-primary bg-primary text-primary-foreground"
-                : "border-border bg-card text-foreground hover:bg-muted"
-            }`}
-          >
-            Solo gratis
-          </button>
+          <div role="group" aria-label="Filtros" className="mt-3 flex flex-wrap gap-2">
+            <button
+              ref={soloGratisRef}
+              type="button"
+              aria-pressed={soloGratisActivo}
+              onClick={() => setSoloGratisActivo((activo) => !activo)}
+              className={claseChip(soloGratisActivo)}
+            >
+              Solo gratis
+            </button>
+            <button
+              type="button"
+              aria-pressed={paraChicosActivo}
+              onClick={() => setParaChicosActivo((activo) => !activo)}
+              className={claseChip(paraChicosActivo)}
+            >
+              Para chicos
+            </button>
+          </div>
         </div>
 
         {!mostrarListaResultados && (
@@ -237,7 +300,7 @@ export function BuscarContent({
                 }))
                 .filter(({ count }) => count > 0)
                 .map(({ category, count }) => {
-                  const Icon = getCategoryIcon(category.slug as any)
+                  const Icon = getCategoryIcon(category.slug)
                   return (
                     <Link
                       key={category.slug}
@@ -258,42 +321,43 @@ export function BuscarContent({
           </div>
         )}
 
-        {mostrarListaResultados && resultadosMostrados.length > 0 && (
-          <div>
-            <p className="mb-4 text-muted-foreground">
-              {searchQuery
-                ? `${resultadosMostrados.length} resultado${resultadosMostrados.length !== 1 ? "s" : ""} para "${searchQuery}"`
-                : `${resultadosMostrados.length} evento${resultadosMostrados.length !== 1 ? "s" : ""} gratis`}
-            </p>
-            <div className="flex flex-wrap gap-4">
-              {resultadosMostrados.map(event => (
-                <EventCard
-                  key={event.id}
-                  event={event}
-                  isFavorite={favorites.includes(event.id)}
-                  onToggleFavorite={handleToggleFavorite}
-                  onOpenMovie={setSelectedMovie}
-                  origin="busqueda"
-                />
-              ))}
-            </div>
-          </div>
-        )}
+        {/* Contador o vacío en una sola región viva, siempre montada (vacía
+            con la grilla): el lector de pantalla anuncia cada cambio de
+            texto o de chip. `break-words`: un texto largo sin espacios no
+            ensancha la página en 360 px. */}
+        <div className={sinResultados ? "py-16 text-center" : undefined}>
+          <p
+            aria-live="polite"
+            className={sinResultados ? "text-lg break-words text-muted-foreground" : anuncio ? "mb-4 break-words text-muted-foreground" : undefined}
+          >
+            {anuncio}
+          </p>
+          {sinResultados && hayChip && (
+            <Button type="button" variant="outline" onClick={quitarFiltros} className="mt-4 h-11 px-4">
+              Quitar filtros
+            </Button>
+          )}
+        </div>
 
-        {mostrarListaResultados && resultadosMostrados.length === 0 && (
-          <div className="py-16 text-center">
-            <p className="text-lg text-muted-foreground">
-              {searchQuery
-                ? `No se encontraron eventos para "${searchQuery}"`
-                : "No hay eventos gratis por ahora."}
-            </p>
+        {mostrarListaResultados && cantidad > 0 && (
+          <div className="flex flex-wrap gap-4">
+            {resultadosMostrados.map(event => (
+              <EventCard
+                key={event.id}
+                event={event}
+                isFavorite={favorites.includes(event.id)}
+                onToggleFavorite={handleToggleFavorite}
+                onOpenMovie={setSelectedMovie}
+                origin="busqueda"
+              />
+            ))}
           </div>
         )}
 
         {/* Con 0 resultados el estado vacío es cortito: el banner asomaría
             sin scroll justo debajo de "no se encontraron eventos" (regla del
             pliegue, 360x800). Se oculta en ese caso puntual. */}
-        {!(mostrarListaResultados && resultadosMostrados.length === 0) && (
+        {!sinResultados && (
           <div className="mt-8">
             <AdSenseBanner lugar="buscar" />
           </div>

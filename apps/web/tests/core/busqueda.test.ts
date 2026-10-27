@@ -45,15 +45,23 @@ function evento(overrides: Partial<DisplayEvent> = {}): DisplayEvent {
   }
 }
 
-describe('buscar-content.tsx (fuente, solo lectura): usa buscarEventosPorTexto de core', () => {
-  const contenido = readFileSync(RUTA_BUSCAR_CONTENT, 'utf8')
+// Desde Q3 (C2) la web no llama a `buscarEventosPorTexto` directo: pasa el
+// texto a `filtrarCombinado` (texto + "Solo gratis" + "Para chicos"), que
+// busca con `buscarEventosPorTexto`. Se fijan los dos eslabones.
+const RUTA_FILTROS_COMBINADOS = fileURLToPath(new URL('../../../../packages/core/src/home/filtros-combinados.ts', import.meta.url))
 
-  it('importa buscarEventosPorTexto de @qps/core/home/busqueda', () => {
-    expect(contenido).toMatch(/import\s*\{\s*buscarEventosPorTexto\s*\}\s*from\s*["']@qps\/core\/home\/busqueda["']/)
+describe('buscar-content.tsx (fuente, solo lectura): usa buscarEventosPorTexto de core, vía filtrarCombinado', () => {
+  const contenido = readFileSync(RUTA_BUSCAR_CONTENT, 'utf8')
+  const combinado = readFileSync(RUTA_FILTROS_COMBINADOS, 'utf8')
+
+  it('importa filtrarCombinado de @qps/core/home/filtros-combinados, que importa buscarEventosPorTexto de ./busqueda', () => {
+    expect(contenido).toMatch(/import\s*\{[^}]*\bfiltrarCombinado\b[^}]*\}\s*from\s*[\"']@qps\/core\/home\/filtros-combinados[\"']/)
+    expect(combinado).toMatch(/import\s*\{\s*buscarEventosPorTexto\s*\}\s*from\s*["']\.\/busqueda["']/)
   })
 
-  it('el useMemo de filteredEvents llama a buscarEventosPorTexto (no reimplementa el filtro)', () => {
-    expect(contenido).toMatch(/buscarEventosPorTexto\(allDisplayEvents,\s*deferredSearchQuery\)/)
+  it('el useMemo de resultadosMostrados le pasa deferredSearchQuery a filtrarCombinado, que llama a buscarEventosPorTexto (no reimplementa el filtro)', () => {
+    expect(contenido).toMatch(/filtrarCombinado\(\s*itemsFiltrables,\s*\{[^}]*\btexto:\s*deferredSearchQuery\b[^}]*\}/)
+    expect(combinado).toMatch(/buscarEventosPorTexto\(eventos,\s*texto\)/)
   })
 
   it('ya no queda una copia inline del filtro (toLowerCase().includes() sobre title/venue/description)', () => {

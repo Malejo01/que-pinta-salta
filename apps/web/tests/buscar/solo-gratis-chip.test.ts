@@ -5,14 +5,22 @@
  * de la R26) y se lee el código de `app/buscar/buscar-content.tsx` para
  * confirmar cómo está conectado el chip: apagado por defecto, accesible
  * (aria-pressed, 44px de alto) y sin cambiar nada cuando está apagado.
+ *
+ * Q3 (C2): el chip ya no llama a `soloGratis` desde el componente: va como
+ * `soloGratis: soloGratisActivo` a `filtrarCombinado` (junto con el texto y
+ * "Para chicos"), que aplica `soloGratis` de `./filtros-extra`. Las pruebas
+ * de comportamiento llaman a `filtrarCombinado` con los mismos filtros que
+ * arma el componente.
  */
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
-import { soloGratis } from '@qps/core/home/filtros-extra'
+import { filtrarCombinado, type FiltrosCombinados } from '@qps/core/home/filtros-combinados'
 import type { DisplayEvent } from '@qps/core/home/types'
 
 const SOURCE_PATH = new URL('../../app/buscar/buscar-content.tsx', import.meta.url)
 const source = readFileSync(SOURCE_PATH, 'utf8')
+const COMBINADO_PATH = new URL('../../../../packages/core/src/home/filtros-combinados.ts', import.meta.url)
+const combinado = readFileSync(COMBINADO_PATH, 'utf8')
 
 function evento(overrides: Partial<DisplayEvent> = {}): DisplayEvent {
   return {
@@ -34,9 +42,20 @@ function evento(overrides: Partial<DisplayEvent> = {}): DisplayEvent {
   }
 }
 
+/** Lo que hace `resultadosMostrados` del componente, sin texto ni "Para chicos". */
+function comoBuscar(eventos: DisplayEvent[], filtros: Partial<FiltrosCombinados> = {}): DisplayEvent[] {
+  return filtrarCombinado(
+    eventos.map((e) => ({ evento: e, paraAtajo: null })),
+    { atajo: null, categoria: null, ...filtros },
+    new Date('2026-10-10T12:00:00-03:00')
+  )
+}
+
 describe('buscar-content.tsx: wiring del chip "Solo gratis"', () => {
-  it('importa soloGratis de @qps/core/home/filtros-extra', () => {
-    expect(source).toContain('import { soloGratis } from "@qps/core/home/filtros-extra"')
+  it('filtra con filtrarCombinado de @qps/core/home/filtros-combinados, que importa soloGratis de ./filtros-extra', () => {
+    expect(source).toContain('import { filtrarCombinado, type ItemFiltrable } from "@qps/core/home/filtros-combinados"')
+    expect(combinado).toContain('import { soloGratis } from "./filtros-extra"')
+    expect(combinado).toContain('if (filtros.soloGratis) eventos = soloGratis(eventos)')
   })
 
   it('arranca apagado: useState(false)', () => {
@@ -45,32 +64,41 @@ describe('buscar-content.tsx: wiring del chip "Solo gratis"', () => {
 
   it('el botón es accesible: aria-pressed enlazado al estado, y al menos 44px de alto (h-11)', () => {
     expect(source).toContain('aria-pressed={soloGratisActivo}')
-    expect(source).toMatch(/className=\{`[^`]*\bh-11\b/)
+    expect(source).toContain('className={claseChip(soloGratisActivo)}')
+    expect(source).toMatch(/function claseChip\(activo: boolean\): string \{\s*return `[^`]*\bh-11\b/)
   })
 
-  it('el wiring es exactamente "prendido: soloGratis(base); apagado: base sin tocar"', () => {
-    expect(source).toContain('soloGratisActivo ? soloGratis(base) : base')
+  it('el texto del chip sigue siendo "Solo gratis" (paridad con la app)', () => {
+    expect(source).toMatch(/>\s*Solo gratis\s*</)
   })
 
-  it('prendido (lo que hace soloGratis(base) del wiring): solo pasan los eventos "gratis"', () => {
+  it('el wiring es exactamente "soloGratis: soloGratisActivo" dentro de la llamada a filtrarCombinado', () => {
+    expect(source).toMatch(/filtrarCombinado\(\s*itemsFiltrables,\s*\{[^}]*\bsoloGratis:\s*soloGratisActivo\b[^}]*\}/)
+    // Ya no queda un filtro de gratis propio en el componente.
+    expect(source).not.toMatch(/\bsoloGratis\(/)
+  })
+
+  it('prendido (soloGratis: true): solo pasan los eventos "gratis"', () => {
     const gratis = evento({ id: 'gratis', price: 'gratis' })
     const pago = evento({ id: 'pago', price: 1500 })
     const confirmar = evento({ id: 'confirmar', price: 'confirmar' })
-    const base = [gratis, pago, confirmar]
 
-    expect(soloGratis(base)).toEqual([gratis])
+    expect(comoBuscar([gratis, pago, confirmar], { soloGratis: true })).toEqual([gratis])
   })
 
-  it('apagado (la rama ": base" del wiring): la lista queda igual que antes del cambio, sin tocarla', () => {
+  it('apagado (soloGratis: false), sin texto: la lista queda igual, en el mismo orden', () => {
     const gratis = evento({ id: 'gratis', price: 'gratis' })
     const pago = evento({ id: 'pago', price: 1500 })
     const confirmar = evento({ id: 'confirmar', price: 'confirmar' })
-    const base = [gratis, pago, confirmar]
 
-    // La rama "apagado" del ternario del componente es literalmente `base`:
-    // ni filtra ni reordena ni copia.
-    const apagado = base
-    expect(apagado).toBe(base)
-    expect(apagado).toEqual([gratis, pago, confirmar])
+    expect(comoBuscar([gratis, pago, confirmar], { soloGratis: false, texto: '' })).toEqual([gratis, pago, confirmar])
+  })
+
+  it('con texto, "Solo gratis" se aplica sobre los resultados de la búsqueda', () => {
+    const jazzGratis = evento({ id: 'jazz-gratis', title: 'Jazz en la plaza', price: 'gratis' })
+    const jazzPago = evento({ id: 'jazz-pago', title: 'Jazz en el teatro', price: 1500 })
+    const rockGratis = evento({ id: 'rock-gratis', title: 'Rock en la plaza', price: 'gratis' })
+
+    expect(comoBuscar([jazzGratis, jazzPago, rockGratis], { soloGratis: true, texto: 'jazz' })).toEqual([jazzGratis])
   })
 })
