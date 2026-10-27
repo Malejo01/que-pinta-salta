@@ -46,9 +46,29 @@
 // a aplicar categoría y fecha aunque sean iguales a los de antes. Los conteos de la grilla "Explorar por categoria" siguen
 // siendo sobre todos los eventos. Sin resultados, el vacío ofrece salir de la
 // fecha y/o de la categoría. Buscar sigue sin caché offline.
-import { useCallback, useEffect, useMemo, useState } from 'react'
+//
+// A5 (nube Q1): búsquedas recientes. Las últimas 5 búsquedas de texto,
+// guardadas solo en el teléfono (`lib/busquedas-recientes.ts`, sobre el
+// `Almacen` de `lib/sin-conexion/almacen.ts`; nunca van al servidor, a
+// métricas ni a Sentry) y dibujadas por `components/BusquedasRecientes.tsx`
+// en la cabecera de «Explorar por categoria» (con el campo vacío y sin
+// filtros, arriba de la grilla: empuja el banner más abajo, nunca lo sube).
+// Tocar una carga su texto en el campo (y la vuelve a poner primera).
+// Cuándo se guarda una búsqueda — nunca en cada tecla:
+//   1. Al enviarla con el teclado (`onSubmitEditing`, tecla «Buscar» por
+//      `returnKeyType="search"`), aunque no dé resultados: la persona dijo
+//      «esto es lo que busco», y la agenda cambia de un día para el otro.
+//   2. Al salir de Buscar con texto y al menos un resultado a la vista
+//      (`useFocusEffect`, en la limpieza del foco): cubre tocar un resultado
+//      (la ficha se abre encima y Buscar pierde el foco) y cambiar de pestaña
+//      después de buscar sin tocar «Buscar» en el teclado — mucha gente nunca
+//      lo toca. Sin resultados no se guarda: un texto a medio escribir que no
+//      encontró nada no es una búsqueda que valga repetir.
+//   3. Al tocar una reciente (sube al primer lugar).
+// Mínimo 2 caracteres y tope de largo, en el módulo.
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { FlatList, Pressable, RefreshControl, StyleSheet, View } from 'react-native'
-import { useLocalSearchParams } from 'expo-router'
+import { useFocusEffect, useLocalSearchParams } from 'expo-router'
 import type { Atajo } from '@qps/core/home/atajos'
 import {
   atajoDesdeParametro,
@@ -57,6 +77,7 @@ import {
   type ItemFiltrable,
 } from '@qps/core/home/filtros-combinados'
 import { BannerAnuncio } from '@/components/BannerAnuncio'
+import { BusquedasRecientes } from '@/components/BusquedasRecientes'
 import { CampoTexto } from '@/components/CampoTexto'
 import { ChipsCategorias } from '@/components/ChipsCategorias'
 import { Cargando, ErrorCarga, Vacio } from '@/components/EstadoCarga'
@@ -64,6 +85,13 @@ import { Icono, iconoPorCategoria } from '@/components/Icono'
 import { PillsAtajos } from '@/components/PillsAtajos'
 import { TarjetaEvento } from '@/components/TarjetaEvento'
 import { Texto } from '@/components/Texto'
+import {
+  agregarBusqueda,
+  borrarHistorialDeBusquedas,
+  guardarBusquedaReciente,
+  leerBusquedasRecientes,
+  normalizarBusqueda,
+} from '@/lib/busquedas-recientes'
 import { bordeChipInactivo, useColoresQPS } from '@/lib/colores'
 import { obtenerCategorias, obtenerEventosVigentesParaInicio, type CategoriaBasica } from '@/lib/datos/eventos'
 
@@ -115,6 +143,10 @@ export default function Buscar() {
   const [refrescando, setRefrescando] = useState(false)
   const [texto, setTexto] = useState('')
   const [soloGratisActivo, setSoloGratisActivo] = useState(false)
+  // A5 (nube Q1): el historial que se ve. Arranca vacío y se llena con lo
+  // guardado (efecto de abajo); después, esta pantalla es la única que lo
+  // cambia, así que el estado manda y el almacén se actualiza en segundo plano.
+  const [recientes, setRecientes] = useState<string[]>([])
 
   // Sincroniza `categoriaFiltro` con el parámetro de la ruta sin `setState`
   // sincrónico dentro de un `useEffect` (mismo patrón que `idAnterior` en
@@ -176,6 +208,43 @@ export default function Buscar() {
     }
   }, [obtenerDatos, intento])
 
+  // A5: lee el historial una vez al montar. El `setState` va en el callback
+  // de la promesa, no en el cuerpo del efecto (react-hooks/set-state-in-effect).
+  // `leerBusquedasRecientes` nunca tira: un almacén roto da `[]` y Buscar
+  // sigue igual. Si la persona ya guardó algo antes de que esto resuelva, se
+  // mezcla (lo nuevo primero) en vez de pisarlo.
+  useEffect(() => {
+    let cancelado = false
+    leerBusquedasRecientes().then((guardadas) => {
+      if (!cancelado) setRecientes((actuales) => actuales.reduceRight(agregarBusqueda, guardadas))
+    })
+    return () => {
+      cancelado = true
+    }
+  }, [])
+
+  // A5: guarda una búsqueda (si vale: mínimo 2 caracteres, ver
+  // `normalizarBusqueda`). El estado se actualiza en el momento con la misma
+  // función pura que usa el módulo; el almacén, sin esperarlo (nunca tira).
+  const recordarBusqueda = useCallback((valor: string) => {
+    if (normalizarBusqueda(valor) === null) return
+    setRecientes((actuales) => agregarBusqueda(actuales, valor))
+    void guardarBusquedaReciente(valor)
+  }, [])
+
+  const repetirBusqueda = useCallback(
+    (busqueda: string) => {
+      setTexto(busqueda)
+      recordarBusqueda(busqueda)
+    },
+    [recordarBusqueda],
+  )
+
+  const borrarHistorial = useCallback(() => {
+    setRecientes([])
+    void borrarHistorialDeBusquedas()
+  }, [])
+
   // Toca una categoría una segunda vez para quitar el filtro (no hay un botón
   // "volver" propio: la grilla de categorías no se ve mientras hay un
   // filtro activo, así que esto es la única forma de deshacerlo sin tocar
@@ -225,6 +294,26 @@ export default function Buscar() {
     [estado],
   )
 
+  // A5, criterio 2 (ver la cabecera): al perder el foco, guarda el texto si
+  // había resultados a la vista. La limpieza de `useFocusEffect` corre al
+  // salir, no en cada tecla; como no puede depender de `texto` (si dependiera,
+  // la limpieza correría en cada cambio), lee lo último desde un ref, que se
+  // actualiza en un efecto (nunca durante el render).
+  const busquedaALaVista = useRef({ texto: '', cantidad: 0 })
+  const cantidadConTexto = texto ? resultadosMostrados.length : 0
+  useEffect(() => {
+    busquedaALaVista.current = { texto, cantidad: cantidadConTexto }
+  }, [texto, cantidadConTexto])
+  useFocusEffect(
+    useCallback(
+      () => () => {
+        const { texto: alSalir, cantidad } = busquedaALaVista.current
+        if (cantidad > 0) recordarBusqueda(alSalir)
+      },
+      [recordarBusqueda],
+    ),
+  )
+
   const sufijoFecha = atajo ? ` · ${NOMBRE_ATAJO[atajo]}` : ''
   const enCategoria = nombreCategoriaFiltro ? ` en ${nombreCategoriaFiltro}` : ''
 
@@ -258,6 +347,10 @@ export default function Buscar() {
             onChangeText={setTexto}
             placeholder="Buscar por evento, lugar o descripcion..."
             autoCapitalize="none"
+            // A5, criterio 1: la tecla del teclado dice «Buscar» y al tocarla
+            // se guarda la búsqueda (ver la cabecera del archivo).
+            returnKeyType="search"
+            onSubmitEditing={(evento) => recordarBusqueda(evento.nativeEvent.text)}
             accionDerecha={
               texto ? (
                 <Pressable
@@ -311,10 +404,16 @@ export default function Buscar() {
           refreshControl={
             <RefreshControl refreshing={refrescando} onRefresh={refrescar} tintColor={colores.primary} colors={[colores.primary]} />
           }
+          // A5: las búsquedas recientes van arriba del título de la grilla
+          // (sin ninguna guardada, `BusquedasRecientes` no dibuja nada). El
+          // banner sigue en el footer, debajo de toda la grilla.
           ListHeaderComponent={
-            <Texto peso="semibold" style={estilos.tituloSeccion}>
-              Explorar por categoria
-            </Texto>
+            <>
+              <BusquedasRecientes busquedas={recientes} onElegir={repetirBusqueda} onBorrarHistorial={borrarHistorial} />
+              <Texto peso="semibold" accessibilityRole="header" style={estilos.tituloSeccion}>
+                Explorar por categoria
+              </Texto>
+            </>
           }
           ListEmptyComponent={<Vacio mensaje="Todavía no hay categorías cargadas." />}
           // R60, 52-d: con la lista vacía, `null` en vez de `<BannerAnuncio>`
