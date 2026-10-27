@@ -64,7 +64,9 @@ export function MapaDiferido({ pines, seleccionado, centrar, onSeleccionar, clas
 
     const cargar = () => {
       cancelarEspera = cuandoEstaLibre(() => {
-        import("./mapa-maplibre")
+        // Primero la URL del worker (ver maplibre-worker.ts), después el mapa.
+        import("./maplibre-worker")
+          .then(() => import("./mapa-maplibre"))
           .then((modulo) => {
             if (!cancelado) setMapa(() => modulo.default)
           })

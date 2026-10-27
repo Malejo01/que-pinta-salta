@@ -47,6 +47,8 @@ const CODIGO = ['app', 'components', 'lib']
 /** Un texto que nombra el paquete: `from 'maplibre-gl'`, `import 'maplibre-gl/dist/…'`. */
 const NOMBRA_MAPLIBRE = /['"]maplibre-gl(?:\/[^'"]*)?['"]/
 const IMPORT_DINAMICO_MAPA = /import\(\s*['"][^'"]*mapa-maplibre['"]\s*\)/g
+/** Fija la URL del worker de MapLibre (Q3): lo carga mapa-diferido con import(). */
+const WORKER = 'components/mapa/maplibre-worker.ts'
 
 describe('el barrido mira algo', () => {
   it('encuentra los archivos nuevos y bastante código de la web', () => {
@@ -56,9 +58,33 @@ describe('el barrido mira algo', () => {
 })
 
 describe('maplibre-gl se importa en un solo archivo', () => {
-  it('solo components/mapa/mapa-maplibre.tsx nombra el paquete (o su CSS) en app, components y lib', () => {
+  it('solo mapa-maplibre.tsx y maplibre-worker.ts nombran el paquete (o su CSS) en app, components y lib', () => {
     const nombran = CODIGO.filter((ruta) => NOMBRA_MAPLIBRE.test(leer(ruta)))
-    expect(nombran).toEqual([MAPLIBRE])
+    expect(nombran.sort()).toEqual([WORKER, MAPLIBRE].sort())
+  })
+
+  // Q3: Turbopack reemplaza el `import.meta.url` de MapLibre por un file:///
+  // del servidor y el worker no arranca (en `next build` también). La URL se
+  // fija con setWorkerUrl en un módulo aparte, que mapa-diferido carga con
+  // import() antes que el mapa: sigue sin haber MapLibre en la carga inicial.
+  it('maplibre-worker fija la URL del worker con new URL(…, import.meta.url)', () => {
+    const codigo = leer(WORKER)
+    expect(codigo).toMatch(/import\s*\{\s*setWorkerUrl\s*\}\s*from\s*['"]maplibre-gl['"]/)
+    expect(codigo).toMatch(/setWorkerUrl\(\s*new URL\(\s*['"]maplibre-gl\/dist\/maplibre-gl-worker\.mjs['"],\s*import\.meta\.url\s*\)\.href\s*\)/)
+  })
+
+  it('mapa-diferido carga maplibre-worker con import() y recién después el mapa; fuera de components/mapa nadie lo importa', () => {
+    const codigo = leer(DIFERIDO)
+    const worker = codigo.search(/import\(\s*['"]\.\/maplibre-worker['"]\s*\)/)
+    const mapa = codigo.search(IMPORT_DINAMICO_MAPA)
+    expect(worker).toBeGreaterThan(-1)
+    expect(mapa).toBeGreaterThan(worker)
+    // Solo los módulos del mapa lo cargan (el pin de /admin/lugares del PR #98
+    // puede sumarlo); la carga inicial de una página nunca.
+    const loNombran = CODIGO.filter((ruta) => ruta !== WORKER && leer(ruta).includes('maplibre-worker'))
+    expect(loNombran).toContain(DIFERIDO)
+    for (const ruta of loNombran) expect(ruta.startsWith('components/mapa/')).toBe(true)
+    expect(codigo).not.toMatch(/from\s*['"][^'"]*maplibre-worker['"]/)
   })
 
   it('mapa-maplibre importa el paquete y su CSS', () => {
