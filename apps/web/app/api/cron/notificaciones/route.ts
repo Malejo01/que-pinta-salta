@@ -21,7 +21,7 @@ import {
 } from '@/lib/notificaciones/expo-push'
 import { cargarNovedades } from '@/lib/notificaciones/novedades'
 import { leerPaginado, type RespuestaDePagina } from '@/lib/notificaciones/paginado'
-import { cargarCampaniaVigente } from '@/lib/notificaciones/patrocinados'
+import { cargarCampaniaVigente, leerPausaPatrocinado } from '@/lib/notificaciones/patrocinados'
 
 // Igual que recurrentes/route.ts: sin esto Vercel puede cortar la función a
 // mitad y dejar la corrida en RUNNING (como sus crones hermanos, scrape,
@@ -311,7 +311,13 @@ async function enviarNotificaciones(): Promise<NotificacionesReply> {
   if (!resultadoCampania.ok) {
     return reply(500, { error: `${resultadoCampania.tabla} query failed` })
   }
-  const campania = resultadoCampania.campania
+  // 58-e: la pausa del push patrocinado (ad_settings). Con la pausa activa, o
+  // si no se pudo leer (falla cerrado), el patrocinado no sale; el resto de la
+  // tanda (favoritos y novedades) sale igual.
+  const estadoPausa = await leerPausaPatrocinado(supabase)
+  const patrocinadoPausado = estadoPausa === 'pausado'
+  const patrocinadoPausaIlegible = estadoPausa === 'ilegible'
+  const campania = estadoPausa === 'libre' ? resultadoCampania.campania : null
   const patrocinadoDescartado = resultadoCampania.descartada
 
   const usuarios: UsuarioParaTanda[] = userIds.map((userId) => ({
@@ -345,6 +351,8 @@ async function enviarNotificaciones(): Promise<NotificacionesReply> {
       patrocinados,
       campaniaId,
       ...(patrocinadoDescartado ? { patrocinadoDescartado: true } : {}),
+      ...(patrocinadoPausado ? { patrocinadoPausado: true } : {}),
+      ...(patrocinadoPausaIlegible ? { patrocinadoPausaIlegible: true } : {}),
       ...(tokensTruncados ? { tokensTruncados: true } : {}),
     })
   }
@@ -450,17 +458,40 @@ async function enviarNotificaciones(): Promise<NotificacionesReply> {
   // dos corridas (o una corrida y un reintento) se pisen. Si el UPDATE falla,
   // NO tumba la corrida: se loguea y queda en `details`, nada más.
   let patrocinadoSentAtError = false
-  if (campania && campania.sentAt === null) {
+  // 58-e: error de `destinatarios` como código (nunca el mensaje ni ids).
+  let destinatariosError: 'count' | 'update' | null = null
+  if (campania) {
     const huboExitoPatrocinado = mensajes.some((m) => m.kind === 'patrocinado' && dedupeKeysConExito.has(m.dedupeKey))
     if (huboExitoPatrocinado) {
-      const { error: sentAtError } = await supabase
-        .from('sponsored_campaigns')
-        .update({ sent_at: ahora.toISOString() })
-        .eq('id', campania.id)
-        .is('sent_at', null)
-      if (sentAtError) {
-        patrocinadoSentAtError = true
-        console.error('[CronNotificaciones] No se pudo marcar sent_at de la campaña patrocinada:', sentAtError.message)
+      if (campania.sentAt === null) {
+        const { error: sentAtError } = await supabase
+          .from('sponsored_campaigns')
+          .update({ sent_at: ahora.toISOString() })
+          .eq('id', campania.id)
+          .is('sent_at', null)
+        if (sentAtError) {
+          patrocinadoSentAtError = true
+          console.error('[CronNotificaciones] No se pudo marcar sent_at de la campaña patrocinada:', sentAtError.message)
+        }
+      }
+
+      // 58-e: `destinatarios` = cuántas filas de notification_sends tiene la
+      // campaña (una por persona). Se RECUENTA en cada corrida (la campaña
+      // sale en varias tandas horarias) en vez de sumar: es idempotente. Solo
+      // se escribe si cambió. Si falla, no tumba la corrida.
+      const { count, error: countError } = await supabase
+        .from('notification_sends')
+        .select('id', { count: 'exact', head: true })
+        .eq('campaign_id', campania.id)
+      if (countError || typeof count !== 'number') {
+        destinatariosError = 'count'
+        console.error('[CronNotificaciones] No se pudo contar los destinatarios de la campaña patrocinada:', countError?.message ?? 'sin count')
+      } else if (count !== (campania.destinatarios ?? 0)) {
+        const { error: destError } = await supabase.from('sponsored_campaigns').update({ destinatarios: count }).eq('id', campania.id)
+        if (destError) {
+          destinatariosError = 'update'
+          console.error('[CronNotificaciones] No se pudo guardar destinatarios de la campaña patrocinada:', destError.message)
+        }
       }
     }
   }
@@ -478,8 +509,11 @@ async function enviarNotificaciones(): Promise<NotificacionesReply> {
     patrocinados,
     campaniaId,
     ...(patrocinadoDescartado ? { patrocinadoDescartado: true } : {}),
+    ...(patrocinadoPausado ? { patrocinadoPausado: true } : {}),
+    ...(patrocinadoPausaIlegible ? { patrocinadoPausaIlegible: true } : {}),
     ...(tokensTruncados ? { tokensTruncados: true } : {}),
     ...(patrocinadoSentAtError ? { patrocinadoSentAtError: true } : {}),
+    ...(destinatariosError ? { destinatariosError } : {}),
   })
 }
 
@@ -499,6 +533,9 @@ function toOutcome(r: NotificacionesReply): JobOutcome {
     patrocinadoDescartado?: boolean
     tokensTruncados?: boolean
     patrocinadoSentAtError?: boolean
+    patrocinadoPausado?: boolean
+    patrocinadoPausaIlegible?: boolean
+    destinatariosError?: string
   }
   // `erroresLote` solo cuenta lotes enteros que fallaron (timeout, red, HTTP);
   // `enviosNoRegistradosPorFalla` suma además los avisos que Expo procesó
@@ -529,6 +566,10 @@ function toOutcome(r: NotificacionesReply): JobOutcome {
       ...(body.patrocinadoDescartado ? { patrocinadoDescartado: true } : {}),
       ...(truncado ? { tokensTruncados: true } : {}),
       ...(body.patrocinadoSentAtError ? { patrocinadoSentAtError: true } : {}),
+      // 58-e: sin el motivo de la pausa ni ningún id.
+      ...(body.patrocinadoPausado ? { patrocinadoPausado: true } : {}),
+      ...(body.patrocinadoPausaIlegible ? { patrocinadoPausaIlegible: true } : {}),
+      ...(body.destinatariosError ? { destinatariosError: body.destinatariosError } : {}),
     },
   }
 }

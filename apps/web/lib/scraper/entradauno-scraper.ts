@@ -3,6 +3,7 @@ import { saveEventsToSupabase, type SaveResult } from './save-to-supabase';
 import { inferCategorySlug } from './categorize';
 import { filtrarSaltaCapital, loguearDescartes } from './salta-capital';
 import type { Event } from '../types';
+import { textoIndicaGratis } from '@qps/core/events/gratis';
 
 const CARTELERA_JSON_URL = 'https://s3.sa-east-1.amazonaws.com/contenido.general.entradauno/cache/12/cartelera.json';
 
@@ -68,15 +69,6 @@ interface EntradaUnoPayload {
   oData?: {
     oCartelera?: EntradaUnoCartelera;
   };
-}
-
-/**
- * Detecta si el evento es realmente gratis analizando título y descripción
- */
-function isTextFree(title: string, description: string): boolean {
-  const text = `${title} ${description}`.toLowerCase()
-    .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-  return /gratis|gratuito|entrada libre|sin costo|libre y gratuit/.test(text);
 }
 
 /**
@@ -256,7 +248,7 @@ export async function scrapeEntradaUno(): Promise<SaveResult> {
       const image_url = getBestImage(rawEvent);
 
       const price_min = rawEvent.fPrecioDesde ?? 0;
-      const is_free = price_min === 0 && isTextFree(rawEvent.cNombre, description || '');
+      const is_free = price_min === 0 && textoIndicaGratis(rawEvent.cNombre, description);
 
       eventsToSave.push({
         title: rawEvent.cNombre.trim(),

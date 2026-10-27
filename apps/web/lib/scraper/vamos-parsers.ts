@@ -1,4 +1,5 @@
 import { inferCategorySlug } from './categorize';
+import { textoIndicaGratis } from '@qps/core/events/gratis';
 
 export const VAMOS_BASE_URL = 'https://www.vamos.gob.ar';
 const CARTELERA_API = 'https://api-ecommerce-live-salta.entradauno.com/v1/api/v2/Cartelera';
@@ -15,15 +16,6 @@ const API_HEADERS: Record<string, string> = {
   'cdevicefingerprint':     'b27f82310d0afbd238501dd2e5ba489f',
   'xp1_devicefingerprint':  'b27f82310d0afbd238501dd2e5ba489f',
 };
-
-/**
- * Detecta si el evento es realmente gratis analizando título y descripción
- */
-function isTextFree(title: string, description: string): boolean {
-  const text = `${title} ${description}`.toLowerCase()
-    .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-  return /gratis|gratuito|entrada libre|sin costo|libre y gratuit/.test(text);
-}
 
 /**
  * Retorna la mejor imagen disponible para el evento (prioriza resoluciones altas sobre miniaturas)
@@ -232,7 +224,7 @@ export function normalizeVamosEvento(
 
   // ── Precio ──
   const price_min = evento.fPrecioDesde ?? 0;
-  const is_free = price_min === 0 && isTextFree(evento.cNombre, description || '');
+  const is_free = price_min === 0 && textoIndicaGratis(evento.cNombre, description);
 
   // ── Imagen ──
   const image_url = getBestImage(evento);

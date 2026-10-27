@@ -14,6 +14,8 @@ const read = (relPath: string) => readFileSync(join(ROOT, relPath), 'utf8')
 
 const FILES = [
   'app/cines/page.tsx',
+  // Desde Q3 el cuerpo de /cines (y de /en/cines) vive acá.
+  'components/cines/pagina-cines.tsx',
   'components/cines-view.tsx',
   'components/movie-card.tsx',
   'components/movie-modal.tsx',
@@ -96,7 +98,14 @@ describe('Radar y Cines en modo claro: sin colores fijos sin variante dark:', ()
 })
 
 describe('/cines usa la misma nav que el resto del sitio', () => {
-  const content = read('app/cines/page.tsx')
+  // Desde Q3, app/cines/page.tsx y app/en/cines/page.tsx solo ponen la
+  // metadata y renderizan este componente compartido, que monta la nav.
+  const content = read('components/cines/pagina-cines.tsx')
+
+  it('app/cines/page.tsx y app/en/cines/page.tsx renderizan el componente compartido', () => {
+    expect(read('app/cines/page.tsx')).toMatch(/<PaginaCines idioma="es"\s*\/>/)
+    expect(read('app/en/cines/page.tsx')).toMatch(/<PaginaCines idioma="en"\s*\/>/)
+  })
 
   it('importa Navbar desde components/navbar', () => {
     expect(content).toMatch(/import\s*\{\s*Navbar\s*\}\s*from\s*['"]@\/components\/navbar['"]/)

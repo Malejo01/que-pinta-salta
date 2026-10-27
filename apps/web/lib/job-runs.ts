@@ -10,9 +10,10 @@ import { createAdminClient, createClient } from '@/lib/supabase/server'
  * trabajo corre igual.
  */
 
-export type JobKey = 'ticketeras' | 'instagram' | 'cines' | 'cola_ia' | 'radar_newsletter' | 'recurrentes' | 'notificaciones'
+export type JobKey = 'ticketeras' | 'instagram' | 'cines' | 'cola_ia' | 'radar_newsletter' | 'recurrentes' | 'notificaciones' | 'publicidad'
 
 export const JOB_LABELS: Record<JobKey, string> = {
+  publicidad: 'Publicidad (precios, ocupación y reportes)',
   recurrentes: 'Peñas y museos (recurrentes)',
   ticketeras: 'Ticketeras',
   instagram: 'Instagram',

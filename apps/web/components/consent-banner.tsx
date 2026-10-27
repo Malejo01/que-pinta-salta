@@ -6,6 +6,7 @@ import { motion } from 'framer-motion'
 import { Button } from '@/components/ui/button'
 import { CONSENT_EVENT, dispatchConsentEvent, readConsent, writeConsent, type ConsentValue } from '@/lib/consent'
 import { ADS_ENABLED } from '@/lib/config/monetization'
+import { useIdioma, useTextos } from '@/lib/i18n/use-idioma'
 
 /** Durante el render del servidor (y la hidratación) nunca leemos `localStorage`: no existe. */
 type Snapshot = ConsentValue | 'unknown'
@@ -75,6 +76,8 @@ export function ConsentBanner() {
   const consent = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot)
   const bannerRef = useRef<HTMLDivElement>(null)
   const isOpen = consent === null
+  const idioma = useIdioma()
+  const t = useTextos().cookies
 
   useEffect(() => {
     if (!isOpen) return
@@ -118,28 +121,28 @@ export function ConsentBanner() {
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
       role="region"
-      aria-label="Aviso de cookies"
+      aria-label={t.region}
       className="fixed inset-x-0 bottom-[calc(4rem+1px+env(safe-area-inset-bottom))] z-40 mx-3 sm:inset-x-0 sm:bottom-4 sm:mx-auto sm:max-w-xl"
     >
       <div className="flex flex-col gap-2 rounded-2xl border border-border bg-card/95 p-3 shadow-lg backdrop-blur supports-[backdrop-filter]:bg-card/80 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-sm text-muted-foreground">
-          {ADS_ENABLED
-            ? 'Usamos Google Analytics y anuncios de Google. Si aceptás, los anuncios pueden ser personalizados.'
-            : 'Usamos Google Analytics para saber qué se usa del sitio. Solo si aceptás.'}{' '}
+          {ADS_ENABLED ? t.textoConAnuncios : t.textoSinAnuncios}{' '}
+          {/* La Política de Privacidad existe solo en castellano. */}
           <Link
             href="/privacidad"
-            aria-label="Más información sobre cookies en la Política de Privacidad"
+            hrefLang={idioma === 'es' ? undefined : 'es-AR'}
+            aria-label={t.masInfoAria}
             className="text-primary underline underline-offset-4 hover:text-primary/80"
           >
-            Más info
+            {t.masInfo}
           </Link>
         </p>
         <div className="flex shrink-0 gap-2">
           <Button type="button" variant="outline" onClick={reject} className="min-h-11 flex-1 sm:flex-none">
-            Rechazar
+            {t.rechazar}
           </Button>
           <Button type="button" variant="outline" onClick={accept} className="min-h-11 flex-1 sm:flex-none">
-            Aceptar
+            {t.aceptar}
           </Button>
         </div>
       </div>

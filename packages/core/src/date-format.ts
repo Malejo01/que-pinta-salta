@@ -62,28 +62,34 @@ export function saltaWallClockToDate(value: string): Date {
   return new Date(saltaWallClockToUtcISO(value))
 }
 
+// Un solo formateador por formato: armar un `Intl.DateTimeFormat` es caro y
+// estas dos se llaman por cada evento (vigencia, atajos y el mapa).
+const FORMATO_DIA_SALTA = new Intl.DateTimeFormat('en-CA', {
+  timeZone: DEFAULT_TIME_ZONE,
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+})
+
+const FORMATO_HORA_SALTA = new Intl.DateTimeFormat('en-GB', {
+  timeZone: DEFAULT_TIME_ZONE,
+  hour: '2-digit',
+  minute: '2-digit',
+  hourCycle: 'h23',
+})
+
 /**
  * Día calendario en Salta, formato "YYYY-MM-DD".
  * Reemplaza a los `.split('T')[0]` y `.toISOString().split('T')[0]`, que
  * devuelven el día UTC y corren la fecha en eventos de la noche.
  */
 export function formatSaltaDayKey(input: string | Date): string {
-  return new Intl.DateTimeFormat('en-CA', {
-    timeZone: DEFAULT_TIME_ZONE,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).format(toDate(input))
+  return FORMATO_DIA_SALTA.format(toDate(input))
 }
 
 /** Hora de pared en Salta, formato "HH:mm" en 24 horas. */
 export function formatSaltaClock(input: string | Date): string {
-  return new Intl.DateTimeFormat('en-GB', {
-    timeZone: DEFAULT_TIME_ZONE,
-    hour: '2-digit',
-    minute: '2-digit',
-    hourCycle: 'h23',
-  }).format(toDate(input))
+  return FORMATO_HORA_SALTA.format(toDate(input))
 }
 
 /** Partes separadas, para editores con inputs de fecha y hora por separado. */
@@ -118,8 +124,10 @@ export function formatEventTime(input: string | Date) {
   return normalizeLocaleOutput(formatted)
 }
 
-export function formatEventDate(input: string | Date, withYear = false) {
-  const formatted = new Intl.DateTimeFormat('es-AR', {
+// `locale` (último parámetro, opcional) lo agrega la versión en inglés de la
+// web (Q3): sin pasarlo, todo sigue en es-AR como siempre (la app incluida).
+export function formatEventDate(input: string | Date, withYear = false, locale = 'es-AR') {
+  const formatted = new Intl.DateTimeFormat(locale, {
     weekday: 'long',
     day: 'numeric',
     month: 'long',
@@ -130,8 +138,8 @@ export function formatEventDate(input: string | Date, withYear = false) {
   return normalizeLocaleOutput(formatted)
 }
 
-export function formatEventDateShort(input: string | Date) {
-  const formatted = new Intl.DateTimeFormat('es-AR', {
+export function formatEventDateShort(input: string | Date, locale = 'es-AR') {
+  const formatted = new Intl.DateTimeFormat(locale, {
     weekday: 'short',
     day: 'numeric',
     month: 'short',
@@ -142,8 +150,8 @@ export function formatEventDateShort(input: string | Date) {
 }
 
 /** "12 oct": día y mes, sin día de la semana. Para textos que tienen que entrar en un renglón. */
-export function formatEventDayMonth(input: string | Date) {
-  const formatted = new Intl.DateTimeFormat('es-AR', {
+export function formatEventDayMonth(input: string | Date, locale = 'es-AR') {
+  const formatted = new Intl.DateTimeFormat(locale, {
     day: 'numeric',
     month: 'short',
     timeZone: DEFAULT_TIME_ZONE,

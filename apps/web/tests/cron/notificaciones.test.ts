@@ -143,6 +143,11 @@ function fakeClient(tables: Record<string, Row[]>, writes: Writes, queries: Quer
         order: metodo('order'),
         range: metodo('range'),
         is: metodo('is'),
+        // 58-e: ad_settings se lee con `.maybeSingle()` (una fila o null).
+        maybeSingle: () => {
+          const mensaje = errors[table]
+          return Promise.resolve(mensaje ? { data: null, error: { message: mensaje } } : { data: rows[0] ?? null, error: null })
+        },
         delete: () => ({
           in: (_col: string, vals: unknown[]) => {
             writes.deletes[table] = [...(writes.deletes[table] ?? []), ...vals]
@@ -175,7 +180,9 @@ function fakeClient(tables: Record<string, Row[]>, writes: Writes, queries: Quer
         },
         then: (res: (v: unknown) => unknown, rej: (e: unknown) => unknown) => {
           const mensaje = errors[table]
-          const resultado = mensaje ? { data: null, error: { message: mensaje } } : { data: rows, error: null }
+          // 58-e: el `count` de un `select(..., { count: 'exact', head: true })`
+          // es la cantidad de filas de la fixture de esa tabla.
+          const resultado = mensaje ? { data: null, error: { message: mensaje } } : { data: rows, count: rows.length, error: null }
           return Promise.resolve(resultado).then(res, rej)
         },
       }
@@ -231,6 +238,8 @@ function mockDb(tables: Partial<Record<string, Row[]>> = {}, errors: Record<stri
     // de R39/R41 de más abajo (que no saben nada de avisos patrocinados)
     // sigan pasando igual.
     sponsored_campaigns: [],
+    // 58-e: sin fila de ad_settings = sin pausa.
+    ad_settings: [],
     ...tables,
   }
   createAdminClient.mockReturnValue(fakeClient(base, writes, queries, errors))

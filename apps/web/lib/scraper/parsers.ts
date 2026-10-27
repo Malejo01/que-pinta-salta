@@ -2,14 +2,9 @@ import type { Event } from '../types';
 import * as cheerio from 'cheerio';
 import slugify from 'slugify';
 import { inferCategorySlug } from './categorize';
+import { textoIndicaGratis } from '@qps/core/events/gratis';
 
 const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
-
-function isTextFree(title: string, description: string): boolean {
-  const text = `${title} ${description}`.toLowerCase()
-    .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-  return /gratis|gratuito|entrada libre|sin costo|libre y gratuit/.test(text);
-}
 
 /**
  * Parsea todos los eventos de la página de Salta de Norteticket.
@@ -69,7 +64,7 @@ export function parseAllEventsFromHtml(html: string): Partial<Omit<Event, 'venue
       price_min = parseInt(priceMatch[1], 10);
       is_free = price_min === 0;
     } else {
-      is_free = isTextFree(title, precioText);
+      is_free = textoIndicaGratis(title, precioText);
     }
 
     // URL de compra: a.buy-button

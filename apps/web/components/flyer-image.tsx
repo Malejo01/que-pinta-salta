@@ -18,6 +18,10 @@ type FlyerImageProps = Omit<ImageProps, 'src'> & {
  * existe (backfill no corrido todavía, falló al generarla, o es otro tipo de
  * imagen: `.png`/`.webp`/`.gif`, que no tienen variante) cae una sola vez al
  * original, sin loop.
+ *
+ * B3: las pistas de carga (`preload`, `fetchPriority`, `loading`) viajan en
+ * `props` sin tocar, así que también se conservan cuando cae al original: el
+ * <img> mantiene `fetchpriority` y, con `preload`, Next precarga la URL nueva.
  */
 export function FlyerImage({ src, variant, onError, ...props }: FlyerImageProps) {
   const [useOriginal, setUseOriginal] = useState(false)

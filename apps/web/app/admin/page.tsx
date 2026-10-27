@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
-import { Database, Home, SearchCheck, Tags, Sparkles, MapPin, Megaphone } from 'lucide-react'
+import { Database, Home, SearchCheck, Tags, Sparkles, MapPin, Megaphone, BadgeDollarSign } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -41,6 +41,12 @@ const adminSections = [
     title: 'Avisos patrocinados',
     description: 'Cargá, editá y cancelá campañas de avisos push patrocinados.',
     icon: Megaphone,
+  },
+  {
+    href: '/admin/publicidad',
+    title: 'Publicidad',
+    description: 'Aprobá los precios del mes, cargá la audiencia y el dólar a mano, y mirá la ocupación y los reportes.',
+    icon: BadgeDollarSign,
   },
 ]
 

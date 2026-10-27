@@ -83,3 +83,25 @@ describe('atajoDesdeParametro', () => {
     expect(atajoDesdeParametro(['hoy'])).toBeNull()
   })
 })
+
+describe('filtrarCombinado: paraChicos (Q3, C1)', () => {
+  const conPublico: ItemFiltrable[] = [
+    { evento: evento('infantil', 'infantil'), paraAtajo: null },
+    { evento: evento('teatro-familia', 'teatro', { tags: ['Familia'], price: 'gratis' }), paraAtajo: null },
+    { evento: evento('boliche', 'boliches', { tags: ['noche'] }), paraAtajo: null },
+    { evento: evento('sin-tags', 'teatro'), paraAtajo: null },
+  ]
+
+  it('deja solo lo que es para chicos (esParaChicos), en el mismo orden', () => {
+    expect(ids(filtrarCombinado(conPublico, { atajo: null, categoria: null, paraChicos: true }, AHORA))).toEqual(['infantil', 'teatro-familia'])
+  })
+
+  it('se combina con categoría y con gratis', () => {
+    expect(ids(filtrarCombinado(conPublico, { atajo: null, categoria: 'teatro', paraChicos: true }, AHORA))).toEqual(['teatro-familia'])
+    expect(ids(filtrarCombinado(conPublico, { atajo: null, categoria: null, paraChicos: true, soloGratis: true }, AHORA))).toEqual(['teatro-familia'])
+  })
+
+  it('apagado (o ausente) no filtra', () => {
+    expect(ids(filtrarCombinado(conPublico, { atajo: null, categoria: null, paraChicos: false }, AHORA))).toHaveLength(4)
+  })
+})

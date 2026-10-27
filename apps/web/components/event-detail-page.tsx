@@ -184,7 +184,11 @@ export function EventDetailPage({
               alt={displayEvent.title}
               fill
               className="object-cover"
-              priority
+              // B3: el flyer es el LCP de la ficha. `priority` (deprecado en
+              // Next 16) solo dejaba el preload; `preload` + `fetchPriority`
+              // también marca el <img> y el preload con prioridad alta.
+              preload
+              fetchPriority="high"
             />
             <Badge className="absolute left-4 top-4 bg-primary text-primary-foreground">
               {createElement(iconComponent, { className: "mr-1 size-3" })}

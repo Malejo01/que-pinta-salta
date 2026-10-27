@@ -8,6 +8,7 @@ import { EventCard } from "@/components/event-card"
 import { MovieModal } from "@/components/movie-modal"
 import { useDonation } from "@/components/donation-context"
 import type { DisplayEvent } from "@/components/home-content"
+import { cargaPorIndice, type CargaImagen } from "@/lib/images/carga"
 
 // El agrupado ("Plan flexible" + por día) ya lo calcula `armarFavoritos`
 // (packages/core/src/favoritos/armar.ts, compartida con la app): este
@@ -49,6 +50,23 @@ export function unirSinRepetir(a: DisplayEvent[], b: DisplayEvent[]): DisplayEve
   return resultado
 }
 
+/**
+ * B3: cuál es la primera grilla que se pinta (la de arriba de todo, la que
+ * tiene el LCP de la página): "Voy" si hay, si no "Plan flexible", si no el
+ * primer día con eventos. Devuelve `"voy"`, `"flexibles"`, `"dia:<fecha>"` o
+ * `null` si no hay tarjetas. Exportada para el test.
+ */
+export function primeraGrilla(
+  voy: DisplayEvent[],
+  flexibles: DisplayEvent[],
+  porDia: GrupoPorDia[],
+): string | null {
+  if (voy.length > 0) return "voy"
+  if (flexibles.length > 0) return "flexibles"
+  const dia = porDia.find((grupo) => grupo.items.length > 0)
+  return dia ? `dia:${dia.dia}` : null
+}
+
 // Formatea fechas locales como "Viernes 10 de Julio" para los encabezados de la agenda
 function formatHeaderDate(dateStr: string): string {
   try {
@@ -73,6 +91,13 @@ export function FavoritosList({ voy, flexibles, porDia }: FavoritosListProps) {
 
   const hayVoy = voy.length > 0
   const hayGuardados = flexibles.length > 0 || porDia.length > 0
+
+  // B3: solo las dos primeras tarjetas de la primera grilla (una fila en
+  // celular, que tiene 2 columnas) cargan sin lazy, y la primera con
+  // prioridad alta. El resto queda como siempre.
+  const grillaInicial = primeraGrilla(voy, flexibles, porDia)
+  const cargaEn = (grilla: string, indice: number): CargaImagen =>
+    grilla === grillaInicial ? cargaPorIndice(indice) : "diferida"
 
   // El total y la lista plana (para compartir) se derivan del resultado ya
   // armado por `armarFavoritos` + `separarMisEventos`: ni el orden ni el
@@ -210,7 +235,7 @@ export function FavoritosList({ voy, flexibles, porDia }: FavoritosListProps) {
           </div>
 
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
-            {voy.map((event) => (
+            {voy.map((event, index) => (
               <EventCard
                 key={event.id}
                 event={event}
@@ -218,6 +243,7 @@ export function FavoritosList({ voy, flexibles, porDia }: FavoritosListProps) {
                 onOpenMovie={setSelectedMovie}
                 origin="favoritos"
                 className="w-full sm:w-full max-w-[200px] mx-auto"
+                carga={cargaEn("voy", index)}
               />
             ))}
           </div>
@@ -243,7 +269,7 @@ export function FavoritosList({ voy, flexibles, porDia }: FavoritosListProps) {
               </div>
 
               <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
-                {flexibles.map((event) => (
+                {flexibles.map((event, index) => (
                   <EventCard
                     key={event.id}
                     event={event}
@@ -251,6 +277,7 @@ export function FavoritosList({ voy, flexibles, porDia }: FavoritosListProps) {
                     onOpenMovie={setSelectedMovie}
                     origin="favoritos"
                     className="w-full sm:w-full max-w-[200px] mx-auto"
+                    carga={cargaEn("flexibles", index)}
                   />
                 ))}
               </div>
@@ -269,7 +296,7 @@ export function FavoritosList({ voy, flexibles, porDia }: FavoritosListProps) {
                 </div>
 
                 <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
-                  {items.map((event) => (
+                  {items.map((event, index) => (
                     <EventCard
                       key={event.id}
                       event={event}
@@ -277,6 +304,7 @@ export function FavoritosList({ voy, flexibles, porDia }: FavoritosListProps) {
                       onOpenMovie={setSelectedMovie}
                       origin="favoritos"
                       className="w-full sm:w-full max-w-[200px] mx-auto"
+                      carga={cargaEn(`dia:${dia}`, index)}
                     />
                   ))}
                 </div>

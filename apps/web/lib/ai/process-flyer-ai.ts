@@ -6,6 +6,7 @@ import { upsertEventWithDeduplication } from '@/lib/scraper/deduplicate'
 import { saltaWallClockToUtcISO } from '@/lib/date-format'
 import { validatePrice, validateStartTime, validateVenue } from './validate-extraction'
 import type { Tables } from '@qps/db'
+import { textoIndicaGratis } from '@qps/core/events/gratis'
 
 /** Fila mínima de `instagram_flyers` que necesita el pipeline de IA y su fallback. */
 type FlyerRow = Pick<
@@ -210,6 +211,9 @@ export async function processFlyerWithAI(flyerId: string): Promise<FlyerProcessi
     // Controles deterministas sobre la salida del modelo (QPS-062, QPS-065).
     // flyer_text es la transcripción del flyer que devuelve el propio modelo.
     const price = validatePrice(extractedData.price, flyer.caption, flyerText)
+    // Gratis solo con evidencia en el texto: ni el 0 del modelo alcanza solo.
+    // Nunca se infiere de que falte el precio.
+    const isFree = (price === 0 || price === null) && textoIndicaGratis(flyer.caption, flyerText)
     const timeCheck = validateStartTime(extractedData.start_time, flyer.caption, flyerText)
 
     // Resolver Venue. validateVenue solo clasifica (QPS-070): el lugar elegido es
@@ -322,7 +326,7 @@ export async function processFlyerWithAI(flyerId: string): Promise<FlyerProcessi
       recurrence_rule: null,
       price_min: price !== null ? price : 0,
       price_max: null,
-      is_free: price === 0,
+      is_free: isFree,
       ticket_url: flyer.ig_post_url,
       is_commercial: false,
       age_restriction: 0,
@@ -376,7 +380,7 @@ export async function processFlyerWithAI(flyerId: string): Promise<FlyerProcessi
         venue_name: venueName,
         category: categorySlug,
         price_min: price !== null ? price : 0,
-        is_free: price === 0,
+        is_free: isFree,
       })
       .eq('id', flyerId)
 
