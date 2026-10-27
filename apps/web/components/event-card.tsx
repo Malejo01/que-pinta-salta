@@ -13,6 +13,7 @@ import { useIdioma, useTextos } from "@/lib/i18n/use-idioma"
 import { FavoriteButton } from "@/components/favorite-button"
 import { ShareButton } from "@/components/share-button"
 import { FlyerImage } from "@/components/flyer-image"
+import { pistasDeCarga, type CargaImagen } from "@/lib/images/carga"
 import { useDonation } from "@/components/donation-context"
 import type { DisplayEvent } from "@/components/home-content"
 import { eventHref, type MetricOrigin } from "@/lib/metricas/links"
@@ -27,9 +28,15 @@ interface EventCardProps {
   className?: string
   /** Desde dónde se llegó al evento; viaja como `?o=` para medir vistas. */
   origin?: MetricOrigin
+  /**
+   * B3: cómo carga el flyer (ver `lib/images/carga.ts`). Por defecto lazy,
+   * como siempre; /favoritos pide carga ansiosa para las primeras tarjetas de
+   * la primera grilla, que son el LCP de la página.
+   */
+  carga?: CargaImagen
 }
 
-export function EventCard({ event, isFavorite, onToggleFavorite, onOpenMovie, className, origin }: EventCardProps) {
+export function EventCard({ event, isFavorite, onToggleFavorite, onOpenMovie, className, origin, carga = "diferida" }: EventCardProps) {
   const [imgSrc, setImgSrc] = useState<string>(event.image || "/placeholder.jpg")
   const [failedImage, setFailedImage] = useState<string | null>(null)
   const { openDonationModal } = useDonation()
@@ -134,6 +141,7 @@ export function EventCard({ event, isFavorite, onToggleFavorite, onOpenMovie, cl
             lang={idioma === "es" ? undefined : "es"}
             fill
             className="object-cover transition-transform duration-300 group-hover/card:scale-105"
+            {...pistasDeCarga(carga)}
             onError={() => {
               if (event.isInstagramFlyer || event.isCinemaMovie) {
                 setImgSrc("/placeholder.jpg")

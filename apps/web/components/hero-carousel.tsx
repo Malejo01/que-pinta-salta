@@ -22,9 +22,9 @@ interface HeroCarouselProps {
 export function HeroCarousel({ events }: HeroCarouselProps) {
   const [currentIndex, setCurrentIndex] = useState(0)
   const [direction, setDirection] = useState(1) // 1 = next, -1 = prev
-  // Solo la diapositiva con la que arranca el carrusel es candidata a `priority`
-  // (es la que cuenta para el LCP). Una vez que el usuario o el timer avanzan,
-  // deja de aplicar aunque el índice vuelva a 0 en una vuelta completa.
+  // Solo la diapositiva con la que arranca el carrusel lleva las pistas de
+  // carga (es la que cuenta para el LCP). Una vez que el usuario o el timer
+  // avanzan, dejan de aplicar aunque el índice vuelva a 0 en una vuelta completa.
   const [isInitialSlide, setIsInitialSlide] = useState(true)
   const idioma = useIdioma()
   const t = useTextos().portada
@@ -91,6 +91,15 @@ export function HeroCarousel({ events }: HeroCarouselProps) {
           className="absolute inset-0"
         >
           {/* Blurred backdrop with Ken Burns zoom */}
+          {/*
+            B3: Lighthouse toma esta copia desenfocada como elemento LCP (ocupa
+            todo el hero). En la diapositiva inicial va ansiosa y con
+            fetchPriority alta: es la misma URL (variante 800) que el póster
+            nítido precarga abajo, así que no suma una descarga. Las siguientes
+            siguen lazy. El zoom arranca en scale 1.12 sin tocar la opacidad
+            (el `opacity-45` es CSS fijo y el AnimatePresence tiene
+            `initial={false}`), así que la imagen se pinta desde el primer frame.
+          */}
           <div className="absolute inset-0 overflow-hidden select-none pointer-events-none opacity-45">
             <motion.div
               key={`bg-${currentIndex}`}
@@ -106,7 +115,9 @@ export function HeroCarousel({ events }: HeroCarouselProps) {
                 fill
                 sizes="100vw"
                 className="object-cover blur-2xl"
-                loading="lazy"
+                {...(isInitialSlide
+                  ? { loading: "eager" as const, fetchPriority: "high" as const }
+                  : { loading: "lazy" as const })}
               />
             </motion.div>
           </div>
@@ -121,7 +132,12 @@ export function HeroCarousel({ events }: HeroCarouselProps) {
               fill
               sizes="(max-width: 640px) 100vw, (max-width: 1024px) 80vw, 1200px"
               className="object-contain"
-              {...(isInitialSlide ? { priority: true } : { loading: "lazy" as const })}
+              // B3: `priority` está deprecado en Next 16 y solo genera el
+              // `<link rel="preload">`, sin `fetchpriority`. `preload` hace lo
+              // mismo y `fetchPriority="high"` llega al <img> y al preload.
+              {...(isInitialSlide
+                ? { preload: true, fetchPriority: "high" as const }
+                : { loading: "lazy" as const })}
             />
           </div>
 
