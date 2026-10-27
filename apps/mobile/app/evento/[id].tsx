@@ -26,13 +26,17 @@
 // defecto de `fuentesDeImagen`) porque `lib/imagenes/url-segura.ts` y
 // `components/Afiche.tsx` no estaban en sus archivos permitidos.
 //
-// A4 (nube Q1): "Ver en el mapa", entre "Cómo llegar" y "Comprar tickets"
-// (el mismo lugar y el mismo estilo outline que `VerEnElMapa` en la ficha de
-// la web, `event-detail-page.tsx`). La app no tiene mapa: abre `/mapa` de la
-// web en el navegador, solo con `urlMapaDelEvento` (`lib/links.ts`), que da
-// `null` si el lugar no tendría pin (sin coordenadas, inválidas o fuera de
-// Salta: `aCoordenada` + `coordenadasEnSalta`, la regla de la web) — y sin
-// link, no hay botón. Los App Links de la app (`app.config.ts`) solo
+// A4 (nube Q1): "Ver en el mapa de eventos", después de "Cómo llegar" y de
+// "Comprar tickets", con el estilo outline de `VerEnElMapa` de la web
+// (`event-detail-page.tsx`). Diferencia deliberada con la web, que lo pone
+// entre los dos: acá va tercero para que la compra no baje y para que las
+// dos acciones de mapa no queden pegadas; y el texto dice "de eventos" para
+// no confundirlo con "Cómo llegar", que abre Google Maps. La app no tiene
+// mapa: abre `/mapa` de la web en el navegador, solo con `urlMapaDelEvento`
+// (`lib/links.ts`), que da `null` si el link no serviría (lugar sin pin —
+// sin coordenadas, inválidas o fuera de Salta: `aCoordenada` +
+// `coordenadasEnSalta`, la regla de la web —, evento terminado o día fuera
+// de la ventana de `/mapa`) — y sin link, no hay botón. Los App Links de la app (`app.config.ts`) solo
 // declaran `pathPrefix: '/evento/'`, así que `/mapa` no vuelve a la app. No
 // se cuenta el clic, igual que "Cómo llegar": la app solo mide la vista de
 // la ficha (`useVistaEvento`) y la compra pasa por `/go/<id>`.
@@ -208,8 +212,8 @@ export default function EventoPorId() {
   const tieneTicket = Boolean(evento.ticket_url?.trim())
   const urlCompra = urlGo(evento.id, 'app')
   const urlLlegar = urlComoLlegar({ address: evento.venue?.address, venue: evento.venue?.name })
-  // A4 (nube Q1): `null` sin lugar con pin en el mapa de la web — el botón
-  // "Ver en el mapa" (abajo) solo se dibuja con este link.
+  // A4 (nube Q1): `null` si el link no serviría (ver `urlMapaDelEvento`) —
+  // el botón "Ver en el mapa de eventos" (abajo) solo se dibuja con este link.
   const urlMapa = urlMapaDelEvento(evento)
 
   function comprar() {
@@ -320,6 +324,13 @@ export default function EventoPorId() {
           </Pressable>
         ) : null}
 
+        {tieneTicket && urlCompra ? (
+          <Pressable onPress={comprar} accessibilityRole="link" style={[estilos.ctaOutline, { borderColor: colores.border }]}>
+            <Icono nombre="ExternalLink" tamanio={18} color={colores.foreground} />
+            <Texto peso="semibold">Comprar tickets</Texto>
+          </Pressable>
+        ) : null}
+
         {urlMapa ? (
           <Pressable
             onPress={verEnElMapa}
@@ -327,14 +338,9 @@ export default function EventoPorId() {
             style={[estilos.ctaOutline, estilos.ctaMapa, { borderColor: colores.border }]}
           >
             <Icono nombre="MapPin" tamanio={18} color={colores.foreground} />
-            <Texto peso="semibold">Ver en el mapa</Texto>
-          </Pressable>
-        ) : null}
-
-        {tieneTicket && urlCompra ? (
-          <Pressable onPress={comprar} accessibilityRole="link" style={[estilos.ctaOutline, { borderColor: colores.border }]}>
-            <Icono nombre="ExternalLink" tamanio={18} color={colores.foreground} />
-            <Texto peso="semibold">Comprar tickets</Texto>
+            <Texto peso="semibold" style={estilos.textoCtaMapa}>
+              Ver en el mapa de eventos
+            </Texto>
           </Pressable>
         ) : null}
 
@@ -377,4 +383,7 @@ const estilos = StyleSheet.create({
   // A4 (nube Q1): "Ver en el mapa" lleva el piso de 48 dp explícito (con el
   // padding de `ctaOutline` ya llega, pero así no depende del alto del texto).
   ctaMapa: { minHeight: AREA_TACTIL_MINIMA },
+  // Con fuente grande, el texto salta de línea (centrado) en vez de pasarse
+  // del borde del botón.
+  textoCtaMapa: { flexShrink: 1, textAlign: 'center' },
 })

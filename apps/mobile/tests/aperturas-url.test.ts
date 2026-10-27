@@ -276,15 +276,20 @@ describe('urlSitio: solo abre rutas propias conocidas', () => {
 describe('urlMapaDelEvento: solo abre /mapa con un lugar que tendría pin', () => {
   const venueId = '0b9d4f5a-6a2b-4c1e-8f3d-9a7b6c5d4e3f'
 
+  // `ahora` fijo (correcciones de A4: el link depende de la vigencia y de la
+  // ventana de días de `/mapa`).
+  const ahora = new Date('2026-10-27T13:00:00Z') // 10:00 de Salta
+  const startDate = '2026-11-08T00:00:00Z' // 7/11, 21:00 de Salta
+
   it('lugar con coordenadas en Salta: la URL absoluta de /mapa con SITIO', () => {
-    expect(urlMapaDelEvento({ venue: { id: venueId, latitude: -24.78, longitude: -65.41 } })).toBe(
-      `https://www.quepintasalta.com.ar/mapa?lugar=${venueId}`,
-    )
+    expect(
+      urlMapaDelEvento({ start_date: startDate, venue: { id: venueId, latitude: -24.78, longitude: -65.41 } }, ahora),
+    ).toBe(`https://www.quepintasalta.com.ar/mapa?cuando=fecha&dia=2026-11-07&lugar=${venueId}`)
   })
 
   it('sin coordenadas o sin lugar: null', () => {
-    expect(urlMapaDelEvento({ venue: { id: venueId, latitude: null, longitude: null } })).toBeNull()
-    expect(urlMapaDelEvento({ venue: null })).toBeNull()
+    expect(urlMapaDelEvento({ start_date: startDate, venue: { id: venueId, latitude: null, longitude: null } }, ahora)).toBeNull()
+    expect(urlMapaDelEvento({ start_date: startDate, venue: null }, ahora)).toBeNull()
   })
 })
 
