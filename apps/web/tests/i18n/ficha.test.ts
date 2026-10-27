@@ -76,7 +76,7 @@ describe('el inglés', () => {
   it('Voy con el mismo umbral que el castellano', () => {
     for (const n of [0, 2, 3, 12]) {
       const conNumero = textoBotonVoy(n) !== 'Voy'
-      expect(en.asistencia.botonVoy(n)).toBe(conNumero ? `I'm going · ${n} going` : "I'm going")
+      expect(en.asistencia.botonVoy(n)).toBe(conNumero ? `I'm going · ${n}` : "I'm going")
     }
   })
 
@@ -143,7 +143,7 @@ describe.each(CON_BLOQUE_DE_ADMIN)('%s: lo que ve el público sale del diccionar
   })
 
   it('el aviso de contenido en castellano va solo fuera del castellano', () => {
-    expect(fuente).toContain('{idioma !== "es" && <AvisoContenidoEs')
+    expect(fuente).toMatch(/\{idioma !== "es" && (\(\s*(\/\/[^\n]*\s*)?<DialogDescription asChild[^>]*>\s*)?<AvisoContenidoEs/)
   })
 })
 
@@ -163,12 +163,35 @@ describe('las vistas sin hooks, en inglés por prop', () => {
   it('FilaAccionesEventoVista: Save, I’m going y la invitación a entrar', () => {
     const html = renderToStaticMarkup(React.createElement(FilaAccionesEventoVista, { ...baseFila, idioma: 'en' }))
     expect(html).toContain('>Save<')
-    expect(html).toContain("I&#x27;m going · 12 going")
+    expect(html).toContain("I&#x27;m going · 12<")
     expect(html).toContain('aria-label="Save Peña de Prueba"')
-    expect(html).toContain('aria-label="Mark that you are going to Peña de Prueba"')
-    expect(html).toContain(en.asistencia.entrarParaMarcar)
+    expect(html).toContain('aria-label="I&#x27;m going to Peña de Prueba"')
+    expect(html).toContain('Sign in to say you&#x27;re going.')
     expect(html).not.toContain('Guardar')
     expect(html).not.toContain('Voy')
+  })
+
+  it('WCAG 2.5.3: en inglés el nombre accesible de cada botón contiene su texto visible', () => {
+    const casos = [
+      { guardado: false, voy: false, cantidadVoy: 0 },
+      { guardado: true, voy: true, cantidadVoy: 12 },
+    ]
+    for (const estado of casos) {
+      const html = renderToStaticMarkup(
+        React.createElement(FilaAccionesEventoVista, { ...baseFila, ...estado, haySesion: true, idioma: 'en' }),
+      )
+      const botones = [...html.matchAll(/<button[^>]*aria-label="([^"]*)"[^>]*>([\s\S]*?)<\/button>/g)]
+      expect(botones).toHaveLength(2)
+      for (const [, nombre, contenido] of botones) {
+        // El texto visible sin el ícono (svg) ni el contador (" · 12", que es un dato, no la etiqueta).
+        const visible = contenido.replace(/<svg[\s\S]*?<\/svg>/g, '').replace(/ · \d+$/, '').trim()
+        expect(visible.length).toBeGreaterThan(0)
+        expect(nombre).toContain(visible)
+      }
+    }
+    expect(en.asistencia.ariaQuitarGuardado('X')).toBe('Saved: X')
+    expect(en.asistencia.ariaVoy('X')).toBe("I'm going to X")
+    expect(en.asistencia.ariaNoVoy('X')).toBe("I'm going to X")
   })
 
   it('FilaAccionesEventoVista: sin idioma, el castellano de siempre', () => {
@@ -196,11 +219,11 @@ describe('las vistas sin hooks, en inglés por prop', () => {
     expect(vista({})).toContain('>+ Seguir<')
   })
 
-  it('VerEnElMapa: "View on the map", con hrefLang porque /mapa existe solo en castellano', () => {
+  it('VerEnElMapa: "View on map", con hrefLang porque /mapa existe solo en castellano', () => {
     const venue = { id: 'v1', latitude: -24.78, longitude: -65.41 } as unknown as Venue
     const startDate = saltaWallClockToDate('2026-03-10T20:00:00')
     const html = renderToStaticMarkup(React.createElement(VerEnElMapa, { venue, startDate, idioma: 'en' }))
-    expect(html).toContain('View on the map')
+    expect(html).toContain('>View on map<')
     expect(html).toContain('hrefLang="es-AR"')
     expect(html).toContain('href="/mapa?cuando=fecha&amp;dia=2026-03-10&amp;lugar=v1"')
     const htmlEs = renderToStaticMarkup(React.createElement(VerEnElMapa, { venue, startDate }))

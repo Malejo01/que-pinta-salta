@@ -5,6 +5,13 @@
 // destino. Mismo armado que evento-merged-308.test.ts: `permanentRedirect`
 // es el REAL de next/navigation (308 de verdad), solo `notFound` se mockea.
 // Sin red ni base.
+//
+// ALARMA DE UPGRADE: `app/en/evento/[id]/page.tsx` traduce el 308 con helpers
+// INTERNOS de Next (`next/dist/client/components/redirect` y
+// `.../redirect-error`), que no son API pública. Si un upgrade los mueve o
+// cambia el formato del error de redirección, este archivo se pone en rojo
+// (falla el import, o el 308 deja de ir a /en/evento/<otro>?o=…): no lo
+// relajes, arreglá la página.
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { getRedirectStatusCodeFromError, getURLFromRedirectError } from 'next/dist/client/components/redirect'
 import { isRedirectError } from 'next/dist/client/components/redirect-error'

@@ -201,6 +201,7 @@ export function EventDetailPage({
               variant={800}
               src={displayEvent.image}
               alt={displayEvent.title}
+              lang={langContenido}
               fill
               className="object-cover"
               priority

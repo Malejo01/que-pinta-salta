@@ -230,18 +230,6 @@ describe('ficha en inglés', () => {
     }
   })
 
-  it('un 308 que salga de la decisión conserva el /en del pedido', async () => {
-    // Hoy ninguna decisión de /evento redirige (la del fusionado la hace la
-    // página): se prueba con un doble de la decisión de flyer, la única que
-    // devuelve un 308, marcada en inglés a mano.
-    db.flyers = [{ id: FLYER, status: 'ARCHIVED', ai_metadata: { event_id: EVENT } }]
-    db.events = [{ id: EVENT, status: 'PUBLISHED', ai_metadata: null }]
-    expect(await decideGone(fakeClient(), { kind: 'flyer', id: FLYER, idioma: 'en' }, false)).toEqual({
-      kind: 'redirect',
-      location: `/en/evento/${EVENT}`,
-    })
-  })
-
   it('middleware: 410 con noindex para /en/evento/<borrado>, y conserva las cookies de sesión', async () => {
     const res = await middleware(req(`/en/evento/${EVENT}`))
     expect(res.status).toBe(410)

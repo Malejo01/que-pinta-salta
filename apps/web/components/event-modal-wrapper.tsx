@@ -7,6 +7,7 @@ import { Event, Category, Venue } from "@/lib/types"
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
@@ -194,13 +195,23 @@ export function EventModalWrapper({
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-h-[90vh] max-w-lg overflow-y-auto p-0">
+      {/*
+        En inglés, la descripción del diálogo es el aviso de contenido en
+        castellano (se anuncia junto con el título). En castellano no hay
+        descripción: `aria-describedby={undefined}` (lo que pide Radix) para
+        no dejar una referencia rota a un id que no existe.
+      */}
+      <DialogContent
+        className="max-h-[90vh] max-w-lg overflow-y-auto p-0"
+        {...(idioma === "es" ? { "aria-describedby": undefined } : {})}
+      >
         <ViewBeacon eventId={event.id} origin={origin} />
         <div className="relative aspect-[3/2] w-full">
           <FlyerImage
             variant={800}
             src={displayEvent.image}
             alt={displayEvent.title}
+            lang={langContenido}
             fill
             className="object-cover"
           />
@@ -223,7 +234,12 @@ export function EventModalWrapper({
         </div>
 
         <div className="p-6">
-          {idioma !== "es" && <AvisoContenidoEs className="mb-3" />}
+          {idioma !== "es" && (
+            // `text-xs`: que el `text-sm` de DialogDescription no le cambie el tamaño al aviso.
+            <DialogDescription asChild className="text-xs">
+              <AvisoContenidoEs className="mb-3" />
+            </DialogDescription>
+          )}
           {/*
             Ancla del bloque del título (QPS-199): antes el ♥ y Compartir
             vivían pegados al <DialogTitle>. El detector estático de

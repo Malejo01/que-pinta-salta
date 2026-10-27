@@ -202,6 +202,46 @@ export const es = {
     cuenta: textoSeguirCuenta,
     error: 'No pudimos guardar el seguimiento. Probá de nuevo.',
   },
+  // Modal de ingreso y alta (auth-modal.tsx): lo abren ♥ Guardar, ✓ Voy y
+  // + Seguir sin sesión.
+  auth: {
+    tituloIngresar: 'Iniciar Sesión',
+    tituloCrear: 'Crear Cuenta',
+    descripcionIngresar: 'Guardá tus eventos favoritos para tenerlos siempre a mano.',
+    descripcionCrear: 'Sumate para guardar favoritos y personalizar tu agenda.',
+    email: 'Email',
+    emailPlaceholder: 'tu@email.com',
+    contrasena: 'Contraseña',
+    mostrarContrasena: 'Mostrar contraseña',
+    olvidasteContrasena: '¿Olvidaste tu contraseña?',
+    iniciandoSesion: 'Iniciando sesión...',
+    creandoCuenta: 'Creando cuenta...',
+    botonIngresar: 'Iniciar Sesión',
+    botonRegistrarse: 'Registrarse',
+    oContinuarCon: 'O continuar con',
+    // "Al continuar con Google aceptás los {Términos y condiciones} y la {Política de Privacidad}."
+    aceptasConGoogle: 'Al continuar con Google aceptás los',
+    aceptasAlCrear: 'Al crear tu cuenta aceptás los',
+    terminos: 'Términos y condiciones',
+    yLa: 'y la',
+    privacidad: 'Política de Privacidad',
+    cierreLegales: '.',
+    noTenesCuenta: '¿No tenés cuenta?',
+    registrate: 'Registrate',
+    yaTenesCuenta: '¿Ya tenés cuenta?',
+    iniciaSesion: 'Iniciá Sesión',
+    errorGoogle: 'Ocurrió un error al iniciar sesión con Google. Probá de nuevo.',
+    bienvenidoDeNuevo: '¡Bienvenido de nuevo!',
+    sesionIniciada: 'Sesión iniciada correctamente.',
+    bienvenido: '¡Bienvenido!',
+    revisaTuEmail: 'Revisá tu email',
+    /**
+     * Los mensajes de `@qps/core/auth/mensajes` y de `validarContrasenaNueva`
+     * (que ya eligen qué decir sin delatar si un email tiene cuenta). En
+     * castellano van tal cual; en inglés, su traducción si la hay.
+     */
+    mensaje: (mensaje: string) => `${mensaje}`,
+  },
   // Botón de compartir (share-button.tsx)
   compartir: {
     compartirEvento: 'Compartir evento',

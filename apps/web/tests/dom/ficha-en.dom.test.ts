@@ -11,7 +11,7 @@
 // Lo que no hace al idioma (navbar, banner, beacon, imagen, server actions)
 // se reemplaza por dobles sin red.
 import * as React from 'react'
-import { describe, expect, it, vi, afterEach } from 'vitest'
+import { describe, expect, it, vi, afterAll, afterEach } from 'vitest'
 import { render, cleanup, screen } from '@testing-library/react'
 
 import { EventDetailPage } from '@/components/event-detail-page'
@@ -40,7 +40,7 @@ vi.mock('@/components/mobile-nav', () => ({ MobileNav: () => null }))
 vi.mock('@/components/adsense-banner', () => ({ AdSenseBanner: () => null }))
 vi.mock('@/components/view-beacon', () => ({ ViewBeacon: () => null }))
 vi.mock('@/components/flyer-image', () => ({
-  FlyerImage: ({ alt }: { alt: string }) => React.createElement('img', { alt }),
+  FlyerImage: ({ alt, lang }: { alt: string; lang?: string }) => React.createElement('img', { alt, lang }),
 }))
 vi.mock('@/components/admin/control-destacado', () => ({ ControlDestacado: () => null }))
 vi.mock('@/lib/admin-actions', () => ({ createCategory: vi.fn(), updateEventCategory: vi.fn() }))
@@ -50,8 +50,21 @@ vi.mock('@/lib/actions/radar', () => ({ cambiarSeguimiento: vi.fn() }))
 vi.mock('@/components/auth-modal', () => ({ useAuthModal: () => ({ open: vi.fn(), close: vi.fn() }) }))
 vi.mock('@/hooks/use-toast', () => ({ useToast: () => ({ toast: vi.fn() }) }))
 
+const advertencias: string[] = []
+const consolaWarn = console.warn
+console.warn = (...args: unknown[]) => {
+  advertencias.push(args.map(String).join(' '))
+}
+/** Lo que Radix avisa por consola si el diálogo no tiene descripción ni `aria-describedby={undefined}`. */
+const advertenciasDeRadix = () => advertencias.filter((a) => a.includes('Description') || a.includes('aria-describedby'))
+
 afterEach(() => {
   cleanup()
+  advertencias.length = 0
+})
+
+afterAll(() => {
+  console.warn = consolaWarn
 })
 
 const ID = '12345678-1234-4234-8234-123456789012'
@@ -137,7 +150,8 @@ describe('la ficha en inglés (/en/evento/<id>)', () => {
     expect(texto).toContain(en.ficha.etiquetasVibe.adultos)
     expect(texto).toContain('Folk music (peñas)')
     expect(texto).toContain(en.asistencia.guardar)
-    expect(texto).toContain("I'm going · 12 going")
+    expect(texto).toContain("I'm going · 12")
+    expect(texto).not.toContain('12 going')
     expect(texto).toContain(en.asistencia.entrarParaMarcar)
     expect(texto).toContain('+ Follow')
 
@@ -158,6 +172,8 @@ describe('la ficha en inglés (/en/evento/<id>)', () => {
   it('el contenido del evento lleva lang="es"; la interfaz no', () => {
     montarFicha(`/en/evento/${ID}`)
     expect(langDe(screen.getByRole('heading', { level: 1 }))).toBe('es')
+    // WCAG 3.1.2: el alt de la imagen es el título del evento.
+    expect(screen.getByRole('img', { name: 'Peña de Prueba' }).getAttribute('lang')).toBe('es')
     expect(langDe(porTexto('Una descripción inventada, en castellano.'))).toBe('es')
     expect(langDe(screen.getByText('Lugar de Prueba', { selector: 'p' }))).toBe('es')
     expect(langDe(porTexto('Calle Inventada 123'))).toBe('es')
@@ -216,6 +232,7 @@ describe('la ficha en castellano (/evento/<id>) no cambió', () => {
     }
     expect(texto).not.toContain(es.comun.avisoContenidoEs)
     expect(container.querySelector('[lang]')).toBeNull()
+    expect(screen.getByRole('img', { name: 'Peña de Prueba' }).hasAttribute('lang')).toBe(false)
     expect(screen.getByText('Volver a eventos').closest('a')?.getAttribute('href')).toBe('/')
     expect(screen.getByText('Ver en el mapa').closest('a')?.hasAttribute('hreflang')).toBe(false)
   })
@@ -233,6 +250,13 @@ describe('el modal interceptado', () => {
     expect(texto).toContain(en.comun.avisoContenidoEs)
     expect(texto).not.toContain('Comprar tickets')
     expect(langDe(screen.getByRole('heading', { name: 'Peña de Prueba' }))).toBe('es')
+    expect(screen.getByRole('img', { name: 'Peña de Prueba' }).getAttribute('lang')).toBe('es')
+    // El aviso es la descripción del diálogo: se anuncia junto con el nombre.
+    const describedby = dialogo.getAttribute('aria-describedby')
+    expect(describedby).toBeTruthy()
+    expect(document.getElementById(describedby!)?.textContent).toBe(en.comun.avisoContenidoEs)
+    expect(screen.getByRole('dialog', { description: en.comun.avisoContenidoEs })).toBe(dialogo)
+    expect(advertenciasDeRadix()).toEqual([])
   })
 
   it('en castellano (/evento/<id>): igual que siempre', () => {
@@ -246,5 +270,8 @@ describe('el modal interceptado', () => {
     expect(texto).toContain('Voy · 12 van')
     expect(texto).not.toContain(es.comun.avisoContenidoEs)
     expect(dialogo.querySelector('[lang]')).toBeNull()
+    // Sin descripción, y sin una referencia rota a un id que no existe.
+    expect(dialogo.hasAttribute('aria-describedby')).toBe(false)
+    expect(advertenciasDeRadix()).toEqual([])
   })
 })

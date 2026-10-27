@@ -75,13 +75,15 @@ export function EventModal({ event, open, onClose, origin = "directo", isFavorit
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-h-[90vh] max-w-lg overflow-y-auto p-0">
+      {/* Sin descripción: `aria-describedby={undefined}` (lo que pide Radix) para no dejar una referencia rota. */}
+      <DialogContent className="max-h-[90vh] max-w-lg overflow-y-auto p-0" aria-describedby={undefined}>
         <ViewBeacon eventId={event.id} origin={origin} />
         <div className="relative aspect-[3/2] w-full">
           <FlyerImage
             variant={800}
             src={event.image}
             alt={event.title}
+            lang={langContenido}
             fill
             className="object-cover"
           />

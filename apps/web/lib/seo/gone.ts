@@ -15,14 +15,15 @@
  *   /evento/<uuid>  inexistente (borrado)       → 410
  *                   CANCELLED, sin sesión       → 410 (con sesión sigue: el admin lo ve)
  *                   fusionado, publicado, DRAFT → sigue (la página hace su 308 o su 404)
- *   /en/evento/<uuid>                           → lo mismo que /evento/<uuid> (Q3); si
- *                                                 alguna vez hay un 308, conserva el /en.
+ *   /en/evento/<uuid>                           → lo mismo que /evento/<uuid> (Q3): 410 o
+ *                                                 sigue (el 308 del fusionado lo hace
+ *                                                 app/en/evento/[id]/page.tsx, a /en/evento).
  *                                                 /flyer existe solo en castellano.
  *
  * Cualquier error de la consulta → sigue: falla hacia el comportamiento de antes.
  */
 import { findMergeRedirect, mergedIntoId } from '@/lib/events/merged'
-import { rutaEn, separarIdioma } from '@/lib/i18n/rutas'
+import { separarIdioma } from '@/lib/i18n/rutas'
 
 /* eslint-disable-next-line @typescript-eslint/no-explicit-any -- cliente de supabase-js o un doble de test */
 type SupabaseLike = any
@@ -87,18 +88,11 @@ export async function decideEvento(client: SupabaseLike, id: string, hasSession:
 }
 
 export async function decideGone(client: SupabaseLike, target: GoneTarget, hasSession: boolean): Promise<GoneDecision> {
-  let decision: GoneDecision
   try {
-    decision =
-      target.kind === 'flyer' ? await decideFlyer(client, target.id) : await decideEvento(client, target.id, hasSession)
+    return target.kind === 'flyer' ? await decideFlyer(client, target.id) : await decideEvento(client, target.id, hasSession)
   } catch {
     return PASS
   }
-  // Desde la ficha en inglés, un 308 lleva a la ficha en inglés.
-  if (decision.kind === 'redirect' && target.idioma) {
-    return { kind: 'redirect', location: rutaEn(target.idioma, decision.location) }
-  }
-  return decision
 }
 
 /**

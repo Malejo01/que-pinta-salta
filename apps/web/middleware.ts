@@ -5,7 +5,7 @@ import { decideGone, GONE_HTML, parseGonePath, type GoneDecision } from '@/lib/s
 
 /**
  * 308 / 410 de /flyer/<uuid>, /evento/<uuid> y /en/evento/<uuid> que ya no
- * existen (lib/seo/gone.ts; el 308 desde /en conserva el /en).
+ * existen (lib/seo/gone.ts).
  * Una página no puede responder 410, por eso va acá. Corre en paralelo con
  * updateSession (que ya consulta Supabase en cada pedido), así que no suma una
  * vuelta más a la latencia.
