@@ -11,7 +11,17 @@
  * concatena, así que no necesita el polyfill de `URL`; importa `SITIO` de
  * `@qps/core/metricas/links` (la misma constante que usan `urlGo` y
  * `urlComoLlegar`) para no escribir el dominio a mano.
+ *
+ * `urlMapaLugar`/`urlMapaDelEvento`/`tienePinEnElMapa` (A4, nube Q1: "Ver en
+ * el mapa" en la ficha) tampoco parsean con `URL`: validan con `esUuid` y
+ * una regex de día, y concatenan. La regla de "tiene pin" NO se reescribe
+ * acá: es `aCoordenada` (`@qps/core/mapa/pines`) + `coordenadasEnSalta`
+ * (`@qps/core/mapa/zona`), las dos exportadas, las mismas que usan
+ * `armarPinesDelMapa` y `VerEnElMapa` de la web.
  */
+import { formatSaltaDayKey } from '@qps/core/date-format'
+import { aCoordenada } from '@qps/core/mapa/pines'
+import { coordenadasEnSalta } from '@qps/core/mapa/zona'
 import { SITIO } from '@qps/core/metricas/links'
 import { RUTA_TERMINOS, TERMINOS_PUBLICADOS } from './legales'
 
@@ -78,4 +88,99 @@ const RUTAS_SITIO_PERMITIDAS = ['/auth/recuperar', '/privacidad', RUTA_TERMINOS]
 export function urlSitio(ruta: string): string | null {
   if (ruta === RUTA_TERMINOS && !TERMINOS_PUBLICADOS) return null
   return (RUTAS_SITIO_PERMITIDAS as readonly string[]).includes(ruta) ? `${SITIO}${ruta}` : null
+}
+
+// ---------------------------------------------------------------------------
+// "Ver en el mapa" (A4, nube Q1). La app no tiene mapa propio: el botón de la
+// ficha abre `/mapa` de la web en el navegador, con el lugar ya elegido. La
+// web (`apps/web/app/mapa/page.tsx`) solo preselecciona el lugar si `?lugar=`
+// es un uuid Y hay un pin de ese lugar en el filtro que abre; los pines salen
+// de `armarPinesDelMapa` (`@qps/core/mapa/pines`), que deja afuera un lugar
+// sin coordenadas o con coordenadas fuera de `coordenadasEnSalta`. Por eso el
+// botón solo aparece cuando el lugar tendría pin (`tienePinEnElMapa`), y el
+// link lleva también el día del evento (ver `urlMapaLugar`).
+// ---------------------------------------------------------------------------
+
+/** Lo mínimo de un lugar para decidir si tiene pin y armar el link (lo cumple `Venue`, sin cast). */
+export interface LugarParaMapa {
+  id: string
+  /** `unknown`: PostgREST puede mandar un `numeric` como texto (ver `aCoordenada` en `@qps/core/mapa/pines`). */
+  latitude: unknown
+  longitude: unknown
+}
+
+/**
+ * `true` si el lugar tendría pin en `/mapa` de la web: la misma regla que
+ * `armarPinesDelMapa` y `VerEnElMapa` (web) — `aCoordenada` sobre latitud y
+ * longitud (número finito o string numérico; `''`, `null`, `NaN` o cualquier
+ * otra cosa dan `null`) y después `coordenadasEnSalta`. Sin lugar, `false`.
+ * Que caiga en el filtro del día no se puede saber desde acá (la ficha no
+ * tiene los demás eventos): eso lo resuelve la web, que si no hay pin abre
+ * el mapa sin lugar elegido, nunca una página rota.
+ */
+export function tienePinEnElMapa(venue: Pick<LugarParaMapa, 'latitude' | 'longitude'> | null | undefined): boolean {
+  if (!venue) return false
+  return coordenadasEnSalta(aCoordenada(venue.latitude), aCoordenada(venue.longitude))
+}
+
+const DIA_RE = /^\d{4}-\d{2}-\d{2}$/
+
+/**
+ * Link absoluto a `/mapa` de la web con `venueId` elegido:
+ * `${SITIO}/mapa?lugar=<uuid>`, con el uuid en minúsculas (la web compara
+ * `pin.venueId === lugar` tal cual, y los ids de Postgres van en
+ * minúsculas). `null` si `venueId` no es un uuid: así nada que no sea un id
+ * (`x&y=z`, `../`, una URL entera) llega a la query string.
+ *
+ * Con `dia` (`AAAA-MM-DD`), el link es
+ * `${SITIO}/mapa?cuando=fecha&dia=<dia>&lugar=<uuid>`: el mismo orden y los
+ * mismos parámetros que arma `VerEnElMapa` de la web
+ * (`apps/web/components/ver-en-el-mapa.tsx`). Sin el día, `/mapa` abre en
+ * "hoy" y, para un evento de otro día, el lugar no tiene pin en ese filtro y
+ * la web no lo elige. Un `dia` con otra forma se ignora (queda solo
+ * `?lugar=`); que esté dentro de los 60 días que acepta la web lo decide
+ * `parsearFiltroMapa` del lado de la web (si no, cae en "hoy").
+ *
+ * No va directo a `Linking.openURL` desde la ficha: la ficha usa
+ * `urlMapaDelEvento`, que además exige que el lugar tenga pin
+ * (`tests/ver-en-el-mapa.test.ts`).
+ */
+export function urlMapaLugar(venueId: string, dia?: string | null): string | null {
+  // `typeof`: el id sale de la base; si alguna vez llega otra cosa (`null`,
+  // un número), da `null` en vez de tirar en `.trim()`.
+  if (typeof venueId !== 'string') return null
+  const id = venueId.trim()
+  if (!esUuid(id)) return null
+  const lugar = id.toLowerCase()
+  return dia && DIA_RE.test(dia) ? `${SITIO}/mapa?cuando=fecha&dia=${dia}&lugar=${lugar}` : `${SITIO}/mapa?lugar=${lugar}`
+}
+
+/**
+ * El día de Salta (`AAAA-MM-DD`) de un inicio, o `null` si no es una fecha
+ * válida (`formatSaltaDayKey` tira `RangeError` con un `Date` inválido). El
+ * día de Salta, no el día UTC crudo: un evento a las 23:30 de Salta queda
+ * guardado con la fecha del día siguiente en UTC (mismo cuidado que
+ * `VerEnElMapa` de la web).
+ */
+function diaDeSalta(inicio: string | null | undefined): string | null {
+  if (!inicio) return null
+  const fecha = new Date(inicio)
+  if (Number.isNaN(fecha.getTime())) return null
+  return formatSaltaDayKey(fecha)
+}
+
+/**
+ * El link de "Ver en el mapa" de la ficha (A4, nube Q1): `null` si el evento
+ * no tiene lugar, si el lugar no tendría pin (`tienePinEnElMapa`) o si su id
+ * no es un uuid (`urlMapaLugar`). Es la única función por la que la ficha
+ * abre `/mapa` (`tests/aperturas-url.test.ts`): el botón solo se dibuja si
+ * esto no es `null`.
+ */
+export function urlMapaDelEvento(evento: {
+  start_date?: string | null
+  venue?: LugarParaMapa | null
+}): string | null {
+  const venue = evento.venue
+  if (!venue || !tienePinEnElMapa(venue)) return null
+  return urlMapaLugar(venue.id, diaDeSalta(evento.start_date))
 }

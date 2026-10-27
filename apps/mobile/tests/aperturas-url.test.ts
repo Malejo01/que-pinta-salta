@@ -21,6 +21,13 @@
 // URL absoluta en vez de una ruta, también tiene que dar `null` (ver el
 // describe de más abajo, "urlSitio").
 //
+// A4 (nube Q1: "Ver en el mapa" en la ficha): el quinto origen válido es
+// `urlMapaDelEvento` (`lib/links.ts`), que abre `/mapa` de la web con el
+// lugar elegido y da `null` si el lugar no tendría pin (`tienePinEnElMapa`)
+// o si su id no es un uuid. `urlMapaLugar` (la que solo valida el uuid y
+// arma la query) NO entra en la lista a propósito: abrirla directo saltearía
+// el chequeo de coordenadas (ver `tests/ver-en-el-mapa.test.ts`).
+//
 // Primero el detector, probado con fixtures en memoria (mismo estilo que
 // `encontrarViolacionesDeIconos` en `tests/iconos.test.ts`); después se
 // aplica a los archivos reales de `app/` y `components/` con un `it.each`
@@ -30,7 +37,7 @@ import { readFileSync, readdirSync, statSync } from 'node:fs'
 import { join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
-import { urlSitio } from '../lib/links'
+import { urlMapaDelEvento, urlSitio } from '../lib/links'
 
 const MOBILE_ROOT = fileURLToPath(new URL('..', import.meta.url))
 const APP_DIR = join(MOBILE_ROOT, 'app')
@@ -60,10 +67,10 @@ function leerArgumentoBalanceado(content: string, desdeIndex: number): string {
   return content.slice(desdeIndex, j)
 }
 
-/** Variables (`const`/`let`) asignadas directamente desde `urlGo(...)`, `urlComoLlegar(...)`, `urlCompraCineSegura(...)` o `urlSitio(...)`. */
+/** Variables (`const`/`let`) asignadas directamente desde `urlGo(...)`, `urlComoLlegar(...)`, `urlCompraCineSegura(...)`, `urlSitio(...)` o `urlMapaDelEvento(...)`. */
 function variablesSeguras(content: string): Set<string> {
   const vars = new Set<string>()
-  const re = /\b(?:const|let)\s+(\w+)\s*=\s*(?:await\s+)?(?:urlGo|urlComoLlegar|urlCompraCineSegura|urlSitio)\s*\(/g
+  const re = /\b(?:const|let)\s+(\w+)\s*=\s*(?:await\s+)?(?:urlGo|urlComoLlegar|urlCompraCineSegura|urlSitio|urlMapaDelEvento)\s*\(/g
   let m: RegExpExecArray | null
   while ((m = re.exec(content))) vars.add(m[1])
   return vars
@@ -71,13 +78,13 @@ function variablesSeguras(content: string): Set<string> {
 
 /**
  * Violaciones de `openURL(...)` (incluye `Linking.openURL(...)`) cuyo
- * argumento no venga de `urlGo`, `urlComoLlegar`, `urlCompraCineSegura` o
- * `urlSitio`: ni una llamada directa (`openURL(urlGo(...))`) ni una
+ * argumento no venga de `urlGo`, `urlComoLlegar`, `urlCompraCineSegura`,
+ * `urlSitio` o `urlMapaDelEvento` (A4): ni una llamada directa (`openURL(urlGo(...))`) ni una
  * variable asignada desde esas funciones
  * (`const urlCompra = urlGo(...); openURL(urlCompra)`). Cualquier otra
  * forma — `openURL(evento.ticket_url)`, un `booking_url` crudo, una URL del
  * sitio escrita a mano (`openURL('https://www.quepintasalta.com.ar/...')`),
- * una variable que no se pueda rastrear a ninguno de los cuatro, etc. — es
+ * una variable que no se pueda rastrear a ninguno de los cinco, etc. — es
  * una violación.
  */
 export function encontrarAperturasInseguras(content: string): Violation[] {
@@ -89,11 +96,11 @@ export function encontrarAperturasInseguras(content: string): Violation[] {
     const inicioArg = m.index + m[0].length
     const arg = leerArgumentoBalanceado(content, inicioArg).trim()
     const esVariableSegura = /^\w+$/.test(arg) && seguras.has(arg)
-    const esLlamadaDirecta = /^(?:urlGo|urlComoLlegar|urlCompraCineSegura|urlSitio)\s*\(/.test(arg)
+    const esLlamadaDirecta = /^(?:urlGo|urlComoLlegar|urlCompraCineSegura|urlSitio|urlMapaDelEvento)\s*\(/.test(arg)
     if (!esVariableSegura && !esLlamadaDirecta) {
       violaciones.push({
         line: lineAt(content, m.index),
-        message: `openURL(${arg}): el argumento no viene de urlGo/urlComoLlegar/urlCompraCineSegura/urlSitio`,
+        message: `openURL(${arg}): el argumento no viene de urlGo/urlComoLlegar/urlCompraCineSegura/urlSitio/urlMapaDelEvento`,
       })
     }
   }
@@ -153,6 +160,29 @@ describe('encontrarAperturasInseguras (fixtures en memoria: tiene que fallar de 
   it('acepta la llamada directa openURL(urlSitio(...))', () => {
     const content = `Linking.openURL(urlSitio('/auth/recuperar')).catch(() => {})`
     expect(encontrarAperturasInseguras(content)).toEqual([])
+  })
+
+  it('acepta openURL(variable) cuando la variable viene de urlMapaDelEvento(...) (A4, "Ver en el mapa")', () => {
+    const content = `const urlMapa = urlMapaDelEvento(evento)\nLinking.openURL(urlMapa).catch(() => {})`
+    expect(encontrarAperturasInseguras(content)).toEqual([])
+  })
+
+  it('acepta la llamada directa openURL(urlMapaDelEvento(...))', () => {
+    const content = `Linking.openURL(urlMapaDelEvento(evento)).catch(() => {})`
+    expect(encontrarAperturasInseguras(content)).toEqual([])
+  })
+
+  it('A4: detecta openURL(urlMapaLugar(...)): saltea el chequeo de coordenadas, no está en la lista', () => {
+    const content = `const urlMapa = urlMapaLugar(evento.venue.id)\nLinking.openURL(urlMapa).catch(() => {})`
+    expect(encontrarAperturasInseguras(content)).toHaveLength(1)
+    expect(encontrarAperturasInseguras(`Linking.openURL(urlMapaLugar(id))`)).toHaveLength(1)
+  })
+
+  it('A4: detecta /mapa?lugar= armado a mano, sin pasar por urlMapaDelEvento', () => {
+    const content = 'Linking.openURL(`https://www.quepintasalta.com.ar/mapa?lugar=${evento.venue.id}`).catch(() => {})'
+    const v = encontrarAperturasInseguras(content)
+    expect(v).toHaveLength(1)
+    expect(v[0].message).toMatch(/\/mapa\?lugar=/)
   })
 
   it('detecta openURL(evento.ticket_url): el link crudo, sin contador ni validación', () => {
@@ -240,7 +270,25 @@ describe('urlSitio: solo abre rutas propias conocidas', () => {
   })
 })
 
-describe('app/ y components/: todo openURL viene de urlGo/urlComoLlegar/urlCompraCineSegura/urlSitio', () => {
+// urlMapaDelEvento en sí (A4): igual que con urlSitio, el detector solo mira
+// el nombre; la validación (lugar con pin + uuid) se prueba en runtime acá, y
+// en detalle en `tests/ver-en-el-mapa.test.ts`.
+describe('urlMapaDelEvento: solo abre /mapa con un lugar que tendría pin', () => {
+  const venueId = '0b9d4f5a-6a2b-4c1e-8f3d-9a7b6c5d4e3f'
+
+  it('lugar con coordenadas en Salta: la URL absoluta de /mapa con SITIO', () => {
+    expect(urlMapaDelEvento({ venue: { id: venueId, latitude: -24.78, longitude: -65.41 } })).toBe(
+      `https://www.quepintasalta.com.ar/mapa?lugar=${venueId}`,
+    )
+  })
+
+  it('sin coordenadas o sin lugar: null', () => {
+    expect(urlMapaDelEvento({ venue: { id: venueId, latitude: null, longitude: null } })).toBeNull()
+    expect(urlMapaDelEvento({ venue: null })).toBeNull()
+  })
+})
+
+describe('app/ y components/: todo openURL viene de urlGo/urlComoLlegar/urlCompraCineSegura/urlSitio/urlMapaDelEvento', () => {
   const archivos = [...listarTsxYTs(APP_DIR), ...listarTsxYTs(COMPONENTS_DIR)]
 
   it('encuentra al menos un archivo para analizar, incluida la ficha', () => {
@@ -253,7 +301,7 @@ describe('app/ y components/: todo openURL viene de urlGo/urlComoLlegar/urlCompr
     const violaciones = encontrarAperturasInseguras(content)
     if (violaciones.length > 0) {
       const detalle = violaciones.map((v) => `  ${label}:${v.line} — ${v.message}`).join('\n')
-      throw new Error(`openURL sin pasar por urlGo/urlComoLlegar:\n${detalle}`)
+      throw new Error(`openURL sin pasar por urlGo/urlComoLlegar/urlCompraCineSegura/urlSitio/urlMapaDelEvento:\n${detalle}`)
     }
     expect(violaciones).toEqual([])
   })
