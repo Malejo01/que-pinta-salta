@@ -40,6 +40,7 @@ export function MobileNav() {
               key={item.href}
               href={item.href}
               prefetch={item.prefetch}
+              aria-current={isActive ? "page" : undefined}
               className={cn(
                 // Con 5 ítems (desde que entró "Mapa", 54-c) el padding y la
                 // letra bajaron un poco respecto de los 4 de antes, para que
@@ -57,7 +58,13 @@ export function MobileNav() {
                 // `px`: un `text-[11px]` literal no escala si la persona
                 // agrandó la letra del sistema, y ese texto quedaría más chico
                 // que todo el resto del sitio (la R49 trabajó justo esto).
-                "flex min-w-[48px] flex-col items-center gap-0.5 px-1.5 py-2 text-[0.6875rem] whitespace-nowrap transition-colors",
+                //
+                // Nota (73-b): foco visible con teclado. El anillo va `inset`
+                // (adentro del ítem) para que no lo recorte la barra ni pise al
+                // vecino, y no cambia el tamaño de nada: un anillo es sombra.
+                // `outline-hidden` y no `outline-none`: en alto contraste de
+                // Windows la sombra no se pinta y el contorno transparente sí.
+                "flex min-w-[48px] flex-col items-center gap-0.5 rounded-md px-1.5 py-2 text-[0.6875rem] whitespace-nowrap transition-colors outline-hidden focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
                 isActive
                   ? "text-primary"
                   : "text-muted-foreground hover:text-foreground"
