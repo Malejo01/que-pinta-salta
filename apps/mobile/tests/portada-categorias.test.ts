@@ -195,13 +195,14 @@ describe('portada (app/(tabs)/index.tsx) en modo categoría', () => {
     expect(pills).toBeGreaterThan(chips)
   })
 
-  // Mutación: sacar `categoria === null &&` del useMemo de `secciones`.
-  it('con una categoría elegida, `secciones` queda vacío (el useMemo corta con categoria === null)', () => {
-    const memo = entre(codigo, 'const secciones = useMemo(', '[datosPortada, categoria]')
-    expect(memo).toMatch(/datosPortada\s*&&\s*categoria === null\s*\?\s*seccionesPortada\(/)
+  // Mutación: sacar `categoria === null &&` (o `!gratis &&`) del useMemo de `secciones`.
+  // A2 (nube Q1): con "Gratis" prendido tampoco hay secciones (modo grilla).
+  it('con una categoría elegida o con "Gratis", `secciones` queda vacío (el useMemo corta con categoria === null && !gratis)', () => {
+    const memo = entre(codigo, 'const secciones = useMemo(', '[datosPortada, categoria, gratis]')
+    expect(memo).toMatch(/datosPortada\s*&&\s*categoria === null\s*&&\s*!gratis\s*\?\s*seccionesPortada\(/)
     expect(memo).toMatch(/:\s*\[\]/)
-    // y la categoría está entre las dependencias: si no, no se recalcula al elegirla.
-    expect(codigo).toMatch(/\[datosPortada, categoria\]/)
+    // y la categoría y "Gratis" están entre las dependencias: si no, no se recalcula al elegirlas.
+    expect(codigo).toMatch(/\[datosPortada, categoria, gratis\]/)
   })
 
   // Mutación: agregar <BannerAnuncio .../> o <BannerRadar /> dentro de la grilla.
@@ -278,9 +279,12 @@ describe('portada (app/(tabs)/index.tsx) en modo categoría', () => {
   })
 
   it('el cálculo del modo categoría (el useMemo de datosPortada) es síncrono: sin await ni promesas', () => {
-    const memo = entre(codigo, 'const datosPortada = useMemo(', '[estado, atajo, categoria]')
+    // A2 (nube Q1): suma la dependencia `gratis`; el filtro combinado pasa por
+    // `eventosDeLaGrilla` (`lib/portada-gratis.ts`), que llama a `filtrarCombinado`
+    // (lo verifica `tests/portada-gratis.test.ts`).
+    const memo = entre(codigo, 'const datosPortada = useMemo(', '[estado, atajo, categoria, gratis]')
     expect(memo).not.toMatch(/\bawait\b|\.then\(|\bfetch\b|\bPromise\b/)
-    expect(memo).toMatch(/filtrarCombinado\(/)
+    expect(memo).toMatch(/eventosDeLaGrilla\(/)
   })
 
   // Mutación: sacar `accessibilityLiveRegion="polite"` del conteo.
@@ -293,8 +297,9 @@ describe('portada (app/(tabs)/index.tsx) en modo categoría', () => {
     expect(codigo).toMatch(/'película'\s*:\s*'películas'/)
   })
 
-  it('la grilla usa el resultado de filtrarCombinado (atajo + categoría), no la lista sin filtrar', () => {
-    expect(codigo).toMatch(/eventosCategoria = filtrarCombinado\(items,\s*\{\s*atajo,\s*categoria\s*\},\s*ahora\)/)
+  // A2 (nube Q1): `eventosDeLaGrilla` es `filtrarCombinado` con atajo + categoría + gratis.
+  it('la grilla usa el resultado del filtro combinado (atajo + categoría + gratis), no la lista sin filtrar', () => {
+    expect(codigo).toMatch(/eventosCategoria = eventosDeLaGrilla\(items,\s*\{\s*atajo,\s*categoria,\s*gratis\s*\},\s*ahora\)/)
     // R67, 67-c: la grilla de 2 columnas toma `eventosSinPelicula` (con otra
     // categoría, es todo `eventosCategoria`; con "Cine", lo que no es película).
     expect(bloqueCategoria).toMatch(/enFilasDeDos\(datosPortada\.eventosSinPelicula\)/)

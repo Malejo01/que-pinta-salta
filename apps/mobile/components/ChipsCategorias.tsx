@@ -5,8 +5,17 @@
 // resaltado animado; el chip activo se trae a la vista con `scrollTo`. El área táctil se resuelve con
 // `minHeight: 48` en la clave de estilo del Pressable, que es lo que mira el
 // detector `area-chica` (mismo criterio que `chipGratis` de Buscar).
+//
+// A2 (nube Q1): prop opcional `gratis`. Si viene (la portada), adelante de
+// "Todas" va el chip "Gratis" (`components/ChipGratis.tsx`), un interruptor
+// aparte de la categoría, y un separador vertical que lo aparta de los chips
+// de categoría. Si no viene (Buscar, que tiene su propio "Solo gratis"), la
+// fila queda igual que antes. El chip "Gratis" no entra en `posiciones`: va
+// primero, y "Todas" se trae a la vista con x = 0 (ver el `onLayout`), así
+// que con "Todas" elegida siempre se ve.
 import { useEffect, useRef } from 'react'
-import { Pressable, ScrollView, StyleSheet } from 'react-native'
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native'
+import { ChipGratis } from '@/components/ChipGratis'
 import { Icono, iconoPorCategoria } from '@/components/Icono'
 import { Texto } from '@/components/Texto'
 import { bordeChipInactivo, useColoresQPS } from '@/lib/colores'
@@ -21,9 +30,11 @@ export interface ChipsCategoriasProps {
   categorias: CategoriaChip[]
   seleccionada: string | null
   onCambiar: (slug: string | null) => void
+  /** A2 (nube Q1): el chip "Gratis" adelante de "Todas". Sin esta prop no se dibuja. */
+  gratis?: { activo: boolean; onCambiar: (activo: boolean) => void }
 }
 
-export function ChipsCategorias({ categorias, seleccionada, onCambiar }: ChipsCategoriasProps) {
+export function ChipsCategorias({ categorias, seleccionada, onCambiar, gratis }: ChipsCategoriasProps) {
   const colores = useColoresQPS()
   // R69, 69-b (QPS-338): borde de los inactivos a 3:1 (cálculo en `lib/colores.ts`).
   const bordeInactivo = bordeChipInactivo(colores)
@@ -52,6 +63,14 @@ export function ChipsCategorias({ categorias, seleccionada, onCambiar }: ChipsCa
 
   return (
     <ScrollView ref={scrollRef} horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={estilos.contenido}>
+      {gratis ? (
+        <>
+          <ChipGratis activo={gratis.activo} onCambiar={gratis.onCambiar} />
+          {/* Separador decorativo (una View sin texto ni rol: los lectores de
+              pantalla la saltean), con el mismo borde de 3:1 de los chips. */}
+          <View style={[estilos.separador, { backgroundColor: bordeInactivo }]} />
+        </>
+      ) : null}
       {chips.map((chip) => {
         const activo = chip.slug === seleccionada
         return (
@@ -59,7 +78,11 @@ export function ChipsCategorias({ categorias, seleccionada, onCambiar }: ChipsCa
             key={chip.slug ?? 'todas'}
             onPress={() => onCambiar(chip.slug)}
             onLayout={(evento) => {
-              const x = evento.nativeEvent.layout.x
+              // A2 (nube Q1): "Todas" se lleva al principio de la fila (x = 0),
+              // no a su `x` real: así, con el chip "Gratis" adelante, elegir
+              // "Todas" no lo saca de la vista. Sin "Gratis" da lo mismo que
+              // antes ("Todas" está en x = 16 y `Math.max(0, 16 - 16)` es 0).
+              const x = chip.slug === null ? 0 : evento.nativeEvent.layout.x
               posiciones.current[chip.slug ?? 'todas'] = x
               if (activo) scrollRef.current?.scrollTo({ x: Math.max(0, x - 16), animated: false })
             }}
@@ -105,4 +128,5 @@ const estilos = StyleSheet.create({
     paddingVertical: 10,
     minHeight: 48,
   },
+  separador: { width: 1, height: 28 },
 })
