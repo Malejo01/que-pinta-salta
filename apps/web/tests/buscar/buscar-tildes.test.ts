@@ -4,6 +4,9 @@
  * con `normalizeFilterText`, la misma de la portada (`home/filters`): "pena"
  * encuentra "Peña" y "musica" encuentra "Música", en la web y en la app.
  * También: "Explorar por categoría" con tilde, sin categorías con 0 eventos.
+ * Desde Q3 (C2) la web le pasa el texto a `filtrarCombinado` (texto + chips),
+ * que busca con `buscarEventosPorTexto`: las pruebas de abajo filtran por
+ * ese mismo camino.
  *
  * Sin testing-library (entorno node, sin DOM): se prueba la función real de
  * core con fixtures inventadas, y se lee el código fuente para confirmar que
@@ -11,13 +14,15 @@
  */
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
-import { buscarEventosPorTexto } from '@qps/core/home/busqueda'
+import { filtrarCombinado } from '@qps/core/home/filtros-combinados'
 import type { DisplayEvent } from '@qps/core/home/types'
 
 const SOURCE_PATH = new URL('../../app/buscar/buscar-content.tsx', import.meta.url)
 const source = readFileSync(SOURCE_PATH, 'utf8')
 const CORE_PATH = new URL('../../../../packages/core/src/home/busqueda.ts', import.meta.url)
 const core = readFileSync(CORE_PATH, 'utf8')
+const COMBINADO_PATH = new URL('../../../../packages/core/src/home/filtros-combinados.ts', import.meta.url)
+const combinado = readFileSync(COMBINADO_PATH, 'utf8')
 
 function evento(overrides: Partial<DisplayEvent> = {}): DisplayEvent {
   return {
@@ -39,12 +44,20 @@ function evento(overrides: Partial<DisplayEvent> = {}): DisplayEvent {
   }
 }
 
-// La búsqueda real de /buscar (y de la app).
-const filtrarComoBuscar = buscarEventosPorTexto
+// La búsqueda real de /buscar (y de la app): `filtrarCombinado` solo con texto,
+// con los mismos items que arma `buscar-content.tsx` (sin fecha ni categoría).
+const filtrarComoBuscar = (eventos: DisplayEvent[], texto: string) =>
+  filtrarCombinado(
+    eventos.map((evento) => ({ evento, paraAtajo: null })),
+    { atajo: null, categoria: null, texto },
+    new Date('2026-10-10T12:00:00-03:00')
+  )
 
 describe('la búsqueda de /buscar es la de core, y core normaliza con normalizeFilterText', () => {
-  it('buscar-content.tsx usa buscarEventosPorTexto de @qps/core/home/busqueda', () => {
-    expect(source).toMatch(/import\s*\{\s*buscarEventosPorTexto\s*\}\s*from\s*["']@qps\/core\/home\/busqueda["']/)
+  it('buscar-content.tsx busca con filtrarCombinado de @qps/core/home/filtros-combinados, que usa buscarEventosPorTexto de ./busqueda', () => {
+    expect(source).toMatch(/import\s*\{[^}]*\bfiltrarCombinado\b[^}]*\}\s*from\s*["']@qps\/core\/home\/filtros-combinados["']/)
+    expect(source).toMatch(/\btexto:\s*deferredSearchQuery\b/)
+    expect(combinado).toMatch(/import\s*\{\s*buscarEventosPorTexto\s*\}\s*from\s*["']\.\/busqueda["']/)
   })
 
   it('buscar-content.tsx no tiene su propia normalización ni comparación', () => {
@@ -59,7 +72,7 @@ describe('la búsqueda de /buscar es la de core, y core normaliza con normalizeF
   })
 })
 
-describe('filtrado real de /buscar (buscarEventosPorTexto de core)', () => {
+describe('filtrado real de /buscar (filtrarCombinado → buscarEventosPorTexto de core)', () => {
   it('"pena" encuentra "Peña" (por título)', () => {
     const pena = evento({ id: 'pena', title: 'Peña Folklórica' })
     const otro = evento({ id: 'otro', title: 'Recital de Rock' })

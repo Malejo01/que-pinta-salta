@@ -37,6 +37,9 @@ const readCore = (relPath: string) => readFileSync(join(ROOT_WEB, '..', '..', 'p
 
 const SIN_COPIA_PROPIA = /normalize\(\s*["']NFD["']\s*\)/
 const IMPORTA_BUSQUEDA_DE_CORE = /import\s*\{[^}]*\bbuscarEventosPorTexto\b[^}]*\}\s*from\s*["']@qps\/core\/home\/busqueda["']/
+// Desde Q3 (C2), `/buscar` filtra con `filtrarCombinado` (texto + chips), que
+// por dentro busca con `buscarEventosPorTexto` de `./busqueda`.
+const IMPORTA_COMBINADO_DE_CORE = /import\s*\{[^}]*\bfiltrarCombinado\b[^}]*\}\s*from\s*[\"']@qps\/core\/home\/filtros-combinados[\"']/
 
 describe('QPS-021: /buscar, la portada y la app usan la misma normalizeFilterText (packages/core/src/home/filters.ts)', () => {
   it('el shim de la web (lib/home/filters.ts) reexporta @qps/core/home/filters, no una copia', () => {
@@ -54,10 +57,15 @@ describe('QPS-021: /buscar, la portada y la app usan la misma normalizeFilterTex
     expect(source).not.toMatch(SIN_COPIA_PROPIA)
   })
 
-  it('/buscar (app/buscar/buscar-content.tsx) usa buscarEventosPorTexto de core y no filtra por su cuenta', () => {
+  it('/buscar (app/buscar/buscar-content.tsx) busca con filtrarCombinado de core (que usa buscarEventosPorTexto) y no filtra por su cuenta', () => {
     const source = readWeb('app/buscar/buscar-content.tsx')
-    expect(source).toMatch(IMPORTA_BUSQUEDA_DE_CORE)
-    expect(source).toMatch(/buscarEventosPorTexto\(allDisplayEvents,\s*deferredSearchQuery\)/)
+    expect(source).toMatch(IMPORTA_COMBINADO_DE_CORE)
+    // Un solo camino: ya no importa además `buscarEventosPorTexto` suelta.
+    expect(source).not.toMatch(IMPORTA_BUSQUEDA_DE_CORE)
+    expect(source).toMatch(/filtrarCombinado\(\s*itemsFiltrables,\s*\{[^}]*\btexto:\s*deferredSearchQuery\b[^}]*\}/)
+    const combinado = readCore('home/filtros-combinados.ts')
+    expect(combinado).toMatch(/import\s*\{\s*buscarEventosPorTexto\s*\}\s*from\s*["']\.\/busqueda["']/)
+    expect(combinado).toMatch(/buscarEventosPorTexto\(eventos,\s*texto\)/)
     expect(source).not.toMatch(SIN_COPIA_PROPIA)
     expect(source).not.toMatch(/event\.title\.toLowerCase\(\)\.includes\(/)
   })
