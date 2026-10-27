@@ -10,6 +10,7 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
+import { TARJETA_GAP_ACCIONES, TARJETA_MARGEN, TARJETA_TAMANIO_ACCION } from '../lib/accesibilidad'
 
 const MOBILE_ROOT = fileURLToPath(new URL('..', import.meta.url))
 const leer = (...partes: string[]) => readFileSync(join(MOBILE_ROOT, ...partes), 'utf8').replace(/\r\n/g, '\n')
@@ -81,9 +82,11 @@ describe('components/TarjetaEvento.tsx: el corazón no tapa el badge de categor�
   it('el borde derecho coincide con las cuentas: 48 con el corazón solo, 86 con Compartir + corazón', () => {
     // 8 (margen) + n * 32 + (n - 1) * 6 + 8
     const c = sinComentarios(real)
-    expect(c).toMatch(/const TAMANIO_ACCION = 32/)
-    expect(c).toMatch(/const GAP_ACCIONES = 6/)
-    expect(c).toMatch(/const MARGEN_ARRIBA = 8/)
+    // R72, 72-c: la tarjeta toma las medidas de lib/accesibilidad (TARJETA_*).
+    expect(c).toMatch(/const TAMANIO_ACCION = TARJETA_TAMANIO_ACCION\b/)
+    expect(c).toMatch(/const GAP_ACCIONES = TARJETA_GAP_ACCIONES\b/)
+    expect(c).toMatch(/const MARGEN_ARRIBA = TARJETA_MARGEN\b/)
+    expect([TARJETA_TAMANIO_ACCION, TARJETA_GAP_ACCIONES, TARJETA_MARGEN]).toEqual([32, 6, 8])
     const derecha = (n: number) => (n <= 0 ? 8 : 8 + n * 32 + (n - 1) * 6 + 8)
     expect([derecha(0), derecha(1), derecha(2)]).toEqual([8, 48, 86])
   })

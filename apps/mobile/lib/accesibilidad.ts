@@ -44,6 +44,18 @@ export function hitSlopPara(ancho: number, alto: number = ancho): HitSlop {
   return { top: vertical, bottom: vertical, left: lateral, right: lateral }
 }
 
+// R72, 72-c (QPS-362): medidas de los botones de arriba a la derecha de la
+// tarjeta de evento (corazón y Compartir). Viven acá (módulo puro) y no en
+// `TarjetaEvento.tsx` para que los tests las importen sin montar
+// `react-native`; la tarjeta las usa en el JSX y en los estilos, y los tests
+// verifican que el fuente las use (no que repita el literal).
+/** Diámetro de los botones de la tarjeta (dp). */
+export const TARJETA_TAMANIO_ACCION = 32
+/** Separación entre Compartir y el corazón (dp). */
+export const TARJETA_GAP_ACCIONES = 6
+/** Margen de los botones (y del badge) al borde de la tarjeta (dp). */
+export const TARJETA_MARGEN = 8
+
 const HEX_RE = /^#[0-9a-fA-F]{6}$/
 
 /**

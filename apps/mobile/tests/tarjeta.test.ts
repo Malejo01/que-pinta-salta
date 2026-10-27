@@ -7,6 +7,7 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
+import { TARJETA_TAMANIO_ACCION } from '../lib/accesibilidad'
 
 const MOBILE_ROOT = fileURLToPath(new URL('..', import.meta.url))
 const content = readFileSync(join(MOBILE_ROOT, 'components', 'TarjetaEvento.tsx'), 'utf8')
@@ -29,10 +30,14 @@ describe('components/TarjetaEvento.tsx: usa BotonFavorito y BotonCompartir (ops/
   })
 
   it('los dos en círculos de 32, con fondo oscuro (bg-black/60)', () => {
-    expect(content).toMatch(/<BotonFavorito[^>]*tamanio=\{32\}/)
-    expect(content).toMatch(/<BotonCompartir[^>]*tamanio=\{32\}/)
-    expect(content).toMatch(/<BotonFavorito[^>]*fondo="oscuro"/)
-    expect(content).toMatch(/<BotonCompartir[^>]*fondo="oscuro"/)
+    // R72, 72-c: el JSX usa la constante (TARJETA_TAMANIO_ACCION de lib/accesibilidad,
+    // valor 32), no el literal; se verifican las dos cosas.
+    expect(TARJETA_TAMANIO_ACCION).toBe(32)
+    expect(content).toMatch(/const TAMANIO_ACCION = TARJETA_TAMANIO_ACCION\b/)
+    expect(content).toMatch(/<BotonFavorito[^>]*tamanio=\{TAMANIO_ACCION\}/s)
+    expect(content).toMatch(/<BotonCompartir[^>]*tamanio=\{TAMANIO_ACCION\}/s)
+    expect(content).toMatch(/<BotonFavorito[^>]*fondo="oscuro"/s)
+    expect(content).toMatch(/<BotonCompartir[^>]*fondo="oscuro"/s)
   })
 
   it('el Pressable de toda la tarjeta sigue navegando a la ficha (tocar el corazón o compartir no la abre)', () => {

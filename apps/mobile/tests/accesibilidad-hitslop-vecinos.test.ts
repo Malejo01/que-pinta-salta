@@ -28,7 +28,7 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
-import { hitSlopPara } from '../lib/accesibilidad'
+import { hitSlopPara, TARJETA_GAP_ACCIONES, TARJETA_TAMANIO_ACCION } from '../lib/accesibilidad'
 import { valorDeClaveDeEstilo } from './a11y/hitslop-medidas'
 
 const MOBILE_ROOT = fileURLToPath(new URL('..', import.meta.url))
@@ -92,7 +92,9 @@ describe('hitSlopBotonAccionEsperado (fixtures en memoria, el contrato que escri
  * cambia el umbral, el recorte, o lo saca, este test lo nota (aunque el
  * número que resulte pueda seguir "andando" por casualidad). */
 function tieneLaMismaFormaDeHitSlopBotonAccion(contenido: string): boolean {
-  return /tamanio\s*<=\s*32\s*\?\s*\{\s*\.\.\.base,\s*left:\s*3,\s*right:\s*3\s*\}\s*:\s*base/.test(contenido)
+  // R72, 72-c: BotonFavorito suma `&& conVecino` (sin vecino no se recorta);
+  // BotonCompartir sigue con la forma de siempre.
+  return /tamanio\s*<=\s*32\s*(?:&&\s*conVecino\s*)?\?\s*\{\s*\.\.\.base,\s*left:\s*3,\s*right:\s*3\s*\}\s*:\s*base/.test(contenido)
 }
 
 describe.each(['components/BotonFavorito.tsx', 'components/BotonCompartir.tsx'] as const)(
@@ -150,15 +152,32 @@ describe('tarjeta de evento (components/TarjetaEvento.tsx, estilos.accionesArrib
     const contenido = quitarComentarios(readFileSync(join(MOBILE_ROOT, 'components', 'TarjetaEvento.tsx'), 'utf8'))
     const valorEstilo = valorDeClaveDeEstilo(contenido, 'accionesArriba')
     expect(valorEstilo, 'no se encontró estilos.accionesArriba en components/TarjetaEvento.tsx').not.toBeNull()
-    const gap = gapDe(valorEstilo as string)
-    expect(gap, 'estilos.accionesArriba no tiene un gap numérico directo').not.toBeNull()
+    // R72, 72-c: el `gap` ya no es un literal en el estilo: es la constante
+    // GAP_ACCIONES = TARJETA_GAP_ACCIONES (lib/accesibilidad). Se verifica que
+    // el estilo y el tamaño de los botones la usen y se calcula con su valor.
+    expect(valorEstilo).toMatch(/\bgap\s*:\s*GAP_ACCIONES\b/)
+    expect(contenido).toMatch(/const GAP_ACCIONES = TARJETA_GAP_ACCIONES\b/)
+    expect(contenido).toMatch(/<BotonCompartir[^>]*?tamanio=\{TAMANIO_ACCION\}/s)
+    expect(TARJETA_TAMANIO_ACCION).toBe(32)
+    const gap = TARJETA_GAP_ACCIONES
 
-    const hs = hitSlopBotonAccionEsperado(32)
+    const hs = hitSlopBotonAccionEsperado(TARJETA_TAMANIO_ACCION)
     const sumaLateral = hs.left + hs.right
     expect(
       sumaLateral,
       `BotonCompartir (left ${hs.left}) + BotonFavorito (right ${hs.right}) = ${sumaLateral}, gap real = ${gap}`,
     ).toBeLessThanOrEqual(gap as number)
+  })
+
+  // R72, 72-c (QPS-362): corazón solo (película/flyer) -> 48x48 completos.
+  it('corazón sin vecino: hitSlopPara(32) sin recorte = 32 + 8 + 8 = 48 de ancho y de alto', () => {
+    const hs = hitSlopPara(TARJETA_TAMANIO_ACCION)
+    expect(TARJETA_TAMANIO_ACCION + hs.left + hs.right).toBe(48)
+    expect(TARJETA_TAMANIO_ACCION + hs.top + hs.bottom).toBe(48)
+    const contenido = quitarComentarios(readFileSync(join(MOBILE_ROOT, 'components', 'BotonFavorito.tsx'), 'utf8'))
+    expect(contenido).toMatch(/hitSlopBotonAccion\(tamanio,\s*conVecino\)/)
+    const tarjeta = quitarComentarios(readFileSync(join(MOBILE_ROOT, 'components', 'TarjetaEvento.tsx'), 'utf8'))
+    expect(tarjeta).toMatch(/conVecino=\{hayCompartir\}/)
   })
 })
 

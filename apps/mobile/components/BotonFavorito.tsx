@@ -47,10 +47,17 @@ import { useSession } from '@/lib/session'
  * se pisa. Con 32: hitSlopPara(32) da 8 por lado — 8+8=16, más que el gap de
  * 6 de la tarjeta: el lado lateral se baja a la mitad del gap (3) en los dos
  * botones para no comerse el vecino (46-c, para que lo revise 46-q).
+ *
+ * R72, 72-c (QPS-362): el recorte lateral solo hace falta si HAY vecino
+ * (`conVecino`, por defecto `true`). Solo, como el corazón de la tarjeta de
+ * película o flyer, el área completa es hitSlopPara(32) = 8 por lado:
+ * 32 + 8 + 8 = 48 de ancho y de alto (antes 32 + 3 + 3 = 38 de ancho). Contra
+ * el borde: el botón está a 8 del borde de la tarjeta, así que el área llega
+ * justo a 0 y no se sale.
  */
-function hitSlopBotonAccion(tamanio: number) {
+function hitSlopBotonAccion(tamanio: number, conVecino: boolean = true) {
   const base = hitSlopPara(tamanio)
-  return tamanio <= 32 ? { ...base, left: 3, right: 3 } : base
+  return tamanio <= 32 && conVecino ? { ...base, left: 3, right: 3 } : base
 }
 
 export interface BotonFavoritoProps {
@@ -69,6 +76,11 @@ export interface BotonFavoritoProps {
    * favoritos"). Sin `nombre`, la etiqueta genérica de siempre.
    */
   nombre?: string
+  /**
+   * R72, 72-c: `false` si no hay otro botón al lado (corazón solo en la tarjeta
+   * de película/flyer): el área táctil llega a 48x48. Por defecto `true`.
+   */
+  conVecino?: boolean
 }
 
 /** La etiqueta del lector de pantalla; con `nombre` dice qué se guarda. */
@@ -81,7 +93,7 @@ type Estado = { tipo: 'cargando' } | { tipo: 'ok'; marcado: boolean } | { tipo: 
 
 const ROJO_FAVORITO = '#ef4444'
 
-export function BotonFavorito({ objetivo, tamanio = 40, fondo = 'muted', nombre }: BotonFavoritoProps) {
+export function BotonFavorito({ objetivo, tamanio = 40, fondo = 'muted', nombre, conVecino = true }: BotonFavoritoProps) {
   const { tipo: tipoFavorito, id } = objetivo
   const router = useRouter()
   const colores = useColoresQPS()
@@ -150,7 +162,7 @@ export function BotonFavorito({ objetivo, tamanio = 40, fondo = 'muted', nombre 
       accessibilityRole="button"
       accessibilityLabel={etiquetaFavorito(marcado, nombre)}
       accessibilityState={{ busy: cargando }}
-      hitSlop={hitSlopBotonAccion(tamanio)}
+      hitSlop={hitSlopBotonAccion(tamanio, conVecino)}
       style={[
         estilos.boton,
         { width: tamanio, height: tamanio, borderRadius: tamanio / 2, backgroundColor: fondoColor },

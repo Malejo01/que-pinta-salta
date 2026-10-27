@@ -89,7 +89,7 @@ export function BotonCompartir({ eventId, titulo, fecha, hora, lugar, tamanio = 
       <Pressable
         onPress={alTocar}
         accessibilityRole="button"
-        accessibilityLabel="Compartir"
+        accessibilityLabel={`Compartir ${titulo}`}
         hitSlop={hitSlopBotonAccion(tamanio)}
         style={[estilos.boton, { width: tamanio, height: tamanio, borderRadius: tamanio / 2, backgroundColor: fondoColor }]}
       >

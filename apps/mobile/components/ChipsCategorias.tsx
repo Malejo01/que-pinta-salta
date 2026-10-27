@@ -69,17 +69,22 @@ export function ChipsCategorias({ categorias, seleccionada, onCambiar }: ChipsCa
             style={[
               estilos.chip,
               // N1: activo con tinte y contorno (así no se confunde con la pill
-              // de fecha, rellena); el borde es de 1 en los dos estados y el
-              // ancho no salta.
+              // de fecha, rellena).
+              // R72, 72-c (QPS-362): además del matiz, el activo se distingue
+              // por la forma: contorno de 2 (el inactivo de 1) y texto en
+              // negrita. El borde de 2 se compensa con 1 menos de padding en
+              // cada lado (16 -> 15 y 10 -> 9): 2 + 15 = 1 + 16 y 2 + 9 = 1 + 10,
+              // así el chip mide lo mismo (el texto en negrita puede ensanchar
+              // unos dp, como cualquier chip de scroll horizontal).
               activo
-                ? { backgroundColor: `${colores.primary}26`, borderWidth: 1, borderColor: colores.primary }
+                ? { backgroundColor: `${colores.primary}26`, borderWidth: 2, borderColor: colores.primary, paddingHorizontal: 15, paddingVertical: 9 }
                 : { borderWidth: 1, borderColor: bordeInactivo },
             ]}
           >
             {chip.slug !== null ? (
               <Icono nombre={iconoPorCategoria(chip.slug)} tamanio={16} color={activo ? colores.primary : colores.foreground} />
             ) : null}
-            <Texto peso="semibold" style={{ color: colores.foreground }}>
+            <Texto peso={activo ? 'bold' : 'semibold'} style={{ color: colores.foreground }}>
               {chip.nombre}
             </Texto>
           </Pressable>
