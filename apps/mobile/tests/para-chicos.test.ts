@@ -263,7 +263,7 @@ describe('obtenerEventosVigentesParaInicio: paraChicos con los tags de la fila',
     estadoSupabase.data = [fila('recital-familiar', { slug: 'musica', name: 'Música' }, ['familia'])]
     const r = await obtenerEventosVigentesParaInicio(AHORA_DATOS)
     if (!r.ok) throw new Error('no debería fallar')
-    expect(r.eventos[0].evento).not.toHaveProperty('tags')
+    expect(r.eventos[0].evento.tags).toEqual(['familia'])
     expect(r.eventos[0].paraChicos).toBe(true)
   })
 
