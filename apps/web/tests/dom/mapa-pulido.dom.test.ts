@@ -2,9 +2,10 @@
 //
 // El pulido de accesibilidad de `/mapa` (C5) montado en un DOM real:
 // - el anuncio de la selección para el lector de pantalla (WCAG 4.1.3),
-// - "Ver en el mapa" solo mueve la página si el mapa no se ve, y no mueve el
-//   foco (2.4.3 y 2.4.11),
-// - con el mapa caído (`onFallo`) no hay "Ver en el mapa",
+// - "Ver en el mapa" no mueve el foco y solo mueve la página si el mapa no se
+//   ve (cuando la mueve, el botón con el foco queda fuera de la pantalla),
+// - con el mapa caído (`onFallo`) no hay "Ver en el mapa", y si el mapa vuelve
+//   a cargar (`onListo`) vuelven,
 // - `?lugar=` lleva el lugar a la vista en la lista con scroll propio,
 // - lo que queda sin JavaScript (lo que manda el servidor en <noscript>).
 //
@@ -25,7 +26,7 @@ import type { PinLugar } from '@qps/core/mapa/pines'
 const { replace, mapa } = vi.hoisted(() => ({
   replace: vi.fn(),
   /** Las últimas props que recibió el doble del mapa. */
-  mapa: { props: null as null | { onSeleccionar: (venueId: string) => void; onFallo?: () => void } },
+  mapa: { props: null as null | { onSeleccionar: (venueId: string) => void; onFallo?: () => void; onListo?: () => void } },
 }))
 
 vi.mock('next/navigation', () => ({
@@ -35,7 +36,7 @@ vi.mock('next/navigation', () => ({
 vi.mock('@/components/mapa/mapa-diferido', async () => {
   const { createElement } = await import('react')
   return {
-    MapaDiferido: (props: { onSeleccionar: (venueId: string) => void; onFallo?: () => void }) => {
+    MapaDiferido: (props: { onSeleccionar: (venueId: string) => void; onFallo?: () => void; onListo?: () => void }) => {
       mapa.props = props
       return createElement('div', { 'data-testid': 'mapa-doble' })
     },
@@ -178,12 +179,12 @@ describe('el anuncio de la selección (WCAG 4.1.3)', () => {
   it('cambiar de filtro borra el anuncio (lo que se dice después es el contador nuevo)', () => {
     montar()
     act(() => mapa.props!.onSeleccionar('lugar-de-prueba-2'))
-    fireEvent.click(screen.getByRole('link', { name: 'Este finde' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Este finde' }))
     expect(anuncio().textContent).toBe('')
   })
 })
 
-describe('"Ver en el mapa" no se lleva el foco de la pantalla (WCAG 2.4.3 y 2.4.11)', () => {
+describe('"Ver en el mapa": el foco se queda en el botón y la página solo se mueve si el mapa no se ve', () => {
   function cajaDelMapa(top: number, height = 300) {
     vi.spyOn(bloqueMapa(), 'getBoundingClientRect').mockReturnValue({ top, bottom: top + height, height, left: 0, right: 360, width: 360, x: 0, y: top, toJSON: () => ({}) } as DOMRect)
   }
@@ -233,6 +234,23 @@ describe('con el mapa caído (onFallo) no hay "Ver en el mapa"', () => {
     verEnElMapa('Lugar de Prueba 2').focus()
     act(() => mapa.props!.onFallo!())
     expect(document.activeElement).toBe(screen.getByRole('link', { name: 'Evento de Prueba 2-0' }))
+  })
+
+  it('si el mapa vuelve (otro día sin pines lo desmonta y al volver carga bien: onListo), vuelven los botones', () => {
+    const { rerender } = montar()
+    act(() => mapa.props!.onFallo!())
+    expect(screen.queryAllByRole('button', { name: /^Ver en el mapa/ })).toHaveLength(0)
+
+    // Un día sin pines: el mapa se desmonta. Siguen sin botones (no hay lista).
+    rerender(React.createElement(MapaContenido, props(null, [])))
+    expect(screen.queryByTestId('mapa-doble')).toBeNull()
+
+    // Se vuelve a un día con pines: el mapa se monta de nuevo; hasta que avise, sin botones.
+    rerender(React.createElement(MapaContenido, props(null, PINES)))
+    expect(screen.queryAllByRole('button', { name: /^Ver en el mapa/ })).toHaveLength(0)
+    expect(typeof mapa.props!.onListo).toBe('function')
+    act(() => mapa.props!.onListo!())
+    expect(screen.getAllByRole('button', { name: /^Ver en el mapa/ })).toHaveLength(3)
   })
 
   it('si el foco estaba en otro lado, no se toca', () => {
@@ -321,7 +339,7 @@ describe('sin JavaScript (lo que manda el servidor)', () => {
     })
   }
 
-  it('los filtros van en un <form action="/mapa" method="get"> con "Ver ese día" y "Aplicar" adentro de <noscript>', () => {
+  it('los filtros van en un <form action="/mapa" method="get"> con "Ver ese día" y "Aplicar categoría" adentro de <noscript>', () => {
     const markup = html()
     const contenedor = document.createElement('div')
     contenedor.innerHTML = markup
@@ -334,7 +352,7 @@ describe('sin JavaScript (lo que manda el servidor)', () => {
       .map((boton) => [boton.textContent, boton.type, boton.name, boton.value])
     expect(botones).toEqual([
       ['Ver ese día', 'submit', 'cuando', 'fecha'],
-      ['Aplicar', 'submit', 'cuando', 'hoy'],
+      ['Aplicar categoría', 'submit', 'cuando', 'hoy'],
     ])
   })
 

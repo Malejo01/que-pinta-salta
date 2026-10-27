@@ -11,6 +11,13 @@ import { Skeleton } from "@/components/ui/skeleton"
 // final del <body>, después del pie) y esconde el esqueleto. Con JavaScript el
 // navegador no lee el `<noscript>`, así que no cambia nada.
 //
+// Límite: el CSS solo cambia lo que se ve, no el orden del documento. Sin
+// JavaScript el DOM queda pie de página → página, así que con Tab y con el
+// lector de pantalla se recorre primero el pie (WCAG 1.3.2 y 2.4.3). Eso no se
+// arregla con CSS; la alternativa es sacar `app/mapa/loading.tsx` (sin límite
+// de Suspense la página llega en su lugar), y eso es una decisión de producto:
+// se pierde el esqueleto instantáneo al entrar a /mapa desde otra página.
+//
 // Va en `@layer theme` a propósito: el preflight de Tailwind esconde `[hidden]`
 // con `!important` en `@layer base`, y entre declaraciones `!important` gana la
 // capa declarada ANTES (`theme`); una regla sin capa perdería.

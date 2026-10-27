@@ -12,6 +12,7 @@ import {
   FiltrosQue,
   navegarCon,
   nombresDeFiltrosExtra,
+  propsDeChip,
   urlDelMapa,
 } from "@/components/mapa/filtros-mapa"
 import { formatSaltaDayKey } from "@/lib/date-format"
@@ -109,6 +110,8 @@ export function MapaContenido({ pines, sinUbicacion, filtro, extra, categorias, 
   // veces seguidas se vuelve a decir (ver abajo).
   const [anuncio, setAnuncio] = useState({ texto: "", n: 0 })
   // Si el mapa no carga, "Ver en el mapa" llevaría al aviso de error: se saca.
+  // Vuelve si el mapa carga después (por ejemplo, otro día sin pines desmonta
+  // el mapa y al volver arranca bien): `onListo`.
   const [mapaDisponible, setMapaDisponible] = useState(true)
   // El bloque (id) del lugar cuyo "Ver en el mapa" tenía el foco cuando el mapa falló: el foco pasa a su primer evento.
   const rescatarFocoEn = useRef<string | null>(null)
@@ -228,10 +231,12 @@ export function MapaContenido({ pines, sinUbicacion, filtro, extra, categorias, 
     ordenarCentrar(venueId)
     const pin = pines.find((candidato) => candidato.venueId === venueId)
     if (pin) anunciar(textoDeCentrado(pin))
-    // En el celular el mapa queda arriba de la lista: si no se ve, se lo trae a
-    // la vista. El foco NO se mueve: sigue en el botón, y el próximo Tab sigue
-    // desde ahí (WCAG 2.4.3). Si el mapa ya se ve, no se mueve nada, así el
-    // botón con el foco no se va de la pantalla (2.4.11).
+    // En el celular el mapa queda arriba de la lista. Si el centro del mapa (el
+    // pin) ya se ve, no se mueve nada y el botón con el foco sigue en pantalla.
+    // Si no se ve, se sube la página hasta el mapa y el botón con el foco queda
+    // FUERA de la pantalla (a 360×740, desde el 3.er lugar en adelante): el foco
+    // no se mueve (sigue en el botón y el próximo Tab sigue desde ahí, que el
+    // navegador vuelve a mostrar), y el anuncio "Mapa centrado en …" explica el salto.
     const mapa = bloqueMapa.current
     if (mapa && !seVeElCentro(mapa)) mapa.scrollIntoView({ block: "nearest", behavior: comportamientoDeScroll() })
   }
@@ -251,7 +256,8 @@ export function MapaContenido({ pines, sinUbicacion, filtro, extra, categorias, 
 
       {/*
         Los chips son links a su URL (funcionan sin JavaScript y antes de
-        hidratar); el día y la categoría, sin JavaScript, se mandan con este
+        hidratar) presentados como botones de alternar (`propsDeChip`: role
+        "button", aria-pressed y Espacio); el día y la categoría, sin JavaScript, se mandan con este
         formulario y los botones de los <noscript>. Con JavaScript el
         formulario no se envía nunca: cada cambio navega desde `pedir`.
       */}
@@ -260,7 +266,7 @@ export function MapaContenido({ pines, sinUbicacion, filtro, extra, categorias, 
           <Link
             href={urlDelMapa({ tipo: "hoy" }, pedido.extra)}
             prefetch={false}
-            aria-current={filtro.tipo === "hoy" ? "true" : undefined}
+            {...propsDeChip(filtro.tipo === "hoy")}
             onNavigate={navegarCon(() => pedir({ tipo: "hoy" }, pedido.extra))}
             className={`${BASE_BOTON} ${filtro.tipo === "hoy" ? BOTON_ACTIVO : BOTON_INACTIVO}`}
           >
@@ -269,7 +275,7 @@ export function MapaContenido({ pines, sinUbicacion, filtro, extra, categorias, 
           <Link
             href={urlDelMapa({ tipo: "finde" }, pedido.extra)}
             prefetch={false}
-            aria-current={filtro.tipo === "finde" ? "true" : undefined}
+            {...propsDeChip(filtro.tipo === "finde")}
             onNavigate={navegarCon(() => pedir({ tipo: "finde" }, pedido.extra))}
             className={`${BASE_BOTON} ${filtro.tipo === "finde" ? BOTON_ACTIVO : BOTON_INACTIVO}`}
           >
@@ -391,6 +397,7 @@ export function MapaContenido({ pines, sinUbicacion, filtro, extra, categorias, 
                 centrar={centrar}
                 onSeleccionar={alSeleccionarEnElMapa}
                 onFallo={alFallarElMapa}
+                onListo={() => setMapaDisponible(true)}
                 className={`h-[45dvh] min-h-64 ${ALTO_LG}`}
               />
             </div>

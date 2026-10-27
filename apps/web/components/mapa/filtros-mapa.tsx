@@ -1,4 +1,4 @@
-import type { Ref } from "react"
+import type { KeyboardEvent, Ref } from "react"
 import Link from "next/link"
 import { consultaDelMapa, type CategoriaDelMapa, type FiltrosExtraMapa } from "@qps/core/mapa/filtros"
 import type { FiltroMapa } from "@qps/core/mapa/pines"
@@ -30,10 +30,29 @@ export function navegarCon(accion: () => void) {
   }
 }
 
+/**
+ * Lo que hace de un chip-link un botón de alternar para el lector de pantalla y
+ * el teclado: `role="button"` con `aria-pressed` (en un link común no valdría) y
+ * Espacio, que en un link no hace nada, lo activa como Enter. El `href` sigue:
+ * sin JavaScript navega, y Ctrl, Cmd o el botón del medio abren otra pestaña
+ * (el `<Link>` no llama a `onNavigate` en esos casos).
+ */
+export function propsDeChip(activo: boolean) {
+  return {
+    role: "button",
+    "aria-pressed": activo,
+    onKeyDown: (evento: KeyboardEvent<HTMLAnchorElement>) => {
+      if (evento.key !== " ") return
+      evento.preventDefault()
+      evento.currentTarget.click()
+    },
+  } as const
+}
+
 interface FiltrosQueProps {
   /** Lo último que se pidió (no lo que muestra el mapa todavía): así dos toques seguidos se suman. */
   extra: FiltrosExtraMapa
-  /** La fecha pedida: va en el `href` de cada chip y en el "Aplicar" sin JavaScript. */
+  /** La fecha pedida: va en el `href` de cada chip y en el "Aplicar categoría" sin JavaScript. */
   filtro: FiltroMapa
   categorias: CategoriaDelMapa[]
   /** Se prendió o apagó un filtro: llegan los filtros "qué" nuevos, completos. */
@@ -62,10 +81,11 @@ export function nombresDeFiltrosExtra(extra: FiltrosExtraMapa, categorias: Categ
  * La fila "Qué" de `/mapa`: Gratis, Para chicos y la categoría. Cada cambio
  * sale por `onCambiar` con los tres filtros; navegar lo decide quien la usa.
  *
- * Gratis y Para chicos son links a su URL (`aria-current` en el prendido: en
- * un link, `aria-pressed` no vale). El selector va adentro del `<form>` de
- * `mapa-contenido`: sin JavaScript se aplica con el botón "Aplicar" del
- * `<noscript>`.
+ * Gratis y Para chicos son links a su URL que se presentan como botones de
+ * alternar (`propsDeChip`). El selector va adentro del `<form>` de
+ * `mapa-contenido`: sin JavaScript se aplica con el botón "Aplicar categoría"
+ * del `<noscript>`, que conserva el "cuándo" que ya estaba (un día recién
+ * elegido en el selector de fecha se aplica con "Ver ese día").
  */
 export function FiltrosQue({ extra, filtro, categorias, onCambiar, refGratis }: FiltrosQueProps) {
   const conGratis = { ...extra, gratis: !extra.gratis }
@@ -76,7 +96,7 @@ export function FiltrosQue({ extra, filtro, categorias, onCambiar, refGratis }: 
         ref={refGratis}
         href={urlDelMapa(filtro, conGratis)}
         prefetch={false}
-        aria-current={extra.gratis ? "true" : undefined}
+        {...propsDeChip(extra.gratis)}
         onNavigate={navegarCon(() => onCambiar(conGratis))}
         className={`${BASE_BOTON} ${extra.gratis ? BOTON_ACTIVO : BOTON_INACTIVO}`}
       >
@@ -85,7 +105,7 @@ export function FiltrosQue({ extra, filtro, categorias, onCambiar, refGratis }: 
       <Link
         href={urlDelMapa(filtro, conChicos)}
         prefetch={false}
-        aria-current={extra.chicos ? "true" : undefined}
+        {...propsDeChip(extra.chicos)}
         onNavigate={navegarCon(() => onCambiar(conChicos))}
         className={`${BASE_BOTON} ${extra.chicos ? BOTON_ACTIVO : BOTON_INACTIVO}`}
       >
@@ -114,7 +134,7 @@ export function FiltrosQue({ extra, filtro, categorias, onCambiar, refGratis }: 
       </label>
       <noscript>
         <button type="submit" name="cuando" value={filtro.tipo} className={`${BASE_BOTON} ${BOTON_INACTIVO}`}>
-          Aplicar
+          Aplicar categoría
         </button>
       </noscript>
     </div>
