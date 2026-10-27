@@ -38,7 +38,8 @@
 // 66-c: sin eventos para la combinación hay una caja con "Ver <Nombre> en todas
 // las fechas" (`/buscar?categoria=…&v=…` sin atajo; el cine, "Ver cartelera", va
 // a `/cines`) y "Todas las
-// categorías"; con eventos, una línea "N eventos" (live region) bajo el título.
+// categorías"; con eventos, una línea "N eventos" bajo el título (desde A8, nube
+// Q1, QPS-339, anunciada con `useAnunciarConteo` y sin live region).
 // Sin chips que elegir no se dibuja la fila. Sin conexión: nada de esto pide
 // red (todo es memoria sobre lo cargado), y `AvisoSinConexion` va debajo de la cabecera fija.
 // R67, 67-c: con el chip "Cine", las películas se dibujan como la cartelera de
@@ -62,7 +63,7 @@
 // sus reglas). Con "Gratis" apagado la portada queda exactamente como antes.
 // Prendido, la portada pasa al modo grilla (como con una categoría): título
 // "Gratis · Hoy" o "Música gratis · Finde" (`tituloGratis`), la misma línea
-// "N eventos" con su live region y su anuncio, y la grilla de 2 columnas; sin
+// "N eventos" con su anuncio, y la grilla de 2 columnas; sin
 // Hero, sin `InvitacionAvisos`, sin banners ni anuncio. Los chips de categoría
 // salen solo de los eventos gratis de la fecha (`chipsDeLaPortada`), con la
 // elegida siempre presente. Las películas no son gratis: con "Cine" + "Gratis"
@@ -114,6 +115,15 @@
 //   - Con Infantil elegida, el vacío no ofrece "Ver todas las edades" (no
 //     cambiaría nada): ver `salidasVacioParaChicos`.
 //
+// A8 (nube Q1, QPS-339): el conteo y los vacíos de la grilla se anuncian a
+// mano en Android y en iOS (`useAnunciarConteo`, `lib/anunciar-conteo-hook.ts`;
+// la decisión pura de qué y cuándo, en `lib/anunciar-conteo.ts`), y esos nodos
+// ya no son live regions: un solo anuncio por cambio. Se anuncia la entrada al
+// modo grilla y cada cambio de filtro (título + conteo, aunque el número sea el
+// mismo: "Música gratis, Hoy: 3 eventos"), y la salida ("Todos los eventos,
+// Hoy"). El título de la grilla es un solo string (`tituloGrilla`) que usan el
+// encabezado y el anuncio.
+//
 // Lo que no se copia, a propósito (ops/paridad-web-app.md, inventario
 // "Portada" y la tarea 29-h): "Más filtros" (lugar/zona) y el switch
 // "Mostrar flyers de redes" — ninguno de los dos tiene un equivalente de
@@ -127,7 +137,7 @@
 // de esta misma pantalla. El detector que lo exige está en
 // `tests/anuncios-lugares.test.ts`.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { AccessibilityInfo, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native'
+import { Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native'
 import { Redirect, useRouter } from 'expo-router'
 import { formatDateInSalta, transformMovie } from '@qps/core/home/transform'
 import { selectCarouselEvents, sortCategories } from '@qps/core/home/carousel'
@@ -149,6 +159,8 @@ import { PillsAtajos } from '@/components/PillsAtajos'
 import { TarjetaEvento } from '@/components/TarjetaEvento'
 import { TarjetaPelicula } from '@/components/TarjetaPelicula'
 import { Texto } from '@/components/Texto'
+import { estadoAnunciablePortada } from '@/lib/anunciar-conteo'
+import { useAnunciarConteo } from '@/lib/anunciar-conteo-hook'
 import { useBienvenidaVista } from '@/lib/bienvenida'
 import { bordeChipInactivo, useColoresQPS } from '@/lib/colores'
 import { obtenerCines, type Pelicula } from '@/lib/datos/cines'
@@ -172,7 +184,6 @@ import {
   textoVacioGratis,
   tituloGratis,
   type SegundaSalidaGratis,
-  type TipoAnuncioGrilla,
 } from '@/lib/portada-gratis'
 import {
   salidasVacioParaChicos,
@@ -316,8 +327,8 @@ function enFilasDeDos<T>(lista: T[]): T[][] {
  * prendido (`segundaSalidaVacioGratis`). Misma caja y mismos botones que el
  * vacío del modo categoría: principal relleno de `primary`, secundario con
  * contorno `bordeChipInactivo` (3:1; los dos vacíos lo usan desde la ronda de
- * correcciones de A2). El texto es una live region, como el conteo (ver el
- * efecto del anuncio en `Inicio`).
+ * correcciones de A2). Su texto se anuncia como el conteo (A8, nube Q1,
+ * QPS-339: con `useAnunciarConteo` en `Inicio`, ya no como live region).
  */
 function VacioGratis({
   texto,
@@ -337,7 +348,7 @@ function VacioGratis({
   const colores = useColoresQPS()
   return (
     <View style={[estilos.vacioHoy, estilos.vacioCategoria, { backgroundColor: colores.card, borderColor: colores.border }]}>
-      <Texto tono="secundario" accessibilityLiveRegion="polite">
+      <Texto tono="secundario">
         {texto}
       </Texto>
       <Pressable
@@ -369,7 +380,7 @@ function VacioGratis({
  * chicos" y deja fecha, categoría y "Gratis"), y una segunda que lo deja
  * prendido. Con Infantil (ronda de correcciones de A3) no hay "Ver todas las
  * edades": la principal es la fecha, los precios o la categoría. Misma caja,
- * mismos botones y misma live region que `VacioGratis`. Con "Gratis" y "Para
+ * mismos botones y mismo anuncio que `VacioGratis`. Con "Gratis" y "Para
  * chicos" prendidos, el vacío es este.
  */
 function VacioParaChicos({
@@ -403,7 +414,7 @@ function VacioParaChicos({
           : onTodosLosPrecios
   return (
     <View style={[estilos.vacioHoy, estilos.vacioCategoria, { backgroundColor: colores.card, borderColor: colores.border }]}>
-      <Texto tono="secundario" accessibilityLiveRegion="polite">
+      <Texto tono="secundario">
         {texto}
       </Texto>
       <Pressable
@@ -638,21 +649,23 @@ export default function Inicio() {
     scrollRef.current?.scrollTo({ y: 0, animated: false })
   }, [])
 
-  // R69, 69-b (QPS-354): el conteo tiene `accessibilityLiveRegion="polite"`,
-  // pero Android anuncia los cambios de una live region, no su montaje: al
-  // entrar al modo categoría la primera línea no se leía. Se anuncia con
-  // `announceForAccessibility` cuando el conteo pasa de no estar a estar. Para
-  // no leer dos veces el mismo texto, los cambios posteriores (la live region
-  // ya montada) los anuncia la live region en Android y este efecto solo en
-  // iOS, que ignora `accessibilityLiveRegion`. Un anuncio no es `setState`.
+  // R69, 69-b (QPS-354): el conteo se anunciaba con `announceForAccessibility`
+  // solo al aparecer (o al cambiar de nodo: conteo ↔ vacío) y, en Android, los
+  // cambios siguientes quedaban a cargo de `accessibilityLiveRegion`.
   // A2 (nube Q1): el modo "Gratis" usa la misma línea y el mismo anuncio.
   // Ronda de correcciones: lo que se anuncia es el conteo si hay resultados o
   // el texto del vacío si no (`anuncioDeLaGrilla`): antes, con "Gratis" y sin
-  // resultados, no se oía nada. El vacío también es una live region, y cada
-  // nodo (conteo, vacío de categoría, vacío de "Gratis") es uno distinto en
-  // pantalla, así que "primera vez" es que cambie el `tipo`: al pasar del
-  // conteo al vacío se monta otro nodo y Android no lo anunciaría solo.
+  // resultados, no se oía nada.
   // A3 (nube Q1): con "Para chicos", su vacío (también con "Gratis" prendido).
+  // A8 (nube Q1, QPS-339): se anuncia SIEMPRE a mano, en Android y en iOS, con
+  // `useAnunciarConteo` (reglas en `lib/anunciar-conteo.ts`), y el conteo y
+  // los tres vacíos ya no son live regions (para no leer dos veces). Así se
+  // anuncia también un cambio de filtro con el mismo número ("Música gratis,
+  // Hoy: 3 eventos" después de "Música, Hoy: 3 eventos"), con el título de la
+  // grilla para desambiguar, y la salida del modo grilla ("Todos los eventos,
+  // Hoy": apagar el último filtro, "Todas las categorías", "Ver todos los
+  // precios" o "Ver todas las edades" que vuelven a la portada normal). El
+  // montaje no se anuncia (la portada arranca sin filtros).
   const textoVacio = paraChicos
     ? textoVacioParaChicos(categoria, nombreCategoria, atajo, gratis)
     : gratis ? textoVacioGratis(categoria, nombreCategoria, atajo) : textoVacioCategoria(nombreCategoria, atajo)
@@ -666,18 +679,18 @@ export default function Inicio() {
         textoVacio,
       })
     : null
-  const textoAnuncio = anuncio?.texto ?? null
-  const tipoAnuncio = anuncio?.tipo ?? null
-  const tipoAnunciado = useRef<TipoAnuncioGrilla | null>(null)
-  useEffect(() => {
-    if (textoAnuncio === null || tipoAnuncio === null) {
-      tipoAnunciado.current = null
-      return
-    }
-    const primeraVez = tipoAnunciado.current !== tipoAnuncio
-    tipoAnunciado.current = tipoAnuncio
-    if (primeraVez || Platform.OS === 'ios') AccessibilityInfo.announceForAccessibility(textoAnuncio)
-  }, [textoAnuncio, tipoAnuncio])
+  // El título de la grilla (A8: un solo string, para el encabezado y para el
+  // anuncio). R67, 67-r1: las películas no se filtran por fecha, así que con
+  // "Cine" dice "En cartel" y no el atajo. A2 (nube Q1): con "Gratis", "Gratis
+  // · Hoy" o "Música gratis · Finde" (con "Cine" también va la fecha: no hay
+  // películas). A3 (nube Q1): con "Para chicos", "Para chicos · Finde",
+  // "Música para chicos · Hoy" o "Gratis para chicos · Hoy".
+  const tituloGrilla = paraChicos
+    ? tituloParaChicos(categoria === null ? null : nombreCategoria, categoria, atajo, gratis)
+    : gratis
+      ? tituloGratis(categoria === null ? null : nombreCategoria, atajo)
+      : `${nombreCategoria} · ${categoria === 'cine' ? 'En cartel' : ETIQUETA_ATAJO[atajo]}`
+  useAnunciarConteo(datosPortada ? estadoAnunciablePortada({ atajo, categoria, gratis, paraChicos, tituloGrilla, anuncio }) : null)
 
   if (cargandoBienvenida) return null
   if (!vista) return <Redirect href="/bienvenida" />
@@ -726,27 +739,14 @@ export default function Inicio() {
           {modoGrilla ? (
             <View style={estilos.bloqueCategoria}>
               <Texto peso="bold" accessibilityRole="header" style={estilos.tituloCategoria}>
-                {/* R67, 67-r1: las películas no se filtran por fecha, así que
-                    con "Cine" el título dice "En cartel" y no el atajo.
-                    A2 (nube Q1): con "Gratis", "Gratis · Hoy" o "Música gratis ·
-                    Finde" (con "Cine" también va la fecha: no hay películas).
-                    A3 (nube Q1): con "Para chicos", "Para chicos · Finde",
-                    "Música para chicos · Hoy" o "Gratis para chicos · Hoy". */}
-                {paraChicos ? (
-                  tituloParaChicos(categoria === null ? null : nombreCategoria, categoria, atajo, gratis)
-                ) : gratis ? (
-                  tituloGratis(categoria === null ? null : nombreCategoria, atajo)
-                ) : (
-                  <>
-                    {nombreCategoria} · {categoria === 'cine' ? 'En cartel' : ETIQUETA_ATAJO[atajo]}
-                  </>
-                )}
+                {/* El mismo string que va en el anuncio (`tituloGrilla`, A8). */}
+                {tituloGrilla}
               </Texto>
               {/* El vacío del modo categoría va primero; el de "Para chicos"
                   (A3), después; el de "Gratis" (A2), en la última. */}
               {datosPortada.eventosCategoria.length === 0 && categoria !== null && !gratis && !paraChicos ? (
                 <View style={[estilos.vacioHoy, estilos.vacioCategoria, { backgroundColor: colores.card, borderColor: colores.border }]}>
-                  <Texto tono="secundario" accessibilityLiveRegion="polite">
+                  <Texto tono="secundario">
                     {textoVacio}
                   </Texto>
                   <Pressable
@@ -793,10 +793,10 @@ export default function Inicio() {
                 />
               ) : (
                 <>
-                  <Texto tono="secundario" accessibilityLiveRegion="polite">
+                  <Texto tono="secundario">
                     {conteoCategoria(datosPortada.peliculasCategoria.length, datosPortada.eventosSinPelicula.length)}
                   </Texto>
-                  {/* (el primer anuncio lo hace el efecto de `textoAnuncio`) */}
+                  {/* A8 (nube Q1, QPS-339): sin live region; lo anuncia `useAnunciarConteo`. */}
                   {/* R67, 67-c: el scroll no salta al abrir el acordeón de la
                       película 2 o 3 porque las tarjetas cuelgan de este mismo
                       `ScrollView` con `key` estables (`pelicula.id`), la lista

@@ -972,7 +972,10 @@ function violacionesPortada(fuenteCruda: string): string[] {
   if (!/\}, \[estado, atajo, categoria, gratis, paraChicos\]\)/.test(c)) v.push('datosPortada no depende de Para chicos')
 
   // Título, texto del vacío y anuncio.
-  if (!/\{paraChicos \? \(\s*tituloParaChicos\(categoria === null \? null : nombreCategoria, categoria, atajo, gratis\)/.test(c)) v.push('el título no sale de tituloParaChicos')
+  // A8 (nube Q1, QPS-339): el título es un solo string (`tituloGrilla`) que usan
+  // el encabezado y el anuncio; antes era un ternario en el JSX.
+  if (!/const tituloGrilla = paraChicos\s*\?\s*tituloParaChicos\(categoria === null \? null : nombreCategoria, categoria, atajo, gratis\)/.test(c)) v.push('el título no sale de tituloParaChicos')
+  if (!/accessibilityRole="header" style=\{estilos\.tituloCategoria\}>[^<]{0,160}?\{tituloGrilla\}\s*<\/Texto>/.test(c)) v.push('el encabezado de la grilla no muestra tituloGrilla')
   if (!/const textoVacio = paraChicos\s*\?\s*textoVacioParaChicos\(categoria, nombreCategoria, atajo, gratis\)/.test(c)) v.push('el texto del vacío no sale de textoVacioParaChicos')
   if (!/anuncioDeLaGrilla\(\{\s*modoGrilla,\s*gratis,\s*paraChicos,/.test(c)) v.push('el anuncio no sabe de Para chicos')
 
@@ -1005,7 +1008,8 @@ function violacionesPortada(fuenteCruda: string): string[] {
       v.push('una salida no despacha a su handler')
     }
     if (!/borderColor: bordeSecundario/.test(cuerpo)) v.push('el secundario del vacío de Para chicos no usa bordeSecundario')
-    if (!/accessibilityLiveRegion="polite">\s*\{texto\}/.test(cuerpo)) v.push('el texto del vacío de Para chicos no es una live region')
+    // A8 (nube Q1, QPS-339): sin live region (lo anuncia `useAnunciarConteo`).
+    if (!/<Texto tono="secundario">\s*\{texto\}/.test(cuerpo)) v.push('el texto del vacío de Para chicos no se muestra sin live region')
     if (/BannerAnuncio|BannerRadar/.test(cuerpo)) v.push('hay un banner en el vacío')
     if (!/estilos\.botonVacio/.test(cuerpo)) v.push('los botones del vacío no usan estilos.botonVacio (minHeight 48)')
   }
@@ -1040,7 +1044,9 @@ describe('app/(tabs)/index.tsx: el modo "Para chicos"', () => {
     ['salida principal con otro texto', (s: string) => s.replace('{principal.texto}', 'Ver todas las edades'), 'la salida principal no muestra principal.texto con alTocar(principal)'],
     ['segunda con el handler de la principal', (s: string) => s.replace('onPress={alTocar(segunda)}', 'onPress={alTocar(principal)}'), 'la segunda salida no muestra segunda.texto con alTocar(segunda)'],
     ['botón del vacío sin rol', (s: string) => s.replace(/(onPress=\{alTocar\(principal\)\}\s*)accessibilityRole="button"/, '$1'), 'un botón del vacío no tiene accessibilityRole="button"'],
-    ['vacío sin live region', (s: string) => s.replace(/(function VacioParaChicos[\s\S]*?)accessibilityLiveRegion="polite">/, '$1>'), 'el texto del vacío de Para chicos no es una live region'],
+    // A8 (nube Q1, QPS-339): la rotura ahora es devolverle la live region (doble lectura).
+    ['vacío con live region', (s: string) => s.replace(/(function VacioParaChicos[\s\S]*?)<Texto tono="secundario">/, '$1<Texto tono="secundario" accessibilityLiveRegion="polite">'), 'el texto del vacío de Para chicos no se muestra sin live region'],
+    ['encabezado sin tituloGrilla', (s: string) => s.replace('{tituloGrilla}\n', '{nombreCategoria}\n'), 'el encabezado de la grilla no muestra tituloGrilla'],
     ['secundario con colores.border', (s: string) => s.replace(/(function VacioParaChicos[\s\S]*?)borderColor: bordeSecundario/, '$1borderColor: colores.border'), 'el secundario del vacío de Para chicos no usa bordeSecundario'],
   ])('rotura en memoria: %s -> detectada', (_nombre, romper, esperada) => {
     const roto = romper(real)

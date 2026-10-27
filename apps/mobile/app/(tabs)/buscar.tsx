@@ -67,6 +67,18 @@
 // mínimo de 3 resultados para el anuncio siguen valiendo. La grilla
 // "Explorar por categoria" sigue contando sobre todos los eventos (solo se ve
 // sin ningún filtro, y "Para chicos" es un filtro).
+//
+// A8 (nube Q1, QPS-339): el conteo de los resultados ("N resultados…", "N
+// eventos…", o el texto del vacío con 0) se anuncia a mano en Android y en iOS
+// con `useAnunciarConteo` (reglas en `lib/anunciar-conteo.ts`;
+// `estadoAnunciableBuscar` arma qué se dice) y ya no es una live region: al
+// pasar de "Explorar por categoria" a resultados la FlatList de resultados se
+// monta nueva y TalkBack no anunciaba su conteo, ni nada cuando el número no
+// cambiaba. Ahora se anuncia al prender un filtro, tocar una categoría o una
+// pill, llegar con `?categoria=` (aunque Buscar se monte recién: antes no había
+// nada y el usuario tocó "Ver todos"), y al volver a "Explorar por categoría".
+// Lo tipeado NO se anuncia en cada tecla: espera `DEMORA_TEXTO_MS` sin teclas
+// nuevas (o al toque si el campo queda vacío, como con "Limpiar búsqueda").
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { FlatList, Pressable, RefreshControl, StyleSheet, View } from 'react-native'
 import { useLocalSearchParams } from 'expo-router'
@@ -80,6 +92,8 @@ import { Icono, iconoPorCategoria } from '@/components/Icono'
 import { PillsAtajos } from '@/components/PillsAtajos'
 import { TarjetaEvento } from '@/components/TarjetaEvento'
 import { Texto } from '@/components/Texto'
+import { estadoAnunciableBuscar } from '@/lib/anunciar-conteo'
+import { useAnunciarConteo } from '@/lib/anunciar-conteo-hook'
 import { bordeChipInactivo, useColoresQPS } from '@/lib/colores'
 import { textoResultadosBuscar, textoSinResultadosBuscar } from '@/lib/buscar-filtros'
 import {
@@ -258,6 +272,14 @@ export default function Buscar() {
     atajo,
   }
 
+  // A8 (nube Q1, QPS-339): un anuncio por cambio (sin live region en el conteo).
+  // `null` mientras carga o con error: "no hay nada".
+  useAnunciarConteo(
+    estado.tipo === 'ok'
+      ? estadoAnunciableBuscar({ mostrarResultados, cantidad: resultadosMostrados.length, filtros: filtrosTexto })
+      : null,
+  )
+
   // Salidas del vacío (R66): sacar la fecha y/o la categoría. Un botón por
   // cada filtro que se puede sacar. A3: y "Para chicos", primero (la salida
   // principal, rellena), salvo con Infantil elegida: ahí apagarlo no cambia
@@ -412,7 +434,7 @@ export default function Buscar() {
               <View style={estilos.chipsEnLista}>
                 <ChipsCategorias categorias={categoriasParaChips} seleccionada={categoriaFiltro} onCambiar={setCategoriaFiltro} />
               </View>
-              <Texto tono="secundario" accessibilityLiveRegion="polite" style={estilos.tituloSeccion}>
+              <Texto tono="secundario" style={estilos.tituloSeccion}>
                 {textoResultadosBuscar(resultadosMostrados.length, filtrosTexto)}
               </Texto>
             </>

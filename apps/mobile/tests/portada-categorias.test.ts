@@ -292,12 +292,14 @@ describe('portada (app/(tabs)/index.tsx) en modo categoría', () => {
     expect(memo).toMatch(/eventosDeLaGrilla\(/)
   })
 
-  // Mutación: sacar `accessibilityLiveRegion="polite"` del conteo.
-  it('el conteo "N eventos" es una live region polite', () => {
-    // A2 (ronda de correcciones): el texto del vacío también es una live
-    // region, así que se busca la que tiene el conteo (va después del vacío).
-    const conteo = entre(bloqueCategoria, 'accessibilityLiveRegion="polite">\n                    {conteoCategoria', '</Texto>')
-    expect(conteo).toMatch(/accessibilityLiveRegion="polite"/)
+  // A8 (nube Q1, QPS-339): CAMBIO a propósito. Hasta A3 el conteo era una live
+  // region polite (y la mutación era sacársela); desde A8 lo anuncia
+  // `useAnunciarConteo` en Android y en iOS, y la live region se fue para no
+  // leerlo dos veces (`tests/anunciar-conteos.test.ts`). Mutación: devolvérsela.
+  it('el conteo "N eventos" se muestra sin live region (lo anuncia useAnunciarConteo)', () => {
+    const conteo = entre(bloqueCategoria, '<Texto tono="secundario">\n                    {conteoCategoria', '</Texto>')
+    expect(conteo).not.toMatch(/accessibilityLiveRegion/)
+    expect(bloqueCategoria).not.toMatch(/accessibilityLiveRegion/)
     // R67, 67-c: el texto lo arma `conteoCategoria(películas, eventos)`.
     expect(conteo).toMatch(/conteoCategoria\(datosPortada\.peliculasCategoria\.length,\s*datosPortada\.eventosSinPelicula\.length\)/)
     expect(codigo).toMatch(/'evento'\s*:\s*'eventos'/)
@@ -355,7 +357,10 @@ describe('Buscar (app/(tabs)/buscar.tsx) con fecha y categoría', () => {
     // 66-r1 (B2): ya no van en la cabecera fija sino en el `ListHeaderComponent`
     // de la lista de resultados (scrollean con ella), arriba del conteo.
     const cabeceraLista = codigo.slice(codigo.indexOf('data={resultadosMostrados}'), codigo.indexOf('ListEmptyComponent={\n            <View style={estilos.vacio}>'))
-    expect(cabeceraLista).toMatch(/ListHeaderComponent=\{[\s\S]*<ChipsCategorias\b[^>]*seleccionada=\{categoriaFiltro\}[^>]*onCambiar=\{setCategoriaFiltro\}[\s\S]*accessibilityLiveRegion="polite"/)
+    // A8 (nube Q1, QPS-339): el conteo va después de los chips, ya sin live
+    // region (lo anuncia `useAnunciarConteo`).
+    expect(cabeceraLista).toMatch(/ListHeaderComponent=\{[\s\S]*<ChipsCategorias\b[^>]*seleccionada=\{categoriaFiltro\}[^>]*onCambiar=\{setCategoriaFiltro\}[\s\S]*textoResultadosBuscar\(resultadosMostrados\.length, filtrosTexto\)/)
+    expect(cabeceraLista).not.toMatch(/accessibilityLiveRegion/)
     // Y no quedan chips en la parte fija: una sola aparición del JSX.
     expect(codigo.match(/<ChipsCategorias\b/g) ?? []).toHaveLength(1)
   })
