@@ -147,7 +147,8 @@ describe('cargarAgendaConCache: falla por red', () => {
       almacen,
     })
 
-    expect(resultado).toEqual({ tipo: 'error', error: 'No pudimos cargar la agenda.' })
+    // A6 (nube Q1), a propósito: falló por red y no había nada guardado que sirviera → `sinConexion: true` en la rama de error.
+    expect(resultado).toEqual({ tipo: 'error', error: 'No pudimos cargar la agenda.', sinConexion: true })
   })
 
   it('con la caché vencida (TTL_AGENDA_MS superado): da error, no la caché', async () => {
@@ -162,7 +163,8 @@ describe('cargarAgendaConCache: falla por red', () => {
       almacen,
     })
 
-    expect(resultado).toEqual({ tipo: 'error', error: 'No pudimos cargar la agenda.' })
+    // A6 (nube Q1), a propósito: falló por red y no había nada guardado que sirviera → `sinConexion: true` en la rama de error.
+    expect(resultado).toEqual({ tipo: 'error', error: 'No pudimos cargar la agenda.', sinConexion: true })
   })
 })
 
@@ -299,7 +301,8 @@ describe('cargarAgendaConCache: una caché con `datos` de forma inesperada no ti
       almacen,
     })
 
-    expect(resultado).toEqual({ tipo: 'error', error: RAZON })
+    // A6 (nube Q1), a propósito: falló por red y no había nada guardado que sirviera → `sinConexion: true` en la rama de error.
+    expect(resultado).toEqual({ tipo: 'error', error: RAZON, sinConexion: true })
   })
 
   it('datos es un array (donde se espera el objeto { eventos, categorias, peliculas })', async () => {
@@ -312,7 +315,8 @@ describe('cargarAgendaConCache: una caché con `datos` de forma inesperada no ti
       almacen,
     })
 
-    expect(resultado).toEqual({ tipo: 'error', error: RAZON })
+    // A6 (nube Q1), a propósito: falló por red y no había nada guardado que sirviera → `sinConexion: true` en la rama de error.
+    expect(resultado).toEqual({ tipo: 'error', error: RAZON, sinConexion: true })
   })
 
   it('un evento sin paraAtajo (el caso que tira desde isVigente, en @qps/core)', async () => {
@@ -326,6 +330,7 @@ describe('cargarAgendaConCache: una caché con `datos` de forma inesperada no ti
       almacen,
     })
 
-    expect(resultado).toEqual({ tipo: 'error', error: RAZON })
+    // A6 (nube Q1), a propósito: falló por red y no había nada guardado que sirviera → `sinConexion: true` en la rama de error.
+    expect(resultado).toEqual({ tipo: 'error', error: RAZON, sinConexion: true })
   })
 })

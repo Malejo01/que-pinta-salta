@@ -84,9 +84,15 @@ export interface DepsCargarFavoritos {
   almacen?: Almacen
 }
 
+// A6 (nube Q1): igual que `ResultadoCargaAgenda` (`./agenda.ts`), la rama de
+// error suma `sinConexion: true` cuando `obtener` falló por red y no había
+// nada guardado que mostrar (o la época cambió en el medio): la pantalla
+// muestra entonces "No hay conexión y todavía no hay nada guardado..." en vez
+// del error de siempre. Los `toEqual({ tipo: 'error', error })` de esos casos
+// se actualizaron a propósito; un error que no es de red sigue sin la clave.
 export type ResultadoCargaFavoritos =
   | { tipo: 'ok'; voy: DisplayEvent[]; eventos: DisplayEvent[]; desdeCache: { guardadoEn: Date } | null }
-  | { tipo: 'error'; error: string }
+  | { tipo: 'error'; error: string; sinConexion?: true }
 
 /** Lo que se guarda en `CLAVE_FAVORITOS` desde QPS-262 (antes, el array pelado de `eventos`). */
 export interface DatosCacheFavoritos {
@@ -180,12 +186,12 @@ export async function cargarFavoritosConCache(
   // fallaba por red, la caché en disco (si quedó alguna) es de una sesión
   // que ya no es la actual — se devuelve el error de siempre, no la caché.
   if (epocaDeCacheFavoritos() !== epoca) {
-    return { tipo: 'error', error: resultado.error }
+    return { tipo: 'error', error: resultado.error, sinConexion: true }
   }
 
   const cache = await leerCache<unknown>(CLAVE_FAVORITOS, { ahora, ttlMs: TTL_FAVORITOS_MS, almacen })
   if (cache === null) {
-    return { tipo: 'error', error: resultado.error }
+    return { tipo: 'error', error: resultado.error, sinConexion: true }
   }
 
   // `paraMostrarFavoritos` tira si `cache.datos` no es un array de ítems
@@ -201,7 +207,7 @@ export async function cargarFavoritosConCache(
       desdeCache: { guardadoEn: cache.guardadoEn },
     }
   } catch {
-    return { tipo: 'error', error: resultado.error }
+    return { tipo: 'error', error: resultado.error, sinConexion: true }
   }
 }
 

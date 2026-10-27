@@ -264,6 +264,26 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   return <SessionContext.Provider value={estado}>{children}</SessionContext.Provider>
 }
 
+/**
+ * A6 (nube Q1): "Reintentar" de Mis eventos y Radar cuando no hay sesión
+ * porque no se pudo confirmar por falta de red (`sinConexion`). Vuelve a
+ * pedir `getSession()`: con el token vencido, supabase-js intenta refrescarlo
+ * ahí mismo y, si lo logra, avisa por `onAuthStateChange`
+ * (`TOKEN_REFRESHED`) — el `SessionProvider` de arriba ya está suscripto y
+ * apaga `sinConexion` por `reducirSesion`, sin nada nuevo en este archivo.
+ * Devuelve si quedó una sesión (para que la pantalla anuncie "Seguimos sin
+ * conexión" si no). Nunca tira, y no loguea nada (ni el token ni el error).
+ */
+export async function reintentarSesion(): Promise<boolean> {
+  if (!supabase) return false
+  try {
+    const { data } = await supabase.auth.getSession()
+    return data.session !== null
+  } catch {
+    return false
+  }
+}
+
 /** `{ session, cargando, sinConexion }`. `session` en `null` es un estado válido: sin login. */
 export function useSession(): EstadoSesion {
   return useContext(SessionContext)

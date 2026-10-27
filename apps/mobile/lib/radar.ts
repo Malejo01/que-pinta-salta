@@ -21,8 +21,8 @@ import {
   type FilaFlyerConCuenta,
 } from '@qps/core/radar/seguimiento'
 import type { Database } from '@qps/db'
-import { MENSAJE_SIN_CONFIGURACION } from '@/lib/mensajes'
-import { fetchConTimeout, TIMEOUT_RED_MS } from '@/lib/red'
+import { MENSAJE_RADAR_GUARDAR_SIN_CONEXION, MENSAJE_SIN_CONFIGURACION } from '@/lib/mensajes'
+import { esErrorDeRed, fetchConTimeout, TIMEOUT_RED_MS } from '@/lib/red'
 import { supabase } from '@/lib/supabase'
 
 /**
@@ -39,6 +39,10 @@ function tablaDeSeguimiento(tabla: string): keyof Database['public']['Tables'] {
 export { MENSAJE_SIN_CONFIGURACION }
 export const MENSAJE_ERROR = 'No pudimos cargar tu Radar. Probá de nuevo.'
 export const MENSAJE_ERROR_GUARDAR = 'No pudimos guardar tu Radar. Probá de nuevo.'
+// A6 (nube Q1): el texto de guardar sin red vive en `lib/mensajes.ts` (con
+// los demás de "sin conexión") y se reexporta acá, igual que
+// `MENSAJE_SIN_CONFIGURACION`.
+export { MENSAJE_RADAR_GUARDAR_SIN_CONEXION }
 // Mismo texto que usaría la web para un error de red en esta misma prueba
 // (no hay uno literal todavía: es el patrón de `MENSAJE_ERROR_RED` de
 // `lib/favoritos.ts`/`lib/datos/*.ts`, adaptado al envío de prueba).
@@ -84,11 +88,30 @@ export interface OpcionesRadar {
   cuentasInstagram: CuentaInstagramRadar[]
 }
 
+// A6 (nube Q1): `sinConexion` en la rama de error, con el mismo criterio que
+// `lib/datos/*` y `lib/favoritos.ts` (R43, 43-b): `esErrorDeRed` (lib/red.ts)
+// mira la respuesta entera de PostgREST (`{ error, status }`, `status: 0` sin
+// `code` cuando el `fetch` rechazó) o la excepción atrapada. `true` o ausente,
+// nunca `false` explícito (`|| undefined`): así un `toEqual({ ok: false,
+// error })` de los tests sigue valiendo para los errores que no son de red.
+// Hasta A6 el Radar era la única pantalla con lista que no distinguía la red
+// caída de un error del servidor.
 export type ResultadoRadar =
   | { ok: true; preferencias: PreferenciasRadar; opciones: OpcionesRadar }
-  | { ok: false; error: string }
+  | { ok: false; error: string; sinConexion?: boolean }
 
-export type ResultadoGuardarRadar = { ok: true } | { ok: false; error: string }
+export type ResultadoGuardarRadar = { ok: true } | { ok: false; error: string; sinConexion?: boolean }
+
+/**
+ * La rama de error de `guardarRadar` para una respuesta (o excepción) que
+ * falló: sin red, `MENSAJE_RADAR_GUARDAR_SIN_CONEXION` (deja claro que los
+ * cambios siguen en pantalla) con `sinConexion: true`; si no,
+ * `MENSAJE_ERROR_GUARDAR` de siempre.
+ */
+function falloAlGuardar(respuestaOExcepcion: unknown): { ok: false; error: string; sinConexion?: boolean } {
+  if (esErrorDeRed(respuestaOExcepcion)) return { ok: false, error: MENSAJE_RADAR_GUARDAR_SIN_CONEXION, sinConexion: true }
+  return { ok: false, error: MENSAJE_ERROR_GUARDAR }
+}
 
 /**
  * Preferencias actuales del Radar de `userId` (frecuencia + las tres listas
@@ -121,8 +144,12 @@ export async function obtenerRadar(userId: string): Promise<ResultadoRadar> {
           .order('display_name', { ascending: true }),
       ])
 
-    for (const resultado of [settings, categoriasSeguidas, lugaresSeguidos, cuentasSeguidas, categorias, lugares, cuentasInstagram]) {
-      if (resultado.error) return { ok: false, error: MENSAJE_ERROR }
+    const respuestas = [settings, categoriasSeguidas, lugaresSeguidos, cuentasSeguidas, categorias, lugares, cuentasInstagram]
+    if (respuestas.some((resultado) => resultado.error)) {
+      // Igual que la portada (43-c): `sinConexion` es el O lógico de las
+      // siete — una sola caída por red alcanza para decir "no hay conexión".
+      const sinConexion = respuestas.some((resultado) => esErrorDeRed(resultado))
+      return { ok: false, error: MENSAJE_ERROR, sinConexion: sinConexion || undefined }
     }
 
     const frecuenciaGuardada = settings.data?.email_frequency ?? ''
@@ -144,8 +171,8 @@ export async function obtenerRadar(userId: string): Promise<ResultadoRadar> {
         cuentasInstagram: (cuentasInstagram.data ?? []) as unknown as CuentaInstagramRadar[],
       },
     }
-  } catch {
-    return { ok: false, error: MENSAJE_ERROR }
+  } catch (e) {
+    return { ok: false, error: MENSAJE_ERROR, sinConexion: esErrorDeRed(e) || undefined }
   }
 }
 
@@ -164,48 +191,42 @@ export async function guardarRadar(userId: string, datos: PreferenciasRadarEntra
   if (!normalizado.ok) return { ok: false, error: normalizado.error }
   const { email_frequency, categoryIds, venueIds, instagramAccountIds } = normalizado.datos
 
+  // A6: cada paso guarda la respuesta entera (no solo `error`) para que
+  // `falloAlGuardar` pueda mirar el `status` con `esErrorDeRed`.
   try {
-    const { error: errorSettings } = await supabase
-      .from('user_radar_settings')
-      .upsert({ user_id: userId, email_frequency })
-    if (errorSettings) return { ok: false, error: MENSAJE_ERROR_GUARDAR }
+    const settings = await supabase.from('user_radar_settings').upsert({ user_id: userId, email_frequency })
+    if (settings.error) return falloAlGuardar(settings)
 
-    const { error: errorBorrarCategorias } = await supabase
-      .from('user_followed_categories')
-      .delete()
-      .eq('user_id', userId)
-    if (errorBorrarCategorias) return { ok: false, error: MENSAJE_ERROR_GUARDAR }
+    const borrarCategorias = await supabase.from('user_followed_categories').delete().eq('user_id', userId)
+    if (borrarCategorias.error) return falloAlGuardar(borrarCategorias)
     if (categoryIds.length > 0) {
-      const { error: errorCategorias } = await supabase
+      const insertarCategorias = await supabase
         .from('user_followed_categories')
         .insert(categoryIds.map((category_id) => ({ user_id: userId, category_id })))
-      if (errorCategorias) return { ok: false, error: MENSAJE_ERROR_GUARDAR }
+      if (insertarCategorias.error) return falloAlGuardar(insertarCategorias)
     }
 
-    const { error: errorBorrarLugares } = await supabase.from('user_followed_venues').delete().eq('user_id', userId)
-    if (errorBorrarLugares) return { ok: false, error: MENSAJE_ERROR_GUARDAR }
+    const borrarLugares = await supabase.from('user_followed_venues').delete().eq('user_id', userId)
+    if (borrarLugares.error) return falloAlGuardar(borrarLugares)
     if (venueIds.length > 0) {
-      const { error: errorLugares } = await supabase
+      const insertarLugares = await supabase
         .from('user_followed_venues')
         .insert(venueIds.map((venue_id) => ({ user_id: userId, venue_id })))
-      if (errorLugares) return { ok: false, error: MENSAJE_ERROR_GUARDAR }
+      if (insertarLugares.error) return falloAlGuardar(insertarLugares)
     }
 
-    const { error: errorBorrarCuentas } = await supabase
-      .from('user_followed_instagram_accounts')
-      .delete()
-      .eq('user_id', userId)
-    if (errorBorrarCuentas) return { ok: false, error: MENSAJE_ERROR_GUARDAR }
+    const borrarCuentas = await supabase.from('user_followed_instagram_accounts').delete().eq('user_id', userId)
+    if (borrarCuentas.error) return falloAlGuardar(borrarCuentas)
     if (instagramAccountIds.length > 0) {
-      const { error: errorCuentas } = await supabase
+      const insertarCuentas = await supabase
         .from('user_followed_instagram_accounts')
         .insert(instagramAccountIds.map((instagram_account_id) => ({ user_id: userId, instagram_account_id })))
-      if (errorCuentas) return { ok: false, error: MENSAJE_ERROR_GUARDAR }
+      if (insertarCuentas.error) return falloAlGuardar(insertarCuentas)
     }
 
     return { ok: true }
-  } catch {
-    return { ok: false, error: MENSAJE_ERROR_GUARDAR }
+  } catch (e) {
+    return falloAlGuardar(e)
   }
 }
 

@@ -203,7 +203,8 @@ describe('QPS-262 (c): una caché con forma inválida se trata como "no hay cach
 
     const resultado = await cargarFavoritosConCache(USER_ID_UUID_INVENTADO, { obtener: sinConexion, ahora: AHORA, almacen })
 
-    expect(resultado).toEqual({ tipo: 'error', error: RAZON })
+    // A6 (nube Q1), a propósito: falló por red y no había nada guardado que sirviera → `sinConexion: true` en la rama de error.
+    expect(resultado).toEqual({ tipo: 'error', error: RAZON, sinConexion: true })
   })
 
   it.each(invalidas)('leerFavoritosGuardados con %s: da null, no tira', async (_nombre, datos) => {

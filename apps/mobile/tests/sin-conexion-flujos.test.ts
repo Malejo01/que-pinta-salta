@@ -223,7 +223,8 @@ describe('Inicio de punta a punta (Supabase doble + AsyncStorage real, sin pasar
     const muchoDespues = new Date(AHORA.getTime() + TTL_AGENDA_MS + 60 * 1000) // 48 h y 1 minuto
     const resultado = await cargarAgendaConCache({ cargar: () => cargarInicio(muchoDespues), ahora: muchoDespues })
 
-    expect(resultado).toEqual({ tipo: 'error', error: expect.any(String) })
+    // A6 (nube Q1), a propósito: falló por red y no había nada guardado que sirviera → `sinConexion: true` en la rama de error.
+    expect(resultado).toEqual({ tipo: 'error', error: expect.any(String), sinConexion: true })
 
     expect(await AsyncStorage.getItem(CLAVE_AGENDA)).toBeNull()
     expect(await leerCache(CLAVE_AGENDA, { ahora: muchoDespues, ttlMs: TTL_AGENDA_MS })).toBeNull()
@@ -272,7 +273,8 @@ describe('El ciclo de Favoritos: sesión A, SIGNED_OUT real, y la carga de despu
       obtener: async () => ({ ok: false, error: mensaje, sinConexion: true }),
       ahora: AHORA,
     })
-    expect(cargaDespues).toEqual({ tipo: 'error', error: mensaje })
+    // A6 (nube Q1), a propósito: falló por red y no había nada guardado que sirviera → `sinConexion: true` en la rama de error.
+    expect(cargaDespues).toEqual({ tipo: 'error', error: mensaje, sinConexion: true })
   })
 })
 
