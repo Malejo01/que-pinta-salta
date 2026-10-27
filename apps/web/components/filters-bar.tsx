@@ -23,6 +23,21 @@ import {
 import { cn } from "@/lib/utils"
 import { getCategoryIcon } from "@/lib/category-icons"
 import { Switch } from "@/components/ui/switch"
+import type { Diccionario } from "@/lib/i18n"
+import type { Idioma } from "@/lib/i18n/idiomas"
+import { fechaDeFiltro } from "@/lib/i18n/fechas"
+import { useIdioma, useTextos } from "@/lib/i18n/use-idioma"
+
+// Lo que se ve mientras carga el calendario: sale del idioma de la página
+// (`loading` de next/dynamic no recibe props).
+function CargandoCalendario() {
+  const textos = useTextos()
+  return (
+    <div className="flex h-[308px] w-[252px] items-center justify-center p-3 text-sm text-muted-foreground">
+      {textos.portada.cargandoCalendario}
+    </div>
+  )
+}
 
 // El date picker (react-day-picker, vía components/ui/calendar) solo se
 // monta dentro de este Popover cuando el usuario lo abre: nunca hace falta
@@ -32,21 +47,18 @@ const Calendar = dynamic(
   () => import("@/components/ui/calendar").then((mod) => mod.Calendar),
   {
     ssr: false,
-    loading: () => (
-      <div className="flex h-[308px] w-[252px] items-center justify-center p-3 text-sm text-muted-foreground">
-        Cargando calendario…
-      </div>
-    ),
+    loading: () => <CargandoCalendario />,
   }
 )
 
 export type { DateFilter }
 
-const dateFilters: { value: DateFilter; label: string }[] = [
-  { value: "hoy", label: "Hoy" },
-  { value: "semana", label: "Esta semana" },
-  { value: "mes", label: "Este mes" },
-  { value: "tendencias", label: "Tendencias" },
+// `etiqueta`: clave del texto en el diccionario (`portada`).
+const dateFilters: { value: DateFilter; etiqueta: "filtroHoy" | "filtroSemana" | "filtroMes" | "filtroTendencias" }[] = [
+  { value: "hoy", etiqueta: "filtroHoy" },
+  { value: "semana", etiqueta: "filtroSemana" },
+  { value: "mes", etiqueta: "filtroMes" },
+  { value: "tendencias", etiqueta: "filtroTendencias" },
 ]
 
 interface FiltersBarProps {
@@ -78,17 +90,15 @@ function formatDateParam(date: Date) {
   return `${year}-${month}-${day}`
 }
 
-function formatDateLabel(value: string | null) {
-  if (!value) return "Todas las fechas"
-
-  const parsed = new Date(`${value}T00:00:00`)
-  return new Intl.DateTimeFormat("es-AR", {
-    dateStyle: "medium",
-    timeZone: "America/Argentina/Salta",
-  }).format(parsed)
+function formatDateLabel(value: string | null, idioma: Idioma, textos: Diccionario) {
+  if (!value) return textos.portada.todasLasFechas
+  return fechaDeFiltro(idioma, value)
 }
 
 export function FiltersBar({ categories, filters, onFilterChange }: FiltersBarProps) {
+  const idioma = useIdioma()
+  const textos = useTextos()
+  const t = textos.portada
   const [advancedFiltersOpen, setAdvancedFiltersOpen] = useState(false)
   const [isInteracting, setIsInteracting] = useState(true)
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -186,16 +196,16 @@ export function FiltersBar({ categories, filters, onFilterChange }: FiltersBarPr
   if (searchQuery) {
     activeChips.push({
       id: "search",
-      label: `Búsqueda: "${searchQuery}"`,
+      label: t.chipBusqueda(searchQuery),
       onClear: () => onFilterChange({ search: "" }),
     })
   }
   if (selectedDate) {
     const labels: Record<DateFilter, string> = {
-      hoy: "Hoy",
-      semana: "Esta semana",
-      mes: "Este mes",
-      tendencias: "Tendencias",
+      hoy: t.filtroHoy,
+      semana: t.filtroSemana,
+      mes: t.filtroMes,
+      tendencias: t.filtroTendencias,
     }
     activeChips.push({
       id: "date",
@@ -206,7 +216,7 @@ export function FiltersBar({ categories, filters, onFilterChange }: FiltersBarPr
   if (selectedExactDate) {
     activeChips.push({
       id: "dateExact",
-      label: formatDateLabel(selectedExactDate),
+      label: formatDateLabel(selectedExactDate, idioma, textos),
       onClear: () => onFilterChange({ dateExact: null }),
     })
   }
@@ -220,14 +230,14 @@ export function FiltersBar({ categories, filters, onFilterChange }: FiltersBarPr
   if (selectedEstablishment) {
     activeChips.push({
       id: "establishment",
-      label: `Lugar: ${selectedEstablishment}`,
+      label: t.chipLugar(selectedEstablishment),
       onClear: () => onFilterChange({ establishment: "" }),
     })
   }
   if (selectedLocation) {
     activeChips.push({
       id: "location",
-      label: `Zona: ${selectedLocation}`,
+      label: t.chipZona(selectedLocation),
       onClear: () => onFilterChange({ location: "" }),
     })
   }
@@ -303,7 +313,7 @@ export function FiltersBar({ categories, filters, onFilterChange }: FiltersBarPr
             <Input
               ref={searchInputRef}
               type="search"
-              placeholder="Buscar por evento o lugar..."
+              placeholder={t.buscarPlaceholder}
               defaultValue={searchQuery}
               onChange={(e) => handleDebouncedTextFilterChange("search", e.target.value, searchTimeoutRef)}
               className="pl-10"
@@ -326,7 +336,7 @@ export function FiltersBar({ categories, filters, onFilterChange }: FiltersBarPr
                       : "text-foreground border-border hover:bg-muted"
                   )}
                 >
-                  <span className="relative z-10">{filter.label}</span>
+                  <span className="relative z-10">{t[filter.etiqueta]}</span>
                   {isActive && (
                     <motion.div
                       layoutId="activeDatePill"
@@ -349,7 +359,7 @@ export function FiltersBar({ categories, filters, onFilterChange }: FiltersBarPr
                   )}
                 >
                   <CalendarDays className="mr-1.5 size-4" />
-                  {formatDateLabel(selectedExactDate)}
+                  {formatDateLabel(selectedExactDate, idioma, textos)}
                 </Button>
               </PopoverTrigger>
               <PopoverContent align="start" className="w-auto p-0">
@@ -369,14 +379,14 @@ export function FiltersBar({ categories, filters, onFilterChange }: FiltersBarPr
                 onClick={() => handleExactDateChange(undefined)}
                 className="shrink-0"
               >
-                Limpiar fecha
+                {t.limpiarFecha}
               </Button>
             )}
           </div>
 
           <div className="space-y-1.5 md:space-y-2">
             <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              Categorías
+              {t.categorias}
             </p>
             <div 
               ref={scrollRef}
@@ -408,7 +418,7 @@ export function FiltersBar({ categories, filters, onFilterChange }: FiltersBarPr
                       : "text-foreground border-border hover:bg-muted"
                   )}
                 >
-                  <span className="relative z-10">Todas</span>
+                  <span className="relative z-10">{t.todas}</span>
                   {!selectedCategory && (
                     <motion.div
                       layoutId="activeCategoryPill"
@@ -460,7 +470,7 @@ export function FiltersBar({ categories, filters, onFilterChange }: FiltersBarPr
                 >
                   <span className="flex items-center gap-2 text-sm">
                     <SlidersHorizontal className="size-4" />
-                    Más filtros
+                    {t.masFiltros}
                     {advancedFiltersCount > 0 && (
                       <span className="rounded-full bg-primary/12 px-2 py-0.5 text-xs font-medium text-primary">
                         {advancedFiltersCount}
@@ -478,7 +488,7 @@ export function FiltersBar({ categories, filters, onFilterChange }: FiltersBarPr
 
               <div className="flex items-center justify-between rounded-lg border border-border bg-card px-3 py-2 shadow-xs sm:justify-start sm:gap-3">
                 <span className="text-xs font-medium text-muted-foreground select-none">
-                  Mostrar flyers de redes
+                  {t.mostrarFlyers}
                 </span>
                 {/* Envoltorio con área de toque ampliada (pseudo-elemento invisible):
                     el switch visible (32x18) no cambia de tamaño. Horizontal queda
@@ -490,7 +500,7 @@ export function FiltersBar({ categories, filters, onFilterChange }: FiltersBarPr
                 <span className="relative inline-flex after:absolute after:content-[''] after:-left-3 after:-right-3 after:-top-2 after:-bottom-2">
                   <Switch
                     id="instagram-toggle"
-                    aria-label="Mostrar flyers de redes"
+                    aria-label={t.mostrarFlyers}
                     checked={instagramEnabled}
                     onCheckedChange={handleInstagramChange}
                   />
@@ -502,7 +512,7 @@ export function FiltersBar({ categories, filters, onFilterChange }: FiltersBarPr
               <div className="grid grid-cols-2 gap-2 md:gap-3">
               <div className="space-y-1.5 md:space-y-2">
                     <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                      Establecimiento
+                      {t.establecimiento}
                     </p>
                     <div className="relative">
                       <Building2 className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -510,7 +520,7 @@ export function FiltersBar({ categories, filters, onFilterChange }: FiltersBarPr
                         ref={establishmentInputRef}
                         defaultValue={selectedEstablishment}
                         onChange={(e) => handleDebouncedTextFilterChange("establishment", e.target.value, establishmentTimeoutRef)}
-                        placeholder="Lugar"
+                        placeholder={t.lugarPlaceholder}
                         className="pl-10"
                       />
                     </div>
@@ -518,7 +528,7 @@ export function FiltersBar({ categories, filters, onFilterChange }: FiltersBarPr
 
                   <div className="space-y-1.5 md:space-y-2">
                     <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                      Ubicación
+                      {t.ubicacion}
                     </p>
                     <div className="relative">
                       <MapPin className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -526,7 +536,7 @@ export function FiltersBar({ categories, filters, onFilterChange }: FiltersBarPr
                         ref={locationInputRef}
                         defaultValue={selectedLocation}
                         onChange={(e) => handleDebouncedTextFilterChange("location", e.target.value, locationTimeoutRef)}
-                        placeholder="Zona"
+                        placeholder={t.zonaPlaceholder}
                         className="pl-10"
                       />
                     </div>
@@ -538,7 +548,7 @@ export function FiltersBar({ categories, filters, onFilterChange }: FiltersBarPr
           {hasActiveFilters && (
             <div className="flex flex-wrap items-center gap-2 border-t border-border/60 pt-3 mt-1">
               <span className="text-xs font-semibold text-muted-foreground mr-1">
-                Filtros activos:
+                {t.filtrosActivos}
               </span>
               
               <div className="flex flex-wrap items-center gap-2">
@@ -558,8 +568,8 @@ export function FiltersBar({ categories, filters, onFilterChange }: FiltersBarPr
                     <button
                       onClick={chip.onClear}
                       className="relative rounded-full p-0.5 text-muted-foreground hover:text-foreground hover:bg-muted-foreground/10 transition-colors after:absolute after:content-[''] after:-left-[3px] after:-right-3 after:-top-1.5 after:-bottom-1.5"
-                      title="Quitar filtro"
-                      aria-label={`Quitar filtro: ${chip.label}`}
+                      title={t.quitarFiltro}
+                      aria-label={t.quitarFiltroDe(chip.label)}
                     >
                       <X className="size-3" />
                     </button>
@@ -578,7 +588,7 @@ export function FiltersBar({ categories, filters, onFilterChange }: FiltersBarPr
                    (28 + 8 + 8) sin pisar nada. */
                 className="relative h-7 text-xs text-destructive hover:text-destructive hover:bg-destructive/10 rounded-full px-3 font-semibold transition-colors ml-auto sm:ml-2 after:absolute after:content-[''] after:-inset-2"
               >
-                Limpiar todo
+                {t.limpiarTodo}
               </Button>
             </div>
           )}

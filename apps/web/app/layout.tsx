@@ -10,6 +10,9 @@ import { AuthModalProvider } from '@/components/auth-modal'
 import { DonationProvider } from '@/components/donation-context'
 import { DonationModal } from '@/components/donation-modal'
 import { AdsenseLoader } from '@/components/adsense-loader'
+import { IdiomaDocumento } from '@/components/idioma-documento'
+import { LANG_HTML } from '@/lib/i18n/idiomas'
+import { idiomaDelPedido } from '@/lib/i18n/servidor'
 import './globals.css'
 
 const montserrat = Montserrat({
@@ -110,15 +113,19 @@ export const viewport: Viewport = {
 
 const THEME_INIT_SCRIPT = `(function(){try{var t=null;try{t=localStorage.getItem('theme')}catch(e){}if(t!=='light'&&t!=='dark'&&t!=='system')t='dark';var d=t==='dark'||(t==='system'&&window.matchMedia('(prefers-color-scheme: dark)').matches);var r=document.documentElement;r.classList.remove('light','dark');r.classList.add(d?'dark':'light');r.style.colorScheme=d?'dark':'light'}catch(e){}})();`
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
   modal,
 }: Readonly<{
   children: React.ReactNode
   modal: React.ReactNode
 }>) {
+  // El idioma lo pone el middleware según la ruta (`/en/...` es inglés). Leer
+  // headers() hace dinámicas a todas las páginas; ver lib/i18n/servidor.ts.
+  const idioma = await idiomaDelPedido()
+
   return (
-    <html lang="es" className={`${montserrat.variable} ${yellowtail.variable} ${poppins.variable} bg-background`} suppressHydrationWarning>
+    <html lang={LANG_HTML[idioma]} className={`${montserrat.variable} ${yellowtail.variable} ${poppins.variable} bg-background`} suppressHydrationWarning>
       <head>
         {/* Aplica el tema antes del primer pintado (misma clave y default que ThemeProvider). */}
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
@@ -126,6 +133,9 @@ export default function RootLayout({
       </head>
       <AnalyticsConsent />
       <body className="font-sans antialiased bg-background">
+        {/* El layout raíz no se vuelve a renderizar al navegar del lado del
+            cliente: esto mantiene `lang` al día si se pasa de / a /en sin recargar. */}
+        <IdiomaDocumento />
         <ThemeProvider
           attribute="class"
           defaultTheme="dark"

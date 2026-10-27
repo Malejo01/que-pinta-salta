@@ -4,7 +4,8 @@ import { useEffect, useState } from "react"
 import Link from "next/link"
 import { motion, AnimatePresence } from "framer-motion"
 import { ChevronLeft, ChevronRight, Calendar, MapPin, Ticket } from "lucide-react"
-import { formatEventDate } from "@/lib/date-format"
+import { fechaLarga, precio } from "@/lib/i18n/fechas"
+import { useIdioma, useTextos } from "@/lib/i18n/use-idioma"
 import { capitalizeFirst, cleanDescription } from "@/lib/event-display"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -24,6 +25,11 @@ export function HeroCarousel({ events }: HeroCarouselProps) {
   // (es la que cuenta para el LCP). Una vez que el usuario o el timer avanzan,
   // deja de aplicar aunque el índice vuelva a 0 en una vuelta completa.
   const [isInitialSlide, setIsInitialSlide] = useState(true)
+  const idioma = useIdioma()
+  const t = useTextos().portada
+  // Título y descripción vienen de las fuentes, en castellano: en /en se
+  // marcan con lang="es" para que el lector de pantalla no los lea en inglés.
+  const langContenido = idioma === "es" ? undefined : "es"
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -64,7 +70,7 @@ export function HeroCarousel({ events }: HeroCarouselProps) {
   if (events.length === 0) return null
 
   const currentEvent = events[currentIndex]
-  const formattedDate = formatEventDate(currentEvent.date)
+  const formattedDate = fechaLarga(idioma, currentEvent.date)
   const description = cleanDescription(currentEvent.description)
 
   return (
@@ -136,7 +142,7 @@ export function HeroCarousel({ events }: HeroCarouselProps) {
           </Badge>
           <InsigniaDestacado visible={currentEvent.isFeatured} className="ml-2 mb-1 sm:mb-3" />
 
-          <h2 className="mb-1 line-clamp-2 text-[15px] font-bold leading-tight text-white sm:mb-3 sm:line-clamp-none sm:text-3xl lg:text-[2rem] drop-shadow-md">
+          <h2 lang={langContenido} className="mb-1 line-clamp-2 text-[15px] font-bold leading-tight text-white sm:mb-3 sm:line-clamp-none sm:text-3xl lg:text-[2rem] drop-shadow-md">
             {currentEvent.title}
           </h2>
           
@@ -153,7 +159,7 @@ export function HeroCarousel({ events }: HeroCarouselProps) {
           
           {description && (
             <div className="hidden sm:block">
-              <p className="mb-4 line-clamp-2 max-w-2xl text-sm text-zinc-300 drop-shadow-sm">
+              <p lang={langContenido} className="mb-4 line-clamp-2 max-w-2xl text-sm text-zinc-300 drop-shadow-sm">
                 {description}
               </p>
             </div>
@@ -167,14 +173,14 @@ export function HeroCarousel({ events }: HeroCarouselProps) {
             >
               <Link href={eventHref(currentEvent.id, "hero")}>
                 <Ticket className="mr-1 size-3.5 sm:mr-2 sm:size-4" />
-                Ver detalles
+                {t.verDetalles}
               </Link>
             </Button>
             {currentEvent.price !== "confirmar" && (
               <span className="max-sm:truncate text-sm font-bold text-white sm:text-base drop-shadow-sm">
                 {currentEvent.price === "gratis" 
-                  ? "Entrada Gratuita" 
-                  : `$${currentEvent.price.toLocaleString("es-AR")}`}
+                  ? t.entradaGratuita 
+                  : precio(idioma, currentEvent.price)}
               </span>
             )}
           </div>
@@ -184,7 +190,7 @@ export function HeroCarousel({ events }: HeroCarouselProps) {
       <button
         onClick={goToPrevious}
         className="absolute left-2 top-6 z-10 hidden size-8 items-center justify-center rounded-full bg-background/20 text-foreground/75 backdrop-blur-sm transition-colors hover:bg-background/35 hover:text-foreground sm:left-4 sm:top-1/2 sm:flex sm:size-10 sm:-translate-y-1/2 sm:bg-background/50 sm:text-foreground sm:backdrop-blur"
-        aria-label="Evento anterior"
+        aria-label={t.eventoAnterior}
       >
         <ChevronLeft className="size-4 sm:size-6" />
       </button>
@@ -192,7 +198,7 @@ export function HeroCarousel({ events }: HeroCarouselProps) {
       <button
         onClick={goToNext}
         className="absolute right-2 top-6 z-10 hidden size-8 items-center justify-center rounded-full bg-background/20 text-foreground/75 backdrop-blur-sm transition-colors hover:bg-background/35 hover:text-foreground sm:right-4 sm:top-1/2 sm:flex sm:size-10 sm:-translate-y-1/2 sm:bg-background/50 sm:text-foreground sm:backdrop-blur"
-        aria-label="Siguiente evento"
+        aria-label={t.siguienteEvento}
       >
         <ChevronRight className="size-4 sm:size-6" />
       </button>
@@ -217,7 +223,7 @@ export function HeroCarousel({ events }: HeroCarouselProps) {
                 ? "w-8 bg-primary"
                 : "w-2 bg-foreground/30 hover:bg-foreground/50"
             }`}
-            aria-label={`Ir al evento ${index + 1}`}
+            aria-label={t.irAlEvento(index + 1)}
           />
         ))}
       </div>

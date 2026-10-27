@@ -15,6 +15,7 @@ import Image from "next/image"
 import type { DisplayEvent } from "@/components/home-content"
 import type { MovieShowings } from "@/lib/types"
 import { FavoriteButton } from "@/components/favorite-button"
+import { useIdioma, useTextos } from "@/lib/i18n/use-idioma"
 
 interface MovieModalProps {
   movie: DisplayEvent
@@ -24,6 +25,8 @@ interface MovieModalProps {
 
 export function MovieModal({ movie, isFavorite = false, onClose }: MovieModalProps) {
   const [imgSrc, setImgSrc] = useState<string>(movie.image || "")
+  const idioma = useIdioma()
+  const t = useTextos().cines
 
   useEffect(() => {
     setImgSrc(movie.image || "")
@@ -51,7 +54,7 @@ export function MovieModal({ movie, isFavorite = false, onClose }: MovieModalPro
               ) : (
                 <div className="flex h-full w-full flex-col items-center justify-center bg-muted text-muted-foreground">
                   <Film className="size-16 stroke-[1.5]" />
-                  <span className="mt-2 text-xs">Sin Poster</span>
+                  <span className="mt-2 text-xs">{t.sinPoster}</span>
                 </div>
               )}
             </div>
@@ -63,10 +66,10 @@ export function MovieModal({ movie, isFavorite = false, onClose }: MovieModalPro
               <div>
                 <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold text-primary uppercase tracking-wider mb-2">
                   <Film className="size-3" />
-                  Cartelera de Cine
+                  {t.carteleraDeCine}
                 </span>
                 <DialogHeader className="text-left flex flex-row items-start justify-between gap-4">
-                  <DialogTitle className="text-2xl font-extrabold text-foreground tracking-tight flex-1">
+                  <DialogTitle lang={idioma === "es" ? undefined : "es"} className="text-2xl font-extrabold text-foreground tracking-tight flex-1">
                     {movie.title}
                   </DialogTitle>
                   <FavoriteButton
@@ -106,7 +109,7 @@ export function MovieModal({ movie, isFavorite = false, onClose }: MovieModalPro
                               className="flex items-center gap-1"
                             >
                               <Ticket className="size-3" />
-                              Comprar
+                              {t.comprar}
                             </a>
                           </Button>
                         )}
@@ -137,14 +140,14 @@ export function MovieModal({ movie, isFavorite = false, onClose }: MovieModalPro
                     </div>
                   ))
                 ) : (
-                  <p className="text-sm text-muted-foreground italic">No hay funciones disponibles para hoy.</p>
+                  <p className="text-sm text-muted-foreground italic">{t.noHayFunciones}</p>
                 )}
               </div>
             </div>
 
             <div className="text-center md:text-left text-xs text-muted-foreground border-t border-border pt-3 flex items-center gap-2">
               <Calendar className="size-4" />
-              <span>Horarios actualizados para hoy</span>
+              <span>{t.horariosActualizados}</span>
             </div>
           </div>
         </div>

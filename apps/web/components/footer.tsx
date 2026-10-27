@@ -11,6 +11,9 @@ import { ANUNCIANTES } from "@/lib/config/anunciantes"
 import { TEXTO_ANUNCIAR, whatsappUrl } from "@/lib/contacto"
 import { dispatchConsentEvent, writeConsent } from "@/lib/consent"
 import type { User } from "@supabase/supabase-js"
+import { rutaEn } from "@/lib/i18n/rutas"
+import { useIdioma, useTextos } from "@/lib/i18n/use-idioma"
+import { SelectorIdioma } from "@/components/selector-idioma"
 
 const socialLinks = [
   {
@@ -35,7 +38,14 @@ const CONTACT_URL = "https://www.linkedin.com/in/mauro-alejandro-lizarraga-82607
 export function Footer() {
   const [user, setUser] = useState<User | null>(null)
   const { openDonationModal } = useDonation()
-  
+  const idioma = useIdioma()
+  const t = useTextos().pie
+  // Las páginas legales existen solo en castellano (y el texto que vale es
+  // ese): en inglés el link conserva su nombre en castellano, marcado con
+  // `lang`/`hrefLang` para que el lector de pantalla lo pronuncie bien.
+  const legalEnCastellano = idioma === "es" ? {} : { lang: "es", hrefLang: "es-AR" }
+
+  // El mensaje de WhatsApp va en castellano en los dos idiomas: lo lee el equipo.
   const anunciarWhatsappUrl = whatsappUrl(TEXTO_ANUNCIAR)
 
   useEffect(() => {
@@ -62,7 +72,7 @@ export function Footer() {
         <div className="grid gap-8 sm:grid-cols-3">
           {/* Brand */}
           <div className="flex flex-col gap-3">
-            <Link href="/" className="flex items-center gap-2.5 group">
+            <Link href={rutaEn(idioma, "/")} className="flex items-center gap-2.5 group">
               <div className="rounded-full dark:ring-2 dark:ring-[#C12026]/70 dark:ring-offset-1 dark:ring-offset-background transition-transform duration-200 group-hover:scale-105">
                 <Image
                   src="/brand/logo-circular.png"
@@ -88,22 +98,24 @@ export function Footer() {
               </div>
             </Link>
             <p className="max-w-xs text-sm leading-relaxed text-muted-foreground">
-              Descubrí todos los eventos, peñas, boliches, teatros y más que están pasando en Salta Capital.
+              {t.descripcion}
             </p>
           </div>
 
           {/* Links */}
           <div className="flex flex-col gap-3">
-            <h3 className="text-sm font-semibold text-foreground">Enlaces</h3>
+            <h3 className="text-sm font-semibold text-foreground">{t.enlaces}</h3>
             <nav className="flex flex-col gap-2">
               <Link
                 href="/privacidad"
+                {...legalEnCastellano}
                 className="text-sm text-muted-foreground transition-colors hover:text-foreground"
               >
                 Política de Privacidad
               </Link>
               <Link
                 href="/terminos"
+                {...legalEnCastellano}
                 className="text-sm text-muted-foreground transition-colors hover:text-foreground"
               >
                 Términos y condiciones
@@ -111,18 +123,18 @@ export function Footer() {
               {/* Oculto mientras haya precios sin completar (decisión de Mauro, 12/10) */}
               {ANUNCIANTES.publicada && (
                 <Link
-                  href="/anunciantes"
+                  href={rutaEn(idioma, "/anunciantes")}
                   className="text-sm text-muted-foreground transition-colors hover:text-foreground"
                 >
-                  Anunciantes
+                  {t.anunciantes}
                 </Link>
               )}
               <Link
-                href={user ? "/nuevo-evento" : "/auth/login?next=/nuevo-evento"}
+                href={rutaEn(idioma, user ? "/nuevo-evento" : "/auth/login?next=/nuevo-evento")}
                 prefetch={user ? undefined : false}
                 className="text-sm text-muted-foreground transition-colors hover:text-foreground"
               >
-                Agregar Evento
+                {t.agregarEvento}
               </Link>
               <a
                 href={anunciarWhatsappUrl}
@@ -130,7 +142,7 @@ export function Footer() {
                 rel="noopener noreferrer"
                 className="text-sm text-muted-foreground transition-colors hover:text-foreground"
               >
-                Anunciar / Publicidad 📢
+                {t.anunciar}
               </a>
               <button
                 type="button"
@@ -140,14 +152,18 @@ export function Footer() {
                 }}
                 className="text-left text-sm text-muted-foreground transition-colors hover:text-foreground"
               >
-                Preferencias de cookies
+                {t.preferenciasCookies}
               </button>
             </nav>
+            {/* Selector de idioma también en el pie: es donde se lo busca al
+                terminar de recorrer la página. `-ml-2` alinea el texto con los
+                links de arriba (el selector tiene `px-2` para el área táctil). */}
+            <SelectorIdioma className="-ml-2 w-fit" />
           </div>
 
           {/* Social & Contact */}
           <div className="flex flex-col gap-3">
-            <h3 className="text-sm font-semibold text-foreground">Conectá conmigo</h3>
+            <h3 className="text-sm font-semibold text-foreground">{t.conectaConmigo}</h3>
             <div className="flex items-center gap-3">
               {socialLinks.map((link) => (
                 <a
@@ -170,7 +186,7 @@ export function Footer() {
               className="mt-1 inline-flex w-fit items-center gap-2 rounded-lg bg-primary/10 px-4 py-2 text-sm font-medium text-primary transition-all duration-200 hover:bg-primary/20 hover:scale-[1.02]"
             >
               <MessageCircle className="size-4" />
-              Contactame
+              {t.contactame}
             </a>
           </div>
         </div>
@@ -181,17 +197,17 @@ export function Footer() {
           <div className="max-w-xl space-y-2">
             <h3 className="text-lg font-bold text-foreground flex items-center justify-center sm:justify-start gap-2">
               <Coffee className="size-5 text-[#C12026]" />
-              ¿Te gusta la plataforma?
+              {t.donacionTitulo}
             </h3>
             <p className="text-sm text-muted-foreground leading-relaxed">
-              Ayudanos a llevarla a tu celular. Hacé tu aporte para fondear el desarrollo de la futura aplicación móvil oficial (Android/iOS) de Qué Pinta Salta.
+              {t.donacionTexto}
             </p>
           </div>
           <button
-            onClick={() => openDonationModal("Ayudanos a llevar Qué Pinta Salta a tu celular. Tu aporte es clave para el desarrollo de la App.")}
+            onClick={() => openDonationModal(t.donacionMensaje)}
             className="shrink-0 rounded-xl bg-[#C12026] px-6 py-3 text-sm font-bold text-white shadow-lg shadow-[#C12026]/20 transition-all hover:scale-105 hover:bg-[#A0191F]"
           >
-            Hacer un aporte
+            {t.hacerAporte}
           </button>
         </div>
         )}
@@ -199,10 +215,10 @@ export function Footer() {
         {/* Bottom bar */}
         <div className="mt-8 flex flex-col items-center gap-2 border-t border-border/30 pt-6 sm:flex-row sm:justify-between">
           <p className="text-xs text-muted-foreground">
-            © {new Date().getFullYear()} Que pinta Salta. Hecho con ❤️ en Salta, Argentina.
+            {t.derechos(new Date().getFullYear())}
           </p>
           <p className="text-xs text-muted-foreground">
-            Desarrollado por{" "}
+            {t.desarrolladoPor}{" "}
             <a
               href="https://malejoportfolio.netlify.app"
               target="_blank"

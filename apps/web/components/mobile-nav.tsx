@@ -4,6 +4,9 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { Home, Search, Radio, Heart, Map } from "lucide-react"
 import { cn } from "@/lib/utils"
+import type { Diccionario } from "@/lib/i18n"
+import { rutaEn, separarIdioma } from "@/lib/i18n/rutas"
+import { useTextos } from "@/lib/i18n/use-idioma"
 
 // Nota (12-f): se dejó el prefetch por defecto (no se puso `prefetch={false}`)
 // en estos 4 ítems, incluido /buscar, porque son las pestañas fijas de la
@@ -14,16 +17,23 @@ import { cn } from "@/lib/utils"
 // `prefetch: false`: esa página carga MapLibre de forma diferida recién
 // cuando el mapa entra en pantalla, así que no tiene sentido precargarla
 // como si fuera una pestaña liviana más.
-const navItems: { href: string; icon: typeof Home; label: string; prefetch?: false }[] = [
-  { href: "/", icon: Home, label: "Inicio" },
-  { href: "/buscar", icon: Search, label: "Buscar" },
-  { href: "/mapa", icon: Map, label: "Mapa", prefetch: false },
-  { href: "/radar", icon: Radio, label: "Radar" },
-  { href: "/favoritos", icon: Heart, label: "Mis eventos" },
+//
+// `href` es la ruta en castellano; el link usa `rutaEn(idioma, href)`, que la
+// pasa a /en solo si esa página existe en inglés. `etiqueta` es la clave del
+// texto en el diccionario (`nav`).
+const navItems: { href: string; icon: typeof Home; etiqueta: keyof Diccionario["nav"]; prefetch?: false }[] = [
+  { href: "/", icon: Home, etiqueta: "inicio" },
+  { href: "/buscar", icon: Search, etiqueta: "buscar" },
+  { href: "/mapa", icon: Map, etiqueta: "mapa", prefetch: false },
+  { href: "/radar", icon: Radio, etiqueta: "radar" },
+  { href: "/favoritos", icon: Heart, etiqueta: "misEventos" },
 ]
 
 export function MobileNav() {
   const pathname = usePathname()
+  // En /en y /en/cines el ítem activo se compara con la ruta sin el /en.
+  const { idioma, ruta } = separarIdioma(pathname ?? "/")
+  const textos = useTextos()
 
   return (
     // `pb-[env(safe-area-inset-bottom)]` va junto con el `viewportFit: 'cover'` de
@@ -34,11 +44,11 @@ export function MobileNav() {
     <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-background/95 pb-[env(safe-area-inset-bottom)] backdrop-blur supports-[backdrop-filter]:bg-background/60 sm:hidden">
       <div className="flex h-16 items-center justify-around">
         {navItems.map((item) => {
-          const isActive = pathname === item.href
+          const isActive = ruta === item.href
           return (
             <Link
               key={item.href}
-              href={item.href}
+              href={rutaEn(idioma, item.href)}
               prefetch={item.prefetch}
               aria-current={isActive ? "page" : undefined}
               className={cn(
@@ -71,7 +81,7 @@ export function MobileNav() {
               )}
             >
               <item.icon className={cn("size-5", isActive && "fill-primary/20")} />
-              <span>{item.label}</span>
+              <span>{textos.nav[item.etiqueta]}</span>
             </Link>
           )
         })}

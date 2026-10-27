@@ -89,3 +89,24 @@ describe('MobileNav: aria-current y foco visible en un DOM real', () => {
     }
   })
 })
+
+// Q3: en las páginas en inglés los links pasan a /en cuando la página existe
+// en inglés (por ahora / y /cines), y aria-current sigue funcionando.
+describe('MobileNav en inglés (/en, /en/cines)', () => {
+  it('en /en: los textos en inglés, "Home" va a /en y es el actual; el resto sigue en castellano', () => {
+    const links = enlaces('/en')
+    expect(links.map((a) => a.getAttribute('href'))).toEqual(['/en', '/buscar', '/mapa', '/radar', '/favoritos'])
+    expect(links.map((a) => a.textContent)).toEqual(['Home', 'Search', 'Map', 'Radar', 'My events'])
+    expect(links.filter((a) => a.hasAttribute('aria-current')).map((a) => a.getAttribute('href'))).toEqual(['/en'])
+    expect(links[0].getAttribute('aria-current')).toBe('page')
+  })
+
+  it('en /en/cines ningún ítem lleva aria-current (cines no está en la barra)', () => {
+    const links = enlaces('/en/cines')
+    expect(links.some((a) => a.hasAttribute('aria-current'))).toBe(false)
+  })
+
+  it('en castellano los textos no cambian', () => {
+    expect(enlaces('/').map((a) => a.textContent)).toEqual(ITEMS.map((i) => i.label))
+  })
+})

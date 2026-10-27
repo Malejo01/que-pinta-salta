@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
 import { Ticket, Film, Calendar } from 'lucide-react'
+import { useIdioma, useTextos } from '@/lib/i18n/use-idioma'
 
 interface MovieCardProps {
   movie: CinemaMovie
@@ -14,6 +15,8 @@ interface MovieCardProps {
 export function MovieCard({ movie }: MovieCardProps) {
   // Encontrar cuántas salas tienen la película disponible
   const cinemasCount = Object.keys(movie.showings).length
+  const idioma = useIdioma()
+  const t = useTextos().cines
 
   return (
     <div className="group relative flex flex-col rounded-2xl border border-border bg-card/40 p-4 backdrop-blur-md transition-all duration-300 hover:border-primary/30 hover:bg-card/60 hover:shadow-2xl hover:shadow-primary/5">
@@ -31,7 +34,7 @@ export function MovieCard({ movie }: MovieCardProps) {
         ) : (
           <div className="flex h-full w-full flex-col items-center justify-center bg-muted text-muted-foreground">
             <Film className="size-12 stroke-[1.5]" />
-            <span className="mt-2 text-xs">Sin Poster</span>
+            <span className="mt-2 text-xs">{t.sinPoster}</span>
           </div>
         )}
 
@@ -40,14 +43,15 @@ export function MovieCard({ movie }: MovieCardProps) {
             brillo variable, y necesitan contraste garantizado en los dos modos. */}
         <div className="absolute top-3 right-3 z-10">
           <Badge className="bg-black/70 hover:bg-black/80 text-white font-medium border border-zinc-700/50 backdrop-blur-md px-2.5 py-1 text-xs">
-            {cinemasCount} {cinemasCount === 1 ? 'Cine' : 'Cines'}
+            {t.cantidadCines(cinemasCount)}
           </Badge>
         </div>
       </div>
 
       {/* Título de la película */}
       <div className="mt-4 flex flex-col gap-1 min-h-[3.5rem]">
-        <h3 className="text-lg font-bold tracking-tight text-foreground group-hover:text-primary transition-colors duration-300 line-clamp-2">
+        {/* El título viene del cine, en castellano: en /en va con lang="es". */}
+        <h3 lang={idioma === 'es' ? undefined : 'es'} className="text-lg font-bold tracking-tight text-foreground group-hover:text-primary transition-colors duration-300 line-clamp-2">
           {movie.title}
         </h3>
       </div>
@@ -105,7 +109,7 @@ export function MovieCard({ movie }: MovieCardProps) {
                           rel="noopener noreferrer"
                         >
                           <Ticket className="size-3.5 text-primary" />
-                          Comprar Entradas
+                          {t.comprarEntradas}
                         </a>
                       </Button>
                     )}
@@ -116,7 +120,7 @@ export function MovieCard({ movie }: MovieCardProps) {
           </Accordion>
         ) : (
           <p className="text-xs text-muted-foreground italic mt-2 text-center flex items-center justify-center gap-1">
-            Sin funciones para hoy
+            {t.sinFuncionesHoy}
           </p>
         )}
       </div>

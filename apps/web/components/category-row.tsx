@@ -9,6 +9,8 @@ import { Button } from "@/components/ui/button"
 import { getCategoryIcon } from "@/lib/category-icons"
 import type { DisplayEvent } from "@/components/home-content"
 import type { MetricOrigin } from "@/lib/metricas/links"
+import { rutaEn } from "@/lib/i18n/rutas"
+import { useIdioma, useTextos } from "@/lib/i18n/use-idioma"
 
 interface CategoryRowProps {
   category: string
@@ -31,6 +33,8 @@ export function CategoryRow({
   origin,
 }: CategoryRowProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
+  const idioma = useIdioma()
+  const t = useTextos().portada
 
   const scroll = (direction: "left" | "right") => {
     if (scrollRef.current) {
@@ -65,14 +69,14 @@ export function CategoryRow({
                  negativo"). El ancho visible (~67px) ya supera los 44px mínimos. */
               className="text-sm font-medium text-primary hover:underline cursor-pointer bg-transparent border-0 p-0 py-3 -my-3"
             >
-              Ver todos
+              {t.verTodos}
             </button>
           ) : (
             <Link
-              href={`/?category=${category}`}
+              href={rutaEn(idioma, `/?category=${category}`)}
               className="text-sm font-medium text-primary hover:underline py-3 -my-3"
             >
-              Ver todos
+              {t.verTodos}
             </Link>
           )}
         </div>
@@ -85,7 +89,7 @@ export function CategoryRow({
                invisible con la técnica de la Ronda 12 (after:absolute after:-inset-…). */
             className="absolute -left-2 top-1/2 z-10 hidden size-10 -translate-y-1/2 rounded-full bg-background/80 shadow-lg backdrop-blur transition-opacity after:absolute after:-inset-0.5 hover:bg-background group-hover:flex"
             onClick={() => scroll("left")}
-            aria-label="Desplazar hacia la izquierda"
+            aria-label={t.desplazarIzquierda}
           >
             <ChevronLeft className="size-5" />
           </Button>
@@ -118,7 +122,7 @@ export function CategoryRow({
             /* Misma técnica que la flecha izquierda: área de toque de 44x44 sin tocar el dibujo. */
             className="absolute -right-2 top-1/2 z-10 hidden size-10 -translate-y-1/2 rounded-full bg-background/80 shadow-lg backdrop-blur transition-opacity after:absolute after:-inset-0.5 hover:bg-background group-hover:flex"
             onClick={() => scroll("right")}
-            aria-label="Desplazar hacia la derecha"
+            aria-label={t.desplazarDerecha}
           >
             <ChevronRight className="size-5" />
           </Button>

@@ -118,8 +118,10 @@ export function formatEventTime(input: string | Date) {
   return normalizeLocaleOutput(formatted)
 }
 
-export function formatEventDate(input: string | Date, withYear = false) {
-  const formatted = new Intl.DateTimeFormat('es-AR', {
+// `locale` (último parámetro, opcional) lo agrega la versión en inglés de la
+// web (Q3): sin pasarlo, todo sigue en es-AR como siempre (la app incluida).
+export function formatEventDate(input: string | Date, withYear = false, locale = 'es-AR') {
+  const formatted = new Intl.DateTimeFormat(locale, {
     weekday: 'long',
     day: 'numeric',
     month: 'long',
@@ -130,8 +132,8 @@ export function formatEventDate(input: string | Date, withYear = false) {
   return normalizeLocaleOutput(formatted)
 }
 
-export function formatEventDateShort(input: string | Date) {
-  const formatted = new Intl.DateTimeFormat('es-AR', {
+export function formatEventDateShort(input: string | Date, locale = 'es-AR') {
+  const formatted = new Intl.DateTimeFormat(locale, {
     weekday: 'short',
     day: 'numeric',
     month: 'short',
@@ -142,8 +144,8 @@ export function formatEventDateShort(input: string | Date) {
 }
 
 /** "12 oct": día y mes, sin día de la semana. Para textos que tienen que entrar en un renglón. */
-export function formatEventDayMonth(input: string | Date) {
-  const formatted = new Intl.DateTimeFormat('es-AR', {
+export function formatEventDayMonth(input: string | Date, locale = 'es-AR') {
+  const formatted = new Intl.DateTimeFormat(locale, {
     day: 'numeric',
     month: 'short',
     timeZone: DEFAULT_TIME_ZONE,

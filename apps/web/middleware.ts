@@ -2,6 +2,8 @@ import { updateSession } from '@/lib/supabase/proxy'
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse, type NextRequest } from 'next/server'
 import { decideGone, GONE_HTML, parseGonePath, type GoneDecision } from '@/lib/seo/gone'
+import { ENCABEZADO_IDIOMA } from '@/lib/i18n/idiomas'
+import { separarIdioma } from '@/lib/i18n/rutas'
 
 /**
  * 308 / 410 de /flyer/<uuid> y /evento/<uuid> que ya no existen (lib/seo/gone.ts).
@@ -21,6 +23,12 @@ async function goneCheck(request: NextRequest): Promise<GoneDecision> {
 }
 
 export async function middleware(request: NextRequest) {
+  // Idioma del pedido para el layout raíz (`<html lang>`, lib/i18n/servidor.ts).
+  // Se pisa SIEMPRE, antes de updateSession (que reenvía los headers del
+  // pedido con `NextResponse.next({ request })`): si el cliente lo manda
+  // falseado, no llega.
+  request.headers.set(ENCABEZADO_IDIOMA, separarIdioma(request.nextUrl.pathname).idioma)
+
   const [sessionResponse, decision] = await Promise.all([updateSession(request), goneCheck(request)])
 
   if (decision.kind === 'pass') return sessionResponse

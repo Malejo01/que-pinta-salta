@@ -7,14 +7,14 @@ import { Calendar, MapPin, Instagram, Film } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { InsigniaDestacado } from "@/components/insignia-destacado"
 import { cn } from "@/lib/utils"
-import { formatEventDateShort } from "@/lib/date-format"
+import { fechaCorta, fechaDeFuncion, precio, resumenFunciones } from "@/lib/i18n/fechas"
+import { useIdioma, useTextos } from "@/lib/i18n/use-idioma"
 import { FavoriteButton } from "@/components/favorite-button"
 import { ShareButton } from "@/components/share-button"
 import { FlyerImage } from "@/components/flyer-image"
 import { useDonation } from "@/components/donation-context"
 import type { DisplayEvent } from "@/components/home-content"
 import { eventHref, type MetricOrigin } from "@/lib/metricas/links"
-import { summarizeOccurrences } from "@/lib/events/occurrences-summary"
 import type { MovieShowings } from "@/lib/types"
 
 interface EventCardProps {
@@ -32,6 +32,8 @@ export function EventCard({ event, isFavorite, onToggleFavorite, onOpenMovie, cl
   const [imgSrc, setImgSrc] = useState<string>(event.image || "/placeholder.jpg")
   const [failedImage, setFailedImage] = useState<string | null>(null)
   const { openDonationModal } = useDonation()
+  const idioma = useIdioma()
+  const t = useTextos().portada
 
   useEffect(() => {
     setImgSrc(event.image || "/placeholder.jpg")
@@ -44,13 +46,13 @@ export function EventCard({ event, isFavorite, onToggleFavorite, onOpenMovie, cl
     !event.isCinemaMovie &&
     (failedImage === event.image || !event.image || event.image.startsWith("/placeholder"))
 
-  const formattedDate = formatEventDateShort(event.date)
+  const formattedDate = fechaCorta(idioma, event.date)
 
   const formattedPrice = event.price === "gratis" 
-    ? "Gratis" 
+    ? t.gratis 
     : event.price === "confirmar"
     ? null
-    : `$${event.price.toLocaleString("es-AR")}`
+    : precio(idioma, event.price)
 
   const linkHref = event.isInstagramFlyer && event.flyerId
     ? `/flyer/${event.flyerId}`
@@ -68,7 +70,7 @@ export function EventCard({ event, isFavorite, onToggleFavorite, onOpenMovie, cl
   const hasSeveralOccurrences =
     !event.isCinemaMovie && !!event.occurrences && event.occurrences.length > 1
   const occurrencesSummary = hasSeveralOccurrences
-    ? summarizeOccurrences(event.occurrences!, new Date())
+    ? resumenFunciones(idioma, event.occurrences!, new Date())
     : null
 
   const handleClick = (e: React.MouseEvent) => {
@@ -96,7 +98,7 @@ export function EventCard({ event, isFavorite, onToggleFavorite, onOpenMovie, cl
   // canceló el diálogo nativo.
   const handleShared = () => {
     setTimeout(() => {
-      openDonationModal("¡Gracias por compartir! Si Qué Pinta Salta te ayuda a organizar tu finde, ¿nos invitás un cafecito para fondear el desarrollo de la App móvil oficial?")
+      openDonationModal(t.graciasPorCompartir)
     }, 800)
   }
 
@@ -146,7 +148,7 @@ export function EventCard({ event, isFavorite, onToggleFavorite, onOpenMovie, cl
             <div className="space-y-3">
               <h4 className="text-xs font-bold text-primary border-b border-primary/20 pb-1 flex items-center gap-1.5">
                 <Film className="size-3.5" />
-                Funciones Hoy
+                {t.funcionesHoy}
               </h4>
               <div className="space-y-2">
                 {Object.entries(event.showings as MovieShowings).map(([cinemaKey, details]) => (
@@ -169,7 +171,7 @@ export function EventCard({ event, isFavorite, onToggleFavorite, onOpenMovie, cl
               </div>
             </div>
             <p className="text-[11px] text-zinc-400 text-center italic mt-2 border-t border-zinc-800/80 pt-1">
-              Click para ver horarios y comprar
+              {t.clickHorarios}
             </p>
           </div>
         )}
@@ -180,22 +182,18 @@ export function EventCard({ event, isFavorite, onToggleFavorite, onOpenMovie, cl
             <div className="space-y-3">
               <h4 className="text-xs font-bold text-primary border-b border-primary/20 pb-1 flex items-center gap-1.5">
                 <Calendar className="size-3.5" />
-                Próximas Funciones
+                {t.proximasFunciones}
               </h4>
               <div className="space-y-1.5 max-h-[120px] overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-zinc-800 scrollbar-track-transparent">
                 {event.occurrences.map((occ, idx) => {
-                  const dateObj = new Date(occ.date + 'T00:00:00')
-                  const formattedOccDate = dateObj.toLocaleDateString("es-AR", {
-                    day: "numeric",
-                    month: "short"
-                  })
+                  const formattedOccDate = fechaDeFuncion(idioma, occ.date)
                   return (
                     <div key={idx} className="flex justify-between items-center text-[10px] py-1 border-b border-zinc-800/40 last:border-none">
                       <span className="font-medium text-zinc-200">
                         {formattedOccDate}
                       </span>
                       <span className="bg-zinc-850 text-zinc-300 border border-zinc-700/20 px-1 py-0.5 rounded text-[11px] font-semibold">
-                        {occ.time || "Sin hora"}
+                        {occ.time || t.sinHora}
                       </span>
                     </div>
                   )
@@ -203,7 +201,7 @@ export function EventCard({ event, isFavorite, onToggleFavorite, onOpenMovie, cl
               </div>
             </div>
             <p className="text-[11px] text-zinc-400 text-center italic mt-2 border-t border-zinc-800/80 pt-1">
-              Click para ver detalles
+              {t.clickDetalles}
             </p>
           </div>
         )}
@@ -242,7 +240,8 @@ export function EventCard({ event, isFavorite, onToggleFavorite, onOpenMovie, cl
         <InsigniaDestacado visible={event.isFeatured} className="absolute left-2 top-8" />
 
         <div className="absolute bottom-0 left-0 right-0 p-3 text-white transition-all duration-300 group-hover/card:-translate-y-1">
-          <h3 className="mb-1 line-clamp-2 text-sm font-semibold leading-tight">
+          {/* El título viene de la fuente, en castellano: en /en va con lang="es". */}
+          <h3 lang={idioma === "es" ? undefined : "es"} className="mb-1 line-clamp-2 text-sm font-semibold leading-tight">
             {event.title}
           </h3>
           

@@ -21,6 +21,11 @@ import { buildDisplayData } from "@/lib/home/transform"
 import { sortCategories, selectCarouselEvents } from "@/lib/home/carousel"
 import { filterEvents, groupByCategory, selectTodayRow } from "@/lib/home/filters"
 import { nextHomeUrl, shouldReplaceUrl } from "@/lib/home/url-sync"
+import { AvisoContenidoEs } from "@/components/aviso-contenido-es"
+import { textosDe } from "@/lib/i18n"
+import type { Idioma } from "@/lib/i18n/idiomas"
+import { rutaEn } from "@/lib/i18n/rutas"
+import { localizarCategorias, localizarEventos } from "@/lib/i18n/portada"
 
 export type { DisplayEvent } from "@/lib/home/types"
 export { transformEvent } from "@/lib/home/transform"
@@ -34,6 +39,8 @@ const MovieModal = dynamic(
 )
 
 interface HomeContentProps {
+  /** `/` es "es" y `/en` es "en" (components/portada/pagina-portada.tsx). */
+  idioma?: Idioma
   events: EventWithRelations[]
   categories: Category[]
   serverNowISO: string
@@ -44,6 +51,7 @@ interface HomeContentProps {
 }
 
 export function HomeContent({
+  idioma = "es",
   events,
   categories,
   serverNowISO,
@@ -53,6 +61,7 @@ export function HomeContent({
   userFavorites = [],
 }: HomeContentProps) {
   const searchParams = useSearchParams()
+  const t = textosDe(idioma).portada
 
   // Estado para la película seleccionada que se mostrará en el modal
   const [selectedMovie, setSelectedMovie] = useState<DisplayEvent | null>(null)
@@ -68,7 +77,8 @@ export function HomeContent({
 
   // Efecto para sincronizar silenciosamente el estado de los filtros con la URL del navegador
   useEffect(() => {
-    const nextUrl = nextHomeUrl({ search, date, category, establishment, location, dateExact, instagram })
+    // `rutaEn`: en /en la URL sigue en /en ("/?date=hoy" pasa a "/en?date=hoy").
+    const nextUrl = rutaEn(idioma, nextHomeUrl({ search, date, category, establishment, location, dateExact, instagram }))
     const currentUrl = window.location.pathname + window.location.search
 
     // Si la URL actual ya es la que corresponde (pasa en el primer montaje), no tocar el
@@ -82,7 +92,7 @@ export function HomeContent({
     // Actualizar la URL de forma shallow (silenciosa), sin recargar componentes del servidor
     // ni relanzar peticiones, conservando el estado que Next.js ya le haya puesto.
     window.history.replaceState(window.history.state, "", nextUrl)
-  }, [search, date, category, establishment, location, dateExact, instagram])
+  }, [idioma, search, date, category, establishment, location, dateExact, instagram])
 
   // Sincronizar el estado local cuando cambian los query parameters en la URL (por ejemplo, al hacer click en el logo o navegar atrás/adelante)
   useEffect(() => {
@@ -103,26 +113,31 @@ export function HomeContent({
     setInstagram(urlInstagram)
   }, [searchParams])
 
+  // En inglés, los nombres de categoría salen del diccionario por slug (en
+  // castellano, `localizarCategorias` devuelve el mismo arreglo, sin tocar).
+  const localizedCategories = useMemo(() => localizarCategorias(categories, idioma), [categories, idioma])
+
   const categoryNameBySlug = useMemo(() => {
-    return new Map(categories.map((category) => [category.slug, category.name]))
-  }, [categories])
+    return new Map(localizedCategories.map((category) => [category.slug, category.name]))
+  }, [localizedCategories])
 
   // Instante único para esta renderización: lo que antes era `new Date(serverNowISO)`
   // dentro de cada useMemo, ahora se calcula una vez y se pasa a las funciones puras.
   const now = useMemo(() => new Date(serverNowISO), [serverNowISO])
 
-  const displayData = useMemo(
-    () => buildDisplayData(events, flyers, cinemaMovies, categoryNameBySlug, now),
-    [events, flyers, cinemaMovies, categoryNameBySlug, now]
-  )
+  const displayData = useMemo(() => {
+    const data = buildDisplayData(events, flyers, cinemaMovies, categoryNameBySlug, now)
+    if (idioma === "es") return data
+    return { ...data, all: localizarEventos(data.all, idioma), today: localizarEventos(data.today, idioma) }
+  }, [events, flyers, cinemaMovies, categoryNameBySlug, now, idioma])
 
   const allDisplayEvents = displayData.all
   const todayDisplayEvents = displayData.today
   const saltaTodayStr = displayData.saltaTodayStr
 
   const sortedCategories = useMemo(() => {
-    return sortCategories(categories, allDisplayEvents, now, favoriteCategorySlugs)
-  }, [categories, allDisplayEvents, now, favoriteCategorySlugs])
+    return sortCategories(localizedCategories, allDisplayEvents, now, favoriteCategorySlugs)
+  }, [localizedCategories, allDisplayEvents, now, favoriteCategorySlugs])
 
   const carouselEvents = useMemo(() => {
     return selectCarouselEvents(allDisplayEvents, sortedCategories, now)
@@ -186,14 +201,14 @@ export function HomeContent({
   const showFilteredGrid = category && filteredEvents.length > 0
   const filteredTitle = category
     ? categoryNameBySlug.get(category) ?? category
-    : "Resultados filtrados"
+    : t.resultadosFiltrados
 
   return (
     <div className="min-h-screen bg-background pb-page sm:pb-0">
       <Navbar />
 
       <main>
-        <h1 className="sr-only">Que pinta Salta - Agenda de Eventos, Peñas y Boliches en Salta Capital</h1>
+        <h1 className="sr-only">{t.tituloOculto}</h1>
         {!hasFilters && carouselEvents.length > 0 && (
           <HeroCarousel
             events={carouselEvents}
@@ -222,13 +237,15 @@ export function HomeContent({
           }}
         />
 
+        {idioma === "en" && <AvisoContenidoEs />}
+
 
         {!hasFilters && allDisplayEvents.length > 0 && (
           <div className="pt-4">
             {todayRowEvents.length > 0 ? (
               <CategoryRow
                 category="hoy"
-                title="Hoy en Salta"
+                title={t.hoyEnSalta}
                 events={todayRowEvents}
                 userFavorites={userFavorites}
                 onOpenMovie={setSelectedMovie}
@@ -240,13 +257,13 @@ export function HomeContent({
                 <div className="container mx-auto px-4">
                   <div className="flex flex-col items-start gap-3 rounded-2xl border border-border bg-card p-5 sm:flex-row sm:items-center sm:justify-between">
                     <div>
-                      <h2 className="text-xl font-bold text-foreground">Hoy en Salta</h2>
+                      <h2 className="text-xl font-bold text-foreground">{t.hoyEnSalta}</h2>
                       <p className="text-sm text-muted-foreground">
-                        Hoy no hay eventos cargados. Mirá qué viene en los próximos días.
+                        {t.hoySinEventos}
                       </p>
                     </div>
                     <Button onClick={() => setDate("semana")} className="font-bold">
-                      Ver esta semana
+                      {t.verEstaSemana}
                     </Button>
                   </div>
                 </div>
@@ -281,14 +298,14 @@ export function HomeContent({
                     <div className="container mx-auto px-4 py-2">
                       <div className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl p-6 flex flex-col sm:flex-row justify-between items-center gap-4 shadow-lg">
                         <div className="space-y-1 text-center sm:text-left">
-                          <h3 className="text-xl font-bold text-white">¡No te pierdas ningún evento!</h3>
+                          <h3 className="text-xl font-bold text-white">{t.radarTitulo}</h3>
                           <p className="text-sm text-zinc-400">
-                            Elegí tus categorías favoritas y recibí la agenda del fin de semana directamente en tu correo.
+                            {t.radarTexto}
                           </p>
                         </div>
                         <Button asChild className="bg-primary hover:bg-primary/95 text-primary-foreground font-bold px-6 py-4 rounded-xl shadow-md transition-transform duration-200 hover:scale-105 cursor-pointer">
-                          <Link href="/radar" className="flex items-center gap-2">
-                            Configurar mi Radar 📡
+                          <Link href={rutaEn(idioma, "/radar")} className="flex items-center gap-2">
+                            {t.radarBoton}
                           </Link>
                         </Button>
                       </div>
@@ -355,13 +372,13 @@ export function HomeContent({
             />
             <div className="container mx-auto px-4 py-20 text-center relative">
               <p className="text-lg text-muted-foreground">
-                No se encontraron eventos con los filtros seleccionados.
+                {t.sinResultados}
               </p>
               <button
                 onClick={clearFilters}
                 className="mt-4 text-primary hover:underline font-semibold"
               >
-                Limpiar filtros
+                {t.limpiarFiltros}
               </button>
             </div>
           </div>
@@ -383,7 +400,7 @@ export function HomeContent({
                 className="opacity-30"
               />
               <p className="text-lg text-muted-foreground">
-                No hay eventos disponibles en este momento.
+                {t.sinEventos}
               </p>
             </div>
           </div>
