@@ -38,7 +38,8 @@ import { Afiche } from '@/components/Afiche'
 import { AvisoPatrocinado } from '@/components/AvisoPatrocinado'
 import { BotonCalendario } from '@/components/BotonCalendario'
 import { BotonSeguir } from '@/components/BotonSeguir'
-import { Cargando, ErrorCarga, Vacio } from '@/components/EstadoCarga'
+import { EsqueletoFicha } from '@/components/Esqueleto'
+import { ErrorCarga, Vacio } from '@/components/EstadoCarga'
 import { FilaAccionesEvento } from '@/components/FilaAccionesEvento'
 import { Icono } from '@/components/Icono'
 import { InsigniaDestacado } from '@/components/InsigniaDestacado'
@@ -145,13 +146,10 @@ export default function EventoPorId() {
     return <Redirect href={(destino ?? '/') as Href} />
   }
 
-  if (estado.tipo === 'cargando') {
-    return (
-      <View style={[estilos.centrado, { backgroundColor: colors.background }]}>
-        <Cargando />
-      </View>
-    )
-  }
+  // A1 (nube Q1): el esqueleto de la ficha (afiche, título, datos, precio y
+  // CTAs) en vez de `Cargando` centrado. Sin `estilos.centrado`: el esqueleto
+  // arranca arriba, como la ficha real, y trae su propio fondo.
+  if (estado.tipo === 'cargando') return <EsqueletoFicha />
 
   if (estado.tipo === 'no-encontrado') {
     return (

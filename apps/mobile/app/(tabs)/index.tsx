@@ -78,7 +78,8 @@ import { AvisoSinConexion } from '@/components/AvisoSinConexion'
 import { BannerAnuncio } from '@/components/BannerAnuncio'
 import { BannerRadar } from '@/components/BannerRadar'
 import { ChipsCategorias } from '@/components/ChipsCategorias'
-import { Cargando, ErrorCarga } from '@/components/EstadoCarga'
+import { EsqueletoPortada } from '@/components/Esqueleto'
+import { ErrorCarga } from '@/components/EstadoCarga'
 import { FilaCategoria } from '@/components/FilaCategoria'
 import { Hero } from '@/components/Hero'
 import { InvitacionAvisos } from '@/components/InvitacionAvisos'
@@ -429,7 +430,10 @@ export default function Inicio() {
 
   return (
     <View style={[estilos.contenedor, { backgroundColor: colores.background }]}>
-      {estado.tipo === 'cargando' ? <Cargando /> : null}
+      {/* A1 (nube Q1): en la carga inicial (y con "Reintentar"), el esqueleto
+          con la forma de la portada en vez de `Cargando`. El pull-to-refresh
+          no pasa por acá: sigue mostrando lo que había (`refrescando`). */}
+      {estado.tipo === 'cargando' ? <EsqueletoPortada /> : null}
 
       {estado.tipo === 'error' ? <ErrorCarga mensaje={estado.error} onReintentar={cargar} /> : null}
 
