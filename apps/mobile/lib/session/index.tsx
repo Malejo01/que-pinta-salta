@@ -271,16 +271,26 @@ export function SessionProvider({ children }: { children: ReactNode }) {
  * ahí mismo y, si lo logra, avisa por `onAuthStateChange`
  * (`TOKEN_REFRESHED`) — el `SessionProvider` de arriba ya está suscripto y
  * apaga `sinConexion` por `reducirSesion`, sin nada nuevo en este archivo.
- * Devuelve si quedó una sesión (para que la pantalla anuncie "Seguimos sin
- * conexión" si no). Nunca tira, y no loguea nada (ni el token ni el error).
+ * Si el refresh token fue revocado, supabase-js borra la sesión y avisa
+ * `SIGNED_OUT` (que puede disparar el borrado de la caché de favoritos): por
+ * eso quien llama tiene que esperar `esperarBorradoDeCache()` DESPUÉS de
+ * esto y antes de leer la copia (`app/(tabs)/favoritos.tsx`).
+ *
+ * Devuelve `'volvio'` (hay sesión), `'sin-red'` (el error es de red, con el
+ * mismo criterio que la carga inicial: `isAuthRetryableFetchError`, exportado
+ * por la versión instalada de `@supabase/supabase-js`) o `'sin-sesion'` (no
+ * hay sesión por otra cosa). La pantalla solo anuncia "seguimos sin
+ * conexión" con `'sin-red'`. Nunca tira, y no loguea nada (ni el token ni el
+ * error).
  */
-export async function reintentarSesion(): Promise<boolean> {
-  if (!supabase) return false
+export async function reintentarSesion(): Promise<'volvio' | 'sin-red' | 'sin-sesion'> {
+  if (!supabase) return 'sin-sesion'
   try {
-    const { data } = await supabase.auth.getSession()
-    return data.session !== null
-  } catch {
-    return false
+    const { data, error } = await supabase.auth.getSession()
+    if (data.session !== null) return 'volvio'
+    return isAuthRetryableFetchError(error) ? 'sin-red' : 'sin-sesion'
+  } catch (error) {
+    return isAuthRetryableFetchError(error) ? 'sin-red' : 'sin-sesion'
   }
 }
 

@@ -25,6 +25,16 @@
 // fecha "Hoy", `/buscar?atajo=hoy&v=<Date.now()>`: el mismo nonce que usa
 // "Ver todos" de la portada para que Buscar vuelva a aplicar la fecha). La
 // cartelera no se guarda sin conexión (la de ayer no sirve, R43).
+//
+// Ronda de correcciones: "Ver eventos de hoy" usa `router.dismissTo`, no
+// `push` ni `navigate`. Cines es una pantalla del Stack raíz, apilada encima
+// de `(tabs)`; verificado en el expo-router instalado (57.0.26,
+// `build/global-state/getNavigationAction.js` + el `StackRouter` que trae en
+// `build/react-navigation/routers/StackRouter.js`): `push` y también
+// `navigate` (acción `NAVIGATE` sin `pop`, y `(tabs)` no es la ruta de
+// arriba) agregan un SEGUNDO `(tabs)` al Stack; `dismissTo` (acción `POP_TO`)
+// vuelve al `(tabs)` que ya está abajo con los parámetros nuevos (y si Cines
+// se abrió sola, desde un push, reemplaza Cines por `(tabs)`).
 import { useCallback, useEffect, useState } from 'react'
 import { AccessibilityInfo, FlatList, Pressable, RefreshControl, StyleSheet, TextInput, View } from 'react-native'
 import { useRouter } from 'expo-router'
@@ -36,7 +46,7 @@ import { Texto } from '@/components/Texto'
 import { hitSlopPara } from '@/lib/accesibilidad'
 import { useColoresQPS } from '@/lib/colores'
 import { obtenerCines, type Pelicula } from '@/lib/datos/cines'
-import { decidirRefresco, mensajeErrorCarga, vacioCines } from '@/lib/vacios'
+import { anuncioDeReintento, decidirRefresco, mensajeErrorCarga, vacioCines } from '@/lib/vacios'
 
 // A6: `error` ya es el texto para la pantalla (`mensajeErrorCarga`).
 type Estado =
@@ -92,17 +102,22 @@ export default function Cines() {
   // (`estado`, por eso está en las dependencias) si el refresco falla.
   const refrescar = useCallback(async () => {
     setRefrescando(true)
-    const decision = decidirRefresco(estado, await obtenerDatos())
+    const decision = decidirRefresco(estado, await obtenerDatos(), notaRefresco)
     setEstado(decision.estado)
     setNotaRefresco(decision.nota)
     if (decision.anuncio) AccessibilityInfo.announceForAccessibility(decision.anuncio)
     setRefrescando(false)
-  }, [obtenerDatos, estado])
+  }, [obtenerDatos, estado, notaRefresco])
 
   useEffect(() => {
     let cancelado = false
     obtenerDatos().then((resultado) => {
-      if (!cancelado) setEstado(resultado)
+      if (cancelado) return
+      setEstado(resultado)
+      // A6: un "Reintentar" de `ErrorCarga` (`intento > 0`) que vuelve a dar
+      // error se anuncia; si no, parecía que el botón no hizo nada.
+      const anuncioError = anuncioDeReintento(intento > 0, resultado)
+      if (anuncioError) AccessibilityInfo.announceForAccessibility(anuncioError)
     })
     return () => {
       cancelado = true
@@ -119,7 +134,7 @@ export default function Cines() {
   const vacio = vacioCines(busqueda)
   const alTocarAccionVacio = () => {
     if (vacio.accion.destino === 'limpiar-busqueda') setBusqueda('')
-    else router.push(`/buscar?atajo=hoy&v=${Date.now()}`)
+    else router.dismissTo(`/buscar?atajo=hoy&v=${Date.now()}`)
   }
 
   return (
@@ -171,7 +186,9 @@ export default function Cines() {
               </View>
             ) : null
           }
-          ListEmptyComponent={<Vacio mensaje={vacio.texto} textoAccion={vacio.accion.texto} onAccion={alTocarAccionVacio} />}
+          ListEmptyComponent={
+            <Vacio mensaje={vacio.texto} textoAccion={vacio.accion.texto} onAccion={alTocarAccionVacio} accionPrincipal />
+          }
           renderItem={({ item }) => <TarjetaPelicula pelicula={item} />}
         />
       ) : null}

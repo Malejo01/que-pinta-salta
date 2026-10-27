@@ -30,7 +30,6 @@ import { Icono } from '@/components/Icono'
 import { Texto } from '@/components/Texto'
 import { hitSlopPara } from '@/lib/accesibilidad'
 import { bordeChipInactivo, useColoresQPS } from '@/lib/colores'
-import { MENSAJE_SEGUIMOS_SIN_CONEXION_SIN_SESION, MENSAJE_SESION_SIN_CONEXION } from '@/lib/mensajes'
 import { esAdminRadar, guardarRadar, obtenerRadar, probarEnvioRadar, type OpcionesRadar } from '@/lib/radar'
 import {
   buscarSeguibles,
@@ -41,7 +40,10 @@ import {
 } from '@/lib/radar-vista'
 import { reintentarSesion, useSession } from '@/lib/session'
 import {
+  anuncioDeReintento,
+  avisoReintentoSesion,
   mensajeErrorCarga,
+  SIN_CONEXION_POR_PANTALLA,
   TEXTO_RADAR_SIN_CATEGORIAS,
   TEXTO_RADAR_SIN_SESION,
   vacioBuscadorRadar,
@@ -162,8 +164,12 @@ export function PantallaRadar() {
     obtenerRadar(userId).then((resultado) => {
       if (cancelado) return
       if (!resultado.ok) {
-        // A6: sin red, "No hay conexión..."; si no, el texto neutro.
-        setEstado({ tipo: 'error', error: mensajeErrorCarga('radar', resultado) })
+        // A6: sin red, "No hay conexión..."; si no, el texto neutro. Si fue un
+        // "Reintentar" (`intento > 0`) que volvió a fallar, se anuncia.
+        const error = mensajeErrorCarga('radar', resultado)
+        setEstado({ tipo: 'error', error })
+        const anuncioError = anuncioDeReintento(intento > 0, { tipo: 'error', error })
+        if (anuncioError) AccessibilityInfo.announceForAccessibility(anuncioError)
         return
       }
       const original: EstadoRadarComparable = {
@@ -194,18 +200,20 @@ export function PantallaRadar() {
   }, [])
 
   // A6: sin sesión porque no se pudo confirmar por falta de red. Si vuelve,
-  // `useSession()` trae el `userId` y los efectos de arriba cargan solos; si
-  // no, se ve y se anuncia "Seguimos sin conexión".
+  // `useSession()` trae el `userId` y los efectos de arriba cargan solos (se
+  // anuncia "Volvió la conexión."); si la red sigue caída, se ve y se anuncia
+  // "Probamos de nuevo y seguimos sin conexión."; si la sesión ya no existe,
+  // nada: el `SIGNED_OUT` pasa la pantalla a "Ingresar…". Acá no hay copia
+  // que leer, así que no hay ningún borrado que esperar (a diferencia de Mis
+  // eventos).
   async function reintentarLaSesion() {
     if (reintentandoSesion) return
     setReintentandoSesion(true)
     setNotaSesion(null)
-    const volvio = await reintentarSesion()
+    const aviso = avisoReintentoSesion(await reintentarSesion())
     setReintentandoSesion(false)
-    if (!volvio) {
-      setNotaSesion(MENSAJE_SEGUIMOS_SIN_CONEXION_SIN_SESION)
-      AccessibilityInfo.announceForAccessibility(MENSAJE_SEGUIMOS_SIN_CONEXION_SIN_SESION)
-    }
+    setNotaSesion(aviso.nota)
+    if (aviso.anuncio) AccessibilityInfo.announceForAccessibility(aviso.anuncio)
   }
 
   function actualizarOk(cambio: (previo: EstadoOk) => EstadoOk) {
@@ -313,6 +321,9 @@ export function PantallaRadar() {
       // cambios siguen acá (`MENSAJE_RADAR_GUARDAR_SIN_CONEXION`): no se toca
       // el estado editado, así que también queda "Tenés cambios sin guardar".
       setMensaje({ tipo: 'error', texto: resultado.sinConexion ? 'Sin conexión' : 'Error al guardar', detalle: resultado.error })
+      // A6: el aviso no es live region; sin red se anuncia entero (que puede
+      // haber quedado a medias y que los cambios siguen acá).
+      if (resultado.sinConexion) AccessibilityInfo.announceForAccessibility(`Sin conexión. ${resultado.error}`)
     }
     setGuardando(false)
   }
@@ -348,9 +359,9 @@ export function PantallaRadar() {
     cuerpo = (
       <View style={estilos.vacio}>
         <Texto tono="secundario" style={estilos.textoVacio}>
-          {MENSAJE_SESION_SIN_CONEXION}
+          {SIN_CONEXION_POR_PANTALLA.radar}
         </Texto>
-        <BotonReintentar onReintentar={reintentarLaSesion} deshabilitado={reintentandoSesion} />
+        <BotonReintentar onReintentar={reintentarLaSesion} reintentando={reintentandoSesion} />
         {notaSesion ? (
           <Texto tono="secundario" style={estilos.textoVacio}>
             {notaSesion}

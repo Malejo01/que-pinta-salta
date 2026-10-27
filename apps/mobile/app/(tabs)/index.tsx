@@ -114,6 +114,7 @@ import {
 import { cargarAgendaConCache } from '@/lib/sin-conexion/agenda'
 import { TITULO_SIN_CONEXION } from '@/lib/sin-conexion/aviso'
 import {
+  anuncioDeReintento,
   decidirRefresco,
   mensajeErrorCarga,
   textoVacioCategoria,
@@ -333,8 +334,12 @@ export default function Inicio() {
       setEstado(resultado)
       // A6: el aviso de sin conexión es live region, pero Android no anuncia
       // una live region al montarse (R69, 69-b) e iOS las ignora: se anuncia
-      // acá, en el callback de la carga (no es `setState`).
+      // acá, en el callback de la carga (no es `setState`). Y si fue un
+      // "Reintentar" de `ErrorCarga` (`intento > 0`) que volvió a dar error,
+      // se anuncia el error: si no, parecía que el botón no hizo nada.
       if (resultado.tipo === 'ok' && resultado.desdeCache) AccessibilityInfo.announceForAccessibility(TITULO_SIN_CONEXION)
+      const anuncioError = anuncioDeReintento(intento > 0, resultado)
+      if (anuncioError) AccessibilityInfo.announceForAccessibility(anuncioError)
     })
 
     return () => {
@@ -359,12 +364,12 @@ export default function Inicio() {
   // lo guardado se avisa. También es el "Reintentar" del aviso.
   const refrescar = useCallback(async () => {
     setRefrescando(true)
-    const decision = decidirRefresco(estado, await cargarDatos())
+    const decision = decidirRefresco(estado, await cargarDatos(), notaRefresco)
     setEstado(decision.estado)
     setNotaRefresco(decision.nota)
     if (decision.anuncio) AccessibilityInfo.announceForAccessibility(decision.anuncio)
     setRefrescando(false)
-  }, [cargarDatos, estado])
+  }, [cargarDatos, estado, notaRefresco])
 
   const datosPortada = useMemo(() => {
     if (estado.tipo !== 'ok') return null
@@ -423,7 +428,14 @@ export default function Inicio() {
     // A6: si la pill elegida tiene eventos (aunque no sean de hoy), para el
     // vacío de "Hoy en Salta" (`vacioHoyEnSalta`): las películas no cuentan,
     // se suman siempre.
+    //
+    // Ojo (ronda de correcciones): "Hoy en Salta" es `date === hoy` y la
+    // ventana de "Esta noche" llega hasta las 05:59, así que con esa pill
+    // un boliche a las 00:30 está en las filas pero no en "Hoy en Salta":
+    // por eso el vacío mira esto y no `hoyEventos`. `hayEventosEnFinde`,
+    // para no ofrecer "Ver el finde" desde "Semana" con el finde vacío.
     const hayEventosEnAtajo = eventosDelAtajo.length > 0
+    const hayEventosEnFinde = estado.eventos.some((item) => eventoEnAtajo(item.paraAtajo, 'finde', ahora))
 
     return {
       carrusel,
@@ -435,6 +447,7 @@ export default function Inicio() {
       eventosSinPelicula,
       nombreCategoria,
       hayEventosEnAtajo,
+      hayEventosEnFinde,
     }
   }, [estado, atajo, categoria])
 
@@ -473,7 +486,12 @@ export default function Inicio() {
   // literal de la web, más abajo.
   const vacioHoy =
     estado.tipo === 'ok' && datosPortada
-      ? vacioHoyEnSalta({ atajo, hayEventosEnAtajo: datosPortada.hayEventosEnAtajo, desdeCache: estado.desdeCache !== null })
+      ? vacioHoyEnSalta({
+          atajo,
+          hayEventosEnAtajo: datosPortada.hayEventosEnAtajo,
+          hayEventosEnFinde: datosPortada.hayEventosEnFinde,
+          desdeCache: estado.desdeCache !== null,
+        })
       : null
 
   // R69, 69-b (QPS-354): el conteo tiene `accessibilityLiveRegion="polite"`,
@@ -627,7 +645,10 @@ export default function Inicio() {
               }
 
               return (
-                <View key="hoy-en-salta-vacio" style={[estilos.vacioHoy, { backgroundColor: colores.card, borderColor: colores.border }]}>
+                <View
+                  key="hoy-en-salta-vacio"
+                  style={[estilos.vacioHoy, estilos.vacioHoyAlto, { backgroundColor: colores.card, borderColor: colores.border }]}
+                >
                   <View style={estilos.vacioHoyTexto}>
                     <Texto peso="bold" style={estilos.vacioHoyTitulo}>
                       Hoy en Salta
@@ -701,6 +722,12 @@ const estilos = StyleSheet.create({
     padding: 20,
     gap: 16,
   },
+  // A6 (ronda de correcciones): el alto de la caja vacía de "Hoy en Salta"
+  // queda fijo en el mínimo con el que cuenta la regla (a) del anuncio (~188
+  // dp, docstring de `seccionesPortada`), así un texto más corto que el de la
+  // web (los de `vacioHoyEnSalta`) no la achica ni sube el banner. Solo para
+  // esta caja: la del modo categoría no tiene anuncio debajo.
+  vacioHoyAlto: { minHeight: 188, justifyContent: 'center' },
   vacioHoyTexto: { gap: 4 },
   vacioHoyTitulo: { fontSize: 20 },
   bloqueCategoria: { paddingHorizontal: 16, paddingTop: 8, gap: 12 },

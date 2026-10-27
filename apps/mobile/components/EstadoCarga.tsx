@@ -20,8 +20,14 @@
 // Los botones de este archivo dejan `useTheme()` de expo-router por
 // `useColoresQPS()`: el texto en `foreground` y el borde en
 // `bordeChipInactivo` (R72, 72-c: >= 3:1 contra el fondo; `colores.border`
-// daba ~1,3:1 y el botón casi no se distinguía como botón).
+// daba ~1,3:1 y el botón casi no se distinguía como botón). Ronda de
+// correcciones: el texto de los botones es `Texto peso="semibold"`
+// (Montserrat, como el resto de los botones de la app) en vez del `Text` de
+// RN; `BotonReintentar` dice "Reintentando…" mientras reintenta, y `Vacio`
+// tiene una variante `accionPrincipal` (relleno) para cuando su acción es la
+// única salida, como los botones de los vacíos de Inicio.
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native'
+import { Texto } from '@/components/Texto'
 import { bordeChipInactivo, useColoresQPS } from '@/lib/colores'
 
 /** Indicador de carga centrado. Sin texto: el mensaje de cada pantalla, si
@@ -42,8 +48,8 @@ export interface ErrorCargaProps {
 
 export interface BotonReintentarProps {
   onReintentar: () => void
-  /** Mientras se reintenta (por ejemplo, un refresco en curso): el botón se apaga para no disparar dos pedidos. */
-  deshabilitado?: boolean
+  /** Mientras se reintenta (un refresco, o la sesión): el botón se apaga, dice "Reintentando…" y no dispara dos pedidos. */
+  reintentando?: boolean
 }
 
 /**
@@ -53,17 +59,19 @@ export interface BotonReintentarProps {
  * podría tocar con el lector de pantalla: `accessible` agrupa todo en un solo
  * elemento).
  */
-export function BotonReintentar({ onReintentar, deshabilitado = false }: BotonReintentarProps) {
+export function BotonReintentar({ onReintentar, reintentando = false }: BotonReintentarProps) {
   const colores = useColoresQPS()
   return (
     <Pressable
       onPress={onReintentar}
-      disabled={deshabilitado}
+      disabled={reintentando}
       accessibilityRole="button"
-      accessibilityState={{ disabled: deshabilitado }}
-      style={[estilos.boton, { borderColor: bordeChipInactivo(colores), opacity: deshabilitado ? 0.6 : 1 }]}
+      accessibilityState={{ disabled: reintentando, busy: reintentando }}
+      style={[estilos.boton, { borderColor: bordeChipInactivo(colores), opacity: reintentando ? 0.6 : 1 }]}
     >
-      <Text style={[estilos.textoBoton, { color: colores.foreground }]}>Reintentar</Text>
+      <Texto peso="semibold" style={{ color: colores.foreground }}>
+        {reintentando ? 'Reintentando…' : 'Reintentar'}
+      </Texto>
     </Pressable>
   )
 }
@@ -86,10 +94,12 @@ export interface VacioProps {
    * falta cualquiera de los dos, no se muestra ningún botón. */
   textoAccion?: string
   onAccion?: () => void
+  /** A6: la acción va rellena (`primary`), para cuando es la única salida del vacío. Por omisión, con contorno. */
+  accionPrincipal?: boolean
 }
 
 /** Mensaje de "no hay nada" + acción opcional. */
-export function Vacio({ mensaje, textoAccion, onAccion }: VacioProps) {
+export function Vacio({ mensaje, textoAccion, onAccion, accionPrincipal = false }: VacioProps) {
   const colores = useColoresQPS()
   return (
     <View style={estilos.contenedor}>
@@ -98,9 +108,16 @@ export function Vacio({ mensaje, textoAccion, onAccion }: VacioProps) {
         <Pressable
           onPress={onAccion}
           accessibilityRole="button"
-          style={[estilos.boton, { borderColor: bordeChipInactivo(colores) }]}
+          style={[
+            estilos.boton,
+            accionPrincipal
+              ? { borderColor: colores.primary, backgroundColor: colores.primary }
+              : { borderColor: bordeChipInactivo(colores) },
+          ]}
         >
-          <Text style={[estilos.textoBoton, { color: colores.foreground }]}>{textoAccion}</Text>
+          <Texto peso="semibold" style={{ color: accionPrincipal ? colores.primaryForeground : colores.foreground }}>
+            {textoAccion}
+          </Texto>
         </Pressable>
       ) : null}
     </View>
@@ -116,5 +133,4 @@ const estilos = StyleSheet.create({
   // solo del padding vertical. Los 4dp de más no se notan (botón grande,
   // centrado, sin nada pegado arriba/abajo).
   boton: { borderWidth: 1, borderRadius: 20, paddingHorizontal: 16, minHeight: 48, alignItems: 'center', justifyContent: 'center' },
-  textoBoton: { fontWeight: '600' },
 })

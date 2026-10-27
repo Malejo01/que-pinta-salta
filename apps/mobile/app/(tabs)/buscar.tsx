@@ -82,6 +82,7 @@ import { bordeChipInactivo, useColoresQPS } from '@/lib/colores'
 import { obtenerCategorias, obtenerEventosVigentesParaInicio, type CategoriaBasica } from '@/lib/datos/eventos'
 import { textoCantidadEventos } from '@/lib/formato'
 import {
+  anuncioDeReintento,
   decidirRefresco,
   MAXIMO_ACCIONES_VACIO,
   mensajeErrorCarga,
@@ -202,17 +203,22 @@ export default function Buscar() {
   // conserva y se avisa, en vez de cambiarla por el error.
   const refrescar = useCallback(async () => {
     setRefrescando(true)
-    const decision = decidirRefresco(estado, await obtenerDatos())
+    const decision = decidirRefresco(estado, await obtenerDatos(), notaRefresco)
     setEstado(decision.estado)
     setNotaRefresco(decision.nota)
     if (decision.anuncio) AccessibilityInfo.announceForAccessibility(decision.anuncio)
     setRefrescando(false)
-  }, [obtenerDatos, estado])
+  }, [obtenerDatos, estado, notaRefresco])
 
   useEffect(() => {
     let cancelado = false
     obtenerDatos().then((resultado) => {
-      if (!cancelado) setEstado(resultado)
+      if (cancelado) return
+      setEstado(resultado)
+      // A6: un "Reintentar" de `ErrorCarga` (`intento > 0`) que vuelve a dar
+      // error se anuncia; si no, parecía que el botón no hizo nada.
+      const anuncioError = anuncioDeReintento(intento > 0, resultado)
+      if (anuncioError) AccessibilityInfo.announceForAccessibility(anuncioError)
     })
     return () => {
       cancelado = true
