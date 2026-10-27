@@ -19,7 +19,6 @@ const LISTA = 'components/mapa/lista-lugares.tsx'
 const CONTENIDO = 'app/mapa/mapa-contenido.tsx'
 const PAGINA = 'app/mapa/page.tsx'
 const LOADING = 'app/mapa/loading.tsx'
-const WORKER = 'components/mapa/maplibre-worker.ts'
 const NUEVOS = [MAPLIBRE, DIFERIDO, LISTA, CONTENIDO, PAGINA, LOADING]
 const CLIENTE = [CONTENIDO, DIFERIDO, MAPLIBRE]
 
@@ -48,6 +47,8 @@ const CODIGO = ['app', 'components', 'lib']
 /** Un texto que nombra el paquete: `from 'maplibre-gl'`, `import 'maplibre-gl/dist/…'`. */
 const NOMBRA_MAPLIBRE = /['"]maplibre-gl(?:\/[^'"]*)?['"]/
 const IMPORT_DINAMICO_MAPA = /import\(\s*['"][^'"]*mapa-maplibre['"]\s*\)/g
+/** Fija la URL del worker de MapLibre (Q3): lo carga mapa-diferido con import(). */
+const WORKER = 'components/mapa/maplibre-worker.ts'
 
 describe('el barrido mira algo', () => {
   it('encuentra los archivos nuevos y bastante código de la web', () => {
