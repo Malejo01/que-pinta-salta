@@ -25,6 +25,8 @@ export interface DisplayEvent {
   address: string
   startDateTime: string
   ticketUrl?: string
+  /** `events.tags` tal cual: lo usa "Para chicos" (`filtros/publico.ts`). Opcional por los fixtures armados a mano, igual que `featuredUntil`. */
+  tags?: readonly string[] | null
   /** Solo con dato explícito (age_restriction >= 18); null/undefined = sin chip. */
   vibe?: "adultos" | "familiar" | "exterior" | null
   isFeatured: boolean

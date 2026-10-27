@@ -48,6 +48,7 @@ export function transformEvent(event: EventWithRelations): DisplayEvent {
     startDateTime: event.start_date,
     ticketUrl: event.ticket_url || undefined,
     vibe: ageChip(event.age_restriction),
+    tags: event.tags ?? null,
     // QPS-239: el destacado ya no sale de `is_featured` (legado) sino de si
     // `featured_until` sigue vigente. `new Date()` es el único reloj propio
     // de este archivo: no se puede inyectar porque `transformEvent` se pasa
