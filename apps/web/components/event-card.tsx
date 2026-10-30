@@ -37,6 +37,10 @@ interface EventCardProps {
   carga?: CargaImagen
 }
 
+/** Máximo de ítems en las capas de hover (tarjeta de ~270-300 px de alto). */
+const MAX_CINES = 3
+const MAX_FUNCIONES = 4
+
 export function EventCard({ event, isFavorite, onToggleFavorite, onOpenMovie, className, origin, carga = "diferida" }: EventCardProps) {
   const [imgSrc, setImgSrc] = useState<string>(event.image || "/placeholder.jpg")
   const [failedImage, setFailedImage] = useState<string | null>(null)
@@ -81,6 +85,13 @@ export function EventCard({ event, isFavorite, onToggleFavorite, onOpenMovie, cl
   const occurrencesSummary = hasSeveralOccurrences
     ? resumenFunciones(idioma, event.occurrences!, new Date())
     : null
+
+  // Las capas de hover cortan lo que no entra: se muestran pocos ítems y el resto
+  // va como "+N más", para que el pie ("Click para…") quede siempre visible.
+  const cinesTodos =
+    event.isCinemaMovie && event.showings ? Object.entries(event.showings as MovieShowings) : []
+  const cinesVisibles = cinesTodos.slice(0, MAX_CINES)
+  const cinesOcultos = cinesTodos.length - cinesVisibles.length
 
   const handleClick = (e: React.MouseEvent) => {
     if (event.isCinemaMovie && onOpenMovie) {
@@ -155,16 +166,19 @@ export function EventCard({ event, isFavorite, onToggleFavorite, onOpenMovie, cl
 
         {/* Hover overlay con horarios de cine */}
         {event.isCinemaMovie && event.showings && (
-          <div className="absolute inset-0 bg-black/95 p-3 opacity-0 group-hover/card:opacity-100 transition-all duration-300 flex flex-col justify-between z-20 text-white overflow-y-auto scrollbar-hide">
-            <div className="space-y-3">
-              <h4 className="text-xs font-bold text-primary border-b border-primary/20 pb-1 flex items-center gap-1.5">
+          // 77-a1: capa solo de mouse (aparece con hover). `aria-hidden` + `overflow-hidden`
+          // (antes `overflow-y-auto`): sin región con scroll inalcanzable con teclado ni
+          // encabezado `h4` suelto; el lector de pantalla lee el título y el modal tiene los horarios.
+          <div aria-hidden="true" className="absolute inset-0 bg-black/95 p-3 opacity-0 group-hover/card:opacity-100 transition-all duration-300 flex flex-col justify-between z-20 text-white overflow-hidden">
+            <div className="min-h-0 flex-1 space-y-3 overflow-hidden">
+              <p className="text-xs font-bold text-[#F0585D] border-b border-primary/20 pb-1 flex items-center gap-1.5">
                 <Film className="size-3.5" />
                 {t.funcionesHoy}
-              </h4>
+              </p>
               <div className="space-y-2">
-                {Object.entries(event.showings as MovieShowings).map(([cinemaKey, details]) => (
+                {cinesVisibles.map(([cinemaKey, details]) => (
                   <div key={cinemaKey} className="space-y-0.5">
-                    <p className="text-[10px] font-bold text-zinc-300 truncate">
+                    <p className="text-[11px] font-bold text-zinc-300 truncate">
                       {details.name}
                     </p>
                     <div className="flex flex-wrap gap-1">
@@ -179,9 +193,12 @@ export function EventCard({ event, isFavorite, onToggleFavorite, onOpenMovie, cl
                     </div>
                   </div>
                 ))}
+                {cinesOcultos > 0 && (
+                  <p className="text-[11px] font-semibold text-zinc-300">{t.masItems(cinesOcultos)}</p>
+                )}
               </div>
             </div>
-            <p className="text-[11px] text-zinc-400 text-center italic mt-2 border-t border-zinc-800/80 pt-1">
+            <p className="shrink-0 text-[11px] text-zinc-400 text-center italic mt-2 border-t border-zinc-800/80 pt-1">
               {t.clickHorarios}
             </p>
           </div>
@@ -189,17 +206,19 @@ export function EventCard({ event, isFavorite, onToggleFavorite, onOpenMovie, cl
 
         {/* Hover overlay para eventos con múltiples fechas/horarios */}
         {!event.isCinemaMovie && event.occurrences && event.occurrences.length > 1 && (
-          <div className="absolute inset-0 bg-black/95 p-3 opacity-0 group-hover/card:opacity-100 transition-all duration-300 flex flex-col justify-between z-20 text-white overflow-y-auto scrollbar-hide">
-            <div className="space-y-3">
-              <h4 className="text-xs font-bold text-primary border-b border-primary/20 pb-1 flex items-center gap-1.5">
+          // 77-a1: igual que la capa de cine (aria-hidden, sin scroll). Muestra hasta
+          // MAX_FUNCIONES y "+N más"; el resto de las funciones está en la ficha.
+          <div aria-hidden="true" className="absolute inset-0 bg-black/95 p-3 opacity-0 group-hover/card:opacity-100 transition-all duration-300 flex flex-col justify-between z-20 text-white overflow-hidden">
+            <div className="min-h-0 flex-1 space-y-3 overflow-hidden">
+              <p className="text-xs font-bold text-[#F0585D] border-b border-primary/20 pb-1 flex items-center gap-1.5">
                 <Calendar className="size-3.5" />
                 {t.proximasFunciones}
-              </h4>
-              <div className="space-y-1.5 max-h-[120px] overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-zinc-800 scrollbar-track-transparent">
-                {event.occurrences.map((occ, idx) => {
+              </p>
+              <div className="space-y-1.5 pr-1">
+                {event.occurrences.slice(0, MAX_FUNCIONES).map((occ, idx) => {
                   const formattedOccDate = fechaDeFuncion(idioma, occ.date)
                   return (
-                    <div key={idx} className="flex justify-between items-center text-[10px] py-1 border-b border-zinc-800/40 last:border-none">
+                    <div key={idx} className="flex justify-between items-center text-[11px] py-1 border-b border-zinc-800/40 last:border-none">
                       <span className="font-medium text-zinc-200">
                         {formattedOccDate}
                       </span>
@@ -209,9 +228,14 @@ export function EventCard({ event, isFavorite, onToggleFavorite, onOpenMovie, cl
                     </div>
                   )
                 })}
+                {event.occurrences.length > MAX_FUNCIONES && (
+                  <p className="text-[11px] font-semibold text-zinc-300">
+                    {t.masItems(event.occurrences.length - MAX_FUNCIONES)}
+                  </p>
+                )}
               </div>
             </div>
-            <p className="text-[11px] text-zinc-400 text-center italic mt-2 border-t border-zinc-800/80 pt-1">
+            <p className="shrink-0 text-[11px] text-zinc-400 text-center italic mt-2 border-t border-zinc-800/80 pt-1">
               {t.clickDetalles}
             </p>
           </div>
@@ -224,7 +248,7 @@ export function EventCard({ event, isFavorite, onToggleFavorite, onOpenMovie, cl
           type={event.isCinemaMovie ? 'cinema' : (event.isInstagramFlyer ? 'flyer' : 'event')}
           initialIsFavorite={!!isFavorite}
           onChange={onToggleFavorite ? (favorited) => onToggleFavorite(event.id, favorited) : undefined}
-          className="absolute right-2 top-2 z-30 sm:opacity-0 sm:group-hover/card:opacity-100 transition-all duration-350"
+          className="absolute right-2 top-2 z-30 sm:opacity-0 sm:group-hover/card:opacity-100 sm:focus-visible:opacity-100 transition-all duration-350"
         />
 
         <ShareButton
@@ -232,7 +256,7 @@ export function EventCard({ event, isFavorite, onToggleFavorite, onOpenMovie, cl
           title={event.title}
           url={shareUrl}
           onShared={handleShared}
-          className="absolute right-12 top-2 z-30 sm:opacity-0 sm:group-hover/card:opacity-100 duration-350"
+          className="absolute right-12 top-2 z-30 sm:opacity-0 sm:group-hover/card:opacity-100 sm:focus-visible:opacity-100 duration-350"
         />
 
         <Badge 

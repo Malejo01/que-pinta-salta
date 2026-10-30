@@ -83,9 +83,12 @@ export function Footer() {
                 />
               </div>
               <div className="leading-none">
+                {/* 77-a1: el rojo de marca (#C12026) da 3,32:1 sobre el pie oscuro;
+                    en oscuro va #F0585D (5,93:1). En claro sigue #C12026 (5,8:1).
+                    El color pasó de `style` a clase para que `dark:` pueda cambiarlo. */}
                 <p
-                  className="text-base leading-tight"
-                  style={{ fontFamily: 'var(--font-yellowtail)', color: '#C12026' }}
+                  className="text-base leading-tight text-[#C12026] dark:text-[#F0585D]"
+                  style={{ fontFamily: 'var(--font-yellowtail)' }}
                 >
                   Que pinta?
                 </p>
@@ -104,8 +107,8 @@ export function Footer() {
 
           {/* Links */}
           <div className="flex flex-col gap-3">
-            <h3 className="text-sm font-semibold text-foreground">{t.enlaces}</h3>
-            <nav className="flex flex-col gap-2">
+            <h2 className="text-sm font-semibold text-foreground">{t.enlaces}</h2>
+            <nav aria-label={t.enlaces} className="flex flex-col gap-2">
               <Link
                 href="/privacidad"
                 {...legalEnCastellano}
@@ -165,7 +168,7 @@ export function Footer() {
 
           {/* Social & Contact */}
           <div className="flex flex-col gap-3">
-            <h3 className="text-sm font-semibold text-foreground">{t.conectaConmigo}</h3>
+            <h2 className="text-sm font-semibold text-foreground">{t.conectaConmigo}</h2>
             <div className="flex items-center gap-3">
               {socialLinks.map((link) => (
                 <a
@@ -176,7 +179,7 @@ export function Footer() {
                   aria-label={link.name}
                   className="flex size-9 items-center justify-center rounded-lg border border-border/60 bg-background/50 text-muted-foreground transition-all duration-200 hover:border-primary/50 hover:bg-primary/10 hover:text-primary hover:scale-105"
                 >
-                  <link.icon className="size-4" />
+                  <link.icon aria-hidden="true" className="size-4" />
                 </a>
               ))}
             </div>
@@ -185,9 +188,9 @@ export function Footer() {
               href={CONTACT_URL}
               target="_blank"
               rel="noopener noreferrer"
-              className="mt-1 inline-flex w-fit items-center gap-2 rounded-lg bg-primary/10 px-4 py-2 text-sm font-medium text-primary transition-all duration-200 hover:bg-primary/20 hover:scale-[1.02]"
+              className="mt-1 inline-flex w-fit items-center gap-2 rounded-lg bg-primary/10 px-4 py-2 text-sm font-medium text-primary dark:text-[#F0585D] transition-all duration-200 hover:bg-primary/20 hover:scale-[1.02]"
             >
-              <MessageCircle className="size-4" />
+              <MessageCircle aria-hidden="true" className="size-4" />
               {t.contactame}
             </a>
           </div>
@@ -197,10 +200,10 @@ export function Footer() {
         {DONATIONS_ENABLED && (
         <div className="mt-12 rounded-2xl border border-[#C12026]/20 bg-[#C12026]/5 p-6 sm:p-8 flex flex-col sm:flex-row items-center justify-between gap-6 text-center sm:text-left">
           <div className="max-w-xl space-y-2">
-            <h3 className="text-lg font-bold text-foreground flex items-center justify-center sm:justify-start gap-2">
-              <Coffee className="size-5 text-[#C12026]" />
+            <h2 className="text-lg font-bold text-foreground flex items-center justify-center sm:justify-start gap-2">
+              <Coffee aria-hidden="true" className="size-5 text-[#C12026]" />
               {t.donacionTitulo}
-            </h3>
+            </h2>
             <p className="text-sm text-muted-foreground leading-relaxed">
               {t.donacionTexto}
             </p>
@@ -225,7 +228,7 @@ export function Footer() {
               href="https://malejoportfolio.netlify.app"
               target="_blank"
               rel="noopener noreferrer"
-              className="font-medium text-primary transition-colors hover:text-primary/80"
+              className="font-medium text-primary dark:text-[#F0585D] transition-colors hover:text-primary/80 dark:hover:text-[#F58A8E]"
             >
               Mauro Lizarraga
             </a>

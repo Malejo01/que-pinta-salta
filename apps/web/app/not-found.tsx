@@ -1,8 +1,10 @@
 import type { Metadata } from "next"
 import { PaginaDeError } from "@/components/pagina-de-error"
 
-// El layout declara index: true para todo el sitio; acá lo pisamos para que
-// quede una sola meta robots, con noindex.
+// El layout declara index: true para todo el sitio; acá lo pisamos con noindex.
+// Next además inyecta su propio <meta name="robots" content="noindex"> en las
+// respuestas 404 (server-inserted HTML), así que en el HTML puede haber dos metas
+// robots, ambas noindex. A verificar en la preview mirando una URL inexistente.
 export const metadata: Metadata = {
   title: "No encontramos esa página",
   robots: {

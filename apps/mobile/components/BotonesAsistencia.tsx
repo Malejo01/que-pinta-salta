@@ -41,19 +41,34 @@ export function BotonesAsistencia({ eventId }: BotonesAsistenciaProps) {
   const { session, cargando: cargandoSesion } = useSession()
   const userId = session?.user.id ?? null
 
-  const [estado, setEstado] = useState<Estado>({ tipo: 'cargando' })
+  // El estado se guarda con la clave (evento + usuario) a la que pertenece: si
+  // cambia, el resultado viejo no vale y se muestra "cargando" hasta que llegue
+  // el nuevo, sin `setState` síncrono dentro del efecto.
+  const clave = `${eventId}:${userId ?? ''}`
+  const [resultadoCarga, setResultadoCarga] = useState<{ clave: string; estado: Estado } | null>(null)
   const [marcando, setMarcando] = useState<TipoAsistencia | null>(null)
 
+  const estado: Estado = resultadoCarga && resultadoCarga.clave === clave ? resultadoCarga.estado : { tipo: 'cargando' }
+
+  const setEstado = useCallback((nuevo: Estado) => setResultadoCarga({ clave, estado: nuevo }), [clave])
+
+  // Recarga desde un evento (después de marcar): vuelve a "cargando" y pide.
   const cargar = useCallback(async () => {
-    setEstado({ tipo: 'cargando' })
+    setResultadoCarga(null)
     const resultado = await obtenerAsistencia(eventId, userId)
     setEstado(resultado)
-  }, [eventId, userId])
+  }, [eventId, userId, setEstado])
 
   useEffect(() => {
     if (cargandoSesion) return
-    cargar()
-  }, [cargandoSesion, cargar])
+    let cancelado = false
+    obtenerAsistencia(eventId, userId).then((resultado) => {
+      if (!cancelado) setEstado(resultado)
+    })
+    return () => {
+      cancelado = true
+    }
+  }, [cargandoSesion, eventId, userId, setEstado])
 
   if (cargandoSesion || estado.tipo === 'cargando') {
     return <ActivityIndicator style={estilos.espaciado} />

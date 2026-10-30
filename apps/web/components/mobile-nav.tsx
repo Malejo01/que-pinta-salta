@@ -41,7 +41,7 @@ export function MobileNav() {
     // quedaría debajo de la barra de gestos de Android o del home indicator de iOS.
     // El padding la levanta solo en los teléfonos que lo necesitan (en el resto el
     // valor es 0 y nada cambia).
-    <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-background/95 pb-[env(safe-area-inset-bottom)] backdrop-blur supports-[backdrop-filter]:bg-background/60 sm:hidden">
+    <nav aria-label={textos.nav.navInferior} className="fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-background/95 pb-[env(safe-area-inset-bottom)] backdrop-blur supports-[backdrop-filter]:bg-background/60 sm:hidden">
       <div className="flex h-16 items-center justify-around">
         {navItems.map((item) => {
           const isActive = ruta === item.href
@@ -82,7 +82,7 @@ export function MobileNav() {
                   : "text-muted-foreground hover:text-foreground"
               )}
             >
-              <item.icon className={cn("size-5", isActive && "fill-primary/20")} />
+              <item.icon aria-hidden="true" className={cn("size-5", isActive && "fill-primary/20")} />
               <span>{textos.nav[item.etiqueta]}</span>
             </Link>
           )

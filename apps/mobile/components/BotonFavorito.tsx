@@ -100,23 +100,32 @@ export function BotonFavorito({ objetivo, tamanio = 40, fondo = 'muted', nombre,
   const { session, cargando: cargandoSesion } = useSession()
   const userId = session?.user.id ?? null
 
-  const [estado, setEstado] = useState<Estado>({ tipo: 'cargando' })
+  // El estado se guarda con la clave (objetivo + usuario) a la que pertenece:
+  // si la clave cambia, el resultado viejo ya no vale y se muestra "cargando"
+  // hasta que llegue el nuevo, sin hacer `setState` síncrono dentro del efecto.
+  const clave = `${tipoFavorito}:${id}:${userId ?? ''}`
+  const [guardado, setGuardado] = useState<{ clave: string; estado: Estado } | null>(null)
   const [guardando, setGuardando] = useState(false)
 
-  const cargar = useCallback(async () => {
-    if (!userId) {
-      setEstado({ tipo: 'ok', marcado: false })
-      return
-    }
-    setEstado({ tipo: 'cargando' })
-    const resultado = await obtenerEsFavorito(id, userId, tipoFavorito)
-    setEstado(resultado.ok ? { tipo: 'ok', marcado: resultado.marcado } : { tipo: 'error', error: resultado.error })
-  }, [id, tipoFavorito, userId])
+  const estado: Estado = !userId
+    ? { tipo: 'ok', marcado: false }
+    : guardado && guardado.clave === clave
+      ? guardado.estado
+      : { tipo: 'cargando' }
+
+  const setEstado = useCallback((nuevo: Estado) => setGuardado({ clave, estado: nuevo }), [clave])
 
   useEffect(() => {
-    if (cargandoSesion) return
-    cargar()
-  }, [cargandoSesion, cargar])
+    if (cargandoSesion || !userId) return
+    let cancelado = false
+    obtenerEsFavorito(id, userId, tipoFavorito).then((resultado) => {
+      if (cancelado) return
+      setEstado(resultado.ok ? { tipo: 'ok', marcado: resultado.marcado } : { tipo: 'error', error: resultado.error })
+    })
+    return () => {
+      cancelado = true
+    }
+  }, [cargandoSesion, id, tipoFavorito, userId, setEstado])
 
   async function alternar() {
     if (!userId) {

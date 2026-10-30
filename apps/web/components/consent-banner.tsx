@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useEffect, useRef, useSyncExternalStore } from 'react'
+import { useEffect, useId, useRef, useSyncExternalStore } from 'react'
 import { motion } from 'framer-motion'
 import { Button } from '@/components/ui/button'
 import { CONSENT_EVENT, dispatchConsentEvent, readConsent, writeConsent, type ConsentValue } from '@/lib/consent'
@@ -78,6 +78,7 @@ export function ConsentBanner() {
   const isOpen = consent === null
   const idioma = useIdioma()
   const t = useTextos().cookies
+  const descripcionMasInfoId = useId()
 
   useEffect(() => {
     if (!isOpen) return
@@ -131,11 +132,16 @@ export function ConsentBanner() {
           <Link
             href="/privacidad"
             hrefLang={idioma === 'es' ? undefined : 'es-AR'}
-            aria-label={t.masInfoAria}
-            className="text-primary underline underline-offset-4 hover:text-primary/80"
+            // 77-a1 (label-content-name-mismatch): el nombre accesible es el texto
+            // visible («Más info»); la frase larga pasa a ser la descripción.
+            aria-describedby={descripcionMasInfoId}
+            className="text-primary dark:text-[#F0585D] underline underline-offset-4 hover:text-primary/80 dark:hover:text-[#F58A8E]"
           >
             {t.masInfo}
           </Link>
+          <span id={descripcionMasInfoId} hidden>
+            {t.masInfoAria}
+          </span>
         </p>
         <div className="flex shrink-0 gap-2">
           <Button type="button" variant="outline" onClick={reject} className="min-h-11 flex-1 sm:flex-none">

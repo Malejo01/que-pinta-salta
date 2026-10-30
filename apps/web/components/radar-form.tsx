@@ -385,9 +385,9 @@ export function RadarForm({ initialSettings, categories, venues, instagramAccoun
               <Badge
                 key={venue.id}
                 variant="secondary"
-                className="bg-emerald-950/20 border border-emerald-800/40 text-emerald-300 font-semibold px-3 py-1.5 rounded-lg flex items-center gap-1.5"
+                className="bg-emerald-950/20 border border-emerald-800/40 text-emerald-800 dark:text-emerald-300 font-semibold px-3 py-1.5 rounded-lg flex items-center gap-1.5"
               >
-                <MapPin className="size-3.5 text-emerald-400 flex-shrink-0" />
+                <MapPin className="size-3.5 text-emerald-700 dark:text-emerald-400 flex-shrink-0" />
                 <span>{venue.name}</span>
                 <button
                   type="button"

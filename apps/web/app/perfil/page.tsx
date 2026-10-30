@@ -70,7 +70,7 @@ export default async function PerfilPage() {
       </div>
 
       {/* Grid principal de contenidos */}
-      <main className="container mx-auto px-4 py-8 md:py-12">
+      <main id="contenido" tabIndex={-1} className="container mx-auto px-4 py-8 md:py-12 focus:outline-none">
         <div className="grid gap-8 lg:grid-cols-3">
           
           {/* Columna de eventos creados (2/3 de ancho) */}

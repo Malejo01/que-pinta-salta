@@ -62,7 +62,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         </aside>
 
         {/* Content */}
-        <main className="min-w-0 flex-1">{children}</main>
+        <main id="contenido" tabIndex={-1} className="min-w-0 flex-1 focus:outline-none">{children}</main>
       </div>
     </div>
   )

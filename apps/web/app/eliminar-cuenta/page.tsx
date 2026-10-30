@@ -30,7 +30,7 @@ export default function EliminarCuentaPublicaPage() {
     <div className="min-h-screen bg-background pb-page sm:pb-0">
       <Navbar />
 
-      <main className="container mx-auto max-w-3xl px-4 py-12">
+      <main id="contenido" tabIndex={-1} className="container mx-auto max-w-3xl px-4 py-12 focus:outline-none">
         <div className="mb-10 flex flex-col items-center space-y-3 text-center">
           <div className="mb-1 flex size-14 items-center justify-center rounded-2xl border border-destructive/20 bg-destructive/10 text-destructive">
             <Trash2 className="size-7" />

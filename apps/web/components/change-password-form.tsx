@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useId, useState } from "react"
 import Link from "next/link"
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
@@ -32,6 +32,7 @@ export function ChangePasswordForm({ modo = "email" }: ChangePasswordFormProps) 
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
+  const errorId = useId()
 
   const { titulo, descripcion, boton } = textosContrasena(modo)
 
@@ -95,7 +96,11 @@ export function ChangePasswordForm({ modo = "email" }: ChangePasswordFormProps) 
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-4">
           {error && (
-            <div className="flex items-start gap-2 rounded-lg border border-destructive bg-destructive/10 p-3 text-sm text-destructive">
+            <div
+              id={errorId}
+              role="alert"
+              className="flex items-start gap-2 rounded-lg border border-destructive bg-destructive/10 p-3 text-sm text-destructive"
+            >
               <AlertCircle className="size-4 shrink-0 mt-0.5" />
               <span>{error}</span>
             </div>
@@ -123,6 +128,9 @@ export function ChangePasswordForm({ modo = "email" }: ChangePasswordFormProps) 
             <Label htmlFor="new-password">Contraseña nueva</Label>
             <PasswordInput
               id="new-password"
+              autoComplete="new-password"
+              aria-invalid={error ? true : undefined}
+              aria-describedby={error ? errorId : undefined}
               placeholder="••••••••"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
@@ -137,6 +145,9 @@ export function ChangePasswordForm({ modo = "email" }: ChangePasswordFormProps) 
             <Label htmlFor="confirm-password">Confirmar contraseña nueva</Label>
             <PasswordInput
               id="confirm-password"
+              autoComplete="new-password"
+              aria-invalid={error ? true : undefined}
+              aria-describedby={error ? errorId : undefined}
               placeholder="••••••••"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}

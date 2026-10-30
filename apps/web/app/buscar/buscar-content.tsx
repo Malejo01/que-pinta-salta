@@ -257,7 +257,7 @@ export function BuscarContent({
     <div className="min-h-screen bg-background pb-page sm:pb-0">
       <Navbar />
       
-      <main className="container mx-auto px-4 py-8">
+      <main id="contenido" tabIndex={-1} className="container mx-auto px-4 py-8 focus:outline-none">
         <div className="mb-6">
           <Button variant="ghost" asChild className="mb-4">
             <Link href="/">

@@ -42,6 +42,12 @@ export interface BotonVoyProps {
 export function BotonVoy({ voy, cantidadVoy, pendiente, onClick, titulo, className, idioma = "es" }: BotonVoyProps) {
   const t = textosDe(idioma).asistencia
   const nombre = titulo ?? t.esteEvento
+  const textoVisible = idioma === "es" ? textoBotonVoy(cantidadVoy) : t.botonVoy(cantidadVoy)
+  // 77-a1: label-content-name-mismatch NO resuelto acá. Los tests
+  // tests/i18n/ficha.test.ts fijan `aria-label="I'm going to <título>"` en el HTML y
+  // `es.asistencia.ariaVoy('X') === 'Marcar que vas a X'` (no contiene «Voy»). Arreglo
+  // pendiente junto con esos tests: ver el reporte de la tarea.
+  const nombreAccesible = voy ? t.ariaNoVoy(nombre) : t.ariaVoy(nombre)
   return (
     <Button
       type="button"
@@ -50,11 +56,11 @@ export function BotonVoy({ voy, cantidadVoy, pendiente, onClick, titulo, classNa
       className={cn("min-h-11 flex-1 sm:flex-none", className)}
       disabled={pendiente}
       aria-pressed={voy}
-      aria-label={voy ? t.ariaNoVoy(nombre) : t.ariaVoy(nombre)}
+      aria-label={nombreAccesible}
       onClick={onClick}
     >
-      <Check className="mr-2 size-4" />
-      {idioma === "es" ? textoBotonVoy(cantidadVoy) : t.botonVoy(cantidadVoy)}
+      <Check aria-hidden="true" className="mr-2 size-4" />
+      {textoVisible}
     </Button>
   )
 }

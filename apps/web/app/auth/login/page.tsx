@@ -79,7 +79,7 @@ export default function LoginPage() {
   return (
     // B3/B4: `<main>` en vez de `<div>` (mismas clases, mismo aspecto) para
     // que la pantalla de ingreso tenga su región principal.
-    <main className="relative flex min-h-svh w-full flex-col items-center justify-center p-6 md:p-10 bg-background overflow-hidden">
+    <main id="contenido" tabIndex={-1} className="relative flex min-h-svh w-full flex-col items-center justify-center p-6 md:p-10 bg-background overflow-hidden focus:outline-none">
       {/* Patrón de fondo de marca */}
       <div
         className="pointer-events-none absolute inset-0 bg-repeat opacity-[0.06] dark:opacity-[0.035] dark:invert dark:hue-rotate-180"
@@ -144,6 +144,9 @@ export default function LoginPage() {
                   <Input
                     id="email"
                     type="email"
+                    autoComplete="email"
+                    aria-invalid={error ? true : undefined}
+                    aria-describedby={error ? 'login-error' : undefined}
                     placeholder="tu@email.com"
                     required
                     value={email}
@@ -154,6 +157,9 @@ export default function LoginPage() {
                   <Label htmlFor="password">Contraseña</Label>
                   <PasswordInput
                     id="password"
+                    autoComplete="current-password"
+                    aria-invalid={error ? true : undefined}
+                    aria-describedby={error ? 'login-error' : undefined}
                     required
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
@@ -166,7 +172,7 @@ export default function LoginPage() {
                   </Link>
                 </div>
                 {error && (
-                  <p className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
+                  <p id="login-error" role="alert" className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
                     {error}
                   </p>
                 )}
@@ -198,11 +204,11 @@ export default function LoginPage() {
 
             <p className="mt-4 text-xs text-muted-foreground text-center">
               Al continuar con Google aceptás los{' '}
-              <Link href="/terminos" className="text-primary underline underline-offset-4">
+              <Link href="/terminos" className="text-primary dark:text-[#F0585D] underline underline-offset-4">
                 Términos y condiciones
               </Link>{' '}
               y la{' '}
-              <Link href="/privacidad" className="text-primary underline underline-offset-4">
+              <Link href="/privacidad" className="text-primary dark:text-[#F0585D] underline underline-offset-4">
                 Política de Privacidad
               </Link>
               .
@@ -212,7 +218,7 @@ export default function LoginPage() {
               ¿No tenés cuenta?{' '}
               <Link
                 href="/auth/sign-up"
-                className="text-primary underline underline-offset-4"
+                className="text-primary dark:text-[#F0585D] underline underline-offset-4"
               >
                 Registrate
               </Link>

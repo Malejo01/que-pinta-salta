@@ -69,14 +69,14 @@ export function CategoryRow({
               /* Área de toque de 44px de alto sin mover el texto: padding vertical
                  compensado con margen negativo igual (técnica "padding con margen
                  negativo"). El ancho visible (~67px) ya supera los 44px mínimos. */
-              className="text-sm font-medium text-primary hover:underline cursor-pointer bg-transparent border-0 p-0 py-3 -my-3"
+              className="text-sm font-medium text-primary dark:text-[#F0585D] hover:underline cursor-pointer bg-transparent border-0 p-0 py-3 -my-3"
             >
               {t.verTodos}
             </button>
           ) : (
             <Link
               href={rutaEn(idioma, `/?category=${category}`)}
-              className="text-sm font-medium text-primary hover:underline py-3 -my-3"
+              className="text-sm font-medium text-primary dark:text-[#F0585D] hover:underline py-3 -my-3"
             >
               {t.verTodos}
             </Link>

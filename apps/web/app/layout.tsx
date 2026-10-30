@@ -11,6 +11,7 @@ import { DonationProvider } from '@/components/donation-context'
 import { DonationModal } from '@/components/donation-modal'
 import { AdsenseLoader } from '@/components/adsense-loader'
 import { IdiomaDocumento } from '@/components/idioma-documento'
+import { SaltarAlContenido } from '@/components/saltar-al-contenido'
 import { IDIOMA_INIT_SCRIPT } from '@/lib/i18n/idioma-init'
 import './globals.css'
 
@@ -135,6 +136,8 @@ export default function RootLayout({
         {/* El layout raíz no se vuelve a renderizar al navegar del lado del
             cliente: esto mantiene `lang` al día si se pasa de / a /en sin recargar. */}
         <IdiomaDocumento />
+        {/* 77-a1: primer enfocable de la página; lleva al `<main id="contenido">`. */}
+        <SaltarAlContenido />
         <ThemeProvider
           attribute="class"
           defaultTheme="dark"

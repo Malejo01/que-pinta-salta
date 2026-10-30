@@ -86,7 +86,7 @@ export function EventForm({ categories, venues, initialData, cloneId, editId }: 
         </div>
       </header>
 
-      <main className="container mx-auto max-w-2xl px-4 py-8">
+      <main id="contenido" tabIndex={-1} className="container mx-auto max-w-2xl px-4 py-8 focus:outline-none">
         <form onSubmit={handleSubmit} className="space-y-8">
           {cloneId && (
             <input type="hidden" name="cloneId" value={cloneId} />

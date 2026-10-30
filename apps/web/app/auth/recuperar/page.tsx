@@ -82,7 +82,7 @@ export default function RecuperarPage() {
   }
 
   return (
-    <div className="relative flex min-h-svh w-full flex-col items-center justify-center p-6 md:p-10 bg-background overflow-hidden">
+    <main id="contenido" tabIndex={-1} className="relative flex min-h-svh w-full flex-col items-center justify-center p-6 md:p-10 bg-background overflow-hidden focus:outline-none">
       {/* Patrón de fondo de marca */}
       <div
         className="pointer-events-none absolute inset-0 bg-repeat opacity-[0.06] dark:opacity-[0.035] dark:invert dark:hue-rotate-180"
@@ -128,7 +128,9 @@ export default function RecuperarPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-2xl">Recuperar contraseña</CardTitle>
+            <CardTitle className="text-2xl">
+              <h1>Recuperar contraseña</h1>
+            </CardTitle>
             <CardDescription>
               Ingresá tu email y te mandamos un link para elegir una contraseña nueva
             </CardDescription>
@@ -147,6 +149,9 @@ export default function RecuperarPage() {
                     <Input
                       id="email"
                       type="email"
+                      autoComplete="email"
+                      aria-invalid={errorLimite ? true : undefined}
+                      aria-describedby={errorLimite ? 'recuperar-error' : undefined}
                       placeholder="tu@email.com"
                       required
                       value={email}
@@ -154,7 +159,7 @@ export default function RecuperarPage() {
                     />
                   </div>
                   {errorLimite && (
-                    <p className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
+                    <p id="recuperar-error" role="alert" className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
                       {MENSAJE_LIMITE}
                     </p>
                   )}
@@ -167,6 +172,6 @@ export default function RecuperarPage() {
           </CardContent>
         </Card>
       </div>
-    </div>
+    </main>
   )
 }
