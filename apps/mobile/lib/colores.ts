@@ -23,6 +23,37 @@ export function bordeChipInactivo(colores: ColoresQPS): string {
   return colores.background === COLORES_OSCURO.background ? BORDE_CONTROL_OSCURO : BORDE_CONTROL_CLARO
 }
 
+// A1 (nube Q1, ronda de correcciones): colores propios de los esqueletos de
+// carga (`components/Esqueleto.tsx`). El token `muted` (oklch 0.2, #161616 en
+// oscuro) da ~1,14:1 contra el fondo y ~1,05:1 en el valle del pulso: el
+// esqueleto no se veía. No se toca `muted` (lo usa toda la app: placeholders,
+// pills del contador, la caja de precio). Mismo patrón que el borde de arriba:
+// un hex por esquema, elegido a mano y documentado (el repo no deriva estos
+// tonos de los tokens: `bordeChipInactivo` tampoco). Objetivo: que el bloque
+// se distinga del fondo y de `card` sin competir con el contenido real (entre
+// ~1,2:1 y ~1,8:1, también en el valle del pulso, con `OPACIDAD_MINIMA` = 0,7
+// de `lib/esqueleto.ts`; lo verifica `tests/esqueletos-contraste.test.ts`).
+// Razones (WCAG 2.x, `contraste` de `lib/accesibilidad.ts`):
+// - Oscuro, bloque #2c2c2c: 1,48 sobre `background` (#030303) y 1,41 sobre
+//   `card` (#0b0b0b); en el valle, 1,27 y 1,22. Lo que va encima de un bloque
+//   (badge, líneas del Hero, del precio) #3c3c3c: 1,27 sobre el bloque.
+// - Claro, bloque #d8d8d8: 1,34 sobre `background` (#f8f8f8) y 1,43 sobre
+//   `card` (#ffffff); en el valle, 1,22 y 1,27. Encima, #c4c4c4: 1,22.
+const BLOQUE_ESQUELETO_OSCURO = '#2c2c2c'
+const BLOQUE_ESQUELETO_CLARO = '#d8d8d8'
+const BLOQUE_ENCIMA_OSCURO = '#3c3c3c'
+const BLOQUE_ENCIMA_CLARO = '#c4c4c4'
+
+/** Relleno de los bloques del esqueleto (y de sus fondos llenos: Hero, afiches, caja de precio). */
+export function colorBloqueEsqueleto(colores: ColoresQPS): string {
+  return colores.background === COLORES_OSCURO.background ? BLOQUE_ESQUELETO_OSCURO : BLOQUE_ESQUELETO_CLARO
+}
+
+/** Relleno de lo que va encima de un bloque del esqueleto (un poco más marcado). */
+export function colorBloqueEncima(colores: ColoresQPS): string {
+  return colores.background === COLORES_OSCURO.background ? BLOQUE_ENCIMA_OSCURO : BLOQUE_ENCIMA_CLARO
+}
+
 /**
  * Los tokens de color (`background`, `foreground`, `card`, `primary`,
  * `primaryForeground`, `muted`, `mutedForeground`, `border`, `input`).

@@ -30,7 +30,8 @@
 // descartada en la revisión de A8: se mantiene solo el anuncio.
 import { useCallback, useEffect, useState } from 'react'
 import { FlatList, Pressable, RefreshControl, StyleSheet, TextInput, View } from 'react-native'
-import { Cargando, ErrorCarga, Vacio } from '@/components/EstadoCarga'
+import { EsqueletoCines } from '@/components/Esqueleto'
+import { ErrorCarga, Vacio } from '@/components/EstadoCarga'
 import { Icono } from '@/components/Icono'
 import { TarjetaPelicula } from '@/components/TarjetaPelicula'
 import { Texto } from '@/components/Texto'
@@ -140,7 +141,10 @@ export default function Cines() {
         ) : null}
       </View>
 
-      {estado.tipo === 'cargando' ? <Cargando /> : null}
+      {/* A1 (nube Q1): esqueleto de la lista de `TarjetaPelicula` en vez de
+          `Cargando`, debajo del título y el buscador. El pull-to-refresh no
+          cambia (sigue la lista a la vista). */}
+      {estado.tipo === 'cargando' ? <EsqueletoCines /> : null}
 
       {estado.tipo === 'error' ? <ErrorCarga mensaje={estado.error} onReintentar={cargar} /> : null}
 

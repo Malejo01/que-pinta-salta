@@ -18,12 +18,13 @@
 // `set-state-in-effect`); animarlos sí vive en un `useEffect`, pero
 // `Animated.spring(...).start()` no es un `setState`, así que tampoco
 // dispara ese lint.
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Animated, Pressable, ScrollView, StyleSheet, type LayoutChangeEvent } from 'react-native'
 import type { Atajo } from '@qps/core/home/atajos'
 import { Texto } from '@/components/Texto'
 import { AREA_TACTIL_MINIMA, hitSlopPara } from '@/lib/accesibilidad'
 import { bordeChipInactivo, useColoresQPS } from '@/lib/colores'
+import { useReducirMovimiento } from '@/lib/reducir-movimiento'
 
 // 46-c: `estilos.pill` mide 44 de alto (minHeight), 4dp corto de
 // `AREA_TACTIL_MINIMA`. El ancho sí llega (paddingHorizontal 16 + texto), así
@@ -68,12 +69,29 @@ export function PillsAtajos(props: PillsAtajosProps) {
   const [animX] = useState(() => new Animated.Value(0))
   const [animWidth] = useState(() => new Animated.Value(0))
 
+  // A1 (nube Q1, ronda de correcciones): el resaltado se movía siempre con un
+  // spring con rebote, aunque "Quitar animaciones" estuviera prendido (y en
+  // Buscar se ve mientras carga el esqueleto). Ahora el spring va solo con
+  // `reducir === false`; con el ajuste prendido, y también mientras la
+  // consulta no resolvió (`null`), el resaltado salta a su lugar con
+  // `setValue`. La primera medida de la pill activa tampoco se anima nunca
+  // (antes crecía desde x = 0 y ancho 0 al montar): `posicionado` es un ref
+  // porque solo lo leen y escriben los efectos, nunca el render.
+  const reducir = useReducirMovimiento()
+  const posicionado = useRef(false)
+
   useEffect(() => {
     const medida = medidas[atajo ?? CLAVE_TODAS]
     if (!medida) return
+    if (!posicionado.current || reducir !== false) {
+      posicionado.current = true
+      animX.setValue(medida.x)
+      animWidth.setValue(medida.width)
+      return
+    }
     Animated.spring(animX, { toValue: medida.x, useNativeDriver: false, bounciness: 6 }).start()
     Animated.spring(animWidth, { toValue: medida.width, useNativeDriver: false, bounciness: 6 }).start()
-  }, [atajo, medidas, animX, animWidth])
+  }, [atajo, medidas, animX, animWidth, reducir])
 
   function registrarMedida(id: string, evento: LayoutChangeEvent) {
     const { x, width } = evento.nativeEvent.layout

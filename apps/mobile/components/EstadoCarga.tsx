@@ -15,7 +15,11 @@ import { useTheme } from 'expo-router'
 import { useColoresQPS } from '@/lib/colores'
 
 /** Indicador de carga centrado. Sin texto: el mensaje de cada pantalla, si
- * lo tiene, vive afuera (por ejemplo, un título que ya se ve). */
+ * lo tiene, vive afuera (por ejemplo, un título que ya se ve).
+ *
+ * A1 (nube Q1): Inicio, Buscar, Cines y la ficha de un evento ya no lo usan
+ * en la carga inicial: dibujan un esqueleto con la forma del contenido
+ * (`components/Esqueleto.tsx`). El resto de las pantallas lo sigue usando. */
 export function Cargando() {
   return (
     <View style={estilos.cargando}>

@@ -93,7 +93,8 @@ import { atajoDesdeParametro, categoriasDisponibles } from '@qps/core/home/filtr
 import { BannerAnuncio } from '@/components/BannerAnuncio'
 import { CampoTexto } from '@/components/CampoTexto'
 import { ChipsCategorias } from '@/components/ChipsCategorias'
-import { Cargando, ErrorCarga, Vacio } from '@/components/EstadoCarga'
+import { EsqueletoBuscar } from '@/components/Esqueleto'
+import { ErrorCarga, Vacio } from '@/components/EstadoCarga'
 import { Icono, iconoPorCategoria } from '@/components/Icono'
 import { PillsAtajos } from '@/components/PillsAtajos'
 import { TarjetaEvento } from '@/components/TarjetaEvento'
@@ -370,7 +371,12 @@ export default function Buscar() {
         </View>
       </View>
 
-      {estado.tipo === 'cargando' ? <Cargando /> : null}
+      {/* A1 (nube Q1): esqueleto en vez de `Cargando`, debajo de la cabecera
+          (campo, pills y "Solo gratis" siguen arriba). Con la misma
+          `mostrarResultados` que elige la lista de abajo: sin filtros, la
+          grilla de tiles de categoría; con alguno (por ejemplo, llegando con
+          `?categoria=`), la de tarjetas. El pull-to-refresh no cambia. */}
+      {estado.tipo === 'cargando' ? <EsqueletoBuscar resultados={mostrarResultados} /> : null}
 
       {estado.tipo === 'error' ? <ErrorCarga mensaje={estado.error} onReintentar={cargar} /> : null}
 

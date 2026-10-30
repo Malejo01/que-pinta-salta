@@ -38,7 +38,8 @@ import { Afiche } from '@/components/Afiche'
 import { AvisoPatrocinado } from '@/components/AvisoPatrocinado'
 import { BotonCalendario } from '@/components/BotonCalendario'
 import { BotonSeguir } from '@/components/BotonSeguir'
-import { Cargando, ErrorCarga, Vacio } from '@/components/EstadoCarga'
+import { EsqueletoFicha } from '@/components/Esqueleto'
+import { ErrorCarga, Vacio } from '@/components/EstadoCarga'
 import { FilaAccionesEvento } from '@/components/FilaAccionesEvento'
 import { Icono } from '@/components/Icono'
 import { InsigniaDestacado } from '@/components/InsigniaDestacado'
@@ -145,10 +146,23 @@ export default function EventoPorId() {
     return <Redirect href={(destino ?? '/') as Href} />
   }
 
+  // A1 (nube Q1): el esqueleto de la ficha (afiche, título, datos,
+  // descripción, precio y CTAs) en vez de `Cargando` centrado. Sin
+  // `estilos.centrado`: el esqueleto arranca arriba, como la ficha real, y trae
+  // su propio fondo. Con `?patrocinado=1` la franja real (`AvisoPatrocinado`)
+  // va arriba y FUERA del esqueleto, igual que en la ficha cargada: es
+  // interactiva ("No recibir más"), así que no se esconde al lector ni pulsa.
+  // `session` en la condición: `AvisoPatrocinado` no dibuja nada sin sesión, y
+  // sin ella el contenedor dejaría 16 dp de aire de más arriba del esqueleto.
   if (estado.tipo === 'cargando') {
     return (
-      <View style={[estilos.centrado, { backgroundColor: colors.background }]}>
-        <Cargando />
+      <View style={[estilos.cargando, { backgroundColor: colores.background }]}>
+        {esAvisoPatrocinado && session ? (
+          <View style={estilos.avisoCargando}>
+            <AvisoPatrocinado />
+          </View>
+        ) : null}
+        <EsqueletoFicha />
       </View>
     )
   }
@@ -327,6 +341,10 @@ export default function EventoPorId() {
 
 const estilos = StyleSheet.create({
   contenido: { padding: 16, gap: 16 },
+  // A1 (nube Q1): la carga. El aviso lleva el padding de `contenido` arriba y a
+  // los costados; el `padding` de arriba del esqueleto hace de `gap` (16).
+  cargando: { flex: 1 },
+  avisoCargando: { paddingHorizontal: 16, paddingTop: 16 },
   centrado: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24, gap: 8 },
   contenedorImagen: { overflow: 'hidden', position: 'relative' },
   filaBadges: { position: 'absolute', left: 12, top: 12, right: 12, flexDirection: 'row', alignItems: 'center', gap: 6 },
