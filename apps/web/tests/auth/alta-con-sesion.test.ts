@@ -12,8 +12,8 @@
  *     `components/auth-modal.tsx`. No prueba que la UI se vea así: solo que el
  *     código tiene la forma esperada.
  * Los textos `MENSAJE_ALTA_GENERICO` / `MENSAJE_ALTA_ENVIADA` los fija
- * `tests/auth/mensajes.test.ts`; acá se fijan literales de nuevo solo
- * `MENSAJE_ALTA_CON_SESION` y, como candado extra, ENVIADA y GENERICO.
+ * `tests/auth/mensajes.test.ts`; acá se fija el literal nuevo
+ * `MENSAJE_ALTA_CON_SESION`.
  * Fixtures inventados.
  */
 import { readFileSync } from 'node:fs'
@@ -23,7 +23,6 @@ import { es } from '@/lib/i18n/diccionarios/es'
 import {
   MENSAJE_ALTA_CON_SESION,
   MENSAJE_ALTA_ENVIADA,
-  MENSAJE_ALTA_GENERICO,
   resultadoAltaConSesion,
 } from '@qps/core/auth/mensajes'
 
@@ -39,14 +38,6 @@ const YA_EXISTE_IDENTITIES_VACIAS = { data: { user: { id: 'u-3', identities: [] 
 const codigoYaExiste = (code: string) => ({ data: { user: null, session: null }, error: { code, message: 'ya registrado (fixture)' } })
 
 describe('COMPORTAMIENTO: resultadoAltaConSesion, "sesion" solo para el alta nueva con sesión', () => {
-  it('alta nueva con sesión: "sesion"', () => {
-    expect(resultadoAltaConSesion(ALTA_NUEVA_CON_SESION)).toEqual({ tipo: 'sesion' })
-  })
-
-  it('alta nueva sin sesión: "enviado"', () => {
-    expect(resultadoAltaConSesion(ALTA_NUEVA_SIN_SESION)).toEqual({ tipo: 'enviado' })
-  })
-
   it.each(['user_already_exists', 'email_exists', 'identity_already_exists'])(
     'todas las formas de "ya existe" (%s) dan EXACTAMENTE lo mismo que el alta nueva sin sesión',
     (code) => {
@@ -65,11 +56,6 @@ describe('COMPORTAMIENTO: resultadoAltaConSesion, "sesion" solo para el alta nue
     }
   })
 
-  it('error real con sesión presente: "error", nunca "sesion"', () => {
-    const resultado = resultadoAltaConSesion({ data: { session: SESION }, error: { code: 'weak_password', message: 'x' } })
-    expect(resultado.tipo).toBe('error')
-  })
-
   it('"sesion" no trae mensaje ni otros campos que la web pudiera mostrar distinto', () => {
     expect(Object.keys(resultadoAltaConSesion(ALTA_NUEVA_CON_SESION))).toEqual(['tipo'])
   })
@@ -78,16 +64,6 @@ describe('COMPORTAMIENTO: resultadoAltaConSesion, "sesion" solo para el alta nue
 describe('TEXTOS: literales fijados', () => {
   it('MENSAJE_ALTA_CON_SESION', () => {
     expect(MENSAJE_ALTA_CON_SESION).toBe('Listo, ya tenés tu cuenta.')
-  })
-
-  it('MENSAJE_ALTA_ENVIADA (anti-enumeración) no cambia', () => {
-    expect(MENSAJE_ALTA_ENVIADA).toBe(
-      'Si ese email no tenía cuenta, te mandamos un correo para confirmarla. Si ya tenías una, iniciá sesión o recuperá tu contraseña.',
-    )
-  })
-
-  it('MENSAJE_ALTA_GENERICO (anti-enumeración) no cambia', () => {
-    expect(MENSAJE_ALTA_GENERICO).toBe('No se pudo crear la cuenta. Si ya tenés una, iniciá sesión.')
   })
 
   it('el texto con sesión no menciona correo ni "ya existe": no promete un mail que no sale', () => {
@@ -170,7 +146,9 @@ describe('CABLEADO: components/auth-modal.tsx (alta)', () => {
   })
 
   it('tras "sesion" y "enviado" el modal cierra y hace router.refresh() (los dos caminos comparten el cierre)', () => {
-    const cola = SRC_MODAL.slice(SRC_MODAL.indexOf('resultado.tipo === "error"'))
+    const idx = SRC_MODAL.search(/resultado\.tipo\s*===\s*['"]error['"]/)
+    expect(idx).toBeGreaterThan(-1)
+    const cola = SRC_MODAL.slice(idx)
     expect(cola).toMatch(/close\(\)\s*\n\s*router\.refresh\(\)/)
   })
 

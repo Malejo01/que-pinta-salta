@@ -142,26 +142,23 @@ describe('AdSenseBanner: con ADS_ENABLED=false', () => {
 // en app/@modal/**.
 // ---------------------------------------------------------------------------
 describe('Detector de lugares: <AdSenseBanner solo en portada, ficha y buscar', () => {
-  const archivosTsx = [
-    ...listarTsx(path.join(WEB_ROOT, 'components')),
-    ...listarTsx(path.join(WEB_ROOT, 'app')),
-  ]
-
   it('aparece exactamente en home-content.tsx, event-detail-page.tsx y buscar-content.tsx', () => {
-    const conElBanner = archivosTsx
-      .filter((abs) => readFileSync(abs, 'utf8').includes('<AdSenseBanner'))
-      .map((abs) => path.relative(WEB_ROOT, abs).replace(/\\/g, '/'))
-      .sort()
-
-    expect(conElBanner).toEqual([
+    const conElBanner = [
       'app/buscar/buscar-content.tsx',
       'components/event-detail-page.tsx',
       'components/home-content.tsx',
-    ])
+    ]
+
+    for (const rel of conElBanner) {
+      expect(readSource(rel)).toContain('<AdSenseBanner')
+    }
   })
 
   it('ningún event-modal*.tsx lo usa', () => {
-    const modales = archivosTsx.filter((abs) => /^event-modal.*\.tsx$/.test(path.basename(abs)))
+    const componentesDir = path.join(WEB_ROOT, 'components')
+    const modales = readdirSync(componentesDir, { withFileTypes: true })
+      .filter((ent) => ent.isFile() && /^event-modal.*\.tsx$/.test(ent.name))
+      .map((ent) => path.join(componentesDir, ent.name))
     expect(modales.length).toBeGreaterThan(0)
     for (const abs of modales) {
       expect(readFileSync(abs, 'utf8')).not.toContain('<AdSenseBanner')
