@@ -1,7 +1,11 @@
 import Link from "next/link"
 import { MapPin } from "lucide-react"
-import { formatEventDayMonth, formatEventTime } from "@/lib/date-format"
+import { formatEventTime, formatSaltaClock } from "@/lib/date-format"
 import type { PinLugar } from "@qps/core/mapa/pines"
+import { textosDe } from "@/lib/i18n"
+import { diaMes, hora } from "@/lib/i18n/fechas"
+import type { Idioma } from "@/lib/i18n/idiomas"
+import { rutaEn } from "@/lib/i18n/rutas"
 
 // Sin "use client": no usa estado, efectos ni APIs del navegador. Lo importa
 // `app/mapa/mapa-contenido.tsx` (que sí es cliente) y le llega la función
@@ -23,6 +27,11 @@ interface ListaLugaresProps {
    * así que no se muestra. Sin JavaScript tampoco (lo saca el `<noscript>`).
    */
   mapaDisponible?: boolean
+  /**
+   * Idioma de la interfaz (botones, fechas, links). Los nombres, direcciones y
+   * títulos quedan como vienen (en castellano) y se marcan con `lang="es"`.
+   */
+  idioma?: Idioma
 }
 
 /** Sin JavaScript "Ver en el mapa" no hace nada: se esconde (el mapa tampoco está). */
@@ -33,7 +42,10 @@ const SIN_JS_SIN_VER_EN_EL_MAPA = "[data-ver-en-el-mapa]{display:none}"
  * funciona aunque `maplibre-gl` no cargue. Los títulos y nombres son texto
  * scrapeado: se dibujan siempre como texto de React, nunca como HTML.
  */
-export function ListaLugares({ pines, seleccionado, onVerEnElMapa, mapaDisponible = true }: ListaLugaresProps) {
+export function ListaLugares({ pines, seleccionado, onVerEnElMapa, mapaDisponible = true, idioma = "es" }: ListaLugaresProps) {
+  const t = textosDe(idioma).mapa
+  // El contenido de los eventos queda en castellano aunque la página esté en inglés.
+  const langContenido = idioma === "es" ? undefined : "es"
   return (
     <>
       <noscript>
@@ -53,8 +65,8 @@ export function ListaLugares({ pines, seleccionado, onVerEnElMapa, mapaDisponibl
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <h2 className="text-base font-semibold text-foreground">{pin.nombre}</h2>
-                  <p className="mt-0.5 text-sm text-muted-foreground">{pin.direccion}</p>
+                  <h2 lang={langContenido} className="text-base font-semibold text-foreground">{pin.nombre}</h2>
+                  <p lang={langContenido} className="mt-0.5 text-sm text-muted-foreground">{pin.direccion}</p>
                 </div>
                 {mapaDisponible ? (
                   <button
@@ -65,7 +77,7 @@ export function ListaLugares({ pines, seleccionado, onVerEnElMapa, mapaDisponibl
                   >
                     <MapPin className="size-4" aria-hidden="true" />
                     <span>
-                      Ver en el mapa<span className="sr-only"> {pin.nombre}</span>
+                      {t.verEnElMapa}<span lang={langContenido} className="sr-only"> {pin.nombre}</span>
                     </span>
                   </button>
                 ) : null}
@@ -75,10 +87,11 @@ export function ListaLugares({ pines, seleccionado, onVerEnElMapa, mapaDisponibl
                 {pin.eventos.map((evento) => (
                   <li key={evento.id} className="flex items-baseline gap-3 py-2">
                     <time dateTime={evento.inicio} className="min-w-28 shrink-0 whitespace-nowrap text-sm tabular-nums text-muted-foreground">
-                      {formatEventDayMonth(evento.inicio)} · {formatEventTime(evento.inicio)}
+                      {diaMes(idioma, evento.inicio)} · {idioma === "es" ? formatEventTime(evento.inicio) : hora(idioma, formatSaltaClock(evento.inicio))}
                     </time>
                     <Link
-                      href={`/evento/${evento.id}`}
+                      href={rutaEn(idioma, `/evento/${evento.id}`)}
+                      lang={langContenido}
                       className="min-w-0 rounded-sm text-sm font-medium text-foreground hover:text-primary hover:underline focus-visible:outline-2 focus-visible:outline-primary"
                     >
                       {evento.titulo}

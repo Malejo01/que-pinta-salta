@@ -142,6 +142,76 @@ export const es = {
     noHayFunciones: 'No hay funciones disponibles para hoy.',
     horariosActualizados: 'Horarios actualizados para hoy',
   },
+  // /mapa (mapa-contenido.tsx, filtros-mapa.tsx, lista-lugares.tsx,
+  // mapa-diferido.tsx, mapa-maplibre.tsx, pagina-mapa.tsx).
+  mapa: {
+    titulo: 'Mapa de eventos en Salta',
+    bajada: 'Mirá dónde pasa cada plan y elegí por día.',
+    cuando: 'Cuándo',
+    hoy: 'Hoy',
+    esteFinde: 'Este finde',
+    elegirFecha: 'Elegir fecha',
+    verEseDia: 'Ver ese día',
+    // "para {hoy}": el filtro de fecha dentro de una frase.
+    paraHoy: 'hoy',
+    paraFinde: 'este finde',
+    paraFecha: 'esta fecha',
+    // "8 eventos en 5 lugares", "1 evento en 1 lugar".
+    contador: (eventos: number, lugares: number) =>
+      `${eventos} ${eventos === 1 ? 'evento' : 'eventos'} en ${lugares} ${lugares === 1 ? 'lugar' : 'lugares'}`,
+    sinEventosConFiltros: 'Ningún evento en el mapa con estos filtros',
+    sinEventosEnFecha: (cuando: string) => `No hay eventos con ubicación para ${cuando}`,
+    quitarFiltros: 'Quitar filtros',
+    sinUbicacion: (n: number) =>
+      `${n} ${n === 1 ? 'evento no aparece' : 'eventos no aparecen'} en el mapa porque ${
+        n === 1 ? 'su lugar todavía no tiene ubicación' : 'sus lugares todavía no tienen ubicación'
+      }.`,
+    verAgendaCompleta: 'Ver la agenda completa',
+    vacioConFiltrosTitulo: (cuando: string) => `No hay eventos en el mapa con estos filtros para ${cuando}`,
+    vacioConFiltrosTexto: (filtros: string) => `Filtros: ${filtros}. Probá con otra fecha o sacá alguno.`,
+    verTodosLosEventos: 'Ver todos los eventos',
+    // Lo que dice el lector de pantalla: "Peña La Casona, seleccionado: 3 eventos".
+    seleccionado: (nombre: string, eventos: number) =>
+      `${nombre}, seleccionado: ${eventos} ${eventos === 1 ? 'evento' : 'eventos'}`,
+    centradoEn: (nombre: string) => `Mapa centrado en ${nombre}`,
+    // Fila "Qué" (filtros-mapa.tsx)
+    queTipoDePlan: 'Qué tipo de plan',
+    gratis: 'Gratis',
+    paraChicos: 'Para chicos',
+    categoria: 'Categoría',
+    todas: 'Todas',
+    aplicarCategoria: 'Aplicar categoría',
+    // Lista y mapa
+    verEnElMapa: 'Ver en el mapa',
+    noCargoElMapa: 'No pudimos cargar el mapa. La lista tiene los mismos lugares.',
+    mapaNecesitaJs: 'El mapa necesita JavaScript. La lista de abajo tiene los mismos lugares.',
+    ariaMapa: 'Mapa de lugares con eventos',
+    ayudaMapa: 'La lista de lugares de esta página tiene los mismos lugares y eventos que el mapa.',
+    errorTitulo: 'No pudimos cargar el mapa',
+    errorTexto: 'Tuvimos un problema de nuestro lado. Probá de nuevo en un momento.',
+  },
+  // /buscar (buscar-content.tsx)
+  buscar: {
+    volver: 'Volver',
+    titulo: 'Buscar eventos',
+    placeholder: 'Buscar por evento, lugar o descripción...',
+    filtros: 'Filtros',
+    soloGratis: 'Solo gratis',
+    paraChicos: 'Para chicos',
+    explorarPorCategoria: 'Explorar por categoría',
+    eventosEnCategoria: (n: number) => `${n} eventos`,
+    quitarFiltros: 'Quitar filtros',
+    // Con texto, los chips van de sufijo (" · gratis · para chicos").
+    resultados: (cantidad: number, texto: string, gratis: boolean, chicos: boolean) =>
+      `${cantidad} resultado${cantidad !== 1 ? 's' : ''} para "${texto}"${gratis ? ' · gratis' : ''}${chicos ? ' · para chicos' : ''}`,
+    // Sin texto, los chips describen los eventos.
+    eventosFiltrados: (cantidad: number, gratis: boolean, chicos: boolean) =>
+      `${cantidad} evento${cantidad !== 1 ? 's' : ''}${gratis ? ' gratis' : ''}${chicos ? ' para chicos' : ''}`,
+    sinResultadosParaTexto: (texto: string, gratis: boolean, chicos: boolean) =>
+      `No se encontraron eventos para "${texto}"${gratis ? ' · gratis' : ''}${chicos ? ' · para chicos' : ''}`,
+    sinEventosFiltrados: (gratis: boolean, chicos: boolean) =>
+      `No hay eventos${gratis ? ' gratis' : ''}${chicos ? ' para chicos' : ''} por ahora.`,
+  },
   // Corazón de las tarjetas y del modal (favorite-button.tsx)
   favorito: {
     guardar: 'Guardar en favoritos',

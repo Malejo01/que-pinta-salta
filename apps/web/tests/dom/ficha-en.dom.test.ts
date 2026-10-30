@@ -188,12 +188,13 @@ describe('la ficha en inglés (/en/evento/<id>)', () => {
     expect(aviso.compareDocumentPosition(titulo) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
-  it('los links: volver a /en, el mapa (solo en castellano) avisa con hrefLang', () => {
+  it('los links: volver a /en, y el mapa va a /en/mapa (C4)', () => {
     montarFicha(`/en/evento/${ID}`)
     expect(screen.getByText(en.ficha.volverAEventos).closest('a')?.getAttribute('href')).toBe('/en')
     const mapa = screen.getByText(en.ficha.verEnElMapa).closest('a')
-    expect(mapa?.getAttribute('href')).toMatch(/^\/mapa\?/)
-    expect(mapa?.getAttribute('hreflang')).toBe('es-AR')
+    expect(mapa?.getAttribute('href')).toMatch(/^\/en\/mapa\?/)
+    // /en/mapa es una página en inglés: sin hreflang.
+    expect(mapa?.hasAttribute('hreflang')).toBe(false)
   })
 
   it('lugar sin nombre: "Venue to be confirmed", sin lang="es"', () => {

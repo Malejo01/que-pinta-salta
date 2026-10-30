@@ -17,6 +17,11 @@ import { getCategoryIcon } from "@/lib/category-icons"
 import { AdSenseBanner } from "@/components/adsense-banner"
 import { transformEvent, type DisplayEvent } from "@/components/home-content"
 import { filtrarCombinado, type ItemFiltrable } from "@qps/core/home/filtros-combinados"
+import { AvisoContenidoEs } from "@/components/aviso-contenido-es"
+import { langDeCategoria, textosDe } from "@/lib/i18n"
+import type { Idioma } from "@/lib/i18n/idiomas"
+import { localizarCategorias, localizarEventos } from "@/lib/i18n/portada"
+import { rutaEn } from "@/lib/i18n/rutas"
 
 /** Cuánto se espera a que se deje de tipear para anunciar el contador. */
 const ESPERA_ANUNCIO_MS = 700
@@ -77,6 +82,8 @@ interface BuscarContentProps {
   userFavorites: string[]
   /** Si hay sesión (la lee /buscar en el servidor): lo usa "Voy / Me interesa" del modal. */
   haySesion?: boolean
+  /** Idioma de la interfaz (`/en/buscar` es inglés). Los eventos quedan en castellano. */
+  idioma?: Idioma
 }
 
 export function BuscarContent({
@@ -86,8 +93,10 @@ export function BuscarContent({
   flyers,
   cinemaMovies,
   userFavorites,
-  haySesion = false
+  haySesion = false,
+  idioma = "es"
 }: BuscarContentProps) {
+  const t = textosDe(idioma).buscar
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedEvent, setSelectedEvent] = useState<DisplayEvent | null>(null)
   const [selectedMovie, setSelectedMovie] = useState<DisplayEvent | null>(null)
@@ -172,8 +181,12 @@ export function BuscarContent({
       }
     })
     
-    return [...finalEventItems, ...flyerItems, ...movieItems]
-  }, [events, flyers, cinemaMovies, categoryNameBySlug, serverNowISO])
+    const todos = [...finalEventItems, ...flyerItems, ...movieItems]
+    // En inglés se traduce lo que arma el sitio (nombre de la categoría, "N Cines
+    // de Salta", "Lugar por confirmar"); títulos y lugares quedan como vienen.
+    return idioma === "es" ? todos : localizarEventos(todos, idioma)
+  }, [events, flyers, cinemaMovies, categoryNameBySlug, serverNowISO, idioma])
+  const localizedCategories = useMemo(() => localizarCategorias(categories, idioma), [categories, idioma])
 
   // Texto + "Solo gratis" + "Para chicos" (Q3, C2): una sola llamada a
   // `filtrarCombinado` de core, la misma que usa la app (sin fecha ni
@@ -205,23 +218,20 @@ export function BuscarContent({
   }, [mostrarListaResultados, itemsFiltrables, deferredSearchQuery, soloGratisActivo, paraChicosActivo, ahora])
 
   const cantidad = resultadosMostrados.length
-  const plural = cantidad !== 1 ? "s" : ""
-  // Con texto, los chips van de sufijo (" · gratis · para chicos", como la
-  // fecha en la app); sin texto, describen los eventos.
-  const sufijoChips = `${soloGratisActivo ? " · gratis" : ""}${paraChicosActivo ? " · para chicos" : ""}`
-  const queEventos = `${soloGratisActivo ? " gratis" : ""}${paraChicosActivo ? " para chicos" : ""}`
 
   // Lo que anuncia la región viva (siempre montada): el contador, o el vacío
-  // si no hay resultados, o nada si se ve la grilla.
+  // si no hay resultados, o nada si se ve la grilla. Con texto, los chips van
+  // de sufijo (" · gratis · para chicos", como la fecha en la app); sin texto,
+  // describen los eventos.
   let anuncio = ""
   if (mostrarListaResultados && cantidad > 0) {
     anuncio = textoBuscado
-      ? `${cantidad} resultado${plural} para "${textoBuscado}"${sufijoChips}`
-      : `${cantidad} evento${plural}${queEventos}`
+      ? t.resultados(cantidad, textoBuscado, soloGratisActivo, paraChicosActivo)
+      : t.eventosFiltrados(cantidad, soloGratisActivo, paraChicosActivo)
   } else if (mostrarListaResultados) {
     anuncio = textoBuscado
-      ? `No se encontraron eventos para "${textoBuscado}"${sufijoChips}`
-      : `No hay eventos${queEventos} por ahora.`
+      ? t.sinResultadosParaTexto(textoBuscado, soloGratisActivo, paraChicosActivo)
+      : t.sinEventosFiltrados(soloGratisActivo, paraChicosActivo)
   }
   const sinResultados = mostrarListaResultados && cantidad === 0
 
@@ -260,12 +270,13 @@ export function BuscarContent({
       <main className="container mx-auto px-4 py-8">
         <div className="mb-6">
           <Button variant="ghost" asChild className="mb-4">
-            <Link href="/">
+            <Link href={rutaEn(idioma, "/")}>
               <ArrowLeft className="mr-2 size-4" />
-              Volver
+              {t.volver}
             </Link>
           </Button>
-          <h1 className="text-3xl font-bold text-foreground">Buscar eventos</h1>
+          <h1 className="text-3xl font-bold text-foreground">{t.titulo}</h1>
+          {idioma === "en" && <AvisoContenidoEs className="mt-2" />}
         </div>
 
         <div className="mb-8">
@@ -273,14 +284,14 @@ export function BuscarContent({
             <Search className="absolute left-3 top-1/2 size-5 -translate-y-1/2 text-muted-foreground" />
             <Input
               type="search"
-              placeholder="Buscar por evento, lugar o descripción..."
+              placeholder={t.placeholder}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="h-12 pl-11 text-lg"
               autoFocus
             />
           </div>
-          <div role="group" aria-label="Filtros" className="mt-3 flex flex-wrap gap-2">
+          <div role="group" aria-label={t.filtros} className="mt-3 flex flex-wrap gap-2">
             <button
               ref={soloGratisRef}
               type="button"
@@ -288,7 +299,7 @@ export function BuscarContent({
               onClick={() => setSoloGratisActivo((activo) => !activo)}
               className={claseChip(soloGratisActivo)}
             >
-              Solo gratis
+              {t.soloGratis}
             </button>
             <button
               type="button"
@@ -296,7 +307,7 @@ export function BuscarContent({
               onClick={() => setParaChicosActivo((activo) => !activo)}
               className={claseChip(paraChicosActivo)}
             >
-              Para chicos
+              {t.paraChicos}
             </button>
           </div>
         </div>
@@ -304,10 +315,10 @@ export function BuscarContent({
         {!mostrarListaResultados && (
           <div>
             <h2 className="mb-4 text-lg font-semibold text-foreground">
-              Explorar por categoría
+              {t.explorarPorCategoria}
             </h2>
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-              {categories
+              {localizedCategories
                 .map((category) => ({
                   category,
                   count: allDisplayEvents.filter(e => e.category === category.slug).length,
@@ -318,15 +329,15 @@ export function BuscarContent({
                   return (
                     <Link
                       key={category.slug}
-                      href={`/?category=${category.slug}`}
+                      href={rutaEn(idioma, `/?category=${category.slug}`)}
                       className="flex items-center gap-3 rounded-lg border border-border bg-card p-4 transition-colors hover:bg-muted"
                     >
                       <div className="flex size-10 items-center justify-center rounded-lg bg-primary/10">
                         <Icon className="size-5 text-primary" />
                       </div>
                       <div>
-                        <p className="font-medium text-foreground">{category.name}</p>
-                        <p className="text-sm text-muted-foreground">{count} eventos</p>
+                        <p lang={langDeCategoria(idioma, category.slug)} className="font-medium text-foreground">{category.name}</p>
+                        <p className="text-sm text-muted-foreground">{t.eventosEnCategoria(count)}</p>
                       </div>
                     </Link>
                   )
@@ -352,7 +363,7 @@ export function BuscarContent({
           </p>
           {sinResultados && hayChip && (
             <Button type="button" variant="outline" onClick={quitarFiltros} className="mt-4 h-11 px-4">
-              Quitar filtros
+              {t.quitarFiltros}
             </Button>
           )}
         </div>

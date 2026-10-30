@@ -169,6 +169,66 @@ export const en = {
     noHayFunciones: 'No showtimes available today.',
     horariosActualizados: 'Showtimes updated for today',
   },
+  mapa: {
+    titulo: 'Events map for Salta',
+    bajada: 'See where every plan is happening and pick a day.',
+    cuando: 'When',
+    hoy: 'Today',
+    esteFinde: 'This weekend',
+    elegirFecha: 'Pick a date',
+    verEseDia: 'Show that day',
+    paraHoy: 'today',
+    paraFinde: 'this weekend',
+    paraFecha: 'this date',
+    contador: (eventos: number, lugares: number) =>
+      `${eventos} ${eventos === 1 ? 'event' : 'events'} at ${lugares} ${lugares === 1 ? 'venue' : 'venues'}`,
+    sinEventosConFiltros: 'No events on the map with these filters',
+    sinEventosEnFecha: (cuando: string) => `No events with a location for ${cuando}`,
+    quitarFiltros: 'Clear filters',
+    sinUbicacion: (n: number) =>
+      `${n} ${n === 1 ? 'event is' : 'events are'} not on the map because ${
+        n === 1 ? 'its venue does not have a location yet' : 'their venues do not have a location yet'
+      }.`,
+    verAgendaCompleta: 'See the full schedule',
+    vacioConFiltrosTitulo: (cuando: string) => `No events on the map with these filters for ${cuando}`,
+    vacioConFiltrosTexto: (filtros: string) => `Filters: ${filtros}. Try another date or remove one.`,
+    verTodosLosEventos: 'See all events',
+    seleccionado: (nombre: string, eventos: number) =>
+      `${nombre}, selected: ${eventos} ${eventos === 1 ? 'event' : 'events'}`,
+    centradoEn: (nombre: string) => `Map centered on ${nombre}`,
+    queTipoDePlan: 'Type of plan',
+    gratis: 'Free',
+    paraChicos: 'For kids',
+    categoria: 'Category',
+    todas: 'All',
+    aplicarCategoria: 'Apply category',
+    verEnElMapa: 'View on map',
+    noCargoElMapa: 'We could not load the map. The list has the same venues.',
+    mapaNecesitaJs: 'The map needs JavaScript. The list below has the same venues.',
+    ariaMapa: 'Map of venues with events',
+    ayudaMapa: 'The list of venues on this page has the same venues and events as the map.',
+    errorTitulo: 'We could not load the map',
+    errorTexto: 'Something went wrong on our side. Please try again in a moment.',
+  },
+  buscar: {
+    volver: 'Back',
+    titulo: 'Search events',
+    placeholder: 'Search by event, venue or description...',
+    filtros: 'Filters',
+    soloGratis: 'Free only',
+    paraChicos: 'For kids',
+    explorarPorCategoria: 'Browse by category',
+    eventosEnCategoria: (n: number) => `${n} ${n === 1 ? 'event' : 'events'}`,
+    quitarFiltros: 'Clear filters',
+    resultados: (cantidad: number, texto: string, gratis: boolean, chicos: boolean) =>
+      `${cantidad} result${cantidad !== 1 ? 's' : ''} for "${texto}"${gratis ? ' · free' : ''}${chicos ? ' · for kids' : ''}`,
+    eventosFiltrados: (cantidad: number, gratis: boolean, chicos: boolean) =>
+      `${cantidad} ${gratis ? 'free ' : ''}event${cantidad !== 1 ? 's' : ''}${chicos ? ' for kids' : ''}`,
+    sinResultadosParaTexto: (texto: string, gratis: boolean, chicos: boolean) =>
+      `No events found for "${texto}"${gratis ? ' · free' : ''}${chicos ? ' · for kids' : ''}`,
+    sinEventosFiltrados: (gratis: boolean, chicos: boolean) =>
+      `There are no ${gratis ? 'free ' : ''}events${chicos ? ' for kids' : ''} right now.`,
+  },
   favorito: {
     guardar: 'Save to favorites',
     quitar: 'Remove from favorites',
