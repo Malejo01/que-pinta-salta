@@ -22,7 +22,8 @@
  *    de abajo verifica que no vuelvan. Queda `tablas-personales.ts`, cuyo
  *    campo `comentario` (un string, no un comentario de código) dice
  *    justamente que desde la R47 no hay "Me interesa".
- *  - `lib/contacto.ts` (`TEXTO_ANUNCIAR`) y `app/anunciantes/page.tsx`:
+ *  - `lib/contacto.ts` (`TEXTO_ANUNCIAR`) y el diccionario en castellano
+ *    (`anunciantes.mensajeWhatsapp`, antes en `app/anunciantes/page.tsx`):
  *    "Me interesa anunciar…" no tiene nada que ver con la asistencia a un
  *    evento.
  *  - `packages/db/src/database.types.ts`: tipos generados, nunca se tocan a
@@ -242,7 +243,8 @@ describe('"me_interesa" / "meInteresa" como código (sin comentarios, con litera
 describe('"Me interesa" como texto visible (sin comentarios): solo en las excepciones documentadas', () => {
   const EXCEPCIONES = new Set([
     'apps/web/lib/contacto.ts',
-    'apps/web/app/anunciantes/page.tsx',
+    // R78: el mensaje de WhatsApp de /anunciantes vive ahora en el diccionario.
+    'apps/web/lib/i18n/diccionarios/es.ts',
     'apps/web/lib/cuenta/tablas-personales.ts',
   ])
 
@@ -270,7 +272,7 @@ describe('"Me interesa" como texto visible (sin comentarios): solo en las excepc
     // recorrido o el stripping de comentarios están rotos (pasaría en verde
     // sin haber comprobado nada de verdad).
     expect([...excepcionesEncontradas].sort()).toEqual(
-      ['apps/web/app/anunciantes/page.tsx', 'apps/web/lib/contacto.ts', 'apps/web/lib/cuenta/tablas-personales.ts'].sort(),
+      ['apps/web/lib/i18n/diccionarios/es.ts', 'apps/web/lib/contacto.ts', 'apps/web/lib/cuenta/tablas-personales.ts'].sort(),
     )
   })
 

@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useRef, useState, type ComponentType } from "react"
 import { Skeleton } from "@/components/ui/skeleton"
 import type { PinLugar } from "@qps/core/mapa/pines"
+import { textosDe } from "@/lib/i18n"
+import type { Idioma } from "@/lib/i18n/idiomas"
 
 export interface OrdenCentrar {
   venueId: string
@@ -23,6 +25,8 @@ export interface PropsMapa {
   onSeleccionar: (venueId: string) => void
   /** El mapa no pudo arrancar (WebGL apagado, estilo que no carga). */
   onError: () => void
+  /** Idioma de los textos del mapa (controles y etiquetas). Por defecto, castellano. */
+  idioma?: Idioma
 }
 
 interface MapaDiferidoProps extends Omit<PropsMapa, "onError"> {
@@ -63,7 +67,8 @@ function cuandoEstaLibre(tarea: () => void): () => void {
  * bien se avisa por `onListo`. Sin JavaScript, un
  * `<noscript>` tapa el esqueleto con su aviso.
  */
-export function MapaDiferido({ pines, seleccionado, centrar, onSeleccionar, onFallo, onListo, className = "" }: MapaDiferidoProps) {
+export function MapaDiferido({ pines, seleccionado, centrar, onSeleccionar, onFallo, onListo, className = "", idioma = "es" }: MapaDiferidoProps) {
+  const t = textosDe(idioma).mapa
   const contenedor = useRef<HTMLDivElement>(null)
   const [Mapa, setMapa] = useState<ComponentType<PropsMapa> | null>(null)
   const [fallo, setFallo] = useState(false)
@@ -144,17 +149,17 @@ export function MapaDiferido({ pines, seleccionado, centrar, onSeleccionar, onFa
     >
       {fallo ? (
         <div role="status" className="flex size-full items-center justify-center p-6 text-center text-sm text-muted-foreground">
-          No pudimos cargar el mapa. La lista tiene los mismos lugares.
+          {t.noCargoElMapa}
         </div>
       ) : Mapa ? (
-        <Mapa pines={pines} seleccionado={seleccionado} centrar={centrar} onSeleccionar={onSeleccionar} onError={fallar} />
+        <Mapa pines={pines} seleccionado={seleccionado} centrar={centrar} onSeleccionar={onSeleccionar} onError={fallar} idioma={idioma} />
       ) : (
         <>
           <Skeleton className="size-full rounded-none" aria-hidden="true" />
           {/* Sin JavaScript el esqueleto no se iría nunca: el aviso lo tapa. */}
           <noscript>
             <div className="absolute inset-0 flex items-center justify-center bg-muted p-6 text-center text-sm text-muted-foreground">
-              El mapa necesita JavaScript. La lista de abajo tiene los mismos lugares.
+              {t.mapaNecesitaJs}
             </div>
           </noscript>
         </>

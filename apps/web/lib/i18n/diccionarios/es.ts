@@ -13,6 +13,7 @@ import {
   TEXTO_SACASTE_GUARDADO_CON_VOY,
   textoBotonVoy,
 } from '@qps/core/asistencia'
+import { TARIFARIO } from '@qps/core/publicidad/precios'
 import { textoSeguir, textoSeguirCuenta } from '@qps/core/radar/seguimiento'
 import { vibeLabels } from '@qps/core/types'
 
@@ -147,6 +148,181 @@ export const es = {
     comprar: 'Comprar',
     noHayFunciones: 'No hay funciones disponibles para hoy.',
     horariosActualizados: 'Horarios actualizados para hoy',
+  },
+  // /mapa (mapa-contenido.tsx, filtros-mapa.tsx, lista-lugares.tsx,
+  // mapa-diferido.tsx, mapa-maplibre.tsx, pagina-mapa.tsx).
+  mapa: {
+    titulo: 'Mapa de eventos en Salta',
+    bajada: 'Mirá dónde pasa cada plan y elegí por día.',
+    cuando: 'Cuándo',
+    hoy: 'Hoy',
+    esteFinde: 'Este finde',
+    elegirFecha: 'Elegir fecha',
+    verEseDia: 'Ver ese día',
+    // "para {hoy}": el filtro de fecha dentro de una frase.
+    paraHoy: 'hoy',
+    paraFinde: 'este finde',
+    paraFecha: 'esta fecha',
+    // "8 eventos en 5 lugares", "1 evento en 1 lugar".
+    contador: (eventos: number, lugares: number) =>
+      `${eventos} ${eventos === 1 ? 'evento' : 'eventos'} en ${lugares} ${lugares === 1 ? 'lugar' : 'lugares'}`,
+    sinEventosConFiltros: 'Ningún evento en el mapa con estos filtros',
+    sinEventosEnFecha: (cuando: string) => `No hay eventos con ubicación para ${cuando}`,
+    quitarFiltros: 'Quitar filtros',
+    sinUbicacion: (n: number) =>
+      `${n} ${n === 1 ? 'evento no aparece' : 'eventos no aparecen'} en el mapa porque ${
+        n === 1 ? 'su lugar todavía no tiene ubicación' : 'sus lugares todavía no tienen ubicación'
+      }.`,
+    verAgendaCompleta: 'Ver la agenda completa',
+    vacioConFiltrosTitulo: (cuando: string) => `No hay eventos en el mapa con estos filtros para ${cuando}`,
+    vacioConFiltrosTexto: (filtros: string) => `Filtros: ${filtros}. Probá con otra fecha o sacá alguno.`,
+    verTodosLosEventos: 'Ver todos los eventos',
+    // Lo que dice el lector de pantalla: "Peña La Casona, seleccionado: 3 eventos".
+    seleccionado: (nombre: string, eventos: number) =>
+      `${nombre}, seleccionado: ${eventos} ${eventos === 1 ? 'evento' : 'eventos'}`,
+    centradoEn: (nombre: string) => `Mapa centrado en ${nombre}`,
+    // Fila "Qué" (filtros-mapa.tsx)
+    queTipoDePlan: 'Qué tipo de plan',
+    gratis: 'Gratis',
+    paraChicos: 'Para chicos',
+    categoria: 'Categoría',
+    todas: 'Todas',
+    aplicarCategoria: 'Aplicar categoría',
+    // Lista y mapa
+    verEnElMapa: 'Ver en el mapa',
+    noCargoElMapa: 'No pudimos cargar el mapa. La lista tiene los mismos lugares.',
+    mapaNecesitaJs: 'El mapa necesita JavaScript. La lista de abajo tiene los mismos lugares.',
+    ariaMapa: 'Mapa de lugares con eventos',
+    ayudaMapa: 'La lista de lugares de esta página tiene los mismos lugares y eventos que el mapa.',
+    errorTitulo: 'No pudimos cargar el mapa',
+    errorTexto: 'Tuvimos un problema de nuestro lado. Probá de nuevo en un momento.',
+  },
+  // /buscar (buscar-content.tsx)
+  buscar: {
+    volver: 'Volver',
+    titulo: 'Buscar eventos',
+    placeholder: 'Buscar por evento, lugar o descripción...',
+    filtros: 'Filtros',
+    soloGratis: 'Solo gratis',
+    paraChicos: 'Para chicos',
+    explorarPorCategoria: 'Explorar por categoría',
+    eventosEnCategoria: (n: number) => `${n} eventos`,
+    quitarFiltros: 'Quitar filtros',
+    // Con texto, los chips van de sufijo (" · gratis · para chicos").
+    resultados: (cantidad: number, texto: string, gratis: boolean, chicos: boolean) =>
+      `${cantidad} resultado${cantidad !== 1 ? 's' : ''} para "${texto}"${gratis ? ' · gratis' : ''}${chicos ? ' · para chicos' : ''}`,
+    // Sin texto, los chips describen los eventos.
+    eventosFiltrados: (cantidad: number, gratis: boolean, chicos: boolean) =>
+      `${cantidad} evento${cantidad !== 1 ? 's' : ''}${gratis ? ' gratis' : ''}${chicos ? ' para chicos' : ''}`,
+    sinResultadosParaTexto: (texto: string, gratis: boolean, chicos: boolean) =>
+      `No se encontraron eventos para "${texto}"${gratis ? ' · gratis' : ''}${chicos ? ' · para chicos' : ''}`,
+    sinEventosFiltrados: (gratis: boolean, chicos: boolean) =>
+      `No hay eventos${gratis ? ' gratis' : ''}${chicos ? ' para chicos' : ''} por ahora.`,
+  },
+  // /radar (pagina-radar.tsx y radar-form.tsx). Los mensajes de las acciones
+  // del servidor (lib/actions/radar.ts) no están acá: en castellano se muestra
+  // el del servidor; en inglés, `errorServidor` elige por el código.
+  radar: {
+    titulo: 'Mi Radar Salteño',
+    bajada:
+      'Vos decidís qué eventos ver y recibir. Suscribite a tus categorías, locales u organizadores favoritos de Instagram y recibí alertas a tu correo sin spam.',
+    frecuenciaTitulo: 'Frecuencia y Destinatario',
+    frecuenciaPregunta: '¿Cada cuánto querés recibir novedades?',
+    frecuenciaPlaceholder: 'Seleccioná la frecuencia',
+    semanal: 'Semanalmente (Todos los Jueves 18:00hs)',
+    quincenal: 'Cada 2 semanas (Quincenal)',
+    mensual: 'Mensualmente',
+    desactivado: 'Desactivado (Pausar alertas)',
+    emailLabel: 'Dirección de correo electrónico',
+    emailNota: 'Te lo mandamos al email de tu cuenta.',
+    emailNotaAdmin: '* (En fase beta, los correos de prueba solo se enviarán a tu casilla asociada).',
+    categoriasTitulo: 'Categorías que te interesan',
+    categoriasTexto: 'Recibirás alertas de todos los eventos que se clasifiquen en las categorías seleccionadas.',
+    lugaresTitulo: 'Lugares y Organizadores Preferidos',
+    lugaresTexto:
+      'Seguí locales físicos o directamente a organizadores/boliches de Instagram (ej: La Metro, Sex Us Machina) para enterarte de sus novedades.',
+    buscadorPlaceholder: 'Buscá locales físicos o cuentas de Instagram (ej: Usina, Metro, Sex Us...)',
+    localFisico: 'Local físico',
+    subtituloCuenta: (usuario: string) => `@${usuario} (Organizador / Boliche)`,
+    tipoInstagram: 'Instagram',
+    tipoLugar: 'Lugar',
+    sinCoincidencias: 'No se encontraron coincidencias.',
+    dejarDeSeguir: (nombre: string) => `Dejar de seguir ${nombre}`,
+    sinSeguimientos: 'No estás siguiendo ningún local ni cuenta de Instagram aún. Escribí arriba para buscarlos y agregarlos.',
+    enviarPrueba: 'Enviar Correo de Prueba',
+    enviandoPrueba: 'Enviando prueba...',
+    guardar: 'Guardar Preferencias de Radar',
+    guardando: 'Guardando...',
+    errorGuardarTitulo: 'Error al guardar',
+    errorInesperado: 'Ocurrió un error inesperado.',
+    // En castellano no se usa: se muestra el mensaje del servidor tal cual.
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars -- la firma la fija el castellano; el inglés sí usa el código
+    errorServidor: (_codigo: string | undefined) => 'Ocurrió un error inesperado.',
+    listoTitulo: '¡Ya estás en el Radar! 📧',
+    listoConDonacion:
+      'Vas a recibir los mejores eventos. Ayudanos a seguir creciendo y lanzar la App móvil haciendo una donación.',
+    listoSinDonacion: 'Vas a recibir los mejores eventos en tu correo.',
+    donarAhora: 'Donar ahora',
+    mensajeDonacion:
+      'Vas a recibir los mejores eventos en tu correo. ¡Ayudanos a seguir creciendo y lanzar la App móvil haciendo una donación!',
+    errorConexionTitulo: 'Error de conexión',
+    errorConexionTexto: 'No se pudo comunicar con el servidor.',
+    pruebaEnviadaTitulo: '¡Correo enviado!',
+    pruebaEnviada: (cantidad: number) => `Se envió tu radar con ${cantidad} novedades a tu email.`,
+    pruebaTitulo: 'Prueba de envío',
+    pruebaNoEnviada: 'No se pudo enviar el correo de prueba.',
+    pruebaErrorTexto: 'No se pudo iniciar la prueba de correo.',
+  },
+  // /anunciantes (pagina-anunciantes.tsx). Página estática (ISR): solo texto.
+  anunciantes: {
+    titulo: 'Publicitá tu evento',
+    bajada:
+      'Una agenda pensada para quien ya decidió salir y está buscando dónde: peñas, boliches, teatro, recitales, ferias y cine de Salta Capital, todo en un solo lugar.',
+    parrafo1:
+      'Qué Pinta Salta es la agenda donde se cargan y se buscan los planes de la ciudad: lo que hacen las productoras, los boliches, los teatros y los organismos culturales, además de lo que suben directamente los usuarios y organizadores.',
+    parrafo2:
+      'Para un anunciante, eso significa aparecer donde la gente ya está decidiendo qué hacer ese fin de semana, en vez de interrumpir con un anuncio genérico.',
+    parrafo3: 'Más abajo, los números reales del sitio (actualizados cada una hora) y los precios, publicados y finales.',
+    numerosTitulo: 'El sitio en números',
+    masDe: (cantidad: string) => `más de ${cantidad}`,
+    eventosDescripcion: 'Eventos publicados en los últimos 30 días',
+    eventosNota:
+      'Eventos que se cargaron en los últimos 30 días y hoy están publicados. El sitio no guarda la fecha exacta de publicación, solo la de carga, así que puede incluir eventos editados después.',
+    vistasDescripcion: 'Vistas de ficha en los últimos 30 días',
+    vistasNota:
+      'Vistas de fichas de evento en los últimos 30 días (hasta ayer). Son eventos, no personas: abrir la misma ficha varias veces suma varias vistas.',
+    radarDescripcion: 'Personas suscriptas al Radar',
+    radarNota:
+      'Personas suscriptas al Radar semanal, quincenal o mensual, redondeado hacia abajo a la decena para no sobreestimar el alcance real.',
+    preciosTitulo: 'Precios',
+    // "Vigentes {mes año}. Precios finales: no se les suma IVA." (la vigencia va en el medio)
+    vigentesAntes: 'Vigentes ',
+    vigentesDespues: '. Precios finales: no se les suma IVA.',
+    avisoEtiqueta: 'Aviso de cambio de tramo.',
+    precioFundador: 'Precio fundador:',
+    aprox: 'Aprox.',
+    comoFunciona: 'Cómo funciona',
+    paso1: 'Nos escribís, nos contás tu evento y elegís el paquete y la fecha hasta la que querés destacarlo.',
+    paso2: 'Pagás por transferencia o Mercado Pago, como prefieras.',
+    paso3:
+      'Lo destacamos hasta la fecha que elegiste. Llegado ese día, vence solo: no tenés que avisarnos ni sacarlo vos.',
+    teInteresa: '¿Te interesa?',
+    teInteresaTexto:
+      'Contanos tu caso por WhatsApp o por mail y vemos qué paquete se ajusta mejor a tu evento o tu marca.',
+    hablarWhatsapp: 'Hablar por WhatsApp',
+    escribirMail: 'Escribinos por mail',
+    mensajeWhatsapp: 'Hola! Me interesa anunciar en Que Pinta Salta.',
+    asuntoMail: 'Quiero destacar mi evento',
+    // Catálogo por id del TARIFARIO. En castellano es el mismo tarifario de
+    // core (la página lee el nombre y el "qué incluye" del tarifario vigente);
+    // el inglés lo traduce por id.
+    productos: Object.fromEntries(
+      TARIFARIO.map((producto) => [producto.id, { nombre: producto.nombre, queIncluye: producto.queIncluye }]),
+    ) as Record<string, { nombre: string; queIncluye: string }>,
+    gratis: 'Gratis',
+    proximamente: 'Próximamente',
+    reservaPrioridad: 'Reservá prioridad',
+    porMes: '/mes',
   },
   // Corazón de las tarjetas y del modal (favorite-button.tsx)
   favorito: {

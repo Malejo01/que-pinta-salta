@@ -174,6 +174,205 @@ export const en = {
     noHayFunciones: 'No showtimes available today.',
     horariosActualizados: 'Showtimes updated for today',
   },
+  mapa: {
+    titulo: 'Events map for Salta',
+    bajada: 'See where every plan is happening and pick a day.',
+    cuando: 'When',
+    hoy: 'Today',
+    esteFinde: 'This weekend',
+    elegirFecha: 'Pick a date',
+    verEseDia: 'Show that day',
+    paraHoy: 'today',
+    paraFinde: 'this weekend',
+    paraFecha: 'this date',
+    contador: (eventos: number, lugares: number) =>
+      `${eventos} ${eventos === 1 ? 'event' : 'events'} at ${lugares} ${lugares === 1 ? 'venue' : 'venues'}`,
+    sinEventosConFiltros: 'No events on the map with these filters',
+    sinEventosEnFecha: (cuando: string) => `No events with a location for ${cuando}`,
+    quitarFiltros: 'Clear filters',
+    sinUbicacion: (n: number) =>
+      `${n} ${n === 1 ? 'event is' : 'events are'} not on the map because ${
+        n === 1 ? 'its venue does not have a location yet' : 'their venues do not have a location yet'
+      }.`,
+    verAgendaCompleta: 'See the full schedule',
+    vacioConFiltrosTitulo: (cuando: string) => `No events on the map with these filters for ${cuando}`,
+    vacioConFiltrosTexto: (filtros: string) => `Filters: ${filtros}. Try another date or remove one.`,
+    verTodosLosEventos: 'See all events',
+    seleccionado: (nombre: string, eventos: number) =>
+      `${nombre}, selected: ${eventos} ${eventos === 1 ? 'event' : 'events'}`,
+    centradoEn: (nombre: string) => `Map centered on ${nombre}`,
+    queTipoDePlan: 'Type of plan',
+    gratis: 'Free',
+    paraChicos: 'For kids',
+    categoria: 'Category',
+    todas: 'All',
+    aplicarCategoria: 'Apply category',
+    verEnElMapa: 'View on map',
+    noCargoElMapa: 'We could not load the map. The list has the same venues.',
+    mapaNecesitaJs: 'The map needs JavaScript. The list below has the same venues.',
+    ariaMapa: 'Map of venues with events',
+    ayudaMapa: 'The list of venues on this page has the same venues and events as the map.',
+    errorTitulo: 'We could not load the map',
+    errorTexto: 'Something went wrong on our side. Please try again in a moment.',
+  },
+  buscar: {
+    volver: 'Back',
+    titulo: 'Search events',
+    placeholder: 'Search by event, venue or description...',
+    filtros: 'Filters',
+    soloGratis: 'Free only',
+    paraChicos: 'For kids',
+    explorarPorCategoria: 'Browse by category',
+    eventosEnCategoria: (n: number) => `${n} ${n === 1 ? 'event' : 'events'}`,
+    quitarFiltros: 'Clear filters',
+    resultados: (cantidad: number, texto: string, gratis: boolean, chicos: boolean) =>
+      `${cantidad} result${cantidad !== 1 ? 's' : ''} for "${texto}"${gratis ? ' · free' : ''}${chicos ? ' · for kids' : ''}`,
+    eventosFiltrados: (cantidad: number, gratis: boolean, chicos: boolean) =>
+      `${cantidad} ${gratis ? 'free ' : ''}event${cantidad !== 1 ? 's' : ''}${chicos ? ' for kids' : ''}`,
+    sinResultadosParaTexto: (texto: string, gratis: boolean, chicos: boolean) =>
+      `No events found for "${texto}"${gratis ? ' · free' : ''}${chicos ? ' · for kids' : ''}`,
+    sinEventosFiltrados: (gratis: boolean, chicos: boolean) =>
+      `There are no ${gratis ? 'free ' : ''}events${chicos ? ' for kids' : ''} right now.`,
+  },
+  radar: {
+    titulo: 'My Salta Radar',
+    bajada:
+      'You decide which events to see and receive. Subscribe to your favorite categories, venues or Instagram organizers and get alerts by email, with no spam.',
+    frecuenciaTitulo: 'Frequency and recipient',
+    frecuenciaPregunta: 'How often do you want to get updates?',
+    frecuenciaPlaceholder: 'Choose a frequency',
+    semanal: 'Weekly (every Thursday at 6:00 PM)',
+    quincenal: 'Every 2 weeks (biweekly)',
+    mensual: 'Monthly',
+    desactivado: 'Off (pause alerts)',
+    emailLabel: 'Email address',
+    emailNota: 'We send it to your account email.',
+    emailNotaAdmin: '* (During the beta, test emails are only sent to your own address).',
+    categoriasTitulo: 'Categories you like',
+    categoriasTexto: 'You will get alerts for all events in the categories you select.',
+    lugaresTitulo: 'Favorite venues and organizers',
+    lugaresTexto:
+      'Follow venues, or Instagram organizers and nightclubs directly (e.g. La Metro, Sex Us Machina), to hear about what they are up to.',
+    buscadorPlaceholder: 'Search venues or Instagram accounts (e.g. Usina, Metro, Sex Us...)',
+    localFisico: 'Venue',
+    subtituloCuenta: (usuario: string) => `@${usuario} (organizer / nightclub)`,
+    tipoInstagram: 'Instagram',
+    tipoLugar: 'Venue',
+    sinCoincidencias: 'No matches found.',
+    dejarDeSeguir: (nombre: string) => `Unfollow ${nombre}`,
+    sinSeguimientos: 'You are not following any venue or Instagram account yet. Type above to search for them and add them.',
+    enviarPrueba: 'Send test email',
+    enviandoPrueba: 'Sending test...',
+    guardar: 'Save Radar preferences',
+    guardando: 'Saving...',
+    errorGuardarTitulo: 'Could not save',
+    errorInesperado: 'Something unexpected went wrong.',
+    errorServidor: (codigo: string | undefined) => {
+      switch (codigo) {
+        case 'AUTH_REQUIRED':
+          return 'You need to sign in to set up your Radar.'
+        case 'NO_EMAIL':
+          return 'Your account has no email address, so we cannot turn on the Radar.'
+        case 'INVALID':
+          return 'Some of your choices are not valid. Please review them and try again.'
+        case 'DB_ERROR':
+          return 'We could not save your Radar settings. Please try again.'
+        default:
+          return 'Something unexpected went wrong.'
+      }
+    },
+    listoTitulo: 'You are on the Radar! 📧',
+    listoConDonacion:
+      'You will get the best events. Help us keep growing and launch the mobile app with a donation.',
+    listoSinDonacion: 'You will get the best events by email.',
+    donarAhora: 'Donate now',
+    mensajeDonacion:
+      'You will get the best events by email. Help us keep growing and launch the mobile app with a donation!',
+    errorConexionTitulo: 'Connection error',
+    errorConexionTexto: 'We could not reach the server.',
+    pruebaEnviadaTitulo: 'Email sent!',
+    pruebaEnviada: (cantidad: number) => `Your Radar with ${cantidad} ${cantidad === 1 ? 'update' : 'updates'} was sent to your email.`,
+    pruebaTitulo: 'Test email',
+    pruebaNoEnviada: 'We could not send the test email.',
+    pruebaErrorTexto: 'We could not start the email test.',
+  },
+  anunciantes: {
+    titulo: 'Advertise your event',
+    bajada:
+      'A guide made for people who have already decided to go out and are looking for where: folk music nights (peñas), nightclubs, theater, concerts, fairs and cinema in Salta City, all in one place.',
+    parrafo1:
+      'Qué Pinta Salta is the guide where the city’s plans are posted and searched: what promoters, nightclubs, theaters and cultural organizations do, plus what users and organizers upload directly.',
+    parrafo2:
+      'For an advertiser, that means showing up where people are already deciding what to do that weekend, instead of interrupting them with a generic ad.',
+    parrafo3: 'Below, the site’s real numbers (updated every hour) and the prices, published and final.',
+    numerosTitulo: 'The site in numbers',
+    masDe: (cantidad: string) => `over ${cantidad}`,
+    eventosDescripcion: 'Events published in the last 30 days',
+    eventosNota:
+      'Events that were added in the last 30 days and are published today. The site does not store the exact publication date, only the date added, so it may include events edited later.',
+    vistasDescripcion: 'Event page views in the last 30 days',
+    vistasNota:
+      'Views of event pages in the last 30 days (up to yesterday). They count events, not people: opening the same page several times adds several views.',
+    radarDescripcion: 'People subscribed to the Radar',
+    radarNota:
+      'People subscribed to the weekly, biweekly or monthly Radar, rounded down to the nearest ten so as not to overstate the real reach.',
+    preciosTitulo: 'Prices',
+    vigentesAntes: 'Valid ',
+    vigentesDespues: '. Final prices: no VAT is added.',
+    avisoEtiqueta: 'Tier change notice.',
+    precioFundador: 'Founder price:',
+    aprox: 'Approx.',
+    comoFunciona: 'How it works',
+    paso1: 'You write to us, tell us about your event, and choose the package and the date until which you want it featured.',
+    paso2: 'You pay by bank transfer or Mercado Pago, whichever you prefer.',
+    paso3:
+      'We feature it until the date you chose. On that day it expires by itself: you do not have to tell us or take it down.',
+    teInteresa: 'Interested?',
+    teInteresaTexto:
+      'Tell us about your case by WhatsApp or email and we will see which package fits your event or brand best.',
+    hablarWhatsapp: 'Chat on WhatsApp',
+    escribirMail: 'Email us',
+    mensajeWhatsapp: 'Hi! I am interested in advertising on Que Pinta Salta.',
+    asuntoMail: 'I want to feature my event',
+    productos: {
+      basica: {
+        nombre: 'Basic listing',
+        queIncluye: 'Your event in the guide, with a page that links to tickets and "how to get there".',
+      },
+      'destacado-3': {
+        nombre: 'Weekend feature (3 days)',
+        queIncluye: 'Home page hero + "Featured" badge in the guide.',
+      },
+      'destacado-7': {
+        nombre: 'Week feature (7 days)',
+        queIncluye: 'Same as above, for 7 days + click report.',
+      },
+      'destacado-14': {
+        nombre: 'Feature until your date (up to 14 days)',
+        queIncluye: 'Same, until the day of the event + click report.',
+      },
+      'pack-lanzamiento': {
+        nombre: 'Event Launch Pack',
+        queIncluye: 'Featured until the date + sponsored push notification (when the app launches).',
+      },
+      'plan-mensual': {
+        nombre: 'Monthly Plan for Organizers/Venues',
+        queIncluye: '4 seven-day features per month + 1 push notification per month (with the app).',
+      },
+      'plan-rrpp': {
+        nombre: 'Promoter (RRPP) Plan',
+        queIncluye: '2 weekend features per month + a "Join the list" button to your WhatsApp, with tracking.',
+      },
+      push: {
+        nombre: 'Sponsored push notification',
+        queIncluye: '1 notification to app users (1 slot per week).',
+      },
+    },
+    gratis: 'Free',
+    proximamente: 'Coming soon',
+    reservaPrioridad: 'Reserve priority',
+    porMes: '/month',
+  },
   favorito: {
     guardar: 'Save to favorites',
     quitar: 'Remove from favorites',

@@ -10,6 +10,7 @@ import { readdirSync, readFileSync, statSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
+import { es } from '@/lib/i18n/diccionarios/es'
 
 const WEB_ROOT = fileURLToPath(new URL('../../', import.meta.url))
 
@@ -22,6 +23,7 @@ const FILTROS = 'components/mapa/filtros-mapa.tsx'
 const CONTENIDO = 'app/mapa/mapa-contenido.tsx'
 const PAGINA = 'app/mapa/page.tsx'
 const LOADING = 'app/mapa/loading.tsx'
+const CUERPO_PAGINA = 'components/mapa/pagina-mapa.tsx'
 const NUEVOS = [MAPLIBRE, DIFERIDO, LISTA, FILTROS, CONTENIDO, PAGINA, LOADING]
 const CLIENTE = [CONTENIDO, DIFERIDO, MAPLIBRE]
 
@@ -128,7 +130,9 @@ describe('mapa-maplibre se carga solo con import() desde mapa-diferido', () => {
   })
 
   it('mapa-diferido avisa si el mapa no carga', () => {
-    expect(leer(DIFERIDO)).toContain('No pudimos cargar el mapa. La lista tiene los mismos lugares.')
+    // Desde C4 el texto sale del diccionario (en castellano, el mismo de siempre).
+    expect(leer(DIFERIDO)).toContain('{t.noCargoElMapa}')
+    expect(es.mapa.noCargoElMapa).toBe('No pudimos cargar el mapa. La lista tiene los mismos lugares.')
   })
 })
 
@@ -260,13 +264,15 @@ function botonVerEnElMapa(codigo: string): string {
 
 function cumpleEtiquetaEnNombre(boton: string): boolean {
   const sinAriaLabel = !/aria-label\s*=/.test(boton)
-  const nombreSoloLector = /Ver en el mapa<span className="sr-only">\s*\{pin\.nombre\}<\/span>/.test(boton)
+  // Desde C4 el texto visible sale del diccionario (`es.mapa.verEnElMapa`, "Ver en el mapa").
+  const nombreSoloLector = /\{t\.verEnElMapa\}<span [^>]*className="sr-only">\s*\{pin\.nombre\}<\/span>/.test(boton)
   return sinAriaLabel && nombreSoloLector
 }
 
 describe('"Ver en el mapa": el nombre accesible contiene el texto visible', () => {
   it('el botón no reemplaza el texto con aria-label y suma el nombre en un sr-only', () => {
     expect(cumpleEtiquetaEnNombre(botonVerEnElMapa(leer(LISTA)))).toBe(true)
+    expect(es.mapa.verEnElMapa).toBe('Ver en el mapa')
   })
 
   it('un detector se pone en rojo con el aria-label viejo', () => {
@@ -318,7 +324,8 @@ describe('sin JavaScript /mapa no se queda en el esqueleto de carga (C5)', () =>
   })
 
   it('la página lleva la marca en su contenedor de afuera', () => {
-    expect(leer(PAGINA)).toMatch(/return \(\s*<div data-pagina-mapa=""/)
+    // Desde C4 el cuerpo de la página vive en el componente compartido con /en/mapa.
+    expect(leer(CUERPO_PAGINA)).toMatch(/return \(\s*<div data-pagina-mapa=""/)
   })
 })
 
@@ -337,8 +344,9 @@ describe('el área de toque y los gestos del mapa', () => {
 
   it('los gestos son cooperativos y los textos van en español', () => {
     expect(codigo).toMatch(/cooperativeGestures:\s*true/)
-    expect(codigo).toMatch(/locale:\s*TEXTOS_ES/)
-    expect(codigo).toMatch(/import\s*\{\s*TEXTOS_ES\s*\}\s*from\s*['"]\.\/textos-maplibre['"]/)
+    // Desde C4: en /en/mapa los controles van con los textos de fábrica de MapLibre (en inglés).
+    expect(codigo).toMatch(/locale:\s*idiomaInicial\.current === ["']en["'] \? TEXTOS_EN : TEXTOS_ES/)
+    expect(codigo).toMatch(/import\s*\{\s*TEXTOS_EN,\s*TEXTOS_ES\s*\}\s*from\s*['"]\.\/textos-maplibre['"]/)
     expect(leer(TEXTOS)).toContain('Usá dos dedos para mover el mapa')
   })
 
