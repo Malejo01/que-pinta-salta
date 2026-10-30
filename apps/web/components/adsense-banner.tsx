@@ -54,6 +54,7 @@ function AdSenseSlot({
   const anunciarWhatsappUrl = whatsappUrl(TEXTO_ANUNCIAR)
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- detección de cliente tras hidratación
     setIsClient(true)
   }, [])
 

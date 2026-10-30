@@ -45,6 +45,7 @@ export function EventCard({ event, isFavorite, onToggleFavorite, onOpenMovie, cl
   const t = useTextos().portada
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- sincroniza la imagen si cambia el evento
     setImgSrc(event.image || "/placeholder.jpg")
   }, [event.image])
 

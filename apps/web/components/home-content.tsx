@@ -104,6 +104,7 @@ export function HomeContent({
     const urlDateExact = searchParams.get("dateExact")
     const urlInstagram = searchParams.get("instagram") !== "false"
 
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- sincroniza filtros locales con los parámetros de la URL
     setSearch(urlSearch)
     setDate(urlDate)
     setCategory(urlCategory)

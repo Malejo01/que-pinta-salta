@@ -30,6 +30,7 @@ export function MovieModal({ movie, isFavorite = false, onClose }: MovieModalPro
   const t = useTextos().cines
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- sincroniza el poster si cambia la película
     setImgSrc(movie.image || "")
   }, [movie.image])
 

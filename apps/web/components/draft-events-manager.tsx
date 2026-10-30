@@ -193,6 +193,7 @@ export function DraftEventsManager({
   useEffect(() => {
     const current = events.find((e) => e.id === selectedEventId) || null
     dispatchConfirm({ type: 'select', id: selectedEventId })
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- reinicia la bandera de confirmación al cambiar de borrador
     setForcedNeedsConfirm(false)
 
     if (current) {
@@ -236,6 +237,7 @@ export function DraftEventsManager({
   // el efecto de arriba y reinicia el formulario. Si sigue estando, no se
   // reinicia nada (solo se avisa al reducer, que no hace nada con esta acción).
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- sincroniza eventos ante cambios de props iniciales
     setEvents(initialEvents)
     const selectedStillExists = initialEvents.some((e) => e.id === selectedEventId)
     if (!selectedStillExists) {
