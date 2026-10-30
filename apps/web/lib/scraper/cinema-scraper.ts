@@ -181,7 +181,7 @@ async function scrapeCinemark(
           break;
         }
       }
-    } catch (e) {
+    } catch {
       // Ignorar JSON inválidos en scripts
     }
   });

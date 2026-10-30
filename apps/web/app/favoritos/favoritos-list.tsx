@@ -80,7 +80,7 @@ function formatHeaderDate(dateStr: string): string {
     const monthName = dateObj.toLocaleDateString("es-AR", { month: "long" })
     
     return `${capitalizedWeekday} ${dayNum} de ${monthName}`
-  } catch (e) {
+  } catch {
     return dateStr
   }
 }
@@ -127,7 +127,7 @@ export function FavoritosList({ voy, flexibles, porDia }: FavoritosListProps) {
     if (datedEvents.length > 0) {
       message += "📅 *Eventos:*\n"
       datedEvents.forEach(item => {
-        const [_, m, d] = item.date.split('-')
+        const [, m, d] = item.date.split('-')
         const url = `${window.location.origin}/evento/${item.id}`
         message += `- *${item.title}* (${d}/${m} en ${item.venue})\n  🔗 ${url}\n`
       })

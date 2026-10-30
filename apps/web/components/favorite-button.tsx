@@ -113,7 +113,7 @@ export function FavoriteButton({
           description: t.eliminadoTexto,
         })
       }
-    } catch (err) {
+    } catch {
       setIsFavorite(previousState)
       toast({
         title: t.errorConexionTitulo,

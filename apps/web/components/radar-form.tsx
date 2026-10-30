@@ -192,7 +192,7 @@ export function RadarForm({ initialSettings, categories, venues, instagramAccoun
         ) : undefined,
       })
       router.refresh()
-    } catch (err) {
+    } catch {
       toast({
         title: "Error de conexión",
         description: "No se pudo comunicar con el servidor.",
@@ -220,7 +220,7 @@ export function RadarForm({ initialSettings, categories, venues, instagramAccoun
           variant: "destructive",
         })
       }
-    } catch (err) {
+    } catch {
       toast({
         title: "Error de conexión",
         description: "No se pudo iniciar la prueba de correo.",
