@@ -14,11 +14,18 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Texto } from '@/components/Texto'
 import { avisar } from '@/lib/aviso'
 import { useColoresQPS } from '@/lib/colores'
-import { cambiarAvisosEquipo } from '@/lib/notificaciones'
+import { activarPreferenciasAlAceptar } from '@/lib/notificaciones'
 import { usePush } from '@/lib/push'
 import {
+  accionTrasLogin,
+  avisosPendientesLogin,
+  borrarAvisosPendientesLogin,
+  debeMostrarCampania,
   invitacionFueVista,
+  leerRegistroCampania,
+  marcarCampaniaHecha,
   marcarInvitacionVista,
+  posponerCampania,
   seMuestraInvitacion,
   suscribirCambioVista,
   suscribirTrasAccion,
@@ -61,7 +68,11 @@ function useInvitacionVista(): boolean | null {
   return vista
 }
 
-/** Activa el push y, si quedó activo, guarda `announcements = true` (solo esa columna). */
+/**
+ * Activa el push y, si quedó activo, guarda las preferencias al aceptar
+ * (avisos del equipo y Radar por push; los patrocinados quedan apagados).
+ * También marca la campaña de la R81 como hecha: quien activó no la vuelve a ver.
+ */
 function useActivarAvisos() {
   const { activar } = usePush()
   const { session } = useSession()
@@ -69,11 +80,12 @@ function useActivarAvisos() {
 
   return useCallback(async () => {
     await marcarInvitacionVista()
+    await marcarCampaniaHecha()
     const resultado = await activar()
     if (resultado === 'activo' && userId) {
-      // `cambiarAvisosEquipo` no tira: devuelve `ok`. Si falla, los avisos
-      // quedan activos igual y se le dice a la persona.
-      const guardado = await cambiarAvisosEquipo(userId, true)
+      // `activarPreferenciasAlAceptar` no tira: devuelve `ok`. Si falla, los
+      // avisos quedan activos igual y se le dice a la persona.
+      const guardado = await activarPreferenciasAlAceptar(userId)
       avisar(guardado.ok ? AVISO_AVISOS_ACTIVOS : AVISO_PREFERENCIA_NO_GUARDADA)
       return
     }
@@ -166,13 +178,74 @@ export function InvitacionTrasAccion() {
   const colores = useColoresQPS()
   const insets = useSafeAreaInsets()
   const { estado, sincronizado } = usePush()
-  const { cargando } = useSession()
+  const { cargando, session } = useSession()
+  const userId = session?.user.id ?? null
   const activar = useActivarAvisos()
   const [abierta, setAbierta] = useState(false)
   const datosRef = useRef({ estado, sincronizado, cargando })
+  const activarRef = useRef(activar)
+  // La hoja abierta por la campaña (R81) se pospone al cerrarla; la de
+  // después de Guardar/Voy, no.
+  const origenRef = useRef<'accion' | 'campania'>('accion')
+  const abiertaRef = useRef(false)
+  // Una sola vez por arranque: ni el cierre ni un cambio de estado la reabren.
+  const campaniaResueltaRef = useRef(false)
+  const pendienteEnCursoRef = useRef(false)
 
   useEffect(() => {
     datosRef.current = { estado, sincronizado, cargando }
+    activarRef.current = activar
+    abiertaRef.current = abierta
+  }, [estado, sincronizado, cargando, activar, abierta])
+
+  // Avisos al principio (R81, 81-b), caso 1: la persona dijo "Sí" en la
+  // Bienvenida sin tener sesión. Cuando inicia sesión y el push ya sincronizó,
+  // se activa una vez (con las mismas preferencias que el "Activar") y se
+  // borra la bandera. La bandera se borra ANTES de pedir el permiso: así un
+  // cambio de estado en el medio no lo pide dos veces.
+  useEffect(() => {
+    if (!userId || cargando || !sincronizado || pendienteEnCursoRef.current) return
+    let vigente = true
+    avisosPendientesLogin().then(async (pendiente) => {
+      if (!vigente || pendienteEnCursoRef.current) return
+      const accion = accionTrasLogin({ pendiente, estado, sincronizado })
+      if (accion === 'nada') return
+      pendienteEnCursoRef.current = true
+      await borrarAvisosPendientesLogin()
+      if (accion === 'activar') await activarRef.current()
+      pendienteEnCursoRef.current = false
+    })
+    return () => {
+      vigente = false
+    }
+  }, [userId, cargando, estado, sincronizado])
+
+  // Caso 2: quien ya pasó la Bienvenida (testers de builds anteriores). Con
+  // sesión, sincronizado y el permiso por pedir (o negado una vez), la hoja se
+  // abre sola, una vez por versión de campaña (`VERSION_CAMPANIA_AVISOS`),
+  // ignorando la bandera vieja de la R70.
+  useEffect(() => {
+    if (campaniaResueltaRef.current || abiertaRef.current) return
+    if (!debeMostrarCampania({ estado, sincronizado, cargando, registro: null, ahora: 0 })) return
+    let vigente = true
+    let temporizador: ReturnType<typeof setTimeout> | null = null
+    leerRegistroCampania().then((registro) => {
+      if (!vigente) return
+      if (!debeMostrarCampania({ ...datosRef.current, registro, ahora: Date.now() })) return
+      temporizador = setTimeout(() => {
+        temporizador = null
+        // Si en el medio se abrió por otro motivo o cambió el estado, no.
+        if (campaniaResueltaRef.current || abiertaRef.current) return
+        if (!debeMostrarCampania({ ...datosRef.current, registro, ahora: Date.now() })) return
+        campaniaResueltaRef.current = true
+        origenRef.current = 'campania'
+        setAbierta(true)
+      }, RETRASO_HOJA_MS)
+    })
+    return () => {
+      vigente = false
+      if (temporizador) clearTimeout(temporizador)
+    }
   }, [estado, sincronizado, cargando])
 
   useEffect(() => {
@@ -185,7 +258,10 @@ export function InvitacionTrasAccion() {
       temporizador = setTimeout(() => {
         temporizador = null
         invitacionFueVista().then((vista) => {
-          if (activo && seMuestraInvitacion({ ...datosRef.current, vista }) === 'activar') setAbierta(true)
+          if (activo && !abiertaRef.current && seMuestraInvitacion({ ...datosRef.current, vista }) === 'activar') {
+            origenRef.current = 'accion'
+            setAbierta(true)
+          }
         })
       }, RETRASO_HOJA_MS)
     })
@@ -199,6 +275,7 @@ export function InvitacionTrasAccion() {
   const cerrar = useCallback(() => {
     setAbierta(false)
     void marcarInvitacionVista()
+    if (origenRef.current === 'campania') void posponerCampania()
   }, [])
 
   return (

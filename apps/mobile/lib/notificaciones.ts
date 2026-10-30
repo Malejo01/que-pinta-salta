@@ -153,6 +153,68 @@ export async function cambiarAvisosEquipo(userId: string, valor: boolean): Promi
   }
 }
 
+/**
+ * Regla del canal del Radar al aceptar los avisos: `email` pasa a `ambos`
+ * (se suma el push sin quitarle el mail); `push` y `ambos` quedan como están.
+ * Cualquier valor raro o ausente cae a `ambos`, igual que el caso `email`. Pura.
+ */
+export function canalRadarAlAceptar(actual: unknown): CanalRadar {
+  return actual === 'push' || actual === 'ambos' ? actual : 'ambos'
+}
+
+/**
+ * Avisos al principio (R81, 81-b): al aceptar los avisos (Bienvenida, después
+ * de iniciar sesión o el "Activar" de la invitación) se guardan, en un solo
+ * upsert, tres columnas y nada más: `announcements = true`, `radar_channel`
+ * según `canalRadarAlAceptar` y `sponsored = false`. Los avisos patrocinados
+ * NO se activan solos (política de anuncios de Play; decisión de Mauro del
+ * 30/10): la persona los prende en Cuenta. Mandar `false` explícito también
+ * evita que un default de la base los deje prendidos.
+ *
+ * Mismo patrón que `cambiarAvisosEquipo`: no tira, devuelve `ok`; `userId`
+ * sale siempre de `useSession()`. Lee el `radar_channel` actual del propio
+ * usuario; si la lectura falla, el upsert va sin `radar_channel`.
+ */
+export async function activarPreferenciasAlAceptar(userId: string): Promise<ResultadoCambiarAvisosEquipo> {
+  if (!supabase) return { ok: false, mensaje: MENSAJE_SIN_CONFIGURACION }
+
+  try {
+    // Si la lectura falla (error o excepción) NO se manda `radar_channel`: no
+    // se sabe qué eligió la persona y no hay que pisar un `push` con `ambos`.
+    let canal: { radar_channel: CanalRadar } | Record<string, never> = {}
+    try {
+      const { data, error: errorLectura } = await supabase
+        .from('notification_preferences')
+        .select('radar_channel')
+        .eq('user_id', userId)
+        .maybeSingle()
+      if (!errorLectura) canal = { radar_channel: canalRadarAlAceptar(data?.radar_channel) }
+    } catch {
+      // Se sigue sin `radar_channel`.
+    }
+
+    const { error } = await supabase
+      .from('notification_preferences')
+      .upsert(
+        { user_id: userId, announcements: true, ...canal, sponsored: false },
+        { onConflict: 'user_id' }
+      )
+
+    if (error) {
+      const resultado = resultadoDeError(error, MENSAJE_ERROR_AVISOS_EQUIPO)
+      return resultado.tipo === 'no-disponible'
+        ? { ok: false, mensaje: MENSAJE_NO_DISPONIBLE }
+        : { ok: false, mensaje: resultado.error }
+    }
+    return { ok: true }
+  } catch (excepcion) {
+    const resultado = resultadoDeError(excepcion, MENSAJE_ERROR_AVISOS_EQUIPO)
+    return resultado.tipo === 'no-disponible'
+      ? { ok: false, mensaje: MENSAJE_NO_DISPONIBLE }
+      : { ok: false, mensaje: resultado.error }
+  }
+}
+
 export type ResultadoCambiarPatrocinados = { ok: true } | { ok: false; mensaje: string }
 
 export const MENSAJE_ERROR_PATROCINADOS = 'No pudimos guardar tu preferencia de avisos patrocinados. Probá de nuevo.'
