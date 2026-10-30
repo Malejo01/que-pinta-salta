@@ -64,7 +64,7 @@ function formatGeocodedAt(iso: string): string {
 export default async function AdminLugaresPage({
   searchParams,
 }: {
-  searchParams: Promise<{ ver?: string; ubicar?: string }>
+  searchParams: Promise<{ ver?: string; ubicar?: string; guardado?: string }>
 }) {
   const supabase = await createClient()
 
@@ -138,6 +138,18 @@ export default async function AdminLugaresPage({
   // Un lugar a la vez: `?ubicar=<id>` abre el mapa solo si es un uuid de la lista de la pestaña.
   const ubicarId = isUuid(params?.ubicar) && lugares.some((v) => v.id === params.ubicar) ? params.ubicar : null
 
+  // `?guardado=<id>` lo agrega el panel al guardar OK (el panel se desmonta, así que el aviso vive acá).
+  // Si el lugar ya no está en esta pestaña (p. ej. pasó de "Sin ubicación" a "A mano"), el aviso va arriba.
+  const guardadoId = isUuid(params?.guardado) ? params.guardado : null
+  const guardadoEnLista = guardadoId !== null && lugares.some((v) => v.id === guardadoId)
+  const guardadoNombre = guardadoId !== null && !guardadoEnLista ? venues.find((v) => v.id === guardadoId)?.name : undefined
+  const avisoArriba =
+    guardadoId !== null && !guardadoEnLista
+      ? guardadoNombre
+        ? `Ubicación de ${guardadoNombre} guardada.`
+        : 'Ubicación guardada.'
+      : null
+
   return (
     <div className="space-y-6">
       {/* Encabezado */}
@@ -174,6 +186,12 @@ export default async function AdminLugaresPage({
         ))}
       </nav>
 
+      {avisoArriba && (
+        <p role="status" aria-live="polite" className="rounded-md bg-muted px-3 py-2 text-sm text-foreground">
+          {avisoArriba}
+        </p>
+      )}
+
       {/* Lista de lugares */}
       {lugares.length === 0 ? (
         <div className="flex flex-col items-center justify-center p-12 text-center border rounded-lg border-dashed bg-muted/30">
@@ -202,6 +220,11 @@ export default async function AdminLugaresPage({
                   </p>
                 </CardHeader>
                 <CardContent className="flex flex-col gap-3">
+                  {guardadoId === venue.id && (
+                    <p role="status" aria-live="polite" className="text-sm font-medium text-foreground">
+                      Ubicación guardada.
+                    </p>
+                  )}
                   <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
                     <span>
                       {venue.latitude !== null && venue.longitude !== null
@@ -276,6 +299,7 @@ export default async function AdminLugaresPage({
                       nombre={venue.name}
                       latitude={venue.latitude}
                       longitude={venue.longitude}
+                      ver={pestañaActual}
                     />
                   )}
                   <LugarUbicacionForm venueId={venue.id} />
