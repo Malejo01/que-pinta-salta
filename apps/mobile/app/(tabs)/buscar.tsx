@@ -122,12 +122,40 @@
 // se arma con `useCallback` dentro del componente (`dibujarResultado`), estable
 // (`abrirResultado` lee el texto de una ref), y `TarjetaEvento` (memo) también
 // mira `onAbrir`.
+//
+// A6 (nube Q1) · Vacíos y sin conexión. (1) Sin red, el error dice que no hay
+// conexión (`mensajeErrorCarga('buscar', ...)`, `lib/vacios.ts`); con un
+// error del servidor, un texto neutro sin "Revisá tu conexión". (2) Un
+// refresco que falla con resultados a la vista los conserva y avisa
+// (`decidirRefresco` + `AvisoNoSeActualizo`) en vez de cambiarlos por el
+// error. (3) El vacío de resultados nombra "gratis" también con texto
+// (`textoSinResultadosBuscar`) y suma "Limpiar búsqueda" y "Sacar “Solo
+// gratis”" a las dos salidas de la R66, como mucho tres botones a la vez
+// (`MAXIMO_ACCIONES_VACIO`: a 360 dp, con la cabecera fija de ~228 dp, un
+// cuarto ya queda abajo del pliegue). (4) El tile ya no dice "1 eventos"
+// (`textoCantidadEventos`). (5) La grilla de categorías vacía ofrece
+// "Reintentar".
+//
+// Integración (R76) de A6 con A3, A5, A7 y A8:
+//   - Los avisos de A6 (refresco que falla, reintento que vuelve a fallar) van
+//     por `anunciar` (`lib/anunciar.ts`), no por `AccessibilityInfo`. No se
+//     pisan con el conteo de A8: ese anuncia el resultado de filtrar sobre una
+//     lista ya cargada; estos, errores de carga. A6 no anunciaba ningún
+//     conteo ni vacío de resultados, así que no hay anuncio duplicado.
+//   - Las dos `textoSinResultadosBuscar` (A3 en `lib/buscar-filtros.ts`, A6 en
+//     `lib/vacios.ts`) conviven: con texto escrito se usa la de A6 (nombra
+//     "gratis"), importada como `textoSinResultadosConTexto`; sin texto, la de
+//     A3, que da lo mismo que la de A6 más "para chicos".
+//   - "Ver todas las edades" (A3) es la primera salida del vacío; después van
+//     las de A6 y el corte de `MAXIMO_ACCIONES_VACIO` (3) se aplica al final,
+//     así que la de A3 nunca queda afuera.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { FlatList, Pressable, RefreshControl, StyleSheet, View, type ListRenderItem } from 'react-native'
 import { useFocusEffect, useLocalSearchParams } from 'expo-router'
 import type { Atajo } from '@qps/core/home/atajos'
 import { atajoDesdeParametro, categoriasDisponibles } from '@qps/core/home/filtros-combinados'
 import type { DisplayEvent } from '@qps/core/home/types'
+import { AvisoNoSeActualizo } from '@/components/AvisoSinConexion'
 import { BannerAnuncio } from '@/components/BannerAnuncio'
 import { BusquedasRecientes } from '@/components/BusquedasRecientes'
 import { CampoTexto } from '@/components/CampoTexto'
@@ -138,6 +166,7 @@ import { Icono, iconoPorCategoria } from '@/components/Icono'
 import { PillsAtajos } from '@/components/PillsAtajos'
 import { TarjetaEvento } from '@/components/TarjetaEvento'
 import { Texto } from '@/components/Texto'
+import { anunciar } from '@/lib/anunciar'
 import { estadoAnunciableBuscar } from '@/lib/anunciar-conteo'
 import { useAnunciarConteo } from '@/lib/anunciar-conteo-hook'
 import {
@@ -155,7 +184,16 @@ import {
   type CategoriaBasica,
   type EventoVigenteParaInicio,
 } from '@/lib/datos/eventos'
+import { textoCantidadEventos } from '@/lib/formato'
 import { filtrarConPublico, SLUG_INFANTIL, TEXTO_VER_TODAS_LAS_EDADES } from '@/lib/para-chicos'
+import {
+  anuncioDeReintento,
+  decidirRefresco,
+  MAXIMO_ACCIONES_VACIO,
+  mensajeErrorCarga,
+  textoSinResultadosBuscar as textoSinResultadosConTexto,
+  VACIO_CATEGORIAS_BUSCAR,
+} from '@/lib/vacios'
 
 /**
  * Cuántos resultados tienen que haber para que el banner de abajo se dibuje
@@ -192,7 +230,8 @@ const claveDeEvento = (evento: DisplayEvent) => evento.id
 
 type EstadoLista =
   | { tipo: 'cargando' }
-  | { tipo: 'error'; error: string }
+  // A6: `error` ya es el texto para la pantalla (`mensajeErrorCarga`).
+  | { tipo: 'error'; error: string; sinConexion?: boolean }
   // `ahora`: un único instante por carga (el mismo que decidió qué eventos
   // siguen vigentes), para que el filtro de fecha no use otro reloj.
   // A3 (nube Q1): los items con `paraChicos` (de `obtenerEventosVigentesParaInicio`).
@@ -269,26 +308,52 @@ export default function Buscar() {
       obtenerCategorias(),
     ])
 
-    if (!resultadoEventos.ok) return { tipo: 'error', error: resultadoEventos.error }
-    if (!resultadoCategorias.ok) return { tipo: 'error', error: resultadoCategorias.error }
+    // A6: como en la portada, `sinConexion` es el O lógico de las dos
+    // consultas: una caída por red alcanza para decir "no hay conexión".
+    const sinConexion =
+      (!resultadoEventos.ok && Boolean(resultadoEventos.sinConexion)) ||
+      (!resultadoCategorias.ok && Boolean(resultadoCategorias.sinConexion))
+    if (!resultadoEventos.ok) {
+      return { tipo: 'error', error: mensajeErrorCarga('buscar', { ...resultadoEventos, sinConexion }), sinConexion }
+    }
+    if (!resultadoCategorias.ok) {
+      return { tipo: 'error', error: mensajeErrorCarga('buscar', { ...resultadoCategorias, sinConexion }), sinConexion }
+    }
     return { tipo: 'ok', items: resultadoEventos.eventos, categorias: resultadoCategorias.categorias, ahora }
   }, [])
 
+  // A6: "No pudimos actualizar..." cuando un refresco falla con resultados a
+  // la vista (ver `refrescar`); se limpia con cada carga nueva.
+  const [notaRefresco, setNotaRefresco] = useState<string | null>(null)
+
   const cargar = useCallback(() => {
     setEstado({ tipo: 'cargando' })
+    setNotaRefresco(null)
     setIntento((valor) => valor + 1)
   }, [])
 
+  // A6: `decidirRefresco` (lib/vacios.ts): si el refresco falla y había una
+  // lista a la vista (`estado`, por eso está en las dependencias), se
+  // conserva y se avisa, en vez de cambiarla por el error.
   const refrescar = useCallback(async () => {
     setRefrescando(true)
-    setEstado(await obtenerDatos())
+    const decision = decidirRefresco(estado, await obtenerDatos(), notaRefresco)
+    setEstado(decision.estado)
+    setNotaRefresco(decision.nota)
+    const aviso = decision.anuncio
+    if (aviso) anunciar(aviso)
     setRefrescando(false)
-  }, [obtenerDatos])
+  }, [obtenerDatos, estado, notaRefresco])
 
   useEffect(() => {
     let cancelado = false
     obtenerDatos().then((resultado) => {
-      if (!cancelado) setEstado(resultado)
+      if (cancelado) return
+      setEstado(resultado)
+      // A6: un "Reintentar" de `ErrorCarga` (`intento > 0`) que vuelve a dar
+      // error se anuncia; si no, parecía que el botón no hizo nada.
+      const avisoError = anuncioDeReintento(intento > 0, resultado)
+      if (avisoError) anunciar(avisoError)
     })
     return () => {
       cancelado = true
@@ -426,16 +491,44 @@ export default function Buscar() {
     setToqueTexto((n) => n + 1)
   }
 
+  // El texto del vacío. Con texto escrito, el de A6 (`lib/vacios.ts`), que
+  // nombra "gratis" (antes se perdía); sin texto, el de A3
+  // (`lib/buscar-filtros.ts`), que además nombra "para chicos".
+  const textoSinResultados = texto
+    ? textoSinResultadosConTexto({ texto, soloGratis: soloGratisActivo, nombreCategoria: nombreCategoriaFiltro, atajo })
+    : textoSinResultadosBuscar(filtrosTexto)
+
   // Salidas del vacío (R66): sacar la fecha y/o la categoría. Un botón por
   // cada filtro que se puede sacar. A3: y "Para chicos", primero (la salida
   // principal, rellena), salvo con Infantil elegida: ahí apagarlo no cambia
-  // nada (ronda de correcciones de A3).
+  // nada (ronda de correcciones de A3). A6: más "Limpiar búsqueda" (con texto)
+  // y "Sacar “Solo gratis”" (con el chip prendido). El orden de los `push` es
+  // la prioridad (el primero va relleno): para chicos, texto, fecha, gratis,
+  // categoría — la categoría al final porque sus chips, con "Todas", están
+  // justo arriba del vacío. Como mucho `MAXIMO_ACCIONES_VACIO` (3) botones: el
+  // `splice` corta lo que sobra. `ACCIONES_VACIO_BUSCAR`/`accionesVacioBuscar`
+  // (lib/vacios.ts) repiten este orden y estos textos (sin el de "Para
+  // chicos", de A3), y `tests/vacios-sin-conexion.test.ts` los compara contra
+  // este archivo.
   const accionesVacio: { texto: string; alTocar: () => void }[] = []
   if (paraChicosActivo && categoriaFiltro !== SLUG_INFANTIL) {
     accionesVacio.push({ texto: TEXTO_VER_TODAS_LAS_EDADES, alTocar: () => setParaChicosActivo(false) })
   }
+  if (texto) accionesVacio.push({ texto: 'Limpiar búsqueda', alTocar: () => setTexto('') })
   if (atajo !== null) accionesVacio.push({ texto: 'Ver todas las fechas', alTocar: () => setAtajo(null) })
+  if (soloGratisActivo) accionesVacio.push({ texto: 'Sacar “Solo gratis”', alTocar: () => setSoloGratisActivo(false) })
   if (categoriaFiltro !== null) accionesVacio.push({ texto: 'Todas las categorías', alTocar: () => setCategoriaFiltro(null) })
+  accionesVacio.splice(MAXIMO_ACCIONES_VACIO)
+
+  // A6: un refresco que falló con una lista a la vista. Banda al principio de
+  // la lista que se esté viendo (dentro del scroll, como `AvisoSinConexion`
+  // en Inicio: nunca un toast ni algo fijo que le robe alto con el teclado
+  // abierto); el margen negativo compensa el padding de la lista.
+  const avisoNoSeActualizo = notaRefresco ? (
+    <View style={estilos.avisoEnLista}>
+      <AvisoNoSeActualizo texto={notaRefresco} onReintentar={refrescar} reintentando={refrescando} />
+    </View>
+  ) : null
 
   return (
     <View style={[estilos.contenedor, { backgroundColor: colores.background }]}>
@@ -545,12 +638,15 @@ export default function Buscar() {
           ListHeaderComponent={
             <>
               <BusquedasRecientes busquedas={recientes} onElegir={repetirBusqueda} onBorrarHistorial={borrarHistorial} />
+              {avisoNoSeActualizo}
               <Texto peso="semibold" accessibilityRole="header" style={estilos.tituloSeccion}>
                 Explorar por categoría
               </Texto>
             </>
           }
-          ListEmptyComponent={<Vacio mensaje="Todavía no hay categorías cargadas." />}
+          // A6: la carga salió bien pero no trajo categorías: porqué +
+          // "Reintentar" (`refrescar`, así no pasa por `Cargando`).
+          ListEmptyComponent={<ErrorCarga mensaje={VACIO_CATEGORIAS_BUSCAR} onReintentar={refrescar} />}
           // R60, 52-d: con la lista vacía, `null` en vez de `<BannerAnuncio>`
           // — hallazgo de la R52 en la web (ux-ui): una FlatList dibuja
           // `ListFooterComponent` también debajo de `ListEmptyComponent`, así
@@ -573,7 +669,7 @@ export default function Buscar() {
                     {item.name}
                   </Texto>
                   <Texto tono="secundario" style={estilos.cantidadTile}>
-                    {cantidad} eventos
+                    {textoCantidadEventos(cantidad)}
                   </Texto>
                 </View>
               </Pressable>
@@ -600,6 +696,7 @@ export default function Buscar() {
           }
           ListHeaderComponent={
             <>
+              {avisoNoSeActualizo}
               {/* Los chips scrollean con la lista (no quedan fijos): con el
                   teclado abierto la cabecera fija es solo campo + pills. El
                   padding horizontal de la lista (16) se compensa con margen
@@ -614,7 +711,7 @@ export default function Buscar() {
           }
           ListEmptyComponent={
             <View style={estilos.vacio}>
-              <Vacio mensaje={textoSinResultadosBuscar(filtrosTexto)} />
+              <Vacio mensaje={textoSinResultados} />
               {accionesVacio.map((accion, indice) => (
                 <Pressable
                   key={accion.texto}
@@ -680,6 +777,8 @@ const estilos = StyleSheet.create({
   // `ChipsCategorias` trae su padding horizontal (16) y la lista también: se
   // compensa para que el primer chip quede alineado con el campo, como antes.
   chipsEnLista: { marginHorizontal: -16 },
+  // A6: la banda de "No pudimos actualizar" va de borde a borde, como en Inicio.
+  avisoEnLista: { marginHorizontal: -16 },
   vacio: { alignItems: 'center', gap: 12 },
   botonVacio: {
     borderWidth: 1,

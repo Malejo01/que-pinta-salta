@@ -71,7 +71,14 @@ vi.mock('@/lib/supabase', () => ({
   supabase: { from: (tabla: string) => construirTabla(tabla) },
 }))
 
-import { MENSAJE_ERROR, MENSAJE_ERROR_GUARDAR, MENSAJE_SIN_CONFIGURACION, guardarRadar, obtenerRadar } from '../lib/radar'
+import {
+  MENSAJE_ERROR,
+  MENSAJE_ERROR_GUARDAR,
+  MENSAJE_RADAR_GUARDAR_SIN_CONEXION,
+  MENSAJE_SIN_CONFIGURACION,
+  guardarRadar,
+  obtenerRadar,
+} from '../lib/radar'
 
 const DATOS_VALIDOS = {
   email_frequency: 'biweekly',
@@ -324,6 +331,68 @@ describe('obtenerRadar: errores (nunca el mensaje crudo)', () => {
     const resultado = await obtenerRadar(USER_ID_SESION)
 
     expect(resultado).toEqual({ ok: false, error: MENSAJE_ERROR })
+  })
+})
+
+// A6 (nube Q1): `lib/radar.ts` detecta la red con `esErrorDeRed` (lib/red.ts),
+// igual que `lib/datos/*`. Los dos `toEqual({ ok: false, error: ... })` de
+// arriba siguen valiendo SIN tocarlos: sus fixtures no traen `status` (no son
+// de red), así que `sinConexion` queda ausente (`|| undefined`), y `toEqual`
+// no mira claves ausentes. Estos casos nuevos fijan las dos ramas.
+describe('obtenerRadar: sin conexión (A6)', () => {
+  it('una consulta que falló por red (status 0, sin code de PostgREST): MENSAJE_ERROR con sinConexion: true', async () => {
+    estado.lecturas.categories = { data: null, error: { message: 'TypeError: Network request failed', code: '' }, status: 0 } as never
+
+    const resultado = await obtenerRadar(USER_ID_SESION)
+
+    expect(resultado).toEqual({ ok: false, error: MENSAJE_ERROR, sinConexion: true })
+  })
+
+  it('un 5xx (status HTTP): MENSAJE_ERROR, SIN la clave sinConexion', async () => {
+    estado.lecturas.venues = { data: null, error: { message: 'detalle', code: '' }, status: 503 } as never
+
+    const resultado = await obtenerRadar(USER_ID_SESION)
+
+    expect(resultado).toEqual({ ok: false, error: MENSAJE_ERROR })
+    // Ausente o `undefined` (el patrón `|| undefined` de lib/datos/*), nunca `true`.
+    expect(resultado.ok === false && resultado.sinConexion).toBeFalsy()
+  })
+
+  it('el fetch de React Native en modo avión (TypeError "Network request failed" atrapado): sinConexion: true', async () => {
+    estado.arrojarLectura.user_followed_venues = new TypeError('Network request failed')
+
+    const resultado = await obtenerRadar(USER_ID_SESION)
+
+    expect(resultado).toEqual({ ok: false, error: MENSAJE_ERROR, sinConexion: true })
+  })
+})
+
+describe('guardarRadar: sin conexión (A6)', () => {
+  it('el upsert falla por red: el mensaje dice que los cambios siguen acá, con sinConexion: true, y no sigue escribiendo', async () => {
+    estado.resultadosEscritura.user_radar_settings = { error: { message: 'Network request failed', code: '' }, status: 0 } as never
+
+    const resultado = await guardarRadar(USER_ID_SESION, DATOS_VALIDOS)
+
+    expect(resultado).toEqual({ ok: false, error: MENSAJE_RADAR_GUARDAR_SIN_CONEXION, sinConexion: true })
+    expect(MENSAJE_RADAR_GUARDAR_SIN_CONEXION).toMatch(/Tus cambios siguen acá/)
+    expect(estado.escrituras.map((e) => `${e.tabla}:${e.accion}`)).toEqual(['user_radar_settings:upsert'])
+  })
+
+  it('un insert a mitad de camino tira el TypeError de red: el mismo mensaje sin red', async () => {
+    estado.arrojarEscritura['user_followed_venues:insert'] = new TypeError('Network request failed')
+
+    const resultado = await guardarRadar(USER_ID_SESION, DATOS_VALIDOS)
+
+    expect(resultado).toEqual({ ok: false, error: MENSAJE_RADAR_GUARDAR_SIN_CONEXION, sinConexion: true })
+  })
+
+  it('un 5xx al borrar: MENSAJE_ERROR_GUARDAR de siempre, sin sinConexion', async () => {
+    estado.resultadosEscritura['user_followed_categories:delete'] = { error: { message: 'x', code: '' }, status: 500 } as never
+
+    const resultado = await guardarRadar(USER_ID_SESION, DATOS_VALIDOS)
+
+    expect(resultado).toEqual({ ok: false, error: MENSAJE_ERROR_GUARDAR })
+    expect(resultado).not.toHaveProperty('sinConexion')
   })
 })
 

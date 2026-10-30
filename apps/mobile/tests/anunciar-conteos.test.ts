@@ -529,7 +529,8 @@ const PANTALLAS: { ruta: string[]; llamada: RegExp; romperNodo: (s: string) => s
     ruta: ['app', 'cines.tsx'],
     llamada:
       /useAnunciarConteo\(\s*estado\.tipo === 'ok'\s*\?\s*estadoAnunciableCines\(\{\s*busqueda,\s*cantidad: filtradas\.length,\s*total: peliculas\.length,\s*toque: toqueBusqueda\s*\}\)\s*:\s*null,?\s*\)/,
-    romperNodo: (s) => s.replace('ListEmptyComponent={<Vacio mensaje={mensajeVacio} />}', 'ListEmptyComponent={<View accessibilityLiveRegion="polite"><Vacio mensaje={mensajeVacio} /></View>}'),
+    // Integración R76 (A6): el vacío de Cines ahora es `<Vacio mensaje={vacio.texto} … />` con acción.
+    romperNodo: (s) => s.replace('<Vacio mensaje={vacio.texto}', '<Vacio accessibilityLiveRegion="polite" mensaje={vacio.texto}'),
   },
 ]
 

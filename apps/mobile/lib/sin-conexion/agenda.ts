@@ -72,9 +72,18 @@ export interface DepsCargarAgenda {
   almacen?: Almacen
 }
 
+// A6 (nube Q1): la rama de error suma `sinConexion: true` cuando `cargar()`
+// falló por red y no había nada guardado que sirviera (no había caché, venció
+// o tenía otra forma). Antes se perdía acá: la pantalla no podía distinguir
+// "no hay conexión y no hay nada guardado" de un error del servidor, y
+// mostraba para los dos el mismo "... Revisá tu conexión." Se eligió sumarlo
+// acá (y no capturarlo en la pantalla envolviendo `cargar`) porque es lo que
+// ya sabe esta función y la pantalla no tiene que repetir nada; los tests que
+// fijaban `toEqual({ tipo: 'error', error })` para esos casos se actualizaron
+// a propósito. Un error que no es de red sigue sin la clave (no `false`).
 export type ResultadoCargaAgenda =
   | { tipo: 'ok'; datos: DatosAgenda; desdeCache: { guardadoEn: Date } | null }
-  | { tipo: 'error'; error: string }
+  | { tipo: 'error'; error: string; sinConexion?: true }
 
 /** Igual que `sinDescripcionLargaAgenda` del fixture de `cache.ts`: la descripción vive anidada en `item.evento.description`. */
 function sinDescripcionLargaAgenda(item: EventoVigenteParaInicio): EventoVigenteParaInicio {
@@ -133,7 +142,7 @@ export async function cargarAgendaConCache(deps: DepsCargarAgenda): Promise<Resu
 
   const cache = await leerCache<DatosAgenda>(CLAVE_AGENDA, { ahora, ttlMs: TTL_AGENDA_MS, almacen })
   if (cache === null) {
-    return { tipo: 'error', error: resultado.error }
+    return { tipo: 'error', error: resultado.error, sinConexion: true }
   }
 
   // `paraMostrar` tira si `cache.datos` no tiene la forma esperada (`.filter`
@@ -144,7 +153,7 @@ export async function cargarAgendaConCache(deps: DepsCargarAgenda): Promise<Resu
     const datos = paraMostrar(cache.datos, cache.guardadoEn, ahora)
     return { tipo: 'ok', datos, desdeCache: { guardadoEn: cache.guardadoEn } }
   } catch {
-    return { tipo: 'error', error: resultado.error }
+    return { tipo: 'error', error: resultado.error, sinConexion: true }
   }
 }
 

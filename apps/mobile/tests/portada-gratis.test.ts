@@ -578,7 +578,8 @@ function violacionesPortada(fuenteCruda: string): string[] {
   // El anuncio: el conteo o el vacío, con el mismo texto que se ve.
   if (!/const anuncio = datosPortada\s*\?\s*anuncioDeLaGrilla\(\{\s*modoGrilla,\s*gratis,/.test(c)) v.push('el anuncio no sale de anuncioDeLaGrilla')
   // A3 (nube Q1): sin "Para chicos" (la rama del medio de `textoVacio`, que va primero con `paraChicos ?`).
-  if (!/const textoVacio = paraChicos[\s\S]{0,120}?:\s*gratis \? textoVacioGratis\(categoria, nombreCategoria, atajo\) : textoVacioCategoria\(nombreCategoria, atajo\)/.test(c)) v.push('el texto del vacío no sale de textoVacioGratis/textoVacioCategoria')
+  // Integración R76 (A6): el vacío del modo categoría es `textoVacioCategoria` de `lib/vacios.ts` (con `desdeCache`).
+  if (!/const textoVacio = paraChicos[\s\S]{0,120}?:\s*gratis\s*\?\s*textoVacioGratis\(categoria, nombreCategoria, atajo\)\s*:\s*textoVacioCategoria\(\{[^}]*\}\)/.test(c)) v.push('el texto del vacío no sale de textoVacioGratis/textoVacioCategoria')
   // A8 (nube Q1, QPS-339): el vacío ya NO es una live region (lo anuncia
   // `useAnunciarConteo`, un solo anuncio por cambio; ver `tests/anunciar-conteos.test.ts`).
   if (!/<Texto tono="secundario">\s*\{textoVacio\}/.test(c)) v.push('el vacío de categoría no muestra textoVacio (sin live region)')
