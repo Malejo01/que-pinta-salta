@@ -2,6 +2,9 @@ import type { KeyboardEvent, Ref } from "react"
 import Link from "next/link"
 import { consultaDelMapa, type CategoriaDelMapa, type FiltrosExtraMapa } from "@qps/core/mapa/filtros"
 import type { FiltroMapa } from "@qps/core/mapa/pines"
+import { langDeCategoria, nombreCategoria, textosDe } from "@/lib/i18n"
+import type { Idioma } from "@/lib/i18n/idiomas"
+import { rutaEn } from "@/lib/i18n/rutas"
 
 // Sin "use client": no usa estado, efectos ni APIs del navegador. Lo importa
 // `app/mapa/mapa-contenido.tsx` (que sí es cliente) y le llegan las funciones
@@ -11,9 +14,12 @@ export const BASE_BOTON = "inline-flex min-h-11 items-center rounded-full border
 export const BOTON_ACTIVO = "border-primary bg-primary text-primary-foreground"
 export const BOTON_INACTIVO = "border-input bg-background text-foreground hover:bg-muted"
 
-/** La URL de `/mapa` para una fecha y unos filtros "qué": el `href` de cada chip. */
-export function urlDelMapa(filtro: FiltroMapa, extra: FiltrosExtraMapa): string {
-  return `/mapa?${consultaDelMapa(filtro, extra)}`
+/**
+ * La URL de `/mapa` (o `/en/mapa`) para una fecha y unos filtros "qué": el
+ * `href` de cada chip. Los nombres de los parámetros no se traducen.
+ */
+export function urlDelMapa(filtro: FiltroMapa, extra: FiltrosExtraMapa, idioma: Idioma = "es"): string {
+  return rutaEn(idioma, `/mapa?${consultaDelMapa(filtro, extra)}`)
 }
 
 /**
@@ -59,20 +65,24 @@ interface FiltrosQueProps {
   onCambiar: (extra: FiltrosExtraMapa) => void
   /** El chip "Gratis": después de "Quitar filtros" el foco vuelve acá. */
   refGratis?: Ref<HTMLAnchorElement>
+  /** Idioma de las etiquetas y de los links. Por defecto, castellano. */
+  idioma?: Idioma
 }
 
 /** El texto de una opción del selector: "Música (5)", o "Teatro (0)" si la elegida quedó sin eventos (corto: a 320 px no se corta). */
-function textoDeCategoria(categoria: CategoriaDelMapa): string {
-  return `${categoria.name} (${categoria.cantidad})`
+function textoDeCategoria(categoria: CategoriaDelMapa, idioma: Idioma): string {
+  return `${nombreCategoria(textosDe(idioma), categoria.slug, categoria.name)} (${categoria.cantidad})`
 }
 
 /** Los filtros "qué" prendidos, por su nombre: "Gratis · Para chicos · Teatro". */
-export function nombresDeFiltrosExtra(extra: FiltrosExtraMapa, categorias: CategoriaDelMapa[]): string {
+export function nombresDeFiltrosExtra(extra: FiltrosExtraMapa, categorias: CategoriaDelMapa[], idioma: Idioma = "es"): string {
+  const t = textosDe(idioma)
   const nombres: string[] = []
-  if (extra.gratis) nombres.push("Gratis")
-  if (extra.chicos) nombres.push("Para chicos")
+  if (extra.gratis) nombres.push(t.mapa.gratis)
+  if (extra.chicos) nombres.push(t.mapa.paraChicos)
   if (extra.categoria !== null) {
-    nombres.push(categorias.find((categoria) => categoria.slug === extra.categoria)?.name ?? extra.categoria)
+    const categoria = categorias.find((candidata) => candidata.slug === extra.categoria)
+    nombres.push(categoria ? nombreCategoria(t, categoria.slug, categoria.name) : extra.categoria)
   }
   return nombres.join(" · ")
 }
@@ -87,29 +97,30 @@ export function nombresDeFiltrosExtra(extra: FiltrosExtraMapa, categorias: Categ
  * del `<noscript>`, que conserva el "cuándo" que ya estaba (un día recién
  * elegido en el selector de fecha se aplica con "Ver ese día").
  */
-export function FiltrosQue({ extra, filtro, categorias, onCambiar, refGratis }: FiltrosQueProps) {
+export function FiltrosQue({ extra, filtro, categorias, onCambiar, refGratis, idioma = "es" }: FiltrosQueProps) {
+  const t = textosDe(idioma).mapa
   const conGratis = { ...extra, gratis: !extra.gratis }
   const conChicos = { ...extra, chicos: !extra.chicos }
   return (
-    <div role="group" aria-label="Qué tipo de plan" className="flex flex-wrap items-center gap-2">
+    <div role="group" aria-label={t.queTipoDePlan} className="flex flex-wrap items-center gap-2">
       <Link
         ref={refGratis}
-        href={urlDelMapa(filtro, conGratis)}
+        href={urlDelMapa(filtro, conGratis, idioma)}
         prefetch={false}
         {...propsDeChip(extra.gratis)}
         onNavigate={navegarCon(() => onCambiar(conGratis))}
         className={`${BASE_BOTON} ${extra.gratis ? BOTON_ACTIVO : BOTON_INACTIVO}`}
       >
-        Gratis
+        {t.gratis}
       </Link>
       <Link
-        href={urlDelMapa(filtro, conChicos)}
+        href={urlDelMapa(filtro, conChicos, idioma)}
         prefetch={false}
         {...propsDeChip(extra.chicos)}
         onNavigate={navegarCon(() => onCambiar(conChicos))}
         className={`${BASE_BOTON} ${extra.chicos ? BOTON_ACTIVO : BOTON_INACTIVO}`}
       >
-        Para chicos
+        {t.paraChicos}
       </Link>
       {/* Sin JavaScript el formulario manda lo de siempre (que el servidor ya sabe leer); con JS no se envía. */}
       {extra.gratis ? <input type="hidden" name="gratis" value="1" /> : null}
@@ -117,24 +128,24 @@ export function FiltrosQue({ extra, filtro, categorias, onCambiar, refGratis }: 
       <label
         className={`${BASE_BOTON} min-w-0 max-w-full gap-2 focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-primary ${extra.categoria !== null ? BOTON_ACTIVO : BOTON_INACTIVO}`}
       >
-        <span className="shrink-0">Categoría</span>
+        <span className="shrink-0">{t.categoria}</span>
         <select
           name="categoria"
           value={extra.categoria ?? ""}
           onChange={(evento) => onCambiar({ ...extra, categoria: evento.target.value || null })}
           className="min-w-0 max-w-full truncate rounded bg-background px-2 py-1 text-foreground"
         >
-          <option value="">Todas</option>
+          <option value="">{t.todas}</option>
           {categorias.map((categoria) => (
-            <option key={categoria.slug} value={categoria.slug}>
-              {textoDeCategoria(categoria)}
+            <option key={categoria.slug} value={categoria.slug} lang={langDeCategoria(idioma, categoria.slug)}>
+              {textoDeCategoria(categoria, idioma)}
             </option>
           ))}
         </select>
       </label>
       <noscript>
         <button type="submit" name="cuando" value={filtro.tipo} className={`${BASE_BOTON} ${BOTON_INACTIVO}`}>
-          Aplicar categoría
+          {t.aplicarCategoria}
         </button>
       </noscript>
     </div>

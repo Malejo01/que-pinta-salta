@@ -164,8 +164,8 @@ describe('los dos modales de evento delegan el ♥ en la fila (ya no dibujan Fav
 })
 
 describe('/buscar: el modal usa los favoritos ya traídos, no una consulta por evento', () => {
-  it('app/buscar/page.tsx trae los favoritos una sola vez con getUserFavorites()', () => {
-    const src = read('app/buscar/page.tsx')
+  it('components/buscar/pagina-buscar.tsx (el cuerpo de /buscar y /en/buscar) trae los favoritos una sola vez con getUserFavorites()', () => {
+    const src = read('components/buscar/pagina-buscar.tsx')
     expect(src).toContain('getUserFavorites()')
   })
 

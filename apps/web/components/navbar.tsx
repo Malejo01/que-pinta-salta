@@ -122,8 +122,7 @@ export function Navbar() {
           </Button>
 
           <Button asChild variant="ghost" size="icon" className="hidden sm:inline-flex text-muted-foreground hover:text-primary transition-colors">
-            {/* /mapa todavía no tiene versión en inglés (llega en el PR siguiente). */}
-            <Link href="/mapa" hrefLang={hrefLangDestino(idioma, "/mapa")} aria-label={t.verMapa} prefetch={false}>
+            <Link href={rutaEn(idioma, "/mapa")} hrefLang={hrefLangDestino(idioma, "/mapa")} aria-label={t.verMapa} prefetch={false}>
               <Map className="size-5" />
             </Link>
           </Button>
