@@ -186,7 +186,7 @@ describe('proponerCicloDelMes', () => {
   })
 
   it('una fuente con +18% sobre el anterior es válida', async () => {
-    const f = crearFake({ ad_price_cycles: [cicloAprobado({ tipo_cambio: 1530 })], ad_prices: [], ad_occupancy_daily: [], ad_settings: [] })
+    const f = crearFake({ ad_price_cycles: [cicloAprobado({ tipo_cambio: 1530 })], ad_prices: preciosAprobados('2026-09-01', 1530), ad_occupancy_daily: [], ad_settings: [] })
     expect(await proponerCicloDelMes(f.cliente, { ahora: AHORA, fetch: fetchDolar(1800) })).toBe('creado')
     const nuevo = f.datos.ad_price_cycles.find((c) => c.ciclo === '2026-10-01')
     expect(nuevo).toMatchObject({ tipo_cambio: 1800, fuente_tipo_cambio: 'dolarapi' })

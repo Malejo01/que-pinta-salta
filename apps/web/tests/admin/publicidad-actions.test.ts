@@ -324,29 +324,141 @@ describe('cargarAudienciaYTipoCambio', () => {
     expect(escrituras(db.llamadas)).toHaveLength(0)
   })
 
-  it('los precios del ciclo anterior se leen solo en estado aprobado (igual que el cron)', async () => {
-    const db = setup({
-      responder: (l) => {
-        if (l.tabla === 'ad_price_cycles' && l.op === 'select') {
-          if (l.filtros.some(([op, col]) => op === 'lt' && col === 'ciclo')) {
-            return {
-              data: [
-                { ciclo: '2026-10-01', audiencia: 490, tramo_vigente: 500, tramo_calculado: 500, cambio_tramo_desde: null, factor_hero: 1, factor_push: 1 },
-              ],
-              error: null,
-            }
-          }
-          return { data: [CICLO_ACTUAL], error: null }
-        }
-        if (l.tabla === 'ad_prices' && l.op === 'select') return { data: [], error: null }
-        if (l.op === 'update') return { data: [{ ciclo: CICLO, id: 'x' }], error: null }
-        return undefined
-      },
+  describe('el ciclo anterior solo cuenta con TODOS sus precios aprobados (igual que el cron)', () => {
+    const filaCiclo = (ciclo: string) => ({
+      ciclo,
+      audiencia_web_28d: 490,
+      audiencia: 490,
+      tramo_vigente: 500,
+      tramo_calculado: 500,
+      cambio_tramo_desde: null,
+      factor_hero: 1,
+      factor_push: 1,
+      tipo_cambio: 1530,
     })
-    await cargarAudienciaYTipoCambio({ ciclo: CICLO, audienciaWeb28d: 490 })
-    const lecturaPrecios = db.llamadas.find((l) => l.tabla === 'ad_prices' && l.op === 'select')
-    expect(lecturaPrecios?.filtros).toContainEqual(['eq', 'ciclo', '2026-10-01'])
-    expect(lecturaPrecios?.filtros).toContainEqual(['eq', 'estado', 'aprobado'])
+    // Precio en USD bajo y ARS altísimo: si el trinquete se engancha a esta fila,
+    // el ARS recalculado deja de ser el de la fórmula y se nota.
+    const precio = (producto: string, estado: string, ars: number) => ({
+      producto,
+      precio_ars: ars,
+      precio_usd: 1,
+      tipo_cambio: 1530,
+      estado,
+    })
+    const PRODUCTOS_ANT = ['destacado-3', 'destacado-7', 'destacado-14', 'pack-lanzamiento', 'plan-mensual', 'plan-rrpp']
+
+    function correr(
+      ciclosAnteriores: string[],
+      preciosPorCiclo: Record<string, Array<ReturnType<typeof precio>>>,
+    ) {
+      return setup({
+        responder: (l) => {
+          if (l.tabla === 'ad_price_cycles' && l.op === 'select') {
+            if (l.filtros.some(([op, col]) => op === 'lt' && col === 'ciclo')) {
+              return { data: ciclosAnteriores.map(filaCiclo), error: null }
+            }
+            return { data: [CICLO_ACTUAL], error: null }
+          }
+          if (l.tabla === 'ad_prices' && l.op === 'select') {
+            const ciclo = l.filtros.find(([op, col]) => op === 'eq' && col === 'ciclo')?.[2] as string
+            return { data: preciosPorCiclo[ciclo] ?? [], error: null }
+          }
+          if (l.op === 'update') return { data: [{ ciclo: CICLO, id: 'x' }], error: null }
+          return undefined
+        },
+      })
+    }
+
+    const arsEscrito = (llamadas: Llamada[], producto: string) =>
+      llamadas
+        .filter((l) => l.tabla === 'ad_prices' && l.op === 'update')
+        .find((l) => l.filtros.some(([, col, v]) => col === 'producto' && v === producto))?.valores?.precio_ars
+
+    it('lee los precios del candidato sin filtrar por estado y lo comprueba en código', async () => {
+      const db = correr(['2026-10-01'], { '2026-10-01': PRODUCTOS_ANT.map((p) => precio(p, 'aprobado', 500)) })
+      await cargarAudienciaYTipoCambio({ ciclo: CICLO, audienciaWeb28d: 490, tipoCambio: 1530 })
+      const lectura = db.llamadas.find((l) => l.tabla === 'ad_prices' && l.op === 'select')
+      expect(lectura?.filtros).toContainEqual(['eq', 'ciclo', '2026-10-01'])
+      expect(lectura?.filtros.some(([, col]) => col === 'estado')).toBe(false)
+      expect(lectura?.columnas).toContain('estado')
+    })
+
+    it('un anterior aprobado con los precios todavía propuestos no engancha el trinquete', async () => {
+      const db = correr(['2026-10-01'], {
+        '2026-10-01': PRODUCTOS_ANT.map((p) => precio(p, 'propuesto', 999_000)),
+      })
+      const res = await cargarAudienciaYTipoCambio({ ciclo: CICLO, audienciaWeb28d: 490, tipoCambio: 1530 })
+      expect(res).toMatchObject({ ok: true })
+      // Sin anterior válido, el ARS es el de la fórmula (prueba de aceptación: 8.500 y 14.000).
+      expect(arsEscrito(db.llamadas, 'destacado-3')).toBe(8500)
+      expect(arsEscrito(db.llamadas, 'destacado-7')).toBe(14000)
+    })
+
+    it('un anterior con precios mezclados (uno propuesto) se saltea entero', async () => {
+      const mezclados = PRODUCTOS_ANT.map((p, i) => precio(p, i === 0 ? 'propuesto' : 'aprobado', 999_000))
+      const db = correr(['2026-10-01'], { '2026-10-01': mezclados })
+      await cargarAudienciaYTipoCambio({ ciclo: CICLO, audienciaWeb28d: 490, tipoCambio: 1530 })
+      for (const p of PRODUCTOS_ANT) expect(arsEscrito(db.llamadas, p), p).toBeLessThan(100_000)
+      expect(arsEscrito(db.llamadas, 'destacado-3')).toBe(8500)
+    })
+
+    it('un anterior sin ninguna fila de precios se saltea', async () => {
+      const db = correr(['2026-10-01'], {})
+      const res = await cargarAudienciaYTipoCambio({ ciclo: CICLO, audienciaWeb28d: 490, tipoCambio: 1530 })
+      expect(res).toMatchObject({ ok: true })
+      expect(arsEscrito(db.llamadas, 'destacado-3')).toBe(8500)
+    })
+
+    it('sigue hacia atrás y usa el anterior completo más viejo para el trinquete', async () => {
+      const db = correr(['2026-10-01', '2026-09-01'], {
+        '2026-10-01': PRODUCTOS_ANT.map((p) => precio(p, 'propuesto', 999_000)),
+        '2026-09-01': PRODUCTOS_ANT.map((p) => precio(p, 'aprobado', 20_000)),
+      })
+      await cargarAudienciaYTipoCambio({ ciclo: CICLO, audienciaWeb28d: 490, tipoCambio: 1530 })
+      // Septiembre (completo) sostiene el precio; octubre (roto) no.
+      expect(arsEscrito(db.llamadas, 'destacado-3')).toBe(20_000)
+      expect(arsEscrito(db.llamadas, 'destacado-3')).not.toBe(999_000)
+    })
+  })
+
+  describe('un error de lectura en las funciones compartidas', () => {
+    const FILA_ANT = {
+      ciclo: '2026-10-01',
+      audiencia_web_28d: 490,
+      audiencia: 490,
+      tramo_vigente: 500,
+      tramo_calculado: 500,
+      cambio_tramo_desde: null,
+      factor_hero: 1,
+      factor_push: 1,
+      tipo_cambio: 1530,
+    }
+    const ERROR_LECTURA: Resultado = { data: null, error: { code: '57014', message: 'timeout ' + ADMIN_ID } }
+
+    it.each([
+      ['los ciclos anteriores', (l: Llamada) => l.tabla === 'ad_price_cycles' && l.filtros.some(([op, col]) => op === 'lt' && col === 'ciclo')],
+      ['los precios del anterior', (l: Llamada) => l.tabla === 'ad_prices' && l.op === 'select'],
+      ['la ocupación', (l: Llamada) => l.tabla === 'ad_occupancy_daily'],
+    ])('%s: DB_ERROR con el mensaje de lectura, sin escribir', async (_n, falla) => {
+      const db = setup({
+        responder: (l) => {
+          if (falla(l)) return ERROR_LECTURA
+          if (l.tabla === 'ad_price_cycles' && l.op === 'select') {
+            if (l.filtros.some(([op, col]) => op === 'lt' && col === 'ciclo')) return { data: [FILA_ANT], error: null }
+            return { data: [CICLO_ACTUAL], error: null }
+          }
+          if (l.tabla === 'ad_prices' && l.op === 'select') {
+            return { data: [{ producto: 'destacado-3', precio_ars: 8500, precio_usd: 6, tipo_cambio: 1530, estado: 'aprobado' }], error: null }
+          }
+          return undefined
+        },
+      })
+      const res = await cargarAudienciaYTipoCambio({ ciclo: CICLO, audienciaWeb28d: 490 })
+      expect(res).toEqual({ ok: false, error: 'DB_ERROR', mensaje: 'No se pudo leer el ciclo. Intentá de nuevo.' })
+      expect(escrituras(db.llamadas)).toHaveLength(0)
+      expect(revalidatePath).not.toHaveBeenCalled()
+      expect(JSON.stringify(vi.mocked(console.error).mock.calls)).not.toContain(ADMIN_ID)
+    })
   })
 
   it('calcula la ocupación de los dos meses con Σ ocupados / Σ cupos', async () => {
