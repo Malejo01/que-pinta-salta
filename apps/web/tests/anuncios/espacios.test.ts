@@ -16,7 +16,7 @@ import { fileURLToPath } from 'node:url'
 
 import * as React from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import { es } from '@/lib/i18n/diccionarios/es'
 
 const WEB_ROOT = fileURLToPath(new URL('../../', import.meta.url))
@@ -142,23 +142,30 @@ describe('AdSenseBanner: con ADS_ENABLED=false', () => {
 // en app/@modal/**.
 // ---------------------------------------------------------------------------
 describe('Detector de lugares: <AdSenseBanner solo en portada, ficha y buscar', () => {
+  let archivosTsx: string[] = []
+
+  beforeAll(() => {
+    archivosTsx = [
+      ...listarTsx(path.join(WEB_ROOT, 'components')),
+      ...listarTsx(path.join(WEB_ROOT, 'app')),
+    ]
+  })
+
   it('aparece exactamente en home-content.tsx, event-detail-page.tsx y buscar-content.tsx', () => {
-    const conElBanner = [
+    const conElBanner = archivosTsx
+      .filter((abs) => readFileSync(abs, 'utf8').includes('<AdSenseBanner'))
+      .map((abs) => path.relative(WEB_ROOT, abs).replace(/\\/g, '/'))
+      .sort()
+
+    expect(conElBanner).toEqual([
       'app/buscar/buscar-content.tsx',
       'components/event-detail-page.tsx',
       'components/home-content.tsx',
-    ]
-
-    for (const rel of conElBanner) {
-      expect(readSource(rel)).toContain('<AdSenseBanner')
-    }
+    ])
   })
 
   it('ningún event-modal*.tsx lo usa', () => {
-    const componentesDir = path.join(WEB_ROOT, 'components')
-    const modales = readdirSync(componentesDir, { withFileTypes: true })
-      .filter((ent) => ent.isFile() && /^event-modal.*\.tsx$/.test(ent.name))
-      .map((ent) => path.join(componentesDir, ent.name))
+    const modales = archivosTsx.filter((abs) => /^event-modal.*\.tsx$/.test(path.basename(abs)))
     expect(modales.length).toBeGreaterThan(0)
     for (const abs of modales) {
       expect(readFileSync(abs, 'utf8')).not.toContain('<AdSenseBanner')
@@ -166,7 +173,10 @@ describe('Detector de lugares: <AdSenseBanner solo en portada, ficha y buscar', 
   })
 
   it('ningún archivo bajo app/@modal/ lo usa', () => {
-    const archivosModal = listarTsx(path.join(WEB_ROOT, 'app', '@modal'))
+    const archivosModal = archivosTsx.filter((abs) => {
+      const rel = path.relative(WEB_ROOT, abs).replace(/\\/g, '/')
+      return rel.startsWith('app/@modal/')
+    })
     expect(archivosModal.length).toBeGreaterThan(0)
     for (const abs of archivosModal) {
       expect(readFileSync(abs, 'utf8')).not.toContain('<AdSenseBanner')
