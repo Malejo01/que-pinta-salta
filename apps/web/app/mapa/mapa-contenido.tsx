@@ -5,7 +5,16 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { MapaDiferido } from "@/components/mapa/mapa-diferido"
 import { ListaLugares, idBloqueLugar } from "@/components/mapa/lista-lugares"
-import { BASE_BOTON, BOTON_ACTIVO, BOTON_INACTIVO, FiltrosQue, nombresDeFiltrosExtra } from "@/components/mapa/filtros-mapa"
+import {
+  BASE_BOTON,
+  BOTON_ACTIVO,
+  BOTON_INACTIVO,
+  FiltrosQue,
+  navegarCon,
+  nombresDeFiltrosExtra,
+  propsDeChip,
+  urlDelMapa,
+} from "@/components/mapa/filtros-mapa"
 import { formatSaltaDayKey } from "@/lib/date-format"
 import { DIAS_MAXIMOS_FECHA_MAPA, type FiltroMapa, type PinLugar } from "@qps/core/mapa/pines"
 import {
@@ -44,8 +53,39 @@ function textoDelContador(pines: PinLugar[]): string {
   return `${eventos} ${eventos === 1 ? "evento" : "eventos"} en ${pines.length} ${pines.length === 1 ? "lugar" : "lugares"}`
 }
 
+// El alto del mapa y de la lista en la compu: lo que queda de la pantalla
+// debajo de la barra, el título, las dos filas de filtros y el contador (24rem,
+// con margen para "Quitar filtros" y la línea de "sin ubicación"), así en
+// 1280×900 el mapa entra entero; 24rem de mínimo para pantallas bajas. El mismo
+// alto está escrito en `loading.tsx` (lo mira `tests/mapa/componentes.test.ts`).
+const ALTO_LG = "lg:h-[max(24rem,calc(100dvh-24rem))]"
+const ALTO_MAX_LG = "lg:max-h-[max(24rem,calc(100dvh-24rem))]"
+
 function comportamientoDeScroll(): ScrollBehavior {
   return window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth"
+}
+
+/** Lo que dice el lector de pantalla al tocar un pin: "Peña La Casona, seleccionado: 3 eventos". */
+export function textoDeSeleccion(pin: PinLugar): string {
+  const eventos = pin.eventos.length
+  return `${pin.nombre}, seleccionado: ${eventos} ${eventos === 1 ? "evento" : "eventos"}`
+}
+
+/** Lo que dice el lector de pantalla con "Ver en el mapa". */
+export function textoDeCentrado(pin: PinLugar): string {
+  return `Mapa centrado en ${pin.nombre}`
+}
+
+/**
+ * `true` si el centro del bloque (donde el mapa deja el pin centrado) está en
+ * pantalla, debajo de la barra fija de arriba (su alto es el `scroll-margin-top`
+ * del bloque).
+ */
+function seVeElCentro(elemento: HTMLElement): boolean {
+  const caja = elemento.getBoundingClientRect()
+  const barra = Number.parseFloat(window.getComputedStyle(elemento).scrollMarginTop) || 0
+  const centro = caja.top + caja.height / 2
+  return centro >= barra && centro <= window.innerHeight
 }
 
 /**
@@ -63,7 +103,18 @@ export function MapaContenido({ pines, sinUbicacion, filtro, extra, categorias, 
     lugarInicial ? { venueId: lugarInicial, n: 0 } : null
   )
   const bloqueMapa = useRef<HTMLDivElement>(null)
-  const chipGratis = useRef<HTMLButtonElement>(null)
+  const bloqueLista = useRef<HTMLDivElement>(null)
+  const chipGratis = useRef<HTMLAnchorElement>(null)
+  // Lo que anuncia el lector de pantalla al seleccionar desde el mapa o con
+  // "Ver en el mapa" (WCAG 4.1.3). `n` sube en cada anuncio: el mismo texto dos
+  // veces seguidas se vuelve a decir (ver abajo).
+  const [anuncio, setAnuncio] = useState({ texto: "", n: 0 })
+  // Si el mapa no carga, "Ver en el mapa" llevaría al aviso de error: se saca.
+  // Vuelve si el mapa carga después (por ejemplo, otro día sin pines desmonta
+  // el mapa y al volver arranca bien): `onListo`.
+  const [mapaDisponible, setMapaDisponible] = useState(true)
+  // El bloque (id) del lugar cuyo "Ver en el mapa" tenía el foco cuando el mapa falló: el foco pasa a su primer evento.
+  const rescatarFocoEn = useRef<string | null>(null)
   // "Quitar filtros" desaparece cuando ya no hay filtros: el foco se pasa al chip "Gratis" al terminar.
   const enfocarGratisAlTerminar = useRef(false)
 
@@ -102,6 +153,31 @@ export function MapaContenido({ pines, sinUbicacion, filtro, extra, categorias, 
     if (activo === null || activo === document.body) chipGratis.current?.focus()
   }, [cambiando])
 
+  // `?lugar=`: el lugar abre seleccionado y la lista lo lleva a la vista, arriba
+  // de todo (así se ven sus eventos). Solo si la lista tiene scroll propio (en
+  // la compu, al lado del mapa): en el celular el mapa va arriba y ya muestra el
+  // pin centrado, y bajar la página hasta la lista lo sacaría de la vista. Se
+  // mueve solo la lista (`scrollTo`): `scrollIntoView` también corría la página.
+  useEffect(() => {
+    const lista = bloqueLista.current
+    const lugar = lugarInicial ? document.getElementById(idBloqueLugar(lugarInicial)) : null
+    if (!lista || !lugar || lista.scrollHeight <= lista.clientHeight) return
+    const caja = lugar.getBoundingClientRect()
+    const vista = lista.getBoundingClientRect()
+    if (caja.top >= vista.top && caja.bottom <= vista.bottom) return
+    lista.scrollTo({ top: lista.scrollTop + caja.top - vista.top, behavior: comportamientoDeScroll() })
+    // Solo al abrir la página: después la selección la mueven el mapa y la lista.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  useEffect(() => {
+    if (mapaDisponible || rescatarFocoEn.current === null) return
+    const lugar = document.getElementById(rescatarFocoEn.current)
+    rescatarFocoEn.current = null
+    const activo = document.activeElement
+    if (activo === null || activo === document.body) lugar?.querySelector<HTMLElement>("a[href]")?.focus()
+  }, [mapaDisponible])
+
   // Si el filtro nuevo no trae el lugar seleccionado, no hay nada que resaltar.
   const seleccionVigente = seleccionado && pines.some((pin) => pin.venueId === seleccionado) ? seleccionado : null
 
@@ -109,11 +185,13 @@ export function MapaContenido({ pines, sinUbicacion, filtro, extra, categorias, 
   const maximo = sumarDias(hoy, DIAS_MAXIMOS_FECHA_MAPA)
   const textoDelFiltro = filtro.tipo === "hoy" ? "hoy" : filtro.tipo === "finde" ? "este finde" : "esta fecha"
   const conFiltrosExtra = hayFiltrosExtra(extra)
+  const urlSinFiltros = urlDelMapa(pedido.filtro, SIN_FILTROS_EXTRA)
 
   function irA(consulta: string) {
     // Otro filtro, otra lista: el lugar seleccionado no tiene que revivir después.
     setSeleccionado(null)
     setCentrar(null)
+    setAnuncio((anterior) => ({ texto: "", n: anterior.n }))
     iniciarCambio(() => {
       router.replace(`/mapa?${consulta}`, { scroll: false })
     })
@@ -125,7 +203,9 @@ export function MapaContenido({ pines, sinUbicacion, filtro, extra, categorias, 
     irA(consultaDelMapa(filtroNuevo, extraNuevo))
   }
 
-  function quitarFiltros() {
+  /** El `onNavigate` de los "Quitar filtros" (que son links): navega desde acá, como los chips. */
+  function alQuitarFiltros(evento: { preventDefault: () => void }) {
+    evento.preventDefault()
     enfocarGratisAlTerminar.current = true
     pedir(pedido.filtro, SIN_FILTROS_EXTRA)
   }
@@ -134,17 +214,39 @@ export function MapaContenido({ pines, sinUbicacion, filtro, extra, categorias, 
     setCentrar((anterior) => ({ venueId, n: (anterior?.n ?? 0) + 1 }))
   }
 
+  function anunciar(texto: string) {
+    setAnuncio((anterior) => ({ texto, n: anterior.n + 1 }))
+  }
+
   function alSeleccionarEnElMapa(venueId: string) {
     setSeleccionado(venueId)
     ordenarCentrar(venueId)
+    const pin = pines.find((candidato) => candidato.venueId === venueId)
+    if (pin) anunciar(textoDeSeleccion(pin))
     document.getElementById(idBloqueLugar(venueId))?.scrollIntoView({ block: "nearest", behavior: comportamientoDeScroll() })
   }
 
   function alVerEnElMapa(venueId: string) {
     setSeleccionado(venueId)
     ordenarCentrar(venueId)
-    // En el celular el mapa queda arriba de la lista: se lo trae a la vista.
-    bloqueMapa.current?.scrollIntoView({ block: "nearest", behavior: comportamientoDeScroll() })
+    const pin = pines.find((candidato) => candidato.venueId === venueId)
+    if (pin) anunciar(textoDeCentrado(pin))
+    // En el celular el mapa queda arriba de la lista. Si el centro del mapa (el
+    // pin) ya se ve, no se mueve nada y el botón con el foco sigue en pantalla.
+    // Si no se ve, se sube la página hasta el mapa y el botón con el foco queda
+    // FUERA de la pantalla (a 360×740, desde el 3.er lugar en adelante): el foco
+    // no se mueve (sigue en el botón y el próximo Tab sigue desde ahí, que el
+    // navegador vuelve a mostrar), y el anuncio "Mapa centrado en …" explica el salto.
+    const mapa = bloqueMapa.current
+    if (mapa && !seVeElCentro(mapa)) mapa.scrollIntoView({ block: "nearest", behavior: comportamientoDeScroll() })
+  }
+
+  function alFallarElMapa() {
+    // Si el foco estaba en un "Ver en el mapa" (que se va), no se pierde: pasa al primer evento de ese lugar.
+    const activo = document.activeElement
+    const lugar = activo instanceof HTMLElement && activo.hasAttribute("data-ver-en-el-mapa") ? activo.closest("li[id]") : null
+    if (lugar) rescatarFocoEn.current = lugar.id
+    setMapaDisponible(false)
   }
 
   return (
@@ -152,30 +254,40 @@ export function MapaContenido({ pines, sinUbicacion, filtro, extra, categorias, 
       <h1 className="text-2xl font-bold text-foreground sm:text-3xl">Mapa de eventos en Salta</h1>
       <p className="mt-1 text-sm text-muted-foreground">Mirá dónde pasa cada plan y elegí por día.</p>
 
-      <div className="mt-4 space-y-2">
+      {/*
+        Los chips son links a su URL (funcionan sin JavaScript y antes de
+        hidratar) presentados como botones de alternar (`propsDeChip`: role
+        "button", aria-pressed y Espacio); el día y la categoría, sin JavaScript, se mandan con este
+        formulario y los botones de los <noscript>. Con JavaScript el
+        formulario no se envía nunca: cada cambio navega desde `pedir`.
+      */}
+      <form action="/mapa" method="get" onSubmit={(evento) => evento.preventDefault()} className="mt-4 space-y-2">
         <div role="group" aria-label="Cuándo" className="flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            aria-pressed={filtro.tipo === "hoy"}
-            onClick={() => pedir({ tipo: "hoy" }, pedido.extra)}
+          <Link
+            href={urlDelMapa({ tipo: "hoy" }, pedido.extra)}
+            prefetch={false}
+            {...propsDeChip(filtro.tipo === "hoy")}
+            onNavigate={navegarCon(() => pedir({ tipo: "hoy" }, pedido.extra))}
             className={`${BASE_BOTON} ${filtro.tipo === "hoy" ? BOTON_ACTIVO : BOTON_INACTIVO}`}
           >
             Hoy
-          </button>
-          <button
-            type="button"
-            aria-pressed={filtro.tipo === "finde"}
-            onClick={() => pedir({ tipo: "finde" }, pedido.extra)}
+          </Link>
+          <Link
+            href={urlDelMapa({ tipo: "finde" }, pedido.extra)}
+            prefetch={false}
+            {...propsDeChip(filtro.tipo === "finde")}
+            onNavigate={navegarCon(() => pedir({ tipo: "finde" }, pedido.extra))}
             className={`${BASE_BOTON} ${filtro.tipo === "finde" ? BOTON_ACTIVO : BOTON_INACTIVO}`}
           >
             Este finde
-          </button>
+          </Link>
           <label
             className={`${BASE_BOTON} gap-2 focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-primary ${filtro.tipo === "fecha" ? BOTON_ACTIVO : BOTON_INACTIVO}`}
           >
             <span>Elegir fecha</span>
             <input
               type="date"
+              name="dia"
               min={hoy}
               max={maximo}
               value={diaElegido}
@@ -188,14 +300,20 @@ export function MapaContenido({ pines, sinUbicacion, filtro, extra, categorias, 
               className="rounded bg-background px-2 py-1 text-foreground"
             />
           </label>
+          <noscript>
+            <button type="submit" name="cuando" value="fecha" className={`${BASE_BOTON} ${BOTON_INACTIVO}`}>
+              Ver ese día
+            </button>
+          </noscript>
         </div>
         <FiltrosQue
           extra={pedido.extra}
+          filtro={pedido.filtro}
           categorias={categorias}
           onCambiar={(extraNuevo) => pedir(pedido.filtro, extraNuevo)}
           refGratis={chipGratis}
         />
-      </div>
+      </form>
 
       <div className={`mt-4 transition-opacity ${cambiando ? "opacity-60" : ""}`}>
         {/* Siempre montado: un aria-live que aparece junto con su texto no siempre se anuncia. */}
@@ -210,15 +328,22 @@ export function MapaContenido({ pines, sinUbicacion, filtro, extra, categorias, 
           </p>
           {/* Sin pines, el "Quitar filtros" grande del vacío alcanza: no van dos botones iguales. */}
           {conFiltrosExtra && pines.length > 0 ? (
-            <button
-              type="button"
-              onClick={quitarFiltros}
+            <Link
+              href={urlSinFiltros}
+              prefetch={false}
+              onNavigate={alQuitarFiltros}
               className="inline-flex min-h-11 items-center rounded-sm text-sm font-medium text-primary underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
             >
               Quitar filtros
-            </button>
+            </Link>
           ) : null}
         </div>
+        {/* Aparte del contador: qué lugar se eligió en el mapa o dónde se centró (WCAG 4.1.3). */}
+        <p aria-live="polite" aria-atomic="true" data-anuncio-mapa="" className="sr-only">
+          {anuncio.texto}
+          {/* El mismo texto dos veces seguidas no se vuelve a anunciar: un espacio duro alterno lo cambia. */}
+          {anuncio.texto && anuncio.n % 2 === 1 ? "\u00a0" : ""}
+        </p>
         {sinUbicacion > 0 ? (
           <p className="mt-1 text-sm text-muted-foreground">
             {sinUbicacion} {sinUbicacion === 1 ? "evento no aparece" : "eventos no aparecen"} en el mapa porque{" "}
@@ -236,13 +361,14 @@ export function MapaContenido({ pines, sinUbicacion, filtro, extra, categorias, 
               Filtros: {nombresDeFiltrosExtra(extra, categorias)}. Probá con otra fecha o sacá alguno.
             </p>
             <div className="mt-4 flex flex-wrap items-center justify-center gap-x-4 gap-y-2">
-              <button
-                type="button"
-                onClick={quitarFiltros}
+              <Link
+                href={urlSinFiltros}
+                prefetch={false}
+                onNavigate={alQuitarFiltros}
                 className="inline-flex min-h-11 items-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
               >
                 Quitar filtros
-              </button>
+              </Link>
               {/* text-foreground y subrayado: el primario sobre bg-card no llega a 4,5:1 en el tema oscuro. */}
               <Link
                 href="/buscar"
@@ -270,11 +396,13 @@ export function MapaContenido({ pines, sinUbicacion, filtro, extra, categorias, 
                 seleccionado={seleccionVigente}
                 centrar={centrar}
                 onSeleccionar={alSeleccionarEnElMapa}
-                className="h-[45dvh] min-h-64 lg:h-[70vh]"
+                onFallo={alFallarElMapa}
+                onListo={() => setMapaDisponible(true)}
+                className={`h-[45dvh] min-h-64 ${ALTO_LG}`}
               />
             </div>
-            <div className="lg:max-h-[70vh] lg:overflow-y-auto lg:pr-1">
-              <ListaLugares pines={pines} seleccionado={seleccionVigente} onVerEnElMapa={alVerEnElMapa} />
+            <div ref={bloqueLista} className={`${ALTO_MAX_LG} lg:overflow-y-auto lg:pr-1`}>
+              <ListaLugares pines={pines} seleccionado={seleccionVigente} onVerEnElMapa={alVerEnElMapa} mapaDisponible={mapaDisponible} />
             </div>
           </div>
         )}

@@ -262,6 +262,53 @@ describe('"Ver en el mapa": el nombre accesible contiene el texto visible', () =
   })
 })
 
+/** Las clases `lg:h-[…]` de un código (el alto del mapa o de su esqueleto en la compu). */
+function altosLg(codigo: string): string[] {
+  return codigo.match(/\blg:h-\[[^\]\s"'`]+\]/g) ?? []
+}
+
+describe('el alto del mapa en la compu entra en 1280×900 (C5)', () => {
+  const contenido = leer(CONTENIDO)
+  const loading = leer(LOADING)
+
+  it('el mapa y su esqueleto de carga usan el mismo alto, que depende del alto de la pantalla', () => {
+    const delMapa = altosLg(contenido)
+    expect(delMapa).toHaveLength(1)
+    expect(delMapa[0]).toMatch(/100dvh/)
+    expect(altosLg(loading)).toEqual(delMapa)
+  })
+
+  it('la lista de al lado no pasa del alto del mapa', () => {
+    const alto = altosLg(contenido)[0].replace(/^lg:h-/, '')
+    expect(contenido).toContain(`lg:max-h-${alto}`)
+  })
+
+  it('no queda el 70vh viejo (en 1280×900 el mapa terminaba en y≈975)', () => {
+    expect(contenido).not.toMatch(/70vh/)
+    expect(loading).not.toMatch(/70vh/)
+  })
+
+  it('un detector se pone en rojo si el esqueleto se queda con otro alto', () => {
+    expect(altosLg(loading.replace(altosLg(loading)[0], 'lg:h-[70vh]'))).not.toEqual(altosLg(contenido))
+  })
+})
+
+describe('sin JavaScript /mapa no se queda en el esqueleto de carga (C5)', () => {
+  it('loading.tsx trae un <noscript><style> que muestra la página marcada con data-pagina-mapa y esconde el esqueleto', () => {
+    const loading = leer(LOADING)
+    expect(loading).toMatch(/<noscript>\s*<style>\{SIN_JS_MOSTRAR_LA_PAGINA\}<\/style>\s*<\/noscript>/)
+    // En @layer theme: si no, el `[hidden]{display:none!important}` del preflight (en @layer base) le gana.
+    expect(loading).toContain('div[hidden]:has(> [data-pagina-mapa]){display:block!important;order:-1}')
+    expect(loading).toMatch(/"@layer theme\{body\{display:flex!important;flex-direction:column\}/)
+    expect(loading).toContain('[data-cargando-mapa]{display:none!important}')
+    expect(loading).toMatch(/<div role="status"[^>]*data-cargando-mapa=""/)
+  })
+
+  it('la página lleva la marca en su contenedor de afuera', () => {
+    expect(leer(PAGINA)).toMatch(/return \(\s*<div data-pagina-mapa=""/)
+  })
+})
+
 describe('el área de toque y los gestos del mapa', () => {
   const codigo = leer(MAPLIBRE)
 
