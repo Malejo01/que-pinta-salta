@@ -105,9 +105,13 @@ describe('app/sitemap.ts, rama con Supabase configurado', () => {
     const { urls } = await sitemapCon('23 de octubre de 2026')
     expect(urls.map((u) => u.url.slice(BASE.length))).toEqual([
       '',
+      '/en',
       '/cines',
+      '/en/cines',
       '/buscar',
+      '/en/buscar',
       '/mapa',
+      '/en/mapa',
       '/privacidad',
       '/terminos',
       '/eliminar-cuenta',
