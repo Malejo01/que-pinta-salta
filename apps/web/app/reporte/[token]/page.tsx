@@ -111,7 +111,7 @@ export default async function ReportePage({ params }: { params: Promise<{ token:
     validadas && validadas.vistas !== undefined && validadas.clics !== undefined ? validadas : null
 
   return (
-    <main className="mx-auto flex min-h-dvh max-w-md flex-col gap-5 bg-background px-4 py-8">
+    <main id="contenido" tabIndex={-1} className="mx-auto flex min-h-dvh max-w-md flex-col gap-5 bg-background px-4 py-8 focus:outline-none">
       <header className="space-y-1">
         <p className="text-xs font-semibold uppercase tracking-wide text-primary">{tipo}</p>
         <h1 className="text-2xl font-extrabold tracking-tight text-foreground">{titulo}</h1>

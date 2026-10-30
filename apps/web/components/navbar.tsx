@@ -78,7 +78,7 @@ export function Navbar() {
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      <nav className="container mx-auto flex h-16 items-center justify-between px-4">
+      <nav aria-label={t.navPrincipal} className="container mx-auto flex h-16 items-center justify-between px-4">
         {/* `shrink-0`: a 320 px el logo no se aplasta cuando el lado derecho se llena. */}
         <Link href={rutaEn(idioma, "/")} className="flex shrink-0 items-center gap-2.5">
           {/* Wrapper con ring rojo en dark mode para reemplazar el halo crema */}
@@ -94,8 +94,8 @@ export function Navbar() {
           </div>
           <div className="hidden sm:block leading-none">
             <span
-              className="block text-lg leading-tight"
-              style={{ fontFamily: 'var(--font-yellowtail)', color: '#C12026' }}
+              className="block text-lg leading-tight text-[#C12026] dark:text-[#F0585D]"
+              style={{ fontFamily: 'var(--font-yellowtail)' }}
               suppressHydrationWarning
             >
               Que pinta?
@@ -117,14 +117,14 @@ export function Navbar() {
         <div className="flex items-center gap-1 min-[360px]:gap-2">
           <Button asChild variant="ghost" size="icon" className="hidden sm:inline-flex text-muted-foreground hover:text-primary transition-colors">
             <Link href={rutaEn(idioma, "/buscar")} hrefLang={hrefLangDestino(idioma, "/buscar")} aria-label={t.buscarEventos} prefetch={false}>
-              <Search className="size-5" />
+              <Search aria-hidden="true" className="size-5" />
             </Link>
           </Button>
 
           <Button asChild variant="ghost" size="icon" className="hidden sm:inline-flex text-muted-foreground hover:text-primary transition-colors">
             {/* /mapa todavía no tiene versión en inglés (llega en el PR siguiente). */}
             <Link href="/mapa" hrefLang={hrefLangDestino(idioma, "/mapa")} aria-label={t.verMapa} prefetch={false}>
-              <Map className="size-5" />
+              <Map aria-hidden="true" className="size-5" />
             </Link>
           </Button>
 
@@ -133,11 +133,12 @@ export function Navbar() {
               variant="outline"
               size="sm"
               onClick={() => openDonationModal()}
-              className="flex items-center justify-center border-[#C12026]/30 text-[#C12026] hover:bg-[#C12026]/10 hover:text-[#C12026] transition-colors p-2 sm:px-3"
+              className="flex items-center justify-center border-[#C12026]/30 text-[#C12026] dark:text-[#F0585D] hover:bg-[#C12026]/10 hover:text-[#C12026] dark:hover:text-[#F0585D] transition-colors p-2 sm:px-3"
               title={t.apoyarTitulo}
             >
-              <Coffee className="size-4 sm:mr-2" />
-              <span className="hidden sm:inline">{t.apoyar}</span>
+              <Coffee aria-hidden="true" className="size-4 sm:mr-2" />
+              {/* Debajo de `sm` el texto queda solo para lectores de pantalla. */}
+              <span className="sr-only sm:not-sr-only">{t.apoyar}</span>
             </Button>
           )}
 
@@ -147,8 +148,8 @@ export function Navbar() {
             onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
             aria-label={t.cambiarTema}
           >
-            <Sun className="size-5 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
-            <Moon className="absolute size-5 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
+            <Sun aria-hidden="true" className="size-5 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
+            <Moon aria-hidden="true" className="absolute size-5 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
           </Button>
           
           {/* Favoritos y Radar: ocultos en celular (están en la barra inferior,
@@ -159,8 +160,10 @@ export function Navbar() {
                 <TooltipTrigger asChild>
                   <Button asChild variant="ghost" className="hidden sm:inline-flex text-muted-foreground hover:text-red-500 transition-colors mr-1 gap-2 font-semibold text-sm">
                     <Link href={rutaEn(idioma, "/favoritos")} hrefLang={hrefLangDestino(idioma, "/favoritos")}>
-                      <Heart className="size-4.5 text-red-500 fill-red-500/10" />
-                      <span className="hidden sm:inline">{t.misEventos}</span>
+                      <Heart aria-hidden="true" className="size-4.5 text-red-500 fill-red-500/10" />
+                      {/* El link ya es `hidden` debajo de `sm`; el texto no se oculta nunca,
+                          así el nombre accesible siempre coincide con lo visible. */}
+                      <span>{t.misEventos}</span>
                     </Link>
                   </Button>
                 </TooltipTrigger>
@@ -173,8 +176,8 @@ export function Navbar() {
                 <TooltipTrigger asChild>
                   <Button asChild variant="ghost" className="hidden sm:inline-flex text-muted-foreground hover:text-primary transition-colors mr-1 gap-2 font-semibold text-sm">
                     <Link href={rutaEn(idioma, "/radar")} hrefLang={hrefLangDestino(idioma, "/radar")}>
-                      <Radio className="size-4.5 text-primary" />
-                      <span className="hidden sm:inline">{t.radarSalteno}</span>
+                      <Radio aria-hidden="true" className="size-4.5 text-primary" />
+                      <span>{t.radarSalteno}</span>
                     </Link>
                   </Button>
                 </TooltipTrigger>
@@ -188,7 +191,7 @@ export function Navbar() {
           {isAdmin && (
             <Button asChild variant="outline" className="hidden sm:inline-flex">
               <Link href={rutaEn(idioma, "/nuevo-evento")} hrefLang={hrefLangDestino(idioma, "/nuevo-evento")}>
-                <Plus className="mr-2 size-4" />
+                <Plus aria-hidden="true" className="mr-2 size-4" />
                 {t.agregarEvento}
               </Link>
             </Button>
@@ -202,8 +205,8 @@ export function Navbar() {
               {user ? (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon">
-                      <User className="size-5" />
+                    <Button variant="ghost" size="icon" aria-label={t.menuUsuario}>
+                      <User aria-hidden="true" className="size-5" />
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
@@ -281,7 +284,7 @@ export function Navbar() {
               ) : (
                 <Button asChild variant="default" className="min-w-[115px]">
                   <Link href={rutaEn(idioma, "/auth/login")} hrefLang={hrefLangDestino(idioma, "/auth/login")} prefetch={false}>
-                    <LogIn className="mr-2 size-4" />
+                    <LogIn aria-hidden="true" className="mr-2 size-4" />
                     {t.ingresar}
                   </Link>
                 </Button>

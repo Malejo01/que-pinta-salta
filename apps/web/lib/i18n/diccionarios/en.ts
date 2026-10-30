@@ -59,6 +59,10 @@ export const en = {
     buscar: 'Search',
     mapa: 'Map',
     radar: 'Radar',
+    saltarAlContenido: 'Skip to content',
+    navPrincipal: 'Main',
+    navInferior: 'Bottom navigation',
+    menuUsuario: 'User menu',
   },
   pie: {
     descripcion: 'Find every event, folk music night (peña), club, theater show and more happening in Salta City.',
@@ -126,6 +130,7 @@ export const en = {
     proximasFunciones: 'Upcoming dates',
     sinHora: 'Time TBA',
     clickDetalles: 'Click for details',
+    masItems: (n: number) => `+${n} more`,
     graciasPorCompartir:
       'Thanks for sharing! If Qué Pinta Salta helps you plan your weekend, would you buy us a coffee to fund the official mobile app?',
     masFechas: (n: number) => `+${n} dates`,

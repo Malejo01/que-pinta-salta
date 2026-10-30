@@ -207,7 +207,7 @@ export function HomeContent({
     <div className="min-h-screen bg-background pb-page sm:pb-0">
       <Navbar />
 
-      <main>
+      <main id="contenido" tabIndex={-1} className="focus:outline-none">
         <h1 className="sr-only">{t.tituloOculto}</h1>
         {/* Arriba de todo, debajo del h1: lo primero que se lee en /en. */}
         {idioma === "en" && <AvisoContenidoEs className="container mx-auto px-4 py-2" />}

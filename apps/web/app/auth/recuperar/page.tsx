@@ -82,7 +82,7 @@ export default function RecuperarPage() {
   }
 
   return (
-    <main id="contenido" className="relative flex min-h-svh w-full flex-col items-center justify-center p-6 md:p-10 bg-background overflow-hidden">
+    <main id="contenido" tabIndex={-1} className="relative flex min-h-svh w-full flex-col items-center justify-center p-6 md:p-10 bg-background overflow-hidden focus:outline-none">
       {/* Patrón de fondo de marca */}
       <div
         className="pointer-events-none absolute inset-0 bg-repeat opacity-[0.06] dark:opacity-[0.035] dark:invert dark:hue-rotate-180"

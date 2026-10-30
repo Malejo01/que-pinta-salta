@@ -123,7 +123,7 @@ export default async function FavoritosPage() {
     <div className="min-h-screen bg-background pb-page sm:pb-0">
       <Navbar />
 
-      <main className="container mx-auto px-4 py-8">
+      <main id="contenido" tabIndex={-1} className="container mx-auto px-4 py-8 focus:outline-none">
         <FavoritosList voy={voy} flexibles={guardados.flexibles} porDia={guardados.porDia} />
       </main>
 

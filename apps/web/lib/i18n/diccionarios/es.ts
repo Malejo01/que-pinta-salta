@@ -38,6 +38,11 @@ export const es = {
     buscar: 'Buscar',
     mapa: 'Mapa',
     radar: 'Radar',
+    // Accesibilidad (77-a1): nombres de los landmarks y del link de salto.
+    saltarAlContenido: 'Saltar al contenido',
+    navPrincipal: 'Principal',
+    navInferior: 'Navegación inferior',
+    menuUsuario: 'Menú de usuario',
   },
   pie: {
     descripcion: 'Descubrí todos los eventos, peñas, boliches, teatros y más que están pasando en Salta Capital.',
@@ -108,6 +113,7 @@ export const es = {
     proximasFunciones: 'Próximas Funciones',
     sinHora: 'Sin hora',
     clickDetalles: 'Click para ver detalles',
+    masItems: (n: number) => `+${n} más`,
     graciasPorCompartir:
       '¡Gracias por compartir! Si Qué Pinta Salta te ayuda a organizar tu finde, ¿nos invitás un cafecito para fondear el desarrollo de la App móvil oficial?',
     // Pie de la tarjeta con varias funciones: "+3 fechas" (el resto lo arma fechas.ts).

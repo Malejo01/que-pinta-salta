@@ -22,7 +22,7 @@ export default async function EliminarCuentaPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <main className="container mx-auto max-w-2xl px-4 py-12">
+      <main id="contenido" tabIndex={-1} className="container mx-auto max-w-2xl px-4 py-12 focus:outline-none">
         <Button asChild variant="ghost" size="sm" className="mb-6 -ml-2 text-muted-foreground">
           <Link href="/perfil">
             <ArrowLeft className="mr-2 size-4" />

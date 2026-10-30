@@ -34,7 +34,7 @@ export default async function RadarBajaPage({ searchParams }: { searchParams: Se
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
-      <main className="container mx-auto max-w-md px-4 py-16">
+      <main id="contenido" tabIndex={-1} className="container mx-auto max-w-md px-4 py-16 focus:outline-none">
         <div className="space-y-5 rounded-2xl border border-border bg-card p-6 text-center text-card-foreground shadow-sm">
           {listo ? (
             <>

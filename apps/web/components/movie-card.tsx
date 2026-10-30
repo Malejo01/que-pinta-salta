@@ -67,9 +67,10 @@ export function MovieCard({ movie, carga = 'diferida', id }: MovieCardProps) {
       {/* Título de la película */}
       <div className="mt-4 flex flex-col gap-1 min-h-[3.5rem]">
         {/* El título viene del cine, en castellano: en /en va con lang="es". */}
-        <h3 lang={idioma === 'es' ? undefined : 'es'} className="text-lg font-bold tracking-tight text-foreground group-hover:text-primary transition-colors duration-300 line-clamp-2">
+        {/* 77-a1: `h2` (la grilla de cartelera cuelga del `h1` de la página; antes saltaba a `h3`). */}
+        <h2 lang={idioma === 'es' ? undefined : 'es'} className="text-lg font-bold tracking-tight text-foreground group-hover:text-primary transition-colors duration-300 line-clamp-2">
           {movie.title}
-        </h3>
+        </h2>
       </div>
 
       <div className="mt-2 border-t border-border pt-3 flex-1 flex flex-col justify-end">

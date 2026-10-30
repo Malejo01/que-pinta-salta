@@ -27,10 +27,10 @@ export default async function MisEventosPage() {
     return (
       <div className="min-h-screen bg-background pb-page sm:pb-0">
         <Navbar />
-        <div className="container mx-auto py-10 px-4">
+        <main id="contenido" tabIndex={-1} className="container mx-auto py-10 px-4 focus:outline-none">
           <h1 className="text-2xl font-bold mb-4">Eventos que cargaste</h1>
           <p className="text-destructive">Error al cargar tus eventos.</p>
-        </div>
+        </main>
         <MobileNav />
       </div>
     )
@@ -39,12 +39,12 @@ export default async function MisEventosPage() {
   return (
     <div className="min-h-screen bg-background pb-page sm:pb-0">
       <Navbar />
-      <div className="container mx-auto py-10 px-4">
+      <main id="contenido" tabIndex={-1} className="container mx-auto py-10 px-4 focus:outline-none">
         <div className="flex justify-between items-center mb-6">
           <h1 className="text-2xl font-bold">Eventos que cargaste</h1>
         </div>
         <MisEventosClient initialEvents={events || []} />
-      </div>
+      </main>
       <MobileNav />
     </div>
   )

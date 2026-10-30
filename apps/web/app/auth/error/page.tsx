@@ -8,7 +8,7 @@ import Link from 'next/link'
 // directamente si la cuenta ya tiene contraseña.
 export default function Page() {
   return (
-    <main id="contenido" className="flex min-h-svh w-full items-center justify-center p-6 md:p-10">
+    <main id="contenido" tabIndex={-1} className="flex min-h-svh w-full items-center justify-center p-6 focus:outline-none md:p-10">
       <div className="w-full max-w-sm">
         <div className="flex flex-col gap-6">
           <Card>

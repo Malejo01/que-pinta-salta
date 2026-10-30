@@ -100,7 +100,7 @@ export default function SignUpPage() {
   }
 
   return (
-    <main id="contenido" className="flex min-h-svh w-full flex-col items-center justify-center bg-background p-6 md:p-10">
+    <main id="contenido" tabIndex={-1} className="flex min-h-svh w-full flex-col items-center justify-center bg-background p-6 md:p-10 focus:outline-none">
       <div className="w-full max-w-sm">
         <Link 
           href="/" 
@@ -205,11 +205,11 @@ export default function SignUpPage() {
 
             <p className="mt-4 text-xs text-muted-foreground text-center">
               Al crear tu cuenta aceptás los{' '}
-              <Link href="/terminos" className="text-primary dark:text-red-400 underline underline-offset-4">
+              <Link href="/terminos" className="text-primary dark:text-[#F0585D] underline underline-offset-4">
                 Términos y condiciones
               </Link>{' '}
               y la{' '}
-              <Link href="/privacidad" className="text-primary dark:text-red-400 underline underline-offset-4">
+              <Link href="/privacidad" className="text-primary dark:text-[#F0585D] underline underline-offset-4">
                 Política de Privacidad
               </Link>
               .
@@ -219,7 +219,7 @@ export default function SignUpPage() {
               ¿Ya tenés cuenta?{' '}
               <Link
                 href="/auth/login"
-                className="text-primary dark:text-red-400 underline underline-offset-4"
+                className="text-primary dark:text-[#F0585D] underline underline-offset-4"
               >
                 Iniciar sesión
               </Link>

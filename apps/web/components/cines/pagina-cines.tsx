@@ -36,14 +36,17 @@ export async function PaginaCines({ idioma }: { idioma: Idioma }) {
   const listaDePeliculas = idioma === 'es' ? listaDePeliculasJsonLd(activeMovies) : null
 
   return (
-    <main className="min-h-screen bg-background text-foreground pb-page relative overflow-hidden">
+    // 77-a1: las barras de navegación quedan FUERA del `<main>`. El fondo
+    // (`bg-background`, `min-h-screen`) pasa al contenedor para que el aspecto sea el mismo.
+    <div className="min-h-screen bg-background text-foreground relative overflow-hidden">
+      <Navbar />
+
+      <main id="contenido" tabIndex={-1} className="pb-page focus:outline-none">
       {/* Luces de fondo decorativas (Aesthetics) */}
       <div className="absolute top-[-10%] left-[-20%] w-[600px] h-[600px] rounded-full bg-primary/5 blur-[120px] pointer-events-none" />
       <div className="absolute top-[30%] right-[-25%] w-[500px] h-[500px] rounded-full bg-primary/5 blur-[100px] pointer-events-none" />
 
       {listaDePeliculas && <JsonLd data={conContexto(listaDePeliculas)} />}
-
-      <Navbar />
 
       <div className="container mx-auto px-4 pt-12 md:pt-16 max-w-7xl">
         {/* Header Seccion */}
@@ -63,8 +66,9 @@ export async function PaginaCines({ idioma }: { idioma: Idioma }) {
         {/* Componente de búsqueda y grid */}
         <CinesView movies={activeMovies} />
       </div>
+      </main>
 
       <MobileNav />
-    </main>
+    </div>
   )
 }
