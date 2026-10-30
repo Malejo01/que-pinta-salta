@@ -495,8 +495,9 @@ export async function sendTestRadarEmail(
       ? `Correo de prueba enviado a ${user.email} (${label}), con link y cabeceras de baja.`
       : `Correo de prueba enviado a ${user.email} (${label}) SIN link de baja: falta RADAR_UNSUBSCRIBE_SECRET en este entorno.`
     return { success: true, message: okMessage, count: events.length }
-  } catch (err: any) {
-    console.error("[sendTestRadarEmail] Excepción en envío:", err?.message)
+  } catch (err: unknown) {
+    const errorMsg = err instanceof Error ? err.message : String(err)
+    console.error("[sendTestRadarEmail] Excepción en envío:", errorMsg)
     return { success: false, message: "Ocurrió una excepción inesperada al enviar el correo." }
   }
 }

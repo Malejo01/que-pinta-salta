@@ -26,6 +26,7 @@ interface RadarFormProps {
   initialSettings: RadarSettingsData | null
   categories: Category[]
   venues: Venue[]
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- lista de cuentas de Instagram
   instagramAccounts: any[]
   /** Determinado en el servidor; solo habilita la interfaz de prueba (el freno real está en la acción). */
   isAdmin?: boolean

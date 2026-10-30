@@ -169,6 +169,7 @@ async function scrapeCinemark(
   const html = await res.text();
   const $ = cheerio.load(html);
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- estructura de schema.org dinámica
   let movieTheaterJson: any = null;
   $('script[type="application/ld+json"]').each((i, el) => {
     try {
