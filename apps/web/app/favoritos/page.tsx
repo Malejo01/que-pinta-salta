@@ -10,10 +10,14 @@ import { armarFavoritos, idsDeFavoritos } from "@qps/core/favoritos/armar"
 import { idsDeEventosVoy, separarMisEventos } from "@qps/core/favoritos/mis-eventos"
 import type { Event, Category, Venue, CinemaMovie } from "@/lib/types"
 import type { FlyerWithAccount } from "@/lib/instagram-config"
+import type { Metadata } from "next"
 
-export const metadata = {
-  title: "Mis eventos — Qué Pinta Salta",
+// B2: sin la marca (la agrega la plantilla del layout). `noindex, follow`:
+// es una página privada; sin sesión redirige al ingreso.
+export const metadata: Metadata = {
+  title: "Mis eventos",
   description: "Los eventos, boliches y películas que guardaste para armar tu propia agenda en Salta.",
+  robots: { index: false, follow: true },
 }
 
 export default async function FavoritosPage() {

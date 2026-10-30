@@ -4,7 +4,7 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { createElement, useMemo, useState, useTransition } from "react"
 import { Calendar, MapPin, Clock, Users, ExternalLink, Navigation, ArrowLeft, Pencil, Check, X } from "lucide-react"
-import { vibeLabels, Event, Category, Venue } from "@/lib/types"
+import { Event, Category, Venue } from "@/lib/types"
 import { Navbar } from "@/components/navbar"
 import { MobileNav } from "@/components/mobile-nav"
 import { Badge } from "@/components/ui/badge"
@@ -19,7 +19,12 @@ import {
 } from "@/components/ui/select"
 import { Input } from "@/components/ui/input"
 import { getCategoryIcon } from "@/lib/category-icons"
-import { formatEventDate, formatSaltaDayKey } from "@/lib/date-format"
+import { formatSaltaDayKey } from "@/lib/date-format"
+import { fechaLarga, hora, precio } from "@/lib/i18n/fechas"
+import { langDeCategoria, nombreCategoria } from "@/lib/i18n"
+import { rutaEn } from "@/lib/i18n/rutas"
+import { useIdioma, useTextos } from "@/lib/i18n/use-idioma"
+import { AvisoContenidoEs } from "@/components/aviso-contenido-es"
 import { ageChip, capitalizeFirst, cleanDescription, formatEventTimeDisplay } from "@/lib/event-display"
 import { createCategory, updateEventCategory } from "@/lib/admin-actions"
 import { deferredRefresh } from "@/lib/deferred-refresh"
@@ -77,6 +82,8 @@ export function EventDetailPage({
   haySesion = false,
 }: EventDetailPageProps) {
   const router = useRouter()
+  const idioma = useIdioma()
+  const textos = useTextos()
   const [localCategories, setLocalCategories] = useState<Category[]>(categories)
   const [isEditingCategory, setIsEditingCategory] = useState(false)
   const [isPending, startTransition] = useTransition()
@@ -108,7 +115,19 @@ export function EventDetailPage({
     vibe: ageChip(event.age_restriction),
   }
 
-  const formattedDate = formatEventDate(displayEvent.date, true)
+  const formattedDate = fechaLarga(idioma, displayEvent.date, true)
+
+  // Lo que viene de la fuente (título, descripción, lugar, dirección) queda en
+  // castellano: en inglés lleva `lang="es"`. En castellano no se agrega nada.
+  const langContenido = idioma === "es" ? undefined : "es"
+  const lugarSinNombre = !event.venue?.name
+  const lugarVisible = lugarSinNombre ? textos.portada.lugarPorConfirmar : displayEvent.venue
+  // El nombre de la categoría para el público (en inglés, por slug); el bloque
+  // de admin sigue mostrando el de la base (`displayEvent.categoryName`).
+  const categoriaVisible = currentCategory?.name
+    ? nombreCategoria(textos, currentCategory.slug, currentCategory.name)
+    : textos.ficha.sinCategorizar
+  const langCategoria = currentCategory?.name ? langDeCategoria(idioma, currentCategory.slug) : undefined
 
   // null sin dirección ni lugar: entonces no hay botón (QPS-137), en vez de un link a '#'.
   const googleMapsUrl = urlComoLlegar({ address: displayEvent.address, venue: displayEvent.venue })
@@ -169,11 +188,11 @@ export function EventDetailPage({
       
       <main className="container mx-auto px-4 py-8">
         <Link 
-          href="/"
+          href={rutaEn(idioma, "/")}
           className="mb-6 inline-flex items-center gap-2 text-muted-foreground hover:text-foreground"
         >
           <ArrowLeft className="size-4" />
-          Volver a eventos
+          {textos.ficha.volverAEventos}
         </Link>
 
         <div className="grid gap-8 lg:grid-cols-2">
@@ -182,6 +201,7 @@ export function EventDetailPage({
               variant={800}
               src={displayEvent.image}
               alt={displayEvent.title}
+              lang={langContenido}
               fill
               className="object-cover"
               // B3: el flyer es el LCP de la ficha. `priority` (deprecado en
@@ -190,9 +210,9 @@ export function EventDetailPage({
               preload
               fetchPriority="high"
             />
-            <Badge className="absolute left-4 top-4 bg-primary text-primary-foreground">
+            <Badge className="absolute left-4 top-4 bg-primary text-primary-foreground" lang={langCategoria}>
               {createElement(iconComponent, { className: "mr-1 size-3" })}
-              {displayEvent.categoryName}
+              {categoriaVisible}
             </Badge>
             {/*
               `event` es la fila cruda (`EventWithRelations`), no pasa por
@@ -209,6 +229,7 @@ export function EventDetailPage({
           </div>
 
           <div className="flex flex-col">
+            {idioma !== "es" && <AvisoContenidoEs className="mb-3" />}
             {/*
               Ancla del bloque del título (QPS-199): este es el único <h1>
               de la ficha, y antes el ♥ y Compartir vivían pegados a él. El
@@ -218,7 +239,7 @@ export function EventDetailPage({
               de la fila nueva) para confirmar que salieron de acá.
             */}
             <div className="flex items-start justify-between gap-4 mb-4">
-              <h1 className="text-3xl font-bold text-foreground lg:text-4xl flex-1 leading-tight">
+              <h1 className="text-3xl font-bold text-foreground lg:text-4xl flex-1 leading-tight" lang={langContenido}>
                 {displayEvent.title}
               </h1>
             </div>
@@ -321,7 +342,7 @@ export function EventDetailPage({
               {displayEvent.time && (
                 <div className="flex items-center gap-3 text-muted-foreground">
                   <Clock className="size-5 text-primary" />
-                  <span>{displayEvent.time} hs</span>
+                  <span>{textos.ficha.horaDelEvento(hora(idioma, displayEvent.time))}</span>
                 </div>
               )}
               
@@ -329,8 +350,10 @@ export function EventDetailPage({
                 <MapPin className="size-5 text-primary" />
                 <div className="flex flex-wrap items-center gap-2">
                   <div>
-                    <p className="font-medium text-foreground">{displayEvent.venue}</p>
-                    <p className="text-sm">{displayEvent.address}</p>
+                    <p className="font-medium text-foreground" lang={lugarSinNombre ? undefined : langContenido}>
+                      {lugarVisible}
+                    </p>
+                    <p className="text-sm" lang={langContenido}>{displayEvent.address}</p>
                   </div>
                   {seguimiento?.lugar && (
                     <BotonSeguir
@@ -357,24 +380,24 @@ export function EventDetailPage({
               {displayEvent.vibe && (
                 <div className="flex items-center gap-3 text-muted-foreground">
                   <Users className="size-5 text-primary" />
-                  <span>{vibeLabels[displayEvent.vibe]}</span>
+                  <span>{textos.ficha.etiquetasVibe[displayEvent.vibe]}</span>
                 </div>
               )}
             </div>
 
             {displayEvent.description ? (
-              <p className="mb-8 flex-1 text-muted-foreground">{displayEvent.description}</p>
+              <p className="mb-8 flex-1 text-muted-foreground" lang={langContenido}>{displayEvent.description}</p>
             ) : (
               <div className="flex-1" />
             )}
 
             {displayEvent.price !== "confirmar" && (
               <div className="mb-6 rounded-xl bg-muted p-6">
-                <p className="mb-1 text-sm text-muted-foreground">Precio de entrada</p>
+                <p className="mb-1 text-sm text-muted-foreground">{textos.ficha.precioDeEntrada}</p>
                 <p className="text-3xl font-bold text-foreground">
                   {displayEvent.price === "gratis" 
-                    ? "Entrada Gratuita" 
-                    : `$${displayEvent.price.toLocaleString("es-AR")}`}
+                    ? textos.portada.entradaGratuita 
+                    : precio(idioma, displayEvent.price)}
                 </p>
               </div>
             )}
@@ -389,18 +412,18 @@ export function EventDetailPage({
                 >
                   <a href={googleMapsUrl} target="_blank" rel="noopener noreferrer">
                     <Navigation className="mr-2 size-4" />
-                    Cómo llegar
+                    {textos.ficha.comoLlegar}
                   </a>
                 </Button>
               )}
 
-              <VerEnElMapa venue={event.venue} startDate={startDate} className="w-full sm:flex-1" size="lg" />
+              <VerEnElMapa venue={event.venue} startDate={startDate} className="w-full sm:flex-1" size="lg" idioma={idioma} />
 
               {displayEvent.ticketUrl && (
                 <Button size="lg" variant="outline" className="w-full sm:flex-1" asChild>
                   <a href={goHref(event.id, "ficha")} target="_blank" rel="nofollow noopener noreferrer">
                     <ExternalLink className="mr-2 size-4" />
-                    Comprar tickets
+                    {textos.ficha.comprarTickets}
                   </a>
                 </Button>
               )}

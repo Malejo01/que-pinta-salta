@@ -15,17 +15,66 @@
 // un cine (`components/BloqueCine.tsx`) ya no son locales: los comparte la
 // portada con el chip "Cine" y la ficha de la película. `funcionesPorCine`
 // (R28, `lib/datos/cines.ts`) agrupa `showings` por cine adentro de la tarjeta.
+//
+// A8 (nube Q1, QPS-339): el buscador filtra la lista sin mostrar un conteo, y
+// el único aviso visible es el vacío ("No hay resultados para…"), que un lector
+// de pantalla no se enteraba que aparecía. Se anuncia con `useAnunciarConteo`
+// (reglas en `lib/anunciar-conteo.ts`, la misma estrategia que la portada y
+// Buscar): con texto, "2 películas para dune" o "Ninguna película para dune"
+// (el vacío visible no cambia); al limpiar, "N películas en cartel". Lo
+// tipeado espera `DEMORA_TEXTO_MS` sin teclas nuevas (no se anuncia en cada
+// tecla); limpiar y enviar con el teclado (`onSubmitEditing`, nonce
+// `toqueBusqueda`) se anuncian al toque. El montaje no se anuncia (sin texto
+// no hay nada que decir). El vacío no es una live region (`Vacio` no la
+// tiene), así que no hay doble lectura. Una línea de conteo visible quedó
+// descartada en la revisión de A8: se mantiene solo el anuncio.
+//
+// A6 (nube Q1) · Vacíos y sin conexión. Sin red, el error dice que no hay
+// conexión; con un error del servidor, un texto neutro (`mensajeErrorCarga`,
+// `lib/vacios.ts`). Un refresco que falla con la cartelera a la vista la
+// conserva y avisa (`decidirRefresco` + `AvisoNoSeActualizo`). El vacío
+// (`vacioCines`) dice por qué está vacío y ofrece una acción: con búsqueda,
+// "Limpiar búsqueda"; sin búsqueda, "Ver eventos de hoy" (Buscar con la
+// fecha "Hoy", `/buscar?atajo=hoy&v=<Date.now()>`: el mismo nonce que usa
+// "Ver todos" de la portada para que Buscar vuelva a aplicar la fecha). La
+// cartelera no se guarda sin conexión (la de ayer no sirve, R43).
+//
+// Ronda de correcciones: "Ver eventos de hoy" usa `router.dismissTo`, no
+// `push` ni `navigate`. Cines es una pantalla del Stack raíz, apilada encima
+// de `(tabs)`; verificado en el expo-router instalado (57.0.26,
+// `build/global-state/getNavigationAction.js` + el `StackRouter` que trae en
+// `build/react-navigation/routers/StackRouter.js`): `push` y también
+// `navigate` (acción `NAVIGATE` sin `pop`, y `(tabs)` no es la ruta de
+// arriba) agregan un SEGUNDO `(tabs)` al Stack; `dismissTo` (acción `POP_TO`)
+// vuelve al `(tabs)` que ya está abajo con los parámetros nuevos (y si Cines
+// se abrió sola, desde un push, reemplaza Cines por `(tabs)`).
+//
+// Integración (R76): los avisos de A6 (refresco que falla, reintento que
+// vuelve a fallar) pasan por `anunciar` (`lib/anunciar.ts`), no por
+// `AccessibilityInfo` directo. No chocan con A8: ese anuncia el conteo/vacío
+// de la búsqueda; estos, errores de carga, y no se pisan (no hay lista).
 import { useCallback, useEffect, useState } from 'react'
 import { FlatList, Pressable, RefreshControl, StyleSheet, TextInput, View } from 'react-native'
-import { Cargando, ErrorCarga, Vacio } from '@/components/EstadoCarga'
+import { useRouter } from 'expo-router'
+import { AvisoNoSeActualizo } from '@/components/AvisoSinConexion'
+import { EsqueletoCines } from '@/components/Esqueleto'
+import { ErrorCarga, Vacio } from '@/components/EstadoCarga'
 import { Icono } from '@/components/Icono'
 import { TarjetaPelicula } from '@/components/TarjetaPelicula'
 import { Texto } from '@/components/Texto'
 import { hitSlopPara } from '@/lib/accesibilidad'
+import { anunciar } from '@/lib/anunciar'
+import { estadoAnunciableCines } from '@/lib/anunciar-conteo'
+import { useAnunciarConteo } from '@/lib/anunciar-conteo-hook'
 import { useColoresQPS } from '@/lib/colores'
 import { obtenerCines, type Pelicula } from '@/lib/datos/cines'
+import { anuncioDeReintento, decidirRefresco, mensajeErrorCarga, vacioCines } from '@/lib/vacios'
 
-type Estado = { tipo: 'cargando' } | { tipo: 'error'; error: string } | { tipo: 'ok'; peliculas: Pelicula[] }
+// A6: `error` ya es el texto para la pantalla (`mensajeErrorCarga`).
+type Estado =
+  | { tipo: 'cargando' }
+  | { tipo: 'error'; error: string; sinConexion?: boolean }
+  | { tipo: 'ok'; peliculas: Pelicula[] }
 
 /**
  * Mismo filtro que `CinesView` (`movie.title.toLowerCase().includes(query.toLowerCase())`):
@@ -40,11 +89,14 @@ export function filtrarPeliculasPorTitulo(peliculas: Pelicula[], busqueda: strin
 
 export default function Cines() {
   const colores = useColoresQPS()
+  const router = useRouter()
   const [estado, setEstado] = useState<Estado>({ tipo: 'cargando' })
   // Estado de refresco aparte del de carga (28-c): mientras se refresca, la
   // lista sigue a la vista en vez de pasar a `Cargando`.
   const [refrescando, setRefrescando] = useState(false)
   const [busqueda, setBusqueda] = useState('')
+  // A8 (nube Q1, QPS-339): nonce del texto enviado con la tecla del teclado.
+  const [toqueBusqueda, setToqueBusqueda] = useState(0)
   // Cuenta de "reintentos" (mismo patrón que `app/evento/[id].tsx` y
   // `app/(tabs)/buscar.tsx`, 29-b/29-j): el efecto no puede llamar, de forma
   // sincrónica, a una función que haga `setState` (lint
@@ -55,24 +107,42 @@ export default function Cines() {
 
   const obtenerDatos = useCallback(async (): Promise<Estado> => {
     const resultado = await obtenerCines()
-    return resultado.ok ? { tipo: 'ok', peliculas: resultado.peliculas } : { tipo: 'error', error: resultado.error }
+    return resultado.ok
+      ? { tipo: 'ok', peliculas: resultado.peliculas }
+      : { tipo: 'error', error: mensajeErrorCarga('cines', resultado), sinConexion: resultado.sinConexion }
   }, [])
+
+  // A6: "No pudimos actualizar..." cuando un refresco falla con la cartelera
+  // a la vista; se limpia con cada carga nueva.
+  const [notaRefresco, setNotaRefresco] = useState<string | null>(null)
 
   const cargar = useCallback(() => {
     setEstado({ tipo: 'cargando' })
+    setNotaRefresco(null)
     setIntento((valor) => valor + 1)
   }, [])
 
+  // A6: `decidirRefresco` (lib/vacios.ts) conserva la cartelera que se veía
+  // (`estado`, por eso está en las dependencias) si el refresco falla.
   const refrescar = useCallback(async () => {
     setRefrescando(true)
-    setEstado(await obtenerDatos())
+    const decision = decidirRefresco(estado, await obtenerDatos(), notaRefresco)
+    setEstado(decision.estado)
+    setNotaRefresco(decision.nota)
+    const aviso = decision.anuncio
+    if (aviso) anunciar(aviso)
     setRefrescando(false)
-  }, [obtenerDatos])
+  }, [obtenerDatos, estado, notaRefresco])
 
   useEffect(() => {
     let cancelado = false
     obtenerDatos().then((resultado) => {
-      if (!cancelado) setEstado(resultado)
+      if (cancelado) return
+      setEstado(resultado)
+      // A6: un "Reintentar" de `ErrorCarga` (`intento > 0`) que vuelve a dar
+      // error se anuncia; si no, parecía que el botón no hizo nada.
+      const avisoError = anuncioDeReintento(intento > 0, resultado)
+      if (avisoError) anunciar(avisoError)
     })
     return () => {
       cancelado = true
@@ -82,11 +152,22 @@ export default function Cines() {
   const peliculas = estado.tipo === 'ok' ? estado.peliculas : []
   const filtradas = filtrarPeliculasPorTitulo(peliculas, busqueda)
 
-  // Mismos dos mensajes que el estado vacío de `CinesView` (según haya o no
-  // una búsqueda activa).
-  const mensajeVacio = busqueda
-    ? `No hay resultados para "${busqueda}". Probá buscando con otro título.`
-    : 'No hay películas en cartelera actualmente.'
+  // Con búsqueda, el mismo mensaje que el estado vacío de `CinesView`; sin
+  // búsqueda, desde A6, el porqué (la cartelera del día todavía no se cargó)
+  // en vez de "No hay películas en cartelera actualmente." — y cada uno con
+  // su acción (`vacioCines`, lib/vacios.ts).
+  const vacio = vacioCines(busqueda)
+  const alTocarAccionVacio = () => {
+    if (vacio.accion.destino === 'limpiar-busqueda') setBusqueda('')
+    else router.dismissTo(`/buscar?atajo=hoy&v=${Date.now()}`)
+  }
+
+  // A8 (nube Q1, QPS-339): `null` mientras carga o con error ("no hay nada").
+  useAnunciarConteo(
+    estado.tipo === 'ok'
+      ? estadoAnunciableCines({ busqueda, cantidad: filtradas.length, total: peliculas.length, toque: toqueBusqueda })
+      : null,
+  )
 
   return (
     <View style={[estilos.contenedor, { backgroundColor: colores.background }]}>
@@ -99,6 +180,7 @@ export default function Cines() {
         <TextInput
           value={busqueda}
           onChangeText={setBusqueda}
+          onSubmitEditing={() => setToqueBusqueda((n) => n + 1)}
           placeholder="Buscar película por nombre..."
           placeholderTextColor={colores.mutedForeground}
           style={[estilos.inputBusqueda, { color: colores.foreground }]}
@@ -115,7 +197,10 @@ export default function Cines() {
         ) : null}
       </View>
 
-      {estado.tipo === 'cargando' ? <Cargando /> : null}
+      {/* A1 (nube Q1): esqueleto de la lista de `TarjetaPelicula` en vez de
+          `Cargando`, debajo del título y el buscador. El pull-to-refresh no
+          cambia (sigue la lista a la vista). */}
+      {estado.tipo === 'cargando' ? <EsqueletoCines /> : null}
 
       {estado.tipo === 'error' ? <ErrorCarga mensaje={estado.error} onReintentar={cargar} /> : null}
 
@@ -127,7 +212,18 @@ export default function Cines() {
           refreshControl={
             <RefreshControl refreshing={refrescando} onRefresh={refrescar} tintColor={colores.primary} colors={[colores.primary]} />
           }
-          ListEmptyComponent={<Vacio mensaje={mensajeVacio} />}
+          // A6: un refresco que falló con la cartelera a la vista: banda al
+          // principio de la lista (dentro del scroll, nunca un toast).
+          ListHeaderComponent={
+            notaRefresco ? (
+              <View style={estilos.avisoEnLista}>
+                <AvisoNoSeActualizo texto={notaRefresco} onReintentar={refrescar} reintentando={refrescando} />
+              </View>
+            ) : null
+          }
+          ListEmptyComponent={
+            <Vacio mensaje={vacio.texto} textoAccion={vacio.accion.texto} onAccion={alTocarAccionVacio} accionPrincipal />
+          }
           renderItem={({ item }) => <TarjetaPelicula pelicula={item} />}
         />
       ) : null}
@@ -150,4 +246,6 @@ const estilos = StyleSheet.create({
   },
   inputBusqueda: { flex: 1, fontSize: 15, paddingVertical: 10 },
   lista: { padding: 16, gap: 16 },
+  // A6: la banda de "No pudimos actualizar" va de borde a borde (compensa el padding de la lista).
+  avisoEnLista: { marginHorizontal: -16, marginTop: -16 },
 })

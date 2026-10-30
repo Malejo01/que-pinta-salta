@@ -134,7 +134,7 @@ describe('texto que muestra la UI', () => {
 
   it('web event-card.tsx: "confirmar" no imprime "Gratis" (formattedPrice = null)', () => {
     const src = readFileSync(new URL('apps/web/components/event-card.tsx', RAIZ), 'utf8')
-    expect(src).toMatch(/event\.price === "gratis"\s*\?\s*"Gratis"\s*:\s*event\.price === "confirmar"\s*\?\s*null/)
+    expect(src).toMatch(/event\.price === "gratis"\s*\?\s*t\.gratis\s*:\s*event\.price === "confirmar"\s*\?\s*null/)
   })
 })
 

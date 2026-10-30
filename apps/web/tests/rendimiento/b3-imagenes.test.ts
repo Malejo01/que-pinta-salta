@@ -152,6 +152,7 @@ describe('pistasDeCarga / cargaPorIndice', () => {
 describe('MovieCard (/cines): el primer póster carga ansioso', () => {
   const pelicula = {
     id: 'peli-1',
+    slug: 'peli-1',
     title: 'Película',
     poster_url: '/posters/peli-1.jpg',
     showings: {},
@@ -176,9 +177,9 @@ describe('MovieCard (/cines): el primer póster carga ansioso', () => {
   })
 
   it('CinesView: la prioridad va al primer póster que existe, no a una tarjeta sin afiche', () => {
-    const sinAfiche = { ...pelicula, id: 'peli-0', title: 'Sin afiche', poster_url: null } as unknown as CinemaMovie
-    const segunda = { ...pelicula, id: 'peli-2', title: 'Otra', poster_url: '/posters/peli-2.jpg' } as unknown as CinemaMovie
-    const tercera = { ...pelicula, id: 'peli-3', title: 'Tercera', poster_url: '/posters/peli-3.jpg' } as unknown as CinemaMovie
+    const sinAfiche = { ...pelicula, id: 'peli-0', slug: 'peli-0', title: 'Sin afiche', poster_url: null } as unknown as CinemaMovie
+    const segunda = { ...pelicula, id: 'peli-2', slug: 'peli-2', title: 'Otra', poster_url: '/posters/peli-2.jpg' } as unknown as CinemaMovie
+    const tercera = { ...pelicula, id: 'peli-3', slug: 'peli-3', title: 'Tercera', poster_url: '/posters/peli-3.jpg' } as unknown as CinemaMovie
     const html = renderToStaticMarkup(React.createElement(CinesView, { movies: [sinAfiche, pelicula, segunda, tercera] }))
     const [primera, siguiente, ultima] = imgs(html)
     expect(attr(primera, 'src')).toContain('peli-1')

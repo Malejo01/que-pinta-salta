@@ -167,6 +167,9 @@ export function textoVacioCategoria(nombreCategoria: string, atajo: Atajo): stri
  * Qué nodo muestra el texto que se anuncia. Cada uno es un elemento distinto
  * en pantalla: al pasar de uno a otro se monta uno nuevo, y Android no anuncia
  * el montaje de una live region (solo sus cambios).
+ * A8 (nube Q1, QPS-339): ya no hay live regions; el `tipo` sirve para saber si
+ * el anuncio lleva el título de la grilla (solo `conteo`; los vacíos ya nombran
+ * los filtros), ver `estadoAnunciablePortada` en `lib/anunciar-conteo.ts`.
  */
 export type TipoAnuncioGrilla = 'conteo' | 'vacio-categoria' | 'vacio-gratis' | 'vacio-para-chicos'
 
@@ -174,8 +177,9 @@ export type TipoAnuncioGrilla = 'conteo' | 'vacio-categoria' | 'vacio-gratis' | 
  * Lo que se anuncia en el modo grilla (A2, ronda de correcciones): el conteo
  * ("N eventos") si hay resultados, o el texto del vacío si no — antes, con
  * "Gratis" prendido y sin resultados, no se oía nada. `null` fuera del modo
- * grilla. El efecto de la portada lo anuncia al aparecer cada nodo (`tipo`
- * distinto del anterior) y, en iOS, en cada cambio (QPS-354).
+ * grilla. Hasta A3 el efecto de la portada lo anunciaba al aparecer cada nodo
+ * (`tipo` distinto del anterior) y, en iOS, en cada cambio (QPS-354); desde A8
+ * (nube Q1, QPS-339) lo anuncia `useAnunciarConteo` en las dos plataformas.
  *
  * A3 (nube Q1): con "Para chicos" prendido el vacío es el de "Para chicos"
  * (otro nodo: `VacioParaChicos`), también con "Gratis" prendido.

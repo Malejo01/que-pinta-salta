@@ -3,10 +3,11 @@
 import { useRouter } from "next/navigation"
 import { createElement, useMemo, useState, useTransition } from "react"
 import { Calendar, MapPin, Clock, Users, ExternalLink, Navigation, Pencil, Check, X } from "lucide-react"
-import { vibeLabels, Event, Category, Venue } from "@/lib/types"
+import { Event, Category, Venue } from "@/lib/types"
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
@@ -21,7 +22,11 @@ import {
 } from "@/components/ui/select"
 import { Input } from "@/components/ui/input"
 import { getCategoryIcon } from "@/lib/category-icons"
-import { formatEventDate, formatSaltaDayKey } from "@/lib/date-format"
+import { formatSaltaDayKey } from "@/lib/date-format"
+import { fechaLarga, hora, precio } from "@/lib/i18n/fechas"
+import { langDeCategoria, nombreCategoria } from "@/lib/i18n"
+import { useIdioma, useTextos } from "@/lib/i18n/use-idioma"
+import { AvisoContenidoEs } from "@/components/aviso-contenido-es"
 import { ageChip, capitalizeFirst, cleanDescription, formatEventTimeDisplay } from "@/lib/event-display"
 import { createCategory, updateEventCategory } from "@/lib/admin-actions"
 import { deferredRefresh } from "@/lib/deferred-refresh"
@@ -72,6 +77,8 @@ export function EventModalWrapper({
   haySesion = false,
 }: EventModalWrapperProps) {
   const router = useRouter()
+  const idioma = useIdioma()
+  const textos = useTextos()
   // Estado local: el Dialog se cierra al instante (como `movie-modal.tsx`) y
   // recién después se navega hacia atrás. Ver tarea 18-f.
   const [open, setOpen] = useState(true)
@@ -107,7 +114,19 @@ export function EventModalWrapper({
     vibe: ageChip(event.age_restriction),
   }
 
-  const formattedDate = formatEventDate(displayEvent.date, true)
+  const formattedDate = fechaLarga(idioma, displayEvent.date, true)
+
+  // Lo que viene de la fuente (título, descripción, lugar, dirección) queda en
+  // castellano: en inglés lleva `lang="es"`. En castellano no se agrega nada.
+  const langContenido = idioma === "es" ? undefined : "es"
+  const lugarSinNombre = !event.venue?.name
+  const lugarVisible = lugarSinNombre ? textos.portada.lugarPorConfirmar : displayEvent.venue
+  // El nombre de la categoría para el público (en inglés, por slug); el bloque
+  // de admin sigue mostrando el de la base (`displayEvent.categoryName`).
+  const categoriaVisible = currentCategory?.name
+    ? nombreCategoria(textos, currentCategory.slug, currentCategory.name)
+    : textos.ficha.sinCategorizar
+  const langCategoria = currentCategory?.name ? langDeCategoria(idioma, currentCategory.slug) : undefined
 
   // La misma URL que la ficha (QPS-130); null sin dirección ni lugar: no hay botón (QPS-137).
   const googleMapsUrl = urlComoLlegar({ address: displayEvent.address, venue: displayEvent.venue })
@@ -176,19 +195,29 @@ export function EventModalWrapper({
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-h-[90vh] max-w-lg overflow-y-auto p-0">
+      {/*
+        En inglés, la descripción del diálogo es el aviso de contenido en
+        castellano (se anuncia junto con el título). En castellano no hay
+        descripción: `aria-describedby={undefined}` (lo que pide Radix) para
+        no dejar una referencia rota a un id que no existe.
+      */}
+      <DialogContent
+        className="max-h-[90vh] max-w-lg overflow-y-auto p-0"
+        {...(idioma === "es" ? { "aria-describedby": undefined } : {})}
+      >
         <ViewBeacon eventId={event.id} origin={origin} />
         <div className="relative aspect-[3/2] w-full">
           <FlyerImage
             variant={800}
             src={displayEvent.image}
             alt={displayEvent.title}
+            lang={langContenido}
             fill
             className="object-cover"
           />
-          <Badge className="absolute left-4 top-4 bg-primary text-primary-foreground">
+          <Badge className="absolute left-4 top-4 bg-primary text-primary-foreground" lang={langCategoria}>
             {createElement(iconComponent, { className: "mr-1 size-3" })}
-            {displayEvent.categoryName}
+            {categoriaVisible}
           </Badge>
           {/*
             `event` es la fila cruda (`EventWithRelations`), no pasa por
@@ -205,6 +234,12 @@ export function EventModalWrapper({
         </div>
 
         <div className="p-6">
+          {idioma !== "es" && (
+            // `text-xs`: que el `text-sm` de DialogDescription no le cambie el tamaño al aviso.
+            <DialogDescription asChild className="text-xs">
+              <AvisoContenidoEs className="mb-3" />
+            </DialogDescription>
+          )}
           {/*
             Ancla del bloque del título (QPS-199): antes el ♥ y Compartir
             vivían pegados al <DialogTitle>. El detector estático de
@@ -214,7 +249,7 @@ export function EventModalWrapper({
             acá.
           */}
           <DialogHeader className="mb-4">
-            <DialogTitle className="text-2xl">{displayEvent.title}</DialogTitle>
+            <DialogTitle className="text-2xl" lang={langContenido}>{displayEvent.title}</DialogTitle>
           </DialogHeader>
 
           {isAdmin && (
@@ -303,7 +338,7 @@ export function EventModalWrapper({
             {displayEvent.time && (
               <div className="flex items-center gap-3 text-muted-foreground">
                 <Clock className="size-5 text-primary" />
-                <span>{displayEvent.time} hs</span>
+                <span>{textos.ficha.horaDelEvento(hora(idioma, displayEvent.time))}</span>
               </div>
             )}
             
@@ -311,8 +346,10 @@ export function EventModalWrapper({
               <MapPin className="size-5 text-primary" />
               <div className="flex flex-wrap items-center gap-2">
                 <div>
-                  <p className="font-medium text-foreground">{displayEvent.venue}</p>
-                  <p className="text-sm">{displayEvent.address}</p>
+                  <p className="font-medium text-foreground" lang={lugarSinNombre ? undefined : langContenido}>
+                    {lugarVisible}
+                  </p>
+                  <p className="text-sm" lang={langContenido}>{displayEvent.address}</p>
                 </div>
                 {seguimiento?.lugar && (
                   <BotonSeguir
@@ -339,22 +376,22 @@ export function EventModalWrapper({
             {displayEvent.vibe && (
               <div className="flex items-center gap-3 text-muted-foreground">
                 <Users className="size-5 text-primary" />
-                <span>{vibeLabels[displayEvent.vibe]}</span>
+                <span>{textos.ficha.etiquetasVibe[displayEvent.vibe]}</span>
               </div>
             )}
           </div>
 
           {displayEvent.description && (
-            <p className="mb-6 text-muted-foreground">{displayEvent.description}</p>
+            <p className="mb-6 text-muted-foreground" lang={langContenido}>{displayEvent.description}</p>
           )}
 
           {displayEvent.price !== "confirmar" && (
             <div className="mb-6 rounded-lg bg-muted p-4">
-              <p className="mb-1 text-sm text-muted-foreground">Precio de entrada</p>
+              <p className="mb-1 text-sm text-muted-foreground">{textos.ficha.precioDeEntrada}</p>
               <p className="text-2xl font-bold text-foreground">
                 {displayEvent.price === "gratis" 
-                  ? "Entrada Gratuita" 
-                  : `$${displayEvent.price.toLocaleString("es-AR")}`}
+                  ? textos.portada.entradaGratuita 
+                  : precio(idioma, displayEvent.price)}
               </p>
             </div>
           )}
@@ -367,18 +404,18 @@ export function EventModalWrapper({
               >
                 <a href={googleMapsUrl} target="_blank" rel="noopener noreferrer">
                   <Navigation className="mr-2 size-4" />
-                  Cómo llegar
+                  {textos.ficha.comoLlegar}
                 </a>
               </Button>
             )}
 
-            <VerEnElMapa venue={event.venue} startDate={startDate} />
+            <VerEnElMapa venue={event.venue} startDate={startDate} idioma={idioma} />
 
             {displayEvent.ticketUrl && (
               <Button variant="outline" className="flex-1" asChild>
                 <a href={goHref(event.id, "ficha")} target="_blank" rel="nofollow noopener noreferrer">
                   <ExternalLink className="mr-2 size-4" />
-                  Comprar tickets
+                  {textos.ficha.comprarTickets}
                 </a>
               </Button>
             )}

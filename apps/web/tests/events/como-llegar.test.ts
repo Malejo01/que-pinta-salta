@@ -8,9 +8,20 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
+import { es } from '@/lib/i18n/diccionarios/es'
 
 const ROOT = join(__dirname, '..', '..')
 const COMPONENTES = ['components/event-detail-page.tsx', 'components/event-modal.tsx', 'components/event-modal-wrapper.tsx']
+
+// Q3: desde la ficha en inglés, los textos de los botones salen del
+// diccionario (`textos.ficha.*`), así que se busca esa referencia en el
+// código; que el castellano siga diciendo exactamente lo mismo lo fija el
+// test de abajo contra `es.ficha`.
+const TEXTO_BOTON = 'textos.ficha.comoLlegar'
+
+it('en castellano el botón sigue diciendo "Cómo llegar"', () => {
+  expect(es.ficha.comoLlegar).toBe('Cómo llegar')
+})
 
 describe.each(COMPONENTES)('%s', (archivo) => {
   const fuente = readFileSync(join(ROOT, archivo), 'utf8')
@@ -27,11 +38,14 @@ describe.each(COMPONENTES)('%s', (archivo) => {
 
   it('el botón "Cómo llegar" está dentro de {googleMapsUrl && (...)}', () => {
     const condicion = fuente.indexOf('{googleMapsUrl && (')
-    const boton = fuente.indexOf('Cómo llegar')
+    const boton = fuente.indexOf(TEXTO_BOTON)
     expect(condicion).toBeGreaterThan(-1)
     expect(boton).toBeGreaterThan(condicion)
     // Un solo botón, y el cierre del condicional viene después del texto.
-    expect(fuente.split('Cómo llegar')).toHaveLength(2)
+    expect(fuente.split(TEXTO_BOTON)).toHaveLength(2)
+    // Y ningún literal suelto que no pase por el diccionario.
+    expect(fuente).not.toContain('Cómo llegar<')
+    expect(fuente).not.toMatch(/>\s*Cómo llegar\s*</)
     const cierre = fuente.indexOf(')}', boton)
     expect(cierre).toBeGreaterThan(boton)
     // Entre la condición y el texto no se cierra otro bloque JSX condicional.

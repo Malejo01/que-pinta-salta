@@ -26,6 +26,21 @@
 // El degradé no usa `expo-linear-gradient` (no es dependencia aprobada):
 // son 4 `View` absolutos apilados, con negro de opacidad creciente hacia
 // abajo, sobre la mitad inferior de la tarjeta.
+//
+// A7 (nube Q1): la tarjeta es `memo` con una comparación propia
+// (`sonPropsDeTarjetaIguales`, abajo de todo). Por qué no la comparación por
+// defecto: tirar para refrescar (en las tres pantallas) trae objetos
+// `DisplayEvent` NUEVOS aunque el contenido sea el mismo, y con `memo` a secas
+// se volvían a dibujar todas las tarjetas igual. Ojo (vuelta 1): en Favoritos,
+// al volver a la pestaña, el memo NO ahorra nada: `cargar()` pasa por
+// `'cargando'`, la lista se desmonta y las tarjetas se montan de nuevo. Eso
+// es de la pantalla, no de la tarjeta, y queda como propuesta (otro ticket
+// toca Favoritos). La comparación mira solo los campos que
+// esta tarjeta dibuja o usa para navegar y para el corazón
+// (`CAMPOS_QUE_USA_LA_TARJETA`); `tests/listas-rendimiento.test.ts` falla si
+// el componente lee un campo de `evento` que no está en esa lista (así no
+// queda una tarjeta vieja en pantalla por un campo nuevo sin comparar).
+import { memo } from 'react'
 import { Pressable, StyleSheet, Text, View } from 'react-native'
 import { useRouter } from 'expo-router'
 import { formatEventDateShort } from '@qps/core/date-format'
@@ -42,6 +57,13 @@ import { esEventoReal, objetivoDeFavorito, rutaDeEvento } from '@/lib/rutas'
 
 export interface TarjetaEventoProps {
   evento: DisplayEvent
+  /**
+   * A5 (nube Q1): opcional, se llama justo ANTES de navegar a la ficha. Lo
+   * usa Buscar para guardar la búsqueda reciente cuando la persona abre un
+   * resultado. Aditiva: sin ella (Inicio, Favoritos) la tarjeta navega igual
+   * que antes. No recibe nada: quien la pasa ya sabe qué evento dibujó.
+   */
+  onAbrir?: () => void
 }
 
 // R69, 69-r1: los botones de arriba a la derecha miden 32, van separados 6 y
@@ -77,7 +99,7 @@ function derechaDelBadge(botones: number): number {
   return MARGEN_ARRIBA + botones * TAMANIO_ACCION + (botones - 1) * GAP_ACCIONES + MARGEN_ARRIBA
 }
 
-export function TarjetaEvento({ evento }: TarjetaEventoProps) {
+function TarjetaEventoSinMemo({ evento, onAbrir }: TarjetaEventoProps) {
   const router = useRouter()
   const colores = useColoresQPS()
 
@@ -112,7 +134,10 @@ export function TarjetaEvento({ evento }: TarjetaEventoProps) {
   return (
     <View style={[estilos.contenedor, { backgroundColor: colores.card }]}>
       <Pressable
-        onPress={() => router.push(rutaDeEvento(evento))}
+        onPress={() => {
+          onAbrir?.()
+          router.push(rutaDeEvento(evento))
+        }}
         accessibilityRole="button"
         accessibilityLabel={etiqueta}
         style={estilos.tarjeta}
@@ -214,6 +239,59 @@ export function TarjetaEvento({ evento }: TarjetaEventoProps) {
     </View>
   )
 }
+
+/**
+ * Los campos de `DisplayEvent` que la tarjeta lee (A7, nube Q1): los que
+ * dibuja (título, lugar, fecha, hora, precio, categoría, afiche, destacado,
+ * "En cartel"), los que deciden la ruta y el corazón (`rutaDeEvento`,
+ * `objetivoDeFavorito` y `esEventoReal` de `lib/rutas.ts` miran `id`,
+ * `isCinemaMovie`, `isInstagramFlyer` y `flyerId`) y `occurrences`, del que
+ * solo usa la cantidad ("+N fechas"). Lo demás (`description`, `address`,
+ * `showings`, `startDateTime`, …) no cambia nada de lo que se ve.
+ */
+export const CAMPOS_QUE_USA_LA_TARJETA = [
+  'id',
+  'title',
+  'venue',
+  'date',
+  'time',
+  'categoryName',
+  'price',
+  'image',
+  'isFeatured',
+  'isCinemaMovie',
+  'isInstagramFlyer',
+  'flyerId',
+  'occurrences',
+] as const satisfies readonly (keyof DisplayEvent)[]
+
+/**
+ * Comparación del `memo` (A7, nube Q1): `true` = no hace falta volver a
+ * dibujar. La misma referencia, o un evento nuevo con los mismos valores en
+ * `CAMPOS_QUE_USA_LA_TARJETA` (de `occurrences`, solo la cantidad: es lo único
+ * que se muestra). Los valores son primitivos, se comparan con `===`.
+ */
+export function sonPropsDeTarjetaIguales(antes: TarjetaEventoProps, despues: TarjetaEventoProps): boolean {
+  const a = antes.evento
+  const b = despues.evento
+  // A5 (nube Q1): si cambia `onAbrir` hay que volver a dibujar (el `onPress`
+  // llamaría a la función vieja). Buscar la pasa estable (`useCallback`).
+  if (antes.onAbrir !== despues.onAbrir) return false
+  if (a === b) return true
+  for (const campo of CAMPOS_QUE_USA_LA_TARJETA) {
+    if (campo === 'occurrences') {
+      if ((a.occurrences?.length ?? 0) !== (b.occurrences?.length ?? 0)) return false
+    } else if (a[campo] !== b[campo]) {
+      return false
+    }
+  }
+  return true
+}
+
+// A7 (nube Q1): el componente que importan Inicio (`FilaCategoria` y la
+// grilla del modo categoría), Buscar y Favoritos. Props: `evento` y, solo en
+// Buscar, `onAbrir` (A5), que la comparación también mira.
+export const TarjetaEvento = memo(TarjetaEventoSinMemo, sonPropsDeTarjetaIguales)
 
 const estilos = StyleSheet.create({
   contenedor: {

@@ -14,6 +14,8 @@ import { describe, expect, it } from 'vitest'
 const WEB_ROOT = fileURLToPath(new URL('../../', import.meta.url))
 
 const MAPLIBRE = 'components/mapa/mapa-maplibre.tsx'
+const PIN_MAPLIBRE = 'components/mapa/mapa-pin-maplibre.tsx'
+const TEXTOS = 'components/mapa/textos-maplibre.ts'
 const DIFERIDO = 'components/mapa/mapa-diferido.tsx'
 const LISTA = 'components/mapa/lista-lugares.tsx'
 const FILTROS = 'components/mapa/filtros-mapa.tsx'
@@ -58,10 +60,10 @@ describe('el barrido mira algo', () => {
   })
 })
 
-describe('maplibre-gl se importa en un solo archivo', () => {
-  it('solo mapa-maplibre.tsx y maplibre-worker.ts nombran el paquete (o su CSS) en app, components y lib', () => {
+describe('maplibre-gl se importa en tres archivos (el mapa, el mapa del pin y el worker)', () => {
+  it('solo mapa-maplibre.tsx, mapa-pin-maplibre.tsx y maplibre-worker.ts nombran el paquete (o su CSS) en app, components y lib', () => {
     const nombran = CODIGO.filter((ruta) => NOMBRA_MAPLIBRE.test(leer(ruta)))
-    expect(nombran.sort()).toEqual([WORKER, MAPLIBRE].sort())
+    expect(nombran.sort()).toEqual([WORKER, MAPLIBRE, PIN_MAPLIBRE].sort())
   })
 
   // Q3: Turbopack reemplaza el `import.meta.url` de MapLibre por un file:///
@@ -85,6 +87,17 @@ describe('maplibre-gl se importa en un solo archivo', () => {
     const loNombran = CODIGO.filter((ruta) => ruta !== WORKER && leer(ruta).includes('maplibre-worker'))
     expect(loNombran).toContain(DIFERIDO)
     for (const ruta of loNombran) expect(ruta.startsWith('components/mapa/')).toBe(true)
+    expect(codigo).not.toMatch(/from\s*['"][^'"]*maplibre-worker['"]/)
+  })
+
+  // R76: el pin de /admin/lugares (#98) tenía el mismo bug del worker. Lo
+  // arregla un import sin `from` arriba de todo (propuesta del #123): el orden
+  // de los módulos ES fija la URL antes de cualquier `new Map`.
+  it('mapa-pin-maplibre importa maplibre-worker sin `from`, antes que maplibre-gl', () => {
+    const codigo = leer(PIN_MAPLIBRE)
+    const worker = codigo.search(/import\s*['"]\.\/maplibre-worker['"]/)
+    expect(worker).toBeGreaterThan(-1)
+    expect(codigo.search(/from\s*['"]maplibre-gl['"]/)).toBeGreaterThan(worker)
     expect(codigo).not.toMatch(/from\s*['"][^'"]*maplibre-worker['"]/)
   })
 
@@ -262,6 +275,53 @@ describe('"Ver en el mapa": el nombre accesible contiene el texto visible', () =
   })
 })
 
+/** Las clases `lg:h-[…]` de un código (el alto del mapa o de su esqueleto en la compu). */
+function altosLg(codigo: string): string[] {
+  return codigo.match(/\blg:h-\[[^\]\s"'`]+\]/g) ?? []
+}
+
+describe('el alto del mapa en la compu entra en 1280×900 (C5)', () => {
+  const contenido = leer(CONTENIDO)
+  const loading = leer(LOADING)
+
+  it('el mapa y su esqueleto de carga usan el mismo alto, que depende del alto de la pantalla', () => {
+    const delMapa = altosLg(contenido)
+    expect(delMapa).toHaveLength(1)
+    expect(delMapa[0]).toMatch(/100dvh/)
+    expect(altosLg(loading)).toEqual(delMapa)
+  })
+
+  it('la lista de al lado no pasa del alto del mapa', () => {
+    const alto = altosLg(contenido)[0].replace(/^lg:h-/, '')
+    expect(contenido).toContain(`lg:max-h-${alto}`)
+  })
+
+  it('no queda el 70vh viejo (en 1280×900 el mapa terminaba en y≈975)', () => {
+    expect(contenido).not.toMatch(/70vh/)
+    expect(loading).not.toMatch(/70vh/)
+  })
+
+  it('un detector se pone en rojo si el esqueleto se queda con otro alto', () => {
+    expect(altosLg(loading.replace(altosLg(loading)[0], 'lg:h-[70vh]'))).not.toEqual(altosLg(contenido))
+  })
+})
+
+describe('sin JavaScript /mapa no se queda en el esqueleto de carga (C5)', () => {
+  it('loading.tsx trae un <noscript><style> que muestra la página marcada con data-pagina-mapa y esconde el esqueleto', () => {
+    const loading = leer(LOADING)
+    expect(loading).toMatch(/<noscript>\s*<style>\{SIN_JS_MOSTRAR_LA_PAGINA\}<\/style>\s*<\/noscript>/)
+    // En @layer theme: si no, el `[hidden]{display:none!important}` del preflight (en @layer base) le gana.
+    expect(loading).toContain('div[hidden]:has(> [data-pagina-mapa]){display:block!important;order:-1}')
+    expect(loading).toMatch(/"@layer theme\{body\{display:flex!important;flex-direction:column\}/)
+    expect(loading).toContain('[data-cargando-mapa]{display:none!important}')
+    expect(loading).toMatch(/<div role="status"[^>]*data-cargando-mapa=""/)
+  })
+
+  it('la página lleva la marca en su contenedor de afuera', () => {
+    expect(leer(PAGINA)).toMatch(/return \(\s*<div data-pagina-mapa=""/)
+  })
+})
+
 describe('el área de toque y los gestos del mapa', () => {
   const codigo = leer(MAPLIBRE)
 
@@ -278,7 +338,15 @@ describe('el área de toque y los gestos del mapa', () => {
   it('los gestos son cooperativos y los textos van en español', () => {
     expect(codigo).toMatch(/cooperativeGestures:\s*true/)
     expect(codigo).toMatch(/locale:\s*TEXTOS_ES/)
-    expect(codigo).toContain('Usá dos dedos para mover el mapa')
+    expect(codigo).toMatch(/import\s*\{\s*TEXTOS_ES\s*\}\s*from\s*['"]\.\/textos-maplibre['"]/)
+    expect(leer(TEXTOS)).toContain('Usá dos dedos para mover el mapa')
+  })
+
+  it('el mapa del pin también: gestos cooperativos y los mismos textos en español', () => {
+    const pin = leer(PIN_MAPLIBRE)
+    expect(pin).toMatch(/cooperativeGestures:\s*true/)
+    expect(pin).toMatch(/locale:\s*TEXTOS_ES/)
+    expect(pin).toMatch(/import\s*\{\s*TEXTOS_ES\s*\}\s*from\s*['"]\.\/textos-maplibre['"]/)
   })
 })
 

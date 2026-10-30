@@ -15,26 +15,40 @@
  *   /evento/<uuid>  inexistente (borrado)       → 410
  *                   CANCELLED, sin sesión       → 410 (con sesión sigue: el admin lo ve)
  *                   fusionado, publicado, DRAFT → sigue (la página hace su 308 o su 404)
+ *   /en/evento/<uuid>                           → lo mismo que /evento/<uuid> (Q3): 410 o
+ *                                                 sigue (el 308 del fusionado lo hace
+ *                                                 app/en/evento/[id]/page.tsx, a /en/evento).
+ *                                                 /flyer existe solo en castellano.
  *
  * Cualquier error de la consulta → sigue: falla hacia el comportamiento de antes.
  */
 import { findMergeRedirect, mergedIntoId } from '@/lib/events/merged'
+import { separarIdioma } from '@/lib/i18n/rutas'
 
 /* eslint-disable-next-line @typescript-eslint/no-explicit-any -- cliente de supabase-js o un doble de test */
 type SupabaseLike = any
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
-export type GoneTarget = { kind: 'flyer' | 'evento'; id: string }
+/** `idioma` solo en la ficha en inglés (`/en/evento/<uuid>`); en castellano no va. */
+export type GoneTarget = { kind: 'flyer' | 'evento'; id: string; idioma?: 'en' }
 export type GoneDecision = { kind: 'pass' } | { kind: 'redirect'; location: string } | { kind: 'gone' }
 
 const PASS: GoneDecision = { kind: 'pass' }
 
-/** `/flyer/<uuid>` o `/evento/<uuid>` exactos (sin subrutas). Cualquier otra cosa: null. */
+/**
+ * `/flyer/<uuid>`, `/evento/<uuid>` o `/en/evento/<uuid>` exactos (sin
+ * subrutas). Cualquier otra cosa (también `/en/flyer/...`, que no existe): null.
+ */
 export function parseGonePath(pathname: string): GoneTarget | null {
-  const m = /^\/(flyer|evento)\/([^/]+)\/?$/.exec(pathname)
+  const { idioma, ruta } = separarIdioma(pathname)
+  const m = /^\/(flyer|evento)\/([^/]+)\/?$/.exec(ruta)
   if (!m || !UUID_RE.test(m[2])) return null
-  return { kind: m[1] as 'flyer' | 'evento', id: m[2].toLowerCase() }
+  const kind = m[1] as 'flyer' | 'evento'
+  if (idioma === 'en' && kind !== 'evento') return null
+  const target: GoneTarget = { kind, id: m[2].toLowerCase() }
+  if (idioma === 'en') target.idioma = 'en'
+  return target
 }
 
 /** Id del evento publicado al que lleva `eventId` (él mismo o el final de su cadena de fusiones). */

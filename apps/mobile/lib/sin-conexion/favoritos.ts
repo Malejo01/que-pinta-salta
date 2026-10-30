@@ -84,9 +84,35 @@ export interface DepsCargarFavoritos {
   almacen?: Almacen
 }
 
+// A6 (nube Q1): igual que `ResultadoCargaAgenda` (`./agenda.ts`), la rama de
+// error suma `sinConexion: true` cuando `obtener` falló por red y no había
+// nada guardado que mostrar (o la época cambió en el medio): la pantalla
+// muestra entonces "No hay conexión y todavía no hay nada guardado..." en vez
+// del error de siempre. Los `toEqual({ tipo: 'error', error })` de esos casos
+// se actualizaron a propósito; un error que no es de red sigue sin la clave.
+//
+// A6, ronda de correcciones: mostrando la copia, `seOcultaronPasados: true`
+// si `paraMostrarFavoritos` sacó algún evento que ya pasó — así la pantalla
+// distingue "la copia quedó vacía porque lo que había ya pasó" de "la copia
+// ya venía vacía" (nunca se marcó nada) y solo en el primer caso dice que
+// los pasados no se muestran. La clave va solo cuando es `true` (ausente si
+// no se sacó nada): los `toEqual` de la R43 sobre copias sin pasados siguen
+// valiendo sin tocarlos.
 export type ResultadoCargaFavoritos =
-  | { tipo: 'ok'; voy: DisplayEvent[]; eventos: DisplayEvent[]; desdeCache: { guardadoEn: Date } | null }
-  | { tipo: 'error'; error: string }
+  | {
+      tipo: 'ok'
+      voy: DisplayEvent[]
+      eventos: DisplayEvent[]
+      desdeCache: { guardadoEn: Date } | null
+      seOcultaronPasados?: true
+    }
+  | { tipo: 'error'; error: string; sinConexion?: true }
+
+/** `{ seOcultaronPasados: true }` si al mostrar la copia se sacó algo; `{}` si no (la clave no va). */
+function marcaDePasados(antes: DatosCacheFavoritos, despues: DatosCacheFavoritos): { seOcultaronPasados?: true } {
+  const sacados = antes.voy.length + antes.eventos.length > despues.voy.length + despues.eventos.length
+  return sacados ? { seOcultaronPasados: true } : {}
+}
 
 /** Lo que se guarda en `CLAVE_FAVORITOS` desde QPS-262 (antes, el array pelado de `eventos`). */
 export interface DatosCacheFavoritos {
@@ -180,12 +206,12 @@ export async function cargarFavoritosConCache(
   // fallaba por red, la caché en disco (si quedó alguna) es de una sesión
   // que ya no es la actual — se devuelve el error de siempre, no la caché.
   if (epocaDeCacheFavoritos() !== epoca) {
-    return { tipo: 'error', error: resultado.error }
+    return { tipo: 'error', error: resultado.error, sinConexion: true }
   }
 
   const cache = await leerCache<unknown>(CLAVE_FAVORITOS, { ahora, ttlMs: TTL_FAVORITOS_MS, almacen })
   if (cache === null) {
-    return { tipo: 'error', error: resultado.error }
+    return { tipo: 'error', error: resultado.error, sinConexion: true }
   }
 
   // `paraMostrarFavoritos` tira si `cache.datos` no es un array de ítems
@@ -193,15 +219,17 @@ export async function cargarFavoritosConCache(
   // un ítem que no es un objeto): ver el comentario de cabecera. Una caché
   // así se trata igual que si no existiera.
   try {
-    const { voy, eventos } = datosDeCacheFavoritos(cache.datos)
+    const guardados = datosDeCacheFavoritos(cache.datos)
+    const visibles = { voy: paraMostrarFavoritos(guardados.voy, ahora), eventos: paraMostrarFavoritos(guardados.eventos, ahora) }
     return {
       tipo: 'ok',
-      voy: paraMostrarFavoritos(voy, ahora),
-      eventos: paraMostrarFavoritos(eventos, ahora),
+      voy: visibles.voy,
+      eventos: visibles.eventos,
       desdeCache: { guardadoEn: cache.guardadoEn },
+      ...marcaDePasados(guardados, visibles),
     }
   } catch {
-    return { tipo: 'error', error: resultado.error }
+    return { tipo: 'error', error: resultado.error, sinConexion: true }
   }
 }
 
@@ -217,7 +245,7 @@ export interface DepsLeerFavoritos {
  */
 export async function leerFavoritosGuardados(
   deps: DepsLeerFavoritos = {},
-): Promise<{ guardadoEn: Date; voy: DisplayEvent[]; eventos: DisplayEvent[] } | null> {
+): Promise<{ guardadoEn: Date; voy: DisplayEvent[]; eventos: DisplayEvent[]; seOcultaronPasados?: true } | null> {
   const { ahora = new Date(), almacen } = deps
   const cache = await leerCache<unknown>(CLAVE_FAVORITOS, { ahora, ttlMs: TTL_FAVORITOS_MS, almacen })
   if (cache === null) return null
@@ -225,8 +253,9 @@ export async function leerFavoritosGuardados(
   // Mismo resguardo que en `cargarFavoritosConCache`: una caché con `datos`
   // de forma inesperada se trata igual que "no hay caché" (`null`), no tira.
   try {
-    const { voy, eventos } = datosDeCacheFavoritos(cache.datos)
-    return { guardadoEn: cache.guardadoEn, voy: paraMostrarFavoritos(voy, ahora), eventos: paraMostrarFavoritos(eventos, ahora) }
+    const guardados = datosDeCacheFavoritos(cache.datos)
+    const visibles = { voy: paraMostrarFavoritos(guardados.voy, ahora), eventos: paraMostrarFavoritos(guardados.eventos, ahora) }
+    return { guardadoEn: cache.guardadoEn, ...visibles, ...marcaDePasados(guardados, visibles) }
   } catch {
     return null
   }

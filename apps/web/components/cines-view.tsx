@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { CinemaMovie } from '@/lib/types'
 import { MovieCard } from '@/components/movie-card'
 import { cargaPorIndice } from '@/lib/images/carga'
+import { anclaDePelicula } from '@/lib/seo/anclas'
 import { Input } from '@/components/ui/input'
 import { Search, Film, X, Clapperboard } from 'lucide-react'
 import { useTextos } from '@/lib/i18n/use-idioma'
@@ -62,7 +63,7 @@ export function CinesView({ movies }: CinesViewProps) {
               las películas con afiche: una tarjeta sin imagen no gasta el
               lugar del LCP. */}
           {filteredMovies.map((movie) => (
-            <MovieCard key={movie.id} movie={movie} carga={cargaDe(movie.id)} />
+            <MovieCard key={movie.id} movie={movie} carga={cargaDe(movie.id)} id={anclaDePelicula(movie.slug)} />
           ))}
         </div>
       ) : (

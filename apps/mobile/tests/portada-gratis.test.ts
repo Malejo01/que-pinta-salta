@@ -578,8 +578,13 @@ function violacionesPortada(fuenteCruda: string): string[] {
   // El anuncio: el conteo o el vacío, con el mismo texto que se ve.
   if (!/const anuncio = datosPortada\s*\?\s*anuncioDeLaGrilla\(\{\s*modoGrilla,\s*gratis,/.test(c)) v.push('el anuncio no sale de anuncioDeLaGrilla')
   // A3 (nube Q1): sin "Para chicos" (la rama del medio de `textoVacio`, que va primero con `paraChicos ?`).
-  if (!/const textoVacio = paraChicos[\s\S]{0,120}?:\s*gratis \? textoVacioGratis\(categoria, nombreCategoria, atajo\) : textoVacioCategoria\(nombreCategoria, atajo\)/.test(c)) v.push('el texto del vacío no sale de textoVacioGratis/textoVacioCategoria')
-  if (!/accessibilityLiveRegion="polite">\s*\{textoVacio\}/.test(c)) v.push('el vacío de categoría no muestra textoVacio en una live region')
+  // Integración R76 (A6): el vacío del modo categoría es `textoVacioCategoria` de `lib/vacios.ts` (con `desdeCache`).
+  if (!/const textoVacio = paraChicos[\s\S]{0,120}?:\s*gratis\s*\?\s*textoVacioGratis\(categoria, nombreCategoria, atajo\)\s*:\s*textoVacioCategoria\(\{[^}]*\}\)/.test(c)) v.push('el texto del vacío no sale de textoVacioGratis/textoVacioCategoria')
+  // A8 (nube Q1, QPS-339): el vacío ya NO es una live region (lo anuncia
+  // `useAnunciarConteo`, un solo anuncio por cambio; ver `tests/anunciar-conteos.test.ts`).
+  if (!/<Texto tono="secundario">\s*\{textoVacio\}/.test(c)) v.push('el vacío de categoría no muestra textoVacio (sin live region)')
+  // (Ronda de correcciones de A8: la prohibición es por nodo, no por archivo:
+  // otras live regions de la portada, como la de `AvisoSinConexion`, siguen.)
   // (más abajo, dentro del uso de `<VacioGratis>`: `<VacioParaChicos>` también recibe `texto={textoVacio}`)
 
   // Filtros y chips por lib/portada-gratis.
@@ -618,7 +623,8 @@ function violacionesPortada(fuenteCruda: string): string[] {
     if (!/<Pressable\s+onPress=\{onVerTodosLosPrecios\}/.test(cuerpo)) v.push('"Ver todos los precios" no llama onVerTodosLosPrecios')
     if (!/onPress=\{segunda\.tipo === 'todas-las-categorias' \? onTodasLasCategorias : onEstaSemana\}/.test(cuerpo)) v.push('la segunda salida no despacha a su handler')
     if (!/borderColor: bordeSecundario/.test(cuerpo)) v.push('el secundario del vacío de Gratis no usa bordeSecundario')
-    if (!/accessibilityLiveRegion="polite">\s*\{texto\}/.test(cuerpo)) v.push('el texto del vacío de Gratis no es una live region')
+    // A8 (nube Q1, QPS-339): sin live region (lo anuncia `useAnunciarConteo`).
+    if (!/<Texto tono="secundario">\s*\{texto\}/.test(cuerpo)) v.push('el texto del vacío de Gratis no se muestra sin live region')
     if (/BannerAnuncio|BannerRadar/.test(cuerpo)) v.push('hay un banner en el vacío')
   }
   return v
@@ -656,7 +662,9 @@ describe('app/(tabs)/index.tsx: el modo "Gratis"', () => {
     ['vacío de Gratis sin el texto', (s: string) => enVacioGratis(s, 'texto={textoVacio}', 'texto=""'), 'el vacío de Gratis no recibe textoVacio'],
     ['vacío de categoría con Gratis', (s: string) => s.replace('eventosCategoria.length === 0 && categoria !== null && !gratis && !paraChicos ? (', 'eventosCategoria.length === 0 && categoria !== null && !paraChicos ? ('), 'el vacío de categoría también se muestra con Gratis'],
     ['vacío sin anuncio', (s: string) => s.replace('const anuncio = datosPortada\n    ? anuncioDeLaGrilla({', 'const anuncio = datosPortada && false\n    ? anuncioDeLaGrilla({'), 'el anuncio no sale de anuncioDeLaGrilla'],
-    ['vacío de categoría sin live region', (s: string) => s.replace(/accessibilityLiveRegion="polite">(\s*)\{textoVacio\}/, '>$1{textoVacio}'), 'el vacío de categoría no muestra textoVacio en una live region'],
+    // A8 (nube Q1, QPS-339): la rotura ahora es al revés (devolverle la live region = doble lectura).
+    ['vacío de categoría con live region', (s: string) => s.replace(/<Texto tono="secundario">(\s*)\{textoVacio\}/, '<Texto tono="secundario" accessibilityLiveRegion="polite">$1{textoVacio}'), 'el vacío de categoría no muestra textoVacio (sin live region)'],
+    ['vacío de Gratis con live region', (s: string) => s.replace(/(function VacioGratis[\s\S]*?)<Texto tono="secundario">/, '$1<Texto tono="secundario" accessibilityLiveRegion="polite">'), 'el texto del vacío de Gratis no se muestra sin live region'],
     ['grilla sin gratis', (s: string) => s.replace('{ atajo, categoria, gratis, paraChicos }, ahora)', '{ atajo, categoria, gratis: false, paraChicos }, ahora)'), 'la grilla no filtra con gratis'],
     ['"Ver todos los precios" que no apaga', (s: string) => s.replace('onVerTodosLosPrecios={() => cambiarGratis(false)}', 'onVerTodosLosPrecios={() => cambiarCategoria(null)}'), '"Ver todos los precios" no apaga Gratis'],
     ['"Todas las categorías" que apaga Gratis', (s: string) => enVacioGratis(s, 'onTodasLasCategorias={() => cambiarCategoria(null)}', 'onTodasLasCategorias={() => cambiarGratis(false)}'), '"Todas las categorías" no vuelve a "Todas"'],

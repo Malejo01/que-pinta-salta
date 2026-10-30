@@ -208,6 +208,7 @@ describe('cargarFavoritosConCache: el borrado llega mientras obtener está en vu
       almacen,
     })
 
-    expect(resultado).toEqual({ tipo: 'error', error: mensaje })
+    // A6 (nube Q1), a propósito: falló por red y no había nada guardado que sirviera → `sinConexion: true` en la rama de error.
+    expect(resultado).toEqual({ tipo: 'error', error: mensaje, sinConexion: true })
   })
 })

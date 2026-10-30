@@ -12,6 +12,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import { describe, expect, it } from 'vitest'
+import { es } from '@/lib/i18n/diccionarios/es'
 
 const WEB_ROOT = fileURLToPath(new URL('../../', import.meta.url))
 
@@ -55,8 +56,12 @@ describe('components/auth-modal.tsx: el modo login enlaza a /auth/recuperar', ()
     expect(src).toMatch(/<Link[^>]*href="\/auth\/recuperar"/)
   })
 
+  // Q3: el texto sale del diccionario (`auth.olvidasteContrasena`); en castellano es el mismo de /auth/login.
   it('el texto es el mismo que en /auth/login: "¿Olvidaste tu contraseña?"', () => {
-    expect(src).toContain('¿Olvidaste tu contraseña?')
+    const bloqueLink = src.match(/<Link[^>]*href="\/auth\/recuperar"[\s\S]*?\/Link>/)![0]
+    expect(bloqueLink).toContain('{t.olvidasteContrasena}')
+    expect(es.auth.olvidasteContrasena).toBe('¿Olvidaste tu contraseña?')
+    expect(readSource(LOGIN_PAGE)).toContain('¿Olvidaste tu contraseña?')
   })
 
   it('el link cierra el modal al navegar, usando la forma de cerrar que ya existe en el archivo (close)', () => {

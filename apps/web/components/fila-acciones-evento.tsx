@@ -28,18 +28,16 @@
 // saliendo de `ORDEN_FILA_ACCIONES`, que es lo que hay que proteger.
 import { Fragment, useState, type ReactNode } from "react"
 import { Heart } from "lucide-react"
-import {
-  MENSAJE_EVENTO_NO_DISPONIBLE,
-  ORDEN_FILA_ACCIONES,
-  TEXTO_ENTRAR_PARA_MARCAR,
-  TEXTO_SACASTE_GUARDADO_CON_VOY,
-} from "@qps/core/asistencia"
+import { ORDEN_FILA_ACCIONES } from "@qps/core/asistencia"
 import { marcarAsistencia, type CantidadesAsistencia } from "@/lib/asistencia"
 import { toggleFavorite } from "@/lib/actions/favorites"
 import { Button } from "@/components/ui/button"
 import { BotonVoy } from "@/components/botones-asistencia"
 import { useAuthModal } from "@/components/auth-modal"
 import { useToast } from "@/hooks/use-toast"
+import { textosDe } from "@/lib/i18n"
+import type { Idioma } from "@/lib/i18n/idiomas"
+import { useIdioma } from "@/lib/i18n/use-idioma"
 import { cn } from "@/lib/utils"
 
 export interface FilaAccionesEventoVistaProps {
@@ -54,9 +52,15 @@ export interface FilaAccionesEventoVistaProps {
   onClickGuardar: () => void
   onClickVoy: () => void
   compartir?: ReactNode
-  /** Para el `aria-label` de los botones (no afecta el texto visible, que sale de `textoBotonVoy`/literales). */
+  /** Para el `aria-label` de los botones (no afecta el texto visible, que sale de `textoBotonVoy`/el diccionario). */
   titulo?: string
   className?: string
+  /**
+   * Idioma de los textos. Por prop y no con `useTextos()`: la vista no puede
+   * usar hooks (ver arriba). Por defecto, castellano (los textos de siempre,
+   * que en `es.ts` salen de core).
+   */
+  idioma?: Idioma
 }
 
 /**
@@ -75,7 +79,10 @@ export function FilaAccionesEventoVista({
   compartir,
   titulo,
   className,
+  idioma = "es",
 }: FilaAccionesEventoVistaProps) {
+  const t = textosDe(idioma).asistencia
+  const nombre = titulo ?? t.esteEvento
   return (
     <div className={cn("flex flex-col gap-3", className)}>
       <div className="flex flex-wrap items-center gap-3">
@@ -90,15 +97,11 @@ export function FilaAccionesEventoVista({
                 className="min-h-11 flex-1 sm:flex-none"
                 disabled={pendiente}
                 aria-pressed={guardado}
-                aria-label={
-                  guardado
-                    ? `Quitar ${titulo ?? "este evento"} de tus guardados`
-                    : `Guardar ${titulo ?? "este evento"}`
-                }
+                aria-label={guardado ? t.ariaQuitarGuardado(nombre) : t.ariaGuardar(nombre)}
                 onClick={onClickGuardar}
               >
                 <Heart className={cn("mr-2 size-4", guardado && "fill-current")} />
-                {guardado ? "Guardado" : "Guardar"}
+                {guardado ? t.guardado : t.guardar}
               </Button>
             )
           }
@@ -113,6 +116,7 @@ export function FilaAccionesEventoVista({
                 pendiente={pendiente}
                 onClick={onClickVoy}
                 titulo={titulo}
+                idioma={idioma}
               />
             )
           }
@@ -122,7 +126,7 @@ export function FilaAccionesEventoVista({
           return <Fragment key="compartir">{compartir}</Fragment>
         })}
       </div>
-      {!haySesion && <p className="text-sm text-muted-foreground">{TEXTO_ENTRAR_PARA_MARCAR}</p>}
+      {!haySesion && <p className="text-sm text-muted-foreground">{t.entrarParaMarcar}</p>}
     </div>
   )
 }
@@ -168,6 +172,8 @@ export function FilaAccionesEvento({
   const [pendiente, setPendiente] = useState(false)
   const { open: openAuthModal } = useAuthModal()
   const { toast } = useToast()
+  const idioma = useIdioma()
+  const t = textosDe(idioma).asistencia
 
   /**
    * Tocar ♥: optimista (como hoy), pero el resultado del servidor manda. Si
@@ -198,8 +204,9 @@ export function FilaAccionesEvento({
           openAuthModal()
         } else {
           toast({
-            title: "Error",
-            description: resultado.message || "No pudimos actualizar tus guardados. Probá de nuevo.",
+            title: t.errorTitulo,
+            // El mensaje del servidor está en castellano: en inglés va el del diccionario.
+            description: (idioma === "es" && resultado.message) || t.errorGuardados,
             variant: "destructive",
           })
         }
@@ -215,14 +222,14 @@ export function FilaAccionesEvento({
       if (guardadoFinal !== guardadoOptimista) onGuardadoChange?.(guardadoFinal)
 
       if (resultado.voyQuitado) {
-        toast({ description: TEXTO_SACASTE_GUARDADO_CON_VOY })
+        toast({ description: t.sacasteGuardadoConVoy })
       }
     } catch {
       setEstado(anterior)
       onGuardadoChange?.(anterior.guardado)
       toast({
-        title: "Error de conexión",
-        description: "No pudimos conectarnos al servidor. Probá de nuevo.",
+        title: t.errorConexionTitulo,
+        description: t.errorConexionTexto,
         variant: "destructive",
       })
     } finally {
@@ -258,11 +265,8 @@ export function FilaAccionesEvento({
           openAuthModal()
         } else {
           toast({
-            title: "Error",
-            description:
-              resultado.error === "INVALID"
-                ? MENSAJE_EVENTO_NO_DISPONIBLE
-                : "No pudimos guardar tu marca. Probá de nuevo.",
+            title: t.errorTitulo,
+            description: resultado.error === "INVALID" ? t.eventoNoDisponible : t.errorMarca,
             variant: "destructive",
           })
         }
@@ -279,8 +283,8 @@ export function FilaAccionesEvento({
       })
     } catch {
       toast({
-        title: "Error de conexión",
-        description: "No pudimos conectarnos al servidor. Probá de nuevo.",
+        title: t.errorConexionTitulo,
+        description: t.errorConexionTexto,
         variant: "destructive",
       })
     } finally {
@@ -301,6 +305,7 @@ export function FilaAccionesEvento({
       compartir={compartir}
       titulo={titulo}
       className={className}
+      idioma={idioma}
     />
   )
 }

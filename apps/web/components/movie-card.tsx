@@ -18,16 +18,22 @@ interface MovieCardProps {
    * el primer póster, que es el LCP de /cines.
    */
   carga?: CargaImagen
+  /**
+   * `id` de la tarjeta, para el ancla `/cines#…` del JSON-LD (B2). Opcional:
+   * lo pasa solo la grilla de /cines, así no se repite si la tarjeta se usa
+   * en otra página.
+   */
+  id?: string
 }
 
-export function MovieCard({ movie, carga = 'diferida' }: MovieCardProps) {
+export function MovieCard({ movie, carga = 'diferida', id }: MovieCardProps) {
   // Encontrar cuántas salas tienen la película disponible
   const cinemasCount = Object.keys(movie.showings).length
   const idioma = useIdioma()
   const t = useTextos().cines
 
   return (
-    <div className="group relative flex flex-col rounded-2xl border border-border bg-card/40 p-4 backdrop-blur-md transition-all duration-300 hover:border-primary/30 hover:bg-card/60 hover:shadow-2xl hover:shadow-primary/5">
+    <div id={id} className="group relative flex flex-col rounded-2xl border border-border bg-card/40 p-4 backdrop-blur-md transition-all duration-300 hover:border-primary/30 hover:bg-card/60 hover:shadow-2xl hover:shadow-primary/5">
       {/* Poster del film con zoom y efectos premium */}
       <div className="relative aspect-[2/3] w-full overflow-hidden rounded-xl bg-muted border border-border">
         {movie.poster_url ? (

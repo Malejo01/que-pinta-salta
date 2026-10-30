@@ -1,6 +1,8 @@
 import { createClient } from "@supabase/supabase-js"
 import type { MetadataRoute } from "next"
 import { ANUNCIANTES } from "@/lib/config/anunciantes"
+import { VIGENTE_DESDE } from "@/components/legal/vigencia"
+import { fechaDeTextoEnCastellano } from "@/lib/seo/fecha-legal"
 
 const baseUrl = "https://www.quepintasalta.com.ar"
 
@@ -27,14 +29,24 @@ const SITEMAP_PAST_DAYS = 30
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const now = new Date()
+  // /privacidad y /terminos (B2): la fecha desde la que rige la versión
+  // vigente, la misma que muestran arriba. Antes era `now`, que en cada
+  // regeneración decía que habían cambiado. Nunca en el futuro (si se carga
+  // la vigencia antes del día, el lastmod queda en hoy). Si el texto no se
+  // puede leer como fecha, sin lastmod: mejor ninguno que uno inventado.
+  // /eliminar-cuenta no tiene una fecha propia en el código: sin lastmod.
+  const vigenciaLegal = fechaDeTextoEnCastellano(VIGENTE_DESDE)
+  const legalesUpdatedAt = vigenciaLegal ? new Date(Math.min(vigenciaLegal.getTime(), now.getTime())) : undefined
   const sitemapCutoff = new Date(now.getTime() - SITEMAP_PAST_DAYS * 24 * 60 * 60 * 1000)
 
+  // `lastModified` es opcional (B2): sin una fecha real se omite el campo,
+  // en vez de poner `now` y decirle al crawler que la página cambió recién.
   const staticRoute = (
     path: string,
-    lastModified: Date,
+    lastModified: Date | undefined,
     changeFrequency: "daily" | "weekly",
     priority: number,
-  ) => ({ url: `${baseUrl}${path}`, lastModified, changeFrequency, priority })
+  ) => ({ url: `${baseUrl}${path}`, ...(lastModified && { lastModified }), changeFrequency, priority })
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
   const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
@@ -46,9 +58,9 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       staticRoute("/cines", now, "daily", 0.8),
       staticRoute("/buscar", now, "weekly", 0.5),
       staticRoute("/mapa", now, "weekly", 0.5),
-      staticRoute("/privacidad", now, "weekly", 0.2),
-      staticRoute("/terminos", now, "weekly", 0.2),
-      staticRoute("/eliminar-cuenta", now, "weekly", 0.2),
+      staticRoute("/privacidad", legalesUpdatedAt, "weekly", 0.2),
+      staticRoute("/terminos", legalesUpdatedAt, "weekly", 0.2),
+      staticRoute("/eliminar-cuenta", undefined, "weekly", 0.2),
       ...(ANUNCIANTES.publicada ? [staticRoute("/anunciantes", now, "weekly", 0.3)] : []),
     ]
   }
@@ -129,9 +141,9 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     staticRoute("/cines", cinemaUpdatedAt, "daily", 0.8),
     staticRoute("/buscar", eventsUpdatedAt, "weekly", 0.5),
     staticRoute("/mapa", eventsUpdatedAt, "weekly", 0.5),
-    staticRoute("/privacidad", now, "weekly", 0.2),
-    staticRoute("/terminos", now, "weekly", 0.2),
-    staticRoute("/eliminar-cuenta", now, "weekly", 0.2),
+    staticRoute("/privacidad", legalesUpdatedAt, "weekly", 0.2),
+    staticRoute("/terminos", legalesUpdatedAt, "weekly", 0.2),
+    staticRoute("/eliminar-cuenta", undefined, "weekly", 0.2),
     // /anunciantes solo mientras ANUNCIANTES.publicada sea true (ver
     // lib/config/anunciantes.ts): mientras haya precios sin completar la
     // página no se indexa ni se anuncia para rastreo.

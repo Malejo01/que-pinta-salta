@@ -6,7 +6,10 @@ import { Eye, EyeOff } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
 
-type PasswordInputProps = Omit<React.ComponentProps<typeof Input>, 'type'>
+type PasswordInputProps = Omit<React.ComponentProps<typeof Input>, 'type'> & {
+  /** Nombre accesible del botón del ojito (Q3: el modal de ingreso en inglés). Por defecto, en castellano. */
+  etiquetaMostrar?: string
+}
 
 type PasswordInputFieldProps = PasswordInputProps & {
   visible: boolean
@@ -23,6 +26,7 @@ function PasswordInputField({
   visible,
   onToggleVisible,
   className,
+  etiquetaMostrar = 'Mostrar contraseña',
   ...props
 }: PasswordInputFieldProps) {
   return (
@@ -40,7 +44,7 @@ function PasswordInputField({
       */}
       <button
         type="button"
-        aria-label="Mostrar contraseña"
+        aria-label={etiquetaMostrar}
         aria-pressed={visible}
         onClick={onToggleVisible}
         className="absolute inset-y-0 right-0 flex w-11 items-center justify-center text-muted-foreground transition-colors hover:text-foreground after:absolute after:inset-x-0 after:-inset-y-1 after:content-['']"

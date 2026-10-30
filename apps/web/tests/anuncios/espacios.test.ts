@@ -17,6 +17,7 @@ import { fileURLToPath } from 'node:url'
 import * as React from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { es } from '@/lib/i18n/diccionarios/es'
 
 const WEB_ROOT = fileURLToPath(new URL('../../', import.meta.url))
 
@@ -208,15 +209,22 @@ describe('buscar-content.tsx: el banner va al final de <main>, después de los r
 describe('event-detail-page.tsx: el banner va después de "Cómo llegar" y "Comprar tickets"', () => {
   const src = readSource('components/event-detail-page.tsx')
 
+  // Q3: los textos de los botones salen del diccionario (`textos.ficha.*`);
+  // en castellano siguen diciendo exactamente lo mismo.
+  it('los textos en castellano no cambiaron', () => {
+    expect(es.ficha.comoLlegar).toBe('Cómo llegar')
+    expect(es.ficha.comprarTickets).toBe('Comprar tickets')
+  })
+
   it('<AdSenseBanner aparece después de "Cómo llegar"', () => {
-    const iComoLlegar = src.indexOf('Cómo llegar')
+    const iComoLlegar = src.indexOf('textos.ficha.comoLlegar')
     const iBanner = src.indexOf('<AdSenseBanner')
     expect(iComoLlegar).toBeGreaterThan(-1)
     expect(iBanner).toBeGreaterThan(iComoLlegar)
   })
 
   it('<AdSenseBanner aparece después de "Comprar tickets"', () => {
-    const iComprar = src.indexOf('Comprar tickets')
+    const iComprar = src.indexOf('textos.ficha.comprarTickets')
     const iBanner = src.indexOf('<AdSenseBanner')
     expect(iComprar).toBeGreaterThan(-1)
     expect(iBanner).toBeGreaterThan(iComprar)

@@ -21,7 +21,8 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { resultadoAlta } from '@qps/core/auth/mensajes'
+import { MENSAJE_ALTA_ENVIADA, resultadoAlta } from '@qps/core/auth/mensajes'
+import { es } from '@/lib/i18n/diccionarios/es'
 
 const ROOT = join(__dirname, '..', '..')
 const read = (relPath: string) => readFileSync(join(ROOT, relPath), 'utf8')
@@ -83,8 +84,10 @@ describe('components/auth-modal.tsx: el alta también usa resultadoAltaConSesion
     expect(src).toMatch(/MENSAJE_ALTA_ENVIADA/)
   })
 
+  // Q3: el texto pasa por `t.mensaje` (el diccionario), que en castellano lo deja igual.
   it('con "enviado", avisa con MENSAJE_ALTA_ENVIADA (toast), no un texto fijo distinto', () => {
-    expect(src).toMatch(/description:\s*MENSAJE_ALTA_ENVIADA/)
+    expect(src).toMatch(/description:\s*t\.mensaje\(MENSAJE_ALTA_ENVIADA\)/)
+    expect(es.auth.mensaje(MENSAJE_ALTA_ENVIADA)).toBe(MENSAJE_ALTA_ENVIADA)
   })
 
   it('el login del modal pasa por mensajeErrorIngreso, no error.message', () => {

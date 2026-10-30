@@ -32,3 +32,12 @@ export function textoPrecio(price: PrecioEvento | null | undefined): string | nu
   if (price === 'confirmar' || price === null || price === undefined) return null
   return `$${agruparMiles(price)}`
 }
+
+/**
+ * "1 evento" / "N eventos" (A6, nube Q1): el tile de "Explorar por
+ * categoria" de Buscar decía "1 eventos". Mismo criterio que
+ * `conteoCategoria` de la portada.
+ */
+export function textoCantidadEventos(cantidad: number): string {
+  return `${cantidad} ${cantidad === 1 ? 'evento' : 'eventos'}`
+}

@@ -192,3 +192,62 @@ describe('middleware', () => {
     expect(db.selects).toEqual([])
   })
 })
+
+// Q3: la ficha en inglés (/en/evento/<uuid>) hace lo mismo que la de
+// castellano: 410 si el evento se borró o (sin sesión) se canceló, y sigue a
+// la página en el resto (fusionado: la página hace su 308 a /en/evento/<otro>,
+// ver tests/events/evento-en-merged-308.test.ts). /flyer existe solo en castellano.
+describe('ficha en inglés', () => {
+  const eventoEn = { kind: 'evento' as const, id: EVENT, idioma: 'en' as const }
+  const req = (path: string) => new NextRequest(`https://www.quepintasalta.com.ar${path}`)
+
+  it('parseGonePath: /en/evento/<uuid> exacto, con el idioma; /en/flyer no', () => {
+    expect(parseGonePath(`/en/evento/${EVENT}`)).toEqual(eventoEn)
+    expect(parseGonePath(`/en/evento/${EVENT.toUpperCase()}/`)).toEqual(eventoEn)
+    expect(parseGonePath(`/en/flyer/${FLYER}`)).toBeNull()
+    expect(parseGonePath('/en/evento/no-es-uuid')).toBeNull()
+    expect(parseGonePath(`/en/evento/${EVENT}/otra`)).toBeNull()
+    expect(parseGonePath(`/en/en/evento/${EVENT}`)).toBeNull()
+    expect(parseGonePath(`/entradas/evento/${EVENT}`)).toBeNull()
+    expect(parseGonePath('/en')).toBeNull()
+  })
+
+  it('borrado: 410; cancelado: 410 sin sesión y sigue con sesión', async () => {
+    expect(await decideGone(fakeClient(), eventoEn, false)).toEqual({ kind: 'gone' })
+    db.events = [{ id: EVENT, status: 'CANCELLED', ai_metadata: null }]
+    expect(await decideGone(fakeClient(), eventoEn, false)).toEqual({ kind: 'gone' })
+    expect(await decideGone(fakeClient(), eventoEn, true)).toEqual({ kind: 'pass' })
+  })
+
+  it('fusionado, publicado o borrador: sigue (la página hace su 308 o su 404)', async () => {
+    for (const row of [
+      { id: EVENT, status: 'DRAFT', ai_metadata: { merged_into_event_id: KEEP } },
+      { id: EVENT, status: 'PUBLISHED', ai_metadata: null },
+      { id: EVENT, status: 'DRAFT', ai_metadata: null },
+    ]) {
+      db.events = [row]
+      expect(await decideGone(fakeClient(), eventoEn, false)).toEqual({ kind: 'pass' })
+    }
+  })
+
+  it('middleware: 410 con noindex para /en/evento/<borrado>, y conserva las cookies de sesión', async () => {
+    const res = await middleware(req(`/en/evento/${EVENT}`))
+    expect(res.status).toBe(410)
+    expect(res.headers.get('x-robots-tag')).toBe('noindex')
+    expect(await res.text()).not.toContain(EVENT)
+    expect(res.cookies.get('sb-x-auth-token')?.value).toBe('refrescada')
+  })
+
+  it('middleware: /en/evento/<publicado> sigue a la página', async () => {
+    db.events = [{ id: EVENT, status: 'PUBLISHED', ai_metadata: null }]
+    const res = await middleware(req(`/en/evento/${EVENT}`))
+    expect(res.status).toBe(200)
+  })
+
+  it('middleware: /en/flyer/<uuid> no consulta nada (no existe en inglés)', async () => {
+    db.flyers = [{ id: FLYER, status: 'ARCHIVED', ai_metadata: null }]
+    const res = await middleware(req(`/en/flyer/${FLYER}`))
+    expect(res.status).toBe(200)
+    expect(db.selects).toEqual([])
+  })
+})
