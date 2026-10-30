@@ -139,6 +139,8 @@ export interface HojaFiltrosProps {
   onCambiarCategoria: (slug: string | null) => void
   /** Apaga Gratis, Para chicos y la categoría (no la fecha). */
   onLimpiar: () => void
+  /** Cuántos filtros hay activos (Gratis, Para chicos, categoría): con 0, «Limpiar» queda deshabilitado. */
+  activos: number
   /** El botón «Filtros», para devolverle el foco al cerrar. */
   botonRef: RefObject<View | null>
 }
@@ -155,6 +157,7 @@ export function HojaFiltros({
   onCambiarParaChicos,
   onCambiarCategoria,
   onLimpiar,
+  activos,
   botonRef,
 }: HojaFiltrosProps) {
   const colores = useColoresQPS()
@@ -222,7 +225,7 @@ export function HojaFiltros({
             </View>
             {categorias.length > 0 ? (
               <>
-                <Texto peso="bold" tono="secundario">
+                <Texto peso="bold" tono="secundario" accessibilityRole="header">
                   Categorías
                 </Texto>
                 <ChipsCategorias categorias={categorias} seleccionada={categoria} onCambiar={onCambiarCategoria} envolver />
@@ -241,9 +244,15 @@ export function HojaFiltros({
             </Pressable>
             <Pressable
               onPress={onLimpiar}
+              // R81, 81-c: sin filtros activos no hay nada que limpiar.
+              disabled={activos === 0}
               accessibilityRole="button"
               accessibilityLabel="Limpiar filtros"
-              style={[estilos.accion, { borderWidth: 1, borderColor: bordeChipInactivo(colores) }]}
+              accessibilityState={{ disabled: activos === 0 }}
+              style={[
+                estilos.accion,
+                { borderWidth: 1, borderColor: bordeChipInactivo(colores), opacity: activos === 0 ? 0.5 : 1 },
+              ]}
             >
               <Texto peso="semibold">Limpiar</Texto>
             </Pressable>

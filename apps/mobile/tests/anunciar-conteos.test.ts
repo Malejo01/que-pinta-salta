@@ -633,6 +633,10 @@ export function violacionesHook(fuente: string): string[] {
   if (!/useEffect\(\(\) => \(\) => anunciador\.cancelar\(\), \[anunciador\]\)/.test(c)) v.push('no cancela el anuncio pendiente al desmontar')
   if (!/\}, \[anunciador, enFoco, pausado, listo, clave, texto, toque, titulo, conteo, alSalir\]\)/.test(c)) v.push('el efecto no depende de todos los campos del estado')
   if (/\bset[A-Z]\w*\(/.test(c.replace(/\bsetTimeout\b/g, ''))) v.push('el hook hace setState (un anuncio no es setState)')
+  // R81, 81-c: con la hoja de filtros abierta (`pausado`) no se observa nada.
+  const iPausa = c.search(/if \(pausado\) return\b/)
+  const iObservar = c.indexOf('anunciador.observar(actual)')
+  if (iPausa === -1 || iObservar === -1 || iPausa > iObservar) v.push('no se pausa con la hoja abierta (if (pausado) return antes de observar)')
   return v
 }
 
@@ -653,6 +657,7 @@ describe('detector: lib/anunciar-conteo-hook.ts', () => {
     ['sin limpiar el temporizador', (s: string) => s.replace('useEffect(() => () => anunciador.cancelar(), [anunciador])', ''), 'no cancela el anuncio pendiente al desmontar'],
     ['sin una dependencia', (s: string) => s.replace('}, [anunciador, enFoco, pausado, listo, clave, texto, toque, titulo, conteo, alSalir])', '}, [anunciador, enFoco, listo, clave, conteo])'), 'el efecto no depende de todos los campos del estado'],
     ['con setState', (s: string) => s.replace('    const actual = listo', '    setAnunciado(true)\n    const actual = listo'), 'el hook hace setState (un anuncio no es setState)'],
+    ['sin la pausa de la hoja', (s: string) => s.replace('    if (pausado) return\n', ''), 'no se pausa con la hoja abierta (if (pausado) return antes de observar)'],
   ])('rotura en memoria: %s -> detectada', (_n, romper, esperada) => {
     const roto = romper(real)
     expect(roto).not.toBe(real)

@@ -269,6 +269,33 @@ describe('detectores por texto', () => {
     expect(cuerpo).not.toMatch(/activar/)
   })
 
+  // R81, 81-c: accesibilidad de la Bienvenida.
+  it('bienvenida.tsx: ScrollView, títulos header con foco al cambiar de paso y Atrás que vuelve al paso 1', () => {
+    const src = leerFuente('app/bienvenida.tsx').replace(/\r\n/g, '\n')
+    const codigo = src.replace(/\/\/.*$/gm, '')
+    // Contenido en un ScrollView que crece y centra (con la fuente grande los botones no se tapan).
+    expect(codigo).toMatch(/<ScrollView[\s\S]*?contentContainerStyle=\{estilos\.contenedor\}/)
+    expect(codigo).not.toMatch(/<View\b/)
+    expect(codigo).toMatch(/contenedor:\s*\{\s*flexGrow: 1,[\s\S]*?justifyContent: 'center'/)
+    // Los dos títulos son header y llevan la ref del foco.
+    expect([...codigo.matchAll(/<Text ref=\{tituloRef\} accessibilityRole="header"/g)]).toHaveLength(2)
+    expect(codigo).toMatch(/setAccessibilityFocus\(nodo\)[\s\S]*?\[destino\]\)/)
+    // Atrás del sistema en el paso 2: vuelve al paso 1 y se da de baja al limpiar.
+    expect(codigo).toMatch(/BackHandler\.addEventListener\('hardwareBackPress'[\s\S]*?setDestino\(null\)/)
+    expect(codigo).toMatch(/return \(\) => suscripcion\.remove\(\)/)
+    // El logo decorativo no se lee; el color del botón sale del tema.
+    expect(codigo).toMatch(/<Image[^>]*accessibilityElementsHidden[^>]*importantForAccessibility="no-hide-descendants"/)
+    expect(codigo).not.toMatch(/#[0-9a-fA-F]{3,8}\b/)
+    expect(codigo).toMatch(/color: colores\.primaryForeground/)
+  })
+
+  it('bienvenida.tsx: el texto del paso 2 no dice "lo que guardaste" y sin sesión avisa que se pide al entrar', () => {
+    const src = leerFuente('app/bienvenida.tsx')
+    expect(src).not.toMatch(/lo que guardaste/)
+    expect(src).toMatch(/de lo que guardes/)
+    expect(src).toMatch(/userId \? null : \([\s\S]*?Cuando entres a tu cuenta te lo pedimos\./)
+  })
+
   it('el upsert del "al aceptar" manda sponsored: false', () => {
     const src = leerFuente('lib/notificaciones.ts')
     const i = src.indexOf('export async function activarPreferenciasAlAceptar')

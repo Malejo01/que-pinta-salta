@@ -443,9 +443,8 @@ const estilos = StyleSheet.create({
   sinEncoger: { flexShrink: 0 },
   filaQueAsoma: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: MARGEN_LATERAL, overflow: 'hidden' },
 
-  // Inicio. Cabecera: 8 de aire + 60 de chips (48 + 12 abajo) + 56 de pills
-  // (12 + 44 + 12, − 12 del `pillsBajoChips` de la portada) + 1 de borde =
-  // 125 dp.
+  // Inicio. Cabecera (R81, 81-a/81-c): UNA fila de ≈69 dp: 12 de aire arriba
+  // + 44 de la fila (botón «Filtros» y pills) + 12 abajo + 1 de borde.
   cabeceraPortada: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1 },
   botonFiltros: { marginLeft: MARGEN_LATERAL },
   filaPills: { flex: 1 },

@@ -286,7 +286,14 @@ function violacionesHoja(hojaCruda: string): string[] {
   if (!/animationType=\{reducir === false \? 'slide' : 'none'\}/.test(modal)) v.push("la animación no respeta reducir movimiento (slide solo con reducir === false)")
   // Fondo y hoja hermanos, hoja modal para el lector de pantalla.
   if (!/accessibilityViewIsModal/.test(c)) v.push('la hoja no lleva accessibilityViewIsModal')
-  if (!/accessibilityRole="header"/.test(c)) v.push('el título no es un header')
+  if (!/ref=\{tituloRef\}[^>]*accessibilityRole="header"/.test(c)) v.push('el título no es un header')
+  // R81, 81-c: «Categorías» también es un encabezado.
+  if (!/accessibilityRole="header">\s*Categorías/.test(c)) v.push('«Categorías» no es un header')
+  // R81, 81-c: «Limpiar» deshabilitado sin filtros activos.
+  if (!/onLimpiar: \(\) => void\s*activos: number/.test(c)) v.push('la hoja no recibe la cantidad de activos')
+  if (!/disabled=\{activos === 0\}/.test(c)) v.push('«Limpiar» no se deshabilita sin filtros activos')
+  if (!/accessibilityState=\{\{ disabled: activos === 0 \}\}/.test(c)) v.push('«Limpiar» no avisa su estado deshabilitado')
+  if (!/opacity: activos === 0 \?/.test(c)) v.push('«Limpiar» deshabilitado no se ve atenuado')
   if (!/>\s*Filtros\s*</.test(c)) v.push('no hay un título «Filtros»')
   // Foco: adentro al abrir, de vuelta al botón al cerrar.
   if (!/onShow=\{[\s\S]*?setAccessibilityFocus\(/.test(modal)) v.push('al abrir no manda el foco al título')
@@ -320,7 +327,12 @@ describe('components/HojaFiltros.tsx', () => {
     ['animación con reducir invertido', (s: string) => s.replace("reducir === false ? 'slide' : 'none'", "reducir ? 'slide' : 'none'"), 'la animación no respeta reducir movimiento (slide solo con reducir === false)'],
     ['sin consultar reducir movimiento', (s: string) => s.replace('const reducir = useReducirMovimiento()', 'const reducir = false'), 'no consulta useReducirMovimiento()'],
     ['hoja que no es modal', (s: string) => s.replace('accessibilityViewIsModal', ''), 'la hoja no lleva accessibilityViewIsModal'],
-    ['título sin rol', (s: string) => s.replace('accessibilityRole="header"', ''), 'el título no es un header'],
+    ['título sin rol', (s: string) => s.replace('ref={tituloRef} accessible accessibilityRole="header"', 'ref={tituloRef} accessible'), 'el título no es un header'],
+    ['«Categorías» sin rol', (s: string) => s.replace('tono="secundario" accessibilityRole="header"', 'tono="secundario"'), '«Categorías» no es un header'],
+    ['sin la prop activos', (s: string) => s.replace('  activos: number\n  /** El botón «Filtros», para', '  /** El botón «Filtros», para'), 'la hoja no recibe la cantidad de activos'],
+    ['«Limpiar» siempre habilitado', (s: string) => s.replace('disabled={activos === 0}', ''), '«Limpiar» no se deshabilita sin filtros activos'],
+    ['«Limpiar» sin estado accesible', (s: string) => s.replace('accessibilityState={{ disabled: activos === 0 }}', ''), '«Limpiar» no avisa su estado deshabilitado'],
+    ['«Limpiar» sin opacidad', (s: string) => s.replace('opacity: activos === 0 ?', 'opacity: false ?'), '«Limpiar» deshabilitado no se ve atenuado'],
     ['sin foco al abrir', (s: string) => s.replace('onShow={() => {', 'onDismiss={() => {'), 'al abrir no manda el foco al título'],
     ['sin devolver el foco', (s: string) => s.replace('[visible, botonRef]', '[botonRef]'), 'al cerrar no devuelve el foco al botón'],
     ['sin «Ver N eventos»', (s: string) => s.replace('{textoVerEventos(cantidad)}', 'Ver'), 'falta «Ver N eventos»'],
@@ -332,6 +344,40 @@ describe('components/HojaFiltros.tsx', () => {
     const roto = romper(hoja)
     expect(roto).not.toBe(hoja)
     expect(violacionesHoja(roto)).toContain(esperada)
+  })
+})
+
+/** Violaciones de la portada que tocan a la hoja (R81, 81-c). */
+function violacionesPortadaHoja(portadaCruda: string): string[] {
+  const c = sinComentarios(portadaCruda)
+  const v: string[] = []
+  const iCargar = c.indexOf('const cargar = useCallback(')
+  const cuerpoCargar = iCargar < 0 ? '' : c.slice(iCargar, c.indexOf('}, [])', iCargar))
+  if (!/setHojaAbierta\(false\)/.test(cuerpoCargar)) v.push('cargar no cierra la hoja (se reabriría sola al volver a ok)')
+  if (!/if \(resultado\.tipo !== 'ok'\) setHojaAbierta\(false\)/.test(c)) v.push('la carga que no queda en ok no cierra la hoja')
+  if (!/if \(decision\.estado\.tipo !== 'ok'\) setHojaAbierta\(false\)/.test(c)) v.push('el refresco que no queda en ok no cierra la hoja')
+  const iHoja = c.indexOf('<HojaFiltros')
+  const hoja = iHoja < 0 ? '' : c.slice(iHoja, c.indexOf('/>', iHoja))
+  if (!/\bactivos=\{contarFiltrosActivos\(\{ gratis, paraChicos, categoria \}\)\}/.test(hoja)) v.push('la hoja no recibe los filtros activos')
+  return v
+}
+
+describe('app/(tabs)/index.tsx: la hoja y los estados de la portada', () => {
+  const portada = leer('app', '(tabs)', 'index.tsx')
+
+  it('el fuente real no tiene violaciones', () => {
+    expect(violacionesPortadaHoja(portada)).toEqual([])
+  })
+
+  it.each([
+    ['cargar sin cerrar la hoja', (s: string) => s.replace(/(const cargar = useCallback\(\(\) => \{[\s\S]*?)setHojaAbierta\(false\)/, '$1'), 'cargar no cierra la hoja (se reabriría sola al volver a ok)'],
+    ['carga sin cerrar la hoja', (s: string) => s.replace("if (resultado.tipo !== 'ok') setHojaAbierta(false)", ''), 'la carga que no queda en ok no cierra la hoja'],
+    ['refresco sin cerrar la hoja', (s: string) => s.replace("if (decision.estado.tipo !== 'ok') setHojaAbierta(false)", ''), 'el refresco que no queda en ok no cierra la hoja'],
+    ['hoja sin activos', (s: string) => s.replace('activos={contarFiltrosActivos({ gratis, paraChicos, categoria })}\n          botonRef', 'botonRef'), 'la hoja no recibe los filtros activos'],
+  ])('rotura en memoria: %s -> detectada', (_nombre, romper, esperada) => {
+    const roto = romper(portada)
+    expect(roto).not.toBe(portada)
+    expect(violacionesPortadaHoja(roto)).toContain(esperada)
   })
 })
 

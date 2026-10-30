@@ -574,6 +574,7 @@ export default function Inicio() {
     cargarDatos().then((resultado) => {
       if (cancelado) return
       setEstado(resultado)
+      if (resultado.tipo !== 'ok') setHojaAbierta(false)
       // A6: el aviso de sin conexión es live region, pero Android no anuncia
       // una live region al montarse (R69, 69-b) e iOS las ignora: se anuncia
       // acá, en el callback de la carga (no es `setState`). Y si fue un
@@ -596,6 +597,9 @@ export default function Inicio() {
 
   const cargar = useCallback(() => {
     setEstado({ tipo: 'cargando' })
+    // R81, 81-c: la hoja vive dentro del estado `ok`; si se queda abierta al
+    // salir de él, al volver se reabriría sola con el anuncio pausado.
+    setHojaAbierta(false)
     setNotaRefresco(null)
     setIntento((valor) => valor + 1)
   }, [])
@@ -608,6 +612,7 @@ export default function Inicio() {
     setRefrescando(true)
     const decision = decidirRefresco(estado, await cargarDatos(), notaRefresco)
     setEstado(decision.estado)
+    if (decision.estado.tipo !== 'ok') setHojaAbierta(false)
     setNotaRefresco(decision.nota)
     const aviso = decision.anuncio
     if (aviso) anunciar(aviso)
@@ -1074,6 +1079,7 @@ export default function Inicio() {
           onCambiarParaChicos={cambiarParaChicos}
           onCambiarCategoria={cambiarCategoria}
           onLimpiar={limpiarFiltros}
+          activos={contarFiltrosActivos({ gratis, paraChicos, categoria })}
           botonRef={botonFiltrosRef}
         />
         </>

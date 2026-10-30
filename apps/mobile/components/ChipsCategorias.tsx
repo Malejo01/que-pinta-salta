@@ -55,7 +55,9 @@ export interface ChipsCategoriasProps {
   onCambiar: (slug: string | null) => void
   /**
    * A3 (nube Q1, ronda de correcciones): la barra de desplazamiento horizontal
-   * (persistente en Android). La pasa la portada; Buscar no.
+   * (persistente en Android). R81, 81-c: hoy no la pasa nadie (la portada
+   * dejó esta fila por la hoja de filtros y Buscar no la usa); queda por si
+   * una fila con scroll vuelve a necesitarla.
    */
   mostrarBarra?: boolean
   /**
