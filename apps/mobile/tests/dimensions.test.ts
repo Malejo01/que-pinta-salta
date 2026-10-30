@@ -7,6 +7,7 @@ import { readFileSync, readdirSync, statSync } from 'node:fs'
 import { join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
+import { quitarComentarios } from '@qps/core/tests/convencion-entorno'
 
 const MOBILE_ROOT = fileURLToPath(new URL('..', import.meta.url))
 const APP_DIR = join(MOBILE_ROOT, 'app')
@@ -30,36 +31,16 @@ function listarTsxYTs(root: string): string[] {
  * Las líneas (1-based) donde aparece `Dimensions` como palabra, fuera de
  * comentarios. Sin esto, un comentario que solo *menciona* "Dimensions"
  * (por ejemplo, explicando por qué el código usa `useWindowDimensions` en
- * vez de `Dimensions`) daría un falso positivo. Heurística, no un parser
- * completo: los comentarios de línea solo se recortan cuando el `//` viene
- * precedido de un espacio o al principio de línea, para no confundirlos con
- * el `//` de una URL (`https://...`).
+ * vez de `Dimensions`) daría un falso positivo.
+ *
+ * Usa el helper compartido `quitarComentarios` que preserva los saltos de línea exactos.
  */
 function lineasConDimensions(content: string): number[] {
-  const lineasDeTexto = content.split('\n')
+  const lineasDeTexto = quitarComentarios(content).split('\n')
   const resultado: number[] = []
-  let dentroDeBloqueComentario = false
 
   for (let i = 0; i < lineasDeTexto.length; i++) {
-    let linea = lineasDeTexto[i]
-
-    if (dentroDeBloqueComentario) {
-      const finBloque = linea.indexOf('*/')
-      if (finBloque === -1) continue
-      linea = linea.slice(finBloque + 2)
-      dentroDeBloqueComentario = false
-    }
-
-    const inicioBloque = linea.indexOf('/*')
-    if (inicioBloque !== -1 && linea.indexOf('*/', inicioBloque + 2) === -1) {
-      linea = linea.slice(0, inicioBloque)
-      dentroDeBloqueComentario = true
-    }
-
-    const idxComentarioDeLinea = linea.search(/(^|\s)\/\//)
-    const sinComentario = idxComentarioDeLinea === -1 ? linea : linea.slice(0, idxComentarioDeLinea)
-
-    if (/\bDimensions\b/.test(sinComentario)) resultado.push(i + 1)
+    if (/\bDimensions\b/.test(lineasDeTexto[i])) resultado.push(i + 1)
   }
 
   return resultado

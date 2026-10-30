@@ -4,6 +4,7 @@
 // estilo de barrido que `tests/dimensions.test.ts`: recorte de comentarios,
 // archivo + línea en cada hallazgo).
 import { readFileSync, readdirSync, statSync } from 'node:fs'
+import { quitarComentarios } from '@qps/core/tests/convencion-entorno'
 import { join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
@@ -224,45 +225,7 @@ function listarTsxYTs(root: string): string[] {
  * este hallazgo, que es específicamente sobre una apertura sin cierre que
  * en realidad estaba dentro de un `//`.
  */
-function quitarComentarios(content: string): string {
-  const lineasDeTexto = content.split('\n')
-  const resultado: string[] = []
-  let dentroDeBloqueComentario = false
 
-  for (let linea of lineasDeTexto) {
-    if (dentroDeBloqueComentario) {
-      const finBloque = linea.indexOf('*/')
-      if (finBloque === -1) {
-        resultado.push('')
-        continue
-      }
-      linea = linea.slice(finBloque + 2)
-      dentroDeBloqueComentario = false
-    }
-
-    const matchLineaDeTexto = linea.match(/(^|\s)\/\//)
-    const idxSlashSlash = matchLineaDeTexto ? linea.indexOf('//', matchLineaDeTexto.index) : -1
-    const idxBloque = linea.indexOf('/*')
-
-    // Solo se evalúa la apertura de un bloque si el `/*` aparece ANTES que
-    // el `//` (o no hay ningún `//` en la línea): si el `//` va primero, lo
-    // que sigue —incluido cualquier `/*`— ya es parte del comentario de
-    // línea, no la apertura de un bloque nuevo.
-    if (idxBloque !== -1 && (idxSlashSlash === -1 || idxBloque < idxSlashSlash)) {
-      if (linea.indexOf('*/', idxBloque + 2) === -1) {
-        resultado.push(linea.slice(0, idxBloque))
-        dentroDeBloqueComentario = true
-        continue
-      }
-      // Bloque que abre y cierra en la misma línea: límite heredado, ver el
-      // docstring — cae al recorte de `//` de abajo, sin stripear el bloque.
-    }
-
-    resultado.push(idxSlashSlash === -1 ? linea : linea.slice(0, idxSlashSlash))
-  }
-
-  return resultado.join('\n')
-}
 
 /**
  * Las líneas (1-based), fuera de comentarios, donde `content` importa o

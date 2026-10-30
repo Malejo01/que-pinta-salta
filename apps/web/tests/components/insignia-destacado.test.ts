@@ -18,6 +18,7 @@
  * Sin red ni base; entorno `node` (ver `vitest.config.ts`).
  */
 import { readdirSync, readFileSync } from 'node:fs'
+import { quitarComentarios as sinComentarios } from '@qps/core/tests/convencion-entorno'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -75,9 +76,7 @@ describe('InsigniaDestacado', () => {
 // recorre .tsx bajo components/ y app/.
 // ---------------------------------------------------------------------------
 /** Comentarios de línea y de bloque (también los de JSX) vaciados — mismo criterio que orden-ficha.test.ts. */
-function sinComentarios(contenido: string): string {
-  return contenido.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:"'])\/\/.*$/gm, '$1')
-}
+
 
 function listarTsx(dirAbsoluto: string): string[] {
   const resultado: string[] = []

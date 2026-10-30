@@ -14,6 +14,7 @@
 // importen (si alguien borra los dos imports reales, este archivo tiene que
 // fallar, no quedarse en verde "porque no encontró nada raro").
 import { readdirSync, readFileSync, statSync } from 'node:fs'
+import { quitarComentarios as limpiarComentarios } from '@qps/core/tests/convencion-entorno'
 import { join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
@@ -43,84 +44,7 @@ const ARCHIVOS_PROHIBIDOS_EXPLICITOS = [
 // `/*` con la apertura de un comentario de bloque y blanquee el resto del
 // archivo, incluido código real más abajo).
 // ---------------------------------------------------------------------------
-function limpiarComentarios(codigo: string): string {
-  let resultado = ''
-  let i = 0
-  let enComentarioDeLinea = false
-  let enComentarioDeBloque = false
-  let cadena: string | null = null
 
-  while (i < codigo.length) {
-    const c = codigo[i]
-    const siguiente = codigo[i + 1]
-
-    if (enComentarioDeLinea) {
-      if (c === '\n') {
-        enComentarioDeLinea = false
-        resultado += c
-      } else {
-        resultado += ' '
-      }
-      i += 1
-      continue
-    }
-
-    if (enComentarioDeBloque) {
-      if (c === '*' && siguiente === '/') {
-        enComentarioDeBloque = false
-        resultado += '  '
-        i += 2
-        continue
-      }
-      resultado += c === '\n' ? '\n' : ' '
-      i += 1
-      continue
-    }
-
-    if (cadena) {
-      resultado += c
-      if (c === '\\') {
-        // Copia también el carácter escapado tal cual (p. ej. \" dentro de
-        // una cadena con comillas dobles) sin interpretarlo como cierre.
-        if (siguiente !== undefined) {
-          resultado += siguiente
-          i += 2
-          continue
-        }
-      } else if (c === cadena) {
-        cadena = null
-      }
-      i += 1
-      continue
-    }
-
-    if (c === '/' && siguiente === '/') {
-      enComentarioDeLinea = true
-      resultado += '  '
-      i += 2
-      continue
-    }
-
-    if (c === '/' && siguiente === '*') {
-      enComentarioDeBloque = true
-      resultado += '  '
-      i += 2
-      continue
-    }
-
-    if (c === '"' || c === "'" || c === '`') {
-      cadena = c
-      resultado += c
-      i += 1
-      continue
-    }
-
-    resultado += c
-    i += 1
-  }
-
-  return resultado
-}
 
 // ---------------------------------------------------------------------------
 // lineasConImportDeBannerAnuncio: línea (1-indexada) de cada import/require

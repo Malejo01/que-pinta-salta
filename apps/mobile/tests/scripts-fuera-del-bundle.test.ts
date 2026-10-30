@@ -1,27 +1,21 @@
-// 46-q (Ronda 46, calidad de la app), punto 5 del encargo: el código de
-// MEDICIÓN (`scripts/pesos-bundle.mjs`, `scripts/pesos/analizar.ts`,
-// `scripts/metro/inline-requires.js`, 46-e/46-g) no tiene que entrar al
-// bundle de la app. Barrido estático de `app/**`, `components/**` y
-// `lib/**`: ningún archivo importa (ni hace `require` de) nada bajo
-// `scripts/`. Mismo estilo que `tests/dimensions.test.ts`/`tests/iconos.test.ts`
-// (fixtures en memoria primero, `it.each` sobre los archivos reales después).
-import { readFileSync, readdirSync, statSync } from 'node:fs'
+import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
+import { quitarComentarios } from '@qps/core/tests/convencion-entorno'
 
-const MOBILE_ROOT = fileURLToPath(new URL('..', import.meta.url))
+const MOBILE_ROOT = fileURLToPath(new URL('../', import.meta.url))
 const APP_DIR = join(MOBILE_ROOT, 'app')
 const COMPONENTS_DIR = join(MOBILE_ROOT, 'components')
 const LIB_DIR = join(MOBILE_ROOT, 'lib')
 
-function listarTsxYTs(root: string): string[] {
-  const out: string[] = []
-  for (const entry of readdirSync(root)) {
-    const full = join(root, entry)
+function listarTsxYTs(dir: string, out: string[] = []): string[] {
+  for (const entry of readdirSync(dir)) {
+    const full = join(dir, entry)
     const st = statSync(full)
     if (st.isDirectory()) {
-      out.push(...listarTsxYTs(full))
+      if (entry === 'node_modules' || entry === '.expo') continue
+      listarTsxYTs(full, out)
     } else if (entry.endsWith('.tsx') || entry.endsWith('.ts')) {
       out.push(full)
     }
@@ -33,36 +27,18 @@ function listarTsxYTs(root: string): string[] {
  * Líneas (1-based, fuera de comentarios) donde `content` importa o hace
  * `require` de algo bajo `scripts/` — ya sea relativo (`../scripts/...`,
  * `./scripts/...`) o, por si alguna vez se usara, un alias (`@/scripts/...`).
- * Recorte de comentarios línea por línea, mismo criterio que
- * `tests/dimensions.test.ts` (no confunde un comentario que solo
- * *menciona* "scripts/" con un import real).
+ *
+ * Usa el helper compartido `quitarComentarios` que preserva los saltos de línea.
  */
 export function lineasQueImportanScripts(content: string): number[] {
-  const lineasDeTexto = content.split('\n')
+  const lineasDeTexto = quitarComentarios(content).split('\n')
   const resultado: number[] = []
-  let dentroDeBloqueComentario = false
+  const re = /\bfrom\s+['"]([^'"]+)['"]|\brequire\(\s*['"]([^'"]+)['"]\s*\)/g
 
   for (let i = 0; i < lineasDeTexto.length; i++) {
-    let linea = lineasDeTexto[i]
-
-    if (dentroDeBloqueComentario) {
-      const finBloque = linea.indexOf('*/')
-      if (finBloque === -1) continue
-      linea = linea.slice(finBloque + 2)
-      dentroDeBloqueComentario = false
-    }
-
-    const inicioBloque = linea.indexOf('/*')
-    if (inicioBloque !== -1 && linea.indexOf('*/', inicioBloque + 2) === -1) {
-      linea = linea.slice(0, inicioBloque)
-      dentroDeBloqueComentario = true
-    }
-
-    const idxComentarioDeLinea = linea.search(/(^|\s)\/\//)
-    const sinComentario = idxComentarioDeLinea === -1 ? linea : linea.slice(0, idxComentarioDeLinea)
-
-    const re = /\bfrom\s+['"]([^'"]+)['"]|\brequire\(\s*['"]([^'"]+)['"]\s*\)/g
+    const sinComentario = lineasDeTexto[i]
     let m: RegExpExecArray | null
+    re.lastIndex = 0
     while ((m = re.exec(sinComentario))) {
       const ruta = m[1] ?? m[2]
       if (/(^|\/)scripts\//.test(ruta)) {

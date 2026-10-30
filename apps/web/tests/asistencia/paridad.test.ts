@@ -37,6 +37,7 @@
  * `textoBotonVoy(`, nunca la cadena suelta `textoBoton`.
  */
 import { readFileSync } from 'node:fs'
+import { quitarComentarios } from '@qps/core/tests/convencion-entorno'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import {
@@ -102,9 +103,7 @@ const WEB_ROOT = fileURLToPath(new URL('../../', import.meta.url))
 const MOBILE_ROOT = fileURLToPath(new URL('../../../mobile/', import.meta.url))
 
 /** Comentarios de línea y de bloque vaciados, conservando el resto del texto. */
-function quitarComentarios(content: string): string {
-  return content.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:"'])\/\/.*$/gm, '$1')
-}
+
 
 /** `true` si el contenido importa `nombre` de `@qps/core/asistencia` (con o sin alias), sin comentarios. */
 function importaDeCoreAsistencia(content: string, nombre: string): boolean {

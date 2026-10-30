@@ -9,6 +9,7 @@
  * Sin red ni base; entorno `node` (ver `vitest.config.ts`).
  */
 import { readFileSync } from 'node:fs'
+import { quitarComentarios as sinComentarios } from '@qps/core/tests/convencion-entorno'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -36,9 +37,7 @@ function readSource(relativePath: string): string {
 }
 
 /** El código sin comentarios (`/* … *\/` y `// …`), para los detectores que no tienen que leer lo que explican los comentarios. */
-function sinComentarios(fuente: string): string {
-  return fuente.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^[^\S\n]*\/\/.*$/gm, '')
-}
+
 
 /** Un `Venue` mínimo pero completo (todas las columnas NOT NULL cubiertas), con overrides. */
 function venue(overrides: Partial<Venue> & { id: string }): Venue {

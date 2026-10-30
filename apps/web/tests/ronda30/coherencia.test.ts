@@ -29,6 +29,7 @@
  *    existe.
  */
 import { readFileSync, readdirSync } from 'node:fs'
+import { quitarComentarios as sinComentarios } from '@qps/core/tests/convencion-entorno'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
@@ -181,9 +182,7 @@ function tuteoEstaExceptuado(relPath: string): boolean {
 // ser texto de pantalla (p. ej. "el host sigue siendo el propio", "busca
 // flyers pendientes"). El detector es sobre lo que lee el usuario, no sobre
 // los comentarios del código fuente: se descartan antes de buscar.
-function sinComentarios(fuente: string): string {
-  return fuente.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '')
-}
+
 
 describe('Ronda 30/35: ninguna forma de tuteo de la lista de 30-e en apps/web/app o apps/web/components (fuera de las excepciones de la R29 y event-form.tsx)', () => {
   const archivos = [...listarArchivosRecursivo('app'), ...listarArchivosRecursivo('components')].filter(

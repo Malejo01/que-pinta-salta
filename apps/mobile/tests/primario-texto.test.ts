@@ -32,6 +32,7 @@
 // BAJAR — si alguien arregla el archivo sin bajar el número acá, el test
 // falla a propósito, para que la lista no quede vieja.
 import { readFileSync, readdirSync, statSync } from 'node:fs'
+import { quitarComentarios } from '@qps/core/tests/convencion-entorno'
 import { join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
@@ -59,34 +60,7 @@ function listarTsxYTs(root: string): string[] {
  * importado — ver el comentario de cabecera, QPS-250): conserva el número
  * de líneas (blanquea el contenido de los comentarios) para que los índices
  * de línea de los detectores de abajo sigan siendo los del archivo real. */
-function quitarComentarios(content: string): string {
-  const lineasDeTexto = content.split('\n')
-  const resultado: string[] = []
-  let dentroDeBloqueComentario = false
 
-  for (let linea of lineasDeTexto) {
-    if (dentroDeBloqueComentario) {
-      const finBloque = linea.indexOf('*/')
-      if (finBloque === -1) {
-        resultado.push('')
-        continue
-      }
-      linea = linea.slice(finBloque + 2)
-      dentroDeBloqueComentario = false
-    }
-
-    const inicioBloque = linea.indexOf('/*')
-    if (inicioBloque !== -1 && linea.indexOf('*/', inicioBloque + 2) === -1) {
-      linea = linea.slice(0, inicioBloque)
-      dentroDeBloqueComentario = true
-    }
-
-    const idxComentarioDeLinea = linea.search(/(^|\s)\/\//)
-    resultado.push(idxComentarioDeLinea === -1 ? linea : linea.slice(0, idxComentarioDeLinea))
-  }
-
-  return resultado.join('\n')
-}
 
 /** Línea (1-based) del índice `index` en `content`. */
 function lineaDe(content: string, index: number): number {

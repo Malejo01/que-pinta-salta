@@ -8,6 +8,7 @@
  * después de leer `apply`.
  */
 import { readFileSync } from 'node:fs'
+import { quitarComentarios as sinComentarios } from '@qps/core/tests/convencion-entorno'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { avisoDeModo } from '@/lib/images/modo-script'
@@ -29,9 +30,7 @@ describe('avisoDeModo', () => {
 })
 
 /** Saca comentarios de bloque y de línea para que no afecten las búsquedas de texto. */
-function sinComentarios(src: string): string {
-  return src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '')
-}
+
 
 describe('scripts/imagenes-variantes.ts avisa el modo después de leer --apply', () => {
   const srcCompleto = readFileSync(

@@ -30,6 +30,7 @@
  *     lógica de `@qps/core/asistencia` y no tienen su propia copia.
  */
 import { readFileSync, readdirSync } from 'node:fs'
+import { quitarComentarios } from '@qps/core/tests/convencion-entorno'
 import { relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -674,9 +675,7 @@ describe('detector estático: page.tsx y event-detail-page.tsx usan debenMostrar
 // ===========================================================================
 
 /** Comentarios de línea y de bloque vaciados, conservando el resto del texto. */
-function quitarComentarios(content: string): string {
-  return content.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:"'])\/\/.*$/gm, '$1')
-}
+
 
 interface FromSelect {
   tabla: string

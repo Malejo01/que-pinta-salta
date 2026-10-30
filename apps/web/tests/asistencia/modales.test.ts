@@ -19,6 +19,7 @@
  * `debenMostrarseBotonesAsistencia(...)`.
  */
 import { readFileSync } from 'node:fs'
+import { quitarComentarios as sinComentarios } from '@qps/core/tests/convencion-entorno'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it, vi } from 'vitest'
 import { es } from '@/lib/i18n/diccionarios/es'
@@ -41,9 +42,7 @@ function leer(ruta: string): string {
 }
 
 /** Comentarios de línea y de bloque (también los de JSX) vaciados. */
-function sinComentarios(content: string): string {
-  return content.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:"'])\/\/.*$/gm, '$1')
-}
+
 
 /**
  * El recorte del código entre dos marcas (la segunda es opcional: hasta el

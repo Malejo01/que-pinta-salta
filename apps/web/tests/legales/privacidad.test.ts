@@ -12,6 +12,7 @@
  * en `privacidad-ads.test.ts`.
  */
 import { readFileSync } from 'node:fs'
+import { quitarComentarios as sinComentarios } from '@qps/core/tests/convencion-entorno'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -33,9 +34,7 @@ function readSource(relativePath: string): string {
 }
 
 /** Fuente sin comentarios de bloque ni de línea (los comentarios pueden nombrar lo que ya no existe). */
-function sinComentarios(source: string): string {
-  return source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1')
-}
+
 
 const SOURCE = readSource('app/privacidad/page.tsx')
 const SOURCE_SIN_COMENTARIOS = sinComentarios(SOURCE)

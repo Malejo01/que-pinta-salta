@@ -13,6 +13,7 @@
  * rompería el conteo. Ver `sinComentarios`.
  */
 import { readFileSync } from 'node:fs'
+import { quitarComentarios as sinComentarios } from '@qps/core/tests/convencion-entorno'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import { es } from '@/lib/i18n/diccionarios/es'
@@ -24,9 +25,7 @@ function leer(ruta: string): string {
 }
 
 /** Comentarios de línea y de bloque (también los de JSX) vaciados. */
-function sinComentarios(content: string): string {
-  return content.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:"'])\/\/.*$/gm, '$1')
-}
+
 
 /** El recorte del código entre dos marcas, para acotar el detector a UN bloque y no a todo el archivo. */
 function ancla(codigo: string, desde: string, hasta: string): string {

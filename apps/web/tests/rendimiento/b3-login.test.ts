@@ -7,6 +7,7 @@
  * Que la ruta quede estática (○) solo lo prueba `next build`.
  */
 import { readFileSync } from 'node:fs'
+import { quitarComentarios as sinComentarios } from '@qps/core/tests/convencion-entorno'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -33,9 +34,7 @@ function readSource(relativePath: string): string {
   return readFileSync(path.join(WEB_ROOT, relativePath), 'utf8')
 }
 
-function sinComentarios(source: string): string {
-  return source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1')
-}
+
 
 describe('/auth/login: el HTML del servidor trae el formulario completo', () => {
   const html = renderToStaticMarkup(React.createElement(LoginPage))

@@ -16,52 +16,14 @@
 // (mismo stripper que `tests/base-visual.test.ts`/`tests/colores-texto.test.ts`)
 // antes de matchear.
 import { readFileSync } from 'node:fs'
+import { quitarComentarios } from '@qps/core/tests/convencion-entorno'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 
 const RUTA_LAYOUT = fileURLToPath(new URL('../app/_layout.tsx', import.meta.url))
 const SRC_LAYOUT = readFileSync(RUTA_LAYOUT, 'utf8')
 
-function quitarComentarios(content: string): string {
-  const lineasDeTexto = content.split('\n')
-  const resultado: string[] = []
-  let dentroDeBloqueComentario = false
 
-  for (let linea of lineasDeTexto) {
-    if (dentroDeBloqueComentario) {
-      const finBloque = linea.indexOf('*/')
-      if (finBloque === -1) {
-        resultado.push('')
-        continue
-      }
-      linea = linea.slice(finBloque + 2)
-      dentroDeBloqueComentario = false
-    }
-
-    // R60 (lead, vuelta de 52-c): el `//` se resuelve ANTES de buscar `/*`.
-    // Al revés —como estaba, y como siguen `tests/dimensions.test.ts` y
-    // `tests/accesibilidad-detector.test.ts`— una línea de comentario que
-    // contenga la secuencia `/*` (un glob como `lib/**` o `components/*`) se
-    // tomaba como apertura de bloque sin cierre y blanqueaba TODO el resto
-    // del archivo hasta el próximo `*/`: cualquier cosa que este detector
-    // tenga que ver más abajo se volvía invisible y el test quedaba en verde
-    // afirmando algo que no podía comprobar.
-    const idxComentarioDeLinea = linea.search(/(^|\s)\/\//)
-    const inicioBloque = linea.indexOf('/*')
-    const bloqueAntesDelSlashSlash =
-      inicioBloque !== -1 && (idxComentarioDeLinea === -1 || inicioBloque < idxComentarioDeLinea)
-
-    if (bloqueAntesDelSlashSlash && linea.indexOf('*/', inicioBloque + 2) === -1) {
-      resultado.push(linea.slice(0, inicioBloque))
-      dentroDeBloqueComentario = true
-      continue
-    }
-
-    resultado.push(idxComentarioDeLinea === -1 ? linea : linea.slice(0, idxComentarioDeLinea))
-  }
-
-  return resultado.join('\n')
-}
 
 /** `true` si `content` importa (de verdad, no en un comentario) `StatusBar` de `expo-status-bar`. */
 export function importaStatusBarDeExpoStatusBar(content: string): boolean {

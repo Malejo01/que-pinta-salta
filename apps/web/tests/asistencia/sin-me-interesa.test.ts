@@ -61,6 +61,7 @@
  * falta evaluar el código, no solo leer su texto.
  */
 import { readdirSync, readFileSync, statSync } from 'node:fs'
+import { quitarComentarios } from '@qps/core/tests/convencion-entorno'
 import { join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
@@ -109,9 +110,7 @@ function listarArchivos(dirAbsoluto: string, baseAbsoluta: string): string[] {
 const ARCHIVOS: string[] = DIRECTORIOS_A_RECORRER.flatMap((dir) => listarArchivos(join(REPO_ROOT, dir), REPO_ROOT))
 
 /** Comentarios de línea y de bloque vaciados, conservando el resto del texto (mismo criterio que paridad.test.ts). */
-function quitarComentarios(content: string): string {
-  return content.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:"'])\/\/.*$/gm, '$1')
-}
+
 
 /**
  * SOLO para la búsqueda del identificador `me_interesa` (ver el comentario

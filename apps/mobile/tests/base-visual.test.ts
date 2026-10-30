@@ -5,6 +5,7 @@
 // nada de React Native — mismo patrón que tests/iconos.test.ts y
 // tests/estado-carga-detector.test.ts.
 import { readFileSync, statSync } from 'node:fs'
+import { quitarComentarios } from '@qps/core/tests/convencion-entorno'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
@@ -57,34 +58,7 @@ describe('app/(tabs)/_layout.tsx: las pestañas de la web, en su mismo orden', (
 // secundario, y por eso hay cosas que casi no se ven (F4)."). Cubre el texto
 // plano `color: colors.border` / `color: colores.border` (con cualquier
 // cantidad de espacios), fuera de comentarios.
-function quitarComentarios(content: string): string {
-  const lineasDeTexto = content.split('\n')
-  const resultado: string[] = []
-  let dentroDeBloqueComentario = false
 
-  for (let linea of lineasDeTexto) {
-    if (dentroDeBloqueComentario) {
-      const finBloque = linea.indexOf('*/')
-      if (finBloque === -1) {
-        resultado.push('')
-        continue
-      }
-      linea = linea.slice(finBloque + 2)
-      dentroDeBloqueComentario = false
-    }
-
-    const inicioBloque = linea.indexOf('/*')
-    if (inicioBloque !== -1 && linea.indexOf('*/', inicioBloque + 2) === -1) {
-      linea = linea.slice(0, inicioBloque)
-      dentroDeBloqueComentario = true
-    }
-
-    const idxComentarioDeLinea = linea.search(/(^|\s)\/\//)
-    resultado.push(idxComentarioDeLinea === -1 ? linea : linea.slice(0, idxComentarioDeLinea))
-  }
-
-  return resultado.join('\n')
-}
 
 /** `true` si `content` usa `color: colors.border` o `color: colores.border`
  * (el token de borde, como color de *texto*), fuera de comentarios. */

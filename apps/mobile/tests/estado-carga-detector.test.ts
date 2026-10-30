@@ -15,6 +15,7 @@
 //    28-a).
 // 2. Las 8 pantallas de 28-c importan `ErrorCarga` de `@/components/EstadoCarga`.
 import { readFileSync, readdirSync, statSync } from 'node:fs'
+import { quitarComentarios } from '@qps/core/tests/convencion-entorno'
 import { join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
@@ -65,34 +66,7 @@ function lineAt(content: string, index: number): number {
  * explicando por qué una pantalla usa `onReintentar`) daría un falso
  * positivo. Mismo patrón que `tests/dimensions.test.ts`.
  */
-function quitarComentarios(content: string): string {
-  const lineasDeTexto = content.split('\n')
-  const resultado: string[] = []
-  let dentroDeBloqueComentario = false
 
-  for (let linea of lineasDeTexto) {
-    if (dentroDeBloqueComentario) {
-      const finBloque = linea.indexOf('*/')
-      if (finBloque === -1) {
-        resultado.push('')
-        continue
-      }
-      linea = linea.slice(finBloque + 2)
-      dentroDeBloqueComentario = false
-    }
-
-    const inicioBloque = linea.indexOf('/*')
-    if (inicioBloque !== -1 && linea.indexOf('*/', inicioBloque + 2) === -1) {
-      linea = linea.slice(0, inicioBloque)
-      dentroDeBloqueComentario = true
-    }
-
-    const idxComentarioDeLinea = linea.search(/(^|\s)\/\//)
-    resultado.push(idxComentarioDeLinea === -1 ? linea : linea.slice(0, idxComentarioDeLinea))
-  }
-
-  return resultado.join('\n')
-}
 
 /** Las líneas (1-based) donde aparece un `<Text ...>Reintentar</Text>` literal, fuera de comentarios. */
 export function lineasConReintentarEscritoAMano(content: string): number[] {

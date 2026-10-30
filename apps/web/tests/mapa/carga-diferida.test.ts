@@ -25,6 +25,7 @@
  * Sin red ni base; entorno `node`.
  */
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
+import { quitarComentarios as sinComentarios } from '@qps/core/tests/convencion-entorno'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -60,9 +61,7 @@ const sistemaReal: Sistema = {
   leer: (absoluta) => readFileSync(absoluta, 'utf8'),
 }
 
-function sinComentarios(fuente: string): string {
-  return fuente.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^[^\S\n]*\/\/.*$/gm, '')
-}
+
 
 /** Los especificadores de los imports estáticos que sí cargan algo (no `import type`). */
 function importsEstaticos(fuente: string): string[] {

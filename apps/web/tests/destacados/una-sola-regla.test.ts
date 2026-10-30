@@ -27,6 +27,7 @@
  * `tests/components/insignia-destacado.test.ts`/`tests/asistencia/orden-ficha.test.ts`.
  */
 import { readFileSync, readdirSync } from 'node:fs'
+import { quitarComentarios as sinComentarios } from '@qps/core/tests/convencion-entorno'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
@@ -38,9 +39,7 @@ const MOBILE_ROOT = path.join(REPO_ROOT, 'apps', 'mobile')
 const CORE_SRC_ROOT = path.join(REPO_ROOT, 'packages', 'core', 'src')
 
 /** Comentarios de línea y de bloque vaciados (copia local, mismo criterio que insignia-destacado.test.ts/orden-ficha.test.ts). */
-function sinComentarios(contenido: string): string {
-  return contenido.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:"'])\/\/.*$/gm, '$1')
-}
+
 
 /** Lista recursiva de `.ts`/`.tsx` bajo `dirAbsoluto`, sin los propios `*.test.ts(x)`. */
 function listarFuentes(dirAbsoluto: string): string[] {
