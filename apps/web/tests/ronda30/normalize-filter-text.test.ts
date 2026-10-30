@@ -82,10 +82,19 @@ describe('QPS-021: /buscar, la portada y la app usan la misma normalizeFilterTex
   // Se exigen los dos eslabones: la app importa `filtrarCombinado` de core, y
   // `filtros-combinados.ts` importa `buscarEventosPorTexto` de `./busqueda`,
   // ninguno con normalización propia.
-  it('la app (apps/mobile/app/(tabs)/buscar.tsx) busca con core (filtrarCombinado → buscarEventosPorTexto), sin normalización propia', () => {
+  // A3 (#117): Buscar filtra con `filtrarConPublico` (`lib/para-chicos.ts`),
+  // que saca lo que no es para chicos y llama a `filtrarCombinado` de core.
+  // Se exige ese eslabón también.
+  it('la app (apps/mobile/app/(tabs)/buscar.tsx) busca con core (filtrarConPublico → filtrarCombinado → buscarEventosPorTexto), sin normalización propia', () => {
     const source = readMobile('app/(tabs)/buscar.tsx')
-    expect(source).toMatch(/import\s*\{[^}]*\bfiltrarCombinado\b[^}]*\}\s*from\s*["']@qps\/core\/home\/filtros-combinados["']/)
+    expect(source).toMatch(/import\s*\{[^}]*\bfiltrarConPublico\b[^}]*\}\s*from\s*["']@\/lib\/para-chicos["']/)
+    expect(source).toMatch(/filtrarConPublico\(/)
     expect(source).not.toMatch(SIN_COPIA_PROPIA)
+
+    const paraChicos = readMobile('lib/para-chicos.ts')
+    expect(paraChicos).toMatch(/import\s*\{[^}]*\bfiltrarCombinado\b[^}]*\}\s*from\s*["']@qps\/core\/home\/filtros-combinados["']/)
+    expect(paraChicos).toMatch(/return filtrarCombinado\(/)
+    expect(paraChicos).not.toMatch(SIN_COPIA_PROPIA)
 
     const combinado = readCore('home/filtros-combinados.ts')
     expect(combinado).toMatch(/import\s*\{[^}]*\bbuscarEventosPorTexto\b[^}]*\}\s*from\s*["']\.\/busqueda["']/)
