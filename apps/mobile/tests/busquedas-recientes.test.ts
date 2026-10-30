@@ -536,7 +536,11 @@ describe('detector: cómo lo usa buscar.tsx', () => {
   })
 
   it('guarda al abrir un resultado (onAbrir de TarjetaEvento, motivo «abrir-resultado»)', () => {
-    expect(BUSCAR).toMatch(/<TarjetaEvento evento=\{item\} onAbrir=\{\(\) => recordarBusqueda\(texto, 'abrir-resultado'\)\} \/>/)
+    // Integración con A7: `onAbrir` es una función estable (`useCallback`), no
+    // una flecha nueva por tarjeta, para no invalidar el `memo` de la tarjeta.
+    // El texto vigente se lee de una ref (para que la función no cambie al tipear).
+    expect(BUSCAR).toMatch(/useCallback\(\(\) => recordarBusqueda\(textoVigente\.current, 'abrir-resultado'\), \[recordarBusqueda\]\)/)
+    expect(BUSCAR).toMatch(/<TarjetaEvento evento=\{item\} onAbrir=\{abrirResultado\} \/>/)
   })
 
   it('guarda al tocar una reciente (motivo «repetir») y anuncia los resultados (por el nonce de A8) sin mover el foco', () => {
@@ -558,7 +562,12 @@ describe('detector: cómo lo usa buscar.tsx', () => {
     const foco = BUSCAR.slice(BUSCAR.indexOf('useFocusEffect('), BUSCAR.indexOf('const recordarBusqueda'))
     expect(foco).toMatch(/useCallback\(\(\) => \{\s*leerBusquedasRecientes\(\)\.then\(setRecientes\)\s*\}, \[\]\)/)
     expect(foco).not.toMatch(/return\s*\(\)\s*=>|=> \(\) =>/)
-    expect(BUSCAR).not.toMatch(/useRef/)
+    // Sin refs de «lo último escrito» para guardar al salir. Integración con A7:
+    // la única ref es `textoVigente`, que solo usa `abrirResultado` (al tocar
+    // una tarjeta) para ser estable y no invalidar el memo al tipear.
+    expect([...BUSCAR.matchAll(/useRef\(/g)]).toHaveLength(1)
+    expect(BUSCAR).toMatch(/const textoVigente = useRef\(texto\)/)
+    expect(BUSCAR.match(/textoVigente\.current/g)).toHaveLength(2)
   })
 
   it('la sección va en el ListHeaderComponent de «Explorar por categoría» (arriba de la grilla, nunca en un footer con el banner)', () => {

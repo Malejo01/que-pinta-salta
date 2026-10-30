@@ -52,8 +52,27 @@
 // `urlEvento(id, 'app')`, justamente para este caso (agenda entera, no un
 // evento puntual): acepta que `message` salga de `armarMensajeWhatsApp(...)`,
 // como acá abajo.
+//
+// A7 (nube Q1), rendimiento: la clave de cada fila de 2 era la unión de sus
+// ids (`fila.map(id).join('-')`), que cambia con cualquier cambio de la fila.
+// Ahora la fila se identifica por el id de su PRIMER evento (`claveDeFila`) y
+// cada tarjeta, adentro, por el suyo. Lo que gana es poco y conviene decirlo
+// (vuelta 1): solo la fila cuyo primer evento no cambió sigue montada (y esa
+// tarjeta con ella). Sacar un favorito corre todas las filas siguientes un
+// lugar, así que cambian de primer evento y se remontan igual que antes. En la
+// medición (`tests/renders-listas.test.ts`, escenario (c)) casi toda la baja
+// de 26 renders / 7 montajes a 5 / 5 viene de la ventana más chica
+// (`VENTANA_FAVORITOS`) y del `memo` de la tarjeta; la clave aporta un
+// montaje (6 -> 5). No hay `index` en la clave. No se pasó a `FlatList` con
+// `numColumns={2}`: esta pantalla necesita las secciones (Voy, flexibles y
+// los días) y, además, `FlatList` con columnas une las claves de la fila con
+// ':' por dentro, o sea el mismo problema. `renderItem` es una función de
+// módulo y la ventana es `VENTANA_FAVORITOS`. Sin `getItemLayout`: los
+// encabezados de sección y la cabecera de "Mis eventos" cambian de alto con
+// la escala de fuente, y la `SectionList` cuenta encabezados y pies como
+// elementos: un `offset` fijo sería falso.
 import { useCallback, useMemo, useState } from 'react'
-import { Image, Pressable, RefreshControl, SectionList, Share, StyleSheet, View } from 'react-native'
+import { Image, Pressable, RefreshControl, SectionList, Share, StyleSheet, View, type SectionListRenderItem } from 'react-native'
 import { useFocusEffect, useRouter, useTheme } from 'expo-router'
 import { capitalizeFirst } from '@qps/core/event-display'
 import { formatEventDate } from '@qps/core/date-format'
@@ -88,6 +107,41 @@ interface SeccionFavoritos {
   esFlexible: boolean
   data: DisplayEvent[][]
 }
+
+/**
+ * Ventana de la lista (A7, nube Q1). La `SectionList` cuenta un elemento por
+ * encabezado, uno por fila de 2 y uno por pie de cada sección: 6 alcanza para
+ * el primer pantallazo (cabecera de "Mis eventos", un encabezado y 2 filas de
+ * ~249 dp en 360×800) con reserva; antes eran 10 (hasta 13 tarjetas). Lotes de
+ * 4 y `windowSize: 7` en vez de 21. `removeClippedSubviews` no hace falta
+ * apagarlo acá: a diferencia de `FlatList` (que lo prende por omisión en
+ * Android), `SectionList` no le pone valor y el `ScrollView` lo deja apagado.
+ */
+export const VENTANA_FAVORITOS = { initialNumToRender: 6, maxToRenderPerBatch: 4, windowSize: 7 } as const
+
+/**
+ * Clave de una fila de 2 (A7, nube Q1): el id de su primer evento. Una fila
+ * nunca está vacía (`enFilasDeDos` corta de a 2 sobre una lista con algo) y
+ * un evento no se repite dentro de una sección, así que es única; la
+ * `SectionList` le antepone la clave de la sección.
+ */
+export function claveDeFila(fila: DisplayEvent[]): string {
+  return fila[0].id
+}
+
+// A7 (nube Q1): de módulo (solo usa `estilos`): la misma función en cada render.
+const dibujarFila: SectionListRenderItem<DisplayEvent[], SeccionFavoritos> = ({ item: fila }) => (
+  <View style={estilos.filaGrilla}>
+    {fila.map((item) => (
+      <View key={item.id} style={estilos.celda}>
+        {/* R67, 67-a: `TarjetaEvento` ya navega a la ficha de
+            película o de flyer (lib/rutas.ts): sin capa encima. */}
+        <TarjetaEvento evento={item} />
+      </View>
+    ))}
+    {fila.length === 1 ? <View style={estilos.celda} /> : null}
+  </View>
+)
 
 function enFilasDeDos(items: DisplayEvent[]): DisplayEvent[][] {
   const filas: DisplayEvent[][] = []
@@ -377,7 +431,10 @@ export default function Favoritos() {
       {estado.tipo === 'ok' ? (
         <SectionList
           sections={secciones}
-          keyExtractor={(fila, index) => (fila.length > 0 ? fila.map((item) => item.id).join('-') : `fila-${index}`)}
+          keyExtractor={claveDeFila}
+          initialNumToRender={VENTANA_FAVORITOS.initialNumToRender}
+          maxToRenderPerBatch={VENTANA_FAVORITOS.maxToRenderPerBatch}
+          windowSize={VENTANA_FAVORITOS.windowSize}
           stickySectionHeadersEnabled={false}
           refreshControl={
             <RefreshControl refreshing={refrescando} onRefresh={refrescar} tintColor={colors.primary} colors={[colors.primary]} />
@@ -453,18 +510,7 @@ export default function Favoritos() {
               />
             </View>
           )}
-          renderItem={({ item: fila }) => (
-            <View style={estilos.filaGrilla}>
-              {fila.map((item) => (
-                <View key={item.id} style={estilos.celda}>
-                  {/* R67, 67-a: `TarjetaEvento` ya navega a la ficha de
-                      película o de flyer (lib/rutas.ts): sin capa encima. */}
-                  <TarjetaEvento evento={item} />
-                </View>
-              ))}
-              {fila.length === 1 ? <View style={estilos.celda} /> : null}
-            </View>
-          )}
+          renderItem={dibujarFila}
           ListEmptyComponent={<Vacio mensaje="Todavía no tenés nada en Mis eventos" />}
         />
       ) : null}

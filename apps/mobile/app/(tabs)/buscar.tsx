@@ -108,11 +108,26 @@
 //      `TarjetaEvento`, que se llama justo antes de navegar).
 // Mínimo 2 caracteres, tope de largo y «jaz» que se va cuando llega «jazz»,
 // en el módulo.
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { FlatList, Pressable, RefreshControl, StyleSheet, View } from 'react-native'
+//
+// A7 (nube Q1), rendimiento de las dos grillas: `keyExtractor` por id (de
+// módulo, no una flecha nueva por render), ventana acotada (`VENTANA_*`,
+// abajo) y la celda de resultados como función de módulo. SIN
+// `getItemLayout`, a propósito: el alto de la tarjeta sale del ancho de la
+// pantalla (`aspectRatio: 2/3` sobre media columna) y, sobre todo, la lista
+// arranca con un `ListHeaderComponent` (chips + conteo) cuyo alto depende de
+// la escala de fuente y de si hay chips; un `offset` mal calculado deja al
+// `scrollToIndex` y al recorrido de TalkBack apuntando a la celda equivocada.
+// Los tiles de categoría tampoco: su alto es el de dos renglones de texto.
+// La celda de resultados necesita `onAbrir` de A5 (depende de `texto`), así que
+// se arma con `useCallback` dentro del componente (`dibujarResultado`), estable
+// (`abrirResultado` lee el texto de una ref), y `TarjetaEvento` (memo) también
+// mira `onAbrir`.
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { FlatList, Pressable, RefreshControl, StyleSheet, View, type ListRenderItem } from 'react-native'
 import { useFocusEffect, useLocalSearchParams } from 'expo-router'
 import type { Atajo } from '@qps/core/home/atajos'
 import { atajoDesdeParametro, categoriasDisponibles } from '@qps/core/home/filtros-combinados'
+import type { DisplayEvent } from '@qps/core/home/types'
 import { BannerAnuncio } from '@/components/BannerAnuncio'
 import { BusquedasRecientes } from '@/components/BusquedasRecientes'
 import { CampoTexto } from '@/components/CampoTexto'
@@ -150,6 +165,30 @@ import { filtrarConPublico, SLUG_INFANTIL, TEXTO_VER_TODAS_LAS_EDADES } from '@/
  * resultados, más abajo. `tests/buscar.test.ts` exige que siga en 3.
  */
 export const RESULTADOS_MINIMOS_PARA_ANUNCIO = 3
+
+/**
+ * Ventana de la grilla de resultados (A7, nube Q1). Con `numColumns={2}`,
+ * `FlatList` cuenta FILAS: 4 filas = 8 tarjetas, lo que entra en el primer
+ * pantallazo (cabecera fija ~228 dp + chips y conteo + filas de ~249 dp en
+ * 360×800) con una fila de reserva; antes eran 10 filas (20 tarjetas, el valor
+ * por omisión). Vuelta 1: lotes de 4 filas y `windowSize: 9` (~4 pantallas a
+ * cada lado, en vez de 21), para que un scroll rápido en gama baja no deje
+ * huecos ni remonte corazones. Las dos listas de esta pantalla llevan
+ * `removeClippedSubviews={false}`: `FlatList` lo prende por omisión en Android
+ * y TalkBack pierde las celdas que saca de la jerarquía.
+ */
+export const VENTANA_RESULTADOS = { initialNumToRender: 4, maxToRenderPerBatch: 4, windowSize: 9 } as const
+
+/**
+ * Ventana de la grilla de categorías (A7, nube Q1): tiles chicos (~84 dp por
+ * fila de 2), 8 filas = 16 categorías, que hoy son todas. No hay
+ * `TarjetaEvento` acá; se acota igual para no dibujar 21 pantallas.
+ */
+export const VENTANA_CATEGORIAS = { initialNumToRender: 8, maxToRenderPerBatch: 8, windowSize: 7 } as const
+
+const claveDeCategoria = (categoria: CategoriaBasica) => categoria.id
+const claveDeEvento = (evento: DisplayEvent) => evento.id
+
 
 type EstadoLista =
   | { tipo: 'cargando' }
@@ -278,6 +317,29 @@ export default function Buscar() {
     if (aGuardar === null) return
     guardarBusquedaReciente(aGuardar).then(setRecientes)
   }, [])
+
+  // A5 + A7: abrir un resultado guarda el texto del campo como búsqueda
+  // reciente. Es estable (`useCallback` sin `texto` en las dependencias): el
+  // texto vigente se lee de una ref que se actualiza en un efecto. Así tipear
+  // algo que deja la misma lista NO invalida la celda ni el `memo` de
+  // `TarjetaEvento` (que compara `onAbrir`); `tests/renders-listas.test.ts` lo
+  // mide (0 renders). Se llama al tocar, cuando la ref ya está al día.
+  const textoVigente = useRef(texto)
+  useEffect(() => {
+    textoVigente.current = texto
+  }, [texto])
+  const abrirResultado = useCallback(() => recordarBusqueda(textoVigente.current, 'abrir-resultado'), [recordarBusqueda])
+
+  // A7: la celda de resultados, estable mientras `abrirResultado` no cambie
+  // (no es una flecha nueva por render).
+  const dibujarResultado: ListRenderItem<DisplayEvent> = useCallback(
+    ({ item }) => (
+      <View style={estilos.celda}>
+        <TarjetaEvento evento={item} onAbrir={abrirResultado} />
+      </View>
+    ),
+    [abrirResultado],
+  )
 
   // A5: se vacía en el momento (la sección desaparece ya); el borrado va en
   // la fila, después de cualquier guardado pendiente.
@@ -464,8 +526,12 @@ export default function Buscar() {
       {estado.tipo === 'ok' && !mostrarResultados ? (
         <FlatList
           data={estado.categorias}
-          keyExtractor={(categoria) => categoria.id}
+          keyExtractor={claveDeCategoria}
           numColumns={2}
+          initialNumToRender={VENTANA_CATEGORIAS.initialNumToRender}
+          maxToRenderPerBatch={VENTANA_CATEGORIAS.maxToRenderPerBatch}
+          windowSize={VENTANA_CATEGORIAS.windowSize}
+          removeClippedSubviews={false}
           columnWrapperStyle={estilos.filaGrilla}
           contentContainerStyle={estilos.lista}
           keyboardShouldPersistTaps="handled"
@@ -519,8 +585,12 @@ export default function Buscar() {
       {estado.tipo === 'ok' && mostrarResultados ? (
         <FlatList
           data={resultadosMostrados}
-          keyExtractor={(item) => item.id}
+          keyExtractor={claveDeEvento}
           numColumns={2}
+          initialNumToRender={VENTANA_RESULTADOS.initialNumToRender}
+          maxToRenderPerBatch={VENTANA_RESULTADOS.maxToRenderPerBatch}
+          windowSize={VENTANA_RESULTADOS.windowSize}
+          removeClippedSubviews={false}
           columnWrapperStyle={estilos.filaGrilla}
           contentContainerStyle={estilos.lista}
           keyboardShouldPersistTaps="handled"
@@ -594,12 +664,7 @@ export default function Buscar() {
           ListFooterComponent={
             resultadosMostrados.length < RESULTADOS_MINIMOS_PARA_ANUNCIO ? null : <BannerAnuncio lugar="buscar" />
           }
-          renderItem={({ item }) => (
-            <View style={estilos.celda}>
-              {/* A5: abrir un resultado guarda el texto del campo como búsqueda reciente. */}
-              <TarjetaEvento evento={item} onAbrir={() => recordarBusqueda(texto, 'abrir-resultado')} />
-            </View>
-          )}
+          renderItem={dibujarResultado}
         />
       ) : null}
     </View>
