@@ -20,7 +20,7 @@ function first(value: string | string[] | undefined): string {
 }
 
 const linkClass =
-  "inline-flex min-h-11 items-center justify-center rounded-xl px-4 text-sm font-semibold text-primary underline-offset-4 hover:underline"
+  "inline-flex min-h-11 items-center justify-center rounded-xl px-4 text-sm font-semibold text-primary dark:text-[#F0585D] underline-offset-4 hover:underline"
 
 export default async function RadarBajaPage({ searchParams }: { searchParams: SearchParams }) {
   const params = await searchParams
@@ -66,7 +66,7 @@ export default async function RadarBajaPage({ searchParams }: { searchParams: Se
               <h1 className="text-2xl font-bold tracking-tight">Este link no es válido</h1>
               <p className="text-sm leading-relaxed text-muted-foreground">
                 Podés administrar tu Radar desde{" "}
-                <Link href="/radar" className="font-semibold text-primary underline underline-offset-4">
+                <Link href="/radar" className="font-semibold text-primary dark:text-[#F0585D] underline underline-offset-4">
                   /radar
                 </Link>
                 .

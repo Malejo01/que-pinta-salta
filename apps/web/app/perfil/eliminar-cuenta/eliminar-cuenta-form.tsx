@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label"
 import { AlertCircle, CheckCircle2, Loader2, Trash2 } from "lucide-react"
 import { CONTACTO_EMAIL, mailtoContacto } from "@qps/core/contacto"
 
-const linkClass = "text-primary underline underline-offset-4 hover:text-primary/80"
+const linkClass = "text-primary dark:text-[#F0585D] underline underline-offset-4 hover:text-primary/80 dark:hover:text-[#F58A8E]"
 
 /**
  * Compara lo que escribió la persona contra "ELIMINAR". Acepta espacios de

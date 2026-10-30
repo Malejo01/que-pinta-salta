@@ -135,7 +135,7 @@ export function ConsentBanner() {
             // 77-a1 (label-content-name-mismatch): el nombre accesible es el texto
             // visible («Más info»); la frase larga pasa a ser la descripción.
             aria-describedby={descripcionMasInfoId}
-            className="text-primary underline underline-offset-4 hover:text-primary/80"
+            className="text-primary dark:text-[#F0585D] underline underline-offset-4 hover:text-primary/80 dark:hover:text-[#F58A8E]"
           >
             {t.masInfo}
           </Link>

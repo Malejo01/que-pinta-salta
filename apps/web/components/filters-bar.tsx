@@ -473,7 +473,7 @@ export function FiltersBar({ categories, filters, onFilterChange }: FiltersBarPr
                     <SlidersHorizontal className="size-4" />
                     {t.masFiltros}
                     {advancedFiltersCount > 0 && (
-                      <span className="rounded-full bg-primary/12 px-2 py-0.5 text-xs font-medium text-primary">
+                      <span className="rounded-full bg-primary/12 px-2 py-0.5 text-xs font-medium text-primary dark:text-[#F0585D]">
                         {advancedFiltersCount}
                       </span>
                     )}

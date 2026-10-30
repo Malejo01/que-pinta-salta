@@ -22,10 +22,10 @@ export default function Page() {
                 Puede que haya vencido o que lo hayas abierto en otro navegador.
               </p>
               <div className="flex flex-col gap-2 text-sm">
-                <Link href="/auth/recuperar" className="text-primary underline underline-offset-4">
+                <Link href="/auth/recuperar" className="text-primary dark:text-[#F0585D] underline underline-offset-4">
                   Pedir un link nuevo
                 </Link>
-                <Link href="/auth/login" className="text-primary underline underline-offset-4">
+                <Link href="/auth/login" className="text-primary dark:text-[#F0585D] underline underline-offset-4">
                   Iniciar sesión
                 </Link>
               </div>

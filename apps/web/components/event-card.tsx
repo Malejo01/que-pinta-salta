@@ -171,14 +171,14 @@ export function EventCard({ event, isFavorite, onToggleFavorite, onOpenMovie, cl
           // encabezado `h4` suelto; el lector de pantalla lee el título y el modal tiene los horarios.
           <div aria-hidden="true" className="absolute inset-0 bg-black/95 p-3 opacity-0 group-hover/card:opacity-100 transition-all duration-300 flex flex-col justify-between z-20 text-white overflow-hidden">
             <div className="min-h-0 flex-1 space-y-3 overflow-hidden">
-              <p className="text-xs font-bold text-primary border-b border-primary/20 pb-1 flex items-center gap-1.5">
+              <p className="text-xs font-bold text-[#F0585D] border-b border-primary/20 pb-1 flex items-center gap-1.5">
                 <Film className="size-3.5" />
                 {t.funcionesHoy}
               </p>
               <div className="space-y-2">
                 {cinesVisibles.map(([cinemaKey, details]) => (
                   <div key={cinemaKey} className="space-y-0.5">
-                    <p className="text-[10px] font-bold text-zinc-300 truncate">
+                    <p className="text-[11px] font-bold text-zinc-300 truncate">
                       {details.name}
                     </p>
                     <div className="flex flex-wrap gap-1">
@@ -210,7 +210,7 @@ export function EventCard({ event, isFavorite, onToggleFavorite, onOpenMovie, cl
           // MAX_FUNCIONES y "+N más"; el resto de las funciones está en la ficha.
           <div aria-hidden="true" className="absolute inset-0 bg-black/95 p-3 opacity-0 group-hover/card:opacity-100 transition-all duration-300 flex flex-col justify-between z-20 text-white overflow-hidden">
             <div className="min-h-0 flex-1 space-y-3 overflow-hidden">
-              <p className="text-xs font-bold text-primary border-b border-primary/20 pb-1 flex items-center gap-1.5">
+              <p className="text-xs font-bold text-[#F0585D] border-b border-primary/20 pb-1 flex items-center gap-1.5">
                 <Calendar className="size-3.5" />
                 {t.proximasFunciones}
               </p>
@@ -218,7 +218,7 @@ export function EventCard({ event, isFavorite, onToggleFavorite, onOpenMovie, cl
                 {event.occurrences.slice(0, MAX_FUNCIONES).map((occ, idx) => {
                   const formattedOccDate = fechaDeFuncion(idioma, occ.date)
                   return (
-                    <div key={idx} className="flex justify-between items-center text-[10px] py-1 border-b border-zinc-800/40 last:border-none">
+                    <div key={idx} className="flex justify-between items-center text-[11px] py-1 border-b border-zinc-800/40 last:border-none">
                       <span className="font-medium text-zinc-200">
                         {formattedOccDate}
                       </span>

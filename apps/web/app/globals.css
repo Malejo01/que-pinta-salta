@@ -126,6 +126,14 @@
   }
 
   /*
+   * 77-a3: destino del skip link. La navbar es sticky con `h-16` (4rem):
+   * sin este margen taparía el comienzo del contenido al saltar.
+   */
+  #contenido {
+    scroll-margin-top: 4rem;
+  }
+
+  /*
    * QPS-079: reemplaza el `pb-20` fijo de los contenedores de página en
    * celular. Suma al alto de la barra inferior (5rem) el área segura y,
    * cuando el aviso de cookies está abierto, su alto medido (variable que
