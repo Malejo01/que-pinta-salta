@@ -42,7 +42,26 @@ export const DESVIO_MAXIMO_TIPO_CAMBIO = 0.3
 
 const PRODUCTOS = new Set<string>(PRODUCTOS_CON_PRECIO)
 
-async function cargarAnterior(admin: SupabaseClient, ciclo: string): Promise<(CicloAnterior & { tipoCambio: number; audienciaWeb28d: number }) | null> {
+/**
+ * Cuántos ciclos aprobados/automáticos hacia atrás se miran buscando uno con los
+ * precios completos. Un año alcanza de sobra: si los últimos 12 están rotos, hay
+ * un problema que no se arregla saltando más.
+ */
+const CICLOS_CANDIDATOS_MAXIMOS = 12
+
+export type CicloAnteriorCargado = CicloAnterior & { tipoCambio: number; audienciaWeb28d: number }
+
+/**
+ * El ciclo anterior contra el que se compara (trinquete, histéresis, factores).
+ * Solo vale uno `aprobado`/`automatico` con al menos un precio y TODOS sus precios
+ * `aprobado`: si la aprobación quedó a medias (ciclo aprobado, precios todavía
+ * `propuesto`), se saltea y se sigue hacia atrás. Devuelve `null` si no hay ninguno.
+ *
+ * Recibe un `SupabaseClient` cualquiera: el admin lo usa con el cliente de la
+ * sesión, nunca con la service key. Por eso este archivo no importa ningún cliente
+ * de servicio.
+ */
+export async function cargarCicloAnterior(admin: SupabaseClient, ciclo: string): Promise<CicloAnteriorCargado | null> {
   const { data, error } = await admin
     .from('ad_price_cycles')
     .select(
@@ -51,40 +70,46 @@ async function cargarAnterior(admin: SupabaseClient, ciclo: string): Promise<(Ci
     .in('estado', ['aprobado', 'automatico'])
     .lt('ciclo', ciclo)
     .order('ciclo', { ascending: false })
-    .limit(1)
+    .limit(CICLOS_CANDIDATOS_MAXIMOS)
   if (error) throw new Error('ciclo: no se pudo leer el ciclo anterior')
-  const fila = (data ?? [])[0] as Record<string, unknown> | undefined
-  if (!fila) return null
 
-  const precios = await admin
-    .from('ad_prices')
-    .select('producto, precio_ars, precio_usd, tipo_cambio')
-    .eq('ciclo', fila.ciclo as string)
-    .eq('estado', 'aprobado')
-  if (precios.error) throw new Error('ciclo: no se pudieron leer los precios del ciclo anterior')
+  for (const fila of (data ?? []) as Array<Record<string, unknown>>) {
+    const precios = await admin
+      .from('ad_prices')
+      .select('producto, precio_ars, precio_usd, tipo_cambio, estado')
+      .eq('ciclo', fila.ciclo as string)
+    if (precios.error) throw new Error('ciclo: no se pudieron leer los precios del ciclo anterior')
 
-  const vigentes: Partial<Record<ProductoConPrecio, PrecioVigente>> = {}
-  for (const p of (precios.data ?? []) as Array<Record<string, unknown>>) {
-    if (!PRODUCTOS.has(p.producto as string)) continue
-    vigentes[p.producto as ProductoConPrecio] = {
-      precioArs: Number(p.precio_ars),
-      precioUsd: Number(p.precio_usd),
-      tipoCambio: Number(p.tipo_cambio),
+    const filasPrecios = (precios.data ?? []) as Array<Record<string, unknown>>
+    if (filasPrecios.length === 0 || !filasPrecios.every((p) => p.estado === 'aprobado')) {
+      console.warn(`[CronPublicidad] ciclo anterior ${String(fila.ciclo)} sin precios aprobados completos; se busca uno más viejo`)
+      continue
+    }
+
+    const vigentes: Partial<Record<ProductoConPrecio, PrecioVigente>> = {}
+    for (const p of filasPrecios) {
+      if (!PRODUCTOS.has(p.producto as string)) continue
+      vigentes[p.producto as ProductoConPrecio] = {
+        precioArs: Number(p.precio_ars),
+        precioUsd: Number(p.precio_usd),
+        tipoCambio: Number(p.tipo_cambio),
+      }
+    }
+
+    return {
+      ciclo: fila.ciclo as string,
+      audiencia: Number(fila.audiencia),
+      tramoVigente: Number(fila.tramo_vigente),
+      tramoCalculado: Number(fila.tramo_calculado),
+      cambioTramoDesde: (fila.cambio_tramo_desde as string | null) ?? null,
+      factorHero: Number(fila.factor_hero),
+      factorPush: Number(fila.factor_push),
+      precios: vigentes,
+      audienciaWeb28d: Number(fila.audiencia_web_28d),
+      tipoCambio: Number(fila.tipo_cambio),
     }
   }
-
-  return {
-    ciclo: fila.ciclo as string,
-    audiencia: Number(fila.audiencia),
-    tramoVigente: Number(fila.tramo_vigente),
-    tramoCalculado: Number(fila.tramo_calculado),
-    cambioTramoDesde: (fila.cambio_tramo_desde as string | null) ?? null,
-    factorHero: Number(fila.factor_hero),
-    factorPush: Number(fila.factor_push),
-    precios: vigentes,
-    audienciaWeb28d: Number(fila.audiencia_web_28d),
-    tipoCambio: Number(fila.tipo_cambio),
-  }
+  return null
 }
 
 const numeroONull = (v: unknown): number | null => (v === null || v === undefined ? null : Number(v))
@@ -115,7 +140,7 @@ async function completarPreciosSiFaltan(
     throw new Error('ciclo: el ciclo existente tiene el tramo, el tipo de cambio o los factores inválidos')
   }
 
-  const anterior = await cargarAnterior(admin, ciclo)
+  const anterior = await cargarCicloAnterior(admin, ciclo)
   const calculados = calcularPrecios({
     tramoRef,
     kAlc: K_ALC,
@@ -162,7 +187,7 @@ export async function proponerCicloDelMes(admin: SupabaseClient, opciones: Opcio
   if (filaExistente) return completarPreciosSiFaltan(admin, ciclo, filaExistente)
 
   // 3. El anterior aprobado (para el trinquete, la histéresis y los factores).
-  const anterior = await cargarAnterior(admin, ciclo)
+  const anterior = await cargarCicloAnterior(admin, ciclo)
 
   // 4. El tipo de cambio: la fuente, o el del anterior (marcado), o nada.
   const tc = await obtenerTipoCambio({
@@ -192,10 +217,11 @@ export async function proponerCicloDelMes(admin: SupabaseClient, opciones: Opcio
   // [COMPLETAR: con VERCEL_ANALYTICS_TOKEN y el endpoint verificado, 'vercel'.]
   const audienciaWeb28d = anterior && Number.isFinite(anterior.audienciaWeb28d) ? Math.max(0, anterior.audienciaWeb28d) : 0
 
+  const ocupacion = await cargarOcupacion2Meses(admin, ciclo)
+
   // 6. mau_app_28d y dispositivos_push en null: sin fuente definida, el push no
   // se vende y no se escribe su fila.
   // [COMPLETAR: de dónde salen el MAU de la app y los dispositivos con push activo.]
-  const ocupacion = await cargarOcupacion2Meses(admin, ciclo)
   const { ciclo: filaCiclo, precios } = armarPropuesta({
     ciclo,
     audienciaWeb28d,

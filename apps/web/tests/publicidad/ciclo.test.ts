@@ -105,6 +105,14 @@ function cicloAprobado(extra: Fila = {}): Fila {
   }
 }
 
+/** Los precios aprobados de un ciclo aprobado (con 74-b, un anterior sin precios no cuenta). */
+function preciosAprobados(ciclo: string, tipoCambio: number): Fila[] {
+  return [
+    { ciclo, producto: 'destacado-7', precio_ars: 11500, precio_usd: 8.2, tipo_cambio: tipoCambio, estado: 'aprobado' },
+    { ciclo, producto: 'destacado-3', precio_ars: 7000, precio_usd: 4.9, tipo_cambio: tipoCambio, estado: 'aprobado' },
+  ]
+}
+
 describe('cicloDeLaFecha', () => {
   it('es el día 1 del mes de Salta', () => {
     expect(cicloDeLaFecha(new Date('2026-10-15T12:00:00Z'))).toBe('2026-10-01')
@@ -164,14 +172,14 @@ describe('proponerCicloDelMes', () => {
   })
 
   it('si la fuente falla usa el tipo de cambio y la audiencia del anterior, marcado como "anterior"', async () => {
-    const f = crearFake({ ad_price_cycles: [cicloAprobado()], ad_prices: [], ad_occupancy_daily: [], ad_settings: [] })
+    const f = crearFake({ ad_price_cycles: [cicloAprobado()], ad_prices: preciosAprobados('2026-09-01', 1400), ad_occupancy_daily: [], ad_settings: [] })
     expect(await proponerCicloDelMes(f.cliente, { ahora: AHORA, fetch: fetchDolar(null) })).toBe('creado')
     const nuevo = f.datos.ad_price_cycles.find((c) => c.ciclo === '2026-10-01')
     expect(nuevo).toMatchObject({ tipo_cambio: 1400, fuente_tipo_cambio: 'anterior', audiencia_web_28d: 300, fuente_audiencia: 'manual' })
   })
 
   it('una fuente que se desvía más de 30% del anterior se descarta y usa el anterior', async () => {
-    const f = crearFake({ ad_price_cycles: [cicloAprobado({ tipo_cambio: 1530 })], ad_prices: [], ad_occupancy_daily: [], ad_settings: [] })
+    const f = crearFake({ ad_price_cycles: [cicloAprobado({ tipo_cambio: 1530 })], ad_prices: preciosAprobados('2026-09-01', 1530), ad_occupancy_daily: [], ad_settings: [] })
     expect(await proponerCicloDelMes(f.cliente, { ahora: AHORA, fetch: fetchDolar(2100) })).toBe('creado')
     const nuevo = f.datos.ad_price_cycles.find((c) => c.ciclo === '2026-10-01')
     expect(nuevo).toMatchObject({ tipo_cambio: 1530, fuente_tipo_cambio: 'anterior' })
