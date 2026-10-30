@@ -115,7 +115,7 @@ describe('app/sitemap.ts, rama con Supabase configurado', () => {
       '/privacidad',
       '/terminos',
       '/eliminar-cuenta',
-      ...(ANUNCIANTES.publicada ? ['/anunciantes'] : []),
+      ...(ANUNCIANTES.publicada ? ['/anunciantes', '/en/anunciantes'] : []),
     ])
   })
 })

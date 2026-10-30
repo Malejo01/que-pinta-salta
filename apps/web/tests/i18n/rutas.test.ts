@@ -3,8 +3,8 @@ import { describe, expect, it } from 'vitest'
 import { RUTAS_EN_INGLES, hrefLangDestino, rutaEn, rutaEnOtroIdioma, separarIdioma } from '@/lib/i18n/rutas'
 
 describe('RUTAS_EN_INGLES', () => {
-  it('la portada, /cines, /mapa, /buscar y la ficha del evento (/evento/<id>)', () => {
-    expect([...RUTAS_EN_INGLES]).toEqual(['/', '/cines', '/mapa', '/buscar', '/evento/*'])
+  it('la portada, /cines, /mapa, /buscar, /radar, /anunciantes y la ficha del evento (/evento/<id>)', () => {
+    expect([...RUTAS_EN_INGLES]).toEqual(['/', '/cines', '/mapa', '/buscar', '/radar', '/anunciantes', '/evento/*'])
   })
 })
 
@@ -38,8 +38,14 @@ describe('rutaEn', () => {
     expect(rutaEn('en', '/buscar?q=pena')).toBe('/en/buscar?q=pena')
   })
 
+  it('/radar y /anunciantes van a /en/radar y /en/anunciantes', () => {
+    expect(rutaEn('en', '/radar')).toBe('/en/radar')
+    expect(rutaEn('en', '/anunciantes')).toBe('/en/anunciantes')
+    expect(rutaEn('es', '/radar')).toBe('/radar')
+  })
+
   it('las rutas sin versión en inglés quedan en castellano (con su query)', () => {
-    expect(rutaEn('en', '/radar')).toBe('/radar')
+    expect(rutaEn('en', '/favoritos')).toBe('/favoritos')
     expect(rutaEn('en', '/auth/login?next=/nuevo-evento')).toBe('/auth/login?next=/nuevo-evento')
     // "/cinesxyz" no es "/cines".
     expect(rutaEn('en', '/cinesxyz')).toBe('/cinesxyz')
@@ -96,7 +102,7 @@ describe('rutaEnOtroIdioma', () => {
   })
 
   it('si la página no existe en inglés, va a /en (sin la query de la otra página)', () => {
-    expect(rutaEnOtroIdioma('/radar', 'en')).toBe('/en')
+    expect(rutaEnOtroIdioma('/perfil', 'en')).toBe('/en')
     expect(rutaEnOtroIdioma('/favoritos?x=1', 'en')).toBe('/en')
     expect(rutaEnOtroIdioma('/entradas', 'en')).toBe('/en')
   })
@@ -140,7 +146,8 @@ describe('hrefLangDestino', () => {
   it('en inglés, "es-AR" solo para las páginas que existen solo en castellano', () => {
     expect(hrefLangDestino('en', '/buscar')).toBeUndefined()
     expect(hrefLangDestino('en', '/mapa?cuando=hoy')).toBeUndefined()
-    expect(hrefLangDestino('en', '/radar')).toBe('es-AR')
+    expect(hrefLangDestino('en', '/radar')).toBeUndefined()
+    expect(hrefLangDestino('en', '/anunciantes')).toBeUndefined()
     expect(hrefLangDestino('en', '/favoritos')).toBe('es-AR')
     expect(hrefLangDestino('en', '/auth/login?next=/nuevo-evento')).toBe('es-AR')
     expect(hrefLangDestino('en', '/')).toBeUndefined()

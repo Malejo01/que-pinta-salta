@@ -10,7 +10,7 @@ import type { Idioma } from './idiomas'
  * `/evento/<id>/otra`). Un link a cualquier otra ruta queda en castellano
  * aunque se esté navegando en inglés.
  */
-export const RUTAS_EN_INGLES: readonly string[] = ['/', '/cines', '/mapa', '/buscar', '/evento/*']
+export const RUTAS_EN_INGLES: readonly string[] = ['/', '/cines', '/mapa', '/buscar', '/radar', '/anunciantes', '/evento/*']
 
 const PREFIJO_EN = '/en'
 

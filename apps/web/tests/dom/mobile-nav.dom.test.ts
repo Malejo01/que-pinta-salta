@@ -93,17 +93,17 @@ describe('MobileNav: aria-current y foco visible en un DOM real', () => {
 // Q3: en las páginas en inglés los links pasan a /en cuando la página existe
 // en inglés (/, /cines, /mapa y /buscar), y aria-current sigue funcionando.
 describe('MobileNav en inglés (/en, /en/cines)', () => {
-  it('en /en: los textos en inglés, "Home", "Search" y "Map" van a /en; el resto sigue en castellano', () => {
+  it('en /en: los textos en inglés, "Home", "Search", "Map" y "Radar" van a /en; el resto sigue en castellano', () => {
     const links = enlaces('/en')
-    expect(links.map((a) => a.getAttribute('href'))).toEqual(['/en', '/en/buscar', '/en/mapa', '/radar', '/favoritos'])
+    expect(links.map((a) => a.getAttribute('href'))).toEqual(['/en', '/en/buscar', '/en/mapa', '/en/radar', '/favoritos'])
     expect(links.map((a) => a.textContent)).toEqual(['Home', 'Search', 'Map', 'Radar', 'My events'])
     expect(links.filter((a) => a.hasAttribute('aria-current')).map((a) => a.getAttribute('href'))).toEqual(['/en'])
     expect(links[0].getAttribute('aria-current')).toBe('page')
   })
 
-  it('en /en, los ítems que llevan a páginas solo en castellano tienen hrefLang="es-AR"; Home, Search y Map no', () => {
+  it('en /en, los ítems que llevan a páginas solo en castellano tienen hrefLang="es-AR"; Home, Search, Map y Radar no', () => {
     const links = enlaces('/en')
-    expect(links.map((a) => a.getAttribute('hreflang'))).toEqual([null, null, null, 'es-AR', 'es-AR'])
+    expect(links.map((a) => a.getAttribute('hreflang'))).toEqual([null, null, null, null, 'es-AR'])
   })
 
   it('en castellano ningún ítem lleva hrefLang', () => {

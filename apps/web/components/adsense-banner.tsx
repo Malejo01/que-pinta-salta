@@ -6,6 +6,8 @@ import { ExternalLink, Sparkles } from "lucide-react"
 import { ADS_ENABLED, ADSENSE_CLIENT_ID, ADSENSE_SLOTS } from "@/lib/config/monetization"
 import { ANUNCIANTES } from "@/lib/config/anunciantes"
 import { TEXTO_ANUNCIAR, whatsappUrl } from "@/lib/contacto"
+import { rutaEn } from "@/lib/i18n/rutas"
+import { useIdioma } from "@/lib/i18n/use-idioma"
 
 interface AdSenseBannerProps {
   /** El lugar define el slot (ADSENSE_SLOTS) y el alto reservado (ALTO_RESERVADO_ANUNCIO), los dos en lib/config/monetization.ts. */
@@ -40,6 +42,8 @@ function AdSenseSlot({
   responsive = true,
   className = "",
 }: AdSenseBannerProps) {
+  // Solo para el link a /anunciantes (el texto del cartel sigue en castellano).
+  const idioma = useIdioma()
   const [adError, setAdError] = useState(false)
   const [isClient, setIsClient] = useState(false)
   const insRef = useRef<HTMLModElement>(null)
@@ -175,7 +179,7 @@ function AdSenseSlot({
             </p>
             {ANUNCIANTES.publicada ? (
               <Link
-                href="/anunciantes"
+                href={rutaEn(idioma, "/anunciantes")}
                 className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow-sm transition-all hover:bg-primary/90 hover:scale-[1.02] active:scale-[0.98]"
               >
                 Ver paquetes para anunciantes
