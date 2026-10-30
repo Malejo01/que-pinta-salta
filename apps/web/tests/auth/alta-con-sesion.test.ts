@@ -19,6 +19,7 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
+import { es } from '@/lib/i18n/diccionarios/es'
 import {
   MENSAJE_ALTA_CON_SESION,
   MENSAJE_ALTA_ENVIADA,
@@ -148,18 +149,23 @@ describe('CABLEADO: components/auth-modal.tsx (alta)', () => {
   it('importa MENSAJE_ALTA_CON_SESION y lo usa en el toast de "sesion"', () => {
     expect(SRC_MODAL).toMatch(/import\s*\{[^}]*MENSAJE_ALTA_CON_SESION[^}]*\}\s*from\s*["']@\/lib\/auth\/mensajes["']/)
     expect(bloqueSesion).toMatch(/toast\(/)
-    expect(bloqueSesion).toMatch(/description:\s*MENSAJE_ALTA_CON_SESION/)
+    // Q3: pasa por `t.mensaje` (el diccionario), que en castellano lo deja igual.
+    expect(bloqueSesion).toMatch(/description:\s*t\.mensaje\(MENSAJE_ALTA_CON_SESION\)/)
+    expect(es.auth.mensaje(MENSAJE_ALTA_CON_SESION)).toBe(MENSAJE_ALTA_CON_SESION)
   })
 
   it('el bloque "sesion" no usa MENSAJE_ALTA_ENVIADA ni el título "Revisá tu email" ni navega a sign-up-success', () => {
     expect(bloqueSesion).not.toMatch(/MENSAJE_ALTA_ENVIADA/)
-    expect(bloqueSesion).not.toMatch(/Revisá tu email/)
+    expect(bloqueSesion).not.toMatch(/Revisá tu email|t\.revisaTuEmail/)
     expect(bloqueSesion).not.toMatch(/sign-up-success/)
   })
 
   it('con "enviado" el toast sigue siendo "Revisá tu email" con MENSAJE_ALTA_ENVIADA', () => {
-    expect(bloqueEnviado).toMatch(/title:\s*["']Revisá tu email["']/)
-    expect(bloqueEnviado).toMatch(/description:\s*MENSAJE_ALTA_ENVIADA/)
+    // Q3: título y texto salen del diccionario; en castellano dicen lo mismo.
+    expect(bloqueEnviado).toMatch(/title:\s*t\.revisaTuEmail\b/)
+    expect(es.auth.revisaTuEmail).toBe('Revisá tu email')
+    expect(bloqueEnviado).toMatch(/description:\s*t\.mensaje\(MENSAJE_ALTA_ENVIADA\)/)
+    expect(es.auth.mensaje(MENSAJE_ALTA_ENVIADA)).toBe(MENSAJE_ALTA_ENVIADA)
     expect(bloqueEnviado).not.toMatch(/MENSAJE_ALTA_CON_SESION/)
   })
 

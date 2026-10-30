@@ -1,6 +1,6 @@
 /**
- * hreflang de las páginas en los dos idiomas (Q3): `/` ↔ `/en` y `/cines` ↔
- * `/en/cines`. Las páginas en inglés tienen metadata propia (título,
+ * hreflang de las páginas en los dos idiomas (Q3): `/` ↔ `/en`, `/cines` ↔
+ * `/en/cines` y `/evento/<id>` ↔ `/en/evento/<id>`. Las páginas en inglés tienen metadata propia (título,
  * descripción, canónica, openGraph en_US con su imagen); las de castellano
  * solo suman `languages` a su `alternates`. Sin red ni base.
  */
@@ -10,9 +10,18 @@ import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/components/portada/pagina-portada', () => ({ PaginaPortada: () => null }))
 vi.mock('@/components/cines/pagina-cines', () => ({ PaginaCines: () => null }))
+vi.mock('@/components/event-detail-page', () => ({ EventDetailPage: () => null }))
+
+const { eventos } = vi.hoisted(() => ({ eventos: new Map<string, Record<string, unknown>>() }))
+vi.mock('@/lib/data', () => ({
+  getEventById: async (id: string) => eventos.get(id) ?? null,
+  getCategories: async () => [],
+}))
 
 import { metadata as portadaEn } from '@/app/en/page'
 import { metadata as cinesEn, revalidate as revalidateCinesEn } from '@/app/en/cines/page'
+import { generateMetadata as fichaEn } from '@/app/en/evento/[id]/page'
+import { generateMetadata as fichaEs } from '@/app/evento/[id]/page'
 import { idiomasAlternos } from '@/lib/i18n/seo'
 
 const ROOT = join(__dirname, '..', '..')
@@ -66,5 +75,61 @@ describe('las páginas en castellano declaran sus alternos', () => {
     ['app/cines/page.tsx', "languages: idiomasAlternos('/cines')"],
   ])('%s', (archivo, esperado) => {
     expect(read(archivo)).toContain(esperado)
+  })
+})
+
+describe('la ficha del evento: /evento/<id> ↔ /en/evento/<id>', () => {
+  const ID = '12345678-1234-4234-8234-123456789012'
+  const params = Promise.resolve({ id: ID })
+  eventos.set(ID, {
+    id: ID,
+    title: 'Peña de Prueba',
+    short_description: 'Una peña inventada para el test.',
+    description: null,
+    image_url: 'https://ejemplo.invalid/flyer.jpg',
+  })
+
+  it('idiomasAlternos de la ficha', () => {
+    expect(idiomasAlternos(`/evento/${ID}`)).toEqual({
+      'es-AR': `/evento/${ID}`,
+      en: `/en/evento/${ID}`,
+      'x-default': `/evento/${ID}`,
+    })
+  })
+
+  it('/en/evento: canónica propia, languages y openGraph en_US con la imagen del evento', async () => {
+    const meta = await fichaEn({ params })
+    expect(meta.alternates?.canonical).toBe(`/en/evento/${ID}`)
+    expect(meta.alternates?.languages).toEqual(idiomasAlternos(`/evento/${ID}`))
+    const og = meta.openGraph as Record<string, unknown>
+    expect(og.locale).toBe('en_US')
+    expect(og.url).toBe(`https://www.quepintasalta.com.ar/en/evento/${ID}`)
+    expect(og.images).toEqual([{ url: 'https://ejemplo.invalid/flyer.jpg', alt: 'Peña de Prueba' }])
+  })
+
+  it('el título y la descripción son los del evento, igual que en castellano (y la misma imagen)', async () => {
+    const [en, es] = await Promise.all([fichaEn({ params }), fichaEs({ params })])
+    expect(en.title).toBe(es.title)
+    expect(en.description).toBe(es.description)
+    expect((en.openGraph as Record<string, unknown>).images).toEqual((es.openGraph as Record<string, unknown>).images)
+    expect(en.twitter).toEqual(es.twitter)
+  })
+
+  it('/evento: la canónica de siempre y languages hacia las dos versiones', async () => {
+    const meta = await fichaEs({ params })
+    expect(meta.alternates?.canonical).toBe(`/evento/${ID}`)
+    expect(meta.alternates?.languages).toEqual(idiomasAlternos(`/evento/${ID}`))
+    expect(read('app/evento/[id]/page.tsx')).toContain('languages: idiomasAlternos(`/evento/${id}`)')
+  })
+
+  it('evento inexistente: título en inglés en /en, sin canónica', async () => {
+    const meta = await fichaEn({ params: Promise.resolve({ id: 'no-existe' }) })
+    expect(meta).toEqual({ title: 'Event not found' })
+  })
+
+  it('la ficha en castellano no declara revalidate, dynamic ni generateStaticParams (nada que repetir en /en)', () => {
+    for (const archivo of ['app/evento/[id]/page.tsx', 'app/en/evento/[id]/page.tsx']) {
+      expect(read(archivo)).not.toMatch(/export (const (revalidate|dynamic)|(async )?function generateStaticParams)\b/)
+    }
   })
 })

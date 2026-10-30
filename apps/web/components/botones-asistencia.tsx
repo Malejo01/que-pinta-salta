@@ -17,6 +17,8 @@
 import { Check } from "lucide-react"
 import { textoBotonVoy } from "@qps/core/asistencia"
 import { Button } from "@/components/ui/button"
+import { textosDe } from "@/lib/i18n"
+import type { Idioma } from "@/lib/i18n/idiomas"
 import { cn } from "@/lib/utils"
 
 export interface BotonVoyProps {
@@ -28,10 +30,18 @@ export interface BotonVoyProps {
   /** Para el `aria-label`: no afecta el texto visible (siempre `textoBotonVoy`). */
   titulo?: string
   className?: string
+  /**
+   * Idioma de los textos (por prop: esta pieza no usa hooks). En castellano
+   * el texto visible es `textoBotonVoy` de core, como siempre; en inglés, el
+   * del diccionario, con el mismo umbral.
+   */
+  idioma?: Idioma
 }
 
 /** Pieza presentacional del botón de "Voy": sin estado, sin hooks. La usa `FilaAccionesEventoVista`. */
-export function BotonVoy({ voy, cantidadVoy, pendiente, onClick, titulo, className }: BotonVoyProps) {
+export function BotonVoy({ voy, cantidadVoy, pendiente, onClick, titulo, className, idioma = "es" }: BotonVoyProps) {
+  const t = textosDe(idioma).asistencia
+  const nombre = titulo ?? t.esteEvento
   return (
     <Button
       type="button"
@@ -40,13 +50,11 @@ export function BotonVoy({ voy, cantidadVoy, pendiente, onClick, titulo, classNa
       className={cn("min-h-11 flex-1 sm:flex-none", className)}
       disabled={pendiente}
       aria-pressed={voy}
-      aria-label={
-        voy ? `Marcar que no vas a ${titulo ?? "este evento"}` : `Marcar que vas a ${titulo ?? "este evento"}`
-      }
+      aria-label={voy ? t.ariaNoVoy(nombre) : t.ariaVoy(nombre)}
       onClick={onClick}
     >
       <Check className="mr-2 size-4" />
-      {textoBotonVoy(cantidadVoy)}
+      {idioma === "es" ? textoBotonVoy(cantidadVoy) : t.botonVoy(cantidadVoy)}
     </Button>
   )
 }

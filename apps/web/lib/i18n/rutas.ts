@@ -5,11 +5,13 @@
 import type { Idioma } from './idiomas'
 
 /**
- * Rutas (en castellano, sin `/en`) que tienen versión en inglés. El PR
- * siguiente suma `/mapa`, `/buscar` y `/evento/*`; hasta entonces, un link a
- * cualquier otra ruta queda en castellano aunque se esté navegando en inglés.
+ * Rutas (en castellano, sin `/en`) que tienen versión en inglés. Un `*` final
+ * vale por UN segmento: `/evento/*` es `/evento/<id>` (no `/evento` solo ni
+ * `/evento/<id>/otra`). Falta sumar `/mapa` y `/buscar`; hasta entonces, un
+ * link a cualquier otra ruta queda en castellano aunque se esté navegando en
+ * inglés.
  */
-export const RUTAS_EN_INGLES: readonly string[] = ['/', '/cines']
+export const RUTAS_EN_INGLES: readonly string[] = ['/', '/cines', '/evento/*']
 
 const PREFIJO_EN = '/en'
 
@@ -26,8 +28,18 @@ function sinBarraFinal(camino: string): string {
   return camino
 }
 
+/** `camino` coincide con una entrada de `RUTAS_EN_INGLES` (exacta, o `prefijo/*` con un segmento). */
+function coincideRuta(patron: string, camino: string): boolean {
+  if (!patron.endsWith('/*')) return patron === camino
+  const prefijo = patron.slice(0, -1)
+  if (!camino.startsWith(prefijo)) return false
+  const segmento = camino.slice(prefijo.length)
+  return segmento.length > 0 && !segmento.includes('/')
+}
+
 export function tieneVersionEnIngles(camino: string): boolean {
-  return RUTAS_EN_INGLES.includes(sinBarraFinal(camino))
+  const limpio = sinBarraFinal(camino)
+  return RUTAS_EN_INGLES.some((patron) => coincideRuta(patron, limpio))
 }
 
 /**
