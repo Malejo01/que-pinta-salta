@@ -67,6 +67,24 @@
 // mínimo de 3 resultados para el anuncio siguen valiendo. La grilla
 // "Explorar por categoria" sigue contando sobre todos los eventos (solo se ve
 // sin ningún filtro, y "Para chicos" es un filtro).
+//
+// A8 (nube Q1, QPS-339): el conteo de los resultados ("N resultados…", "N
+// eventos…", o el texto del vacío con 0) se anuncia a mano en Android y en iOS
+// con `useAnunciarConteo` (reglas en `lib/anunciar-conteo.ts`;
+// `estadoAnunciableBuscar` arma qué se dice) y ya no es una live region: al
+// pasar de "Explorar por categoria" a resultados la FlatList de resultados se
+// monta nueva y TalkBack no anunciaba su conteo, ni nada cuando el número no
+// cambiaba. Ahora se anuncia al prender un filtro, tocar una categoría o una
+// pill, llegar con `?categoria=` (aunque Buscar se monte recién: antes no había
+// nada y el usuario tocó "Ver todos"), y al volver a "Explorar por categoría".
+// Lo tipeado NO se anuncia en cada tecla: espera `DEMORA_TEXTO_MS` sin teclas
+// nuevas (o al toque si el campo queda vacío, como con "Limpiar búsqueda").
+// Ronda de correcciones de A8: enviar con la tecla del teclado
+// (`onSubmitEditing`, que `CampoTexto` pasa al `TextInput`) sube el nonce
+// `toqueTexto` y se anuncia al toque, sin doble anuncio; A5 usa el mismo
+// nonce al tocar una búsqueda reciente (ver `lib/anunciar-conteo-hook.ts`).
+// La clave del anuncio suma `vParam`: volver desde "Ver todos" con el mismo
+// `?categoria=` (otra `v`) vuelve a anunciar.
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { FlatList, Pressable, RefreshControl, StyleSheet, View } from 'react-native'
 import { useLocalSearchParams } from 'expo-router'
@@ -80,6 +98,8 @@ import { Icono, iconoPorCategoria } from '@/components/Icono'
 import { PillsAtajos } from '@/components/PillsAtajos'
 import { TarjetaEvento } from '@/components/TarjetaEvento'
 import { Texto } from '@/components/Texto'
+import { estadoAnunciableBuscar } from '@/lib/anunciar-conteo'
+import { useAnunciarConteo } from '@/lib/anunciar-conteo-hook'
 import { bordeChipInactivo, useColoresQPS } from '@/lib/colores'
 import { textoResultadosBuscar, textoSinResultadosBuscar } from '@/lib/buscar-filtros'
 import {
@@ -136,6 +156,9 @@ export default function Buscar() {
   const [soloGratisActivo, setSoloGratisActivo] = useState(false)
   // A3 (nube Q1): el chip "Para chicos", como "Solo gratis" (no viene por la ruta).
   const [paraChicosActivo, setParaChicosActivo] = useState(false)
+  // A8 (nube Q1, QPS-339, ronda de correcciones): nonce del texto que llega por
+  // un toque (enviar con el teclado; A5: tocar una búsqueda reciente).
+  const [toqueTexto, setToqueTexto] = useState(0)
 
   // Sincroniza `categoriaFiltro` con el parámetro de la ruta sin `setState`
   // sincrónico dentro de un `useEffect` (mismo patrón que `idAnterior` en
@@ -258,6 +281,14 @@ export default function Buscar() {
     atajo,
   }
 
+  // A8 (nube Q1, QPS-339): un anuncio por cambio (sin live region en el conteo).
+  // `null` mientras carga o con error: "no hay nada".
+  useAnunciarConteo(
+    estado.tipo === 'ok'
+      ? estadoAnunciableBuscar({ mostrarResultados, cantidad: resultadosMostrados.length, filtros: filtrosTexto, v: vParam, toque: toqueTexto })
+      : null,
+  )
+
   // Salidas del vacío (R66): sacar la fecha y/o la categoría. Un botón por
   // cada filtro que se puede sacar. A3: y "Para chicos", primero (la salida
   // principal, rellena), salvo con Infantil elegida: ahí apagarlo no cambia
@@ -277,6 +308,7 @@ export default function Buscar() {
             label="Buscar"
             value={texto}
             onChangeText={setTexto}
+            onSubmitEditing={() => setToqueTexto((n) => n + 1)}
             placeholder="Buscar por evento, lugar o descripcion..."
             autoCapitalize="none"
             accionDerecha={
@@ -412,7 +444,7 @@ export default function Buscar() {
               <View style={estilos.chipsEnLista}>
                 <ChipsCategorias categorias={categoriasParaChips} seleccionada={categoriaFiltro} onCambiar={setCategoriaFiltro} />
               </View>
-              <Texto tono="secundario" accessibilityLiveRegion="polite" style={estilos.tituloSeccion}>
+              <Texto tono="secundario" style={estilos.tituloSeccion}>
                 {textoResultadosBuscar(resultadosMostrados.length, filtrosTexto)}
               </Texto>
             </>

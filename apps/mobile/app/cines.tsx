@@ -15,6 +15,19 @@
 // un cine (`components/BloqueCine.tsx`) ya no son locales: los comparte la
 // portada con el chip "Cine" y la ficha de la película. `funcionesPorCine`
 // (R28, `lib/datos/cines.ts`) agrupa `showings` por cine adentro de la tarjeta.
+//
+// A8 (nube Q1, QPS-339): el buscador filtra la lista sin mostrar un conteo, y
+// el único aviso visible es el vacío ("No hay resultados para…"), que un lector
+// de pantalla no se enteraba que aparecía. Se anuncia con `useAnunciarConteo`
+// (reglas en `lib/anunciar-conteo.ts`, la misma estrategia que la portada y
+// Buscar): con texto, "2 películas para dune" o "Ninguna película para dune"
+// (el vacío visible no cambia); al limpiar, "N películas en cartel". Lo
+// tipeado espera `DEMORA_TEXTO_MS` sin teclas nuevas (no se anuncia en cada
+// tecla); limpiar y enviar con el teclado (`onSubmitEditing`, nonce
+// `toqueBusqueda`) se anuncian al toque. El montaje no se anuncia (sin texto
+// no hay nada que decir). El vacío no es una live region (`Vacio` no la
+// tiene), así que no hay doble lectura. Una línea de conteo visible quedó
+// descartada en la revisión de A8: se mantiene solo el anuncio.
 import { useCallback, useEffect, useState } from 'react'
 import { FlatList, Pressable, RefreshControl, StyleSheet, TextInput, View } from 'react-native'
 import { Cargando, ErrorCarga, Vacio } from '@/components/EstadoCarga'
@@ -22,6 +35,8 @@ import { Icono } from '@/components/Icono'
 import { TarjetaPelicula } from '@/components/TarjetaPelicula'
 import { Texto } from '@/components/Texto'
 import { hitSlopPara } from '@/lib/accesibilidad'
+import { estadoAnunciableCines } from '@/lib/anunciar-conteo'
+import { useAnunciarConteo } from '@/lib/anunciar-conteo-hook'
 import { useColoresQPS } from '@/lib/colores'
 import { obtenerCines, type Pelicula } from '@/lib/datos/cines'
 
@@ -45,6 +60,8 @@ export default function Cines() {
   // lista sigue a la vista en vez de pasar a `Cargando`.
   const [refrescando, setRefrescando] = useState(false)
   const [busqueda, setBusqueda] = useState('')
+  // A8 (nube Q1, QPS-339): nonce del texto enviado con la tecla del teclado.
+  const [toqueBusqueda, setToqueBusqueda] = useState(0)
   // Cuenta de "reintentos" (mismo patrón que `app/evento/[id].tsx` y
   // `app/(tabs)/buscar.tsx`, 29-b/29-j): el efecto no puede llamar, de forma
   // sincrónica, a una función que haga `setState` (lint
@@ -88,6 +105,13 @@ export default function Cines() {
     ? `No hay resultados para "${busqueda}". Probá buscando con otro título.`
     : 'No hay películas en cartelera actualmente.'
 
+  // A8 (nube Q1, QPS-339): `null` mientras carga o con error ("no hay nada").
+  useAnunciarConteo(
+    estado.tipo === 'ok'
+      ? estadoAnunciableCines({ busqueda, cantidad: filtradas.length, total: peliculas.length, toque: toqueBusqueda })
+      : null,
+  )
+
   return (
     <View style={[estilos.contenedor, { backgroundColor: colores.background }]}>
       <Texto peso="bold" accessibilityRole="header" style={estilos.titulo}>
@@ -99,6 +123,7 @@ export default function Cines() {
         <TextInput
           value={busqueda}
           onChangeText={setBusqueda}
+          onSubmitEditing={() => setToqueBusqueda((n) => n + 1)}
           placeholder="Buscar película por nombre..."
           placeholderTextColor={colores.mutedForeground}
           style={[estilos.inputBusqueda, { color: colores.foreground }]}
