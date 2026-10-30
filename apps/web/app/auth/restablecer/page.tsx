@@ -33,11 +33,11 @@ export default async function RestablecerPage() {
   const { titulo } = textosContrasena("restablecer")
 
   return (
-    <div className="flex min-h-svh w-full flex-col items-center justify-center bg-background p-6 md:p-10">
+    <main id="contenido" className="flex min-h-svh w-full flex-col items-center justify-center bg-background p-6 md:p-10">
       <div className="w-full max-w-sm space-y-6">
         <h1 className="sr-only">{titulo}</h1>
         <ChangePasswordForm modo="restablecer" />
       </div>
-    </div>
+    </main>
   )
 }

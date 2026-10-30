@@ -168,6 +168,9 @@ export function AuthModalProvider({ children }: { children: ReactNode }) {
               <Input
                 id="modal-email"
                 type="email"
+                autoComplete="email"
+                aria-invalid={errorVisible ? true : undefined}
+                aria-describedby={errorVisible ? "modal-auth-error" : undefined}
                 placeholder={t.emailPlaceholder}
                 required
                 value={email}
@@ -178,6 +181,9 @@ export function AuthModalProvider({ children }: { children: ReactNode }) {
               <Label htmlFor="modal-password">{t.contrasena}</Label>
               <PasswordInput
                 id="modal-password"
+                autoComplete={mode === "login" ? "current-password" : "new-password"}
+                aria-invalid={errorVisible ? true : undefined}
+                aria-describedby={errorVisible ? "modal-auth-error" : undefined}
                 etiquetaMostrar={t.mostrarContrasena}
                 required
                 value={password}
@@ -195,7 +201,7 @@ export function AuthModalProvider({ children }: { children: ReactNode }) {
               )}
             </div>
             {errorVisible && (
-              <p className="rounded-md bg-destructive/10 p-3 text-sm text-destructive text-center" lang={langError}>
+              <p id="modal-auth-error" role="alert" className="rounded-md bg-destructive/10 p-3 text-sm text-destructive text-center" lang={langError}>
                 {errorVisible}
               </p>
             )}

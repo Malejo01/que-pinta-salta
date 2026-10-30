@@ -100,7 +100,7 @@ export default function SignUpPage() {
   }
 
   return (
-    <div className="flex min-h-svh w-full flex-col items-center justify-center bg-background p-6 md:p-10">
+    <main id="contenido" className="flex min-h-svh w-full flex-col items-center justify-center bg-background p-6 md:p-10">
       <div className="w-full max-w-sm">
         <Link 
           href="/" 
@@ -127,6 +127,7 @@ export default function SignUpPage() {
                   <Label htmlFor="fullName">Nombre completo</Label>
                   <Input
                     id="fullName"
+                    autoComplete="name"
                     type="text"
                     placeholder="Juan Perez"
                     value={fullName}
@@ -138,6 +139,9 @@ export default function SignUpPage() {
                   <Input
                     id="email"
                     type="email"
+                    autoComplete="email"
+                    aria-invalid={error ? true : undefined}
+                    aria-describedby={error ? 'signup-error' : undefined}
                     placeholder="tu@email.com"
                     required
                     value={email}
@@ -148,6 +152,9 @@ export default function SignUpPage() {
                   <Label htmlFor="password">Contraseña *</Label>
                   <PasswordInput
                     id="password"
+                    autoComplete="new-password"
+                    aria-invalid={error ? true : undefined}
+                    aria-describedby={error ? 'signup-error' : undefined}
                     required
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
@@ -157,13 +164,16 @@ export default function SignUpPage() {
                   <Label htmlFor="repeat-password">Repetir Contraseña *</Label>
                   <PasswordInput
                     id="repeat-password"
+                    autoComplete="new-password"
+                    aria-invalid={error ? true : undefined}
+                    aria-describedby={error ? 'signup-error' : undefined}
                     required
                     value={repeatPassword}
                     onChange={(e) => setRepeatPassword(e.target.value)}
                   />
                 </div>
                 {error && (
-                  <p className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
+                  <p id="signup-error" role="alert" className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
                     {error}
                   </p>
                 )}
@@ -195,11 +205,11 @@ export default function SignUpPage() {
 
             <p className="mt-4 text-xs text-muted-foreground text-center">
               Al crear tu cuenta aceptás los{' '}
-              <Link href="/terminos" className="text-primary underline underline-offset-4">
+              <Link href="/terminos" className="text-primary dark:text-red-400 underline underline-offset-4">
                 Términos y condiciones
               </Link>{' '}
               y la{' '}
-              <Link href="/privacidad" className="text-primary underline underline-offset-4">
+              <Link href="/privacidad" className="text-primary dark:text-red-400 underline underline-offset-4">
                 Política de Privacidad
               </Link>
               .
@@ -209,7 +219,7 @@ export default function SignUpPage() {
               ¿Ya tenés cuenta?{' '}
               <Link
                 href="/auth/login"
-                className="text-primary underline underline-offset-4"
+                className="text-primary dark:text-red-400 underline underline-offset-4"
               >
                 Iniciar sesión
               </Link>
@@ -217,6 +227,6 @@ export default function SignUpPage() {
           </CardContent>
         </Card>
       </div>
-    </div>
+    </main>
   )
 }

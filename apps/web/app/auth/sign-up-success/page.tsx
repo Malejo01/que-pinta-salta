@@ -10,7 +10,7 @@ import { Mail } from 'lucide-react'
 
 export default function SignUpSuccessPage() {
   return (
-    <div className="flex min-h-svh w-full flex-col items-center justify-center bg-background p-6 md:p-10">
+    <main id="contenido" className="flex min-h-svh w-full flex-col items-center justify-center bg-background p-6 md:p-10">
       <div className="w-full max-w-sm">
         <div className="mb-8 text-center">
           <h1 className="text-2xl font-bold text-primary">Que pinta Salta</h1>
@@ -36,6 +36,6 @@ export default function SignUpSuccessPage() {
           </CardContent>
         </Card>
       </div>
-    </div>
+    </main>
   )
 }
