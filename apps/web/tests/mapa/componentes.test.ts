@@ -14,6 +14,8 @@ import { describe, expect, it } from 'vitest'
 const WEB_ROOT = fileURLToPath(new URL('../../', import.meta.url))
 
 const MAPLIBRE = 'components/mapa/mapa-maplibre.tsx'
+const PIN_MAPLIBRE = 'components/mapa/mapa-pin-maplibre.tsx'
+const TEXTOS = 'components/mapa/textos-maplibre.ts'
 const DIFERIDO = 'components/mapa/mapa-diferido.tsx'
 const LISTA = 'components/mapa/lista-lugares.tsx'
 const FILTROS = 'components/mapa/filtros-mapa.tsx'
@@ -58,10 +60,10 @@ describe('el barrido mira algo', () => {
   })
 })
 
-describe('maplibre-gl se importa en un solo archivo', () => {
-  it('solo mapa-maplibre.tsx y maplibre-worker.ts nombran el paquete (o su CSS) en app, components y lib', () => {
+describe('maplibre-gl se importa en tres archivos (el mapa, el mapa del pin y el worker)', () => {
+  it('solo mapa-maplibre.tsx, mapa-pin-maplibre.tsx y maplibre-worker.ts nombran el paquete (o su CSS) en app, components y lib', () => {
     const nombran = CODIGO.filter((ruta) => NOMBRA_MAPLIBRE.test(leer(ruta)))
-    expect(nombran.sort()).toEqual([WORKER, MAPLIBRE].sort())
+    expect(nombran.sort()).toEqual([WORKER, MAPLIBRE, PIN_MAPLIBRE].sort())
   })
 
   // Q3: Turbopack reemplaza el `import.meta.url` de MapLibre por un file:///
@@ -85,6 +87,17 @@ describe('maplibre-gl se importa en un solo archivo', () => {
     const loNombran = CODIGO.filter((ruta) => ruta !== WORKER && leer(ruta).includes('maplibre-worker'))
     expect(loNombran).toContain(DIFERIDO)
     for (const ruta of loNombran) expect(ruta.startsWith('components/mapa/')).toBe(true)
+    expect(codigo).not.toMatch(/from\s*['"][^'"]*maplibre-worker['"]/)
+  })
+
+  // R76: el pin de /admin/lugares (#98) tenía el mismo bug del worker. Lo
+  // arregla un import sin `from` arriba de todo (propuesta del #123): el orden
+  // de los módulos ES fija la URL antes de cualquier `new Map`.
+  it('mapa-pin-maplibre importa maplibre-worker sin `from`, antes que maplibre-gl', () => {
+    const codigo = leer(PIN_MAPLIBRE)
+    const worker = codigo.search(/import\s*['"]\.\/maplibre-worker['"]/)
+    expect(worker).toBeGreaterThan(-1)
+    expect(codigo.search(/from\s*['"]maplibre-gl['"]/)).toBeGreaterThan(worker)
     expect(codigo).not.toMatch(/from\s*['"][^'"]*maplibre-worker['"]/)
   })
 
@@ -325,7 +338,15 @@ describe('el área de toque y los gestos del mapa', () => {
   it('los gestos son cooperativos y los textos van en español', () => {
     expect(codigo).toMatch(/cooperativeGestures:\s*true/)
     expect(codigo).toMatch(/locale:\s*TEXTOS_ES/)
-    expect(codigo).toContain('Usá dos dedos para mover el mapa')
+    expect(codigo).toMatch(/import\s*\{\s*TEXTOS_ES\s*\}\s*from\s*['"]\.\/textos-maplibre['"]/)
+    expect(leer(TEXTOS)).toContain('Usá dos dedos para mover el mapa')
+  })
+
+  it('el mapa del pin también: gestos cooperativos y los mismos textos en español', () => {
+    const pin = leer(PIN_MAPLIBRE)
+    expect(pin).toMatch(/cooperativeGestures:\s*true/)
+    expect(pin).toMatch(/locale:\s*TEXTOS_ES/)
+    expect(pin).toMatch(/import\s*\{\s*TEXTOS_ES\s*\}\s*from\s*['"]\.\/textos-maplibre['"]/)
   })
 })
 

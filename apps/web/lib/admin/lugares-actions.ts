@@ -17,6 +17,12 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { isUuid } from '@/lib/metricas'
 import { parsearCoordenadas } from '@/lib/venues/coordenadas-manuales'
+import { crearClienteNominatim, type ClienteNominatim } from '@/lib/venues/geocodificacion/nominatim'
+import {
+  consultaDeBusquedaAdmin,
+  normalizarTextoBusqueda,
+  resultadosParaAdmin,
+} from '@/lib/venues/geocodificacion/busqueda-admin'
 
 export type UbicacionManualResult = { ok: true } | { ok: false; error: string }
 
@@ -79,6 +85,57 @@ export async function guardarUbicacionManual(venueId: unknown, texto: unknown): 
 
   revalidatePath('/admin/lugares')
   return { ok: true }
+}
+
+/** Un solo cliente por proceso (perezoso): serializa los pedidos y respeta 1 por segundo. */
+let clienteNominatim: ClienteNominatim | null = null
+
+function obtenerClienteNominatim(): ClienteNominatim {
+  clienteNominatim ??= crearClienteNominatim({
+    fetch: (url, init) => fetch(url, init),
+    ahora: Date.now,
+    esperar: (ms) => new Promise<void>((resolve) => setTimeout(resolve, ms)),
+    intervaloMinMs: 1100,
+    maxReintentos: 0,
+    timeoutMs: 8000,
+  })
+  return clienteNominatim
+}
+
+export type BuscarDireccionResult =
+  | { ok: true; resultados: Array<{ lat: number; lng: number; etiqueta: string }> }
+  | { ok: false; error: string }
+
+/**
+ * Busca una dirección en Nominatim (una consulta por llamada, solo admin) y
+ * devuelve hasta 3 puntos dentro de Salta. El texto se valida antes de crear
+ * el cliente de Supabase; sin sesión de admin nunca se llama a la red.
+ */
+export async function buscarDireccionLugar(texto: unknown): Promise<BuscarDireccionResult> {
+  const q = normalizarTextoBusqueda(texto)
+  if (q === null) return { ok: false, error: 'Escribí una dirección de al menos 3 letras' }
+
+  const auth = await requireAdminSupabase()
+  if ('error' in auth) return { ok: false, error: auth.error }
+
+  let resultado
+  try {
+    resultado = await obtenerClienteNominatim().buscar(consultaDeBusquedaAdmin(q))
+  } catch {
+    console.error('buscarDireccionLugar: fallo inesperado')
+    return { ok: false, error: 'OpenStreetMap no respondió. Probá en un rato.' }
+  }
+
+  if (resultado.tipo === 'bloqueado') {
+    console.error('buscarDireccionLugar: bloqueado')
+    return { ok: false, error: 'OpenStreetMap no está disponible ahora. Ubicá el pin a mano.' }
+  }
+  if (resultado.tipo === 'error') {
+    console.error('buscarDireccionLugar: error')
+    return { ok: false, error: 'OpenStreetMap no respondió. Probá en un rato.' }
+  }
+
+  return { ok: true, resultados: resultadosParaAdmin(resultado.resultados) }
 }
 
 /** Quita la ubicación a mano (o la que hubiera) de `venueId`. */
