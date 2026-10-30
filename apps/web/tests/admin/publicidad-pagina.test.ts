@@ -224,7 +224,7 @@ describe('/admin/publicidad: el ciclo propuesto', () => {
     })
     const html = await renderizar()
     expect(html).toContain('fuente: Vercel Analytics')
-    expect(html).toContain('fuente: dolarapi (BNA vendedor)')
+    expect(html).toContain('fuente: DolarAPI (BNA vendedor)')
   })
 
   it('con el tipo de cambio del BNA no hay marca', async () => {

@@ -55,7 +55,7 @@ function nombreDelMes(dia: string): string {
 const FUENTES: Record<string, string> = {
   manual: 'cargada a mano',
   vercel: 'Vercel Analytics',
-  dolarapi: 'dolarapi (BNA vendedor)',
+  dolarapi: 'DolarAPI (BNA vendedor)',
   anterior: 'del mes anterior',
 }
 
@@ -276,7 +276,34 @@ function CicloPropuesto({
         )}
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="overflow-x-auto">
+        {/* Hasta sm: un bloque por producto (sin scroll de costado en 360 px). Desde sm: la tabla. */}
+        <ul className="flex flex-col gap-2 sm:hidden">
+          {precios.map((p) => {
+            const v = preciosVigentes.get(p.producto)
+            return (
+              <li key={p.producto} className="rounded-md border border-border p-3 text-sm">
+                <p className="font-medium text-foreground">{NOMBRE_PRODUCTO[p.producto] ?? p.producto}</p>
+                <p className="text-foreground">Lista: {pesos(p.precio_ars)}</p>
+                <p className="text-foreground">
+                  Fundador: {p.precio_fundador_ars !== null ? pesos(p.precio_fundador_ars) : '—'}
+                </p>
+                <div className="mt-1 text-muted-foreground">
+                  <p className="text-xs">
+                    Contra el vigente{cicloVigente ? ` (${nombreDelMes(cicloVigente)})` : ''}
+                  </p>
+                  <div>Lista: {diferencia(p.precio_ars, v?.precio_ars)}</div>
+                  {p.precio_fundador_ars !== null && (
+                    <div>Fundador: {diferencia(p.precio_fundador_ars, v?.precio_fundador_ars ?? undefined)}</div>
+                  )}
+                </div>
+              </li>
+            )
+          })}
+          {precios.length === 0 && (
+            <li className="py-2 text-sm text-muted-foreground">Este ciclo todavía no tiene precios cargados.</li>
+          )}
+        </ul>
+        <div className="hidden overflow-x-auto sm:block">
           <table className="w-full text-left text-sm">
             <thead className="text-xs text-muted-foreground">
               <tr>

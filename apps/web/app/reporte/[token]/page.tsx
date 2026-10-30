@@ -71,7 +71,15 @@ function Cifra({
     <div
       className={`rounded-2xl ${estimado ? "border border-dashed" : "border"} border-border bg-card p-5 text-card-foreground shadow-sm`}
     >
-      <p className="text-4xl font-extrabold tracking-tight text-foreground">{valor}</p>
+      <p
+        className={
+          estimado
+            ? "text-2xl font-semibold tracking-tight text-muted-foreground"
+            : "text-4xl font-extrabold tracking-tight text-foreground"
+        }
+      >
+        {valor}
+      </p>
       <p className="mt-1 text-sm font-medium text-foreground">{titulo}</p>
       {nota && <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{nota}</p>}
     </div>
