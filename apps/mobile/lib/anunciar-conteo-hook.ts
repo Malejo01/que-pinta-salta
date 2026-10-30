@@ -40,7 +40,7 @@ import { crearAnunciadorDeConteo, type EstadoAnunciable } from '@/lib/anunciar-c
  * nada (cargando o error). El efecto depende de los campos, no del objeto
  * (que es nuevo en cada render).
  */
-export function useAnunciarConteo(estado: EstadoAnunciable | null): void {
+export function useAnunciarConteo(estado: EstadoAnunciable | null, pausado = false): void {
   const enFoco = useIsFocused()
   const [anunciador] = useState(() =>
     crearAnunciadorDeConteo({ anunciar: (texto) => anunciar(texto), reloj: { setTimeout, clearTimeout }, plataforma: Platform.OS }),
@@ -54,10 +54,16 @@ export function useAnunciarConteo(estado: EstadoAnunciable | null): void {
   const alSalir = estado?.alSalir ?? null
 
   useEffect(() => {
+    // R81, 81-a: con `pausado` (la hoja de filtros de la portada abierta) no se
+    // observa nada: lo asentado queda como estaba al abrir, y al cerrar el
+    // primer estado que se observa se compara contra eso, así que el resultado
+    // se anuncia UNA sola vez, no uno por cada toque. Sin `pausado` (todas las
+    // demás pantallas) el comportamiento es el de siempre.
+    if (pausado) return
     const actual = listo ? { clave, texto, toque: toque ?? undefined, titulo, conteo, alSalir } : null
     if (enFoco) anunciador.observar(actual)
     else anunciador.asentarEnSilencio(actual)
-  }, [anunciador, enFoco, listo, clave, texto, toque, titulo, conteo, alSalir])
+  }, [anunciador, enFoco, pausado, listo, clave, texto, toque, titulo, conteo, alSalir])
 
   useEffect(() => () => anunciador.cancelar(), [anunciador])
 }

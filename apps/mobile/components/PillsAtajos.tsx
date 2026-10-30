@@ -18,7 +18,7 @@
 // `set-state-in-effect`); animarlos sí vive en un `useEffect`, pero
 // `Animated.spring(...).start()` no es un `setState`, así que tampoco
 // dispara ese lint.
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Animated, Pressable, ScrollView, StyleSheet, type LayoutChangeEvent } from 'react-native'
 import type { Atajo } from '@qps/core/home/atajos'
 import { Texto } from '@/components/Texto'
@@ -50,14 +50,26 @@ interface Medida {
 
 // Unión discriminada por `etiquetaTodas`: sin ella no hay estado "sin fecha";
 // con ella, `atajo` y `onCambiar` admiten `null`.
-export type PillsAtajosProps =
-  | { atajo: Atajo; onCambiar: (atajo: Atajo) => void; etiquetaTodas?: undefined }
-  | { atajo: Atajo | null; onCambiar: (atajo: Atajo | null) => void; etiquetaTodas: string }
+//
+// R81, 81-a: `despues` (opcional) se dibuja dentro del mismo scroll, a
+// continuación de las pills: la portada pone ahí los chips removibles de los
+// filtros activos, para que la cabecera siga siendo UNA sola fila. Con
+// `sinAireIzquierdo` el scroll arranca pegado al botón «Filtros» que lo
+// precede en la fila (8 dp de aire en vez de 16).
+interface AdicionalesPills {
+  despues?: ReactNode
+  sinAireIzquierdo?: boolean
+}
+export type PillsAtajosProps = AdicionalesPills &
+  (
+    | { atajo: Atajo; onCambiar: (atajo: Atajo) => void; etiquetaTodas?: undefined }
+    | { atajo: Atajo | null; onCambiar: (atajo: Atajo | null) => void; etiquetaTodas: string }
+  )
 
 const CLAVE_TODAS = 'todas'
 
 export function PillsAtajos(props: PillsAtajosProps) {
-  const { atajo, etiquetaTodas } = props
+  const { atajo, etiquetaTodas, despues, sinAireIzquierdo = false } = props
   const onCambiar = props.onCambiar as (atajo: Atajo | null) => void
   const colores = useColoresQPS()
   // R72, 72-c (QPS-362): borde de la pill inactiva a >= 3:1 (cálculo en `lib/colores.ts`).
@@ -99,7 +111,11 @@ export function PillsAtajos(props: PillsAtajosProps) {
   }
 
   return (
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={estilos.contenido}>
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      contentContainerStyle={[estilos.contenido, sinAireIzquierdo ? estilos.sinAireIzquierdo : null]}
+    >
       <Animated.View
         pointerEvents="none"
         style={[estilos.resaltado, { backgroundColor: colores.primary, transform: [{ translateX: animX }], width: animWidth }]}
@@ -127,12 +143,14 @@ export function PillsAtajos(props: PillsAtajosProps) {
           </Pressable>
         )
       })}
+      {despues}
     </ScrollView>
   )
 }
 
 const estilos = StyleSheet.create({
   contenido: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, paddingVertical: 12 },
+  sinAireIzquierdo: { paddingLeft: 8 },
   resaltado: { position: 'absolute', left: 0, top: 12, bottom: 12, borderRadius: 20 },
   pill: { borderRadius: 20, paddingHorizontal: 16, paddingVertical: 10, minHeight: 44, justifyContent: 'center', zIndex: 1 },
 })

@@ -186,13 +186,19 @@ describe('portada (app/(tabs)/index.tsx) en modo categoría', () => {
   const jsx = codigo.slice(codigo.indexOf('return (\n    <View style={[estilos.contenedor'))
   const bloqueCategoria = entre(jsx, 'estilos.bloqueCategoria}>', 'secciones.map(')
 
-  // Mutación: mover <ChipsCategorias> debajo de <PillsAtajos>.
-  // R67, 67-b: los chips van arriba de las pills, los dos en la cabecera fija.
-  it('los chips van antes que PillsAtajos en el JSX (cabecera fija de la R67)', () => {
+  // Mutación: mover <BotonFiltros> debajo de <PillsAtajos>, o devolver <ChipsCategorias> a la cabecera.
+  // R81, 81-a: las categorías ya no van en la cabecera fija: las elige la
+  // hoja de filtros (con la grilla `envolver`), y el botón «Filtros» va
+  // antes que las pills, en la misma fila.
+  it('el botón «Filtros» va antes que PillsAtajos y las categorías están en la hoja (cabecera de la R81)', () => {
     const pills = jsx.indexOf('<PillsAtajos')
-    const chips = jsx.indexOf('<ChipsCategorias')
-    expect(chips).toBeGreaterThan(-1)
-    expect(pills).toBeGreaterThan(chips)
+    const boton = jsx.indexOf('<BotonFiltros')
+    expect(boton).toBeGreaterThan(-1)
+    expect(pills).toBeGreaterThan(boton)
+    expect(jsx).not.toMatch(/<ChipsCategorias\b/)
+    expect(jsx).toMatch(/<HojaFiltros\b[^>]*\bcategorias=\{datosPortada\.chips\}[^>]*\bcategoria=\{categoria\}|<HojaFiltros\b[^>]*\bcategoria=\{categoria\}[^>]*\bcategorias=\{datosPortada\.chips\}/)
+    const hoja = sinComentarios(leer('components', 'HojaFiltros.tsx'))
+    expect(hoja).toMatch(/<ChipsCategorias\b[^>]*\benvolver\b/)
   })
 
   // Mutación: sacar `!modoGrilla &&` del useMemo de `secciones`.

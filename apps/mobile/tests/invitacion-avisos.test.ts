@@ -288,7 +288,9 @@ describe('componentes: la invitación sale solo de un Guardar / Voy exitoso', ()
   it('InvitacionAvisos: solo guarda announcements si el permiso quedó "activo" y hay sesión', () => {
     const src = leerFuente('components/InvitacionAvisos.tsx')
     expect(src).toMatch(/if \(resultado === 'activo' && userId\)/)
-    expect(src).toMatch(/cambiarAvisosEquipo\(userId, true\)/)
+    // R81 (81-b): el "Activar" guarda también el canal del Radar y deja los
+    // patrocinados apagados (`activarPreferenciasAlAceptar`).
+    expect(src).toMatch(/activarPreferenciasAlAceptar\(userId\)/)
   })
 
   it('InvitacionAvisos: la variante "entrar" lleva a /cuenta y NO marca la bandera al tocarla', () => {
@@ -320,7 +322,7 @@ describe('componentes: la invitación sale solo de un Guardar / Voy exitoso', ()
     expect(src).not.toMatch(/style=\{estilos\.fondo\}\s*\n\s*onPress/)
   })
 
-  it('InvitacionAvisos: tras Activar avisa el resultado y revisa `ok` de cambiarAvisosEquipo', () => {
+  it('InvitacionAvisos: tras Activar avisa el resultado y revisa `ok` de activarPreferenciasAlAceptar', () => {
     const src = leerFuente('components/InvitacionAvisos.tsx')
     expect(src).toMatch(/guardado\.ok \? AVISO_AVISOS_ACTIVOS : AVISO_PREFERENCIA_NO_GUARDADA/)
     expect(src).toMatch(/AVISO_AVISOS_NO_ACTIVADOS/)

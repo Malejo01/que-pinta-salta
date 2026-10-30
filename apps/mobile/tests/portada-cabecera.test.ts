@@ -180,18 +180,22 @@ function violacionesSticky(codigo: string): string[] {
   return /\bstickyHeaderIndices=\{\[0\]\}/.test(tag) ? [] : ['el ScrollView no lleva stickyHeaderIndices={[0]}']
 }
 
-/** Violaciones de la cabecera: no condicional, fondo opaco, chips antes que pills. */
+/**
+ * Violaciones de la cabecera: no condicional, fondo opaco, el botón «Filtros»
+ * antes que las pills (R81, 81-a: una sola fila; antes, chips y pills). Que sea
+ * UNA fila lo mira `tests/portada-filtros.test.ts`.
+ */
 function violacionesCabecera(codigo: string): string[] {
   const r = primerHijo(codigo)
   if ('motivo' in r) return [r.motivo]
   const { apertura, texto } = r.cabecera
   const v: string[] = []
   if (!/\bbackgroundColor:\s*colores\.background\b/.test(apertura)) v.push('la cabecera no tiene backgroundColor: colores.background')
-  const chips = texto.indexOf('<ChipsCategorias')
+  const boton = texto.indexOf('<BotonFiltros')
   const pills = texto.indexOf('<PillsAtajos')
-  if (chips < 0) v.push('la cabecera no tiene <ChipsCategorias')
+  if (boton < 0) v.push('la cabecera no tiene <BotonFiltros')
   if (pills < 0) v.push('la cabecera no tiene <PillsAtajos')
-  if (chips >= 0 && pills >= 0 && chips > pills) v.push('las pills van antes que los chips (tienen que ir debajo)')
+  if (boton >= 0 && pills >= 0 && boton > pills) v.push('las pills van antes que el botón Filtros (tiene que ir primero)')
   return v
 }
 
@@ -231,9 +235,10 @@ function violacionesHandlers(codigo: string): string[] {
     if (!new RegExp(`\\b${setter}\\(`).test(cuerpo)) v.push(`${nombre} no llama ${setter}(`)
     if (!/\.scrollTo\(\s*\{[^}]*\by:\s*0\b/.test(cuerpo)) v.push(`${nombre} no llama scrollTo({ y: 0 })`)
   }
-  const chips = etiqueta(codigo, 'ChipsCategorias')
-  if (chips === null) v.push('no hay <ChipsCategorias')
-  else if (!/\bonCambiar=\{cambiarCategoria\}/.test(chips)) v.push('onCambiar de ChipsCategorias no es cambiarCategoria')
+  // R81, 81-a: las categorías se eligen en la hoja de filtros.
+  const hoja = etiqueta(codigo, 'HojaFiltros')
+  if (hoja === null) v.push('no hay <HojaFiltros')
+  else if (!/\bonCambiarCategoria=\{cambiarCategoria\}/.test(hoja)) v.push('onCambiarCategoria de HojaFiltros no es cambiarCategoria')
   const pills = etiqueta(codigo, 'PillsAtajos')
   if (pills === null) v.push('no hay <PillsAtajos')
   else if (!/\bonCambiar=\{cambiarAtajo\}/.test(pills)) v.push('onCambiar de PillsAtajos no es cambiarAtajo')
@@ -295,8 +300,8 @@ describe('1. el ScrollView de la portada lleva stickyHeaderIndices={[0]}', () =>
 // ---------------------------------------------------------------------------
 // 2. La cabecera
 // ---------------------------------------------------------------------------
-describe('2. el primer hijo del ScrollView es la cabecera (chips y debajo pills)', () => {
-  it('el fuente real: View no condicional, con fondo opaco, chips y luego pills', () => {
+describe('2. el primer hijo del ScrollView es la cabecera (botón Filtros y pills, en una fila)', () => {
+  it('el fuente real: View no condicional, con fondo opaco, botón Filtros y luego pills', () => {
     expect(violacionesCabecera(codigo)).toEqual([])
   })
 
@@ -327,16 +332,16 @@ describe('2. el primer hijo del ScrollView es la cabecera (chips y debajo pills)
       const roto = codigo.replace(APERTURA, '<View style={[estilos.cabecera, { backgroundColor: "transparent" }]}>')
       expect(violacionesCabecera(roto)).toEqual(['la cabecera no tiene backgroundColor: colores.background'])
     })
-    it('las pills antes que los chips', () => {
+    it('las pills antes que el botón Filtros', () => {
       const roto = codigo
-        .replace('<ChipsCategorias', '<__X')
-        .replace('<PillsAtajos', '<ChipsCategorias')
+        .replace('<BotonFiltros', '<__X')
+        .replace('<PillsAtajos', '<BotonFiltros')
         .replace('<__X', '<PillsAtajos')
-      expect(violacionesCabecera(roto)).toEqual(['las pills van antes que los chips (tienen que ir debajo)'])
+      expect(violacionesCabecera(roto)).toEqual(['las pills van antes que el botón Filtros (tiene que ir primero)'])
     })
-    it('sin chips en la cabecera', () => {
-      const roto = codigo.replace('<ChipsCategorias', '<OtraCosa')
-      expect(violacionesCabecera(roto)).toEqual(['la cabecera no tiene <ChipsCategorias'])
+    it('sin el botón Filtros en la cabecera', () => {
+      const roto = codigo.replace('<BotonFiltros', '<OtraCosa')
+      expect(violacionesCabecera(roto)).toEqual(['la cabecera no tiene <BotonFiltros'])
     })
     it('sin pills en la cabecera', () => {
       const roto = codigo.replace('<PillsAtajos', '<OtraCosa')
@@ -378,9 +383,9 @@ describe('4. cambiarAtajo y cambiarCategoria hacen setState y vuelven arriba', (
   })
 
   describe('fixtures falsos', () => {
-    it('onCambiar de los chips con el setter directo', () => {
-      const roto = codigo.replace('onCambiar={cambiarCategoria}', 'onCambiar={setCategoria}')
-      expect(violacionesHandlers(roto)).toEqual(['onCambiar de ChipsCategorias no es cambiarCategoria'])
+    it('onCambiarCategoria de la hoja con el setter directo', () => {
+      const roto = codigo.replace('onCambiarCategoria={cambiarCategoria}', 'onCambiarCategoria={setCategoria}')
+      expect(violacionesHandlers(roto)).toEqual(['onCambiarCategoria de HojaFiltros no es cambiarCategoria'])
     })
     it('onCambiar de las pills con el setter directo', () => {
       const roto = codigo.replace('onCambiar={cambiarAtajo}', 'onCambiar={setAtajo}')

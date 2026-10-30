@@ -536,7 +536,8 @@ const ANUNCIO_DIRECTO_DE_CONTEO = /\banunciar\([^)]*(?:conteo|textoResultados|te
 const PANTALLAS: { ruta: string[]; llamada: RegExp; romperNodo: (s: string) => string }[] = [
   {
     ruta: ['app', '(tabs)', 'index.tsx'],
-    llamada: /useAnunciarConteo\(\s*datosPortada\s*\?\s*estadoAnunciablePortada\(\{[^}]*\}\)\s*:\s*null\s*\)/,
+    // R81, 81-a: el segundo argumento (`hojaAbierta`) pausa el anuncio mientras la hoja de filtros está abierta.
+    llamada: /useAnunciarConteo\(\s*datosPortada\s*\?\s*estadoAnunciablePortada\(\{[^}]*\}\)\s*:\s*null,\s*hojaAbierta,?\s*\)/,
     romperNodo: (s) => s.replace('<Texto tono="secundario">\n                    {conteoCategoria', '<Texto tono="secundario" accessibilityLiveRegion="polite">\n                    {conteoCategoria'),
   },
   {
@@ -630,8 +631,12 @@ export function violacionesHook(fuente: string): string[] {
   if (!/const enFoco = useIsFocused\(\)/.test(c)) v.push('no sabe si la pestaña está en foco')
   if (!/if \(enFoco\) anunciador\.observar\(actual\)\s*else anunciador\.asentarEnSilencio\(actual\)/.test(c)) v.push('no se calla al perder el foco (asentarEnSilencio)')
   if (!/useEffect\(\(\) => \(\) => anunciador\.cancelar\(\), \[anunciador\]\)/.test(c)) v.push('no cancela el anuncio pendiente al desmontar')
-  if (!/\}, \[anunciador, enFoco, listo, clave, texto, toque, titulo, conteo, alSalir\]\)/.test(c)) v.push('el efecto no depende de todos los campos del estado')
+  if (!/\}, \[anunciador, enFoco, pausado, listo, clave, texto, toque, titulo, conteo, alSalir\]\)/.test(c)) v.push('el efecto no depende de todos los campos del estado')
   if (/\bset[A-Z]\w*\(/.test(c.replace(/\bsetTimeout\b/g, ''))) v.push('el hook hace setState (un anuncio no es setState)')
+  // R81, 81-c: con la hoja de filtros abierta (`pausado`) no se observa nada.
+  const iPausa = c.search(/if \(pausado\) return\b/)
+  const iObservar = c.indexOf('anunciador.observar(actual)')
+  if (iPausa === -1 || iObservar === -1 || iPausa > iObservar) v.push('no se pausa con la hoja abierta (if (pausado) return antes de observar)')
   return v
 }
 
@@ -650,8 +655,9 @@ describe('detector: lib/anunciar-conteo-hook.ts', () => {
     ['sin foco', (s: string) => s.replace('const enFoco = useIsFocused()', 'const enFoco = true'), 'no sabe si la pestaña está en foco'],
     ['anuncia sin foco', (s: string) => s.replace('else anunciador.asentarEnSilencio(actual)', 'else anunciador.observar(actual)'), 'no se calla al perder el foco (asentarEnSilencio)'],
     ['sin limpiar el temporizador', (s: string) => s.replace('useEffect(() => () => anunciador.cancelar(), [anunciador])', ''), 'no cancela el anuncio pendiente al desmontar'],
-    ['sin una dependencia', (s: string) => s.replace('}, [anunciador, enFoco, listo, clave, texto, toque, titulo, conteo, alSalir])', '}, [anunciador, enFoco, listo, clave, conteo])'), 'el efecto no depende de todos los campos del estado'],
+    ['sin una dependencia', (s: string) => s.replace('}, [anunciador, enFoco, pausado, listo, clave, texto, toque, titulo, conteo, alSalir])', '}, [anunciador, enFoco, listo, clave, conteo])'), 'el efecto no depende de todos los campos del estado'],
     ['con setState', (s: string) => s.replace('    const actual = listo', '    setAnunciado(true)\n    const actual = listo'), 'el hook hace setState (un anuncio no es setState)'],
+    ['sin la pausa de la hoja', (s: string) => s.replace('    if (pausado) return\n', ''), 'no se pausa con la hoja abierta (if (pausado) return antes de observar)'],
   ])('rotura en memoria: %s -> detectada', (_n, romper, esperada) => {
     const roto = romper(real)
     expect(roto).not.toBe(real)

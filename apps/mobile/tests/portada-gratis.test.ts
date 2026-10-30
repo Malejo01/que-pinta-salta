@@ -539,11 +539,9 @@ function violacionesPortada(fuenteCruda: string): string[] {
   const c = quitarComentarios(fuenteCruda)
   const v: string[] = []
   if (!/const \[gratis, setGratis\] = useState\(false\)/.test(c)) v.push('Gratis no arranca apagado')
-  // A3 (nube Q1, ronda de correcciones): el chip va primero en la fila fija de
-  // filtros, el primer hijo de la cabecera (siempre dibujada, sin scroll).
-  if (!/borderBottomColor: colores\.border \}\]\}>\s*<View style=\{estilos\.filaFiltros\}>\s*<ChipGratis activo=\{gratis\} onCambiar=\{cambiarGratis\} \/>/.test(c)) v.push('el chip Gratis no va primero en la fila fija de filtros de la cabecera')
-  const estiloFiltros = /\bfilaFiltros:\s*\{([^}]*)\}/.exec(c)
-  if (!estiloFiltros || !/flexDirection:\s*'row'/.test(estiloFiltros[1]) || !/flexWrap:\s*'wrap'/.test(estiloFiltros[1])) v.push('filaFiltros no es una fila con wrap')
+  // R81, 81-a: el chip vive en la hoja de filtros (primero de su fila, lo mira
+  // `tests/para-chicos.test.ts`); la portada le pasa el estado y el cambiador.
+  if (!/<HojaFiltros\b[^>]*\bgratis=\{gratis\}[^>]*\bonCambiarGratis=\{cambiarGratis\}/.test(c)) v.push('la hoja de filtros no recibe gratis y cambiarGratis')
 
   // El handler: cambia el estado y vuelve el scroll arriba (no en un efecto).
   const handler = /const cambiarGratis = useCallback\(\(nuevo: boolean\) => \{([\s\S]*?)\}, \[\]\)/.exec(c)
@@ -565,11 +563,10 @@ function violacionesPortada(fuenteCruda: string): string[] {
   if (!/datosPortada && !modoGrilla \? seccionesPortada\(/.test(c)) v.push('las secciones (banners y anuncio) no se apagan con Gratis')
   if (!/\{modoGrilla \? \(\s*<View style=\{estilos\.bloqueCategoria\}>/.test(c)) v.push('la grilla no se dibuja con Gratis')
 
-  // A3 (nube Q1, ronda de correcciones): la fila de chips de categoría vuelve
-  // a dibujarse solo si hay chips (Gratis se apaga desde su fila fija), con su
-  // barra; las pills siempre tienen una fila arriba.
-  if (!/\{datosPortada\.chips\.length > 0 \? \(\s*<ChipsCategorias categorias=\{datosPortada\.chips\} seleccionada=\{categoria\} onCambiar=\{cambiarCategoria\} mostrarBarra \/>/.test(c)) v.push('la fila de chips no se dibuja con sus chips y su barra')
-  if (!/<View style=\{estilos\.pillsBajoChips\}>\s*<PillsAtajos/.test(c)) v.push('las pills no se acomodan bajo las filas de arriba')
+  // R81, 81-a: las categorías (`datosPortada.chips`) van a la hoja de filtros
+  // con su cambiador; la cabecera es una sola fila: el botón y las pills.
+  if (!/<HojaFiltros\b[^>]*\bcategorias=\{datosPortada\.chips\}[^>]*\bonCambiarCategoria=\{cambiarCategoria\}/.test(c)) v.push('la hoja no recibe las categorías de la portada')
+  if (!/<View style=\{estilos\.filaCabecera\}>\s*<View style=\{estilos\.botonFiltros\}>\s*<BotonFiltros\b[\s\S]*?<PillsAtajos\b/.test(c)) v.push('las pills no van en la misma fila que el botón Filtros')
 
   // El vacío de categoría solo sin Gratis (con Gratis va el de Gratis).
   // A3 (nube Q1): ni con "Para chicos" (va el suyo).
@@ -654,11 +651,9 @@ describe('app/(tabs)/index.tsx: el modo "Gratis"', () => {
     ['condición repetida en línea', (s: string) => s.replace('if (enModoGrilla({ categoria, gratis, paraChicos })) {', 'if (categoria !== null || gratis || paraChicos) {'), 'se repite `categoria !== null || gratis` en línea'],
     ['Hero con Gratis', (s: string) => s.replace('{!modoGrilla && datosPortada.carrusel', '{categoria === null && datosPortada.carrusel'), 'el Hero no se apaga con Gratis'],
     ['banners con Gratis', (s: string) => s.replace('datosPortada && !modoGrilla ? seccionesPortada(', 'datosPortada && categoria === null ? seccionesPortada('), 'las secciones (banners y anuncio) no se apagan con Gratis'],
-    ['fila de chips sin barra', (s: string) => s.replace('onCambiar={cambiarCategoria} mostrarBarra />', 'onCambiar={cambiarCategoria} />'), 'la fila de chips no se dibuja con sus chips y su barra'],
-    ['Gratis de vuelta en la fila con scroll', (s: string) => s.replace('<ChipGratis activo={gratis} onCambiar={cambiarGratis} />\n', ''), 'el chip Gratis no va primero en la fila fija de filtros de la cabecera'],
-    ['fila de filtros condicional', (s: string) => s.replace('<View style={estilos.filaFiltros}>', '{modoGrilla ? null : null}<View style={estilos.filaFiltros}>'), 'el chip Gratis no va primero en la fila fija de filtros de la cabecera'],
-    ['fila de filtros sin wrap', (s: string) => s.replace("filaFiltros: { flexDirection: 'row', flexWrap: 'wrap',", "filaFiltros: { flexDirection: 'row',"), 'filaFiltros no es una fila con wrap'],
-    ['pills con margen condicional', (s: string) => s.replace('<View style={estilos.pillsBajoChips}>', '<View style={datosPortada.chips.length > 0 ? estilos.pillsBajoChips : null}>'), 'las pills no se acomodan bajo las filas de arriba'],
+    ['hoja sin las categorías', (s: string) => s.replace('categorias={datosPortada.chips}', 'categorias={[]}'), 'la hoja no recibe las categorías de la portada'],
+    ['hoja con el cambiador de otro filtro', (s: string) => s.replace('onCambiarGratis={cambiarGratis}', 'onCambiarGratis={cambiarParaChicos}'), 'la hoja de filtros no recibe gratis y cambiarGratis'],
+    ['pills fuera de la fila del botón', (s: string) => s.replace('<View style={estilos.filaCabecera}>', '<View style={estilos.filaCabecera}></View><View>'), 'las pills no van en la misma fila que el botón Filtros'],
     ['vacío de Gratis sin el texto', (s: string) => enVacioGratis(s, 'texto={textoVacio}', 'texto=""'), 'el vacío de Gratis no recibe textoVacio'],
     ['vacío de categoría con Gratis', (s: string) => s.replace('eventosCategoria.length === 0 && categoria !== null && !gratis && !paraChicos ? (', 'eventosCategoria.length === 0 && categoria !== null && !paraChicos ? ('), 'el vacío de categoría también se muestra con Gratis'],
     ['vacío sin anuncio', (s: string) => s.replace('const anuncio = datosPortada\n    ? anuncioDeLaGrilla({', 'const anuncio = datosPortada && false\n    ? anuncioDeLaGrilla({'), 'el anuncio no sale de anuncioDeLaGrilla'],

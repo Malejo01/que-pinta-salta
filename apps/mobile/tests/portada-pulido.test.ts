@@ -249,7 +249,7 @@ describe('bordeChipInactivo: contraste >= 3:1 contra el fondo de la portada (QPS
 export function violacionesDeAnuncio(fuente: string): string[] {
   const c = sinComentarios(fuente)
   const v: string[] = []
-  if (!/useAnunciarConteo\(\s*datosPortada\s*\?\s*estadoAnunciablePortada\(\{[^}]*\banuncio\b[^}]*\}\)\s*:\s*null\s*\)/.test(c)) {
+  if (!/useAnunciarConteo\(\s*datosPortada\s*\?\s*estadoAnunciablePortada\(\{[^}]*\banuncio\b[^}]*\}\)\s*:\s*null,\s*hojaAbierta\s*\)/.test(c)) {
     v.push('la portada no anuncia con useAnunciarConteo(estadoAnunciablePortada({ …, anuncio }))')
   }
   if (!/estadoAnunciablePortada\(\{[^}]*\btituloGrilla\s*[,}]/.test(c)) v.push('el anuncio no lleva el título de la grilla')

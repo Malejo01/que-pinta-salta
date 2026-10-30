@@ -31,8 +31,13 @@
 // `paraChicos` y el separador. La barra de desplazamiento sigue en la
 // portada (ayuda a descubrir que hay más categorías a la derecha), ahora con
 // su propia prop `mostrarBarra`; Buscar no la pasa y queda sin barra.
+//
+// R81, 81-a: la portada ya no dibuja esta fila en la cabecera fija: las
+// categorías pasaron a la hoja «Filtros» (`components/HojaFiltros.tsx`), que
+// usa la variante `envolver` (grilla con wrap, sin scroll horizontal). La fila
+// con scroll queda para Buscar.
 import { useEffect, useRef, type RefObject } from 'react'
-import { Pressable, ScrollView, StyleSheet } from 'react-native'
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native'
 import { Icono, iconoPorCategoria } from '@/components/Icono'
 import { Texto } from '@/components/Texto'
 import { destinoScrollChip, type MedidaChip } from '@/lib/chips-desplazamiento'
@@ -50,9 +55,16 @@ export interface ChipsCategoriasProps {
   onCambiar: (slug: string | null) => void
   /**
    * A3 (nube Q1, ronda de correcciones): la barra de desplazamiento horizontal
-   * (persistente en Android). La pasa la portada; Buscar no.
+   * (persistente en Android). R81, 81-c: hoy no la pasa nadie (la portada
+   * dejó esta fila por la hoja de filtros y Buscar no la usa); queda por si
+   * una fila con scroll vuelve a necesitarla.
    */
   mostrarBarra?: boolean
+  /**
+   * R81, 81-a: dibuja los chips en una grilla que envuelve (wrap) en vez de la
+   * fila con scroll horizontal. Lo usa la hoja de filtros de la portada.
+   */
+  envolver?: boolean
 }
 
 /**
@@ -75,7 +87,7 @@ function traerALaVista(
   posicionada.current = clave
 }
 
-export function ChipsCategorias({ categorias, seleccionada, onCambiar, mostrarBarra = false }: ChipsCategoriasProps) {
+function FilaCategorias({ categorias, seleccionada, onCambiar, mostrarBarra = false }: ChipsCategoriasProps) {
   const colores = useColoresQPS()
   // R69, 69-b (QPS-338): borde de los inactivos a 3:1 (cálculo en `lib/colores.ts`).
   const bordeInactivo = bordeChipInactivo(colores)
@@ -172,7 +184,59 @@ export function ChipsCategorias({ categorias, seleccionada, onCambiar, mostrarBa
   )
 }
 
+/**
+ * R81, 81-a: la variante con wrap (hoja de filtros). Mismos chips, mismo
+ * aspecto (tinte y contorno de 2 el activo, borde a 3:1 el inactivo), pero en
+ * una grilla que envuelve: sin scroll horizontal, sin barra y sin las medidas
+ * de `posiciones` (no hay nada que desplazar).
+ */
+function GrillaCategorias({ categorias, seleccionada, onCambiar }: Pick<ChipsCategoriasProps, 'categorias' | 'seleccionada' | 'onCambiar'>) {
+  const colores = useColoresQPS()
+  const bordeInactivo = bordeChipInactivo(colores)
+  const chips: { slug: string | null; nombre: string; etiqueta: string }[] = [
+    { slug: null, nombre: 'Todas', etiqueta: 'Todas las categorías' },
+    ...categorias.map((categoria) => ({ slug: categoria.slug, nombre: categoria.name, etiqueta: categoria.name })),
+  ]
+  return (
+    <View style={estilos.envuelto}>
+      {chips.map((chip) => {
+        const activo = chip.slug === seleccionada
+        return (
+          <Pressable
+            key={chip.slug ?? 'todas'}
+            onPress={() => onCambiar(chip.slug)}
+            accessibilityRole="button"
+            accessibilityState={{ selected: activo }}
+            accessibilityLabel={chip.etiqueta}
+            style={[
+              estilos.chip,
+              // 2 + 15 = 1 + 16 y 2 + 9 = 1 + 10: mide lo mismo activo e inactivo.
+              activo
+                ? { backgroundColor: `${colores.primary}26`, borderWidth: 2, borderColor: colores.primary, paddingHorizontal: 15, paddingVertical: 9 }
+                : { borderWidth: 1, borderColor: bordeInactivo },
+            ]}
+          >
+            {chip.slug !== null ? (
+              <Icono nombre={iconoPorCategoria(chip.slug)} tamanio={16} color={activo ? colores.primary : colores.foreground} />
+            ) : null}
+            <Texto peso={activo ? 'bold' : 'semibold'} style={{ color: colores.foreground }}>
+              {chip.nombre}
+            </Texto>
+          </Pressable>
+        )
+      })}
+    </View>
+  )
+}
+
+/** Fila con scroll horizontal (portada antes de la R81 y Buscar) o, con `envolver`, la grilla de la hoja de filtros. */
+export function ChipsCategorias(props: ChipsCategoriasProps) {
+  if (props.envolver) return <GrillaCategorias categorias={props.categorias} seleccionada={props.seleccionada} onCambiar={props.onCambiar} />
+  return <FilaCategorias {...props} />
+}
+
 const estilos = StyleSheet.create({
+  envuelto: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   contenido: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, paddingBottom: 12 },
   chip: {
     flexDirection: 'row',

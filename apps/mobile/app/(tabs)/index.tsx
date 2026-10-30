@@ -25,7 +25,8 @@
 // que en la web.
 //
 // R66 (66-a): los chips de categoría (`components/ChipsCategorias.tsx`) van
-// arriba de todo, en la cabecera fija (R67, 67-b). Sus categorías salen de `categoriasDisponibles` (core)
+// en la hoja «Filtros» (R81, 81-a; antes, en la cabecera fija de R67, 67-b).
+// Sus categorías salen de `categoriasDisponibles` (core)
 // sobre los eventos del atajo elegido (más las películas). Con "Todas" la
 // portada queda como siempre; con una categoría, el cuerpo es un título
 // ("Música · Finde") y una grilla de 2 columnas con `filtrarCombinado` (atajo +
@@ -47,16 +48,26 @@
 // acordeón por cine), no como tarjetas de evento en 2 columnas; los eventos
 // reales de la categoría cine, si hay, van en la grilla debajo.
 //
-// R67, 67-b: orden nuevo de la portada: cabecera fija (chips de categoría
-// arriba, pills de fecha debajo; `stickyHeaderIndices={[0]}`, fondo opaco) →
-// aviso sin conexión → Hero (solo con "Todas") → resto, igual que antes. Antes
-// los chips quedaban debajo del Hero y no se descubrían. Cambiar de chip o de
-// pill vuelve el scroll arriba (`scrollTo` en el handler, no en un efecto).
+// R67, 67-b: orden nuevo de la portada: cabecera fija (`stickyHeaderIndices={[0]}`,
+// fondo opaco) → aviso sin conexión → Hero (solo con "Todas") → resto, igual
+// que antes. Cambiar de filtro o de pill vuelve el scroll arriba (`scrollTo` en
+// el handler, no en un efecto).
 //
-// A2 (nube Q1): chip "Gratis" (`components/ChipGratis.tsx`), adelante de
-// "Todas" en la fila de chips de la cabecera fija (prop `gratis` de
-// `ChipsCategorias`; Buscar no la usa; desde la ronda de correcciones de A3,
-// en una fila de filtros propia, ver más abajo). Es un interruptor aparte de la
+// R81, 81-a: la cabecera fija es UNA sola fila: el botón «Filtros»
+// (`components/HojaFiltros.tsx`, con el contador de activos: «Filtros · 2») y a
+// su lado las pills de fecha, con scroll horizontal si no entran; con filtros
+// activos, después de las pills, un chip removible por filtro (✕, «Quitar
+// Gratis»), en el mismo scroll. «Filtros» abre una hoja inferior (`Modal`) con
+// «Gratis», «Para chicos» y las categorías en grilla, más «Ver N eventos»
+// (cierra) y «Limpiar» (apaga los tres filtros, no la fecha). Los filtros se
+// aplican al tocar, con los mismos `cambiarGratis`, `cambiarParaChicos` y
+// `cambiarCategoria`; con la hoja abierta no se anuncia cada toque (el hook
+// `useAnunciarConteo` recibe `hojaAbierta` como `pausado`): al cerrarla se
+// anuncia el resultado una sola vez. La lógica pura está en `lib/portada-filtros.ts`. Buscar no cambió.
+//
+// A2 (nube Q1): chip "Gratis" (`components/ChipGratis.tsx`), hoy dentro de la
+// hoja «Filtros» (antes, adelante de "Todas" en la fila de chips y, desde la
+// ronda de correcciones de A3, en una fila propia). Es un interruptor aparte de la
 // categoría y de la fecha: los tres se combinan con `filtrarCombinado` (core,
 // `soloGratis` = `price === 'gratis'`, o sea `is_free = true`), a través de
 // `eventosDeLaGrilla` (`lib/portada-gratis.ts`, donde está la lógica pura y
@@ -80,7 +91,7 @@
 // los botones secundarios de los dos vacíos usan `bordeChipInactivo` (3:1).
 //
 // A3 (nube Q1): chip "Para chicos" (`components/ChipParaChicos.tsx`), después
-// de "Gratis" en la misma fila (la fila fija de filtros, ver abajo). Otro
+// de "Gratis" en la hoja «Filtros» (R81, 81-a). Otro
 // interruptor aparte, que se combina con fecha, categoría y "Gratis" a la vez
 // (los dos prendidos = eventos gratis Y para chicos). `filtrarCombinado` no
 // sabe de público: `eventosDeLaGrilla` filtra los items por `paraChicos`
@@ -96,24 +107,10 @@
 // segunda salida (`salidasVacioParaChicos`). Cambiarlo vuelve el scroll
 // arriba (`cambiarParaChicos`).
 //
-// Ronda de correcciones de A3:
-//   - "Gratis" y "Para chicos" salen de la fila con scroll de los chips de
-//     categoría a una fila propia, fija y sin scroll (`estilos.filaFiltros`:
-//     row + wrap + gap 8, como `filaFiltros` de Buscar), ARRIBA de los chips de
-//     categoría, dentro de la cabecera fija; las pills de fecha siguen abajo
-//     de todo. Arriba porque: (1) el orden de lectura y de foco queda como en
-//     A2 (filtros, "Todas", categorías, fecha); (2) la fila de filtros va
-//     siempre, y la de categorías puede no estar (sin chips que elegir), así
-//     que el borde de arriba de la cabecera no se mueve; (3) los chips de
-//     categoría quedan pegados a las pills, las dos filas que se desplazan.
-//     Antes, con los dos filtros y el separador adentro de la fila con
-//     scroll, a 360 dp "Todas" quedaba cortada, no asomaba ninguna categoría
-//     y elegir cualquiera sacaba los filtros de la vista. La fila con scroll
-//     vuelve a ser "Todas" + categorías (con la barra, `mostrarBarra`) y solo
-//     se dibuja si hay chips, como antes de A2: los filtros ya no dependen de
-//     ella para poder apagarse.
-//   - Con Infantil elegida, el vacío no ofrece "Ver todas las edades" (no
-//     cambiaría nada): ver `salidasVacioParaChicos`.
+// Ronda de correcciones de A3: con Infantil elegida, el vacío no ofrece "Ver
+// todas las edades" (no cambiaría nada): ver `salidasVacioParaChicos`. (Que
+// "Gratis" y "Para chicos" salgan de la fila con scroll de las categorías, para
+// que "Todas" no quedara cortada a 360 dp, lo resuelve ahora la hoja «Filtros».)
 //
 // A8 (nube Q1, QPS-339): el conteo y los vacíos de la grilla se anuncian a
 // mano en Android y en iOS (`useAnunciarConteo`, `lib/anunciar-conteo-hook.ts`;
@@ -179,13 +176,11 @@ import type { Category } from '@qps/core/types'
 import { AvisoNoSeActualizo, AvisoSinConexion } from '@/components/AvisoSinConexion'
 import { BannerAnuncio } from '@/components/BannerAnuncio'
 import { BannerRadar } from '@/components/BannerRadar'
-import { ChipGratis } from '@/components/ChipGratis'
-import { ChipParaChicos } from '@/components/ChipParaChicos'
-import { ChipsCategorias } from '@/components/ChipsCategorias'
 import { EsqueletoPortada } from '@/components/Esqueleto'
 import { ErrorCarga } from '@/components/EstadoCarga'
 import { FilaCategoria } from '@/components/FilaCategoria'
 import { Hero } from '@/components/Hero'
+import { BotonFiltros, ChipsRemovibles, HojaFiltros } from '@/components/HojaFiltros'
 import { InvitacionAvisos } from '@/components/InvitacionAvisos'
 import { PillsAtajos } from '@/components/PillsAtajos'
 import { TarjetaEvento } from '@/components/TarjetaEvento'
@@ -223,6 +218,7 @@ import {
   tituloParaChicos,
   type SalidaParaChicos,
 } from '@/lib/portada-para-chicos'
+import { contarFiltrosActivos, type ClaveFiltro } from '@/lib/portada-filtros'
 import { TITULO_SIN_CONEXION } from '@/lib/sin-conexion/aviso'
 import {
   anuncioDeReintento,
@@ -297,24 +293,21 @@ export const FILAS_MINIMAS_PARA_ANUNCIO = 2
  * una) más el banner del Radar lo empujan arriba de los 900 dp. O sea que el
  * umbral es dónde empieza a haber contenido real que mirar antes del aviso.
  *
- * R67, 67-b: las pills dejaron de ir después del Hero: ahora están, con los
- * chips, en una cabecera fija arriba de todo (≈113 dp con chips: 8 de aire + 60
- * de chips con su padding + 56 de pills − 12 del `marginTop` negativo + 1 del
- * borde; ≈65 dp sin chips, en vez de los ~68 dp de las pills solas). Con ese
- * valor el banner arranca a ~301 dp con 0 filas y a ~627 dp con 1 (113 + 188 +
- * 326), todavía dentro de los ~649 dp sin scrollear; y la cabecera fija tapa
- * ~113 dp del área visible útil al scrollear (quedan ~536 dp). O sea que el anuncio queda más abajo, nunca más arriba: la regla y
- * el umbral siguen valiendo sin cambios.
+ * R67, 67-b: las pills dejaron de ir después del Hero: ahora están en una
+ * cabecera fija arriba de todo. Con las tres filas de A3 (Gratis + Para
+ * chicos, chips de categoría, pills) medía ≈173 dp con chips y ≈113 dp sin
+ * ellos.
  *
- * A3 (nube Q1, ronda de correcciones): la cabecera suma la fila fija de
- * filtros ("Gratis" y "Para chicos", 48 + 12 de aire = 60 dp) arriba de los
- * chips: ≈173 dp con chips (8 + 60 de filtros + 60 de chips + 56 de pills − 12
- * + 1) y ≈113 dp sin chips (8 + 60 + 56 − 12 + 1); con la fuente al 200 % la
- * fila de filtros puede pasar a dos líneas y crecer otro tanto. Más cabecera
- * solo empuja el banner más abajo: con 0 filas arrancaría a ~361 dp y con 1 a
- * ~687 dp (173 + 188 + 326), y con menos de 2 filas igual no hay anuncio; con
- * 2 o más sigue arriba de los 900 dp. La regla y el umbral siguen valiendo
- * sin cambios. Lo que sí baja es el área útil al scrollear (~476 dp con chips).
+ * R81, 81-a: la cabecera es UNA fila (el botón «Filtros» + las pills de fecha +
+ * los chips removibles de los filtros activos): ≈69 dp (44 de pill + 12 de aire
+ * arriba y 12 abajo + 1 del borde), con o sin filtros. Con ese valor el banner
+ * arrancaría a ~257 dp con 0 filas y a ~583 dp con 1 (69 + 188 + 326), todavía
+ * dentro de los ~649 dp sin scrollear, igual que antes: la caja vacía y las
+ * filas empujan el anuncio arriba de los 900 dp recién con 2 o más. Una
+ * cabecera más baja no mueve la regla (el umbral lo fija el contenido real, no
+ * la cabecera), y devuelve área útil al scrollear (~580 dp, contra ~476 dp).
+ * La regla y el umbral (`FILAS_MINIMAS_PARA_ANUNCIO = 2`) siguen valiendo sin
+ * cambios.
  *
  * Ojo con el porqué de las filas, que es contraintuitivo: `groupByCategory`
  * devuelve **una fila por cada categoría configurada en el admin**, con
@@ -504,6 +497,10 @@ export default function Inicio() {
   // que ya está armado sigue a la vista en vez de pasar a `Cargando`.
   const [refrescando, setRefrescando] = useState(false)
   const scrollRef = useRef<ScrollView>(null)
+  // R81, 81-a: la hoja de filtros (abierta/cerrada) y el botón «Filtros», para
+  // devolverle el foco al cerrarla.
+  const [hojaAbierta, setHojaAbierta] = useState(false)
+  const botonFiltrosRef = useRef<View>(null)
 
   // Sin `atajo` entre las dependencias (36-a): cambiar de atajo ya no vuelve
   // a pedir nada, así que esta función queda estable entre renders.
@@ -577,6 +574,7 @@ export default function Inicio() {
     cargarDatos().then((resultado) => {
       if (cancelado) return
       setEstado(resultado)
+      if (resultado.tipo !== 'ok') setHojaAbierta(false)
       // A6: el aviso de sin conexión es live region, pero Android no anuncia
       // una live region al montarse (R69, 69-b) e iOS las ignora: se anuncia
       // acá, en el callback de la carga (no es `setState`). Y si fue un
@@ -599,6 +597,9 @@ export default function Inicio() {
 
   const cargar = useCallback(() => {
     setEstado({ tipo: 'cargando' })
+    // R81, 81-c: la hoja vive dentro del estado `ok`; si se queda abierta al
+    // salir de él, al volver se reabriría sola con el anuncio pausado.
+    setHojaAbierta(false)
     setNotaRefresco(null)
     setIntento((valor) => valor + 1)
   }, [])
@@ -611,6 +612,7 @@ export default function Inicio() {
     setRefrescando(true)
     const decision = decidirRefresco(estado, await cargarDatos(), notaRefresco)
     setEstado(decision.estado)
+    if (decision.estado.tipo !== 'ok') setHojaAbierta(false)
     setNotaRefresco(decision.nota)
     const aviso = decision.anuncio
     if (aviso) anunciar(aviso)
@@ -696,6 +698,9 @@ export default function Inicio() {
     const hayEventosEnFinde = estado.eventos.some((item) => eventoEnAtajo(item.paraAtajo, 'finde', ahora))
 
     return {
+      // R81, 81-a: el «N» de «Ver N eventos» de la hoja de filtros sin filtros
+      // (con filtros es `eventosCategoria.length`): los eventos de la fecha.
+      cantidadFecha: todosLosEventos.length,
       carrusel,
       filas,
       hoyEventos,
@@ -741,6 +746,23 @@ export default function Inicio() {
     setParaChicos(nuevo)
     scrollRef.current?.scrollTo({ y: 0, animated: false })
   }, [])
+
+  // R81, 81-a: «Limpiar» de la hoja (apaga Gratis, Para chicos y la categoría;
+  // la fecha no se toca) y la ✕ de los chips removibles: los mismos cambiadores.
+  const limpiarFiltros = useCallback(() => {
+    cambiarGratis(false)
+    cambiarParaChicos(false)
+    cambiarCategoria(null)
+  }, [cambiarGratis, cambiarParaChicos, cambiarCategoria])
+  const quitarFiltro = useCallback(
+    (clave: ClaveFiltro) => {
+      if (clave === 'gratis') cambiarGratis(false)
+      else if (clave === 'para-chicos') cambiarParaChicos(false)
+      else cambiarCategoria(null)
+    },
+    [cambiarGratis, cambiarParaChicos, cambiarCategoria]
+  )
+  const cerrarHoja = useCallback(() => setHojaAbierta(false), [])
 
   // A6: la acción del vacío de "Hoy en Salta" (`vacioHoyEnSalta`): otra pill,
   // o Buscar sin fecha (`v`: el mismo nonce de "Ver todos", para que Buscar
@@ -816,7 +838,9 @@ export default function Inicio() {
     : gratis
       ? tituloGratis(categoria === null ? null : nombreCategoria, atajo)
       : `${nombreCategoria} · ${categoria === 'cine' ? 'En cartel' : ETIQUETA_ATAJO[atajo]}`
-  useAnunciarConteo(datosPortada ? estadoAnunciablePortada({ atajo, categoria, gratis, paraChicos, tituloGrilla, anuncio }) : null)
+  // R81, 81-a: con la hoja de filtros abierta no se anuncia cada toque
+  // (`pausado`); al cerrarla se anuncia el resultado una sola vez.
+  useAnunciarConteo(datosPortada ? estadoAnunciablePortada({ atajo, categoria, gratis, paraChicos, tituloGrilla, anuncio }) : null, hojaAbierta)
 
   if (cargandoBienvenida) return null
   if (!vista) return <Redirect href="/bienvenida" />
@@ -831,6 +855,7 @@ export default function Inicio() {
       {estado.tipo === 'error' ? <ErrorCarga mensaje={estado.error} onReintentar={cargar} /> : null}
 
       {estado.tipo === 'ok' && datosPortada ? (
+        <>
         <ScrollView
           ref={scrollRef}
           stickyHeaderIndices={[0]}
@@ -841,21 +866,31 @@ export default function Inicio() {
         >
           {/* R67, 67-b: cabecera fija (primer hijo, siempre presente: el índice 0
               de `stickyHeaderIndices`). Fondo opaco para que el contenido no se
-              vea por detrás. Chips arriba, pills de fecha debajo.
-              A3 (nube Q1, ronda de correcciones): arriba de todo, la fila fija
-              de filtros ("Gratis" y "Para chicos", sin scroll); después los
-              chips de categoría (con scroll, solo si hay) y las pills. */}
+              vea por detrás.
+              R81, 81-a: UNA sola fila: el botón «Filtros» (abre la hoja con
+              Gratis, Para chicos y las categorías) y, a su lado, las pills de
+              fecha, con scroll horizontal si no entran. Con filtros activos, a
+              continuación de las pills, sus chips removibles (en el mismo
+              scroll: nunca una segunda fila). */}
           <View style={[estilos.cabecera, { backgroundColor: colores.background, borderBottomColor: colores.border }]}>
-            <View style={estilos.filaFiltros}>
-              <ChipGratis activo={gratis} onCambiar={cambiarGratis} />
-              <ChipParaChicos activo={paraChicos} onCambiar={cambiarParaChicos} />
-            </View>
-            {datosPortada.chips.length > 0 ? (
-              <ChipsCategorias categorias={datosPortada.chips} seleccionada={categoria} onCambiar={cambiarCategoria} mostrarBarra />
-            ) : null}
-            {/* Siempre hay una fila arriba (la de filtros): las pills descuentan su padding superior. */}
-            <View style={estilos.pillsBajoChips}>
-              <PillsAtajos atajo={atajo} onCambiar={cambiarAtajo} />
+            <View style={estilos.filaCabecera}>
+              <View style={estilos.botonFiltros}>
+                <BotonFiltros
+                  botonRef={botonFiltrosRef}
+                  activos={contarFiltrosActivos({ gratis, paraChicos, categoria })}
+                  onPress={() => setHojaAbierta(true)}
+                />
+              </View>
+              <View style={estilos.pillsYChips}>
+                <PillsAtajos
+                  atajo={atajo}
+                  onCambiar={cambiarAtajo}
+                  sinAireIzquierdo
+                  despues={
+                    <ChipsRemovibles filtros={{ gratis, paraChicos, categoria }} nombreCategoria={nombreCategoria} onQuitar={quitarFiltro} />
+                  }
+                />
+              </View>
             </View>
           </View>
 
@@ -1028,6 +1063,26 @@ export default function Inicio() {
             return <BannerAnuncio key="anuncio" lugar="inicio" sinConexion={estado.desdeCache !== null} />
           })}
         </ScrollView>
+
+        {/* R81, 81-a: la hoja de «Filtros» (Modal). Los filtros se aplican al
+            tocar; «Ver N eventos» solo la cierra. El «N» es el conteo de la
+            grilla, o, sin filtros, los eventos de la fecha. */}
+        <HojaFiltros
+          visible={hojaAbierta}
+          onCerrar={cerrarHoja}
+          gratis={gratis}
+          paraChicos={paraChicos}
+          categoria={categoria}
+          categorias={datosPortada.chips}
+          cantidad={modoGrilla ? datosPortada.eventosCategoria.length : datosPortada.cantidadFecha}
+          onCambiarGratis={cambiarGratis}
+          onCambiarParaChicos={cambiarParaChicos}
+          onCambiarCategoria={cambiarCategoria}
+          onLimpiar={limpiarFiltros}
+          activos={contarFiltrosActivos({ gratis, paraChicos, categoria })}
+          botonRef={botonFiltrosRef}
+        />
+        </>
       ) : null}
     </View>
   )
@@ -1036,18 +1091,19 @@ export default function Inicio() {
 const estilos = StyleSheet.create({
   contenedor: { flex: 1 },
   scroll: { paddingBottom: 24 },
-  // R67, 67-b: cabecera fija. ≈113 dp con chips: 8 de aire + 60 de chips (con su
-  // padding) + 56 de pills − 12 (`pillsBajoChips`, que descuenta el padding
-  // superior de las pills) + 1 del borde inferior (R67, 67-r1, para que se
-  // distinga del contenido que pasa por debajo). Sin chips: ≈65 dp.
-  // A3 (nube Q1, ronda de correcciones): más la fila de filtros (60 dp):
-  // ≈173 dp con chips y ≈113 dp sin chips (ver `seccionesPortada`).
-  cabecera: { paddingTop: 8, borderBottomWidth: 1 },
-  // La fila fija de "Gratis" y "Para chicos": sin scroll, con wrap (con la
-  // fuente grande pasa a dos líneas en vez de cortarse). El aire de abajo (12)
-  // es el mismo que deja la fila de chips de categoría.
-  filaFiltros: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingHorizontal: 16, paddingBottom: 12 },
-  pillsBajoChips: { marginTop: -12 },
+  // R67, 67-b: cabecera fija. R81, 81-a: una sola fila (botón «Filtros» + pills
+  // + chips removibles): ≈69 dp = 44 de pill + 12 de aire arriba y 12 abajo (el
+  // aire de `PillsAtajos`, que el resaltado también usa) + 1 del borde inferior
+  // (R67, 67-r1, para que se distinga del contenido que pasa por debajo). Eran
+  // ≈173 dp con las tres filas (ver `seccionesPortada`). Con la fuente al 200 %
+  // el botón puede crecer un poco; las pills y los chips siguen con su scroll.
+  cabecera: { borderBottomWidth: 1 },
+  // La fila: el botón fijo a la izquierda y las pills (con su scroll) ocupando
+  // el resto. `alignItems: 'center'` centra el botón (48) contra las pills (68).
+  filaCabecera: { flexDirection: 'row', alignItems: 'center' },
+  botonFiltros: { paddingLeft: 16 },
+  // `minWidth: 0` deja que el scroll se achique en vez de empujar al botón.
+  pillsYChips: { flex: 1, minWidth: 0 },
   vacioHoy: {
     marginHorizontal: 16,
     marginTop: 20,
