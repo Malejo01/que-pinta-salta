@@ -12,6 +12,10 @@ import { leerAsistencia } from "@/lib/asistencia-lectura"
 import { debenMostrarseBotonesAsistencia } from "@/lib/asistencia-visibilidad"
 import { obtenerSeguimientoDeEvento } from "@/lib/actions/radar"
 import { idiomasAlternos } from "@/lib/i18n/seo"
+import { JsonLd } from "@/components/json-ld"
+import { conContexto, migasJsonLd } from "@/lib/seo/json-ld"
+import { descripcionParaMeta } from "@/lib/seo/descripcion"
+import { SITE_NAME, SITE_URL, tituloConMarca } from "@/lib/seo/sitio"
 import type { Metadata } from "next"
 
 interface EventPageProps {
@@ -29,8 +33,18 @@ export async function generateMetadata({ params }: EventPageProps): Promise<Meta
     }
   }
 
-  const title = `${event.title} - Que pinta Salta`
-  const description = event.short_description || event.description?.substring(0, 160) || `Descubre el evento ${event.title} en Salta Capital.`
+  // B2: el `title` va sin marca porque la plantilla del layout
+  // (`%s | Que pinta Salta`) ya la agrega; antes quedaba dos veces. Open
+  // Graph y Twitter no pasan por la plantilla: ahí la marca va a mano.
+  const title = event.title
+  const socialTitle = tituloConMarca(event.title)
+  // Sin emojis ni saltos de línea y cortada en palabra (el caption de
+  // Instagram crudo quedaba como descripción). Si la corta queda vacía (solo
+  // emojis), la larga; si no, el texto de respaldo.
+  const description =
+    descripcionParaMeta(event.short_description) ??
+    descripcionParaMeta(event.description) ??
+    `Descubrí el evento ${event.title} en Salta Capital.`
   const imageUrl = event.image_url || '/og-image.png'
 
   return {
@@ -39,10 +53,14 @@ export async function generateMetadata({ params }: EventPageProps): Promise<Meta
     // Canónica sin ?o= (el origen de la métrica): una sola URL por evento.
     alternates: { canonical: `/evento/${id}`, languages: idiomasAlternos(`/evento/${id}`) },
     openGraph: {
-      title,
+      title: socialTitle,
       description,
       type: 'article',
-      url: `https://www.quepintasalta.com.ar/evento/${id}`,
+      url: `${SITE_URL}/evento/${id}`,
+      // El bloque de la página reemplaza al del layout entero: sin esto se
+      // perdían og:site_name y og:locale (B2).
+      siteName: SITE_NAME,
+      locale: 'es_AR',
       images: [
         {
           url: imageUrl,
@@ -52,7 +70,7 @@ export async function generateMetadata({ params }: EventPageProps): Promise<Meta
     },
     twitter: {
       card: 'summary_large_image',
-      title,
+      title: socialTitle,
       description,
       images: [imageUrl],
     },
@@ -130,7 +148,7 @@ export default async function EventPage({ params, searchParams }: EventPageProps
   // borrador o de algo pendiente de revisión sería datos estructurados de
   // contenido que el público no debería estar viendo.
   const isIndexable = ['PUBLISHED', 'CANCELLED', 'PAST'].includes(event.status)
-  const eventUrl = `https://www.quepintasalta.com.ar/evento/${event.id}`
+  const eventUrl = `${SITE_URL}/evento/${event.id}`
   const venue = event.venue
   const hasCoords = typeof venue?.latitude === 'number' && typeof venue?.longitude === 'number'
   const isCancelled = event.status === 'CANCELLED'
@@ -205,8 +223,16 @@ export default async function EventPage({ params, searchParams }: EventPageProps
       '@type': 'Offer',
       'name': event.is_free ? 'Entrada libre y gratuita' : 'Entrada',
       'url': event.ticket_url || eventUrl,
-      'price': event.is_free ? 0 : (event.price_min ?? 0),
-      'priceCurrency': 'ARS',
+      // B2: precio 0 solo si es gratis. Antes un evento pago sin precio
+      // cargado decía 0, que para Google es «gratis». Sin precio conocido no
+      // va ni `price` ni `priceCurrency`. Un `price_min` de 0 en un evento
+      // pago también es «sin precio»: el sitio lo muestra como «A confirmar»
+      // (`transformEvent` en @qps/core/home/transform).
+      ...(event.is_free
+        ? { 'price': 0, 'priceCurrency': 'ARS' }
+        : typeof event.price_min === 'number' && event.price_min > 0
+          ? { 'price': event.price_min, 'priceCurrency': 'ARS' }
+          : {}),
       'availability': isCancelled
         ? 'https://schema.org/SoldOut'
         : 'https://schema.org/InStock',
@@ -218,16 +244,26 @@ export default async function EventPage({ params, searchParams }: EventPageProps
     ...(publicKeywords && { 'keywords': publicKeywords }),
   }
 
+  // Migas (B2): Inicio → categoría → el evento. La categoría solo si tiene
+  // una URL que funcione: la portada filtra con `?category=<slug>`
+  // (`components/home-content.tsx` compara contra `category.slug`). Va en
+  // un bloque aparte para que el `Event` de arriba quede igual que antes.
+  const migas = migasJsonLd([
+    { nombre: 'Inicio', url: '/' },
+    ...(event.category?.slug && event.category?.name
+      ? [{ nombre: event.category.name, url: `/?category=${encodeURIComponent(event.category.slug)}` }]
+      : []),
+    { nombre: event.title, url: eventUrl },
+  ])
+
   return (
     <>
       {isIndexable && (
-        <script
-          type="application/ld+json"
-          dangerouslySetInnerHTML={{
-            // Escapamos "<" para que un título con "</script>" no rompa el documento.
-            __html: JSON.stringify(jsonLd).replace(/</g, '\\u003c'),
-          }}
-        />
+        <>
+          {/* JsonLd escapa "<": un título con "</script>" no rompe el documento. */}
+          <JsonLd data={jsonLd} />
+          <JsonLd data={conContexto(migas)} />
+        </>
       )}
       <EventDetailPage
         event={event}

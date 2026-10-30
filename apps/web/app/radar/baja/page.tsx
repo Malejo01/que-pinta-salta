@@ -6,7 +6,8 @@ import { verifyUnsubscribe } from "@/lib/radar/baja"
 export const dynamic = "force-dynamic"
 
 export const metadata: Metadata = {
-  title: "Baja del Radar Salteño | Qué Pinta Salta",
+  // B2: sin la marca, que la agrega la plantilla del layout.
+  title: "Baja del Radar Salteño",
   robots: { index: false },
   // El token va en la URL: que no se filtre por el Referer a otros sitios.
   referrer: "no-referrer",
