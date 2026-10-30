@@ -67,7 +67,12 @@ export function SeccionNotificaciones() {
   const { session } = useSession()
   const userId = session?.user.id ?? null
 
-  const [estado, setEstado] = useState<Estado>({ tipo: 'cargando' })
+  // El estado se guarda con el usuario al que pertenece: si cambia, el
+  // resultado viejo no vale y se muestra "cargando" hasta que llegue el nuevo,
+  // sin `setState` síncrono dentro del efecto.
+  const [guardado, setGuardado] = useState<{ userId: string | null; estado: Estado } | null>(null)
+  const estado: Estado = guardado && guardado.userId === userId ? guardado.estado : { tipo: 'cargando' }
+  const setEstado = useCallback((nuevo: Estado) => setGuardado({ userId, estado: nuevo }), [userId])
   const [guardando, setGuardando] = useState(false)
   const [mensaje, setMensaje] = useState<{ tipo: 'ok' | 'error'; texto: string } | null>(null)
   // Bandera propia de la fila de "Avisos patrocinados": no es `guardando`
@@ -77,19 +82,12 @@ export function SeccionNotificaciones() {
   const [guardandoPatrocinados, setGuardandoPatrocinados] = useState(false)
   const [guardandoAvisos, setGuardandoAvisos] = useState(false)
 
-  const cargar = useCallback(async () => {
-    if (!userId) return
-    setEstado({ tipo: 'cargando' })
+  const traer = useCallback(async (): Promise<Estado | null> => {
+    if (!userId) return null
     const resultado = await obtenerNotificaciones(userId)
-    if (resultado.tipo === 'no-disponible') {
-      setEstado({ tipo: 'no-disponible' })
-      return
-    }
-    if (resultado.tipo === 'error') {
-      setEstado({ tipo: 'error', error: resultado.error })
-      return
-    }
-    setEstado({
+    if (resultado.tipo === 'no-disponible') return { tipo: 'no-disponible' }
+    if (resultado.tipo === 'error') return { tipo: 'error', error: resultado.error }
+    return {
       tipo: 'ok',
       radarChannel: resultado.preferencias.radar_channel,
       favoriteReminders: resultado.preferencias.favorite_reminders,
@@ -98,12 +96,25 @@ export function SeccionNotificaciones() {
       sponsored: resultado.preferencias.sponsored,
       quietStart: resultado.preferencias.quiet_start,
       quietEnd: resultado.preferencias.quiet_end,
-    })
+    }
   }, [userId])
 
+  // Reintento desde un botón: vuelve a "cargando" y pide de nuevo.
+  const cargar = useCallback(async () => {
+    setGuardado(null)
+    const nuevo = await traer()
+    if (nuevo) setEstado(nuevo)
+  }, [traer, setEstado])
+
   useEffect(() => {
-    cargar()
-  }, [cargar])
+    let cancelado = false
+    traer().then((nuevo) => {
+      if (!cancelado && nuevo) setEstado(nuevo)
+    })
+    return () => {
+      cancelado = true
+    }
+  }, [traer, setEstado])
 
   if (!userId) return null
 

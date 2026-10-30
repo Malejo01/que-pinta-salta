@@ -9,6 +9,7 @@
 //
 //   npm --prefix <wt>/apps/mobile run export:analisis
 //   npm --prefix <wt>/apps/mobile run pesos:bundle [--json]
+import { Buffer } from 'node:buffer'
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
