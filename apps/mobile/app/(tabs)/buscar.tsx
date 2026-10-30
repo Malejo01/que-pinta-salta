@@ -1,6 +1,6 @@
 // Buscar (R29, 29-j; ops/paridad-web-app.md §3.5): un solo input ("evento,
-// lugar o descripcion", con lupa y botón para limpiar) + chip "Solo gratis".
-// Sin búsqueda ni filtro, "Explorar por categoria" (grilla de 2 tiles con
+// lugar o descripción", con lupa y botón para limpiar) + chip "Solo gratis".
+// Sin búsqueda ni filtro, "Explorar por categoría" (grilla de 2 tiles con
 // ícono y "N eventos"); con búsqueda, con "Solo gratis" o con `categoria` de
 // la ruta, "N resultados..." y la grilla de 2 de `TarjetaEvento`.
 //
@@ -8,8 +8,11 @@
 // `buscarEventosPorTexto` de `@qps/core/home/busqueda` (nueva, movida desde
 // el `useMemo` que tenía inline `apps/web/app/buscar/buscar-content.tsx`,
 // con un test de equivalencia en `apps/web/tests/core/busqueda.test.ts`):
-// ya no es `filterEvents`/`home/filters.ts` (esa es la de Inicio, que
-// normaliza acentos y no mira la descripción — un criterio distinto).
+// ya no es `filterEvents`/`home/filters.ts` (esa es la de Inicio, que no
+// mira la descripción — un criterio distinto). Las dos ignoran tildes y
+// mayúsculas con `normalizeFilterText` desde QPS-021 (R30): «pena» encuentra
+// «Peña» (A5: corregido, este párrafo decía que solo la de Inicio
+// normalizaba acentos).
 //
 // `categoria` llega por querystring desde "Ver todos" de una fila de la
 // portada (29-h, `/(tabs)/buscar?categoria=<slug>`): mismo patrón
@@ -43,7 +46,7 @@
 // querystring junto con `categoria` y un nonce `v` desde "Ver todos" de la
 // portada (`/buscar?categoria=<slug>&atajo=<atajo>&v=<Date.now()>`), con el
 // mismo patrón comparar-y-ajustar, cuya clave incluye `v`: un toque nuevo vuelve
-// a aplicar categoría y fecha aunque sean iguales a los de antes. Los conteos de la grilla "Explorar por categoria" siguen
+// a aplicar categoría y fecha aunque sean iguales a los de antes. Los conteos de la grilla "Explorar por categoría" siguen
 // siendo sobre todos los eventos. Sin resultados, el vacío ofrece salir de la
 // fecha y/o de la categoría. Buscar sigue sin caché offline.
 //
@@ -65,14 +68,14 @@
 // 200 % la fila de filtros pasa a dos líneas (`flexWrap`) y la cabecera crece
 // ~56 dp: eso solo empuja el banner más abajo, así que la regla (a) y el
 // mínimo de 3 resultados para el anuncio siguen valiendo. La grilla
-// "Explorar por categoria" sigue contando sobre todos los eventos (solo se ve
+// "Explorar por categoría" sigue contando sobre todos los eventos (solo se ve
 // sin ningún filtro, y "Para chicos" es un filtro).
 //
 // A8 (nube Q1, QPS-339): el conteo de los resultados ("N resultados…", "N
 // eventos…", o el texto del vacío con 0) se anuncia a mano en Android y en iOS
 // con `useAnunciarConteo` (reglas en `lib/anunciar-conteo.ts`;
 // `estadoAnunciableBuscar` arma qué se dice) y ya no es una live region: al
-// pasar de "Explorar por categoria" a resultados la FlatList de resultados se
+// pasar de "Explorar por categoría" a resultados la FlatList de resultados se
 // monta nueva y TalkBack no anunciaba su conteo, ni nada cuando el número no
 // cambiaba. Ahora se anuncia al prender un filtro, tocar una categoría o una
 // pill, llegar con `?categoria=` (aunque Buscar se monte recién: antes no había
@@ -85,12 +88,33 @@
 // nonce al tocar una búsqueda reciente (ver `lib/anunciar-conteo-hook.ts`).
 // La clave del anuncio suma `vParam`: volver desde "Ver todos" con el mismo
 // `?categoria=` (otra `v`) vuelve a anunciar.
+//
+// A5 (nube Q1): búsquedas recientes. Las últimas 5 búsquedas de texto,
+// guardadas solo en el teléfono (`lib/busquedas-recientes.ts`, sobre el
+// `Almacen` de `lib/sin-conexion/almacen.ts`; nunca van al servidor, a
+// métricas ni a Sentry) y dibujadas por `components/BusquedasRecientes.tsx`
+// en la cabecera de «Explorar por categoría» (con el campo vacío y sin
+// filtros, arriba de la grilla: empuja el banner más abajo, nunca lo sube).
+// Tocar una carga su texto en el campo (y la vuelve a poner primera).
+// Cuándo se guarda una búsqueda — nunca en cada tecla ni al salir de la
+// pestaña (vuelta 1: eso guardaba «jaz» a medio escribir): los tres
+// `MotivoGuardado` de `lib/busquedas-recientes.ts`, con la decisión en
+// `busquedaParaGuardar` (pura y testeada):
+//   1. `enviar`: la tecla «Buscar» del teclado (`onSubmitEditing`, con
+//      `returnKeyType="search"`), aunque no dé resultados.
+//   2. `repetir`: tocar una reciente (sube al primer lugar; el anuncio del
+//      conteo va por el nonce `toqueTexto` de A8, no a mano).
+//   3. `abrir-resultado`: abrir una tarjeta de los resultados (`onAbrir` de
+//      `TarjetaEvento`, que se llama justo antes de navegar).
+// Mínimo 2 caracteres, tope de largo y «jaz» que se va cuando llega «jazz»,
+// en el módulo.
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { FlatList, Pressable, RefreshControl, StyleSheet, View } from 'react-native'
-import { useLocalSearchParams } from 'expo-router'
+import { useFocusEffect, useLocalSearchParams } from 'expo-router'
 import type { Atajo } from '@qps/core/home/atajos'
 import { atajoDesdeParametro, categoriasDisponibles } from '@qps/core/home/filtros-combinados'
 import { BannerAnuncio } from '@/components/BannerAnuncio'
+import { BusquedasRecientes } from '@/components/BusquedasRecientes'
 import { CampoTexto } from '@/components/CampoTexto'
 import { ChipsCategorias } from '@/components/ChipsCategorias'
 import { EsqueletoBuscar } from '@/components/Esqueleto'
@@ -101,6 +125,13 @@ import { TarjetaEvento } from '@/components/TarjetaEvento'
 import { Texto } from '@/components/Texto'
 import { estadoAnunciableBuscar } from '@/lib/anunciar-conteo'
 import { useAnunciarConteo } from '@/lib/anunciar-conteo-hook'
+import {
+  borrarHistorialDeBusquedas,
+  busquedaParaGuardar,
+  guardarBusquedaReciente,
+  leerBusquedasRecientes,
+  type MotivoGuardado,
+} from '@/lib/busquedas-recientes'
 import { bordeChipInactivo, useColoresQPS } from '@/lib/colores'
 import { textoResultadosBuscar, textoSinResultadosBuscar } from '@/lib/buscar-filtros'
 import {
@@ -160,6 +191,10 @@ export default function Buscar() {
   // A8 (nube Q1, QPS-339, ronda de correcciones): nonce del texto que llega por
   // un toque (enviar con el teclado; A5: tocar una búsqueda reciente).
   const [toqueTexto, setToqueTexto] = useState(0)
+  // A5 (nube Q1): el historial que se ve. Arranca vacío; lo llena (y lo
+  // reemplaza) solo lo que devuelve la fila de `lib/busquedas-recientes.ts`
+  // — la lectura al enfocar y cada guardado —, en el orden en que se pidió.
+  const [recientes, setRecientes] = useState<string[]>([])
 
   // Sincroniza `categoriaFiltro` con el parámetro de la ruta sin `setState`
   // sincrónico dentro de un `useEffect` (mismo patrón que `idAnterior` en
@@ -221,6 +256,36 @@ export default function Buscar() {
     }
   }, [obtenerDatos, intento])
 
+  // A5, vuelta 1: relee el historial cada vez que Buscar toma el foco (en el
+  // efecto de `useFocusEffect`, no en su limpieza), así la pantalla no queda
+  // con datos viejos. La lectura va en la fila del módulo: si hay un guardado
+  // o un borrado en curso, resuelve después de ellos y no los pisa. El
+  // estado se REEMPLAZA con lo que vuelve, y el `setState` va en el callback
+  // de la promesa, nunca sincrónico (react-hooks/set-state-in-effect).
+  // `leerBusquedasRecientes` nunca tira: un almacén roto da `[]`.
+  useFocusEffect(
+    useCallback(() => {
+      leerBusquedasRecientes().then(setRecientes)
+    }, []),
+  )
+
+  // A5: guarda una búsqueda si `busquedaParaGuardar` dice que corresponde.
+  // El estado sale de lo que devuelve la fila (no se calcula acá aparte): un
+  // guardado pedido después de una lectura resuelve después de ella, así que
+  // la última respuesta es siempre la lista más nueva.
+  const recordarBusqueda = useCallback((valor: string, motivo: MotivoGuardado) => {
+    const aGuardar = busquedaParaGuardar(valor, motivo)
+    if (aGuardar === null) return
+    guardarBusquedaReciente(aGuardar).then(setRecientes)
+  }, [])
+
+  // A5: se vacía en el momento (la sección desaparece ya); el borrado va en
+  // la fila, después de cualquier guardado pendiente.
+  const borrarHistorial = useCallback(() => {
+    setRecientes([])
+    void borrarHistorialDeBusquedas()
+  }, [])
+
   // Toca una categoría una segunda vez para quitar el filtro (no hay un botón
   // "volver" propio: la grilla de categorías no se ve mientras hay un
   // filtro activo, así que esto es la única forma de deshacerlo sin tocar
@@ -264,7 +329,7 @@ export default function Buscar() {
     return categoriasDisponibles(sinCategoria, estado.categorias, categoriaFiltro)
   }, [estado, texto, atajo, categoriaFiltro, soloGratisActivo, paraChicosActivo])
 
-  // Los conteos de la grilla "Explorar por categoria" son sobre TODOS los
+  // Los conteos de la grilla "Explorar por categoría" son sobre TODOS los
   // eventos (sin fecha ni texto): esa grilla solo se ve sin filtros.
   const cantidadPorCategoria = useCallback(
     (slug: string) => (estado.tipo === 'ok' ? estado.items.filter((item) => item.evento.category === slug).length : 0),
@@ -290,6 +355,15 @@ export default function Buscar() {
       : null,
   )
 
+  // A5: tocar una reciente carga el texto, la guarda (sube al primer lugar) y
+  // sube el nonce de A8: el anuncio del conteo lo hace `useAnunciarConteo`, no
+  // un `announceForAccessibility` directo. No mueve el foco.
+  function repetirBusqueda(busqueda: string) {
+    setTexto(busqueda)
+    recordarBusqueda(busqueda, 'repetir')
+    setToqueTexto((n) => n + 1)
+  }
+
   // Salidas del vacío (R66): sacar la fecha y/o la categoría. Un botón por
   // cada filtro que se puede sacar. A3: y "Para chicos", primero (la salida
   // principal, rellena), salvo con Infantil elegida: ahí apagarlo no cambia
@@ -309,9 +383,16 @@ export default function Buscar() {
             label="Buscar"
             value={texto}
             onChangeText={setTexto}
-            onSubmitEditing={() => setToqueTexto((n) => n + 1)}
-            placeholder="Buscar por evento, lugar o descripcion..."
+            placeholder="Buscar por evento, lugar o descripción..."
             autoCapitalize="none"
+            // A5, criterio 1: la tecla del teclado dice «Buscar» y al tocarla
+            // se guarda la búsqueda (ver la cabecera del archivo). A8: y sube
+            // el nonce para que el conteo se anuncie al toque.
+            returnKeyType="search"
+            onSubmitEditing={(evento) => {
+              recordarBusqueda(evento.nativeEvent.text, 'enviar')
+              setToqueTexto((n) => n + 1)
+            }}
             accionDerecha={
               texto ? (
                 <Pressable
@@ -392,10 +473,16 @@ export default function Buscar() {
           refreshControl={
             <RefreshControl refreshing={refrescando} onRefresh={refrescar} tintColor={colores.primary} colors={[colores.primary]} />
           }
+          // A5: las búsquedas recientes van arriba del título de la grilla
+          // (sin ninguna guardada, `BusquedasRecientes` no dibuja nada). El
+          // banner sigue en el footer, debajo de toda la grilla.
           ListHeaderComponent={
-            <Texto peso="semibold" style={estilos.tituloSeccion}>
-              Explorar por categoria
-            </Texto>
+            <>
+              <BusquedasRecientes busquedas={recientes} onElegir={repetirBusqueda} onBorrarHistorial={borrarHistorial} />
+              <Texto peso="semibold" accessibilityRole="header" style={estilos.tituloSeccion}>
+                Explorar por categoría
+              </Texto>
+            </>
           }
           ListEmptyComponent={<Vacio mensaje="Todavía no hay categorías cargadas." />}
           // R60, 52-d: con la lista vacía, `null` en vez de `<BannerAnuncio>`
@@ -509,7 +596,8 @@ export default function Buscar() {
           }
           renderItem={({ item }) => (
             <View style={estilos.celda}>
-              <TarjetaEvento evento={item} />
+              {/* A5: abrir un resultado guarda el texto del campo como búsqueda reciente. */}
+              <TarjetaEvento evento={item} onAbrir={() => recordarBusqueda(texto, 'abrir-resultado')} />
             </View>
           )}
         />

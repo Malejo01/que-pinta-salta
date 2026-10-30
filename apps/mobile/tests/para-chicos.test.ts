@@ -259,11 +259,11 @@ describe('obtenerEventosVigentesParaInicio: paraChicos con los tags de la fila',
     ])
   })
 
-  it('el DisplayEvent no gana tags (transformEvent no se toca): el dato viaja aparte', async () => {
+  it('el DisplayEvent trae tags (desde main, #113) y paraChicos viaja aparte', async () => {
     estadoSupabase.data = [fila('recital-familiar', { slug: 'musica', name: 'Música' }, ['familia'])]
     const r = await obtenerEventosVigentesParaInicio(AHORA_DATOS)
     if (!r.ok) throw new Error('no debería fallar')
-    expect(r.eventos[0].evento).not.toHaveProperty('tags')
+    expect(r.eventos[0].evento).toHaveProperty('tags')
     expect(r.eventos[0].paraChicos).toBe(true)
   })
 

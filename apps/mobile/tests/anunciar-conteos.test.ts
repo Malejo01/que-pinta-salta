@@ -584,7 +584,8 @@ describe('detector: cada pantalla con conteo por filtro usa el hook y no anuncia
   it('Buscar y Cines: enviar con el teclado sube el nonce del toque', () => {
     const buscar = quitarComentarios(leer('app', '(tabs)', 'buscar.tsx'))
     const cines = quitarComentarios(leer('app', 'cines.tsx'))
-    expect(buscar).toMatch(/onSubmitEditing=\{\(\) => setToqueTexto\(\(n\) => n \+ 1\)\}/)
+    // Integración con A5: el mismo handler también guarda la búsqueda («enviar»).
+    expect(buscar).toMatch(/onSubmitEditing=\{\(evento\) => \{\s*recordarBusqueda\(evento\.nativeEvent\.text, 'enviar'\)\s*setToqueTexto\(\(n\) => n \+ 1\)\s*\}\}/)
     expect(cines).toMatch(/onSubmitEditing=\{\(\) => setToqueBusqueda\(\(n\) => n \+ 1\)\}/)
   })
 
