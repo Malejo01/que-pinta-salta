@@ -7,6 +7,8 @@
 export interface FuenteLugar {
   href: string
   rotulo: 'Instagram' | 'Entrada'
+  /** Hostname en minúsculas sin `www.` inicial, tomado del URL ya parseado. */
+  dominio: string
 }
 
 export interface FilaFuente {
@@ -26,10 +28,13 @@ export function linkDeFuente(url: string | null): FuenteLugar | null {
   if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return null
   const host = parsed.hostname.toLowerCase()
   const rotulo = host === 'instagram.com' || host === 'www.instagram.com' ? 'Instagram' : 'Entrada'
-  return { href: parsed.href, rotulo }
+  return { href: parsed.href, rotulo, dominio: host.replace(/^www\./, '') }
 }
 
-/** Por lugar: el link del evento de `start_date` más chico que tenga un link válido. */
+/**
+ * Por lugar: el link del evento de `start_date` más chico QUE TENGA un link válido
+ * (http/https); no necesariamente es el del próximo evento a secas.
+ */
 export function proximaFuentePorLugar(filas: FilaFuente[]): Map<string, FuenteLugar> {
   const elegidas = new Map<string, { start: number; fuente: FuenteLugar }>()
   for (const fila of filas) {

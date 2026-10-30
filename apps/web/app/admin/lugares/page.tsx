@@ -262,7 +262,7 @@ export default async function AdminLugaresPage({
                         rel="noopener noreferrer"
                         className="inline-flex min-h-11 items-center gap-1 font-medium text-primary hover:underline"
                       >
-                        Fuente del próximo evento: {fuente.rotulo}
+                        Fuente (próximo evento con link): {fuente.rotulo} · {fuente.dominio}
                         <ExternalLink className="size-3" />
                       </a>
                     )}
