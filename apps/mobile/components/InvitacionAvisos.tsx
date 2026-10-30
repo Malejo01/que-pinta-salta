@@ -227,11 +227,15 @@ export function InvitacionTrasAccion() {
       if (!debeMostrarCampania({ ...datosRef.current, vista })) return
       temporizador = setTimeout(() => {
         temporizador = null
-        // Si en el medio se abrió por otro motivo o cambió el estado, no.
+        // Si en el medio se abrió por otro motivo o cambió el estado, no. Y se
+        // vuelve a leer la bandera: pudo descartar la tarjeta de Inicio.
         if (campaniaResueltaRef.current || abiertaRef.current) return
-        if (!debeMostrarCampania({ ...datosRef.current, vista })) return
-        campaniaResueltaRef.current = true
-        setAbierta(true)
+        invitacionFueVista().then((vistaFresca) => {
+          if (!vigente || campaniaResueltaRef.current || abiertaRef.current) return
+          if (!debeMostrarCampania({ ...datosRef.current, vista: vistaFresca })) return
+          campaniaResueltaRef.current = true
+          setAbierta(true)
+        })
       }, RETRASO_HOJA_MS)
     })
     return () => {

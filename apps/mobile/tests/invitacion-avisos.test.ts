@@ -259,9 +259,12 @@ describe('la bandera de "invitación vista"', () => {
         },
       },
     }))
-    const m = await import('../lib/push/invitacion')
-    expect(await m.invitacionFueVista()).toBe(false)
-    vi.doUnmock('@/lib/sin-conexion/almacen')
+    try {
+      const m = await import('../lib/push/invitacion')
+      expect(await m.invitacionFueVista()).toBe(false)
+    } finally {
+      vi.doUnmock('@/lib/sin-conexion/almacen')
+    }
   })
 })
 
@@ -384,6 +387,20 @@ describe('componentes: la invitación sale solo de un Guardar / Voy exitoso', ()
     const src = leerFuente('components/InvitacionAvisos.tsx')
     expect(src).toMatch(/setTimeout\(/)
     expect(src).toMatch(/clearTimeout\(temporizador\)/)
+  })
+
+  it('InvitacionAvisos: la campaña vuelve a leer la bandera dentro del temporizador (si descartó la tarjeta en el retraso, no abre)', () => {
+    const src = leerFuente('components/InvitacionAvisos.tsx')
+    const iEfecto = src.indexOf('// Caso 2')
+    const iTemporizador = src.indexOf('setTimeout(() => {', iEfecto)
+    const iRetraso = src.indexOf('}, RETRASO_HOJA_MS)', iTemporizador)
+    expect(iEfecto).toBeGreaterThan(-1)
+    expect(iTemporizador).toBeGreaterThan(iEfecto)
+    expect(iRetraso).toBeGreaterThan(iTemporizador)
+    const dentro = src.slice(iTemporizador, iRetraso)
+    expect(dentro).toMatch(/invitacionFueVista\(\)\.then\(/)
+    expect(dentro).toMatch(/debeMostrarCampania\(\{ \.\.\.datosRef\.current, vista: vistaFresca \}\)/)
+    expect(dentro).not.toMatch(/vista \}\)/)
   })
 
   it('InvitacionAvisos: la tarjeta y la hoja esperan la sesión y la primera sincronización', () => {

@@ -188,8 +188,11 @@ describe('guardado en SecureStore', () => {
 
   it('si la escritura falla, no tira', async () => {
     almacen.falla.escritura = true
-    await expect(marcarInvitacionVista()).resolves.toBeUndefined()
-    await expect(marcarAvisosPendientesLogin()).resolves.toBeUndefined()
+    // Módulo fresco: `marcarInvitacionVista` deja estado en memoria.
+    vi.resetModules()
+    const m = await import('../lib/push/invitacion')
+    await expect(m.marcarInvitacionVista()).resolves.toBeUndefined()
+    await expect(m.marcarAvisosPendientesLogin()).resolves.toBeUndefined()
   })
 
   it('la bandera pendiente se marca, se lee y se borra; si la lectura falla, es false', async () => {
