@@ -165,15 +165,20 @@ export function canalRadarAlAceptar(actual: unknown): CanalRadar {
 /**
  * Avisos al principio (R81, 81-b): al aceptar los avisos (Bienvenida, después
  * de iniciar sesión o el "Activar" de la invitación) se guardan, en un solo
- * upsert, tres columnas y nada más: `announcements = true`, `radar_channel`
- * según `canalRadarAlAceptar` y `sponsored = false`. Los avisos patrocinados
- * NO se activan solos (política de anuncios de Play; decisión de Mauro del
- * 30/10): la persona los prende en Cuenta. Mandar `false` explícito también
- * evita que un default de la base los deje prendidos.
+ * upsert, `announcements = true`, `radar_channel` según `canalRadarAlAceptar`
+ * y, a veces, `sponsored`. Los avisos patrocinados NO se activan solos
+ * (política de anuncios de Play; decisión de Mauro del 30/10): la persona los
+ * prende en Cuenta. Con la misma lectura del propio usuario:
+ * - lectura OK y no hay fila: `sponsored: false` explícito (el default de la
+ *   base es `true`);
+ * - lectura OK y hay fila: no se manda `sponsored` (queda lo que la persona
+ *   eligió, p. ej. en otro teléfono);
+ * - la lectura falla: `sponsored: false` (no se sabe si hay fila; ante la
+ *   duda nunca se prende publicidad sola).
  *
  * Mismo patrón que `cambiarAvisosEquipo`: no tira, devuelve `ok`; `userId`
- * sale siempre de `useSession()`. Lee el `radar_channel` actual del propio
- * usuario; si la lectura falla, el upsert va sin `radar_channel`.
+ * sale siempre de `useSession()`. Si la lectura falla, el upsert va sin
+ * `radar_channel`.
  */
 export async function activarPreferenciasAlAceptar(userId: string): Promise<ResultadoCambiarAvisosEquipo> {
   if (!supabase) return { ok: false, mensaje: MENSAJE_SIN_CONFIGURACION }
@@ -182,13 +187,19 @@ export async function activarPreferenciasAlAceptar(userId: string): Promise<Resu
     // Si la lectura falla (error o excepción) NO se manda `radar_channel`: no
     // se sabe qué eligió la persona y no hay que pisar un `push` con `ambos`.
     let canal: { radar_channel: CanalRadar } | Record<string, never> = {}
+    // Solo con lectura OK y fila existente se respeta `sponsored`; en cualquier
+    // otro caso (sin fila o lectura fallida) se manda `false`.
+    let patrocinados: { sponsored: false } | Record<string, never> = { sponsored: false }
     try {
       const { data, error: errorLectura } = await supabase
         .from('notification_preferences')
         .select('radar_channel')
         .eq('user_id', userId)
         .maybeSingle()
-      if (!errorLectura) canal = { radar_channel: canalRadarAlAceptar(data?.radar_channel) }
+      if (!errorLectura) {
+        canal = { radar_channel: canalRadarAlAceptar(data?.radar_channel) }
+        if (data) patrocinados = {}
+      }
     } catch {
       // Se sigue sin `radar_channel`.
     }
@@ -196,7 +207,7 @@ export async function activarPreferenciasAlAceptar(userId: string): Promise<Resu
     const { error } = await supabase
       .from('notification_preferences')
       .upsert(
-        { user_id: userId, announcements: true, ...canal, sponsored: false },
+        { user_id: userId, announcements: true, ...canal, ...patrocinados },
         { onConflict: 'user_id' }
       )
 

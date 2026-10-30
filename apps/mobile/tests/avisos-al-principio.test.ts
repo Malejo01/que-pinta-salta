@@ -216,13 +216,18 @@ describe('activarPreferenciasAlAceptar', () => {
     ['push', 'push'],
     ['ambos', 'ambos'],
     [null, 'ambos'],
-  ])('canal actual %s: upsert de solo tres columnas, con sponsored false', async (actual, esperado) => {
+  ])('canal actual %s: upsert con el canal; sponsored false solo si no había fila', async (actual, esperado) => {
     supabaseDoble.canalActual = actual
     const r = await activarPreferenciasAlAceptar('usuario-1')
     expect(r).toEqual({ ok: true })
     expect(supabaseDoble.upserts).toEqual([
       {
-        valores: { user_id: 'usuario-1', announcements: true, radar_channel: esperado, sponsored: false },
+        valores: {
+          user_id: 'usuario-1',
+          announcements: true,
+          radar_channel: esperado,
+          ...(actual === null ? { sponsored: false } : {}),
+        },
         opciones: { onConflict: 'user_id' },
       },
     ])
@@ -296,11 +301,11 @@ describe('detectores por texto', () => {
     expect(src).toMatch(/userId \? null : \([\s\S]*?Cuando entres a tu cuenta te lo pedimos\./)
   })
 
-  it('el upsert del "al aceptar" manda sponsored: false', () => {
+  it('el upsert del "al aceptar" decide sponsored con la lectura (ver avisos-pendientes-137)', () => {
     const src = leerFuente('lib/notificaciones.ts')
     const i = src.indexOf('export async function activarPreferenciasAlAceptar')
     expect(i).toBeGreaterThan(-1)
-    expect(src.slice(i)).toMatch(/announcements: true, \.\.\.canal, sponsored: false/)
+    expect(src.slice(i)).toMatch(/announcements: true, \.\.\.canal, \.\.\.patrocinados/)
   })
 
   it('el "Activar" de la invitación usa activarPreferenciasAlAceptar y ya no cambiarAvisosEquipo', () => {
