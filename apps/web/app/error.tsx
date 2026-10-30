@@ -8,7 +8,7 @@ export default function Error({ reset }: { error: Error & { digest?: string }; r
       <button
         type="button"
         onClick={() => reset()}
-        className="rounded-md border border-input px-4 py-2 text-sm font-medium text-foreground hover:bg-muted"
+        className="rounded-md border border-input px-4 py-2 text-sm font-medium text-foreground outline-none hover:bg-muted focus-visible:ring-[3px] focus-visible:ring-ring/50"
       >
         Probar de nuevo
       </button>

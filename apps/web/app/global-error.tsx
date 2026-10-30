@@ -15,6 +15,9 @@ export default function GlobalError({ reset }: { error: Error & { digest?: strin
   } as const
   return (
     <html lang="es">
+      <head>
+        <title>Algo salió mal | Qué Pinta Salta</title>
+      </head>
       <body style={{ margin: 0, background: '#f8f8f8', color: '#0a0a0a', fontFamily: 'system-ui, sans-serif' }}>
         <main style={{ maxWidth: '32rem', margin: '0 auto', padding: '5rem 1rem', textAlign: 'center', lineHeight: 1.5 }}>
           <p style={{ color: '#a20519', fontWeight: 600, margin: 0 }}>Qué Pinta Salta</p>
