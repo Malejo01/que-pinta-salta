@@ -7,7 +7,7 @@
  * es `LugarUbicacionForm` (pegar coordenadas).
  */
 import { useEffect, useRef, useState, useTransition, type ComponentType, type FormEvent } from 'react'
-import { usePathname, useRouter, useSearchParams } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import { CENTRO_SALTA_CAPITAL } from '@qps/core/mapa/zona'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -34,6 +34,8 @@ export interface LugarMapaUbicarProps {
   nombre: string
   latitude: number | null
   longitude: number | null
+  /** Pestaña actual de la página (`?ver=`): llega por prop para no leer la URL en el cliente. */
+  ver: string
 }
 
 const ESPERA_ENTRE_BUSQUEDAS_MS = 1000
@@ -46,10 +48,8 @@ interface ResultadoDireccion {
 
 const MENSAJE_ERROR_MAPA = 'No pudimos cargar el mapa. Pegá las coordenadas abajo.'
 
-export function LugarMapaUbicar({ venueId, nombre, latitude, longitude }: LugarMapaUbicarProps) {
+export function LugarMapaUbicar({ venueId, nombre, latitude, longitude, ver }: LugarMapaUbicarProps) {
   const router = useRouter()
-  const pathname = usePathname()
-  const searchParams = useSearchParams()
   const tieneCoordenadas = latitude !== null && longitude !== null
   const [inicial] = useState<PosicionPin>(() =>
     tieneCoordenadas ? { lat: latitude, lng: longitude } : { lat: CENTRO_SALTA_CAPITAL.lat, lng: CENTRO_SALTA_CAPITAL.lng }
@@ -66,13 +66,22 @@ export function LugarMapaUbicar({ venueId, nombre, latitude, longitude }: LugarM
   const [resultados, setResultados] = useState<ResultadoDireccion[]>([])
   const posicionRef = useRef<PosicionPin>(inicial)
   const enfriamientoRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // Cuenta las búsquedas: sirve de parte de la key de los resultados.
+  const [numeroBusqueda, setNumeroBusqueda] = useState(0)
 
-  useEffect(
-    () => () => {
+  // Para no hacer `setState` si el panel se desmontó mientras la búsqueda estaba en vuelo.
+  const montadoRef = useRef(false)
+  // Generación de la posición: sube al arrastrar el pin o elegir un resultado, para descartar
+  // los resultados de una búsqueda que quedó vieja.
+  const generacionRef = useRef(0)
+
+  useEffect(() => {
+    montadoRef.current = true
+    return () => {
+      montadoRef.current = false
       if (enfriamientoRef.current) clearTimeout(enfriamientoRef.current)
-    },
-    []
-  )
+    }
+  }, [])
 
   const aplicarPosicion = (nueva: PosicionPin) => {
     posicionRef.current = nueva
@@ -101,15 +110,20 @@ export function LugarMapaUbicar({ venueId, nombre, latitude, longitude }: LugarM
       try {
         const res = await guardarUbicacionManual(venueId, `${enviada.lat}, ${enviada.lng}`)
         if (res.ok) {
-          setMensaje('Guardado')
-          // Si el pin se movió mientras se guardaba, ese movimiento sigue pendiente.
           const actual = posicionRef.current
-          if (actual.lat === enviada.lat && actual.lng === enviada.lng) setMovido(false)
-          const params = new URLSearchParams(searchParams.toString())
-          params.delete('ubicar')
-          const query = params.toString()
-          router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false })
-          router.refresh()
+          if (actual.lat !== enviada.lat || actual.lng !== enviada.lng) {
+            // El pin se movió mientras se guardaba: el panel sigue abierto y `movido`
+            // en true para no perder ese movimiento. Sin `refresh`: en "Sin ubicación" el
+            // lugar pasaría a "A mano", la página dejaría de listarlo y el panel se desmontaría.
+            // El guardado siguiente es el que cierra y refresca.
+            setMensaje('Guardado. Moviste el pin mientras se guardaba: guardá de nuevo.')
+          } else {
+            setMovido(false)
+            setMensaje('Guardado')
+            // `guardado` hace que la página muestre el aviso (este panel se desmonta).
+            router.replace(`/admin/lugares?ver=${encodeURIComponent(ver)}&guardado=${venueId}`, { scroll: false })
+            router.refresh()
+          }
         } else {
           setMensaje(res.error)
         }
@@ -124,9 +138,14 @@ export function LugarMapaUbicar({ venueId, nombre, latitude, longitude }: LugarM
     if (buscando || enfriando || direccion.trim().length < 3) return
     setBuscando(true)
     setResultados([])
+    setNumeroBusqueda((n) => n + 1)
     setMensaje('Buscando…')
+    // Un timer anterior (si lo hubiera) no debe pisar al nuevo.
+    if (enfriamientoRef.current) clearTimeout(enfriamientoRef.current)
+    const generacion = generacionRef.current
     try {
       const res = await buscarDireccionLugar(direccion)
+      if (!montadoRef.current || generacionRef.current !== generacion) return
       if (res.ok) {
         setResultados(res.resultados)
         setMensaje(res.resultados.length === 0 ? 'Sin resultados en Salta' : null)
@@ -134,15 +153,18 @@ export function LugarMapaUbicar({ venueId, nombre, latitude, longitude }: LugarM
         setMensaje(res.error)
       }
     } catch {
-      setMensaje('No se pudo buscar. Probá de nuevo.')
+      if (montadoRef.current && generacionRef.current === generacion) setMensaje('No se pudo buscar. Probá de nuevo.')
     } finally {
-      setBuscando(false)
-      setEnfriando(true)
-      enfriamientoRef.current = setTimeout(() => setEnfriando(false), ESPERA_ENTRE_BUSQUEDAS_MS)
+      if (montadoRef.current) {
+        setBuscando(false)
+        setEnfriando(true)
+        enfriamientoRef.current = setTimeout(() => setEnfriando(false), ESPERA_ENTRE_BUSQUEDAS_MS)
+      }
     }
   }
 
   const elegirResultado = (r: ResultadoDireccion) => {
+    generacionRef.current += 1
     aplicarPosicion({ lat: r.lat, lng: r.lng })
     setMovido(true)
     setResultados([])
@@ -161,8 +183,10 @@ export function LugarMapaUbicar({ venueId, nombre, latitude, longitude }: LugarM
             posicion={posicion}
             zoom={tieneCoordenadas ? 16 : 13}
             onMover={(nueva) => {
+              generacionRef.current += 1
               aplicarPosicion(nueva)
               setMovido(true)
+              setResultados([])
               setMensaje(null)
             }}
             onError={() => setFalloMapa(true)}
@@ -190,7 +214,7 @@ export function LugarMapaUbicar({ venueId, nombre, latitude, longitude }: LugarM
       {resultados.length > 0 && (
         <ul className="flex flex-col gap-1">
           {resultados.map((r, i) => (
-            <li key={`${r.lat},${r.lng},${i}`}>
+            <li key={`busqueda-${numeroBusqueda}-${i}`}>
               <button
                 type="button"
                 onClick={() => elegirResultado(r)}

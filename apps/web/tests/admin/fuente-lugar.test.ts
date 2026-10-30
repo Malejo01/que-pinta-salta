@@ -30,6 +30,7 @@ describe('linkDeFuente: http y https', () => {
     expect(linkDeFuente('https://entradas.ejemplo.test/evento/123')).toEqual({
       href: 'https://entradas.ejemplo.test/evento/123',
       rotulo: 'Entrada',
+      dominio: 'entradas.ejemplo.test',
     })
   })
 
@@ -69,8 +70,8 @@ describe('proximaFuentePorLugar', () => {
       fila('lugar-b', '2026-12-01T23:00:00Z', 'https://entradas.ejemplo.test/b'),
     ])
 
-    expect(mapa.get('lugar-a')).toEqual({ href: 'https://www.instagram.com/p/temprano/', rotulo: 'Instagram' })
-    expect(mapa.get('lugar-b')).toEqual({ href: 'https://entradas.ejemplo.test/b', rotulo: 'Entrada' })
+    expect(mapa.get('lugar-a')).toEqual({ href: 'https://www.instagram.com/p/temprano/', rotulo: 'Instagram', dominio: 'instagram.com' })
+    expect(mapa.get('lugar-b')).toEqual({ href: 'https://entradas.ejemplo.test/b', rotulo: 'Entrada', dominio: 'entradas.ejemplo.test' })
     expect(mapa.size).toBe(2)
   })
 
