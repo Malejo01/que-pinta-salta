@@ -6,7 +6,7 @@ import { pistasDeCarga, type CargaImagen } from '@/lib/images/carga'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
-import { Ticket, Film, Calendar } from 'lucide-react'
+import { Ticket, Film } from 'lucide-react'
 import { useIdioma, useTextos } from '@/lib/i18n/use-idioma'
 import { hora } from '@/lib/i18n/fechas'
 
@@ -77,7 +77,7 @@ export function MovieCard({ movie, carga = 'diferida', id }: MovieCardProps) {
         {/* Accordion para desplegar los cines y horarios */}
         {cinemasCount > 0 ? (
           <Accordion type="single" collapsible className="w-full">
-            {Object.entries(movie.showings).map(([cinemaKey, details], idx) => (
+            {Object.entries(movie.showings).map(([cinemaKey, details]) => (
               <AccordionItem
                 key={cinemaKey}
                 value={cinemaKey}

@@ -54,6 +54,7 @@ function AdSenseSlot({
   const anunciarWhatsappUrl = whatsappUrl(TEXTO_ANUNCIAR)
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- detección de cliente tras hidratación
     setIsClient(true)
   }, [])
 
@@ -72,10 +73,7 @@ function AdSenseSlot({
       // availableWidth=0" y el slot queda vacío. Se espera a que tenga ancho.
       const pushAd = () => {
         try {
-          // @ts-ignore -- adsbygoogle no está tipado en Window; @ts-expect-error
-          // tira "Unused directive" porque esta línea no da error de tipos acá.
           const ads = window.adsbygoogle || []
-          // @ts-ignore -- ídem arriba
           window.adsbygoogle = ads
           ads.push({})
         } catch (err) {
@@ -118,9 +116,8 @@ function AdSenseSlot({
       // Verificación de respaldo pasados unos segundos
       const checkAdStatus = () => {
         try {
-          // @ts-ignore -- adsbygoogle no está tipado en Window; @ts-expect-error
-          // tira "Unused directive" porque esta línea no da error de tipos acá.
-          const isScriptLoaded = window.adsbygoogle && (window.adsbygoogle.loaded === true || typeof window.adsbygoogle === "object")
+          const adsbygoogle = window.adsbygoogle as (unknown[] & { loaded?: boolean }) | undefined
+          const isScriptLoaded = adsbygoogle && (adsbygoogle.loaded === true || typeof adsbygoogle === "object")
 
           if (!isScriptLoaded) {
             setAdError(true)

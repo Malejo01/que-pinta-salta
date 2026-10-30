@@ -6,7 +6,7 @@ import { MovieCard } from '@/components/movie-card'
 import { cargaPorIndice } from '@/lib/images/carga'
 import { anclaDePelicula } from '@/lib/seo/anclas'
 import { Input } from '@/components/ui/input'
-import { Search, Film, X, Clapperboard } from 'lucide-react'
+import { Search, X, Clapperboard } from 'lucide-react'
 import { useTextos } from '@/lib/i18n/use-idioma'
 
 interface CinesViewProps {

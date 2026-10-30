@@ -27,7 +27,9 @@ export type MergeContext = 'ingest' | 'cleanup'
 
 export interface DiscardedValue {
   field: string
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- valor heterogéneo conservado
   kept: any
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- valor heterogéneo descartado
   discarded: any
   kept_source: string
   discarded_source: string
@@ -46,11 +48,13 @@ export interface MergeAuditEntry {
   /** Sólo en limpieza retroactiva: id de la fila absorbida y borrada. */
   absorbed_event_id?: string
   /** Snapshot completo de la fila absorbida, para poder reconstruirla. */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- snapshot heterogéneo de base de datos
   absorbed_snapshot?: Record<string, any>
 }
 
 export interface MergeResult {
   /** Campos a actualizar sobre el registro que se conserva. */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- patch dinámico de columnas de eventos
   patch: Record<string, any>
   audit: MergeAuditEntry
   /** true si el patch cambia algo. */
@@ -66,6 +70,7 @@ export interface MergeOptions {
   /** Fuente del registro existente. Por defecto `base.scrape_source_key`. */
   baseSource?: string | null
   absorbedEventId?: string
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- snapshot heterogéneo de base de datos
   absorbedSnapshot?: Record<string, any>
   /** Máximo de entradas conservadas en merge_audit. */
   auditLimit?: number
@@ -95,6 +100,7 @@ const ARRAY_UNION_FIELDS = ['tags', 'gallery_urls'] as const
 
 const DEFAULT_AUDIT_LIMIT = 50
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- valor de columna arbitrario
 function isEmptyValue(value: any): boolean {
   if (value === undefined || value === null) return true
   if (typeof value === 'string') return value.trim() === ''
@@ -103,6 +109,7 @@ function isEmptyValue(value: any): boolean {
 }
 
 /** `age_restriction: 0` significa "sin dato", no "sin restricción declarada". */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- valor de columna arbitrario
 function isEmptyForField(field: string, value: any): boolean {
   if (field === 'age_restriction' && value === 0) return true
   if (field === 'price_max' && value === 0) return true
@@ -112,6 +119,7 @@ function isEmptyForField(field: string, value: any): boolean {
   return isEmptyValue(value)
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- valores de columnas arbitrarios
 function sameValue(field: string, a: any, b: any): boolean {
   if (field === 'start_date' || field === 'end_date') {
     const ta = new Date(a).getTime()
@@ -159,6 +167,7 @@ export function isThumbnail(url?: string | null): boolean {
   return compact.includes('150x150') || compact.includes('thumb') || compact.includes('equity')
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- estructura de fuentes de tickets entrante
 function normalizeTicketSources(value: any): TicketSource[] {
   if (!Array.isArray(value)) return []
   return value.filter((item) => item && typeof item === 'object' && typeof item.url === 'string')
@@ -177,7 +186,9 @@ function ticketSourceKey(url: string): string {
  * `{ source, url, price_min }`.
  */
 export function mergeTicketSources(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- fuentes de tickets entrantes heterogéneas
   existing: any,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- fuentes de tickets entrantes heterogéneas
   incoming: any,
   incomingSource: string,
   incomingUrl?: string | null,
@@ -209,10 +220,12 @@ export function mergeTicketSources(
   return merged
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- unión de arreglos heterogéneos
 function unionArray(existing: any, incoming: any): any[] {
   const base = Array.isArray(existing) ? existing : []
   const extra = Array.isArray(incoming) ? incoming : []
   const out = [...base]
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- elemento de arreglo arbitrario
   const keyOf = (item: any) => (typeof item === 'string' ? item.toLowerCase() : JSON.stringify(item))
   const seen = new Set(base.map(keyOf))
 
@@ -235,6 +248,7 @@ function unionArray(existing: any, incoming: any): any[] {
  * Instagram sin precio se guarda como 0, y tomarlo como mínimo dejaría en $0
  * un evento que sí se cobra.
  */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- precios arbitrarios de fuentes
 function resolvePriceMin(basePrice: any, incomingPrice: any): number {
   const positives = [basePrice, incomingPrice].filter(
     (value): value is number => typeof value === 'number' && Number.isFinite(value) && value > 0
@@ -249,6 +263,7 @@ function resolvePriceMin(basePrice: any, incomingPrice: any): number {
  * moderación humana; promoverlo saltearía la revisión) ni CANCELLED, y nunca se
  * baja un PUBLISHED. Toda diferencia de estado queda igual en la auditoría.
  */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- estado entrante de fuentes
 function resolveStatus(base: { status?: unknown; ai_metadata?: unknown }, incomingStatus: any, incomingSource: string): string | null {
   // Un evento fusionado a mano queda en DRAFT a propósito: nunca se promueve.
   if (mergedIntoId(base) !== null) return null
@@ -262,7 +277,9 @@ function resolveStatus(base: { status?: unknown; ai_metadata?: unknown }, incomi
 }
 
 export function mergeEvents(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- fila base de evento de la base de datos
   base: Record<string, any>,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- fila entrante de evento del scraper
   incoming: Record<string, any>,
   options: MergeOptions
 ): MergeResult {
@@ -272,6 +289,7 @@ export function mergeEvents(
   const incomingPriority = getSourcePriority(incomingSource)
   const incomingWins = incomingPriority > basePriority
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- patch dinámico de columnas de eventos
   const patch: Record<string, any> = {}
   const discarded: DiscardedValue[] = []
   const conflicts: DiscardedValue[] = []
@@ -279,6 +297,7 @@ export function mergeEvents(
   /** Por qué ganó el que ganó, cuando la razón es sólo la prioridad. */
   const priorityRule = incomingPriority === basePriority ? 'empate-gana-existente' : 'prioridad-de-fuente'
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- valores heterogéneos de conflicto
   const recordConflict = (field: string, kept: any, lost: any, rule: string, keptIsIncoming: boolean) => {
     const entry: DiscardedValue = {
       field,
@@ -484,6 +503,7 @@ export function mergeEvents(
 
 /** Agrega una entrada al historial de auditoría, recortando la más vieja. */
 export function appendAudit(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- historial de auditoría de Supabase
   existingAudit: any,
   entry: MergeAuditEntry,
   limit: number = DEFAULT_AUDIT_LIMIT

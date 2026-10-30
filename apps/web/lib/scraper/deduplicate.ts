@@ -198,6 +198,7 @@ export async function findDuplicateMatch(
   // `any` a propósito: tests/scraper/deduplicate-similitud.test.ts y
   // dedupe-merged.test.ts pasan `db.client` (fake mínimo `{ from }`, ver
   // tests/events/fake-events-db.ts) sin cast a SupabaseClient.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- cliente supabase simulado por tests
   supabaseClient?: any,
   options?: { excludeMerged?: boolean }
 ): Promise<DuplicateMatch | null> {
@@ -353,6 +354,7 @@ export async function findDuplicateMatch(
 export async function findDuplicateEvent(
   event: Partial<Event>,
   // `any` por el mismo motivo que en findDuplicateMatch.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- cliente supabase simulado por tests
   supabaseClient?: any,
   options?: { excludeMerged?: boolean }
 ): Promise<Event | null> {
@@ -381,9 +383,11 @@ export async function upsertEventWithDeduplication(
   // literales sin cast. No hay un tipo único que sea a la vez más estricto que
   // `any` y compatible con todos esos llamadores sin tocar archivos fuera de
   // los permitidos de esta tarea.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- llamadores heterogéneos sin tipo único
   eventData: any,
   sourceKey: string,
   // `any` por el mismo motivo que en findDuplicateMatch.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- cliente supabase simulado por tests
   supabaseClient?: any
 ): Promise<{ success: boolean; action: 'insert' | 'update' | 'skip'; eventId: string }> {
   const supabase = supabaseClient || getAdminClient();
@@ -555,6 +559,7 @@ export async function upsertEventWithDeduplication(
 export async function deduplicateEvent(
   event: Partial<Event>,
   // `any` por el mismo motivo que en findDuplicateMatch.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- cliente supabase simulado por tests
   supabaseClient?: any
 ): Promise<boolean> {
   const duplicate = await findDuplicateEvent(event, supabaseClient);

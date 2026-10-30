@@ -71,7 +71,7 @@ export async function createEvent(formData: FormData) {
   const isAdmin = profile?.role === "ADMIN"
   const status = isAdmin ? "PUBLISHED" : "DRAFT"
 
-  const { data, error } = await supabase
+  const { error } = await supabase
     .from("events")
     .insert({
       title,

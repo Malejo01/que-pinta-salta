@@ -74,6 +74,7 @@ export interface DedupCleanupOptions {
   // Queda en `any` a propósito: los tests (dedup-cleanup-merged.test.ts,
   // dedup-cleanup-plan.test.ts) pasan un cliente fake mínimo (`{ from }`) que no
   // satisface `SupabaseClient`. Mismo contrato que lib/events/merged.ts.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- cliente supabase simulado por tests
   supabase?: any
 }
 
@@ -163,6 +164,7 @@ const PAGE_SIZE = 500
 // repointInstagramFlyers): mismo motivo que `DedupCleanupOptions.supabase`
 // más arriba, los tests le pasan un cliente fake (`{ from }`) que no
 // satisface `SupabaseClient`.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- cliente supabase simulado por tests
 async function fetchAllEvents(supabase: any, options: DedupCleanupOptions): Promise<Record<string, unknown>[]> {
   const rows: Record<string, unknown>[] = []
   let offset = 0
@@ -594,6 +596,7 @@ export function planGroup(
  * `user_favorites` tiene UNIQUE (user_id, event_id): si el usuario ya tenía
  * las dos en favoritos, la fila sobrante se va con el DELETE en cascada.
  */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- cliente supabase simulado por tests
 async function repointFavorites(supabase: any, fromId: string, toId: string): Promise<number> {
   // `supabase` es `any` (ver DedupCleanupOptions.supabase); se anota la forma de lo
   // seleccionado para no perder el tipado de las filas en el resto de la función.
@@ -626,6 +629,7 @@ async function repointFavorites(supabase: any, fromId: string, toId: string): Pr
  * Deja el flyer de Instagram apuntando al evento que sobrevive.
  * `supabase: any` por el mismo motivo que DedupCleanupOptions.supabase.
  */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- cliente supabase simulado por tests
 async function repointInstagramFlyers(supabase: any, fromId: string, toId: string): Promise<void> {
   try {
     const { data } = await supabase

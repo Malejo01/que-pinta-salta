@@ -18,6 +18,7 @@ import type { Category, Venue } from "@/lib/types"
 interface EventFormProps {
   categories: Category[]
   venues: Venue[]
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- datos iniciales de evento desde consulta dinámica
   initialData?: any
   cloneId?: string
   editId?: string

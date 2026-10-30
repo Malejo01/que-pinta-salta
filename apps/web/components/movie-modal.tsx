@@ -8,7 +8,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Ticket, Film, Calendar, Building2 } from "lucide-react"
 import Image from "next/image"
@@ -30,6 +29,7 @@ export function MovieModal({ movie, isFavorite = false, onClose }: MovieModalPro
   const t = useTextos().cines
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- sincroniza el poster si cambia la película
     setImgSrc(movie.image || "")
   }, [movie.image])
 

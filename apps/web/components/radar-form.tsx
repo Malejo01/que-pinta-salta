@@ -26,6 +26,7 @@ interface RadarFormProps {
   initialSettings: RadarSettingsData | null
   categories: Category[]
   venues: Venue[]
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- lista de cuentas de Instagram
   instagramAccounts: any[]
   /** Determinado en el servidor; solo habilita la interfaz de prueba (el freno real está en la acción). */
   isAdmin?: boolean
@@ -191,7 +192,7 @@ export function RadarForm({ initialSettings, categories, venues, instagramAccoun
         ) : undefined,
       })
       router.refresh()
-    } catch (err) {
+    } catch {
       toast({
         title: "Error de conexión",
         description: "No se pudo comunicar con el servidor.",
@@ -219,7 +220,7 @@ export function RadarForm({ initialSettings, categories, venues, instagramAccoun
           variant: "destructive",
         })
       }
-    } catch (err) {
+    } catch {
       toast({
         title: "Error de conexión",
         description: "No se pudo iniciar la prueba de correo.",
