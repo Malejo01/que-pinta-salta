@@ -2,6 +2,8 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { formatSaltaDayKey } from '@qps/core/date-format'
 import {
   armarPropuesta,
+  calcularPrecios,
+  K_ALC,
   PRODUCTOS_CON_PRECIO,
   type CicloAnterior,
   type PrecioVigente,
@@ -12,12 +14,14 @@ import { obtenerTipoCambio } from './fuentes'
 
 /**
  * El ciclo de precios del mes (R58). Idempotente: si ya existe el ciclo del mes
- * (en cualquier estado) no escribe nada, así cualquier día del mes recupera un
- * día 1 que falló. No manda nada hacia afuera: el único `fetch` es el de las
+ * (en cualquier estado) con precios no escribe nada, así cualquier día del mes
+ * recupera un día 1 que falló. Si el ciclo existe pero quedó sin precios (la
+ * corrida se cortó entre los dos insert), completa solo los precios con los datos
+ * guardados del ciclo. No manda nada hacia afuera: el único `fetch` es el de las
  * fuentes externas (el tipo de cambio).
  */
 
-export type ResultadoCiclo = 'creado' | 'ya-existia' | 'sin-tipo-de-cambio'
+export type ResultadoCiclo = 'creado' | 'precios-completados' | 'ya-existia' | 'sin-tipo-de-cambio'
 
 export interface OpcionesCiclo {
   ahora: Date
@@ -38,7 +42,26 @@ export const DESVIO_MAXIMO_TIPO_CAMBIO = 0.3
 
 const PRODUCTOS = new Set<string>(PRODUCTOS_CON_PRECIO)
 
-async function cargarAnterior(admin: SupabaseClient, ciclo: string): Promise<(CicloAnterior & { tipoCambio: number; audienciaWeb28d: number }) | null> {
+/**
+ * Cuántos ciclos aprobados/automáticos hacia atrás se miran buscando uno con los
+ * precios completos. Un año alcanza de sobra: si los últimos 12 están rotos, hay
+ * un problema que no se arregla saltando más.
+ */
+const CICLOS_CANDIDATOS_MAXIMOS = 12
+
+export type CicloAnteriorCargado = CicloAnterior & { tipoCambio: number; audienciaWeb28d: number }
+
+/**
+ * El ciclo anterior contra el que se compara (trinquete, histéresis, factores).
+ * Solo vale uno `aprobado`/`automatico` con al menos un precio y TODOS sus precios
+ * `aprobado`: si la aprobación quedó a medias (ciclo aprobado, precios todavía
+ * `propuesto`), se saltea y se sigue hacia atrás. Devuelve `null` si no hay ninguno.
+ *
+ * Recibe un `SupabaseClient` cualquiera: el admin lo usa con el cliente de la
+ * sesión, nunca con la service key. Por eso este archivo no importa ningún cliente
+ * de servicio.
+ */
+export async function cargarCicloAnterior(admin: SupabaseClient, ciclo: string): Promise<CicloAnteriorCargado | null> {
   const { data, error } = await admin
     .from('ad_price_cycles')
     .select(
@@ -47,53 +70,124 @@ async function cargarAnterior(admin: SupabaseClient, ciclo: string): Promise<(Ci
     .in('estado', ['aprobado', 'automatico'])
     .lt('ciclo', ciclo)
     .order('ciclo', { ascending: false })
-    .limit(1)
+    .limit(CICLOS_CANDIDATOS_MAXIMOS)
   if (error) throw new Error('ciclo: no se pudo leer el ciclo anterior')
-  const fila = (data ?? [])[0] as Record<string, unknown> | undefined
-  if (!fila) return null
 
-  const precios = await admin
-    .from('ad_prices')
-    .select('producto, precio_ars, precio_usd, tipo_cambio')
-    .eq('ciclo', fila.ciclo as string)
-    .eq('estado', 'aprobado')
-  if (precios.error) throw new Error('ciclo: no se pudieron leer los precios del ciclo anterior')
+  for (const fila of (data ?? []) as Array<Record<string, unknown>>) {
+    const precios = await admin
+      .from('ad_prices')
+      .select('producto, precio_ars, precio_usd, tipo_cambio, estado')
+      .eq('ciclo', fila.ciclo as string)
+    if (precios.error) throw new Error('ciclo: no se pudieron leer los precios del ciclo anterior')
 
-  const vigentes: Partial<Record<ProductoConPrecio, PrecioVigente>> = {}
-  for (const p of (precios.data ?? []) as Array<Record<string, unknown>>) {
-    if (!PRODUCTOS.has(p.producto as string)) continue
-    vigentes[p.producto as ProductoConPrecio] = {
-      precioArs: Number(p.precio_ars),
-      precioUsd: Number(p.precio_usd),
-      tipoCambio: Number(p.tipo_cambio),
+    const filasPrecios = (precios.data ?? []) as Array<Record<string, unknown>>
+    if (filasPrecios.length === 0 || !filasPrecios.every((p) => p.estado === 'aprobado')) {
+      console.warn(`[CronPublicidad] ciclo anterior ${String(fila.ciclo)} sin precios aprobados completos; se busca uno más viejo`)
+      continue
+    }
+
+    const vigentes: Partial<Record<ProductoConPrecio, PrecioVigente>> = {}
+    for (const p of filasPrecios) {
+      if (!PRODUCTOS.has(p.producto as string)) continue
+      vigentes[p.producto as ProductoConPrecio] = {
+        precioArs: Number(p.precio_ars),
+        precioUsd: Number(p.precio_usd),
+        tipoCambio: Number(p.tipo_cambio),
+      }
+    }
+
+    return {
+      ciclo: fila.ciclo as string,
+      audiencia: Number(fila.audiencia),
+      tramoVigente: Number(fila.tramo_vigente),
+      tramoCalculado: Number(fila.tramo_calculado),
+      cambioTramoDesde: (fila.cambio_tramo_desde as string | null) ?? null,
+      factorHero: Number(fila.factor_hero),
+      factorPush: Number(fila.factor_push),
+      precios: vigentes,
+      audienciaWeb28d: Number(fila.audiencia_web_28d),
+      tipoCambio: Number(fila.tipo_cambio),
     }
   }
+  return null
+}
 
-  return {
-    ciclo: fila.ciclo as string,
-    audiencia: Number(fila.audiencia),
-    tramoVigente: Number(fila.tramo_vigente),
-    tramoCalculado: Number(fila.tramo_calculado),
-    cambioTramoDesde: (fila.cambio_tramo_desde as string | null) ?? null,
-    factorHero: Number(fila.factor_hero),
-    factorPush: Number(fila.factor_push),
-    precios: vigentes,
-    audienciaWeb28d: Number(fila.audiencia_web_28d),
-    tipoCambio: Number(fila.tipo_cambio),
+const numeroONull = (v: unknown): number | null => (v === null || v === undefined ? null : Number(v))
+
+/** El ciclo ya existe: si tiene precios no se toca; si no, se completan los precios. */
+async function completarPreciosSiFaltan(
+  admin: SupabaseClient,
+  ciclo: string,
+  fila: Record<string, unknown>,
+): Promise<ResultadoCiclo> {
+  const conPrecios = await admin.from('ad_prices').select('id').eq('ciclo', ciclo).limit(1)
+  if (conPrecios.error) throw new Error('ciclo: no se pudieron leer los precios del ciclo del mes')
+  if ((conPrecios.data ?? []).length > 0) return 'ya-existia'
+
+  const estado = fila.estado as string
+  if (estado !== 'propuesto' && estado !== 'automatico') {
+    console.warn(`[CronPublicidad] el ciclo ${ciclo} está en estado ${String(estado)} y no tiene precios; no se escribe nada`)
+    return 'ya-existia'
   }
+
+  // Se recalcula con los datos guardados del ciclo (no con la ocupación en vivo),
+  // para que los precios coincidan con el tramo y los factores ya escritos.
+  const tramoRef = Number(fila.tramo_vigente)
+  const tipoCambio = Number(fila.tipo_cambio)
+  const factorHero = Number(fila.factor_hero)
+  const factorPush = Number(fila.factor_push)
+  if (![tramoRef, tipoCambio, factorHero, factorPush].every((v) => Number.isFinite(v) && v > 0)) {
+    throw new Error('ciclo: el ciclo existente tiene el tramo, el tipo de cambio o los factores inválidos')
+  }
+
+  const anterior = await cargarCicloAnterior(admin, ciclo)
+  const calculados = calcularPrecios({
+    tramoRef,
+    kAlc: K_ALC,
+    tipoCambio,
+    factorHero,
+    factorPush,
+    dispositivosPush: numeroONull(fila.dispositivos_push),
+    vigentes: anterior?.precios ?? {},
+  })
+  const precios = []
+  for (const producto of PRODUCTOS_CON_PRECIO) {
+    const p = calculados[producto]
+    if (!p) continue
+    precios.push({
+      producto,
+      tramo_ref: tramoRef,
+      precio_usd: p.precioUsd,
+      precio_ars: p.precioArs,
+      precio_fundador_ars: p.precioFundadorArs,
+      tipo_cambio: tipoCambio,
+      vigente_desde: ciclo,
+    })
+  }
+
+  const estadoPrecio = estado === 'automatico' ? 'aprobado' : 'propuesto'
+  const insertPrecios = await admin.from('ad_prices').insert(precios.map((p) => ({ ...p, ciclo, estado: estadoPrecio })))
+  // El ciclo ya existía antes de esta corrida: no se borra.
+  if (insertPrecios.error) throw new Error('ciclo: no se pudieron completar los precios del ciclo existente')
+  return 'precios-completados'
 }
 
 export async function proponerCicloDelMes(admin: SupabaseClient, opciones: OpcionesCiclo): Promise<ResultadoCiclo> {
   const { ahora } = opciones
   const ciclo = cicloDeLaFecha(ahora)
 
-  // 2. Si ya existe el del mes, no se escribe nada.
-  const existente = await admin.from('ad_price_cycles').select('ciclo').eq('ciclo', ciclo).limit(1)
+  // 2. Si ya existe el del mes con precios, no se escribe nada; si existe sin precios, se completan.
+  const existente = await admin
+    .from('ad_price_cycles')
+    .select('ciclo, estado, dispositivos_push, tipo_cambio, tramo_vigente, factor_hero, factor_push')
+    .eq('ciclo', ciclo)
+    .limit(1)
   if (existente.error) throw new Error('ciclo: no se pudo buscar el ciclo del mes')
-  if ((existente.data ?? []).length > 0) return 'ya-existia'
+  const filaExistente = (existente.data ?? [])[0] as Record<string, unknown> | undefined
+  if (filaExistente) return completarPreciosSiFaltan(admin, ciclo, filaExistente)
 
   // 3. El anterior aprobado (para el trinquete, la histéresis y los factores).
-  const anterior = await cargarAnterior(admin, ciclo)
+  const anterior = await cargarCicloAnterior(admin, ciclo)
 
   // 4. El tipo de cambio: la fuente, o el del anterior (marcado), o nada.
   const tc = await obtenerTipoCambio({
@@ -136,9 +230,9 @@ export async function proponerCicloDelMes(admin: SupabaseClient, opciones: Opcio
     fuenteAudiencia: 'manual',
     tipoCambio,
     fuenteTipoCambio,
+    anterior,
     ocupacionHero: ocupacion.hero,
     ocupacionPush: ocupacion.push,
-    anterior,
   })
 
   // 8. El estado.

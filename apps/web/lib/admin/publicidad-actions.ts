@@ -18,14 +18,11 @@
  * `updated_by` salen siempre de `auth.getUser()`, nunca de la entrada.
  */
 import { revalidatePath } from 'next/cache'
+import type { SupabaseClient } from '@supabase/supabase-js'
 import { createClient } from '@/lib/supabase/server'
-import {
-  armarPropuesta,
-  PRODUCTOS_CON_PRECIO,
-  type CicloAnterior,
-  type PrecioVigente,
-  type ProductoConPrecio,
-} from '@qps/core/publicidad/formula'
+import { cargarCicloAnterior } from '@/lib/publicidad/ciclo'
+import { cargarOcupacion2Meses, type Ocupacion2Meses } from '@/lib/publicidad/ocupacion'
+import { armarPropuesta, type CicloAnterior } from '@qps/core/publicidad/formula'
 
 type SupabaseUserClient = Awaited<ReturnType<typeof createClient>>
 
@@ -91,16 +88,6 @@ function errorDeBase(accion: string, code: string | undefined, mensaje: string) 
 function revalidar() {
   revalidatePath('/admin/publicidad')
   revalidatePath('/anunciantes')
-}
-
-/** Resta `meses` a 'AAAA-MM-01' sobre el texto. */
-function restarMeses(ciclo: string, meses: number): string {
-  const m = CICLO_RE.exec(ciclo)
-  if (!m) throw new Error('Ciclo inválido')
-  const total = Number(m[1]) * 12 + (Number(m[2]) - 1) - meses
-  const anio = Math.floor(total / 12)
-  const mes = (total % 12) + 1
-  return `${String(anio).padStart(4, '0')}-${String(mes).padStart(2, '0')}-01`
 }
 
 // ---------------------------------------------------------------------------
@@ -181,36 +168,6 @@ export async function aprobarCiclo(entrada: unknown): Promise<ResultadoPublicida
 // cargarAudienciaYTipoCambio
 // ---------------------------------------------------------------------------
 
-type OcupacionFila = {
-  day: string
-  hero_ocupados: number
-  hero_cupos: number
-  push_cupos_usados: number
-  push_cupos: number
-}
-
-/** Σ ocupados / Σ cupos de las filas del rango [desde, hasta); `null` sin filas o sin cupos. */
-function ocupacionDelMes(filas: OcupacionFila[], desde: string, hasta: string) {
-  let heroOcupados = 0
-  let heroCupos = 0
-  let pushUsados = 0
-  let pushCupos = 0
-  let hay = false
-  for (const f of filas) {
-    if (f.day < desde || f.day >= hasta) continue
-    hay = true
-    heroOcupados += f.hero_ocupados
-    heroCupos += f.hero_cupos
-    pushUsados += f.push_cupos_usados
-    pushCupos += f.push_cupos
-  }
-  if (!hay) return { hero: null, push: null }
-  return {
-    hero: heroCupos > 0 ? heroOcupados / heroCupos : null,
-    push: pushCupos > 0 ? pushUsados / pushCupos : null,
-  }
-}
-
 export type DatosCargaManual = {
   /** Productos que el recálculo trajo pero no tienen fila en `ad_prices` (el admin no puede crearlas). */
   sinFila: string[]
@@ -268,59 +225,19 @@ export async function cargarAudienciaYTipoCambio(entrada: unknown): Promise<Resu
     return { ok: false, error: 'ESTADO', mensaje: 'El ciclo ya no está propuesto: no se puede recalcular.' }
   }
 
-  // 2. El último ciclo aprobado anterior, con sus precios (para el trinquete y la histéresis).
-  const { data: anteriores, error: errorAnterior } = await supabase
-    .from('ad_price_cycles')
-    .select('ciclo, audiencia, tramo_vigente, tramo_calculado, cambio_tramo_desde, factor_hero, factor_push')
-    .in('estado', ['aprobado', 'automatico'])
-    .lt('ciclo', ciclo)
-    .order('ciclo', { ascending: false })
-    .limit(1)
-  if (errorAnterior) return errorDeBase('cargarAudienciaYTipoCambio', errorAnterior.code, MSG_LECTURA)
-
-  let anterior: CicloAnterior | null = null
-  const filaAnterior = anteriores?.[0]
-  if (filaAnterior) {
-    const { data: preciosAnteriores, error: errorPreciosAnt } = await supabase
-      .from('ad_prices')
-      .select('producto, precio_ars, precio_usd, tipo_cambio')
-      .eq('ciclo', filaAnterior.ciclo)
-      .eq('estado', 'aprobado')
-    if (errorPreciosAnt) return errorDeBase('cargarAudienciaYTipoCambio', errorPreciosAnt.code, MSG_LECTURA)
-    const precios: Partial<Record<ProductoConPrecio, PrecioVigente>> = {}
-    for (const p of preciosAnteriores ?? []) {
-      if ((PRODUCTOS_CON_PRECIO as readonly string[]).includes(p.producto)) {
-        precios[p.producto as ProductoConPrecio] = {
-          precioArs: p.precio_ars,
-          precioUsd: p.precio_usd,
-          tipoCambio: p.tipo_cambio,
-        }
-      }
-    }
-    anterior = {
-      ciclo: filaAnterior.ciclo,
-      audiencia: filaAnterior.audiencia,
-      tramoVigente: filaAnterior.tramo_vigente,
-      tramoCalculado: filaAnterior.tramo_calculado,
-      cambioTramoDesde: filaAnterior.cambio_tramo_desde,
-      factorHero: filaAnterior.factor_hero,
-      factorPush: filaAnterior.factor_push,
-      precios,
-    }
+  // 2 y 3. El ciclo anterior (con sus precios aprobados) y la ocupación de los dos
+  // meses previos, con las funciones compartidas y el cliente de la sesión. Tiran
+  // Error: se traduce al mismo DB_ERROR, sin loguear el mensaje crudo.
+  let anterior: CicloAnterior | null
+  let ocupacion: Ocupacion2Meses
+  try {
+    // El cliente de la sesión es un SupabaseClient con otro esquema tipado: conversión acotada.
+    const cliente = supabase as unknown as SupabaseClient
+    anterior = await cargarCicloAnterior(cliente, ciclo)
+    ocupacion = await cargarOcupacion2Meses(cliente, ciclo)
+  } catch {
+    return errorDeBase('cargarAudienciaYTipoCambio', undefined, MSG_LECTURA)
   }
-
-  // 3. La ocupación de los dos meses anteriores: [m-2, m-1) y [m-1, m).
-  const mesM2 = restarMeses(ciclo, 2)
-  const mesM1 = restarMeses(ciclo, 1)
-  const { data: ocupacion, error: errorOcupacion } = await supabase
-    .from('ad_occupancy_daily')
-    .select('day, hero_ocupados, hero_cupos, push_cupos_usados, push_cupos')
-    .gte('day', mesM2)
-    .lt('day', ciclo)
-  if (errorOcupacion) return errorDeBase('cargarAudienciaYTipoCambio', errorOcupacion.code, MSG_LECTURA)
-  const filasOcupacion = ocupacion ?? []
-  const ocM2 = ocupacionDelMes(filasOcupacion, mesM2, mesM1)
-  const ocM1 = ocupacionDelMes(filasOcupacion, mesM1, ciclo)
 
   // 4. El recálculo (la misma cuenta que el cron).
   const propuesta = armarPropuesta({
@@ -331,8 +248,8 @@ export async function cargarAudienciaYTipoCambio(entrada: unknown): Promise<Resu
     fuenteAudiencia: audienciaWeb28d !== undefined ? 'manual' : actual.fuente_audiencia === 'manual' ? 'manual' : 'vercel',
     tipoCambio: tipoCambio ?? actual.tipo_cambio,
     fuenteTipoCambio: tipoCambio !== undefined ? 'manual' : actual.fuente_tipo_cambio,
-    ocupacionHero: [ocM2.hero, ocM1.hero],
-    ocupacionPush: [ocM2.push, ocM1.push],
+    ocupacionHero: ocupacion.hero,
+    ocupacionPush: ocupacion.push,
     anterior,
   })
 

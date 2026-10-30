@@ -219,6 +219,8 @@ function FormularioCargaManual({
             id="tipo-cambio"
             type="text"
             inputMode="decimal"
+            pattern="\s*(([5-9][0-9]{2}|[1-4][0-9]{3})([.,][0-9]+)?|5000([.,]0+)?)\s*"
+            title="Un número entre 500 y 5.000, con coma o punto para los decimales. Por ejemplo: 1250,50"
             value={tipoCambio}
             onChange={(e) => setTipoCambio(e.target.value)}
             disabled={isPending}
