@@ -8,7 +8,8 @@
 // Cuenta). El permiso del sistema SOLO se pide después de un "Sí, avisame"
 // (nunca en frío): con sesión, la función `activar` de usePush lo pide y registra el token; sin
 // sesión, se guarda una bandera y se activa cuando la persona inicia sesión
-// (`InvitacionTrasAccion`). "Ahora no" no pide nada.
+// (`InvitacionTrasAccion`). "Ahora no" no pide nada y no se vuelve a preguntar
+// (R83: la invitación se decide una sola vez; se activa desde Cuenta).
 //
 // R81, 81-c (accesibilidad): el contenido va en un `ScrollView` (con la fuente
 // al 200 % el paso 2 no entra en 360×800 y los botones quedaban tapados); los
@@ -24,12 +25,7 @@ import { marcarBienvenidaVista } from '@/lib/bienvenida'
 import { useColoresQPS } from '@/lib/colores'
 import { activarPreferenciasAlAceptar } from '@/lib/notificaciones'
 import { usePush } from '@/lib/push'
-import {
-  marcarAvisosPendientesLogin,
-  marcarCampaniaHecha,
-  marcarInvitacionVista,
-  posponerCampania,
-} from '@/lib/push/invitacion'
+import { marcarAvisosPendientesLogin, marcarInvitacionVista } from '@/lib/push/invitacion'
 import { useSession } from '@/lib/session'
 
 type Destino = '/' | '/cuenta'
@@ -83,7 +79,6 @@ export default function Bienvenida() {
     setTrabajando(true)
     try {
       // Ya respondió: ni la campaña ni la tarjeta de Inicio la vuelven a pedir.
-      await marcarCampaniaHecha()
       await marcarInvitacionVista()
       if (userId) {
         const resultado = await activar()
@@ -103,8 +98,8 @@ export default function Bienvenida() {
     if (trabajandoRef.current) return
     trabajandoRef.current = true
     setTrabajando(true)
-    // Sin pedir nada; la campaña vuelve a preguntar en 7 días.
-    await posponerCampania()
+    // Sin pedir nada, y no se vuelve a preguntar (se activa desde Cuenta).
+    await marcarInvitacionVista()
     await terminar(adonde)
   }
 
