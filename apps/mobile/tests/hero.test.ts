@@ -19,6 +19,7 @@
 //      accidente. Cada detector exige la presencia concreta de lo bueno Y la
 //      ausencia concreta de lo malo — no solo una de las dos.
 import { readFileSync } from 'node:fs'
+import { quitarComentarios as sinComentarios } from '@qps/core/tests/convencion-entorno'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
@@ -33,40 +34,7 @@ const HERO_PATH = join(MOBILE_ROOT, 'components', 'Hero.tsx')
 // `/* ... */` y comentarios de línea, cuidando no cortar por el `//` de una
 // URL (`https://...`) dentro de un comentario.
 // ---------------------------------------------------------------------------
-function sinComentarios(contenido: string): string {
-  const lineas = contenido.split('\n')
-  const resultado: string[] = []
-  let dentroDeBloque = false
 
-  for (let linea of lineas) {
-    if (dentroDeBloque) {
-      const finBloque = linea.indexOf('*/')
-      if (finBloque === -1) {
-        resultado.push('')
-        continue
-      }
-      linea = linea.slice(finBloque + 2)
-      dentroDeBloque = false
-    }
-
-    const inicioBloque = linea.indexOf('/*')
-    if (inicioBloque !== -1 && linea.indexOf('*/', inicioBloque + 2) === -1) {
-      resultado.push(linea.slice(0, inicioBloque))
-      dentroDeBloque = true
-      continue
-    }
-    if (inicioBloque !== -1) {
-      // Bloque que abre y cierra en la misma línea: se quita solo esa parte.
-      const finMismaLinea = linea.indexOf('*/', inicioBloque + 2)
-      linea = linea.slice(0, inicioBloque) + linea.slice(finMismaLinea + 2)
-    }
-
-    const idxComentarioDeLinea = linea.search(/(^|\s)\/\//)
-    resultado.push(idxComentarioDeLinea === -1 ? linea : linea.slice(0, idxComentarioDeLinea))
-  }
-
-  return resultado.join('\n')
-}
 
 describe('sinComentarios (fixtures en memoria: tiene que sanear de verdad)', () => {
   it('saca un comentario de línea sin tocar el código real de esa línea', () => {

@@ -16,16 +16,12 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
+import { quitarComentarios } from '@qps/core/tests/convencion-entorno'
 
 const MOBILE_ROOT = fileURLToPath(new URL('..', import.meta.url))
 const LAYOUT_PATH = join(MOBILE_ROOT, 'app', '(tabs)', '_layout.tsx')
 const ETIQUETA_PATH = join(MOBILE_ROOT, 'components', 'EtiquetaPestana.tsx')
 
-/** Comentarios de línea y de bloque vaciados, conservando el resto del texto
- * (mismo criterio que `quitarComentarios` de `tests/ficha.test.ts`). */
-function quitarComentarios(content: string): string {
-  return content.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:"'])\/\/.*$/gm, '$1')
-}
 
 describe('quitarComentarios (fixtures en memoria: tiene que sanear de verdad)', () => {
   it('un comentario de línea que menciona tabBarLabelStyle no cuenta como código real', () => {

@@ -25,6 +25,7 @@
 // `tests/scripts-fuera-del-bundle.test.ts`: cada detector trae la suya, no
 // se comparte).
 import { readFileSync } from 'node:fs'
+import { quitarComentarios } from '@qps/core/tests/convencion-entorno'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
@@ -32,39 +33,6 @@ import { hitSlopPara, TARJETA_GAP_ACCIONES, TARJETA_TAMANIO_ACCION } from '../li
 import { valorDeClaveDeEstilo } from './a11y/hitslop-medidas'
 
 const MOBILE_ROOT = fileURLToPath(new URL('..', import.meta.url))
-
-/** Recorte de comentarios línea por línea (mismo criterio que
- * `tests/dimensions.test.ts`/`tests/scripts-fuera-del-bundle.test.ts`): un
- * comentario de bloque deja la línea en blanco mientras dura, uno de línea
- * corta desde el `//`. */
-function quitarComentarios(content: string): string {
-  const lineasDeTexto = content.split('\n')
-  const resultado: string[] = []
-  let dentroDeBloqueComentario = false
-
-  for (let linea of lineasDeTexto) {
-    if (dentroDeBloqueComentario) {
-      const finBloque = linea.indexOf('*/')
-      if (finBloque === -1) {
-        resultado.push('')
-        continue
-      }
-      linea = linea.slice(finBloque + 2)
-      dentroDeBloqueComentario = false
-    }
-
-    const inicioBloque = linea.indexOf('/*')
-    if (inicioBloque !== -1 && linea.indexOf('*/', inicioBloque + 2) === -1) {
-      linea = linea.slice(0, inicioBloque)
-      dentroDeBloqueComentario = true
-    }
-
-    const idxComentarioDeLinea = linea.search(/(^|\s)\/\//)
-    resultado.push(idxComentarioDeLinea === -1 ? linea : linea.slice(0, idxComentarioDeLinea))
-  }
-
-  return resultado.join('\n')
-}
 
 /** Mismo criterio que `hitSlopBotonAccion` que escriben, IDÉNTICO,
  * `components/BotonFavorito.tsx` y `components/BotonCompartir.tsx` (no

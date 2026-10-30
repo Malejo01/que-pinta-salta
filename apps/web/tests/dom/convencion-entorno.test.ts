@@ -27,20 +27,28 @@
  * NO lleva la directiva de entorno (ver la excepción de más abajo, y el
  * último `describe`, que comprueba que sigue sin llevarla).
  */
-import { readFileSync, readdirSync, statSync } from 'node:fs'
+import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 
-// La lógica del detector (buscar la directiva, quitar comentarios) vive en un
-// helper compartido, solo para tests, con el gemelo de apps/mobile (R64).
+// La lógica del detector (buscar la directiva, quitar comentarios, fixtures y recorrido)
+// vive en un helper compartido, solo para tests, con el gemelo de apps/mobile (R64 / QPS-319).
 import {
   ENVIRONMENT_NODE,
+  FIXTURE_COMENTARIO_BLOQUE_CON_DIRECTIVA,
+  FIXTURE_CONFIG_BUENA,
+  FIXTURE_CONFIG_FALSA_BLOQUE,
+  FIXTURE_CONFIG_FALSA_COMENTARIO,
+  FIXTURE_LINEA_OCHO_CON_DIRECTIVA,
+  FIXTURE_PRIMERA_LINEA_CON_DIRECTIVA,
+  FIXTURE_SIN_DIRECTIVA,
   PALABRA_DIRECTIVA,
   buscarDirectiva,
   configTieneEnvironmentNode,
   esValidoFueraDeTestsDom,
   esValidoParaTestsDom,
+  listarArchivosRecursivo,
   quitarComentarios,
 } from '@qps/core/tests/convencion-entorno'
 
@@ -53,34 +61,8 @@ const RUTA_ESTE_ARCHIVO = 'tests/dom/convencion-entorno.test.ts'
 /** El módulo de ayuda de los tests con DOM: no termina en .test.ts. */
 const RUTA_PREPARAR_DOM = 'tests/dom/preparar-dom.ts'
 
-/**
- * Recorre un directorio recursivamente y devuelve las rutas relativas (con
- * "/") a baseAbsoluta.
- *
- * SIN `try/catch`: si `readdirSync` falla, tiene que explotar. La primera
- * versión se tragaba el error y devolvía `[]`, y eso es justo lo que un
- * detector no puede hacer — una subcarpeta ilegible dejaba sus archivos
- * afuera del barrido y las Reglas 1 y 2 pasaban en verde sin haberlos
- * mirado. Con el error arriba, la rotura es ruidosa. (Lo encontró el revisor
- * de la R61.)
- */
-function listarArchivosRecursivo(dirAbsoluto: string, baseAbsoluta: string): string[] {
-  const entradas = readdirSync(dirAbsoluto)
-  const resultado: string[] = []
-  for (const entrada of entradas) {
-    const rutaAbsoluta = join(dirAbsoluto, entrada)
-    const info = statSync(rutaAbsoluta)
-    if (info.isDirectory()) {
-      resultado.push(...listarArchivosRecursivo(rutaAbsoluta, baseAbsoluta))
-    } else if (info.isFile()) {
-      resultado.push(relative(baseAbsoluta, rutaAbsoluta).split('\\').join('/'))
-    }
-  }
-  return resultado
-}
-
 // Rutas relativas a apps/web, ej. "tests/dom/entorno.test.ts".
-const ARCHIVOS_DE_TESTS = listarArchivosRecursivo(TESTS_DIR, APPS_WEB_ROOT)
+const ARCHIVOS_DE_TESTS = listarArchivosRecursivo(TESTS_DIR, APPS_WEB_ROOT, { readdirSync, statSync, join, relative })
 const ARCHIVOS_FUERA_DE_DOM = ARCHIVOS_DE_TESTS.filter((f) => !f.startsWith('tests/dom/'))
 const ARCHIVOS_DE_DOM = ARCHIVOS_DE_TESTS.filter((f) => f.startsWith('tests/dom/'))
 
@@ -95,11 +77,6 @@ const EXCEPCIONES_SIN_DIRECTIVA_EN_DOM = new Map<string, string>([
 // el resto de los chequeos pasaría en verde sin haber mirado nada.
 // ---------------------------------------------------------------------------
 describe('sanidad del recorrido', () => {
-  // El umbral va pegado al número real (222 archivos al escribir esto) y no
-  // 200: con un margen de 22 archivos, una subcarpeta chica que se cayera del
-  // barrido no bajaba el conteo por debajo del umbral y nadie se enteraba.
-  // Si la suite crece y esto molesta, se sube el número; lo que no se hace es
-  // agrandar el margen. (Lo encontró el revisor de la R61.)
   it('recorrió al menos 215 archivos fuera de tests/dom/', () => {
     expect(ARCHIVOS_FUERA_DE_DOM.length).toBeGreaterThanOrEqual(215)
   })
@@ -183,16 +160,6 @@ describe('Las excepciones de la Regla 2 siguen siendo ciertas', () => {
 // Regla 3: apps/web/vitest.config.ts sigue en 'node'. Si alguien lo pasa a
 // 'jsdom', los 222+ archivos que hoy corren en node cambiarían de entorno en
 // silencio (y, de paso, dejarían de hacer falta las directivas de arriba).
-//
-// Cómo falla de verdad esa rotura, corrida y verificada (R61, lead): al pasar
-// el `environment` global a 'jsdom', este archivo NO llega a correr la Regla
-// 3 — falla antes, al cargar, con `TypeError: The URL must be of scheme file`
-// en el `fileURLToPath(import.meta.url)` de la línea 36, que es el MISMO
-// error que puso en rojo a `password-input.test.ts`. O sea: la rotura es
-// ruidosa (es lo que importa), pero el mensaje que se ve no es el de acá
-// abajo. Si algún día hay que mejorar eso, el camino es que la Regla 3 no
-// dependa de `import.meta.url`; mientras tanto queda escrito para que nadie
-// pierda el tiempo buscando un bug de rutas que no existe.
 // ---------------------------------------------------------------------------
 describe("Regla 3: apps/web/vitest.config.ts sigue con environment: 'node'", () => {
   it("el environment configurado es 'node', leído SIN los comentarios del archivo", () => {
@@ -200,33 +167,19 @@ describe("Regla 3: apps/web/vitest.config.ts sigue con environment: 'node'", () 
     expect(configTieneEnvironmentNode(contenido)).toBe(true)
   })
 
-  // Por qué se quitan los comentarios, y por qué esto es un caso y no una
-  // nota: la primera versión hacía el `toMatch` sobre TODO el texto del
-  // archivo. O sea que si alguien pasaba el `environment` a 'jsdom' y dejaba
-  // dando vueltas un comentario que mencionara `environment: 'node'` —el
-  // comentario que explica la convención es justamente el candidato— la
-  // Regla 3 seguía en verde. Es la MISMA familia de bug que este archivo
-  // existe para cazar, y el detector no se cubría a sí mismo. Lo encontró el
-  // revisor de la R61.
   it('un archivo con el environment en jsdom y un comentario que menciona "node" NO pasa la Regla 3', () => {
-    const configFalsa = [
-      "// ojo: antes esto era environment: 'node', se cambió en la R999",
-      'export default defineConfig({',
-      '  test: {',
-      "    environment: 'jsdom',",
-      '  },',
-      '})',
-    ].join('\n')
+    expect(FIXTURE_CONFIG_FALSA_COMENTARIO).toMatch(ENVIRONMENT_NODE)
+    expect(quitarComentarios(FIXTURE_CONFIG_FALSA_COMENTARIO)).not.toMatch(ENVIRONMENT_NODE)
+  })
 
-    // Sobre el texto crudo pasaría (el comentario la salva): eso era el bug.
-    expect(configFalsa).toMatch(ENVIRONMENT_NODE)
-    // Sin los comentarios, no pasa.
-    expect(quitarComentarios(configFalsa)).not.toMatch(ENVIRONMENT_NODE)
+  it('un comentario de bloque que empieza a mitad de línea tampoco la salva (lo que el filtro por línea dejaba pasar)', () => {
+    expect(FIXTURE_CONFIG_FALSA_BLOQUE).toMatch(ENVIRONMENT_NODE)
+    expect(quitarComentarios(FIXTURE_CONFIG_FALSA_BLOQUE)).not.toMatch(ENVIRONMENT_NODE)
+    expect(configTieneEnvironmentNode(FIXTURE_CONFIG_FALSA_BLOQUE)).toBe(false)
   })
 
   it('un archivo con el environment en node de verdad SÍ pasa la Regla 3 (el caso seguro, para que el chequeo no sea imposible)', () => {
-    const configBuena = ['export default defineConfig({', '  test: {', "    environment: 'node',", '  },', '})'].join('\n')
-    expect(quitarComentarios(configBuena)).toMatch(ENVIRONMENT_NODE)
+    expect(quitarComentarios(FIXTURE_CONFIG_BUENA)).toMatch(ENVIRONMENT_NODE)
   })
 })
 
@@ -263,30 +216,24 @@ describe('El patrón armado en tiempo de ejecución es el que Vitest usa de verd
 // archivos), armado también en pedazos para no reproducir el literal acá.
 // ---------------------------------------------------------------------------
 describe('El detector funciona sobre fixtures en memoria antes de aplicarse al repo', () => {
-  const comentarioDeBloqueConDirectiva = `/* ${PALABRA_DIRECTIVA} jsdom */\nconst x = 1\n`
-  const primeraLineaConDirectiva = `// ${PALABRA_DIRECTIVA} jsdom\nimport { describe } from 'vitest'\n`
-  const lineaOchoConDirectiva =
-    '// línea 1\n// línea 2\n// línea 3\n// línea 4\n// línea 5\n// línea 6\n// línea 7\n' + `// ${PALABRA_DIRECTIVA} jsdom\n`
-  const sinDirectivaNinguna = '// un comentario cualquiera, sin ninguna directiva\nconst x = 1\n'
-
   it('un comentario de BLOQUE (/* ... */) que la menciona: el detector la encuentra, igual que Vitest', () => {
-    expect(buscarDirectiva(comentarioDeBloqueConDirectiva)).toEqual({ valor: 'jsdom', linea: 1 })
+    expect(buscarDirectiva(FIXTURE_COMENTARIO_BLOQUE_CON_DIRECTIVA)).toEqual({ valor: 'jsdom', linea: 1 })
   })
 
   it('en la primera línea: válido para tests/dom/, e inválido fuera de tests/dom/', () => {
-    expect(esValidoParaTestsDom(primeraLineaConDirectiva)).toBe(true)
-    expect(esValidoFueraDeTestsDom(primeraLineaConDirectiva)).toBe(false)
+    expect(esValidoParaTestsDom(FIXTURE_PRIMERA_LINEA_CON_DIRECTIVA)).toBe(true)
+    expect(esValidoFueraDeTestsDom(FIXTURE_PRIMERA_LINEA_CON_DIRECTIVA)).toBe(false)
   })
 
   it('en la línea 8 (no la primera): inválido para tests/dom/, aunque la directiva esté presente', () => {
-    const hallazgo = buscarDirectiva(lineaOchoConDirectiva)
+    const hallazgo = buscarDirectiva(FIXTURE_LINEA_OCHO_CON_DIRECTIVA)
     expect(hallazgo?.linea).toBe(8)
-    expect(esValidoParaTestsDom(lineaOchoConDirectiva)).toBe(false)
+    expect(esValidoParaTestsDom(FIXTURE_LINEA_OCHO_CON_DIRECTIVA)).toBe(false)
   })
 
   it('sin ninguna directiva: inválido para tests/dom/, válido fuera de tests/dom/', () => {
-    expect(buscarDirectiva(sinDirectivaNinguna)).toBeNull()
-    expect(esValidoParaTestsDom(sinDirectivaNinguna)).toBe(false)
-    expect(esValidoFueraDeTestsDom(sinDirectivaNinguna)).toBe(true)
+    expect(buscarDirectiva(FIXTURE_SIN_DIRECTIVA)).toBeNull()
+    expect(esValidoParaTestsDom(FIXTURE_SIN_DIRECTIVA)).toBe(false)
+    expect(esValidoFueraDeTestsDom(FIXTURE_SIN_DIRECTIVA)).toBe(true)
   })
 })

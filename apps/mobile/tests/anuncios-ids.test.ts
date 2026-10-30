@@ -4,6 +4,7 @@
 // estilo de barrido que `tests/dimensions.test.ts`: recorte de comentarios,
 // archivo + línea en cada hallazgo).
 import { readFileSync, readdirSync, statSync } from 'node:fs'
+import { quitarComentarios } from '@qps/core/tests/convencion-entorno'
 import { join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
@@ -198,71 +199,7 @@ function listarTsxYTs(root: string): string[] {
   return out
 }
 
-/**
- * Mismo recorte línea por línea que `tests/dimensions.test.ts`: un
- * comentario de bloque deja la línea en blanco mientras dura, uno de línea
- * corta desde el `//`. El NÚMERO de línea del resultado es el mismo que en
- * el original.
- *
- * Vuelta 1 de revisión (hallazgo del revisor): a diferencia de la versión
- * copiada de `tests/dimensions.test.ts`/`tests/accesibilidad-detector.test.ts`,
- * ACÁ se resuelve primero cuál de los dos aparece antes en lo que queda de
- * la línea, `//` o `/*` — si el `//` va primero (o no hay ningún `/*` en la
- * línea), se recorta ahí y NUNCA se evalúa la apertura de un bloque. Esto es
- * lo que evita que un comentario de línea que por casualidad contiene la
- * secuencia `/*` (un glob como `lib/**`, `components/*`, o un `/*` suelto
- * mencionado dentro de un `//`) se confunda con la apertura de un bloque de
- * comentario sin cierre, que blanquearía todo el resto del archivo (el bug
- * real que tuvo este mismo archivo contra `components/BannerAnuncio.tsx` en
- * la vuelta anterior). Los tres fixtures de abajo ("ver lib/** para más
- * detalle", "ver components/* para más detalle", "un /* no es un bloque
- * real acá") fallarían con la versión vieja (sin este reordenamiento).
- *
- * LÍMITE QUE SIGUE IGUAL (heredado, no es parte de este arreglo): un bloque
- * de comentario que abre Y cierra en la MISMA línea sigue sin stripearse
- * como tal (mismo límite que `tests/dimensions.test.ts`) — no es el bug de
- * este hallazgo, que es específicamente sobre una apertura sin cierre que
- * en realidad estaba dentro de un `//`.
- */
-function quitarComentarios(content: string): string {
-  const lineasDeTexto = content.split('\n')
-  const resultado: string[] = []
-  let dentroDeBloqueComentario = false
 
-  for (let linea of lineasDeTexto) {
-    if (dentroDeBloqueComentario) {
-      const finBloque = linea.indexOf('*/')
-      if (finBloque === -1) {
-        resultado.push('')
-        continue
-      }
-      linea = linea.slice(finBloque + 2)
-      dentroDeBloqueComentario = false
-    }
-
-    const matchLineaDeTexto = linea.match(/(^|\s)\/\//)
-    const idxSlashSlash = matchLineaDeTexto ? linea.indexOf('//', matchLineaDeTexto.index) : -1
-    const idxBloque = linea.indexOf('/*')
-
-    // Solo se evalúa la apertura de un bloque si el `/*` aparece ANTES que
-    // el `//` (o no hay ningún `//` en la línea): si el `//` va primero, lo
-    // que sigue —incluido cualquier `/*`— ya es parte del comentario de
-    // línea, no la apertura de un bloque nuevo.
-    if (idxBloque !== -1 && (idxSlashSlash === -1 || idxBloque < idxSlashSlash)) {
-      if (linea.indexOf('*/', idxBloque + 2) === -1) {
-        resultado.push(linea.slice(0, idxBloque))
-        dentroDeBloqueComentario = true
-        continue
-      }
-      // Bloque que abre y cierra en la misma línea: límite heredado, ver el
-      // docstring — cae al recorte de `//` de abajo, sin stripear el bloque.
-    }
-
-    resultado.push(idxSlashSlash === -1 ? linea : linea.slice(0, idxSlashSlash))
-  }
-
-  return resultado.join('\n')
-}
 
 /**
  * Las líneas (1-based), fuera de comentarios, donde `content` importa o

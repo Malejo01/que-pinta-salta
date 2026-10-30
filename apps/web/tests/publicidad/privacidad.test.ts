@@ -12,6 +12,7 @@
  * Sin red ni base. Ids, tokens y títulos inventados.
  */
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
+import { quitarComentarios as sinComentarios } from '@qps/core/tests/convencion-entorno'
 import { fileURLToPath } from 'node:url'
 import { renderToStaticMarkup } from 'react-dom/server'
 import type { SupabaseClient } from '@supabase/supabase-js'
@@ -71,11 +72,6 @@ const ARCHIVOS_PUBLICIDAD = readdirSync(`${APP}${DIR_PUBLICIDAD}`)
   .filter((f) => f.endsWith('.ts'))
   .map((f) => `${DIR_PUBLICIDAD}/${f}`)
 const ARCHIVOS_DEL_CRON = [...ARCHIVOS_PUBLICIDAD, RUTA_CRON]
-
-/** Sin comentarios (un `//` solo cuenta si va al principio o después de un espacio: no corta las URL de las cadenas). */
-function sinComentarios(texto: string): string {
-  return texto.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|\s)\/\/.*$/gm, '$1')
-}
 
 /** El texto entre el paréntesis (o llave) que abre en `indice` y el que lo cierra. */
 function balanceado(texto: string, indice: number): string {

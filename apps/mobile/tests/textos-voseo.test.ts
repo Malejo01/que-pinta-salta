@@ -12,6 +12,7 @@
 // su propia versión de "sacar los comentarios"): la función de abajo es una
 // copia, no un import.
 import { readFileSync, readdirSync, statSync } from 'node:fs'
+import { quitarComentarios as sinComentarios } from '@qps/core/tests/convencion-entorno'
 import { join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
@@ -111,42 +112,8 @@ export const EXCEPCIONES_VOSEO: ReadonlyArray<{ archivo: string; linea: number; 
  * palabra (sin espacio) — ver el canal B más abajo. */
 const ATRIBUTOS_PROSA = ['accessibilityLabel', 'accessibilityHint', 'placeholder', 'label', 'title']
 
-// ---------------------------------------------------------------------------
-// Saneado de comentarios: copia de `quitarComentarios` de
-// `tests/accesibilidad-detector.test.ts` (que a su vez documenta que es "el
-// mismo criterio que `tests/colores-texto.test.ts`"). Blanquea el contenido
-// de cada comentario SIN sacar los saltos de línea: el número de línea de
-// cualquier índice del resultado es el mismo que en el original.
-// ---------------------------------------------------------------------------
 
-function sinComentarios(content: string): string {
-  const lineasDeTexto = content.split('\n')
-  const resultado: string[] = []
-  let dentroDeBloqueComentario = false
 
-  for (let linea of lineasDeTexto) {
-    if (dentroDeBloqueComentario) {
-      const finBloque = linea.indexOf('*/')
-      if (finBloque === -1) {
-        resultado.push('')
-        continue
-      }
-      linea = linea.slice(finBloque + 2)
-      dentroDeBloqueComentario = false
-    }
-
-    const inicioBloque = linea.indexOf('/*')
-    if (inicioBloque !== -1 && linea.indexOf('*/', inicioBloque + 2) === -1) {
-      linea = linea.slice(0, inicioBloque)
-      dentroDeBloqueComentario = true
-    }
-
-    const idxComentarioDeLinea = linea.search(/(^|\s)\/\//)
-    resultado.push(idxComentarioDeLinea === -1 ? linea : linea.slice(0, idxComentarioDeLinea))
-  }
-
-  return resultado.join('\n')
-}
 
 /** Línea (1-based) de un índice de `content`. */
 function lineaDe(content: string, index: number): number {

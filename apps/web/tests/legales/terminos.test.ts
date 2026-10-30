@@ -7,6 +7,7 @@
  * mockean para que no exploten al renderizar en Node puro.
  */
 import { readFileSync } from "node:fs"
+import { quitarComentarios as sinComentarios } from '@qps/core/tests/convencion-entorno'
 import path from "node:path"
 import { fileURLToPath } from "node:url"
 
@@ -25,11 +26,6 @@ const WEB_ROOT = fileURLToPath(new URL("../../", import.meta.url))
 
 function readSource(relativePath: string): string {
   return readFileSync(path.join(WEB_ROOT, relativePath), "utf8")
-}
-
-/** Fuente sin comentarios de bloque ni de línea (los comentarios pueden nombrar lo que ya no existe). */
-function sinComentarios(source: string): string {
-  return source.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:])\/\/.*$/gm, "$1")
 }
 
 const fuente = readSource("app/terminos/page.tsx")

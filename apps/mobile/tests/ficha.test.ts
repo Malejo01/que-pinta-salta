@@ -15,15 +15,12 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
+import { quitarComentarios } from '@qps/core/tests/convencion-entorno'
 
 const MOBILE_ROOT = fileURLToPath(new URL('..', import.meta.url))
 const FICHA_PATH = join(MOBILE_ROOT, 'app', 'evento', '[id].tsx')
 const BOTON_FAVORITO_PATH = join(MOBILE_ROOT, 'components', 'BotonFavorito.tsx')
 
-/** Comentarios de línea y de bloque vaciados, conservando el resto del texto (mismo criterio que tests/asistencia-umbral.test.ts). */
-function quitarComentarios(content: string): string {
-  return content.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:"'])\/\/.*$/gm, '$1')
-}
 
 describe('app/evento/[id].tsx: el orden de la ficha (ops/paridad-web-app.md §3.4, decisión 2; R47 QPS-197)', () => {
   const content = quitarComentarios(readFileSync(FICHA_PATH, 'utf8'))

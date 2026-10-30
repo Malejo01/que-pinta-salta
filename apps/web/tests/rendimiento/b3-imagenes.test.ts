@@ -17,6 +17,7 @@
  * `remotePatterns`.
  */
 import { readFileSync, statSync } from 'node:fs'
+import { quitarComentarios as sinComentarios } from '@qps/core/tests/convencion-entorno'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -40,11 +41,6 @@ const WEB_ROOT = fileURLToPath(new URL('../../', import.meta.url))
 
 function readSource(relativePath: string): string {
   return readFileSync(path.join(WEB_ROOT, relativePath), 'utf8')
-}
-
-/** Fuente sin comentarios (los comentarios nombran `priority` para explicar por qué se fue). */
-function sinComentarios(source: string): string {
-  return source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1')
 }
 
 function evento(overrides: Partial<DisplayEvent> = {}): DisplayEvent {

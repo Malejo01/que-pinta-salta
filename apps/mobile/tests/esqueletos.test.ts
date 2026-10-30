@@ -16,6 +16,7 @@
 // QPS-250: este archivo no importa nada de otro `*.test.ts`; `quitarComentarios`
 // es una copia de la de `tests/estado-carga-detector.test.ts`.
 import { readFileSync } from 'node:fs'
+import { quitarComentarios } from '@qps/core/tests/convencion-entorno'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
@@ -32,37 +33,7 @@ const MOBILE_ROOT = fileURLToPath(new URL('..', import.meta.url))
 
 /** `content` sin comentarios (de línea y de bloque, incluidos los `{/* … *\/}`
  * de JSX), conservando la cantidad de líneas. */
-function quitarComentarios(content: string): string {
-  const lineasDeTexto = content.split('\n')
-  const resultado: string[] = []
-  let dentroDeBloqueComentario = false
 
-  for (let linea of lineasDeTexto) {
-    if (dentroDeBloqueComentario) {
-      const finBloque = linea.indexOf('*/')
-      if (finBloque === -1) {
-        resultado.push('')
-        continue
-      }
-      linea = linea.slice(finBloque + 2)
-      dentroDeBloqueComentario = false
-    }
-
-    // Bloques que abren y cierran en la misma línea.
-    linea = linea.replace(/\/\*.*?\*\//g, '')
-
-    const inicioBloque = linea.indexOf('/*')
-    if (inicioBloque !== -1) {
-      linea = linea.slice(0, inicioBloque)
-      dentroDeBloqueComentario = true
-    }
-
-    const idxComentarioDeLinea = linea.search(/(^|\s)\/\//)
-    resultado.push(idxComentarioDeLinea === -1 ? linea : linea.slice(0, idxComentarioDeLinea))
-  }
-
-  return resultado.join('\n')
-}
 
 function leer(ruta: string): string {
   return readFileSync(join(MOBILE_ROOT, ruta), 'utf8')

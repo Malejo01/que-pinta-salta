@@ -25,6 +25,7 @@
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { quitarComentarios as stripComments } from '@qps/core/tests/convencion-entorno'
 import type { SupabaseClient } from '@supabase/supabase-js'
 
 // ---------------------------------------------------------------------------
@@ -133,16 +134,6 @@ const ROUTES = [
   ['generar.ts (recurrentes: peñas y museos)', GENERAR_PATH],
 ] as const
 
-/**
- * Saca comentarios de línea y de bloque antes de matchear: una guarda buena
- * dejada COMENTADA al lado de una rota no puede contar como si protegiera la
- * llamada real (vuelta 1 ya vista en tests/scraper/cines-alias-detector.test.ts
- * y tests/scraper/ingesta-imagenes-rutas.test.ts). No toca "//" dentro de un
- * string precedido por ":" (URLs como "https://...").
- */
-function stripComments(content: string): string {
-  return content.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:"'])\/\/.*$/gm, '$1')
-}
 
 function readSource(path: string): string {
   try {

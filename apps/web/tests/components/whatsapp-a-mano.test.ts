@@ -4,6 +4,7 @@
 // .html de lib/scraper/debug-* quedan afuera solos por extensión (capturas viejas, QPS-006, no
 // código). Sin red ni base: la verificación es sobre el código fuente del repo.
 import { readdirSync, readFileSync, statSync } from 'node:fs'
+import { quitarComentarios as sinComentarios } from '@qps/core/tests/convencion-entorno'
 import { join, relative, sep } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
@@ -18,9 +19,7 @@ const PATRONES_WHATSAPP = ['api.whatsapp.com', 'wa.me/', 'whatsapp://']
  * quedaría recortado como si fuera un comentario, y el detector se quedaría ciego justo en el
  * código que tiene que poder seguir viendo.
  */
-function sinComentarios(code: string): string {
-  return code.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/(?<!:)\/\/.*$/gm, ' ')
-}
+
 
 /**
  * Sin comillas (simples, dobles ni backtick) ni "+" de concatenación (con los espacios que lo

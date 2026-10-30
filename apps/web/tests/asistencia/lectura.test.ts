@@ -21,6 +21,7 @@
  *     llama a `auth.getUser`.
  */
 import { readFileSync } from 'node:fs'
+import { quitarComentarios } from '@qps/core/tests/convencion-entorno'
 import { fileURLToPath } from 'node:url'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -217,11 +218,6 @@ describe('leerAsistencia: falla aislada de user_favorites', () => {
 // el código ya roto — es un error que ya pasó dos veces en esta ronda.
 // ===========================================================================
 const WEB_ROOT = fileURLToPath(new URL('../../', import.meta.url))
-
-/** Comentarios de línea y de bloque (incluidos los JSDoc) vaciados. */
-function quitarComentarios(contenido: string): string {
-  return contenido.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:"'])\/\/.*$/gm, '$1')
-}
 
 describe('detector estático (sin comentarios): quitarComentarios de verdad vacía los JSDoc y los // de línea', () => {
   it('un bloque /** ... */ desaparece', () => {

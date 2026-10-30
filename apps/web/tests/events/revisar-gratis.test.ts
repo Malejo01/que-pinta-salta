@@ -1,4 +1,5 @@
 import { existsSync, readFileSync, readdirSync } from 'node:fs'
+import { quitarComentarios as sinComentarios } from '@qps/core/tests/convencion-entorno'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import {
@@ -186,9 +187,7 @@ const REPO_ROOT = fileURLToPath(new URL('../../../../', import.meta.url))
 const SCRIPT = readFileSync(`${WEB_ROOT}scripts/revisar-gratis.ts`, 'utf8')
 
 /** Quita comentarios de bloque y de línea para analizar solo el código. */
-function sinComentarios(texto: string): string {
-  return texto.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:"'])\/\/.*$/gm, '$1')
-}
+
 
 describe('scripts/revisar-gratis.ts', () => {
   const codigo = sinComentarios(SCRIPT)

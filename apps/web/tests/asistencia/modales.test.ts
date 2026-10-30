@@ -19,6 +19,7 @@
  * `debenMostrarseBotonesAsistencia(...)`.
  */
 import { readFileSync } from 'node:fs'
+import { quitarComentarios as sinComentarios } from '@qps/core/tests/convencion-entorno'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it, vi } from 'vitest'
 import { es } from '@/lib/i18n/diccionarios/es'
@@ -38,11 +39,6 @@ const WEB_ROOT = fileURLToPath(new URL('../../', import.meta.url))
 
 function leer(ruta: string): string {
   return readFileSync(`${WEB_ROOT}/${ruta}`, 'utf8')
-}
-
-/** Comentarios de línea y de bloque (también los de JSX) vaciados. */
-function sinComentarios(content: string): string {
-  return content.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:"'])\/\/.*$/gm, '$1')
 }
 
 /**

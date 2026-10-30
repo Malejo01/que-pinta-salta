@@ -17,6 +17,7 @@
 // (mensajes y textos secundarios que casi no se ven), no los bordes o
 // fondos, que no tienen ese problema.
 import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { quitarComentarios } from '@qps/core/tests/convencion-entorno'
 import { tmpdir } from 'node:os'
 import { join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -80,39 +81,6 @@ describe('listarTsxYTs: recursión y extensiones (fixture sintética, 33-q)', ()
     expect(encontrados.length).toBe(4)
   })
 })
-
-/** Mismo stripper de comentarios que `tests/base-visual.test.ts` (línea por
- * línea, con comentarios de una línea y de bloque) — evitamos que un
- * comentario que menciona el patrón ("antes usaba colors.border...") cuente
- * como uso real. */
-function quitarComentarios(content: string): string {
-  const lineasDeTexto = content.split('\n')
-  const resultado: string[] = []
-  let dentroDeBloqueComentario = false
-
-  for (let linea of lineasDeTexto) {
-    if (dentroDeBloqueComentario) {
-      const finBloque = linea.indexOf('*/')
-      if (finBloque === -1) {
-        resultado.push('')
-        continue
-      }
-      linea = linea.slice(finBloque + 2)
-      dentroDeBloqueComentario = false
-    }
-
-    const inicioBloque = linea.indexOf('/*')
-    if (inicioBloque !== -1 && linea.indexOf('*/', inicioBloque + 2) === -1) {
-      linea = linea.slice(0, inicioBloque)
-      dentroDeBloqueComentario = true
-    }
-
-    const idxComentarioDeLinea = linea.search(/(^|\s)\/\//)
-    resultado.push(idxComentarioDeLinea === -1 ? linea : linea.slice(0, idxComentarioDeLinea))
-  }
-
-  return resultado.join('\n')
-}
 
 /** `true` si `content` usa `color: colors.border` o `color: colores.border`
  * (el token de borde, como color de *texto*), fuera de comentarios. No

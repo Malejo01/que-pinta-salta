@@ -51,6 +51,7 @@
  * barridos incluye `tests/`, así que el barrido nunca se lee a sí mismo.
  */
 import { existsSync, readFileSync, readdirSync } from 'node:fs'
+import { quitarComentarios } from '@qps/core/tests/convencion-entorno'
 import path, { relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
@@ -220,11 +221,6 @@ describe('ninguna ruta de apps/web/app/api/ dispara el script de geocodificació
 // REGLA 2 — sin autocompletar: ningún archivo "use client" importa el
 // cliente de Nominatim.
 // ===========================================================================
-
-/** Comentarios de línea y de bloque vaciados, conservando el resto del texto. */
-function quitarComentarios(contenido: string): string {
-  return contenido.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:"'])\/\/.*$/gm, '$1')
-}
 
 /**
  * `true` si, ignorando comentarios y líneas en blanco del comienzo, la

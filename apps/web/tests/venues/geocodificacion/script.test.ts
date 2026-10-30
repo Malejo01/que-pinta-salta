@@ -35,16 +35,12 @@
  *     número y se pierda.
  */
 import { readFileSync } from 'node:fs'
+import { quitarComentarios } from '@qps/core/tests/convencion-entorno'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 
 const RUTA_SCRIPT = fileURLToPath(new URL('../../../scripts/geocodificar-lugares.ts', import.meta.url))
 const CONTENIDO_CRUDO = readFileSync(RUTA_SCRIPT, 'utf8')
-
-/** Comentarios de línea y de bloque vaciados, conservando el resto del texto (igual que use-server.test.ts). */
-function quitarComentarios(contenido: string): string {
-  return contenido.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:"'])\/\/.*$/gm, '$1')
-}
 
 const CONTENIDO = quitarComentarios(CONTENIDO_CRUDO)
 

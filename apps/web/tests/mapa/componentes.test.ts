@@ -7,6 +7,7 @@
  * clase o la palabra no hace pasar ni fallar un test.
  */
 import { readdirSync, readFileSync, statSync } from 'node:fs'
+import { quitarComentarios as sinComentarios } from '@qps/core/tests/convencion-entorno'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
@@ -26,9 +27,7 @@ const NUEVOS = [MAPLIBRE, DIFERIDO, LISTA, FILTROS, CONTENIDO, PAGINA, LOADING]
 const CLIENTE = [CONTENIDO, DIFERIDO, MAPLIBRE]
 
 /** El código sin comentarios de bloque ni de línea completa. */
-export function sinComentarios(fuente: string): string {
-  return fuente.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^[^\S\n]*\/\/.*$/gm, '')
-}
+
 
 function leer(relativa: string): string {
   return sinComentarios(readFileSync(path.join(WEB_ROOT, relativa), 'utf8'))

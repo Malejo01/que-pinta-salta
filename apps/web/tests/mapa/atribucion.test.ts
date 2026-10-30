@@ -7,6 +7,7 @@
  * Sin red ni base; entorno `node`.
  */
 import { readdirSync, readFileSync } from 'node:fs'
+import { quitarComentarios as sinComentarios } from '@qps/core/tests/convencion-entorno'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -14,9 +15,7 @@ import { describe, expect, it } from 'vitest'
 
 const WEB_ROOT = path.resolve(fileURLToPath(new URL('../../', import.meta.url)))
 
-function sinComentarios(fuente: string): string {
-  return fuente.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^[^\S\n]*\/\/.*$/gm, '')
-}
+
 
 // ---------------------------------------------------------------------------
 // Detectores (puros: reciben el texto)
