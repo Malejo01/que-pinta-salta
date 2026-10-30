@@ -96,7 +96,10 @@ describe('textosDe y nombreCategoria', () => {
   function slugsReales(): string[] {
     const fuente = readFileSync(join(__dirname, '..', '..', 'lib', 'ai', 'types.ts'), 'utf8')
     const inicio = fuente.indexOf('export type GeminiCategorySlug')
-    const bloque = fuente.slice(inicio, fuente.indexOf('\n\n', inicio))
+    // El bloque termina en la primera línea en blanco (con LF o CRLF, según el checkout);
+    // si no, se cuelan los `'update' | 'skip'` de AIProcessingResult, que no son categorías.
+    const fin = fuente.slice(inicio).search(/\r?\n\r?\n/)
+    const bloque = fuente.slice(inicio, fin === -1 ? undefined : inicio + fin)
     return [...bloque.matchAll(/\|\s*'([a-z]+)'/g)].map((m) => m[1])
   }
 

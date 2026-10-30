@@ -11,7 +11,8 @@ import { estiloSegunTema } from "@qps/core/mapa/estilos"
 import type { PropsMapaPin } from "@/components/admin/lugar-mapa-ubicar"
 import { TEXTOS_ES } from "./textos-maplibre"
 
-// El segundo (y último) archivo del sitio que importa `maplibre-gl` y su CSS.
+// El segundo mapa del sitio que importa `maplibre-gl` y su CSS (el tercer
+// archivo que nombra el paquete es `maplibre-worker.ts`).
 // Solo se carga con `import()` desde `components/admin/lugar-mapa-ubicar.tsx`.
 //
 // Mismo estilo que `/mapa` (OpenFreeMap según el tema). La atribución del

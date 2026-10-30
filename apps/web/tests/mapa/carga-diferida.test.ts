@@ -428,7 +428,7 @@ describe('MapLibre en dos archivos y solo con import() desde sus cargadores', ()
     const diferido = sinComentarios(readFileSync(path.join(WEB_ROOT, 'components/mapa/mapa-diferido.tsx'), 'utf8'))
     expect(diferido).toMatch(/import\(\s*["']\.\/maplibre-worker["']\s*\)/)
     // R76: el pin de /admin/lugares fija la URL del worker con un import sin
-    // `from` (propuesta del #123); lo carga lugar-mapa-ubicar con import().
+    // `from` (propuesta del #123); lugar-mapa-ubicar carga el pin con import().
     expect(nombran).toContain(ARCHIVO_PIN)
   })
 

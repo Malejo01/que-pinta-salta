@@ -51,9 +51,9 @@ vi.mock('next/font/google', () => {
   return { Montserrat: font, Yellowtail: font, Poppins: font }
 })
 
-import HomePage from '@/app/page'
+import { PaginaPortada } from '@/components/portada/pagina-portada'
 import EventPage from '@/app/evento/[id]/page'
-import CinesPage from '@/app/cines/page'
+import { PaginaCines } from '@/components/cines/pagina-cines'
 import { metadata as layoutMetadata } from '@/app/layout'
 import {
   SITE_NAME,
@@ -270,7 +270,7 @@ describe('eventosParaListaDeLaPortada', () => {
 describe('portada: JSON-LD en el HTML', () => {
   it('un @graph con Organization, WebSite (con SearchAction) e ItemList de fichas absolutas', async () => {
     getEvents.mockResolvedValue([evento(2), evento(1, { title: 'Peña </script> rara' })])
-    const html = renderToStaticMarkup(await HomePage())
+    const html = renderToStaticMarkup(await PaginaPortada({ idioma: 'es' }))
     const bloques = bloquesJsonLd(html)
     expect(bloques).toHaveLength(1)
     expect(bloques[0]['@context']).toBe('https://schema.org')
@@ -295,8 +295,13 @@ describe('portada: JSON-LD en el HTML', () => {
 
   it('sin eventos no publica el ItemList (pero sí Organization y WebSite)', async () => {
     getEvents.mockResolvedValue([])
-    const todos = nodos(bloquesJsonLd(renderToStaticMarkup(await HomePage())))
+    const todos = nodos(bloquesJsonLd(renderToStaticMarkup(await PaginaPortada({ idioma: 'es' }))))
     expect(todos.map((n) => n['@type']).sort()).toEqual(['Organization', 'WebSite'])
+  })
+
+  it('en inglés (/en) no sale JSON-LD: el WebSite y las URLs son de la versión en castellano', async () => {
+    getEvents.mockResolvedValue([evento(1)])
+    expect(bloquesJsonLd(renderToStaticMarkup(await PaginaPortada({ idioma: 'en' })))).toEqual([])
   })
 })
 
@@ -368,7 +373,7 @@ describe('/cines: JSON-LD en el HTML', () => {
 
   it('ItemList de Movie con nombre, afiche absoluto y el ancla de su tarjeta; sin las que no tienen afiche', async () => {
     peliculas = PELICULAS
-    const todos = nodos(bloquesJsonLd(renderToStaticMarkup(await CinesPage())))
+    const todos = nodos(bloquesJsonLd(renderToStaticMarkup(await PaginaCines({ idioma: 'es' }))))
     const [lista] = deTipo(todos, 'ItemList')
     expect(lista['@context']).toBe('https://schema.org')
     expect(lista.numberOfItems).toBe(2)
@@ -405,7 +410,7 @@ describe('/cines: JSON-LD en el HTML', () => {
     for (const id of ids) expect(id).toMatch(/^[a-z][a-z0-9-]*$/)
 
     peliculas = PELICULAS
-    const [lista] = deTipo(nodos(bloquesJsonLd(renderToStaticMarkup(await CinesPage()))), 'ItemList')
+    const [lista] = deTipo(nodos(bloquesJsonLd(renderToStaticMarkup(await PaginaCines({ idioma: 'es' })))), 'ItemList')
     for (const el of lista.itemListElement as { item: { url: string } }[]) {
       expect(ids).toContain(new URL(el.item.url).hash.slice(1))
     }
@@ -418,8 +423,13 @@ describe('/cines: JSON-LD en el HTML', () => {
 
   it('sin películas con afiche no hay JSON-LD', async () => {
     peliculas = [PELICULAS[1], PELICULAS[2]]
-    expect(bloquesJsonLd(renderToStaticMarkup(await CinesPage()))).toEqual([])
+    expect(bloquesJsonLd(renderToStaticMarkup(await PaginaCines({ idioma: 'es' })))).toEqual([])
     peliculas = []
-    expect(bloquesJsonLd(renderToStaticMarkup(await CinesPage()))).toEqual([])
+    expect(bloquesJsonLd(renderToStaticMarkup(await PaginaCines({ idioma: 'es' })))).toEqual([])
+  })
+
+  it('en inglés (/en/cines) no sale JSON-LD: las URLs de las películas son anclas de /cines', async () => {
+    peliculas = PELICULAS
+    expect(bloquesJsonLd(renderToStaticMarkup(await PaginaCines({ idioma: 'en' })))).toEqual([])
   })
 })

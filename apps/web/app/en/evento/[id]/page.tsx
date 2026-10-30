@@ -8,6 +8,8 @@ import EventPage from "@/app/evento/[id]/page"
 import { getEventById } from "@/lib/data"
 import { idiomasAlternos } from "@/lib/i18n/seo"
 import { rutaEn, separarIdioma } from "@/lib/i18n/rutas"
+import { descripcionParaMeta } from "@/lib/seo/descripcion"
+import { SITE_NAME, SITE_URL, tituloConMarca } from "@/lib/seo/sitio"
 
 interface EventPageEnProps {
   params: Promise<{ id: string }>
@@ -29,9 +31,14 @@ export async function generateMetadata({ params }: EventPageEnProps): Promise<Me
     }
   }
 
-  const title = `${event.title} - Que pinta Salta`
+  // Igual que la ficha en castellano (B2): el `title` va sin marca porque la
+  // plantilla del layout ya la agrega; Open Graph y Twitter llevan la marca a mano.
+  const title = event.title
+  const socialTitle = tituloConMarca(event.title)
   const description =
-    event.short_description || event.description?.substring(0, 160) || `Discover ${event.title} in Salta, Argentina.`
+    descripcionParaMeta(event.short_description) ??
+    descripcionParaMeta(event.description) ??
+    `Discover ${event.title} in Salta, Argentina.`
   const imageUrl = event.image_url || "/og-image.png"
 
   return {
@@ -40,12 +47,13 @@ export async function generateMetadata({ params }: EventPageEnProps): Promise<Me
     // Canónica sin ?o= (el origen de la métrica), igual que en castellano.
     alternates: { canonical: `/en/evento/${id}`, languages: idiomasAlternos(`/evento/${id}`) },
     openGraph: {
-      title,
+      title: socialTitle,
       description,
       type: "article",
+      siteName: SITE_NAME,
       locale: "en_US",
       alternateLocale: ["es_AR"],
-      url: `https://www.quepintasalta.com.ar/en/evento/${id}`,
+      url: `${SITE_URL}/en/evento/${id}`,
       images: [
         {
           url: imageUrl,
@@ -55,7 +63,7 @@ export async function generateMetadata({ params }: EventPageEnProps): Promise<Me
     },
     twitter: {
       card: "summary_large_image",
-      title,
+      title: socialTitle,
       description,
       images: [imageUrl],
     },
