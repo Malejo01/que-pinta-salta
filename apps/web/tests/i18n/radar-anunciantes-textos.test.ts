@@ -132,7 +132,8 @@ describe('anunciantes.productos', () => {
   })
 
   it.each(idsTarifario)('%s: nombre y «qué incluye» no vacíos, en inglés y distintos del castellano', (id) => {
-    const textoEn = en.anunciantes.productos[id]
+    const productosEn: Record<string, { nombre: string; queIncluye: string }> = en.anunciantes.productos
+    const textoEn = productosEn[id]
     const textoEs = es.anunciantes.productos[id]
     expect(textoEn.nombre.trim().length).toBeGreaterThan(0)
     expect(textoEn.queIncluye.trim().length).toBeGreaterThan(0)
