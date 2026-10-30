@@ -141,6 +141,9 @@ vi.mock('@/components/TarjetaPelicula', () => ({ TarjetaPelicula: nulo }))
 vi.mock('@/components/AvisoSinConexion', () => ({ AvisoSinConexion: nulo }))
 vi.mock('@/components/AvisoActivarPush', () => ({ AvisoActivarPush: nulo }))
 vi.mock('@/components/ChipsCategorias', () => ({ ChipsCategorias: nulo }))
+// R81, 81-a: la cabecera de Inicio es el botón «Filtros» y la hoja (un `Modal`
+// + safe-area, que el doble de react-native no trae); acá no se miden.
+vi.mock('@/components/HojaFiltros', () => ({ BotonFiltros: nulo, ChipsRemovibles: nulo, HojaFiltros: nulo }))
 vi.mock('@/components/EstadoCarga', () => ({ Cargando: nulo, ErrorCarga: nulo, Vacio: nulo }))
 vi.mock('@/components/PillsAtajos', () => ({
   PillsAtajos: ({ onCambiar }: { onCambiar: (atajo: string | null) => void }) => {

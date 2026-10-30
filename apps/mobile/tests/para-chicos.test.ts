@@ -871,29 +871,31 @@ describe('components/ChipParaChicos.tsx', () => {
 })
 
 /**
- * Ronda de correcciones de A3: "Gratis" y "Para chicos" en una fila PROPIA,
- * fija y sin scroll, primera de la cabecera fija de la portada; después la
- * fila con scroll de "Todas" + categorías (sin filtros adentro) y al final las
- * pills de fecha.
+ * Ronda de correcciones de A3, vigente desde R81 (81-a): "Gratis" y "Para
+ * chicos" van en una fila PROPIA, sin scroll y con wrap, pero ahora dentro de
+ * la hoja de filtros (`components/HojaFiltros.tsx`), primeros de la hoja;
+ * después la grilla de categorías. La cabecera fija de la portada ya no
+ * tiene ninguno de los tres (es una sola fila: botón «Filtros» + pills).
  */
-function violacionesCabeceraFiltros(portadaCruda: string, chipsCrudo: string): string[] {
-  const c = quitarComentarios(portadaCruda)
+function violacionesCabeceraFiltros(portadaCruda: string, hojaCruda: string, chipsCrudo: string): string[] {
+  const p = quitarComentarios(portadaCruda)
+  const c = quitarComentarios(hojaCruda)
   const v: string[] = []
-  const ini = c.indexOf('<View style={[estilos.cabecera,')
   const fila = /<View style=\{estilos\.filaFiltros\}>([\s\S]*?)<\/View>/.exec(c)
   if (!fila) return ['no hay una fila filaFiltros']
-  if (!/^\s*<ChipGratis activo=\{gratis\} onCambiar=\{cambiarGratis\} \/>\s*<ChipParaChicos activo=\{paraChicos\} onCambiar=\{cambiarParaChicos\} \/>\s*$/.test(fila[1])) {
+  if (!/^\s*<ChipGratis activo=\{gratis\} onCambiar=\{onCambiarGratis\} \/>\s*<ChipParaChicos activo=\{paraChicos\} onCambiar=\{onCambiarParaChicos\} \/>\s*$/.test(fila[1])) {
     v.push('la fila de filtros no es Gratis y después Para chicos (y nada más)')
   }
   if (/ScrollView/.test(fila[1])) v.push('la fila de filtros tiene scroll')
+  // Primero los dos filtros, después las categorías (con wrap).
   const posFila = fila.index
   const posChips = c.indexOf('<ChipsCategorias')
-  const posPills = c.indexOf('<PillsAtajos')
-  if (!(ini >= 0 && ini < posFila && posFila < posChips && posChips < posPills)) v.push('el orden de la cabecera no es filtros, categorías, fecha')
-  // Primer hijo de la cabecera, sin condición: siempre se puede apagar un filtro.
-  if (!/<View style=\{\[estilos\.cabecera,[^\n]*\]\}>\s*<View style=\{estilos\.filaFiltros\}>/.test(c)) v.push('la fila de filtros no es el primer hijo (sin condición) de la cabecera')
+  if (!(posFila >= 0 && posFila < posChips)) v.push('el orden de la hoja no es filtros, categorías')
+  if (!/<ChipsCategorias\b[^>]*\benvolver\b/.test(c)) v.push('las categorías de la hoja no van con wrap (envolver)')
   const estilo = /\bfilaFiltros:\s*\{([^}]*)\}/.exec(c)?.[1] ?? ''
   if (!/flexDirection:\s*'row'/.test(estilo) || !/flexWrap:\s*'wrap'/.test(estilo) || numero(estilo, 'gap') !== 8) v.push("filaFiltros no es row + wrap + gap 8")
+  // La cabecera fija de la portada no dibuja ninguno de los tres.
+  if (/<ChipGratis\b|<ChipParaChicos\b|<ChipsCategorias\b/.test(p)) v.push('la cabecera de la portada dibuja un chip de filtro (tiene que ir en la hoja)')
   // La fila con scroll ya no tiene filtros.
   const chips = quitarComentarios(chipsCrudo)
   if (/\bChipParaChicos\b|\bChipGratis\b/.test(chips)) v.push('un chip de filtro sigue dentro de ChipsCategorias')
@@ -902,12 +904,13 @@ function violacionesCabeceraFiltros(portadaCruda: string, chipsCrudo: string): s
   return v
 }
 
-describe('la cabecera de la portada: la fila fija de filtros', () => {
+describe('la hoja de filtros: la fila de Gratis y Para chicos', () => {
   const portada = leer('../app/(tabs)/index.tsx')
+  const hoja = leer('../components/HojaFiltros.tsx')
   const chips = leer('../components/ChipsCategorias.tsx')
 
   it('el fuente real no tiene violaciones', () => {
-    expect(violacionesCabeceraFiltros(portada, chips)).toEqual([])
+    expect(violacionesCabeceraFiltros(portada, hoja, chips)).toEqual([])
   })
 
   it.each([
@@ -916,19 +919,25 @@ describe('la cabecera de la portada: la fila fija de filtros', () => {
       'Para chicos antes de Gratis',
       (p: string) =>
         p.replace(
-          '<ChipGratis activo={gratis} onCambiar={cambiarGratis} />\n              <ChipParaChicos activo={paraChicos} onCambiar={cambiarParaChicos} />',
-          '<ChipParaChicos activo={paraChicos} onCambiar={cambiarParaChicos} />\n              <ChipGratis activo={gratis} onCambiar={cambiarGratis} />',
+          '<ChipGratis activo={gratis} onCambiar={onCambiarGratis} />\n              <ChipParaChicos activo={paraChicos} onCambiar={onCambiarParaChicos} />',
+          '<ChipParaChicos activo={paraChicos} onCambiar={onCambiarParaChicos} />\n              <ChipGratis activo={gratis} onCambiar={onCambiarGratis} />',
         ),
       'la fila de filtros no es Gratis y después Para chicos (y nada más)',
     ],
-    ['sin Para chicos', (p: string) => p.replace('<ChipParaChicos activo={paraChicos} onCambiar={cambiarParaChicos} />', ''), 'la fila de filtros no es Gratis y después Para chicos (y nada más)'],
+    ['sin Para chicos', (p: string) => p.replace('<ChipParaChicos activo={paraChicos} onCambiar={onCambiarParaChicos} />', ''), 'la fila de filtros no es Gratis y después Para chicos (y nada más)'],
     ['con scroll', (p: string) => p.replace('<View style={estilos.filaFiltros}>', '<View style={estilos.filaFiltros}><ScrollView horizontal />'), 'la fila de filtros tiene scroll'],
-    ['condicional', (p: string) => p.replace('<View style={estilos.filaFiltros}>', '{modoGrilla ? null : null}<View style={estilos.filaFiltros}>'), 'la fila de filtros no es el primer hijo (sin condición) de la cabecera'],
-    ['sin wrap', (p: string) => p.replace("filaFiltros: { flexDirection: 'row', flexWrap: 'wrap', gap: 8,", "filaFiltros: { flexDirection: 'row', gap: 8,"), 'filaFiltros no es row + wrap + gap 8'],
-  ])('rotura en memoria (portada): %s -> detectada', (_n, romper, esperada) => {
-    const roto = romper(portada)
+    ['sin wrap', (p: string) => p.replace("filaFiltros: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 }", "filaFiltros: { flexDirection: 'row', gap: 8 }"), 'filaFiltros no es row + wrap + gap 8'],
+    ['categorías sin wrap', (p: string) => p.replace(' envolver />', ' />'), 'las categorías de la hoja no van con wrap (envolver)'],
+  ])('rotura en memoria (hoja): %s -> detectada', (_n, romper, esperada) => {
+    const roto = romper(hoja)
+    expect(roto).not.toBe(hoja)
+    expect(violacionesCabeceraFiltros(portada, roto, chips)).toContain(esperada)
+  })
+
+  it('rotura en memoria (portada): un chip de filtro de vuelta en la cabecera -> detectada', () => {
+    const roto = portada.replace('<View style={estilos.filaCabecera}>', '<View style={estilos.filaCabecera}><ChipGratis activo={gratis} onCambiar={cambiarGratis} />')
     expect(roto).not.toBe(portada)
-    expect(violacionesCabeceraFiltros(roto, chips)).toContain(esperada)
+    expect(violacionesCabeceraFiltros(roto, hoja, chips)).toContain('la cabecera de la portada dibuja un chip de filtro (tiene que ir en la hoja)')
   })
 
   it.each([
@@ -937,7 +946,7 @@ describe('la cabecera de la portada: la fila fija de filtros', () => {
   ])('rotura en memoria (ChipsCategorias): %s -> detectada', (_n, romper, esperada) => {
     const roto = romper(chips)
     expect(roto).not.toBe(chips)
-    expect(violacionesCabeceraFiltros(portada, roto)).toContain(esperada)
+    expect(violacionesCabeceraFiltros(portada, hoja, roto)).toContain(esperada)
   })
 
   it('Buscar no le pasa nada nuevo a ChipsCategorias (tiene sus propios chips al lado de "Solo gratis")', () => {
@@ -953,7 +962,8 @@ function violacionesPortada(fuenteCruda: string): string[] {
   const c = quitarComentarios(fuenteCruda)
   const v: string[] = []
   if (!/const \[paraChicos, setParaChicos\] = useState\(false\)/.test(c)) v.push('Para chicos no arranca apagado')
-  if (!/<ChipParaChicos activo=\{paraChicos\} onCambiar=\{cambiarParaChicos\} \/>/.test(c)) v.push('el chip no recibe activo={paraChicos} onCambiar={cambiarParaChicos}')
+  // R81, 81-a: el chip vive en la hoja de filtros; la portada le pasa el estado y el cambiador a la hoja.
+  if (!/<HojaFiltros\b[^>]*\bparaChicos=\{paraChicos\}[^>]*\bonCambiarParaChicos=\{cambiarParaChicos\}/.test(c)) v.push('el chip no recibe activo={paraChicos} onCambiar={cambiarParaChicos}')
 
   const handler = /const cambiarParaChicos = useCallback\(\(nuevo: boolean\) => \{([\s\S]*?)\}, \[\]\)/.exec(c)
   if (!handler) v.push('no existe el handler cambiarParaChicos')
@@ -1025,7 +1035,7 @@ describe('app/(tabs)/index.tsx: el modo "Para chicos"', () => {
 
   it.each([
     ['arranca prendido', (s: string) => s.replace('const [paraChicos, setParaChicos] = useState(false)', 'const [paraChicos, setParaChicos] = useState(true)'), 'Para chicos no arranca apagado'],
-    ['chip con el estado de Gratis', (s: string) => s.replace('<ChipParaChicos activo={paraChicos}', '<ChipParaChicos activo={gratis}'), 'el chip no recibe activo={paraChicos} onCambiar={cambiarParaChicos}'],
+    ['chip con el estado de Gratis', (s: string) => s.replace('paraChicos={paraChicos}\n          categoria', 'paraChicos={gratis}\n          categoria'), 'el chip no recibe activo={paraChicos} onCambiar={cambiarParaChicos}'],
     ['sin scroll arriba', (s: string) => s.replace(/(const cambiarParaChicos[\s\S]*?)scrollRef\.current\?\.scrollTo\(\{ y: 0, animated: false \}\)/, '$1void 0'), 'cambiarParaChicos no vuelve el scroll arriba'],
     ['modo grilla sin Para chicos', (s: string) => s.replace('const modoGrilla = enModoGrilla({ categoria, gratis, paraChicos })', 'const modoGrilla = enModoGrilla({ categoria, gratis })'), 'modoGrilla no cuenta Para chicos'],
     ['grilla sin Para chicos', (s: string) => s.replace('{ atajo, categoria, gratis, paraChicos }, ahora)', '{ atajo, categoria, gratis }, ahora)'), 'la grilla no filtra con Para chicos'],

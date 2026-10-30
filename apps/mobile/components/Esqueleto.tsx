@@ -167,8 +167,8 @@ export function PantallaEsqueleto({ children, style }: { children: ReactNode; st
 }
 
 // ---------------------------------------------------------------------------
-// Inicio (`app/(tabs)/index.tsx`): cabecera fija (chips de
-// `ChipsCategorias` arriba, pills de `PillsAtajos` debajo) → Hero (~60 % del
+// Inicio (`app/(tabs)/index.tsx`): cabecera fija de una sola fila (botón
+// «Filtros» + pills de `PillsAtajos`, R81, 81-a) → Hero (~60 % del
 // alto de la ventana, `altoHero` de `components/Hero.tsx`) → dos filas tipo
 // `FilaCategoria` (encabezado con ícono, título, contador y "Ver todos";
 // tarjetas de 180×270, gap 20, padding 16).
@@ -178,6 +178,8 @@ export function PantallaEsqueleto({ children, style }: { children: ReactNode; st
 const ANCHOS_CHIPS = [84, 108, 96, 120, 92, 104]
 /** Anchos aproximados de las pills (Hoy · Esta noche · Finde · Semana). */
 const ANCHOS_PILLS_INICIO = [62, 110, 74, 88]
+/** Ancho aproximado del botón «Filtros» (ícono + «Filtros · 2»). */
+const ANCHO_BOTON_FILTROS = 110
 const ANCHO_TARJETA_FILA = 180
 const ALTO_TARJETA_FILA = 270
 const SEPARACION_TARJETAS_FILA = 20
@@ -239,10 +241,18 @@ export function EsqueletoPortada() {
 
   return (
     <PantallaEsqueleto>
-      {/* Cabecera fija de la R67 (67-b): ≈125 dp, igual que la real. */}
+      {/* Cabecera fija (R81, 81-a): UNA fila de ≈69 dp, igual que la real: el
+          botón «Filtros» y las pills de fecha a su lado. */}
       <View style={[estilos.cabeceraPortada, { borderBottomColor: colores.border }]}>
-        <FilaQueAsoma ancho={ancho} anchos={ANCHOS_CHIPS} alto={48} radio={999} separacion={SEPARACION_CHIPS} style={estilos.filaChips} />
-        <FilaQueAsoma ancho={ancho} anchos={ANCHOS_PILLS_INICIO} alto={44} radio={20} separacion={SEPARACION_CHIPS} style={estilos.filaPills} />
+        <Bloque ancho={ANCHO_BOTON_FILTROS} alto={48} radio={999} style={estilos.botonFiltros} />
+        <FilaQueAsoma
+          ancho={ancho - ANCHO_BOTON_FILTROS - MARGEN_LATERAL}
+          anchos={ANCHOS_PILLS_INICIO}
+          alto={44}
+          radio={20}
+          separacion={SEPARACION_CHIPS}
+          style={estilos.filaPills}
+        />
       </View>
 
       {/* Hero: a sangre, mismo alto que el real; adentro, el badge, el título
@@ -436,9 +446,9 @@ const estilos = StyleSheet.create({
   // Inicio. Cabecera: 8 de aire + 60 de chips (48 + 12 abajo) + 56 de pills
   // (12 + 44 + 12, − 12 del `pillsBajoChips` de la portada) + 1 de borde =
   // 125 dp.
-  cabeceraPortada: { paddingTop: 8, borderBottomWidth: 1 },
-  filaChips: { paddingBottom: 12 },
-  filaPills: { paddingVertical: 12, marginTop: -12 },
+  cabeceraPortada: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1 },
+  botonFiltros: { marginLeft: MARGEN_LATERAL },
+  filaPills: { flex: 1 },
   hero: { width: '100%', justifyContent: 'flex-end', padding: 12, gap: 6 },
   botonHero: { marginTop: 4 },
   filaCategoria: { paddingTop: 20 },
