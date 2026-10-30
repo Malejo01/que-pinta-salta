@@ -203,7 +203,8 @@ describe('QPS-262 (c): una caché con forma inválida se trata como "no hay cach
 
     const resultado = await cargarFavoritosConCache(USER_ID_UUID_INVENTADO, { obtener: sinConexion, ahora: AHORA, almacen })
 
-    expect(resultado).toEqual({ tipo: 'error', error: RAZON })
+    // A6 (nube Q1), a propósito: falló por red y no había nada guardado que sirviera → `sinConexion: true` en la rama de error.
+    expect(resultado).toEqual({ tipo: 'error', error: RAZON, sinConexion: true })
   })
 
   it.each(invalidas)('leerFavoritosGuardados con %s: da null, no tira', async (_nombre, datos) => {
@@ -279,7 +280,13 @@ describe('QPS-262 (d): recortarFavoritosParaCache', () => {
 describe('QPS-262 (e): app/(tabs)/favoritos.tsx, los dos caminos sin sesión pasan voy: cache.voy (detector estático)', () => {
   const MOBILE_ROOT = fileURLToPath(new URL('..', import.meta.url))
   const contenido = readFileSync(join(MOBILE_ROOT, 'app', '(tabs)', 'favoritos.tsx'), 'utf8')
-  const SIN_SESION = /\{\s*tipo:\s*'ok',\s*voy:\s*cache\.voy,\s*eventos:\s*cache\.eventos,\s*desdeCache:\s*\{\s*guardadoEn:\s*cache\.guardadoEn\s*\}\s*\}/g
+  // A6 (nube Q1, ronda de correcciones), a propósito: después de `desdeCache`
+  // los dos caminos suman `seOcultaronPasados: cache.seOcultaronPasados` (la
+  // marca de que al mostrar la copia se sacaron eventos que ya pasaron). La
+  // regex lo acepta, y lo exige igual en los dos: lo que protege este test
+  // (voy + eventos + guardadoEn de la copia) no cambia.
+  const SIN_SESION =
+    /\{\s*tipo:\s*'ok',\s*voy:\s*cache\.voy,\s*eventos:\s*cache\.eventos,\s*desdeCache:\s*\{\s*guardadoEn:\s*cache\.guardadoEn\s*\},\s*seOcultaronPasados:\s*cache\.seOcultaronPasados,?\s*\}/g
 
   it('hay exactamente dos llamadas a leerFavoritosGuardados() (el useFocusEffect y refrescar)', () => {
     expect(contenido.match(/await leerFavoritosGuardados\(\)/g)?.length).toBe(2)

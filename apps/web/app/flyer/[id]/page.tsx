@@ -9,6 +9,8 @@ import { FavoriteButton } from "@/components/favorite-button"
 import { FlyerImage } from "@/components/flyer-image"
 import { createClient } from "@/lib/supabase/server"
 import Link from "next/link"
+import { descripcionParaMeta } from "@/lib/seo/descripcion"
+import { SITE_NAME, SITE_URL, tituloConMarca } from "@/lib/seo/sitio"
 import type { Metadata } from "next"
 
 interface FlyerPageProps {
@@ -22,10 +24,13 @@ export async function generateMetadata({ params }: FlyerPageProps): Promise<Meta
   if (!flyer) return { title: "Flyer no encontrado" }
 
   const venueName = flyer.venue_name || flyer.account.default_venue_name || flyer.account.display_name
-  const title = `Flyer de ${venueName} - Qué Pinta Salta`
-  const description = flyer.caption
-    ? flyer.caption.substring(0, 160)
-    : `Flyer y novedades de ${flyer.account.display_name} en Salta.`
+  // B2: sin marca en `title` (la agrega la plantilla del layout); con marca
+  // en Open Graph y Twitter, que no pasan por la plantilla.
+  const title = `Flyer de ${venueName}`
+  const socialTitle = tituloConMarca(title)
+  // El caption de Instagram sin emojis ni saltos y cortado en palabra.
+  const description =
+    descripcionParaMeta(flyer.caption) ?? `Flyer y novedades de ${flyer.account.display_name} en Salta.`
   const imageUrl = flyer.storage_image_url || flyer.original_image_url || '/og-image.png'
 
   return {
@@ -33,10 +38,14 @@ export async function generateMetadata({ params }: FlyerPageProps): Promise<Meta
     description,
     alternates: { canonical: `/flyer/${id}` },
     openGraph: {
-      title,
+      title: socialTitle,
       description,
       type: 'article',
-      url: `https://www.quepintasalta.com.ar/flyer/${id}`,
+      url: `${SITE_URL}/flyer/${id}`,
+      // El bloque de la página reemplaza al del layout entero: sin esto se
+      // perdían og:site_name y og:locale (B2).
+      siteName: SITE_NAME,
+      locale: 'es_AR',
       images: [
         {
           url: imageUrl,
@@ -46,7 +55,7 @@ export async function generateMetadata({ params }: FlyerPageProps): Promise<Meta
     },
     twitter: {
       card: 'summary_large_image',
-      title,
+      title: socialTitle,
       description,
       images: [imageUrl],
     },

@@ -7,6 +7,10 @@ import { formatSaltaClock, formatSaltaDayKey } from '@/lib/date-format'
 import { traerTodasLasFilas } from '@/lib/images/paginar-filas'
 import { urlBuscarEnOsm, urlVerEnOsm } from '@/lib/venues/coordenadas-manuales'
 import { LugarUbicacionForm } from '@/components/admin/lugar-ubicacion-form'
+import { LugarMapaUbicar } from '@/components/admin/lugar-mapa-ubicar'
+import { isUuid } from '@/lib/metricas'
+import { direccionUtil } from '@/lib/venues/geocodificacion/consultas'
+import { proximaFuentePorLugar, type FilaFuente } from '@/lib/admin/fuente-lugar'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 
 export const dynamic = 'force-dynamic'
@@ -60,7 +64,7 @@ function formatGeocodedAt(iso: string): string {
 export default async function AdminLugaresPage({
   searchParams,
 }: {
-  searchParams: Promise<{ ver?: string }>
+  searchParams: Promise<{ ver?: string; ubicar?: string }>
 }) {
   const supabase = await createClient()
 
@@ -100,10 +104,10 @@ export default async function AdminLugaresPage({
         .order('id')
         .range(desde, hasta)
     ),
-    traerTodasLasFilas<{ venue_id: string | null }>((desde, hasta) =>
+    traerTodasLasFilas<FilaFuente>((desde, hasta) =>
       supabase
         .from('events')
-        .select('venue_id')
+        .select('venue_id, start_date, ticket_url')
         .eq('status', 'PUBLISHED')
         .gte('start_date', saltaStartOfDayISO())
         .order('id')
@@ -117,6 +121,8 @@ export default async function AdminLugaresPage({
     conteoPorVenue.set(fila.venue_id, (conteoPorVenue.get(fila.venue_id) ?? 0) + 1)
   }
 
+  const fuentePorVenue = proximaFuentePorLugar(eventRows)
+
   const porPestaña: Record<Pestaña, VenueFila[]> = {
     'sin-ubicacion': venues.filter((v) => perteneceA(v, 'sin-ubicacion')),
     'para-revisar': venues.filter((v) => perteneceA(v, 'para-revisar')),
@@ -128,6 +134,9 @@ export default async function AdminLugaresPage({
     if (diff !== 0) return diff
     return a.name.localeCompare(b.name, 'es')
   })
+
+  // Un lugar a la vez: `?ubicar=<id>` abre el mapa solo si es un uuid de la lista de la pestaña.
+  const ubicarId = isUuid(params?.ubicar) && lugares.some((v) => v.id === params.ubicar) ? params.ubicar : null
 
   return (
     <div className="space-y-6">
@@ -175,6 +184,7 @@ export default async function AdminLugaresPage({
         <div className="space-y-4">
           {lugares.map((venue) => {
             const cantidadEventos = conteoPorVenue.get(venue.id) ?? 0
+            const fuente = fuentePorVenue.get(venue.id) ?? null
             return (
               <Card key={venue.id}>
                 <CardHeader className="pb-2">
@@ -185,7 +195,11 @@ export default async function AdminLugaresPage({
                       {cantidadEventos === 1 ? '' : 's'}
                     </span>
                   </div>
-                  <p className="text-sm text-muted-foreground">{venue.address}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {direccionUtil(venue.address, venue.name)
+                      ? `Dirección de la ingesta: ${venue.address}`
+                      : 'Sin dirección'}
+                  </p>
                 </CardHeader>
                 <CardContent className="flex flex-col gap-3">
                   <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
@@ -218,7 +232,52 @@ export default async function AdminLugaresPage({
                       Buscar en OpenStreetMap
                       <ExternalLink className="size-3" />
                     </a>
+                    {fuente && (
+                      <a
+                        href={fuente.href}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex min-h-11 items-center gap-1 font-medium text-primary hover:underline"
+                      >
+                        Fuente del próximo evento: {fuente.rotulo}
+                        <ExternalLink className="size-3" />
+                      </a>
+                    )}
+                    {/* No hay fusión de lugares en el admin (la de /admin/duplicados es de eventos): por eso es solo el link. */}
+                    <Link
+                      href="/admin/duplicados"
+                      className="inline-flex min-h-11 items-center gap-1 font-medium text-primary hover:underline"
+                    >
+                      Es un duplicado de…
+                    </Link>
+                    {ubicarId === venue.id ? (
+                      <Link
+                        href={`/admin/lugares?ver=${pestañaActual}`}
+                        aria-label={`Cerrar el mapa de ${venue.name}`}
+                        scroll={false}
+                        className="inline-flex min-h-11 items-center gap-1 font-medium text-primary hover:underline"
+                      >
+                        Cerrar mapa
+                      </Link>
+                    ) : (
+                      <Link
+                        href={`/admin/lugares?ver=${pestañaActual}&ubicar=${venue.id}`}
+                        aria-label={`Ubicar ${venue.name} en el mapa`}
+                        scroll={false}
+                        className="inline-flex min-h-11 items-center gap-1 font-medium text-primary hover:underline"
+                      >
+                        Ubicar
+                      </Link>
+                    )}
                   </div>
+                  {ubicarId === venue.id && (
+                    <LugarMapaUbicar
+                      venueId={venue.id}
+                      nombre={venue.name}
+                      latitude={venue.latitude}
+                      longitude={venue.longitude}
+                    />
+                  )}
                   <LugarUbicacionForm venueId={venue.id} />
                 </CardContent>
               </Card>

@@ -1,6 +1,6 @@
 // Buscar (R29, 29-j; ops/paridad-web-app.md §3.5): un solo input ("evento,
-// lugar o descripcion", con lupa y botón para limpiar) + chip "Solo gratis".
-// Sin búsqueda ni filtro, "Explorar por categoria" (grilla de 2 tiles con
+// lugar o descripción", con lupa y botón para limpiar) + chip "Solo gratis".
+// Sin búsqueda ni filtro, "Explorar por categoría" (grilla de 2 tiles con
 // ícono y "N eventos"); con búsqueda, con "Solo gratis" o con `categoria` de
 // la ruta, "N resultados..." y la grilla de 2 de `TarjetaEvento`.
 //
@@ -8,8 +8,11 @@
 // `buscarEventosPorTexto` de `@qps/core/home/busqueda` (nueva, movida desde
 // el `useMemo` que tenía inline `apps/web/app/buscar/buscar-content.tsx`,
 // con un test de equivalencia en `apps/web/tests/core/busqueda.test.ts`):
-// ya no es `filterEvents`/`home/filters.ts` (esa es la de Inicio, que
-// normaliza acentos y no mira la descripción — un criterio distinto).
+// ya no es `filterEvents`/`home/filters.ts` (esa es la de Inicio, que no
+// mira la descripción — un criterio distinto). Las dos ignoran tildes y
+// mayúsculas con `normalizeFilterText` desde QPS-021 (R30): «pena» encuentra
+// «Peña» (A5: corregido, este párrafo decía que solo la de Inicio
+// normalizaba acentos).
 //
 // `categoria` llega por querystring desde "Ver todos" de una fila de la
 // portada (29-h, `/(tabs)/buscar?categoria=<slug>`): mismo patrón
@@ -43,7 +46,7 @@
 // querystring junto con `categoria` y un nonce `v` desde "Ver todos" de la
 // portada (`/buscar?categoria=<slug>&atajo=<atajo>&v=<Date.now()>`), con el
 // mismo patrón comparar-y-ajustar, cuya clave incluye `v`: un toque nuevo vuelve
-// a aplicar categoría y fecha aunque sean iguales a los de antes. Los conteos de la grilla "Explorar por categoria" siguen
+// a aplicar categoría y fecha aunque sean iguales a los de antes. Los conteos de la grilla "Explorar por categoría" siguen
 // siendo sobre todos los eventos. Sin resultados, el vacío ofrece salir de la
 // fecha y/o de la categoría. Buscar sigue sin caché offline.
 //
@@ -65,21 +68,114 @@
 // 200 % la fila de filtros pasa a dos líneas (`flexWrap`) y la cabecera crece
 // ~56 dp: eso solo empuja el banner más abajo, así que la regla (a) y el
 // mínimo de 3 resultados para el anuncio siguen valiendo. La grilla
-// "Explorar por categoria" sigue contando sobre todos los eventos (solo se ve
+// "Explorar por categoría" sigue contando sobre todos los eventos (solo se ve
 // sin ningún filtro, y "Para chicos" es un filtro).
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { FlatList, Pressable, RefreshControl, StyleSheet, View } from 'react-native'
-import { useLocalSearchParams } from 'expo-router'
+//
+// A8 (nube Q1, QPS-339): el conteo de los resultados ("N resultados…", "N
+// eventos…", o el texto del vacío con 0) se anuncia a mano en Android y en iOS
+// con `useAnunciarConteo` (reglas en `lib/anunciar-conteo.ts`;
+// `estadoAnunciableBuscar` arma qué se dice) y ya no es una live region: al
+// pasar de "Explorar por categoría" a resultados la FlatList de resultados se
+// monta nueva y TalkBack no anunciaba su conteo, ni nada cuando el número no
+// cambiaba. Ahora se anuncia al prender un filtro, tocar una categoría o una
+// pill, llegar con `?categoria=` (aunque Buscar se monte recién: antes no había
+// nada y el usuario tocó "Ver todos"), y al volver a "Explorar por categoría".
+// Lo tipeado NO se anuncia en cada tecla: espera `DEMORA_TEXTO_MS` sin teclas
+// nuevas (o al toque si el campo queda vacío, como con "Limpiar búsqueda").
+// Ronda de correcciones de A8: enviar con la tecla del teclado
+// (`onSubmitEditing`, que `CampoTexto` pasa al `TextInput`) sube el nonce
+// `toqueTexto` y se anuncia al toque, sin doble anuncio; A5 usa el mismo
+// nonce al tocar una búsqueda reciente (ver `lib/anunciar-conteo-hook.ts`).
+// La clave del anuncio suma `vParam`: volver desde "Ver todos" con el mismo
+// `?categoria=` (otra `v`) vuelve a anunciar.
+//
+// A5 (nube Q1): búsquedas recientes. Las últimas 5 búsquedas de texto,
+// guardadas solo en el teléfono (`lib/busquedas-recientes.ts`, sobre el
+// `Almacen` de `lib/sin-conexion/almacen.ts`; nunca van al servidor, a
+// métricas ni a Sentry) y dibujadas por `components/BusquedasRecientes.tsx`
+// en la cabecera de «Explorar por categoría» (con el campo vacío y sin
+// filtros, arriba de la grilla: empuja el banner más abajo, nunca lo sube).
+// Tocar una carga su texto en el campo (y la vuelve a poner primera).
+// Cuándo se guarda una búsqueda — nunca en cada tecla ni al salir de la
+// pestaña (vuelta 1: eso guardaba «jaz» a medio escribir): los tres
+// `MotivoGuardado` de `lib/busquedas-recientes.ts`, con la decisión en
+// `busquedaParaGuardar` (pura y testeada):
+//   1. `enviar`: la tecla «Buscar» del teclado (`onSubmitEditing`, con
+//      `returnKeyType="search"`), aunque no dé resultados.
+//   2. `repetir`: tocar una reciente (sube al primer lugar; el anuncio del
+//      conteo va por el nonce `toqueTexto` de A8, no a mano).
+//   3. `abrir-resultado`: abrir una tarjeta de los resultados (`onAbrir` de
+//      `TarjetaEvento`, que se llama justo antes de navegar).
+// Mínimo 2 caracteres, tope de largo y «jaz» que se va cuando llega «jazz»,
+// en el módulo.
+//
+// A7 (nube Q1), rendimiento de las dos grillas: `keyExtractor` por id (de
+// módulo, no una flecha nueva por render), ventana acotada (`VENTANA_*`,
+// abajo) y la celda de resultados como función de módulo. SIN
+// `getItemLayout`, a propósito: el alto de la tarjeta sale del ancho de la
+// pantalla (`aspectRatio: 2/3` sobre media columna) y, sobre todo, la lista
+// arranca con un `ListHeaderComponent` (chips + conteo) cuyo alto depende de
+// la escala de fuente y de si hay chips; un `offset` mal calculado deja al
+// `scrollToIndex` y al recorrido de TalkBack apuntando a la celda equivocada.
+// Los tiles de categoría tampoco: su alto es el de dos renglones de texto.
+// La celda de resultados necesita `onAbrir` de A5 (depende de `texto`), así que
+// se arma con `useCallback` dentro del componente (`dibujarResultado`), estable
+// (`abrirResultado` lee el texto de una ref), y `TarjetaEvento` (memo) también
+// mira `onAbrir`.
+//
+// A6 (nube Q1) · Vacíos y sin conexión. (1) Sin red, el error dice que no hay
+// conexión (`mensajeErrorCarga('buscar', ...)`, `lib/vacios.ts`); con un
+// error del servidor, un texto neutro sin "Revisá tu conexión". (2) Un
+// refresco que falla con resultados a la vista los conserva y avisa
+// (`decidirRefresco` + `AvisoNoSeActualizo`) en vez de cambiarlos por el
+// error. (3) El vacío de resultados nombra "gratis" también con texto
+// (`textoSinResultadosBuscar`) y suma "Limpiar búsqueda" y "Sacar “Solo
+// gratis”" a las dos salidas de la R66, como mucho tres botones a la vez
+// (`MAXIMO_ACCIONES_VACIO`: a 360 dp, con la cabecera fija de ~228 dp, un
+// cuarto ya queda abajo del pliegue). (4) El tile ya no dice "1 eventos"
+// (`textoCantidadEventos`). (5) La grilla de categorías vacía ofrece
+// "Reintentar".
+//
+// Integración (R76) de A6 con A3, A5, A7 y A8:
+//   - Los avisos de A6 (refresco que falla, reintento que vuelve a fallar) van
+//     por `anunciar` (`lib/anunciar.ts`), no por `AccessibilityInfo`. No se
+//     pisan con el conteo de A8: ese anuncia el resultado de filtrar sobre una
+//     lista ya cargada; estos, errores de carga. A6 no anunciaba ningún
+//     conteo ni vacío de resultados, así que no hay anuncio duplicado.
+//   - Las dos `textoSinResultadosBuscar` (A3 en `lib/buscar-filtros.ts`, A6 en
+//     `lib/vacios.ts`) conviven: con texto escrito se usa la de A6 (nombra
+//     "gratis"), importada como `textoSinResultadosConTexto`; sin texto, la de
+//     A3, que da lo mismo que la de A6 más "para chicos".
+//   - "Ver todas las edades" (A3) es la primera salida del vacío; después van
+//     las de A6 y el corte de `MAXIMO_ACCIONES_VACIO` (3) se aplica al final,
+//     así que la de A3 nunca queda afuera.
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { FlatList, Pressable, RefreshControl, StyleSheet, View, type ListRenderItem } from 'react-native'
+import { useFocusEffect, useLocalSearchParams } from 'expo-router'
 import type { Atajo } from '@qps/core/home/atajos'
 import { atajoDesdeParametro, categoriasDisponibles } from '@qps/core/home/filtros-combinados'
+import type { DisplayEvent } from '@qps/core/home/types'
+import { AvisoNoSeActualizo } from '@/components/AvisoSinConexion'
 import { BannerAnuncio } from '@/components/BannerAnuncio'
+import { BusquedasRecientes } from '@/components/BusquedasRecientes'
 import { CampoTexto } from '@/components/CampoTexto'
 import { ChipsCategorias } from '@/components/ChipsCategorias'
-import { Cargando, ErrorCarga, Vacio } from '@/components/EstadoCarga'
+import { EsqueletoBuscar } from '@/components/Esqueleto'
+import { ErrorCarga, Vacio } from '@/components/EstadoCarga'
 import { Icono, iconoPorCategoria } from '@/components/Icono'
 import { PillsAtajos } from '@/components/PillsAtajos'
 import { TarjetaEvento } from '@/components/TarjetaEvento'
 import { Texto } from '@/components/Texto'
+import { anunciar } from '@/lib/anunciar'
+import { estadoAnunciableBuscar } from '@/lib/anunciar-conteo'
+import { useAnunciarConteo } from '@/lib/anunciar-conteo-hook'
+import {
+  borrarHistorialDeBusquedas,
+  busquedaParaGuardar,
+  guardarBusquedaReciente,
+  leerBusquedasRecientes,
+  type MotivoGuardado,
+} from '@/lib/busquedas-recientes'
 import { bordeChipInactivo, useColoresQPS } from '@/lib/colores'
 import { textoResultadosBuscar, textoSinResultadosBuscar } from '@/lib/buscar-filtros'
 import {
@@ -88,7 +184,16 @@ import {
   type CategoriaBasica,
   type EventoVigenteParaInicio,
 } from '@/lib/datos/eventos'
+import { textoCantidadEventos } from '@/lib/formato'
 import { filtrarConPublico, SLUG_INFANTIL, TEXTO_VER_TODAS_LAS_EDADES } from '@/lib/para-chicos'
+import {
+  anuncioDeReintento,
+  decidirRefresco,
+  MAXIMO_ACCIONES_VACIO,
+  mensajeErrorCarga,
+  textoSinResultadosBuscar as textoSinResultadosConTexto,
+  VACIO_CATEGORIAS_BUSCAR,
+} from '@/lib/vacios'
 
 /**
  * Cuántos resultados tienen que haber para que el banner de abajo se dibuje
@@ -99,9 +204,34 @@ import { filtrarConPublico, SLUG_INFANTIL, TEXTO_VER_TODAS_LAS_EDADES } from '@/
  */
 export const RESULTADOS_MINIMOS_PARA_ANUNCIO = 3
 
+/**
+ * Ventana de la grilla de resultados (A7, nube Q1). Con `numColumns={2}`,
+ * `FlatList` cuenta FILAS: 4 filas = 8 tarjetas, lo que entra en el primer
+ * pantallazo (cabecera fija ~228 dp + chips y conteo + filas de ~249 dp en
+ * 360×800) con una fila de reserva; antes eran 10 filas (20 tarjetas, el valor
+ * por omisión). Vuelta 1: lotes de 4 filas y `windowSize: 9` (~4 pantallas a
+ * cada lado, en vez de 21), para que un scroll rápido en gama baja no deje
+ * huecos ni remonte corazones. Las dos listas de esta pantalla llevan
+ * `removeClippedSubviews={false}`: `FlatList` lo prende por omisión en Android
+ * y TalkBack pierde las celdas que saca de la jerarquía.
+ */
+export const VENTANA_RESULTADOS = { initialNumToRender: 4, maxToRenderPerBatch: 4, windowSize: 9 } as const
+
+/**
+ * Ventana de la grilla de categorías (A7, nube Q1): tiles chicos (~84 dp por
+ * fila de 2), 8 filas = 16 categorías, que hoy son todas. No hay
+ * `TarjetaEvento` acá; se acota igual para no dibujar 21 pantallas.
+ */
+export const VENTANA_CATEGORIAS = { initialNumToRender: 8, maxToRenderPerBatch: 8, windowSize: 7 } as const
+
+const claveDeCategoria = (categoria: CategoriaBasica) => categoria.id
+const claveDeEvento = (evento: DisplayEvent) => evento.id
+
+
 type EstadoLista =
   | { tipo: 'cargando' }
-  | { tipo: 'error'; error: string }
+  // A6: `error` ya es el texto para la pantalla (`mensajeErrorCarga`).
+  | { tipo: 'error'; error: string; sinConexion?: boolean }
   // `ahora`: un único instante por carga (el mismo que decidió qué eventos
   // siguen vigentes), para que el filtro de fecha no use otro reloj.
   // A3 (nube Q1): los items con `paraChicos` (de `obtenerEventosVigentesParaInicio`).
@@ -136,6 +266,13 @@ export default function Buscar() {
   const [soloGratisActivo, setSoloGratisActivo] = useState(false)
   // A3 (nube Q1): el chip "Para chicos", como "Solo gratis" (no viene por la ruta).
   const [paraChicosActivo, setParaChicosActivo] = useState(false)
+  // A8 (nube Q1, QPS-339, ronda de correcciones): nonce del texto que llega por
+  // un toque (enviar con el teclado; A5: tocar una búsqueda reciente).
+  const [toqueTexto, setToqueTexto] = useState(0)
+  // A5 (nube Q1): el historial que se ve. Arranca vacío; lo llena (y lo
+  // reemplaza) solo lo que devuelve la fila de `lib/busquedas-recientes.ts`
+  // — la lectura al enfocar y cada guardado —, en el orden en que se pidió.
+  const [recientes, setRecientes] = useState<string[]>([])
 
   // Sincroniza `categoriaFiltro` con el parámetro de la ruta sin `setState`
   // sincrónico dentro de un `useEffect` (mismo patrón que `idAnterior` en
@@ -171,31 +308,110 @@ export default function Buscar() {
       obtenerCategorias(),
     ])
 
-    if (!resultadoEventos.ok) return { tipo: 'error', error: resultadoEventos.error }
-    if (!resultadoCategorias.ok) return { tipo: 'error', error: resultadoCategorias.error }
+    // A6: como en la portada, `sinConexion` es el O lógico de las dos
+    // consultas: una caída por red alcanza para decir "no hay conexión".
+    const sinConexion =
+      (!resultadoEventos.ok && Boolean(resultadoEventos.sinConexion)) ||
+      (!resultadoCategorias.ok && Boolean(resultadoCategorias.sinConexion))
+    if (!resultadoEventos.ok) {
+      return { tipo: 'error', error: mensajeErrorCarga('buscar', { ...resultadoEventos, sinConexion }), sinConexion }
+    }
+    if (!resultadoCategorias.ok) {
+      return { tipo: 'error', error: mensajeErrorCarga('buscar', { ...resultadoCategorias, sinConexion }), sinConexion }
+    }
     return { tipo: 'ok', items: resultadoEventos.eventos, categorias: resultadoCategorias.categorias, ahora }
   }, [])
 
+  // A6: "No pudimos actualizar..." cuando un refresco falla con resultados a
+  // la vista (ver `refrescar`); se limpia con cada carga nueva.
+  const [notaRefresco, setNotaRefresco] = useState<string | null>(null)
+
   const cargar = useCallback(() => {
     setEstado({ tipo: 'cargando' })
+    setNotaRefresco(null)
     setIntento((valor) => valor + 1)
   }, [])
 
+  // A6: `decidirRefresco` (lib/vacios.ts): si el refresco falla y había una
+  // lista a la vista (`estado`, por eso está en las dependencias), se
+  // conserva y se avisa, en vez de cambiarla por el error.
   const refrescar = useCallback(async () => {
     setRefrescando(true)
-    setEstado(await obtenerDatos())
+    const decision = decidirRefresco(estado, await obtenerDatos(), notaRefresco)
+    setEstado(decision.estado)
+    setNotaRefresco(decision.nota)
+    const aviso = decision.anuncio
+    if (aviso) anunciar(aviso)
     setRefrescando(false)
-  }, [obtenerDatos])
+  }, [obtenerDatos, estado, notaRefresco])
 
   useEffect(() => {
     let cancelado = false
     obtenerDatos().then((resultado) => {
-      if (!cancelado) setEstado(resultado)
+      if (cancelado) return
+      setEstado(resultado)
+      // A6: un "Reintentar" de `ErrorCarga` (`intento > 0`) que vuelve a dar
+      // error se anuncia; si no, parecía que el botón no hizo nada.
+      const avisoError = anuncioDeReintento(intento > 0, resultado)
+      if (avisoError) anunciar(avisoError)
     })
     return () => {
       cancelado = true
     }
   }, [obtenerDatos, intento])
+
+  // A5, vuelta 1: relee el historial cada vez que Buscar toma el foco (en el
+  // efecto de `useFocusEffect`, no en su limpieza), así la pantalla no queda
+  // con datos viejos. La lectura va en la fila del módulo: si hay un guardado
+  // o un borrado en curso, resuelve después de ellos y no los pisa. El
+  // estado se REEMPLAZA con lo que vuelve, y el `setState` va en el callback
+  // de la promesa, nunca sincrónico (react-hooks/set-state-in-effect).
+  // `leerBusquedasRecientes` nunca tira: un almacén roto da `[]`.
+  useFocusEffect(
+    useCallback(() => {
+      leerBusquedasRecientes().then(setRecientes)
+    }, []),
+  )
+
+  // A5: guarda una búsqueda si `busquedaParaGuardar` dice que corresponde.
+  // El estado sale de lo que devuelve la fila (no se calcula acá aparte): un
+  // guardado pedido después de una lectura resuelve después de ella, así que
+  // la última respuesta es siempre la lista más nueva.
+  const recordarBusqueda = useCallback((valor: string, motivo: MotivoGuardado) => {
+    const aGuardar = busquedaParaGuardar(valor, motivo)
+    if (aGuardar === null) return
+    guardarBusquedaReciente(aGuardar).then(setRecientes)
+  }, [])
+
+  // A5 + A7: abrir un resultado guarda el texto del campo como búsqueda
+  // reciente. Es estable (`useCallback` sin `texto` en las dependencias): el
+  // texto vigente se lee de una ref que se actualiza en un efecto. Así tipear
+  // algo que deja la misma lista NO invalida la celda ni el `memo` de
+  // `TarjetaEvento` (que compara `onAbrir`); `tests/renders-listas.test.ts` lo
+  // mide (0 renders). Se llama al tocar, cuando la ref ya está al día.
+  const textoVigente = useRef(texto)
+  useEffect(() => {
+    textoVigente.current = texto
+  }, [texto])
+  const abrirResultado = useCallback(() => recordarBusqueda(textoVigente.current, 'abrir-resultado'), [recordarBusqueda])
+
+  // A7: la celda de resultados, estable mientras `abrirResultado` no cambie
+  // (no es una flecha nueva por render).
+  const dibujarResultado: ListRenderItem<DisplayEvent> = useCallback(
+    ({ item }) => (
+      <View style={estilos.celda}>
+        <TarjetaEvento evento={item} onAbrir={abrirResultado} />
+      </View>
+    ),
+    [abrirResultado],
+  )
+
+  // A5: se vacía en el momento (la sección desaparece ya); el borrado va en
+  // la fila, después de cualquier guardado pendiente.
+  const borrarHistorial = useCallback(() => {
+    setRecientes([])
+    void borrarHistorialDeBusquedas()
+  }, [])
 
   // Toca una categoría una segunda vez para quitar el filtro (no hay un botón
   // "volver" propio: la grilla de categorías no se ve mientras hay un
@@ -240,7 +456,7 @@ export default function Buscar() {
     return categoriasDisponibles(sinCategoria, estado.categorias, categoriaFiltro)
   }, [estado, texto, atajo, categoriaFiltro, soloGratisActivo, paraChicosActivo])
 
-  // Los conteos de la grilla "Explorar por categoria" son sobre TODOS los
+  // Los conteos de la grilla "Explorar por categoría" son sobre TODOS los
   // eventos (sin fecha ni texto): esa grilla solo se ve sin filtros.
   const cantidadPorCategoria = useCallback(
     (slug: string) => (estado.tipo === 'ok' ? estado.items.filter((item) => item.evento.category === slug).length : 0),
@@ -258,16 +474,61 @@ export default function Buscar() {
     atajo,
   }
 
+  // A8 (nube Q1, QPS-339): un anuncio por cambio (sin live region en el conteo).
+  // `null` mientras carga o con error: "no hay nada".
+  useAnunciarConteo(
+    estado.tipo === 'ok'
+      ? estadoAnunciableBuscar({ mostrarResultados, cantidad: resultadosMostrados.length, filtros: filtrosTexto, v: vParam, toque: toqueTexto })
+      : null,
+  )
+
+  // A5: tocar una reciente carga el texto, la guarda (sube al primer lugar) y
+  // sube el nonce de A8: el anuncio del conteo lo hace `useAnunciarConteo`, no
+  // un `announceForAccessibility` directo. No mueve el foco.
+  function repetirBusqueda(busqueda: string) {
+    setTexto(busqueda)
+    recordarBusqueda(busqueda, 'repetir')
+    setToqueTexto((n) => n + 1)
+  }
+
+  // El texto del vacío. Con texto escrito, el de A6 (`lib/vacios.ts`), que
+  // nombra "gratis" (antes se perdía); sin texto, el de A3
+  // (`lib/buscar-filtros.ts`), que además nombra "para chicos".
+  const textoSinResultados = texto
+    ? textoSinResultadosConTexto({ texto, soloGratis: soloGratisActivo, nombreCategoria: nombreCategoriaFiltro, atajo })
+    : textoSinResultadosBuscar(filtrosTexto)
+
   // Salidas del vacío (R66): sacar la fecha y/o la categoría. Un botón por
   // cada filtro que se puede sacar. A3: y "Para chicos", primero (la salida
   // principal, rellena), salvo con Infantil elegida: ahí apagarlo no cambia
-  // nada (ronda de correcciones de A3).
+  // nada (ronda de correcciones de A3). A6: más "Limpiar búsqueda" (con texto)
+  // y "Sacar “Solo gratis”" (con el chip prendido). El orden de los `push` es
+  // la prioridad (el primero va relleno): para chicos, texto, fecha, gratis,
+  // categoría — la categoría al final porque sus chips, con "Todas", están
+  // justo arriba del vacío. Como mucho `MAXIMO_ACCIONES_VACIO` (3) botones: el
+  // `splice` corta lo que sobra. `ACCIONES_VACIO_BUSCAR`/`accionesVacioBuscar`
+  // (lib/vacios.ts) repiten este orden y estos textos (sin el de "Para
+  // chicos", de A3), y `tests/vacios-sin-conexion.test.ts` los compara contra
+  // este archivo.
   const accionesVacio: { texto: string; alTocar: () => void }[] = []
   if (paraChicosActivo && categoriaFiltro !== SLUG_INFANTIL) {
     accionesVacio.push({ texto: TEXTO_VER_TODAS_LAS_EDADES, alTocar: () => setParaChicosActivo(false) })
   }
+  if (texto) accionesVacio.push({ texto: 'Limpiar búsqueda', alTocar: () => setTexto('') })
   if (atajo !== null) accionesVacio.push({ texto: 'Ver todas las fechas', alTocar: () => setAtajo(null) })
+  if (soloGratisActivo) accionesVacio.push({ texto: 'Sacar “Solo gratis”', alTocar: () => setSoloGratisActivo(false) })
   if (categoriaFiltro !== null) accionesVacio.push({ texto: 'Todas las categorías', alTocar: () => setCategoriaFiltro(null) })
+  accionesVacio.splice(MAXIMO_ACCIONES_VACIO)
+
+  // A6: un refresco que falló con una lista a la vista. Banda al principio de
+  // la lista que se esté viendo (dentro del scroll, como `AvisoSinConexion`
+  // en Inicio: nunca un toast ni algo fijo que le robe alto con el teclado
+  // abierto); el margen negativo compensa el padding de la lista.
+  const avisoNoSeActualizo = notaRefresco ? (
+    <View style={estilos.avisoEnLista}>
+      <AvisoNoSeActualizo texto={notaRefresco} onReintentar={refrescar} reintentando={refrescando} />
+    </View>
+  ) : null
 
   return (
     <View style={[estilos.contenedor, { backgroundColor: colores.background }]}>
@@ -277,8 +538,16 @@ export default function Buscar() {
             label="Buscar"
             value={texto}
             onChangeText={setTexto}
-            placeholder="Buscar por evento, lugar o descripcion..."
+            placeholder="Buscar por evento, lugar o descripción..."
             autoCapitalize="none"
+            // A5, criterio 1: la tecla del teclado dice «Buscar» y al tocarla
+            // se guarda la búsqueda (ver la cabecera del archivo). A8: y sube
+            // el nonce para que el conteo se anuncie al toque.
+            returnKeyType="search"
+            onSubmitEditing={(evento) => {
+              recordarBusqueda(evento.nativeEvent.text, 'enviar')
+              setToqueTexto((n) => n + 1)
+            }}
             accionDerecha={
               texto ? (
                 <Pressable
@@ -338,15 +607,24 @@ export default function Buscar() {
         </View>
       </View>
 
-      {estado.tipo === 'cargando' ? <Cargando /> : null}
+      {/* A1 (nube Q1): esqueleto en vez de `Cargando`, debajo de la cabecera
+          (campo, pills y "Solo gratis" siguen arriba). Con la misma
+          `mostrarResultados` que elige la lista de abajo: sin filtros, la
+          grilla de tiles de categoría; con alguno (por ejemplo, llegando con
+          `?categoria=`), la de tarjetas. El pull-to-refresh no cambia. */}
+      {estado.tipo === 'cargando' ? <EsqueletoBuscar resultados={mostrarResultados} /> : null}
 
       {estado.tipo === 'error' ? <ErrorCarga mensaje={estado.error} onReintentar={cargar} /> : null}
 
       {estado.tipo === 'ok' && !mostrarResultados ? (
         <FlatList
           data={estado.categorias}
-          keyExtractor={(categoria) => categoria.id}
+          keyExtractor={claveDeCategoria}
           numColumns={2}
+          initialNumToRender={VENTANA_CATEGORIAS.initialNumToRender}
+          maxToRenderPerBatch={VENTANA_CATEGORIAS.maxToRenderPerBatch}
+          windowSize={VENTANA_CATEGORIAS.windowSize}
+          removeClippedSubviews={false}
           columnWrapperStyle={estilos.filaGrilla}
           contentContainerStyle={estilos.lista}
           keyboardShouldPersistTaps="handled"
@@ -354,12 +632,21 @@ export default function Buscar() {
           refreshControl={
             <RefreshControl refreshing={refrescando} onRefresh={refrescar} tintColor={colores.primary} colors={[colores.primary]} />
           }
+          // A5: las búsquedas recientes van arriba del título de la grilla
+          // (sin ninguna guardada, `BusquedasRecientes` no dibuja nada). El
+          // banner sigue en el footer, debajo de toda la grilla.
           ListHeaderComponent={
-            <Texto peso="semibold" style={estilos.tituloSeccion}>
-              Explorar por categoria
-            </Texto>
+            <>
+              <BusquedasRecientes busquedas={recientes} onElegir={repetirBusqueda} onBorrarHistorial={borrarHistorial} />
+              {avisoNoSeActualizo}
+              <Texto peso="semibold" accessibilityRole="header" style={estilos.tituloSeccion}>
+                Explorar por categoría
+              </Texto>
+            </>
           }
-          ListEmptyComponent={<Vacio mensaje="Todavía no hay categorías cargadas." />}
+          // A6: la carga salió bien pero no trajo categorías: porqué +
+          // "Reintentar" (`refrescar`, así no pasa por `Cargando`).
+          ListEmptyComponent={<ErrorCarga mensaje={VACIO_CATEGORIAS_BUSCAR} onReintentar={refrescar} />}
           // R60, 52-d: con la lista vacía, `null` en vez de `<BannerAnuncio>`
           // — hallazgo de la R52 en la web (ux-ui): una FlatList dibuja
           // `ListFooterComponent` también debajo de `ListEmptyComponent`, así
@@ -382,7 +669,7 @@ export default function Buscar() {
                     {item.name}
                   </Texto>
                   <Texto tono="secundario" style={estilos.cantidadTile}>
-                    {cantidad} eventos
+                    {textoCantidadEventos(cantidad)}
                   </Texto>
                 </View>
               </Pressable>
@@ -394,8 +681,12 @@ export default function Buscar() {
       {estado.tipo === 'ok' && mostrarResultados ? (
         <FlatList
           data={resultadosMostrados}
-          keyExtractor={(item) => item.id}
+          keyExtractor={claveDeEvento}
           numColumns={2}
+          initialNumToRender={VENTANA_RESULTADOS.initialNumToRender}
+          maxToRenderPerBatch={VENTANA_RESULTADOS.maxToRenderPerBatch}
+          windowSize={VENTANA_RESULTADOS.windowSize}
+          removeClippedSubviews={false}
           columnWrapperStyle={estilos.filaGrilla}
           contentContainerStyle={estilos.lista}
           keyboardShouldPersistTaps="handled"
@@ -405,6 +696,7 @@ export default function Buscar() {
           }
           ListHeaderComponent={
             <>
+              {avisoNoSeActualizo}
               {/* Los chips scrollean con la lista (no quedan fijos): con el
                   teclado abierto la cabecera fija es solo campo + pills. El
                   padding horizontal de la lista (16) se compensa con margen
@@ -412,14 +704,14 @@ export default function Buscar() {
               <View style={estilos.chipsEnLista}>
                 <ChipsCategorias categorias={categoriasParaChips} seleccionada={categoriaFiltro} onCambiar={setCategoriaFiltro} />
               </View>
-              <Texto tono="secundario" accessibilityLiveRegion="polite" style={estilos.tituloSeccion}>
+              <Texto tono="secundario" style={estilos.tituloSeccion}>
                 {textoResultadosBuscar(resultadosMostrados.length, filtrosTexto)}
               </Texto>
             </>
           }
           ListEmptyComponent={
             <View style={estilos.vacio}>
-              <Vacio mensaje={textoSinResultadosBuscar(filtrosTexto)} />
+              <Vacio mensaje={textoSinResultados} />
               {accionesVacio.map((accion, indice) => (
                 <Pressable
                   key={accion.texto}
@@ -469,11 +761,7 @@ export default function Buscar() {
           ListFooterComponent={
             resultadosMostrados.length < RESULTADOS_MINIMOS_PARA_ANUNCIO ? null : <BannerAnuncio lugar="buscar" />
           }
-          renderItem={({ item }) => (
-            <View style={estilos.celda}>
-              <TarjetaEvento evento={item} />
-            </View>
-          )}
+          renderItem={dibujarResultado}
         />
       ) : null}
     </View>
@@ -489,6 +777,8 @@ const estilos = StyleSheet.create({
   // `ChipsCategorias` trae su padding horizontal (16) y la lista también: se
   // compensa para que el primer chip quede alineado con el campo, como antes.
   chipsEnLista: { marginHorizontal: -16 },
+  // A6: la banda de "No pudimos actualizar" va de borde a borde, como en Inicio.
+  avisoEnLista: { marginHorizontal: -16 },
   vacio: { alignItems: 'center', gap: 12 },
   botonVacio: {
     borderWidth: 1,

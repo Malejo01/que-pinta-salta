@@ -25,6 +25,21 @@
 // en `event-detail-page.tsx`) — 29-b la había dejado en 400 (el valor por
 // defecto de `fuentesDeImagen`) porque `lib/imagenes/url-segura.ts` y
 // `components/Afiche.tsx` no estaban en sus archivos permitidos.
+//
+// A4 (nube Q1): "Ver en el mapa de eventos", después de "Cómo llegar" y de
+// "Comprar tickets", con el estilo outline de `VerEnElMapa` de la web
+// (`event-detail-page.tsx`). Diferencia deliberada con la web, que lo pone
+// entre los dos: acá va tercero para que la compra no baje y para que las
+// dos acciones de mapa no queden pegadas; y el texto dice "de eventos" para
+// no confundirlo con "Cómo llegar", que abre Google Maps. La app no tiene
+// mapa: abre `/mapa` de la web en el navegador, solo con `urlMapaDelEvento`
+// (`lib/links.ts`), que da `null` si el link no serviría (lugar sin pin —
+// sin coordenadas, inválidas o fuera de Salta: `aCoordenada` +
+// `coordenadasEnSalta`, la regla de la web —, evento terminado o día fuera
+// de la ventana de `/mapa`) — y sin link, no hay botón. Los App Links de la app (`app.config.ts`) solo
+// declaran `pathPrefix: '/evento/'`, así que `/mapa` no vuelve a la app. No
+// se cuenta el clic, igual que "Cómo llegar": la app solo mide la vista de
+// la ficha (`useVistaEvento`) y la compra pasa por `/go/<id>`.
 import { useCallback, useEffect, useState } from 'react'
 import { Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native'
 import * as Linking from 'expo-linking'
@@ -38,17 +53,18 @@ import { Afiche } from '@/components/Afiche'
 import { AvisoPatrocinado } from '@/components/AvisoPatrocinado'
 import { BotonCalendario } from '@/components/BotonCalendario'
 import { BotonSeguir } from '@/components/BotonSeguir'
-import { Cargando, ErrorCarga, Vacio } from '@/components/EstadoCarga'
+import { EsqueletoFicha } from '@/components/Esqueleto'
+import { ErrorCarga, Vacio } from '@/components/EstadoCarga'
 import { FilaAccionesEvento } from '@/components/FilaAccionesEvento'
 import { Icono } from '@/components/Icono'
 import { InsigniaDestacado } from '@/components/InsigniaDestacado'
 import { Texto } from '@/components/Texto'
-import { ESCALA_MAXIMA_COMPACTA } from '@/lib/accesibilidad'
+import { AREA_TACTIL_MINIMA, ESCALA_MAXIMA_COMPACTA } from '@/lib/accesibilidad'
 import { useColoresQPS } from '@/lib/colores'
 import { datosTarjetaCompartir } from '@/lib/compartir'
 import { obtenerEventoPorId, type ResultadoEvento } from '@/lib/datos/eventos'
 import { textoPrecio, type PrecioEvento } from '@/lib/formato'
-import { esUuid } from '@/lib/links'
+import { esUuid, urlMapaDelEvento } from '@/lib/links'
 import { obtenerSeguimientoDeEvento, type SeguimientoDeEvento } from '@/lib/radar'
 import { rutaPorPrefijo } from '@/lib/rutas'
 import { useSession } from '@/lib/session'
@@ -145,10 +161,23 @@ export default function EventoPorId() {
     return <Redirect href={(destino ?? '/') as Href} />
   }
 
+  // A1 (nube Q1): el esqueleto de la ficha (afiche, título, datos,
+  // descripción, precio y CTAs) en vez de `Cargando` centrado. Sin
+  // `estilos.centrado`: el esqueleto arranca arriba, como la ficha real, y trae
+  // su propio fondo. Con `?patrocinado=1` la franja real (`AvisoPatrocinado`)
+  // va arriba y FUERA del esqueleto, igual que en la ficha cargada: es
+  // interactiva ("No recibir más"), así que no se esconde al lector ni pulsa.
+  // `session` en la condición: `AvisoPatrocinado` no dibuja nada sin sesión, y
+  // sin ella el contenedor dejaría 16 dp de aire de más arriba del esqueleto.
   if (estado.tipo === 'cargando') {
     return (
-      <View style={[estilos.centrado, { backgroundColor: colors.background }]}>
-        <Cargando />
+      <View style={[estilos.cargando, { backgroundColor: colores.background }]}>
+        {esAvisoPatrocinado && session ? (
+          <View style={estilos.avisoCargando}>
+            <AvisoPatrocinado />
+          </View>
+        ) : null}
+        <EsqueletoFicha />
       </View>
     )
   }
@@ -197,6 +226,9 @@ export default function EventoPorId() {
   const tieneTicket = Boolean(evento.ticket_url?.trim())
   const urlCompra = urlGo(evento.id, 'app')
   const urlLlegar = urlComoLlegar({ address: evento.venue?.address, venue: evento.venue?.name })
+  // A4 (nube Q1): `null` si el link no serviría (ver `urlMapaDelEvento`) —
+  // el botón "Ver en el mapa de eventos" (abajo) solo se dibuja con este link.
+  const urlMapa = urlMapaDelEvento(evento)
 
   function comprar() {
     if (urlCompra) Linking.openURL(urlCompra).catch(() => {})
@@ -204,6 +236,10 @@ export default function EventoPorId() {
 
   function comoLlegar() {
     if (urlLlegar) Linking.openURL(urlLlegar).catch(() => {})
+  }
+
+  function verEnElMapa() {
+    if (urlMapa) Linking.openURL(urlMapa).catch(() => {})
   }
 
   return (
@@ -309,6 +345,19 @@ export default function EventoPorId() {
           </Pressable>
         ) : null}
 
+        {urlMapa ? (
+          <Pressable
+            onPress={verEnElMapa}
+            accessibilityRole="link"
+            style={[estilos.ctaOutline, estilos.ctaMapa, { borderColor: colores.border }]}
+          >
+            <Icono nombre="MapPin" tamanio={18} color={colores.foreground} />
+            <Texto peso="semibold" style={estilos.textoCtaMapa}>
+              Ver en el mapa de eventos
+            </Texto>
+          </Pressable>
+        ) : null}
+
         <BotonCalendario evento={evento} />
       </View>
 
@@ -327,6 +376,10 @@ export default function EventoPorId() {
 
 const estilos = StyleSheet.create({
   contenido: { padding: 16, gap: 16 },
+  // A1 (nube Q1): la carga. El aviso lleva el padding de `contenido` arriba y a
+  // los costados; el `padding` de arriba del esqueleto hace de `gap` (16).
+  cargando: { flex: 1 },
+  avisoCargando: { paddingHorizontal: 16, paddingTop: 16 },
   centrado: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24, gap: 8 },
   contenedorImagen: { overflow: 'hidden', position: 'relative' },
   filaBadges: { position: 'absolute', left: 12, top: 12, right: 12, flexDirection: 'row', alignItems: 'center', gap: 6 },
@@ -345,4 +398,10 @@ const estilos = StyleSheet.create({
   ctas: { gap: 12 },
   ctaPrimario: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 10, paddingVertical: 14 },
   ctaOutline: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 10, paddingVertical: 14, borderWidth: 1 },
+  // A4 (nube Q1): "Ver en el mapa" lleva el piso de 48 dp explícito (con el
+  // padding de `ctaOutline` ya llega, pero así no depende del alto del texto).
+  ctaMapa: { minHeight: AREA_TACTIL_MINIMA },
+  // Con fuente grande, el texto salta de línea (centrado) en vez de pasarse
+  // del borde del botón.
+  textoCtaMapa: { flexShrink: 1, textAlign: 'center' },
 })

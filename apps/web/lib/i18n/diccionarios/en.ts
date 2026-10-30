@@ -3,7 +3,41 @@
  * turistas. `satisfies Diccionario`: si falta o sobra una clave respecto de
  * `es.ts`, tsc lo marca.
  */
+import { cantidadVisible } from '@qps/core/asistencia'
+import {
+  MENSAJE_ALTA_CON_SESION,
+  MENSAJE_ALTA_ENVIADA,
+  MENSAJE_ALTA_GENERICO,
+  mensajeErrorAlta,
+  mensajeErrorIngreso,
+} from '@qps/core/auth/mensajes'
+import { LARGO_MINIMO_CONTRASENA, validarContrasenaNueva } from '@qps/core/auth/cuenta'
 import type { Diccionario } from './es'
+
+const validacionCorta = validarContrasenaNueva('', '')
+
+/**
+ * Los mensajes de ingreso y alta de core, en inglés. La clave es el texto en
+ * castellano que devuelve core para cada caso (así la regla de qué decir, que
+ * no delata si un email tiene cuenta, sigue viviendo solo en core). Un texto
+ * que no esté acá se muestra en castellano (`auth.mensaje`), con `lang="es"`.
+ */
+const MENSAJES_AUTH: Record<string, string> = {
+  [MENSAJE_ALTA_GENERICO]: 'We could not create the account. If you already have one, sign in.',
+  [MENSAJE_ALTA_ENVIADA]:
+    'If that email did not have an account, we sent you an email to confirm it. If you already had one, sign in or reset your password.',
+  [MENSAJE_ALTA_CON_SESION]: 'All set, your account is ready.',
+  [mensajeErrorAlta({ code: 'weak_password' })]: 'The password is too weak: use at least 6 characters.',
+  [mensajeErrorAlta({ code: 'email_address_invalid' })]: 'Check the email: it does not look valid.',
+  [mensajeErrorAlta({ status: 429 })]: 'Too many attempts. Please try again in a few minutes.',
+  [mensajeErrorIngreso({ code: 'invalid_credentials' })]:
+    'The email or password is incorrect. If you signed up with Google, use the Google button.',
+  [mensajeErrorIngreso({ code: 'email_not_confirmed' })]: 'You have not confirmed your email yet: check your inbox.',
+  [mensajeErrorIngreso({})]: 'We could not sign you in. Please try again in a few minutes.',
+  ...(validacionCorta.ok
+    ? {}
+    : { [validacionCorta.mensaje]: `The password must be at least ${LARGO_MINIMO_CONTRASENA} characters long.` }),
+}
 
 export const en = {
   nav: {
@@ -151,6 +185,84 @@ export const en = {
     errorConexionTitulo: 'Connection error',
     errorConexionTexto: 'We could not reach the server. Please try again.',
   },
+  ficha: {
+    volverAEventos: 'Back to events',
+    sinCategorizar: 'Uncategorized',
+    // En 12 horas ("9:30 PM") no lleva sufijo.
+    horaDelEvento: (hora: string) => `${hora}`,
+    precioDeEntrada: 'Ticket price',
+    comoLlegar: 'Get directions',
+    comprarTickets: 'Buy tickets',
+    verEnElMapa: 'View on map',
+    etiquetasVibe: {
+      familiar: 'Family-friendly',
+      adultos: 'Adults only (18+)',
+      exterior: 'Outdoors',
+    },
+  },
+  asistencia: {
+    guardar: 'Save',
+    guardado: 'Saved',
+    esteEvento: 'this event',
+    ariaGuardar: (titulo: string) => `Save ${titulo}`,
+    // WCAG 2.5.3: el nombre accesible contiene el texto visible («Save» /
+    // «Saved» / «I'm going»); el estado lo dice `aria-pressed`.
+    ariaQuitarGuardado: (titulo: string) => `Saved: ${titulo}`,
+    // Mismo umbral que el castellano (`cantidadVisible` de core): el número
+    // recién aparece desde UMBRAL_CONTADOR_ASISTENCIA.
+    botonVoy: (cantidad: number) => {
+      const visible = cantidadVisible(cantidad)
+      return visible === null ? "I'm going" : `I'm going · ${visible}`
+    },
+    ariaVoy: (titulo: string) => `I'm going to ${titulo}`,
+    ariaNoVoy: (titulo: string) => `I'm going to ${titulo}`,
+    entrarParaMarcar: "Sign in to say you're going.",
+    errorTitulo: 'Error',
+    errorGuardados: 'We could not update your saved events. Please try again.',
+    errorMarca: 'We could not save your answer. Please try again.',
+    eventoNoDisponible: 'This event is no longer available.',
+    sacasteGuardadoConVoy: 'You removed it from your saved events and you are no longer marked as going.',
+    errorConexionTitulo: 'Connection error',
+    errorConexionTexto: 'We could not reach the server. Please try again.',
+  },
+  seguir: {
+    lugar: (siguiendo: boolean) => (siguiendo ? '✓ Following' : '+ Follow'),
+    cuenta: (username: string, siguiendo: boolean) => (siguiendo ? `Following @${username}` : `Follow @${username}`),
+    error: 'We could not save this follow. Please try again.',
+  },
+  auth: {
+    tituloIngresar: 'Sign in',
+    tituloCrear: 'Create an account',
+    descripcionIngresar: 'Save your favorite events to always have them at hand.',
+    descripcionCrear: 'Join to save favorites and personalize your schedule.',
+    email: 'Email',
+    emailPlaceholder: 'you@email.com',
+    contrasena: 'Password',
+    mostrarContrasena: 'Show password',
+    olvidasteContrasena: 'Forgot your password?',
+    iniciandoSesion: 'Signing in...',
+    creandoCuenta: 'Creating account...',
+    botonIngresar: 'Sign in',
+    botonRegistrarse: 'Sign up',
+    oContinuarCon: 'Or continue with',
+    aceptasConGoogle: 'By continuing with Google, you accept the',
+    aceptasAlCrear: 'By creating your account, you accept the',
+    terminos: 'Terms and Conditions',
+    yLa: 'and the',
+    privacidad: 'Privacy Policy',
+    // Las dos páginas legales existen solo en castellano.
+    cierreLegales: ' (in Spanish).',
+    noTenesCuenta: "Don't have an account?",
+    registrate: 'Sign up',
+    yaTenesCuenta: 'Already have an account?',
+    iniciaSesion: 'Sign in',
+    errorGoogle: 'Something went wrong signing in with Google. Please try again.',
+    bienvenidoDeNuevo: 'Welcome back!',
+    sesionIniciada: 'You are signed in.',
+    bienvenido: 'Welcome!',
+    revisaTuEmail: 'Check your email',
+    mensaje: (mensaje: string) => MENSAJES_AUTH[mensaje] ?? String(mensaje),
+  },
   compartir: {
     compartirEvento: 'Share event',
     linkCopiado: 'Link copied',
@@ -166,7 +278,7 @@ export const en = {
     aceptar: 'Accept',
   },
   comun: {
-    avisoContenidoEs: 'Event details in Spanish: names and descriptions are shown as published by the venues.',
+    avisoContenidoEs: 'Event details in Spanish: names and descriptions are shown as published by the organizers.',
   },
   idioma: {
     otro: 'Español',

@@ -7,7 +7,14 @@
  * literal), y el inglés puede decir otra cosa. Los textos con número son
  * funciones `(n: number) => string`, para que cada idioma arme su plural.
  */
-import { TEXTO_SACASTE_GUARDADO_CON_VOY } from '@qps/core/asistencia'
+import {
+  MENSAJE_EVENTO_NO_DISPONIBLE,
+  TEXTO_ENTRAR_PARA_MARCAR,
+  TEXTO_SACASTE_GUARDADO_CON_VOY,
+  textoBotonVoy,
+} from '@qps/core/asistencia'
+import { textoSeguir, textoSeguirCuenta } from '@qps/core/radar/seguimiento'
+import { vibeLabels } from '@qps/core/types'
 
 export const es = {
   nav: {
@@ -153,6 +160,87 @@ export const es = {
     sacasteGuardadoConVoy: TEXTO_SACASTE_GUARDADO_CON_VOY,
     errorConexionTitulo: 'Error de conexión',
     errorConexionTexto: 'No pudimos conectarnos al servidor. Intentalo de nuevo.',
+  },
+  // Ficha del evento y sus modales (event-detail-page.tsx, event-modal-wrapper.tsx,
+  // event-modal.tsx, ver-en-el-mapa.tsx). El bloque de admin de la categoría
+  // queda en castellano: es solo para el equipo.
+  ficha: {
+    volverAEventos: 'Volver a eventos',
+    sinCategorizar: 'Sin categorizar',
+    // La hora llega ya formateada ("21:30" en castellano, "9:30 PM" en inglés).
+    horaDelEvento: (hora: string) => `${hora} hs`,
+    precioDeEntrada: 'Precio de entrada',
+    comoLlegar: 'Cómo llegar',
+    comprarTickets: 'Comprar tickets',
+    verEnElMapa: 'Ver en el mapa',
+    // Las de core, tal cual (Familiar / Adultos / Al Aire Libre).
+    etiquetasVibe: { ...vibeLabels },
+  },
+  // Fila ♥ Guardar / ✓ Voy (fila-acciones-evento.tsx, botones-asistencia.tsx).
+  // En castellano, los textos que comparte con la app salen de core.
+  asistencia: {
+    guardar: 'Guardar',
+    guardado: 'Guardado',
+    esteEvento: 'este evento',
+    ariaGuardar: (titulo: string) => `Guardar ${titulo}`,
+    ariaQuitarGuardado: (titulo: string) => `Quitar ${titulo} de tus guardados`,
+    botonVoy: textoBotonVoy,
+    ariaVoy: (titulo: string) => `Marcar que vas a ${titulo}`,
+    ariaNoVoy: (titulo: string) => `Marcar que no vas a ${titulo}`,
+    entrarParaMarcar: TEXTO_ENTRAR_PARA_MARCAR,
+    errorTitulo: 'Error',
+    errorGuardados: 'No pudimos actualizar tus guardados. Probá de nuevo.',
+    errorMarca: 'No pudimos guardar tu marca. Probá de nuevo.',
+    eventoNoDisponible: MENSAJE_EVENTO_NO_DISPONIBLE,
+    sacasteGuardadoConVoy: TEXTO_SACASTE_GUARDADO_CON_VOY,
+    errorConexionTitulo: 'Error de conexión',
+    errorConexionTexto: 'No pudimos conectarnos al servidor. Probá de nuevo.',
+  },
+  // "+ Seguir" (boton-seguir.tsx). En castellano, los textos de core.
+  seguir: {
+    lugar: textoSeguir,
+    cuenta: textoSeguirCuenta,
+    error: 'No pudimos guardar el seguimiento. Probá de nuevo.',
+  },
+  // Modal de ingreso y alta (auth-modal.tsx): lo abren ♥ Guardar, ✓ Voy y
+  // + Seguir sin sesión.
+  auth: {
+    tituloIngresar: 'Iniciar Sesión',
+    tituloCrear: 'Crear Cuenta',
+    descripcionIngresar: 'Guardá tus eventos favoritos para tenerlos siempre a mano.',
+    descripcionCrear: 'Sumate para guardar favoritos y personalizar tu agenda.',
+    email: 'Email',
+    emailPlaceholder: 'tu@email.com',
+    contrasena: 'Contraseña',
+    mostrarContrasena: 'Mostrar contraseña',
+    olvidasteContrasena: '¿Olvidaste tu contraseña?',
+    iniciandoSesion: 'Iniciando sesión...',
+    creandoCuenta: 'Creando cuenta...',
+    botonIngresar: 'Iniciar Sesión',
+    botonRegistrarse: 'Registrarse',
+    oContinuarCon: 'O continuar con',
+    // "Al continuar con Google aceptás los {Términos y condiciones} y la {Política de Privacidad}."
+    aceptasConGoogle: 'Al continuar con Google aceptás los',
+    aceptasAlCrear: 'Al crear tu cuenta aceptás los',
+    terminos: 'Términos y condiciones',
+    yLa: 'y la',
+    privacidad: 'Política de Privacidad',
+    cierreLegales: '.',
+    noTenesCuenta: '¿No tenés cuenta?',
+    registrate: 'Registrate',
+    yaTenesCuenta: '¿Ya tenés cuenta?',
+    iniciaSesion: 'Iniciá Sesión',
+    errorGoogle: 'Ocurrió un error al iniciar sesión con Google. Probá de nuevo.',
+    bienvenidoDeNuevo: '¡Bienvenido de nuevo!',
+    sesionIniciada: 'Sesión iniciada correctamente.',
+    bienvenido: '¡Bienvenido!',
+    revisaTuEmail: 'Revisá tu email',
+    /**
+     * Los mensajes de `@qps/core/auth/mensajes` y de `validarContrasenaNueva`
+     * (que ya eligen qué decir sin delatar si un email tiene cuenta). En
+     * castellano van tal cual; en inglés, su traducción si la hay.
+     */
+    mensaje: (mensaje: string) => `${mensaje}`,
   },
   // Botón de compartir (share-button.tsx)
   compartir: {

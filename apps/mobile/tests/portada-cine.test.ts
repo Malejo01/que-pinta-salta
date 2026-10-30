@@ -338,7 +338,9 @@ function violacionesCineAbiertoInicial(tarjeta: string): string[] {
 function violacionesTituloCartel(portada: string): string[] {
   const v: string[] = []
   if (!/categoria === 'cine' \? 'En cartel' : ETIQUETA_ATAJO\[atajo\]/.test(portada)) v.push("el título con categoria === 'cine' no dice 'En cartel'")
-  if (!/\{nombreCategoria\} · \{/.test(portada)) v.push('el título no arranca con el nombre de la categoría')
+  // A8 (nube Q1, QPS-339): el título pasó del JSX a un template literal
+  // (`tituloGrilla`, que usan el encabezado y el anuncio).
+  if (!/`\$\{nombreCategoria\} · \$\{/.test(portada)) v.push('el título no arranca con el nombre de la categoría')
   return v
 }
 

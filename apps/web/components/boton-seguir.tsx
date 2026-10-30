@@ -17,6 +17,9 @@ import { cambiarSeguimiento } from "@/lib/actions/radar"
 import { Button } from "@/components/ui/button"
 import { useAuthModal } from "@/components/auth-modal"
 import { useToast } from "@/hooks/use-toast"
+import { textosDe } from "@/lib/i18n"
+import type { Idioma } from "@/lib/i18n/idiomas"
+import { useIdioma } from "@/lib/i18n/use-idioma"
 import { cn } from "@/lib/utils"
 
 export type TipoSeguirBoton = "lugar" | "cuenta"
@@ -29,11 +32,29 @@ export interface BotonSeguirVistaProps {
   pendiente: boolean
   onClick: () => void
   className?: string
+  /** Idioma del texto (por prop: la vista no usa hooks). En castellano, el de core. */
+  idioma?: Idioma
 }
 
 /** La vista pura del botón de "+ Seguir": sin estado, sin hooks. */
-export function BotonSeguirVista({ tipo, etiqueta, siguiendo, pendiente, onClick, className }: BotonSeguirVistaProps) {
-  const texto = tipo === "lugar" ? textoSeguir(siguiendo) : textoSeguirCuenta(etiqueta, siguiendo)
+export function BotonSeguirVista({
+  tipo,
+  etiqueta,
+  siguiendo,
+  pendiente,
+  onClick,
+  className,
+  idioma = "es",
+}: BotonSeguirVistaProps) {
+  const t = textosDe(idioma).seguir
+  const texto =
+    idioma === "es"
+      ? tipo === "lugar"
+        ? textoSeguir(siguiendo)
+        : textoSeguirCuenta(etiqueta, siguiendo)
+      : tipo === "lugar"
+        ? t.lugar(siguiendo)
+        : t.cuenta(etiqueta, siguiendo)
 
   return (
     <Button
@@ -71,6 +92,8 @@ export function BotonSeguir({ tipo, id, etiqueta, siguiendoInicial, haySesion, c
   const [pendiente, setPendiente] = useState(false)
   const { open: openAuthModal } = useAuthModal()
   const { toast } = useToast()
+  const idioma = useIdioma()
+  const textos = textosDe(idioma)
 
   async function alTocar() {
     if (!haySesion) {
@@ -88,8 +111,8 @@ export function BotonSeguir({ tipo, id, etiqueta, siguiendoInicial, haySesion, c
           openAuthModal()
         } else {
           toast({
-            title: "Error",
-            description: "No pudimos guardar el seguimiento. Probá de nuevo.",
+            title: textos.asistencia.errorTitulo,
+            description: textos.seguir.error,
             variant: "destructive",
           })
         }
@@ -99,8 +122,8 @@ export function BotonSeguir({ tipo, id, etiqueta, siguiendoInicial, haySesion, c
       setSiguiendo(resultado.siguiendo)
     } catch {
       toast({
-        title: "Error de conexión",
-        description: "No pudimos conectarnos al servidor. Probá de nuevo.",
+        title: textos.asistencia.errorConexionTitulo,
+        description: textos.asistencia.errorConexionTexto,
         variant: "destructive",
       })
     } finally {
@@ -116,6 +139,7 @@ export function BotonSeguir({ tipo, id, etiqueta, siguiendoInicial, haySesion, c
       pendiente={pendiente}
       onClick={alTocar}
       className={className}
+      idioma={idioma}
     />
   )
 }

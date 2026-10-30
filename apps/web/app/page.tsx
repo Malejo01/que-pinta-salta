@@ -8,7 +8,7 @@ export const metadata: Metadata = {
   alternates: { canonical: "/", languages: idiomasAlternos("/") },
 }
 
-// El cuerpo (datos + contenido) vive en components/portada/pagina-portada.tsx,
+// El cuerpo (datos + contenido + JSON-LD) vive en components/portada/pagina-portada.tsx,
 // compartido con la versión en inglés (app/en/page.tsx).
 export default function HomePage() {
   return <PaginaPortada idioma="es" />

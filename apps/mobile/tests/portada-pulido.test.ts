@@ -15,7 +15,9 @@
 //   - la tarjeta mostrando la fecha para una película (sin "En cartel")
 //   - la tarjeta mostrando "En cartel" para todos
 //   - borde inactivo más claro que el mínimo (#555555 / #9a9a9a)
-//   - el anuncio del conteo sin la guarda `primeraVez || iOS`
+//   - el anuncio del conteo sin la guarda `primeraVez || iOS` (hasta A8, nube
+//     Q1, QPS-339; desde A8: la portada sin `useAnunciarConteo`, con un
+//     `announceForAccessibility` suelto o con una live region de vuelta)
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -232,26 +234,34 @@ describe('bordeChipInactivo: contraste >= 3:1 contra el fondo de la portada (QPS
 })
 
 // ---------------------------------------------------------------------------
-// Anuncio del conteo al aparecer (QPS-354)
+// Anuncio del conteo (QPS-354 → A8, nube Q1, QPS-339)
 // ---------------------------------------------------------------------------
 // A2 (nube Q1, ronda de correcciones): lo que se anuncia pasó a ser
 // `textoAnuncio` (el conteo si hay resultados, el texto del vacío si no;
-// `anuncioDeLaGrilla`, probada en `tests/portada-gratis.test.ts`), y "primera
-// vez" es que cambie el `tipoAnuncio` (cada nodo es otro en pantalla). La
-// guarda contra la doble lectura en Android sigue igual.
+// `anuncioDeLaGrilla`, probada en `tests/portada-gratis.test.ts`).
+// A8 (nube Q1, QPS-339): CAMBIO DE ESTRATEGIA, a propósito. Antes este
+// detector exigía la guarda `primeraVez || Platform.OS === 'ios'` (en Android
+// los cambios quedaban a cargo de la live region). Ahora se anuncia siempre a
+// mano, en las dos plataformas, con `useAnunciarConteo` (la decisión pura está
+// en `lib/anunciar-conteo.ts` y se prueba en `tests/anunciar-conteos.test.ts`),
+// y la portada no tiene ninguna live region ni ningún anuncio suelto: un solo
+// anuncio por cambio. El detector exige eso.
 export function violacionesDeAnuncio(fuente: string): string[] {
   const c = sinComentarios(fuente)
   const v: string[] = []
-  if (!/announceForAccessibility\(\s*textoAnuncio\s*\)/.test(c)) v.push('no anuncia textoAnuncio')
-  if (!/primeraVez\s*\|\|\s*Platform\.OS\s*===\s*'ios'\s*\)\s*AccessibilityInfo\.announceForAccessibility/.test(c)) {
-    v.push("el anuncio no está guardado por `primeraVez || Platform.OS === 'ios'`")
+  if (!/useAnunciarConteo\(\s*datosPortada\s*\?\s*estadoAnunciablePortada\(\{[^}]*\banuncio\b[^}]*\}\)\s*:\s*null\s*\)/.test(c)) {
+    v.push('la portada no anuncia con useAnunciarConteo(estadoAnunciablePortada({ …, anuncio }))')
   }
-  if (!/const primeraVez = tipoAnunciado\.current !== tipoAnuncio/.test(c)) v.push('primeraVez no sale del cambio de tipo')
-  if (!/\}, \[textoAnuncio, tipoAnuncio\]\)/.test(c)) v.push('el efecto del anuncio no depende de textoAnuncio y tipoAnuncio')
+  if (!/estadoAnunciablePortada\(\{[^}]*\btituloGrilla\s*[,}]/.test(c)) v.push('el anuncio no lleva el título de la grilla')
+  // Ronda de correcciones de A8: los anuncios pasan por `anunciar`
+  // (`lib/anunciar.ts`), y la prohibición de live regions es POR NODO (el
+  // conteo; los vacíos los miran `portada-gratis` y `para-chicos`), no por archivo.
+  if (/AccessibilityInfo\.announceForAccessibility/.test(c)) v.push('queda un announceForAccessibility suelto (doble anuncio)')
+  if (/<Texto\b[^>]*accessibilityLiveRegion[^>]*>\s*\{conteoCategoria\(/.test(c)) v.push('el conteo tiene una live region (doble lectura con el anuncio)')
   return v
 }
 
-describe('app/(tabs)/index.tsx: anuncio del conteo de la categoría (QPS-354)', () => {
+describe('app/(tabs)/index.tsx: anuncio del conteo de la grilla (QPS-354, A8)', () => {
   const real = leer('app', '(tabs)', 'index.tsx')
 
   it('el fuente real no tiene violaciones', () => {
@@ -259,10 +269,11 @@ describe('app/(tabs)/index.tsx: anuncio del conteo de la categoría (QPS-354)', 
   })
 
   it.each([
-    ['anuncia siempre (doble lectura en Android)', (s: string) => s.replace("if (primeraVez || Platform.OS === 'ios') AccessibilityInfo", 'if (true) AccessibilityInfo')],
-    ['sin dependencia textoAnuncio', (s: string) => s.replace('}, [textoAnuncio, tipoAnuncio])', '}, [tipoAnuncio])')],
-    ['no anuncia', (s: string) => s.replace('announceForAccessibility(textoAnuncio)', 'announceForAccessibility("")')],
-    ['primera vez sin mirar el tipo', (s: string) => s.replace('const primeraVez = tipoAnunciado.current !== tipoAnuncio', 'const primeraVez = tipoAnunciado.current === null')],
+    ['sin el hook', (s: string) => s.replace(/useAnunciarConteo\(datosPortada \?/, 'void (datosPortada ?')],
+    ['el hook siempre con null', (s: string) => s.replace('useAnunciarConteo(datosPortada ? estadoAnunciablePortada(', 'useAnunciarConteo(false ? estadoAnunciablePortada(')],
+    ['sin título', (s: string) => s.replace('paraChicos, tituloGrilla, anuncio })', 'paraChicos, tituloGrilla: \'\', anuncio })')],
+    ['anuncio suelto de vuelta', (s: string) => s.replace('const tituloGrilla = ', "AccessibilityInfo.announceForAccessibility('x')\n  const tituloGrilla = ")],
+    ['live region de vuelta en el conteo', (s: string) => s.replace(/<Texto tono="secundario">(\s*\{conteoCategoria)/, '<Texto tono="secundario" accessibilityLiveRegion="polite">$1')],
   ])('rotura en memoria: %s -> detectada', (_nombre, romper) => {
     const roto = romper(real)
     expect(roto).not.toBe(real)

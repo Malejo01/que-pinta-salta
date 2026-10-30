@@ -5,6 +5,9 @@ import { MobileNav } from '@/components/mobile-nav'
 import { Film } from 'lucide-react'
 import { textosDe } from '@/lib/i18n'
 import { AvisoContenidoEs } from '@/components/aviso-contenido-es'
+import { JsonLd } from '@/components/json-ld'
+import { conContexto } from '@/lib/seo/json-ld'
+import { listaDePeliculasJsonLd } from '@/lib/seo/listas'
 import type { Idioma } from '@/lib/i18n/idiomas'
 
 /**
@@ -28,12 +31,17 @@ export async function PaginaCines({ idioma }: { idioma: Idioma }) {
   }
 
   const activeMovies = movies || []
+  // B2: las películas en cartel como ItemList; sin películas no se publica.
+  // Solo en `/cines`: las URLs de cada Movie son anclas de la cartelera en castellano.
+  const listaDePeliculas = idioma === 'es' ? listaDePeliculasJsonLd(activeMovies) : null
 
   return (
     <main className="min-h-screen bg-background text-foreground pb-page relative overflow-hidden">
       {/* Luces de fondo decorativas (Aesthetics) */}
       <div className="absolute top-[-10%] left-[-20%] w-[600px] h-[600px] rounded-full bg-primary/5 blur-[120px] pointer-events-none" />
       <div className="absolute top-[30%] right-[-25%] w-[500px] h-[500px] rounded-full bg-primary/5 blur-[100px] pointer-events-none" />
+
+      {listaDePeliculas && <JsonLd data={conContexto(listaDePeliculas)} />}
 
       <Navbar />
 

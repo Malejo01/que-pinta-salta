@@ -4,6 +4,10 @@
  * Compartir salieron del encabezado, la fila (`<FilaAccionesEvento`) quedó
  * debajo de "Comprar tickets", y `<BotonSeguir` vive junto al lugar.
  *
+ * Q3: el texto "Comprar tickets" sale del diccionario
+ * (`textos.ficha.comprarTickets`): se busca esa referencia, y que el
+ * castellano siga diciendo lo mismo lo fija el primer test.
+ *
  * Despojamos los comentarios ANTES de buscar: si no, un comentario que
  * nombre un componente (por ejemplo, explicando por qué salió de ahí)
  * rompería el conteo. Ver `sinComentarios`.
@@ -11,6 +15,7 @@
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
+import { es } from '@/lib/i18n/diccionarios/es'
 
 const WEB_ROOT = fileURLToPath(new URL('../../', import.meta.url))
 
@@ -33,13 +38,18 @@ function ancla(codigo: string, desde: string, hasta: string): string {
 }
 
 const RUTA_FICHA = 'components/event-detail-page.tsx'
+const COMPRAR_TICKETS = 'textos.ficha.comprarTickets'
+
+it('en castellano el botón sigue diciendo "Comprar tickets"', () => {
+  expect(es.ficha.comprarTickets).toBe('Comprar tickets')
+})
 const RUTA_WRAPPER = 'components/event-modal-wrapper.tsx'
 
 describe('event-detail-page.tsx (la ficha)', () => {
   const codigo = sinComentarios(leer(RUTA_FICHA))
 
   it('<FilaAccionesEvento aparece DESPUÉS de "Comprar tickets"', () => {
-    const iComprar = codigo.indexOf('Comprar tickets')
+    const iComprar = codigo.indexOf(COMPRAR_TICKETS)
     const iFila = codigo.indexOf('<FilaAccionesEvento')
     expect(iComprar).toBeGreaterThan(0)
     expect(iFila).toBeGreaterThan(iComprar)
@@ -74,7 +84,7 @@ describe('event-modal-wrapper.tsx (el modal interceptado)', () => {
   const codigo = sinComentarios(leer(RUTA_WRAPPER))
 
   it('<FilaAccionesEvento aparece DESPUÉS de "Comprar tickets"', () => {
-    const iComprar = codigo.indexOf('Comprar tickets')
+    const iComprar = codigo.indexOf(COMPRAR_TICKETS)
     const iFila = codigo.indexOf('<FilaAccionesEvento')
     expect(iComprar).toBeGreaterThan(0)
     expect(iFila).toBeGreaterThan(iComprar)

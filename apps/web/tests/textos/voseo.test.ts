@@ -55,6 +55,13 @@ const FORMAS_TUTEO_SACADAS: { archivo: string; texto: string }[] = [
   // Desde Q3 los textos de favorite-button.tsx viven en el diccionario.
   { archivo: 'lib/i18n/diccionarios/es.ts', texto: 'Inténtalo de nuevo' },
   { archivo: 'lib/i18n/diccionarios/es.ts', texto: 'invitamos un cafecito' },
+  // Desde Q3 los textos de auth-modal.tsx también viven en el diccionario.
+  { archivo: 'lib/i18n/diccionarios/es.ts', texto: 'Guarda tus eventos' },
+  { archivo: 'lib/i18n/diccionarios/es.ts', texto: 'Únete para guardar' },
+  { archivo: 'lib/i18n/diccionarios/es.ts', texto: '¿No tienes cuenta?' },
+  { archivo: 'lib/i18n/diccionarios/es.ts', texto: '¿Ya tienes cuenta?' },
+  { archivo: 'lib/i18n/diccionarios/es.ts', texto: 'Regístrate' },
+  { archivo: 'lib/i18n/diccionarios/es.ts', texto: 'Inicia Sesión' },
 ]
 
 describe('Voseo rioplatense (30-e): las formas de tuteo que se sacaron no vuelven a aparecer', () => {

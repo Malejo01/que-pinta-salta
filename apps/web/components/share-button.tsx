@@ -6,7 +6,9 @@ import { useToast } from "@/hooks/use-toast"
 import { urlEvento } from "@/lib/metricas/links"
 import { es } from "@/lib/i18n/diccionarios/es"
 import type { Diccionario } from "@/lib/i18n"
-import { useTextos } from "@/lib/i18n/use-idioma"
+import type { Idioma } from "@/lib/i18n/idiomas"
+import { rutaEn } from "@/lib/i18n/rutas"
+import { useIdioma, useTextos } from "@/lib/i18n/use-idioma"
 
 export interface ShareData {
   title: string
@@ -17,11 +19,15 @@ export interface ShareData {
  * Título y URL para compartir la ficha del evento. Pura: la URL siempre es
  * la de `urlEvento` (`@qps/core`), la misma que usa el resto de la web y la
  * app — nunca armada a mano. `null` si `eventId` no es un uuid válido (no
- * debería pasar desde la ficha).
+ * debería pasar desde la ficha). En inglés, la misma URL con el camino de
+ * la ficha en inglés (`/en/evento/<id>`, vía `rutaEn`).
  */
-export function buildShareData(eventId: string, title: string): ShareData | null {
+export function buildShareData(eventId: string, title: string, idioma: Idioma = "es"): ShareData | null {
   const url = urlEvento(eventId)
-  return url ? { title, url } : null
+  if (!url) return null
+  if (idioma === "es") return { title, url }
+  const destino = new URL(url)
+  return { title, url: destino.origin + rutaEn(idioma, destino.pathname + destino.search + destino.hash) }
 }
 
 interface ShareDeps {
@@ -95,13 +101,14 @@ interface ShareButtonProps {
 
 export function ShareButton({ eventId, title, className, url, onShared }: ShareButtonProps) {
   const { toast } = useToast()
+  const idioma = useIdioma()
   const textos = useTextos().compartir
 
   const handleShare = async (e: React.MouseEvent) => {
     e.preventDefault()
     e.stopPropagation()
 
-    const data = url ? { title, url } : buildShareData(eventId, title)
+    const data = url ? { title, url } : buildShareData(eventId, title, idioma)
     if (!data) return
 
     const canShare = typeof navigator !== "undefined" && typeof navigator.share === "function"

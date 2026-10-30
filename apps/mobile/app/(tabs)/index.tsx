@@ -38,7 +38,8 @@
 // 66-c: sin eventos para la combinación hay una caja con "Ver <Nombre> en todas
 // las fechas" (`/buscar?categoria=…&v=…` sin atajo; el cine, "Ver cartelera", va
 // a `/cines`) y "Todas las
-// categorías"; con eventos, una línea "N eventos" (live region) bajo el título.
+// categorías"; con eventos, una línea "N eventos" bajo el título (desde A8, nube
+// Q1, QPS-339, anunciada con `useAnunciarConteo` y sin live region).
 // Sin chips que elegir no se dibuja la fila. Sin conexión: nada de esto pide
 // red (todo es memoria sobre lo cargado), y `AvisoSinConexion` va debajo de la cabecera fija.
 // R67, 67-c: con el chip "Cine", las películas se dibujan como la cartelera de
@@ -62,7 +63,7 @@
 // sus reglas). Con "Gratis" apagado la portada queda exactamente como antes.
 // Prendido, la portada pasa al modo grilla (como con una categoría): título
 // "Gratis · Hoy" o "Música gratis · Finde" (`tituloGratis`), la misma línea
-// "N eventos" con su live region y su anuncio, y la grilla de 2 columnas; sin
+// "N eventos" con su anuncio, y la grilla de 2 columnas; sin
 // Hero, sin `InvitacionAvisos`, sin banners ni anuncio. Los chips de categoría
 // salen solo de los eventos gratis de la fecha (`chipsDeLaPortada`), con la
 // elegida siempre presente. Las películas no son gratis: con "Cine" + "Gratis"
@@ -114,10 +115,50 @@
 //   - Con Infantil elegida, el vacío no ofrece "Ver todas las edades" (no
 //     cambiaría nada): ver `salidasVacioParaChicos`.
 //
+// A8 (nube Q1, QPS-339): el conteo y los vacíos de la grilla se anuncian a
+// mano en Android y en iOS (`useAnunciarConteo`, `lib/anunciar-conteo-hook.ts`;
+// la decisión pura de qué y cuándo, en `lib/anunciar-conteo.ts`), y esos nodos
+// ya no son live regions: un solo anuncio por cambio. Se anuncia la entrada al
+// modo grilla y cada cambio de filtro (conteo + título, aunque el número sea el
+// mismo: "3 eventos, Música gratis, Hoy"), y la salida ("Sin filtros: todos
+// los eventos de hoy"). El título de la grilla es un solo string
+// (`tituloGrilla`) que usan el encabezado y el anuncio. Ronda de correcciones
+// de A8: la prohibición de live regions es por nodo (el conteo y los tres
+// vacíos), no por archivo: otras (p. ej. `AvisoSinConexion`) siguen.
+//
 // Lo que no se copia, a propósito (ops/paridad-web-app.md, inventario
 // "Portada" y la tarea 29-h): "Más filtros" (lugar/zona) y el switch
 // "Mostrar flyers de redes" — ninguno de los dos tiene un equivalente de
 // ronda en la app todavía.
+//
+// A6 (nube Q1) · Vacíos y sin conexión. (1) Un error de carga distingue "no
+// hay conexión y todavía no hay nada guardado" de un error del servidor
+// (`mensajeErrorCarga`, `lib/vacios.ts`: `cargarAgendaConCache` ahora trae
+// `sinConexion` en la rama de error). (2) El vacío de "Hoy en Salta" es
+// honesto con la pill elegida (`vacioHoyEnSalta`): con "Finde" o "Semana" ya
+// no dice "Hoy no hay eventos cargados" a secas habiendo eventos más abajo, y
+// su acción nunca es la pill en la que ya se está; la caja (`vacioHoy`) no se
+// achica — la regla (a) del anuncio cuenta con su alto (docstring de
+// `seccionesPortada`). (3) Con lo guardado a la vista, "Reintentar" está al
+// lado del aviso (`AvisoSinConexion`), y un refresco que vuelve a caer en lo
+// guardado avisa "Seguimos sin conexión"; un refresco que falla con datos ya
+// en pantalla los CONSERVA y avisa que no se pudo actualizar
+// (`decidirRefresco`). Los anuncios van en el mismo handler del refresco,
+// nunca en un efecto. Nada de toasts: todo es banda dentro del scroll.
+//
+// Integración (R76) de A6 con A2, A3 y A8:
+//   - Los avisos de A6 (sin conexión, refresco, reintento) pasan por `anunciar`
+//     (`lib/anunciar.ts`), no por `AccessibilityInfo`.
+//   - El efecto de A6 que anunciaba el conteo de la categoría
+//     (`textoConteo`/`conteoVisible`, con `Platform`) se descartó: el conteo y
+//     los vacíos de la grilla los anuncia SOLO `useAnunciarConteo` (A8), que
+//     además cubre "Gratis" y "Para chicos". Anunciar los dos era leerlo dos
+//     veces.
+//   - El texto del vacío del modo categoría es el de A6 (`textoVacioCategoria`
+//     de `lib/vacios.ts`, con el porqué sin conexión y la cartelera); `textoVacio`
+//     lo usa tanto el nodo visible como el anuncio de A8, así que lo que se ve
+//     y lo que se oye siguen siendo lo mismo. El vacío de "Gratis" y el de "Para
+//     chicos" (A2/A3) no cambian.
 //
 // AdSense SÍ tiene equivalente ahora (R60, 52-d: AdMob en la app, fase 2 de
 // la R52): el banner (`components/BannerAnuncio.tsx`) va en esta pantalla
@@ -127,7 +168,7 @@
 // de esta misma pantalla. El detector que lo exige está en
 // `tests/anuncios-lugares.test.ts`.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { AccessibilityInfo, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native'
+import { Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native'
 import { Redirect, useRouter } from 'expo-router'
 import { formatDateInSalta, transformMovie } from '@qps/core/home/transform'
 import { selectCarouselEvents, sortCategories } from '@qps/core/home/carousel'
@@ -135,13 +176,14 @@ import { groupByCategory, selectTodayRow, type CategoryEventsRow } from '@qps/co
 import { eventoEnAtajo, type Atajo } from '@qps/core/home/atajos'
 import type { DisplayEvent } from '@qps/core/home/types'
 import type { Category } from '@qps/core/types'
-import { AvisoSinConexion } from '@/components/AvisoSinConexion'
+import { AvisoNoSeActualizo, AvisoSinConexion } from '@/components/AvisoSinConexion'
 import { BannerAnuncio } from '@/components/BannerAnuncio'
 import { BannerRadar } from '@/components/BannerRadar'
 import { ChipGratis } from '@/components/ChipGratis'
 import { ChipParaChicos } from '@/components/ChipParaChicos'
 import { ChipsCategorias } from '@/components/ChipsCategorias'
-import { Cargando, ErrorCarga } from '@/components/EstadoCarga'
+import { EsqueletoPortada } from '@/components/Esqueleto'
+import { ErrorCarga } from '@/components/EstadoCarga'
 import { FilaCategoria } from '@/components/FilaCategoria'
 import { Hero } from '@/components/Hero'
 import { InvitacionAvisos } from '@/components/InvitacionAvisos'
@@ -149,6 +191,9 @@ import { PillsAtajos } from '@/components/PillsAtajos'
 import { TarjetaEvento } from '@/components/TarjetaEvento'
 import { TarjetaPelicula } from '@/components/TarjetaPelicula'
 import { Texto } from '@/components/Texto'
+import { anunciar } from '@/lib/anunciar'
+import { estadoAnunciablePortada } from '@/lib/anunciar-conteo'
+import { useAnunciarConteo } from '@/lib/anunciar-conteo-hook'
 import { useBienvenidaVista } from '@/lib/bienvenida'
 import { bordeChipInactivo, useColoresQPS } from '@/lib/colores'
 import { obtenerCines, type Pelicula } from '@/lib/datos/cines'
@@ -168,11 +213,9 @@ import {
   eventosDeLaGrilla,
   eventosDeLosChips,
   segundaSalidaVacioGratis,
-  textoVacioCategoria,
   textoVacioGratis,
   tituloGratis,
   type SegundaSalidaGratis,
-  type TipoAnuncioGrilla,
 } from '@/lib/portada-gratis'
 import {
   salidasVacioParaChicos,
@@ -180,10 +223,21 @@ import {
   tituloParaChicos,
   type SalidaParaChicos,
 } from '@/lib/portada-para-chicos'
+import { TITULO_SIN_CONEXION } from '@/lib/sin-conexion/aviso'
+import {
+  anuncioDeReintento,
+  decidirRefresco,
+  mensajeErrorCarga,
+  textoVacioCategoria,
+  vacioHoyEnSalta,
+  type DestinoInicio,
+} from '@/lib/vacios'
 
 type EstadoPortada =
   | { tipo: 'cargando' }
-  | { tipo: 'error'; error: string }
+  // A6: `error` ya es el texto para la pantalla (`mensajeErrorCarga`), y
+  // `sinConexion` queda para `decidirRefresco`.
+  | { tipo: 'error'; error: string; sinConexion?: boolean }
   | {
       tipo: 'ok'
       eventos: EventoVigenteParaInicio[]
@@ -289,7 +343,9 @@ export function seccionesPortada(filas: CategoryEventsRow[], hoyEventos: Display
 
 // `ETIQUETA_ATAJO` (título, "Música · Finde") y `FRASE_ATAJO` (vacío, "No hay
 // eventos de Música para hoy.") viven en `lib/portada-gratis.ts` desde A2 (nube
-// Q1): los usan también el título y el vacío de "Gratis".
+// Q1): los usan también el título y el vacío de "Gratis". La frase para el
+// vacío del modo categoría vive desde A6 en `textoVacioCategoria`
+// (`lib/vacios.ts`).
 
 /**
  * Línea de conteo bajo el título de la categoría (R67, 67-c): "N eventos" como
@@ -316,8 +372,8 @@ function enFilasDeDos<T>(lista: T[]): T[][] {
  * prendido (`segundaSalidaVacioGratis`). Misma caja y mismos botones que el
  * vacío del modo categoría: principal relleno de `primary`, secundario con
  * contorno `bordeChipInactivo` (3:1; los dos vacíos lo usan desde la ronda de
- * correcciones de A2). El texto es una live region, como el conteo (ver el
- * efecto del anuncio en `Inicio`).
+ * correcciones de A2). Su texto se anuncia como el conteo (A8, nube Q1,
+ * QPS-339: con `useAnunciarConteo` en `Inicio`, ya no como live region).
  */
 function VacioGratis({
   texto,
@@ -337,7 +393,7 @@ function VacioGratis({
   const colores = useColoresQPS()
   return (
     <View style={[estilos.vacioHoy, estilos.vacioCategoria, { backgroundColor: colores.card, borderColor: colores.border }]}>
-      <Texto tono="secundario" accessibilityLiveRegion="polite">
+      <Texto tono="secundario">
         {texto}
       </Texto>
       <Pressable
@@ -369,7 +425,7 @@ function VacioGratis({
  * chicos" y deja fecha, categoría y "Gratis"), y una segunda que lo deja
  * prendido. Con Infantil (ronda de correcciones de A3) no hay "Ver todas las
  * edades": la principal es la fecha, los precios o la categoría. Misma caja,
- * mismos botones y misma live region que `VacioGratis`. Con "Gratis" y "Para
+ * mismos botones y mismo anuncio que `VacioGratis`. Con "Gratis" y "Para
  * chicos" prendidos, el vacío es este.
  */
 function VacioParaChicos({
@@ -403,7 +459,7 @@ function VacioParaChicos({
           : onTodosLosPrecios
   return (
     <View style={[estilos.vacioHoy, estilos.vacioCategoria, { backgroundColor: colores.card, borderColor: colores.border }]}>
-      <Texto tono="secundario" accessibilityLiveRegion="polite">
+      <Texto tono="secundario">
         {texto}
       </Texto>
       <Pressable
@@ -493,7 +549,9 @@ export default function Inicio() {
       },
     })
 
-    if (resultado.tipo === 'error') return { tipo: 'error', error: resultado.error }
+    if (resultado.tipo === 'error') {
+      return { tipo: 'error', error: mensajeErrorCarga('inicio', resultado), sinConexion: resultado.sinConexion }
+    }
 
     return {
       tipo: 'ok',
@@ -517,7 +575,16 @@ export default function Inicio() {
     let cancelado = false
 
     cargarDatos().then((resultado) => {
-      if (!cancelado) setEstado(resultado)
+      if (cancelado) return
+      setEstado(resultado)
+      // A6: el aviso de sin conexión es live region, pero Android no anuncia
+      // una live region al montarse (R69, 69-b) e iOS las ignora: se anuncia
+      // acá, en el callback de la carga (no es `setState`). Y si fue un
+      // "Reintentar" de `ErrorCarga` (`intento > 0`) que volvió a dar error,
+      // se anuncia el error: si no, parecía que el botón no hizo nada.
+      if (resultado.tipo === 'ok' && resultado.desdeCache) anunciar(TITULO_SIN_CONEXION)
+      const avisoError = anuncioDeReintento(intento > 0, resultado)
+      if (avisoError) anunciar(avisoError)
     })
 
     return () => {
@@ -525,16 +592,30 @@ export default function Inicio() {
     }
   }, [cargarDatos, intento])
 
+  // A6: lo que pasó con el último refresco ("Seguimos sin conexión...", "No
+  // pudimos actualizar..."), para la banda de arriba; `null` si no hay nada
+  // que decir. Se limpia con cada carga nueva.
+  const [notaRefresco, setNotaRefresco] = useState<string | null>(null)
+
   const cargar = useCallback(() => {
     setEstado({ tipo: 'cargando' })
+    setNotaRefresco(null)
     setIntento((valor) => valor + 1)
   }, [])
 
+  // A6: `decidirRefresco` (lib/vacios.ts) mira lo que había en pantalla al
+  // empezar (`estado`, por eso está en las dependencias) y lo que trajo el
+  // refresco: un error con datos a la vista los conserva, y volver a caer en
+  // lo guardado se avisa. También es el "Reintentar" del aviso.
   const refrescar = useCallback(async () => {
     setRefrescando(true)
-    setEstado(await cargarDatos())
+    const decision = decidirRefresco(estado, await cargarDatos(), notaRefresco)
+    setEstado(decision.estado)
+    setNotaRefresco(decision.nota)
+    const aviso = decision.anuncio
+    if (aviso) anunciar(aviso)
     setRefrescando(false)
-  }, [cargarDatos])
+  }, [cargarDatos, estado, notaRefresco])
 
   const datosPortada = useMemo(() => {
     if (estado.tipo !== 'ok') return null
@@ -602,7 +683,30 @@ export default function Inicio() {
       }
     }
 
-    return { carrusel, filas, hoyEventos, chips, eventosCategoria, peliculasCategoria, eventosSinPelicula, nombreCategoria }
+    // A6: si la pill elegida tiene eventos (aunque no sean de hoy), para el
+    // vacío de "Hoy en Salta" (`vacioHoyEnSalta`): las películas no cuentan,
+    // se suman siempre.
+    //
+    // Ojo (ronda de correcciones): "Hoy en Salta" es `date === hoy` y la
+    // ventana de "Esta noche" llega hasta las 05:59, así que con esa pill
+    // un boliche a las 00:30 está en las filas pero no en "Hoy en Salta":
+    // por eso el vacío mira esto y no `hoyEventos`. `hayEventosEnFinde`,
+    // para no ofrecer "Ver el finde" desde "Semana" con el finde vacío.
+    const hayEventosEnAtajo = eventosDelAtajo.length > 0
+    const hayEventosEnFinde = estado.eventos.some((item) => eventoEnAtajo(item.paraAtajo, 'finde', ahora))
+
+    return {
+      carrusel,
+      filas,
+      hoyEventos,
+      chips,
+      eventosCategoria,
+      peliculasCategoria,
+      eventosSinPelicula,
+      nombreCategoria,
+      hayEventosEnAtajo,
+      hayEventosEnFinde,
+    }
   }, [estado, atajo, categoria, gratis, paraChicos])
 
   // Con una categoría elegida (R66) o con "Gratis" prendido (A2) no hay
@@ -638,24 +742,59 @@ export default function Inicio() {
     scrollRef.current?.scrollTo({ y: 0, animated: false })
   }, [])
 
-  // R69, 69-b (QPS-354): el conteo tiene `accessibilityLiveRegion="polite"`,
-  // pero Android anuncia los cambios de una live region, no su montaje: al
-  // entrar al modo categoría la primera línea no se leía. Se anuncia con
-  // `announceForAccessibility` cuando el conteo pasa de no estar a estar. Para
-  // no leer dos veces el mismo texto, los cambios posteriores (la live region
-  // ya montada) los anuncia la live region en Android y este efecto solo en
-  // iOS, que ignora `accessibilityLiveRegion`. Un anuncio no es `setState`.
+  // A6: la acción del vacío de "Hoy en Salta" (`vacioHoyEnSalta`): otra pill,
+  // o Buscar sin fecha (`v`: el mismo nonce de "Ver todos", para que Buscar
+  // vuelva a aplicar los parámetros aunque sean los de la vez anterior).
+  const irADestino = useCallback(
+    (destino: DestinoInicio) => {
+      if (destino.tipo === 'atajo') cambiarAtajo(destino.atajo)
+      else router.push(`/buscar?v=${Date.now()}`)
+    },
+    [cambiarAtajo, router]
+  )
+
+  // A6: `null` es el vacío de siempre (pill "Hoy", con conexión): el texto
+  // literal de la web, más abajo.
+  const vacioHoy =
+    estado.tipo === 'ok' && datosPortada
+      ? vacioHoyEnSalta({
+          atajo,
+          hayEventosEnAtajo: datosPortada.hayEventosEnAtajo,
+          hayEventosEnFinde: datosPortada.hayEventosEnFinde,
+          desdeCache: estado.desdeCache !== null,
+        })
+      : null
+
+  // R69, 69-b (QPS-354): el conteo se anunciaba con `announceForAccessibility`
+  // solo al aparecer (o al cambiar de nodo: conteo ↔ vacío) y, en Android, los
+  // cambios siguientes quedaban a cargo de `accessibilityLiveRegion`.
   // A2 (nube Q1): el modo "Gratis" usa la misma línea y el mismo anuncio.
   // Ronda de correcciones: lo que se anuncia es el conteo si hay resultados o
   // el texto del vacío si no (`anuncioDeLaGrilla`): antes, con "Gratis" y sin
-  // resultados, no se oía nada. El vacío también es una live region, y cada
-  // nodo (conteo, vacío de categoría, vacío de "Gratis") es uno distinto en
-  // pantalla, así que "primera vez" es que cambie el `tipo`: al pasar del
-  // conteo al vacío se monta otro nodo y Android no lo anunciaría solo.
+  // resultados, no se oía nada.
   // A3 (nube Q1): con "Para chicos", su vacío (también con "Gratis" prendido).
+  // A8 (nube Q1, QPS-339): se anuncia SIEMPRE a mano, en Android y en iOS, con
+  // `useAnunciarConteo` (reglas en `lib/anunciar-conteo.ts`), y el conteo y
+  // los tres vacíos ya no son live regions (para no leer dos veces). Así se
+  // anuncia también un cambio de filtro con el mismo número ("3 eventos,
+  // Música gratis, Hoy" después de "3 eventos, Música, Hoy"), con el título de
+  // la grilla para desambiguar, y la salida del modo grilla ("Sin filtros:
+  // todos los eventos de hoy": apagar el último filtro, "Todas las categorías",
+  // "Ver todos los precios" o "Ver todas las edades" que vuelven a la portada
+  // normal). El montaje no se anuncia (la portada arranca sin filtros). En
+  // Android lo que viene de un toque espera 400 ms (ver el hook).
+  // A6 (integración R76): el vacío del modo categoría es el de `lib/vacios.ts`
+  // (con el porqué sin conexión); el mismo texto se ve y se anuncia.
   const textoVacio = paraChicos
     ? textoVacioParaChicos(categoria, nombreCategoria, atajo, gratis)
-    : gratis ? textoVacioGratis(categoria, nombreCategoria, atajo) : textoVacioCategoria(nombreCategoria, atajo)
+    : gratis
+      ? textoVacioGratis(categoria, nombreCategoria, atajo)
+      : textoVacioCategoria({
+          nombre: nombreCategoria,
+          atajo,
+          esCine: categoria === 'cine',
+          desdeCache: estado.tipo === 'ok' && estado.desdeCache !== null,
+        })
   const anuncio = datosPortada
     ? anuncioDeLaGrilla({
         modoGrilla,
@@ -666,25 +805,28 @@ export default function Inicio() {
         textoVacio,
       })
     : null
-  const textoAnuncio = anuncio?.texto ?? null
-  const tipoAnuncio = anuncio?.tipo ?? null
-  const tipoAnunciado = useRef<TipoAnuncioGrilla | null>(null)
-  useEffect(() => {
-    if (textoAnuncio === null || tipoAnuncio === null) {
-      tipoAnunciado.current = null
-      return
-    }
-    const primeraVez = tipoAnunciado.current !== tipoAnuncio
-    tipoAnunciado.current = tipoAnuncio
-    if (primeraVez || Platform.OS === 'ios') AccessibilityInfo.announceForAccessibility(textoAnuncio)
-  }, [textoAnuncio, tipoAnuncio])
+  // El título de la grilla (A8: un solo string, para el encabezado y para el
+  // anuncio). R67, 67-r1: las películas no se filtran por fecha, así que con
+  // "Cine" dice "En cartel" y no el atajo. A2 (nube Q1): con "Gratis", "Gratis
+  // · Hoy" o "Música gratis · Finde" (con "Cine" también va la fecha: no hay
+  // películas). A3 (nube Q1): con "Para chicos", "Para chicos · Finde",
+  // "Música para chicos · Hoy" o "Gratis para chicos · Hoy".
+  const tituloGrilla = paraChicos
+    ? tituloParaChicos(categoria === null ? null : nombreCategoria, categoria, atajo, gratis)
+    : gratis
+      ? tituloGratis(categoria === null ? null : nombreCategoria, atajo)
+      : `${nombreCategoria} · ${categoria === 'cine' ? 'En cartel' : ETIQUETA_ATAJO[atajo]}`
+  useAnunciarConteo(datosPortada ? estadoAnunciablePortada({ atajo, categoria, gratis, paraChicos, tituloGrilla, anuncio }) : null)
 
   if (cargandoBienvenida) return null
   if (!vista) return <Redirect href="/bienvenida" />
 
   return (
     <View style={[estilos.contenedor, { backgroundColor: colores.background }]}>
-      {estado.tipo === 'cargando' ? <Cargando /> : null}
+      {/* A1 (nube Q1): en la carga inicial (y con "Reintentar"), el esqueleto
+          con la forma de la portada en vez de `Cargando`. El pull-to-refresh
+          no pasa por acá: sigue mostrando lo que había (`refrescando`). */}
+      {estado.tipo === 'cargando' ? <EsqueletoPortada /> : null}
 
       {estado.tipo === 'error' ? <ErrorCarga mensaje={estado.error} onReintentar={cargar} /> : null}
 
@@ -717,7 +859,15 @@ export default function Inicio() {
             </View>
           </View>
 
-          {estado.desdeCache ? <AvisoSinConexion guardadoEn={estado.desdeCache.guardadoEn} /> : null}
+          {/* A6: "Reintentar" al lado del aviso (es `refrescar`: lo que se ve
+              no se va mientras se reintenta) y la nota del último refresco. */}
+          {estado.desdeCache ? <AvisoSinConexion guardadoEn={estado.desdeCache.guardadoEn} onReintentar={refrescar} reintentando={refrescando} nota={notaRefresco} /> : null}
+
+          {/* A6: un refresco que falló con una carga fresca a la vista: se
+              conserva lo que se ve y se avisa. */}
+          {estado.desdeCache === null && notaRefresco ? (
+            <AvisoNoSeActualizo texto={notaRefresco} onReintentar={refrescar} reintentando={refrescando} />
+          ) : null}
 
           {!modoGrilla && datosPortada.carrusel.length > 0 ? <Hero eventos={datosPortada.carrusel} /> : null}
 
@@ -726,27 +876,14 @@ export default function Inicio() {
           {modoGrilla ? (
             <View style={estilos.bloqueCategoria}>
               <Texto peso="bold" accessibilityRole="header" style={estilos.tituloCategoria}>
-                {/* R67, 67-r1: las películas no se filtran por fecha, así que
-                    con "Cine" el título dice "En cartel" y no el atajo.
-                    A2 (nube Q1): con "Gratis", "Gratis · Hoy" o "Música gratis ·
-                    Finde" (con "Cine" también va la fecha: no hay películas).
-                    A3 (nube Q1): con "Para chicos", "Para chicos · Finde",
-                    "Música para chicos · Hoy" o "Gratis para chicos · Hoy". */}
-                {paraChicos ? (
-                  tituloParaChicos(categoria === null ? null : nombreCategoria, categoria, atajo, gratis)
-                ) : gratis ? (
-                  tituloGratis(categoria === null ? null : nombreCategoria, atajo)
-                ) : (
-                  <>
-                    {nombreCategoria} · {categoria === 'cine' ? 'En cartel' : ETIQUETA_ATAJO[atajo]}
-                  </>
-                )}
+                {/* El mismo string que va en el anuncio (`tituloGrilla`, A8). */}
+                {tituloGrilla}
               </Texto>
               {/* El vacío del modo categoría va primero; el de "Para chicos"
                   (A3), después; el de "Gratis" (A2), en la última. */}
               {datosPortada.eventosCategoria.length === 0 && categoria !== null && !gratis && !paraChicos ? (
                 <View style={[estilos.vacioHoy, estilos.vacioCategoria, { backgroundColor: colores.card, borderColor: colores.border }]}>
-                  <Texto tono="secundario" accessibilityLiveRegion="polite">
+                  <Texto tono="secundario">
                     {textoVacio}
                   </Texto>
                   <Pressable
@@ -793,10 +930,10 @@ export default function Inicio() {
                 />
               ) : (
                 <>
-                  <Texto tono="secundario" accessibilityLiveRegion="polite">
+                  <Texto tono="secundario">
                     {conteoCategoria(datosPortada.peliculasCategoria.length, datosPortada.eventosSinPelicula.length)}
                   </Texto>
-                  {/* (el primer anuncio lo hace el efecto de `textoAnuncio`) */}
+                  {/* A8 (nube Q1, QPS-339): sin live region; lo anuncia `useAnunciarConteo`. */}
                   {/* R67, 67-c: el scroll no salta al abrir el acordeón de la
                       película 2 o 3 porque las tarjetas cuelgan de este mismo
                       `ScrollView` con `key` estables (`pelicula.id`), la lista
@@ -836,22 +973,25 @@ export default function Inicio() {
               }
 
               return (
-                <View key="hoy-en-salta-vacio" style={[estilos.vacioHoy, { backgroundColor: colores.card, borderColor: colores.border }]}>
+                <View
+                  key="hoy-en-salta-vacio"
+                  style={[estilos.vacioHoy, estilos.vacioHoyAlto, { backgroundColor: colores.card, borderColor: colores.border }]}
+                >
                   <View style={estilos.vacioHoyTexto}>
                     <Texto peso="bold" style={estilos.vacioHoyTitulo}>
                       Hoy en Salta
                     </Texto>
                     <Texto tono="secundario">
-                      Hoy no hay eventos cargados. Mirá qué viene en los próximos días.
+                      {vacioHoy ? vacioHoy.texto : 'Hoy no hay eventos cargados. Mirá qué viene en los próximos días.'}
                     </Texto>
                   </View>
                   <Pressable
-                    onPress={() => cambiarAtajo('semana')}
+                    onPress={() => (vacioHoy ? irADestino(vacioHoy.accion.destino) : cambiarAtajo('semana'))}
                     accessibilityRole="button"
-                    style={[estilos.vacioHoyBoton, { backgroundColor: colores.primary }]}
+                    style={[estilos.vacioHoyBoton, estilos.botonVacio, { backgroundColor: colores.primary }]}
                   >
                     <Texto peso="bold" style={{ color: colores.primaryForeground }}>
-                      Ver esta semana
+                      {vacioHoy ? vacioHoy.accion.texto : 'Ver esta semana'}
                     </Texto>
                   </Pressable>
                 </View>
@@ -916,6 +1056,12 @@ const estilos = StyleSheet.create({
     padding: 20,
     gap: 16,
   },
+  // A6 (ronda de correcciones): el alto de la caja vacía de "Hoy en Salta"
+  // queda fijo en el mínimo con el que cuenta la regla (a) del anuncio (~188
+  // dp, docstring de `seccionesPortada`), así un texto más corto que el de la
+  // web (los de `vacioHoyEnSalta`) no la achica ni sube el banner. Solo para
+  // esta caja: la del modo categoría no tiene anuncio debajo.
+  vacioHoyAlto: { minHeight: 188, justifyContent: 'center' },
   vacioHoyTexto: { gap: 4 },
   vacioHoyTitulo: { fontSize: 20 },
   bloqueCategoria: { paddingHorizontal: 16, paddingTop: 8, gap: 12 },

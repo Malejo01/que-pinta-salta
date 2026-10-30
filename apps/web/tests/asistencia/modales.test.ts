@@ -21,6 +21,7 @@
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it, vi } from 'vitest'
+import { es } from '@/lib/i18n/diccionarios/es'
 
 // El componente diferido importa la server action, la fila y los botones de
 // Seguir: no hace falta ni la base ni el árbol de React para probar la
@@ -272,9 +273,12 @@ describe('event-modal-wrapper.tsx', () => {
     )
   })
 
+  // Q3: el texto sale del diccionario (`textos.ficha.comprarTickets`, que en
+  // castellano sigue siendo "Comprar tickets").
   it('la fila va DESPUÉS de "Comprar tickets"', () => {
-    expect(codigo.indexOf('Comprar tickets')).toBeGreaterThan(0)
-    expect(codigo.indexOf('<FilaAccionesEvento')).toBeGreaterThan(codigo.indexOf('Comprar tickets'))
+    expect(es.ficha.comprarTickets).toBe('Comprar tickets')
+    expect(codigo.indexOf('textos.ficha.comprarTickets')).toBeGreaterThan(0)
+    expect(codigo.indexOf('<FilaAccionesEvento')).toBeGreaterThan(codigo.indexOf('textos.ficha.comprarTickets'))
   })
 
   it('le pasa el ShareButton a la fila por la prop compartir (no queda un ShareButton suelto en el encabezado)', () => {
@@ -298,7 +302,8 @@ describe('event-modal.tsx (Buscar)', () => {
   })
 
   it('la fila va DESPUÉS de "Comprar tickets"', () => {
-    expect(codigo.indexOf('<BotonesAsistenciaDiferidos')).toBeGreaterThan(codigo.indexOf('Comprar tickets'))
+    expect(codigo.indexOf('textos.ficha.comprarTickets')).toBeGreaterThan(0)
+    expect(codigo.indexOf('<BotonesAsistenciaDiferidos')).toBeGreaterThan(codigo.indexOf('textos.ficha.comprarTickets'))
   })
 
   it('no importa obtenerAsistencia directo (lo hace el diferido)', () => {
