@@ -34,16 +34,6 @@ const ARCHIVOS_PROHIBIDOS_EXPLICITOS = [
   'components/PantallaRadar.tsx',
 ]
 
-// ---------------------------------------------------------------------------
-// limpiarComentarios: quita `//...` y `/*...*/` de verdad, char por char,
-// respetando el orden real de aparición y las cadenas de texto — NO busca
-// primero el índice de `//` y después el de `/*` por separado (ese es el bug
-// documentado por la tarea: un `//` que más adelante en la misma línea
-// contiene la secuencia `/*`, por ejemplo en un comentario que menciona una
-// ruta con glob, haría que una búsqueda por índices separados confunda esa
-// `/*` con la apertura de un comentario de bloque y blanquee el resto del
-// archivo, incluido código real más abajo).
-// ---------------------------------------------------------------------------
 
 
 // ---------------------------------------------------------------------------

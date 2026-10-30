@@ -73,9 +73,6 @@ const ARCHIVOS_PUBLICIDAD = readdirSync(`${APP}${DIR_PUBLICIDAD}`)
   .map((f) => `${DIR_PUBLICIDAD}/${f}`)
 const ARCHIVOS_DEL_CRON = [...ARCHIVOS_PUBLICIDAD, RUTA_CRON]
 
-/** Sin comentarios (un `//` solo cuenta si va al principio o después de un espacio: no corta las URL de las cadenas). */
-
-
 /** El texto entre el paréntesis (o llave) que abre en `indice` y el que lo cierra. */
 function balanceado(texto: string, indice: number): string {
   const apertura = texto[indice]

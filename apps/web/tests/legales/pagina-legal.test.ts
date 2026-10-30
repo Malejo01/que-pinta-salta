@@ -42,9 +42,6 @@ function renderPagina(titulo: string): string {
   )
 }
 
-/** Fuente sin comentarios de bloque ni de línea (los comentarios pueden nombrar lo que ya no existe). */
-
-
 describe('PaginaLegal: versión y vigencia', () => {
   it('muestra "Versión <VERSION_LEGAL> — vigente desde el <VIGENTE_DESDE>"', () => {
     const html = renderPagina('Política de Privacidad')

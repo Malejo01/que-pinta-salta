@@ -86,7 +86,39 @@ describe('quitarComentarios (helper unificado de tests, QPS-313)', () => {
     expect(resultado).toContain('const u3 = `https://ejemplo.com/${id}/*`')
     expect(resultado).not.toContain('comentario de línea real')
   })
+
+  it('entiende regex literales con barras escapadas y no los confunde con comentarios de línea (QPS-313)', () => {
+    const fuente = [
+      'const URL_RE = /^https?:\\/\\//',
+      'const OTRA_RE = /[/]foo\\//i',
+      'const CON_COMENTARIO = /^https?:\\/\\// // comentario al final',
+      'const codigo = 42',
+    ].join('\n')
+
+    const resultado = quitarComentarios(fuente)
+
+    expect(resultado).toContain('const URL_RE = /^https?:\\/\\//')
+    expect(resultado).toContain('const OTRA_RE = /[/]foo\\//i')
+    expect(resultado).toContain('const CON_COMENTARIO = /^https?:\\/\\//')
+    expect(resultado).not.toContain('comentario al final')
+    expect(resultado).toContain('const codigo = 42')
+  })
+
+  it('un apóstrofo en JSX no abre un string multilínea falso que se coma el resto del archivo (QPS-313)', () => {
+    const fuente = [
+      '<p>It\'s a test</p>',
+      '// comentario que debe ser eliminado',
+      'const codigoPosterior = true',
+    ].join('\n')
+
+    const resultado = quitarComentarios(fuente)
+
+    expect(resultado).toContain('<p>It\'s a test</p>')
+    expect(resultado).not.toContain('comentario que debe ser eliminado')
+    expect(resultado).toContain('const codigoPosterior = true')
+  })
 })
+
 
 describe('detector de convención de entorno (QPS-319)', () => {
   it('buscarDirectiva encuentra la directiva en un comentario de bloque', () => {

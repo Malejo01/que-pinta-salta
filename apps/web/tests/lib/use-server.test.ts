@@ -42,9 +42,6 @@ import { relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 
-/** Comentarios de línea y de bloque vaciados, conservando el resto del texto. */
-
-
 /**
  * `true` si, ignorando comentarios y líneas en blanco del comienzo, la
  * primera sentencia del archivo es la directiva `"use server"` / `'use

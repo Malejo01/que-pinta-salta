@@ -1,21 +1,28 @@
-import { readdirSync, readFileSync, statSync } from 'node:fs'
+// 46-q (Ronda 46, calidad de la app), punto 5 del encargo: el código de
+// MEDICIÓN (`scripts/pesos-bundle.mjs`, `scripts/pesos/analizar.ts`,
+// `scripts/metro/inline-requires.js`, 46-e/46-g) no tiene que entrar al
+// bundle de la app. Barrido estático de `app/**`, `components/**` y
+// `lib/**`: ningún archivo importa (ni hace `require` de) nada bajo
+// `scripts/`. Mismo estilo que `tests/dimensions.test.ts`/`tests/iconos.test.ts`
+// (fixtures en memoria primero, `it.each` sobre los archivos reales después).
+import { readFileSync, readdirSync, statSync } from 'node:fs'
 import { join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import { quitarComentarios } from '@qps/core/tests/convencion-entorno'
 
-const MOBILE_ROOT = fileURLToPath(new URL('../', import.meta.url))
+const MOBILE_ROOT = fileURLToPath(new URL('..', import.meta.url))
 const APP_DIR = join(MOBILE_ROOT, 'app')
 const COMPONENTS_DIR = join(MOBILE_ROOT, 'components')
 const LIB_DIR = join(MOBILE_ROOT, 'lib')
 
-function listarTsxYTs(dir: string, out: string[] = []): string[] {
-  for (const entry of readdirSync(dir)) {
-    const full = join(dir, entry)
+function listarTsxYTs(root: string): string[] {
+  const out: string[] = []
+  for (const entry of readdirSync(root)) {
+    const full = join(root, entry)
     const st = statSync(full)
     if (st.isDirectory()) {
-      if (entry === 'node_modules' || entry === '.expo') continue
-      listarTsxYTs(full, out)
+      out.push(...listarTsxYTs(full))
     } else if (entry.endsWith('.tsx') || entry.endsWith('.ts')) {
       out.push(full)
     }

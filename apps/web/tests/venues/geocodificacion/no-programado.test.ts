@@ -222,9 +222,6 @@ describe('ninguna ruta de apps/web/app/api/ dispara el script de geocodificació
 // cliente de Nominatim.
 // ===========================================================================
 
-/** Comentarios de línea y de bloque vaciados, conservando el resto del texto. */
-
-
 /**
  * `true` si, ignorando comentarios y líneas en blanco del comienzo, la
  * primera sentencia del archivo es la directiva `"use client"` / `'use

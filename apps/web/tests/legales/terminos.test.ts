@@ -28,9 +28,6 @@ function readSource(relativePath: string): string {
   return readFileSync(path.join(WEB_ROOT, relativePath), "utf8")
 }
 
-/** Fuente sin comentarios de bloque ni de línea (los comentarios pueden nombrar lo que ya no existe). */
-
-
 const fuente = readSource("app/terminos/page.tsx")
 const fuenteSinComentarios = sinComentarios(fuente)
 const html = renderToStaticMarkup(createElement(TerminosPage))

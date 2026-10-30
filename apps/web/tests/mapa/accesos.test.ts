@@ -36,7 +36,6 @@ function readSource(relativePath: string): string {
   return readFileSync(path.join(WEB_ROOT, relativePath), 'utf8')
 }
 
-/** El código sin comentarios (`/* … *\/` y `// …`), para los detectores que no tienen que leer lo que explican los comentarios. */
 
 
 /** Un `Venue` mínimo pero completo (todas las columnas NOT NULL cubiertas), con overrides. */

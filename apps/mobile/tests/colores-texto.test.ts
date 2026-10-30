@@ -82,12 +82,6 @@ describe('listarTsxYTs: recursión y extensiones (fixture sintética, 33-q)', ()
   })
 })
 
-/** Mismo stripper de comentarios que `tests/base-visual.test.ts` (línea por
- * línea, con comentarios de una línea y de bloque) — evitamos que un
- * comentario que menciona el patrón ("antes usaba colors.border...") cuente
- * como uso real. */
-
-
 /** `true` si `content` usa `color: colors.border` o `color: colores.border`
  * (el token de borde, como color de *texto*), fuera de comentarios. No
  * confunde `borderColor:`/`backgroundColor:` (distinta clave de estilo). */

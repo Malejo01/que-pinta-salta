@@ -199,32 +199,6 @@ function listarTsxYTs(root: string): string[] {
   return out
 }
 
-/**
- * Mismo recorte línea por línea que `tests/dimensions.test.ts`: un
- * comentario de bloque deja la línea en blanco mientras dura, uno de línea
- * corta desde el `//`. El NÚMERO de línea del resultado es el mismo que en
- * el original.
- *
- * Vuelta 1 de revisión (hallazgo del revisor): a diferencia de la versión
- * copiada de `tests/dimensions.test.ts`/`tests/accesibilidad-detector.test.ts`,
- * ACÁ se resuelve primero cuál de los dos aparece antes en lo que queda de
- * la línea, `//` o `/*` — si el `//` va primero (o no hay ningún `/*` en la
- * línea), se recorta ahí y NUNCA se evalúa la apertura de un bloque. Esto es
- * lo que evita que un comentario de línea que por casualidad contiene la
- * secuencia `/*` (un glob como `lib/**`, `components/*`, o un `/*` suelto
- * mencionado dentro de un `//`) se confunda con la apertura de un bloque de
- * comentario sin cierre, que blanquearía todo el resto del archivo (el bug
- * real que tuvo este mismo archivo contra `components/BannerAnuncio.tsx` en
- * la vuelta anterior). Los tres fixtures de abajo ("ver lib/** para más
- * detalle", "ver components/* para más detalle", "un /* no es un bloque
- * real acá") fallarían con la versión vieja (sin este reordenamiento).
- *
- * LÍMITE QUE SIGUE IGUAL (heredado, no es parte de este arreglo): un bloque
- * de comentario que abre Y cierra en la MISMA línea sigue sin stripearse
- * como tal (mismo límite que `tests/dimensions.test.ts`) — no es el bug de
- * este hallazgo, que es específicamente sobre una apertura sin cierre que
- * en realidad estaba dentro de un `//`.
- */
 
 
 /**

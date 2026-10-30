@@ -219,9 +219,6 @@ describe('leerAsistencia: falla aislada de user_favorites', () => {
 // ===========================================================================
 const WEB_ROOT = fileURLToPath(new URL('../../', import.meta.url))
 
-/** Comentarios de línea y de bloque (incluidos los JSDoc) vaciados. */
-
-
 describe('detector estático (sin comentarios): quitarComentarios de verdad vacía los JSDoc y los // de línea', () => {
   it('un bloque /** ... */ desaparece', () => {
     expect(quitarComentarios('/** auth.getUser mencionado en un comentario */\nconst x = 1')).not.toContain('auth.getUser')

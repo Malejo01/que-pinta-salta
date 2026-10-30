@@ -25,11 +25,6 @@ import { ACCIONES_HERO, etiquetaDiapositiva, indiceTrasAccion } from '@/lib/hero
 const MOBILE_ROOT = fileURLToPath(new URL('..', import.meta.url))
 const HERO_PATH = join(MOBILE_ROOT, 'components', 'Hero.tsx')
 
-// ---------------------------------------------------------------------------
-// Copia idéntica de `sinComentarios` (`tests/hero.test.ts`): bloques
-// `/* ... */` y comentarios de línea, cuidando no cortar por el `//` de una
-// URL dentro de un comentario.
-// ---------------------------------------------------------------------------
 
 
 // ---------------------------------------------------------------------------

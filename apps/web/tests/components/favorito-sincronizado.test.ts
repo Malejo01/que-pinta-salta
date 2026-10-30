@@ -30,6 +30,7 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
+import { quitarComentarios } from '@qps/core/tests/convencion-entorno'
 
 const ROOT = join(__dirname, '..', '..')
 const read = (rel: string) => readFileSync(join(ROOT, rel), 'utf8')
@@ -102,7 +103,7 @@ describe('FilaAccionesEvento: onGuardadoChange se dispara al tocar el ♥ Y cuan
   it('no hay ningún onGuardadoChange comentado o deshabilitado en alTocarVoy (detector real, no un string cualquiera)', () => {
     const inicioFuncion = src.indexOf('async function alTocarVoy')
     const cuerpo = src.slice(inicioFuncion)
-    const limpio = cuerpo.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:"'])\/\/.*$/gm, '$1')
+    const limpio = quitarComentarios(cuerpo)
     expect(limpio).toContain('onGuardadoChange?.(')
   })
 })

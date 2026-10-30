@@ -29,9 +29,6 @@ describe('avisoDeModo', () => {
   })
 })
 
-/** Saca comentarios de bloque y de línea para que no afecten las búsquedas de texto. */
-
-
 describe('scripts/imagenes-variantes.ts avisa el modo después de leer --apply', () => {
   const srcCompleto = readFileSync(
     join(__dirname, '..', '..', 'scripts', 'imagenes-variantes.ts'),

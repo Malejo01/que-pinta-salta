@@ -24,9 +24,6 @@ function leer(ruta: string): string {
   return readFileSync(`${WEB_ROOT}/${ruta}`, 'utf8')
 }
 
-/** Comentarios de línea y de bloque (también los de JSX) vaciados. */
-
-
 /** El recorte del código entre dos marcas, para acotar el detector a UN bloque y no a todo el archivo. */
 function ancla(codigo: string, desde: string, hasta: string): string {
   const inicio = codigo.indexOf(desde)

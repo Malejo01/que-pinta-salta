@@ -109,9 +109,6 @@ function listarArchivos(dirAbsoluto: string, baseAbsoluta: string): string[] {
 
 const ARCHIVOS: string[] = DIRECTORIOS_A_RECORRER.flatMap((dir) => listarArchivos(join(REPO_ROOT, dir), REPO_ROOT))
 
-/** Comentarios de línea y de bloque vaciados, conservando el resto del texto (mismo criterio que paridad.test.ts). */
-
-
 /**
  * SOLO para la búsqueda del identificador `me_interesa` (ver el comentario
  * de cabecera, "El punto ciego cerrado"): junta literales de cadena

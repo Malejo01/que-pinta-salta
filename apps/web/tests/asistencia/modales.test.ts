@@ -41,9 +41,6 @@ function leer(ruta: string): string {
   return readFileSync(`${WEB_ROOT}/${ruta}`, 'utf8')
 }
 
-/** Comentarios de línea y de bloque (también los de JSX) vaciados. */
-
-
 /**
  * El recorte del código entre dos marcas (la segunda es opcional: hasta el
  * final si falta). Sin `expect` acá adentro a propósito: se llama durante

@@ -59,13 +59,6 @@ function lineAt(content: string, index: number): number {
   return content.slice(0, index).split('\n').length
 }
 
-/**
- * `content` con los comentarios (de línea y de bloque) vaciados, conservando
- * la cantidad de líneas (para que los números de línea sigan valiendo). Sin
- * esto, un comentario que solo *menciona* "Reintentar" (por ejemplo,
- * explicando por qué una pantalla usa `onReintentar`) daría un falso
- * positivo. Mismo patrón que `tests/dimensions.test.ts`.
- */
 
 
 /** Las líneas (1-based) donde aparece un `<Text ...>Reintentar</Text>` literal, fuera de comentarios. */

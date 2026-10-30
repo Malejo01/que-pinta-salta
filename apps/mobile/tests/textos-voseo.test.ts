@@ -112,13 +112,6 @@ export const EXCEPCIONES_VOSEO: ReadonlyArray<{ archivo: string; linea: number; 
  * palabra (sin espacio) — ver el canal B más abajo. */
 const ATRIBUTOS_PROSA = ['accessibilityLabel', 'accessibilityHint', 'placeholder', 'label', 'title']
 
-// ---------------------------------------------------------------------------
-// Saneado de comentarios: copia de `quitarComentarios` de
-// `tests/accesibilidad-detector.test.ts` (que a su vez documenta que es "el
-// mismo criterio que `tests/colores-texto.test.ts`"). Blanquea el contenido
-// de cada comentario SIN sacar los saltos de línea: el número de línea de
-// cualquier índice del resultado es el mismo que en el original.
-// ---------------------------------------------------------------------------
 
 
 

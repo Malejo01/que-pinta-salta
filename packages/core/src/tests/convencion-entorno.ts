@@ -96,12 +96,71 @@ export function configTieneEnvironmentNode(contenidoConfig: string): boolean {
 }
 
 // -----------------------------------------------------------------------
-// Quitador de comentarios: conoce strings ('...', "...", `...`) para no
+// Quitador de comentarios: conoce strings ('...', "...", `...`) y expresiones regulares literales (/.../flags) para no
 // confundir un "//" dentro de una URL con un comentario de línea, y para no
 // borrar un literal que vive dentro de un comentario (que, en cambio, se
 // descarta del todo). Preserva los saltos de línea (\n) dentro de bloques
 // multilínea para mantener intactos los números de línea del archivo original.
 // -----------------------------------------------------------------------
+function esContextoRegex(prev: string): boolean {
+  let j = prev.length - 1
+  while (j >= 0 && (prev[j] === ' ' || prev[j] === '\t' || prev[j] === '\r')) {
+    j--
+  }
+  if (j < 0) return true
+  const ch = prev[j]
+  if (ch === '\n') return true
+  if ('=([{;,:!?&|~^'.includes(ch)) return true
+  const palabra = prev.slice(0, j + 1).match(/[a-zA-Z_$][a-zA-Z0-9_$]*$/)?.[0]
+  if (palabra && ['return', 'case', 'default', 'throw', 'yield', 'await', 'typeof', 'void', 'delete'].includes(palabra)) {
+    return true
+  }
+  return false
+}
+
+function leerLiteralRegex(texto: string, inicio: number): { literal: string; siguiente: number } | null {
+  const n = texto.length
+  if (texto[inicio] !== '/') return null
+  const sig = texto[inicio + 1]
+  if (sig === '/' || sig === '*') return null
+
+  let i = inicio + 1
+  let enClase = false
+  while (i < n && texto[i] !== '\n') {
+    const ch = texto[i]
+    if (ch === '\\') {
+      if (i + 1 < n && texto[i + 1] !== '\n') {
+        i += 2
+        continue
+      }
+      return null
+    }
+    if (ch === '[' && !enClase) {
+      enClase = true
+      i++
+      continue
+    }
+    if (ch === ']' && enClase) {
+      enClase = false
+      i++
+      continue
+    }
+    if (ch === '/' && !enClase) {
+      i++ // consumir '/' de cierre
+      // consumir flags alfabéticos (ej: i, g, m, s, u, y, d)
+      while (i < n && /[a-z]/i.test(texto[i])) {
+        i++
+      }
+      return {
+        literal: texto.slice(inicio, i),
+        siguiente: i,
+      }
+    }
+    i++
+  }
+  return null
+}
+
 export function quitarComentarios(texto: string): string {
   let resultado = ''
   let i = 0
@@ -132,11 +191,20 @@ export function quitarComentarios(texto: string): string {
       continue
     }
 
+    if (c === '/' && sig !== '/' && sig !== '*' && esContextoRegex(resultado)) {
+      const matchRegex = leerLiteralRegex(texto, i)
+      if (matchRegex) {
+        resultado += matchRegex.literal
+        i = matchRegex.siguiente
+        continue
+      }
+    }
+
     if (c === '"' || c === "'") {
       const comilla = c
       let str = c
       i++
-      while (i < n && texto[i] !== comilla) {
+      while (i < n && texto[i] !== comilla && texto[i] !== '\n') {
         if (texto[i] === '\\' && i + 1 < n) {
           str += texto[i] + texto[i + 1]
           i += 2
@@ -145,8 +213,10 @@ export function quitarComentarios(texto: string): string {
         str += texto[i]
         i++
       }
-      str += texto[i] ?? ''
-      i++
+      if (i < n && texto[i] === comilla) {
+        str += texto[i]
+        i++
+      }
       resultado += str
       continue
     }

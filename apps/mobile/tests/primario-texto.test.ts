@@ -55,11 +55,6 @@ function listarTsxYTs(root: string): string[] {
   return out
 }
 
-/** Mismo stripper línea por línea que `sinComentarios`/`quitarComentarios`
- * de `tests/hero.test.ts` y `tests/colores-texto.test.ts` (copiado, no
- * importado — ver el comentario de cabecera, QPS-250): conserva el número
- * de líneas (blanquea el contenido de los comentarios) para que los índices
- * de línea de los detectores de abajo sigan siendo los del archivo real. */
 
 
 /** Línea (1-based) del índice `index` en `content`. */

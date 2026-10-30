@@ -38,9 +38,6 @@ const REPO_ROOT = path.join(WEB_ROOT, '..', '..') // raíz del monorepo
 const MOBILE_ROOT = path.join(REPO_ROOT, 'apps', 'mobile')
 const CORE_SRC_ROOT = path.join(REPO_ROOT, 'packages', 'core', 'src')
 
-/** Comentarios de línea y de bloque vaciados (copia local, mismo criterio que insignia-destacado.test.ts/orden-ficha.test.ts). */
-
-
 /** Lista recursiva de `.ts`/`.tsx` bajo `dirAbsoluto`, sin los propios `*.test.ts(x)`. */
 function listarFuentes(dirAbsoluto: string): string[] {
   const resultado: string[] = []

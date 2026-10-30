@@ -179,11 +179,6 @@ function tuteoEstaExceptuado(relPath: string): boolean {
 }
 
 // El repo tiene comentarios en castellano que usan estas mismas palabras sin
-// ser texto de pantalla (p. ej. "el host sigue siendo el propio", "busca
-// flyers pendientes"). El detector es sobre lo que lee el usuario, no sobre
-// los comentarios del código fuente: se descartan antes de buscar.
-
-
 describe('Ronda 30/35: ninguna forma de tuteo de la lista de 30-e en apps/web/app o apps/web/components (fuera de las excepciones de la R29 y event-form.tsx)', () => {
   const archivos = [...listarArchivosRecursivo('app'), ...listarArchivosRecursivo('components')].filter(
     (relPath) => !tuteoEstaExceptuado(relPath)

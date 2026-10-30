@@ -102,9 +102,6 @@ describe('ETIQUETAS_ASISTENCIA / ORDEN_FILA_ACCIONES / los textos fijos: una sol
 const WEB_ROOT = fileURLToPath(new URL('../../', import.meta.url))
 const MOBILE_ROOT = fileURLToPath(new URL('../../../mobile/', import.meta.url))
 
-/** Comentarios de línea y de bloque vaciados, conservando el resto del texto. */
-
-
 /** `true` si el contenido importa `nombre` de `@qps/core/asistencia` (con o sin alias), sin comentarios. */
 function importaDeCoreAsistencia(content: string, nombre: string): boolean {
   const limpio = quitarComentarios(content)

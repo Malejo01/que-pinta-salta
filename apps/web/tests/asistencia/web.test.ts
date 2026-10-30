@@ -674,9 +674,6 @@ describe('detector estático: page.tsx y event-detail-page.tsx usan debenMostrar
 // ningún `select` mencione la columna vieja "me_interesa".
 // ===========================================================================
 
-/** Comentarios de línea y de bloque vaciados, conservando el resto del texto. */
-
-
 interface FromSelect {
   tabla: string
   columnas: string | null

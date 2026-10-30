@@ -27,13 +27,10 @@
 import { readFileSync, readdirSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
+import { quitarComentarios } from '@qps/core/tests/convencion-entorno'
 
 const MOBILE_ROOT = fileURLToPath(new URL('..', import.meta.url))
 
-/** Comentarios de línea y de bloque vaciados, conservando el resto del texto (igual criterio que asistencia-umbral.test.ts). */
-function quitarComentarios(content: string): string {
-  return content.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:"'])\/\/.*$/gm, '$1')
-}
 
 function lineAt(content: string, index: number): number {
   return content.slice(0, index).split('\n').length

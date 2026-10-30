@@ -27,11 +27,6 @@ const MOBILE_ROOT = fileURLToPath(new URL('..', import.meta.url))
 const RUTA_FLYER = join(MOBILE_ROOT, 'app', 'flyer', '[id].tsx')
 const SRC_FLYER = readFileSync(RUTA_FLYER, 'utf8')
 
-/** Mismo recorte de comentarios que `tests/base-visual.test.ts` y
- * `tests/estado-carga-detector.test.ts`, para no confundir un comentario que
- * solo *menciona* algo con un uso real. */
-
-
 /** `true` si `content` importa (como valor) `Text` de `'react-native'`,
  * fuera de comentarios. No confunde `TextProps` (tipo) ni `TextInput`: cada
  * nombre del bloque de import se compara exacto (sin el alias de `as`, si lo

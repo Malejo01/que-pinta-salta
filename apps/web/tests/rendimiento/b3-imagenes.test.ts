@@ -43,9 +43,6 @@ function readSource(relativePath: string): string {
   return readFileSync(path.join(WEB_ROOT, relativePath), 'utf8')
 }
 
-/** Fuente sin comentarios (los comentarios nombran `priority` para explicar por qué se fue). */
-
-
 function evento(overrides: Partial<DisplayEvent> = {}): DisplayEvent {
   return {
     id: 'ev-1',

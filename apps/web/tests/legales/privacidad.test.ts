@@ -33,9 +33,6 @@ function readSource(relativePath: string): string {
   return readFileSync(path.join(WEB_ROOT, relativePath), 'utf8')
 }
 
-/** Fuente sin comentarios de bloque ni de línea (los comentarios pueden nombrar lo que ya no existe). */
-
-
 const SOURCE = readSource('app/privacidad/page.tsx')
 const SOURCE_SIN_COMENTARIOS = sinComentarios(SOURCE)
 const html = renderToStaticMarkup(React.createElement(PrivacidadPage))

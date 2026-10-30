@@ -34,12 +34,6 @@ import { valorDeClaveDeEstilo } from './a11y/hitslop-medidas'
 
 const MOBILE_ROOT = fileURLToPath(new URL('..', import.meta.url))
 
-/** Recorte de comentarios línea por línea (mismo criterio que
- * `tests/dimensions.test.ts`/`tests/scripts-fuera-del-bundle.test.ts`): un
- * comentario de bloque deja la línea en blanco mientras dura, uno de línea
- * corta desde el `//`. */
-
-
 /** Mismo criterio que `hitSlopBotonAccion` que escriben, IDÉNTICO,
  * `components/BotonFavorito.tsx` y `components/BotonCompartir.tsx` (no
  * exportado ahí: no son archivos de esta tarea). Se reescribe acá, chico, y
