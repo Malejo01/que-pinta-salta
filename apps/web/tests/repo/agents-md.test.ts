@@ -76,7 +76,7 @@ describe('AGENTS.md', () => {
   })
 })
 
-// CLAUDE.md lo agrega Mauro aparte: este chequeo corre solo si el archivo existe.
+// CLAUDE.md lo agrega el dueño del repo aparte: este chequeo corre solo si el archivo existe.
 describe.runIf(existsSync(claudePath))('CLAUDE.md', () => {
   it('empieza importando @AGENTS.md', () => {
     const primera = leer(claudePath).split('\n').find((l) => l.trim() !== '')
