@@ -49,8 +49,10 @@ describe('SelectorIdioma', () => {
     expect(screen.getByRole('link', { name: 'Español (ES): ver el sitio en español' })).toBe(a)
   })
 
-  it('en /mapa (sin versión en inglés todavía) lleva a /en', () => {
-    expect(enlace('/mapa').getAttribute('href')).toBe('/en')
+  it('en /mapa lleva a /en/mapa; en una página sin versión en inglés (/favoritos) lleva a /en', () => {
+    expect(enlace('/mapa').getAttribute('href')).toBe('/en/mapa')
+    cleanup()
+    expect(enlace('/favoritos').getAttribute('href')).toBe('/en')
   })
 
   it('conserva la query: /cines?x=1 → /en/cines?x=1, y de vuelta', () => {
@@ -108,9 +110,9 @@ describe('SelectorIdioma: el destino se calcula al hacer click', () => {
     expect(a.getAttribute('href')).toBe('/cines?x=1#cartelera')
   })
 
-  it('desde una página sin inglés (/mapa?z=1) va a /en, sin la query', () => {
-    window.history.replaceState(null, '', '/mapa?z=1#x')
-    const a = enlace('/mapa')
+  it('desde una página sin inglés (/favoritos?z=1) va a /en, sin la query', () => {
+    window.history.replaceState(null, '', '/favoritos?z=1#x')
+    const a = enlace('/favoritos')
     fireEvent.click(a)
     expect(a.getAttribute('href')).toBe('/en')
   })

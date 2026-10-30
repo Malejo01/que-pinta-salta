@@ -219,13 +219,14 @@ describe('las vistas sin hooks, en inglés por prop', () => {
     expect(vista({})).toContain('>+ Seguir<')
   })
 
-  it('VerEnElMapa: "View on map", con hrefLang porque /mapa existe solo en castellano', () => {
+  it('VerEnElMapa: "View on map", que va a /en/mapa (C4: /mapa ya existe en inglés)', () => {
     const venue = { id: 'v1', latitude: -24.78, longitude: -65.41 } as unknown as Venue
     const startDate = saltaWallClockToDate('2026-03-10T20:00:00')
     const html = renderToStaticMarkup(React.createElement(VerEnElMapa, { venue, startDate, idioma: 'en' }))
     expect(html).toContain('>View on map<')
-    expect(html).toContain('hrefLang="es-AR"')
-    expect(html).toContain('href="/mapa?cuando=fecha&amp;dia=2026-03-10&amp;lugar=v1"')
+    expect(html).toContain('href="/en/mapa?cuando=fecha&amp;dia=2026-03-10&amp;lugar=v1"')
+    // /en/mapa es una página en inglés: sin hrefLang.
+    expect(html).not.toContain('hrefLang')
     const htmlEs = renderToStaticMarkup(React.createElement(VerEnElMapa, { venue, startDate }))
     expect(htmlEs).toContain('Ver en el mapa')
     expect(htmlEs).not.toContain('hrefLang')

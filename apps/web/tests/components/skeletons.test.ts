@@ -32,8 +32,11 @@ const LOADING_PROPIOS = [
 // Q3: /en/cines reexporta el de /cines (mismo esqueleto). Su página no llama a
 // notFound()/redirect() (lo cubre la guarda de abajo, que mira todos los
 // loading.tsx). El «Cargando…» oculto queda en castellano por ahora.
+// C4: lo mismo para /en/mapa y /en/buscar.
 const LOADING_REEXPORTADOS: Record<string, string> = {
   'app/en/cines/loading.tsx': 'app/cines/loading.tsx',
+  'app/en/buscar/loading.tsx': 'app/buscar/loading.tsx',
+  'app/en/mapa/loading.tsx': 'app/mapa/loading.tsx',
 }
 
 function archivos(dir: string): string[] {
@@ -74,7 +77,7 @@ describe('ningún loading.tsx convierte un 404/307/308 en un 200', () => {
 
 describe('loading.tsx que reexportan otro', () => {
   it.each(Object.entries(LOADING_REEXPORTADOS))('%s reexporta %s, y nada más', (relPath, original) => {
-    expect(LOADING_FILES).toContain(original)
+    expect([...LOADING_FILES, ...LOADING_PROPIOS]).toContain(original)
     const sinComentarios = read(relPath).replace(/\/\/.*$/gm, '').trim()
     const destino = relative(join(ROOT, relPath, '..'), join(ROOT, original.replace(/\.tsx$/, ''))).split(sep).join('/')
     expect(sinComentarios).toBe(`export { default } from '${destino}'`)

@@ -316,8 +316,8 @@ describe('event-modal.tsx (Buscar)', () => {
 })
 
 describe('Buscar sabe si hay sesión', () => {
-  it('page.tsx lee auth.getUser() y pasa haySesion={!!...} a BuscarContent', () => {
-    const codigo = sinComentarios(leer('app/buscar/page.tsx'))
+  it('pagina-buscar.tsx (el cuerpo de /buscar y /en/buscar) lee auth.getUser() y pasa haySesion={!!...} a BuscarContent', () => {
+    const codigo = sinComentarios(leer('components/buscar/pagina-buscar.tsx'))
     expect(codigo).toMatch(/supabase\.auth\.getUser\(\)/)
     expect(codigo).toMatch(/haySesion=\{!!userResult\.data\.user\}/)
   })

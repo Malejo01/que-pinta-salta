@@ -9,3 +9,9 @@ export const TEXTOS_ES: Record<string, string> = {
   "CooperativeGesturesHandler.MacHelpText": "Usá ⌘ + scroll para acercar el mapa",
   "CooperativeGesturesHandler.MobileHelpText": "Usá dos dedos para mover el mapa",
 }
+
+/**
+ * Textos de MapLibre en inglés: los de fábrica de la librería ya están en
+ * inglés, así que no se pisa ninguno (MapLibre mezcla este objeto con los suyos).
+ */
+export const TEXTOS_EN: Record<string, string> = {}

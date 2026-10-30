@@ -8,7 +8,8 @@ import { CENTRO_SALTA_CAPITAL } from "@qps/core/mapa/zona"
 import { pinesAGeoJson } from "@qps/core/mapa/pines"
 import { estiloSegunTema } from "@qps/core/mapa/estilos"
 import type { PropsMapa } from "./mapa-diferido"
-import { TEXTOS_ES } from "./textos-maplibre"
+import { textosDe } from "@/lib/i18n"
+import { TEXTOS_EN, TEXTOS_ES } from "./textos-maplibre"
 
 // El único archivo del sitio que importa `maplibre-gl` (y su CSS). Solo se
 // carga con `import()` desde `mapa-diferido.tsx`.
@@ -135,7 +136,10 @@ function encuadrar(mapa: MapaDeMapLibre, pines: PropsMapa["pines"]) {
  * círculo por lugar. Tocar un pin selecciona el lugar; el detalle lo muestra
  * la lista de la página.
  */
-export default function MapaMaplibre({ pines, seleccionado, centrar, onSeleccionar, onError }: PropsMapa) {
+export default function MapaMaplibre({ pines, seleccionado, centrar, onSeleccionar, onError, idioma = "es" }: PropsMapa) {
+  const t = textosDe(idioma).mapa
+  // Los textos de los controles se fijan al crear el mapa (no cambian con la página).
+  const idiomaInicial = useRef(idioma)
   const { resolvedTheme } = useTheme()
   const idAyuda = useId()
   const contenedor = useRef<HTMLDivElement>(null)
@@ -167,7 +171,7 @@ export default function MapaMaplibre({ pines, seleccionado, centrar, onSeleccion
         attributionControl: { compact: true },
         // Un dedo sobre el mapa mueve la página; con dos dedos (o Ctrl/⌘ + scroll) se mueve el mapa.
         cooperativeGestures: true,
-        locale: TEXTOS_ES,
+        locale: idiomaInicial.current === "en" ? TEXTOS_EN : TEXTOS_ES,
       })
     } catch {
       // WebGL apagado o no disponible.
@@ -252,12 +256,12 @@ export default function MapaMaplibre({ pines, seleccionado, centrar, onSeleccion
       <div
         ref={contenedor}
         role="region"
-        aria-label="Mapa de lugares con eventos"
+        aria-label={t.ariaMapa}
         aria-describedby={idAyuda}
         className="size-full"
       />
       <p id={idAyuda} className="sr-only">
-        La lista de lugares de esta página tiene los mismos lugares y eventos que el mapa.
+        {t.ayudaMapa}
       </p>
     </div>
   )

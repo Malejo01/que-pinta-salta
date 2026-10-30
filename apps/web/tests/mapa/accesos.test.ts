@@ -171,7 +171,7 @@ describe('event-detail-page.tsx y event-modal-wrapper.tsx: usan <VerEnElMapa, no
 describe('navbar.tsx y mobile-nav.tsx: "Mapa" con prefetch={false}', () => {
   it('navbar.tsx: un link a /mapa con prefetch={false}', () => {
     const src = readSource('components/navbar.tsx')
-    expect(src).toMatch(/<Link href="\/mapa"[^>]*prefetch=\{false\}/)
+    expect(src).toMatch(/<Link href=\{rutaEn\(idioma, "\/mapa"\)\}[^>]*prefetch=\{false\}/)
   })
 
   it('mobile-nav.tsx: /mapa está en navItems, entre /buscar y /radar, con prefetch: false', () => {

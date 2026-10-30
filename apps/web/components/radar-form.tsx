@@ -21,6 +21,8 @@ import {
 import { updateRadarSettings, triggerTestRadarEmail, type EmailFrequency, type RadarSettingsData } from "@/lib/actions/radar"
 import type { Category, Venue } from "@/lib/types"
 import { cn } from "@/lib/utils"
+import { langDeCategoria, nombreCategoria, textosDe } from "@/lib/i18n"
+import type { Idioma } from "@/lib/i18n/idiomas"
 
 interface RadarFormProps {
   initialSettings: RadarSettingsData | null
@@ -30,9 +32,15 @@ interface RadarFormProps {
   instagramAccounts: any[]
   /** Determinado en el servidor; solo habilita la interfaz de prueba (el freno real está en la acción). */
   isAdmin?: boolean
+  /** Idioma de la interfaz; por omisión castellano. Los nombres de lugares y cuentas quedan como están. */
+  idioma?: Idioma
 }
 
-export function RadarForm({ initialSettings, categories, venues, instagramAccounts, isAdmin = false }: RadarFormProps) {
+export function RadarForm({ initialSettings, categories, venues, instagramAccounts, isAdmin = false, idioma = "es" }: RadarFormProps) {
+  const textos = textosDe(idioma)
+  const t = textos.radar
+  // Lo que viene de la base (lugares, direcciones, cuentas) está en castellano.
+  const langContenido = idioma === "en" ? "es" : undefined
   const router = useRouter()
   const { toast } = useToast()
   const { openDonationModal } = useDonation()
@@ -76,22 +84,26 @@ export function RadarForm({ initialSettings, categories, venues, instagramAccoun
 
   // Combinar locales y organizadores en un solo array de búsqueda unificado
   const searchCandidates = useMemo(() => {
+    const t = textosDe(idioma).radar
     const venueCandidates = venues.map(v => ({
       id: v.id,
       name: v.name,
-      subtitle: v.address || "Local físico",
+      subtitle: v.address || t.localFisico,
+      // La dirección es dato del lugar (castellano); el texto de respaldo es de la interfaz.
+      subtitleEsDato: Boolean(v.address),
       type: "venue" as const
     }))
 
     const instagramCandidates = instagramAccounts.map(ig => ({
       id: ig.id,
       name: ig.display_name,
-      subtitle: `@${ig.username} (Organizador / Boliche)`,
+      subtitle: t.subtituloCuenta(ig.username),
+      subtitleEsDato: false,
       type: "instagram" as const
     }))
 
     return [...venueCandidates, ...instagramCandidates]
-  }, [venues, instagramAccounts])
+  }, [venues, instagramAccounts, idioma])
 
   // Filtrar los candidatos según la búsqueda local
   const searchResults = useMemo(() => {
@@ -167,35 +179,35 @@ export function RadarForm({ initialSettings, categories, venues, instagramAccoun
 
       if (result.error) {
         toast({
-          title: "Error al guardar",
-          description: result.message || "Ocurrió un error inesperado.",
+          title: t.errorGuardarTitulo,
+          // En castellano, el mensaje del servidor tal cual; en inglés, el
+          // texto del diccionario según el código del error.
+          description: idioma === "es" ? result.message || t.errorInesperado : t.errorServidor(result.error),
           variant: "destructive",
         })
         return
       }
 
       toast({
-        title: "¡Ya estás en el Radar! 📧",
-        description: DONATIONS_ENABLED
-          ? "Vas a recibir los mejores eventos. Ayudanos a seguir creciendo y lanzar la App móvil haciendo una donación."
-          : "Vas a recibir los mejores eventos en tu correo.",
+        title: t.listoTitulo,
+        description: DONATIONS_ENABLED ? t.listoConDonacion : t.listoSinDonacion,
         action: DONATIONS_ENABLED ? (
           <ToastAction
-            altText="Donar ahora"
-            onClick={() => openDonationModal("Vas a recibir los mejores eventos en tu correo. ¡Ayudanos a seguir creciendo y lanzar la App móvil haciendo una donación!")}
+            altText={t.donarAhora}
+            onClick={() => openDonationModal(t.mensajeDonacion)}
             // Botón con el rojo de marca fijo (#C12026) en ambos temas: el texto
             // queda blanco a propósito, no depende de claro/oscuro.
             className="bg-[#C12026] text-white hover:bg-[#A0191F] border-none"
           >
-            Donar ahora
+            {t.donarAhora}
           </ToastAction>
         ) : undefined,
       })
       router.refresh()
     } catch {
       toast({
-        title: "Error de conexión",
-        description: "No se pudo comunicar con el servidor.",
+        title: t.errorConexionTitulo,
+        description: t.errorConexionTexto,
         variant: "destructive",
       })
     } finally {
@@ -210,20 +222,24 @@ export function RadarForm({ initialSettings, categories, venues, instagramAccoun
       const result = await triggerTestRadarEmail()
       if (result.success) {
         toast({
-          title: "¡Correo enviado!",
-          description: result.message || `Se envió tu radar con ${result.count} novedades a tu email.`,
+          title: t.pruebaEnviadaTitulo,
+          // El mensaje del servidor no trae código: en inglés se arma con el diccionario.
+          description:
+            idioma === "es"
+              ? result.message || t.pruebaEnviada(result.count ?? 0)
+              : t.pruebaEnviada(result.count ?? 0),
         })
       } else {
         toast({
-          title: "Prueba de envío",
-          description: result.message || "No se pudo enviar el correo de prueba.",
+          title: t.pruebaTitulo,
+          description: idioma === "es" ? result.message || t.pruebaNoEnviada : t.pruebaNoEnviada,
           variant: "destructive",
         })
       }
     } catch {
       toast({
-        title: "Error de conexión",
-        description: "No se pudo iniciar la prueba de correo.",
+        title: t.errorConexionTitulo,
+        description: t.pruebaErrorTexto,
         variant: "destructive",
       })
     } finally {
@@ -237,30 +253,30 @@ export function RadarForm({ initialSettings, categories, venues, instagramAccoun
       <div className="rounded-2xl border border-border bg-card/30 p-6 space-y-6 backdrop-blur-xs">
         <h2 className="text-lg font-bold text-foreground flex items-center gap-2">
           <Settings className="size-5 text-primary" />
-          Frecuencia y Destinatario
+          {t.frecuenciaTitulo}
         </h2>
 
         <div className="grid gap-6 md:grid-cols-2">
           <div className="space-y-2">
-            <Label htmlFor="radar-frequency">¿Cada cuánto querés recibir novedades?</Label>
+            <Label htmlFor="radar-frequency">{t.frecuenciaPregunta}</Label>
             <Select
               value={frequency}
               onValueChange={(val) => setFrequency(val as EmailFrequency)}
             >
               <SelectTrigger id="radar-frequency" className="w-full">
-                <SelectValue placeholder="Seleccioná la frecuencia" />
+                <SelectValue placeholder={t.frecuenciaPlaceholder} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="weekly">Semanalmente (Todos los Jueves 18:00hs)</SelectItem>
-                <SelectItem value="biweekly">Cada 2 semanas (Quincenal)</SelectItem>
-                <SelectItem value="monthly">Mensualmente</SelectItem>
-                <SelectItem value="disabled">Desactivado (Pausar alertas)</SelectItem>
+                <SelectItem value="weekly">{t.semanal}</SelectItem>
+                <SelectItem value="biweekly">{t.quincenal}</SelectItem>
+                <SelectItem value="monthly">{t.mensual}</SelectItem>
+                <SelectItem value="disabled">{t.desactivado}</SelectItem>
               </SelectContent>
             </Select>
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="radar-email">Dirección de correo electrónico</Label>
+            <Label htmlFor="radar-email">{t.emailLabel}</Label>
             <div className="relative">
               <Mail className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
               <div
@@ -271,11 +287,11 @@ export function RadarForm({ initialSettings, categories, venues, instagramAccoun
               </div>
             </div>
             <p className="text-[11px] text-muted-foreground">
-              Te lo mandamos al email de tu cuenta.
+              {t.emailNota}
             </p>
             {isAdmin && (
               <p className="text-[11px] text-muted-foreground italic">
-                * (En fase beta, los correos de prueba solo se enviarán a tu casilla asociada).
+                {t.emailNotaAdmin}
               </p>
             )}
           </div>
@@ -287,10 +303,10 @@ export function RadarForm({ initialSettings, categories, venues, instagramAccoun
         <div>
           <h2 className="text-lg font-bold text-foreground flex items-center gap-2 mb-1">
             <Radio className="size-5 text-primary animate-pulse" />
-            Categorías que te interesan
+            {t.categoriasTitulo}
           </h2>
           <p className="text-xs text-muted-foreground">
-            Recibirás alertas de todos los eventos que se clasifiquen en las categorías seleccionadas.
+            {t.categoriasTexto}
           </p>
         </div>
 
@@ -309,7 +325,9 @@ export function RadarForm({ initialSettings, categories, venues, instagramAccoun
                     : "bg-muted/40 border-border text-muted-foreground hover:border-primary/40 hover:text-foreground"
                 )}
               >
-                <span>{category.name}</span>
+                <span lang={langDeCategoria(idioma, category.slug)}>
+                  {nombreCategoria(textos, category.slug, category.name)}
+                </span>
                 {isSelected && <Check className="size-4.5 text-primary flex-shrink-0" />}
               </button>
             )
@@ -322,10 +340,10 @@ export function RadarForm({ initialSettings, categories, venues, instagramAccoun
         <div>
           <h2 className="text-lg font-bold text-foreground flex items-center gap-2 mb-1">
             <Search className="size-5 text-primary" />
-            Lugares y Organizadores Preferidos
+            {t.lugaresTitulo}
           </h2>
           <p className="text-xs text-muted-foreground">
-            Seguí locales físicos o directamente a organizadores/boliches de Instagram (ej: La Metro, Sex Us Machina) para enterarte de sus novedades.
+            {t.lugaresTexto}
           </p>
         </div>
 
@@ -335,7 +353,7 @@ export function RadarForm({ initialSettings, categories, venues, instagramAccoun
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4.5 text-muted-foreground" />
             <Input
               type="text"
-              placeholder="Buscá locales físicos o cuentas de Instagram (ej: Usina, Metro, Sex Us...)"
+              placeholder={t.buscadorPlaceholder}
               value={searchQuery}
               onChange={(e) => {
                 setSearchQuery(e.target.value)
@@ -357,14 +375,14 @@ export function RadarForm({ initialSettings, categories, venues, instagramAccoun
                   className="w-full text-left p-3 hover:bg-muted rounded-lg text-sm transition-colors flex items-center justify-between cursor-pointer"
                 >
                   <div className="flex flex-col">
-                    <span className="font-semibold text-foreground">{item.name}</span>
-                    <span className="text-xs text-muted-foreground truncate">{item.subtitle}</span>
+                    <span lang={langContenido} className="font-semibold text-foreground">{item.name}</span>
+                    <span lang={item.subtitleEsDato ? langContenido : undefined} className="text-xs text-muted-foreground truncate">{item.subtitle}</span>
                   </div>
                   <Badge variant="outline" className={cn(
                     "text-[10px] uppercase font-bold",
                     item.type === "instagram" ? "border-pink-500/30 text-pink-400 bg-pink-500/5" : "border-emerald-500/30 text-emerald-400 bg-emerald-500/5"
                   )}>
-                    {item.type === "instagram" ? "Instagram" : "Lugar"}
+                    {item.type === "instagram" ? t.tipoInstagram : t.tipoLugar}
                   </Badge>
                 </button>
               ))}
@@ -373,7 +391,7 @@ export function RadarForm({ initialSettings, categories, venues, instagramAccoun
 
           {isSearchOpen && searchQuery.trim() && searchResults.length === 0 && (
             <div className="absolute top-full left-0 right-0 mt-2 z-50 rounded-xl border border-border bg-popover p-4 text-center text-xs text-muted-foreground italic">
-              No se encontraron coincidencias.
+              {t.sinCoincidencias}
             </div>
           )}
         </div>
@@ -389,12 +407,12 @@ export function RadarForm({ initialSettings, categories, venues, instagramAccoun
                 className="bg-emerald-950/20 border border-emerald-800/40 text-emerald-800 dark:text-emerald-300 font-semibold px-3 py-1.5 rounded-lg flex items-center gap-1.5"
               >
                 <MapPin className="size-3.5 text-emerald-700 dark:text-emerald-400 flex-shrink-0" />
-                <span>{venue.name}</span>
+                <span lang={langContenido}>{venue.name}</span>
                 <button
                   type="button"
                   onClick={() => handleRemoveVenue(venue.id)}
                   className="hover:text-red-500 cursor-pointer"
-                  title={`Dejar de seguir ${venue.name}`}
+                  title={t.dejarDeSeguir(venue.name)}
                 >
                   <X className="size-3.5" />
                 </button>
@@ -414,7 +432,7 @@ export function RadarForm({ initialSettings, categories, venues, instagramAccoun
                   type="button"
                   onClick={() => handleRemoveInstagram(ig.id)}
                   className="hover:text-red-500 cursor-pointer"
-                  title={`Dejar de seguir @${ig.username}`}
+                  title={t.dejarDeSeguir(`@${ig.username}`)}
                 >
                   <X className="size-3.5" />
                 </button>
@@ -423,7 +441,7 @@ export function RadarForm({ initialSettings, categories, venues, instagramAccoun
           </div>
         ) : (
           <p className="text-xs text-muted-foreground italic pt-2">
-            No estás siguiendo ningún local ni cuenta de Instagram aún. Escribí arriba para buscarlos y agregarlos.
+            {t.sinSeguimientos}
           </p>
         )}
       </div>
@@ -438,7 +456,7 @@ export function RadarForm({ initialSettings, categories, venues, instagramAccoun
             className="border-border hover:bg-muted font-semibold px-6 py-5 rounded-xl cursor-pointer"
             disabled={isPending || isSendingTest}
           >
-            {isSendingTest ? "Enviando prueba..." : "Enviar Correo de Prueba"}
+            {isSendingTest ? t.enviandoPrueba : t.enviarPrueba}
           </Button>
         )}
         <Button
@@ -446,7 +464,7 @@ export function RadarForm({ initialSettings, categories, venues, instagramAccoun
           className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold px-8 py-5 rounded-xl shadow-lg shadow-primary/10 cursor-pointer"
           disabled={isPending || isSendingTest}
         >
-          {isPending ? "Guardando..." : "Guardar Preferencias de Radar"}
+          {isPending ? t.guardando : t.guardar}
         </Button>
       </div>
     </form>

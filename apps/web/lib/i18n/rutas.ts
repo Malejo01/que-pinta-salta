@@ -7,11 +7,10 @@ import type { Idioma } from './idiomas'
 /**
  * Rutas (en castellano, sin `/en`) que tienen versión en inglés. Un `*` final
  * vale por UN segmento: `/evento/*` es `/evento/<id>` (no `/evento` solo ni
- * `/evento/<id>/otra`). Falta sumar `/mapa` y `/buscar`; hasta entonces, un
- * link a cualquier otra ruta queda en castellano aunque se esté navegando en
- * inglés.
+ * `/evento/<id>/otra`). Un link a cualquier otra ruta queda en castellano
+ * aunque se esté navegando en inglés.
  */
-export const RUTAS_EN_INGLES: readonly string[] = ['/', '/cines', '/evento/*']
+export const RUTAS_EN_INGLES: readonly string[] = ['/', '/cines', '/mapa', '/buscar', '/radar', '/anunciantes', '/evento/*']
 
 const PREFIJO_EN = '/en'
 
