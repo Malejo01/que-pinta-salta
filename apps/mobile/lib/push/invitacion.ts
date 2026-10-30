@@ -133,10 +133,11 @@ export function accionTrasLogin({
  */
 export async function leerRegistroCampania(): Promise<RegistroCampania | null> {
   const noInsistir: RegistroCampania = { version: VERSION_CAMPANIA_AVISOS, hecha: true }
+  if (respaldoCampania) return respaldoCampania
   try {
     const SecureStore = await import('expo-secure-store')
     const crudo = await SecureStore.getItemAsync(CLAVE_CAMPANIA_AVISOS)
-    if (crudo === null || crudo === undefined) return null
+    if (crudo === null || crudo === undefined) return await leerRespaldoPersistente()
     const valor: unknown = JSON.parse(crudo)
     if (typeof valor !== 'object' || valor === null) return noInsistir
     const { version, posponerHasta, hecha } = valor as Record<string, unknown>
@@ -151,12 +152,54 @@ export async function leerRegistroCampania(): Promise<RegistroCampania | null> {
   }
 }
 
+/**
+ * Clave del respaldo persistente (AsyncStorage, vía `almacenPorDefecto`).
+ * Fuera de `qps:cache:` y `qps:busquedas:`, los únicos prefijos que la app
+ * borra en masa de ese almacén, y con puntos como las demás claves `qps.push.*`.
+ */
+export const CLAVE_CAMPANIA_AVISOS_RESPALDO = 'qps.push.campania.respaldo'
+
+/**
+ * Respaldo de la campaña si SecureStore no guarda (la escritura tira o lo
+ * leído de vuelta no coincide): se da por «hecha» para esta versión, primero
+ * en AsyncStorage (sobrevive al arranque en frío) y también en memoria del
+ * módulo (por si AsyncStorage también falla; vale mientras viva el proceso).
+ * Lo que NO cubre: si fallan los dos almacenes, la hoja puede volver a
+ * abrirse una vez por arranque en frío (nunca más de una vez por proceso).
+ */
+let respaldoCampania: RegistroCampania | null = null
+
+async function leerRespaldoPersistente(): Promise<RegistroCampania | null> {
+  try {
+    const { almacenPorDefecto } = await import('@/lib/sin-conexion/almacen')
+    const crudo = await almacenPorDefecto.leer(CLAVE_CAMPANIA_AVISOS_RESPALDO)
+    if (!crudo) return null
+    const valor: unknown = JSON.parse(crudo)
+    if (typeof valor !== 'object' || valor === null) return null
+    const { version, hecha } = valor as Record<string, unknown>
+    return version === VERSION_CAMPANIA_AVISOS && hecha === true ? { version, hecha: true } : null
+  } catch {
+    // Sin respaldo legible: se sigue con lo de SecureStore.
+    return null
+  }
+}
+
 async function guardarRegistroCampania(registro: RegistroCampania): Promise<void> {
+  const texto = JSON.stringify(registro)
   try {
     const SecureStore = await import('expo-secure-store')
-    await SecureStore.setItemAsync(CLAVE_CAMPANIA_AVISOS, JSON.stringify(registro))
+    await SecureStore.setItemAsync(CLAVE_CAMPANIA_AVISOS, texto)
+    if ((await SecureStore.getItemAsync(CLAVE_CAMPANIA_AVISOS)) === texto) return
   } catch {
-    // En el peor caso se vuelve a preguntar una vez más.
+    // Cae al respaldo.
+  }
+  const hecha: RegistroCampania = { version: VERSION_CAMPANIA_AVISOS, hecha: true }
+  respaldoCampania = hecha
+  try {
+    const { almacenPorDefecto } = await import('@/lib/sin-conexion/almacen')
+    await almacenPorDefecto.escribir(CLAVE_CAMPANIA_AVISOS_RESPALDO, JSON.stringify(hecha))
+  } catch {
+    // Queda solo el respaldo en memoria.
   }
 }
 
