@@ -134,6 +134,9 @@ function RootLayout() {
           <Stack>
             <Stack.Screen name="bienvenida" options={{ headerShown: false }} />
             <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+            <Stack.Screen name="evento/[id]" options={{ title: 'Evento' }} />
+            <Stack.Screen name="cines" options={{ title: 'Cines' }} />
+            <Stack.Screen name="+not-found" options={{ headerShown: false }} />
           </Stack>
         </ThemeProvider>
       </PushProvider>
