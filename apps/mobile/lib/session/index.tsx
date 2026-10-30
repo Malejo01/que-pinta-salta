@@ -202,6 +202,12 @@ export async function esperarBorradoDeCache(): Promise<void> {
  * red (`isAuthRetryableFetchError`), arranca con `sinConexion: true` en vez
  * de perderlo.
  */
+// El `aplicar` del `SessionProvider` montado, para que `reintentarSesion`
+// pase su resultado por el mismo reductor (revisión de Gemini del #125,
+// hallazgo 1): si `getSession()` resuelve sin sesión y sin error de red y
+// supabase-js no emite ningún evento, `sinConexion` tiene que apagarse igual.
+let aplicarDelProvider: ((accion: AccionSesion) => void) | null = null
+
 export function SessionProvider({ children }: { children: ReactNode }) {
   const [estado, setEstado] = useState<EstadoSesion>(() => estadoInicialSesion(Boolean(supabase)))
   // Espejo del estado en un `useRef`: el efecto de abajo corre una sola vez
@@ -255,8 +261,11 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       aplicar({ tipo: 'cambio', evento, session })
     })
 
+    aplicarDelProvider = aplicar
+
     return () => {
       activo = false
+      if (aplicarDelProvider === aplicar) aplicarDelProvider = null
       suscripcion.subscription.unsubscribe()
     }
   }, [])
@@ -270,7 +279,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
  * pedir `getSession()`: con el token vencido, supabase-js intenta refrescarlo
  * ahí mismo y, si lo logra, avisa por `onAuthStateChange`
  * (`TOKEN_REFRESHED`) — el `SessionProvider` de arriba ya está suscripto y
- * apaga `sinConexion` por `reducirSesion`, sin nada nuevo en este archivo.
+ * apaga `sinConexion` por `reducirSesion`. Además el resultado de
+ * `getSession()` pasa por el mismo `aplicar` del provider, así que sin
+ * sesión y sin error de red también se apaga aunque no llegue ningún evento.
  * Si el refresh token fue revocado, supabase-js borra la sesión y avisa
  * `SIGNED_OUT` (que puede disparar el borrado de la caché de favoritos): por
  * eso quien llama tiene que esperar `esperarBorradoDeCache()` DESPUÉS de
@@ -287,10 +298,16 @@ export async function reintentarSesion(): Promise<'volvio' | 'sin-red' | 'sin-se
   if (!supabase) return 'sin-sesion'
   try {
     const { data, error } = await supabase.auth.getSession()
+    const errorDeRed = isAuthRetryableFetchError(error)
+    // Mismo reductor que la carga inicial: sin sesión y sin error de red
+    // apaga `sinConexion` aunque supabase-js no emita `SIGNED_OUT`.
+    aplicarDelProvider?.({ tipo: 'carga-inicial', session: data.session, errorDeRed })
     if (data.session !== null) return 'volvio'
-    return isAuthRetryableFetchError(error) ? 'sin-red' : 'sin-sesion'
+    return errorDeRed ? 'sin-red' : 'sin-sesion'
   } catch (error) {
-    return isAuthRetryableFetchError(error) ? 'sin-red' : 'sin-sesion'
+    const errorDeRed = isAuthRetryableFetchError(error)
+    aplicarDelProvider?.({ tipo: 'carga-inicial', session: null, errorDeRed })
+    return errorDeRed ? 'sin-red' : 'sin-sesion'
   }
 }
 

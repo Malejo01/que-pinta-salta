@@ -21,6 +21,12 @@ import type { Metadata } from "next"
 interface EventPageProps {
   params: Promise<{ id: string }>
   searchParams?: Promise<{ o?: string | string[] }>
+  /**
+   * Solo lo pasa `app/en/evento/[id]/page.tsx` ("en"). Next no lo manda: la
+   * ficha en castellano queda en "es". Con "en" no van las migas (etiquetas
+   * y URLs en castellano); el `Event` sí, con el mismo `@id`.
+   */
+  idioma?: "es" | "en"
 }
 
 export async function generateMetadata({ params }: EventPageProps): Promise<Metadata> {
@@ -77,7 +83,7 @@ export async function generateMetadata({ params }: EventPageProps): Promise<Meta
   }
 }
 
-export default async function EventPage({ params, searchParams }: EventPageProps) {
+export default async function EventPage({ params, searchParams, idioma = "es" }: EventPageProps) {
   const { id } = await params
   const sp = (await searchParams) ?? {}
   const origin = parseOrigin(Array.isArray(sp.o) ? sp.o[0] : sp.o)
@@ -262,7 +268,7 @@ export default async function EventPage({ params, searchParams }: EventPageProps
         <>
           {/* JsonLd escapa "<": un título con "</script>" no rompe el documento. */}
           <JsonLd data={jsonLd} />
-          <JsonLd data={conContexto(migas)} />
+          {idioma === "es" && <JsonLd data={conContexto(migas)} />}
         </>
       )}
       <EventDetailPage

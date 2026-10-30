@@ -189,8 +189,8 @@ export function LugarMapaUbicar({ venueId, nombre, latitude, longitude }: LugarM
       </form>
       {resultados.length > 0 && (
         <ul className="flex flex-col gap-1">
-          {resultados.map((r) => (
-            <li key={`${r.lat},${r.lng}`}>
+          {resultados.map((r, i) => (
+            <li key={`${r.lat},${r.lng},${i}`}>
               <button
                 type="button"
                 onClick={() => elegirResultado(r)}

@@ -346,6 +346,26 @@ describe('crearAnunciadorDeConteo: montaje, toques, debounce, nonce y foco', () 
       expect(dichos).toEqual(['1 resultado para rock'])
     })
 
+    it('una tecla dentro de los 400 ms del toque y borrada enseguida no se traga el toque', () => {
+      a.observar(buscar('ro', 'hoy'))
+      a.observar(buscar('ro', 'hoy|gratis', 1))
+      vi.advanceTimersByTime(100)
+      a.observar(buscar('roc', 'hoy|gratis', 1))
+      vi.advanceTimersByTime(100)
+      a.observar(buscar('ro', 'hoy|gratis', 1))
+      vi.runAllTimers()
+      expect(dichos).toEqual(['1 resultado para ro'])
+    })
+
+    it('una tecla dentro de los 400 ms del toque que queda -> se dice lo tipeado, una sola vez', () => {
+      a.observar(buscar('ro', 'hoy'))
+      a.observar(buscar('ro', 'hoy|gratis', 1))
+      vi.advanceTimersByTime(100)
+      a.observar(buscar('roc', 'hoy|gratis', 1))
+      vi.runAllTimers()
+      expect(dichos).toEqual(['1 resultado para roc'])
+    })
+
     it('perder el foco durante la espera del toque -> no se dice', () => {
       a.observar({ ...base, conteo: null, titulo: null })
       a.observar(base)

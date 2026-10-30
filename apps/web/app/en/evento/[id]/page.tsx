@@ -72,7 +72,7 @@ export async function generateMetadata({ params }: EventPageEnProps): Promise<Me
 
 /**
  * El cuerpo es el de `app/evento/[id]/page.tsx`, tal cual (datos, JSON-LD y
- * `EventDetailPage`): no se movió a un componente aparte para no tocar ese
+ * `EventDetailPage`, salvo las migas, que solo van en castellano): no se movió a un componente aparte para no tocar ese
  * archivo más que en su hreflang. El idioma de la interfaz lo toman los
  * componentes de cliente de la URL (`useIdioma()`).
  *
@@ -83,7 +83,8 @@ export async function generateMetadata({ params }: EventPageEnProps): Promise<Me
  */
 export default async function EventPageEn(props: EventPageEnProps) {
   try {
-    return await EventPage(props)
+    // "en": sin las migas en castellano (revisión de Gemini del #125, hallazgo 3).
+    return await EventPage({ ...props, idioma: "en" })
   } catch (err) {
     if (isRedirectError(err) && getRedirectStatusCodeFromError(err) === 308) {
       const destino = getURLFromRedirectError(err)

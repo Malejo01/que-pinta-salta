@@ -224,15 +224,24 @@ export function crearAnunciadorDeConteo(deps: {
   let asentado: EstadoAnunciable | null = null
   let pendiente: ReturnType<typeof setTimeout> | null = null
   let tipoPendiente: 'texto' | 'toque' | null = null
+  // El anuncio de un toque que todavía no se dijo (Android, 400 ms). Si una
+  // tecla pisa su timer, no se pierde: lo dice la espera del texto cuando
+  // termina sin nada propio que decir (revisión de Gemini del #125, hallazgo 2).
+  let toqueSinDecir: string | null = null
 
-  const cancelar = () => {
+  const pararTimer = () => {
     if (pendiente !== null) deps.reloj.clearTimeout(pendiente)
     pendiente = null
     tipoPendiente = null
   }
 
+  const cancelar = () => {
+    pararTimer()
+    toqueSinDecir = null
+  }
+
   const programar = (tipo: 'texto' | 'toque', ms: number, fn: () => void) => {
-    cancelar()
+    pararTimer()
     tipoPendiente = tipo
     pendiente = deps.reloj.setTimeout(() => {
       pendiente = null
@@ -247,7 +256,11 @@ export function crearAnunciadorDeConteo(deps: {
       cancelar()
       deps.anunciar(texto)
     } else {
-      programar('toque', demora, () => deps.anunciar(texto))
+      toqueSinDecir = texto
+      programar('toque', demora, () => {
+        toqueSinDecir = null
+        deps.anunciar(texto)
+      })
     }
   }
 
@@ -268,8 +281,9 @@ export function crearAnunciadorDeConteo(deps: {
       if (esperaDelTexto(asentado, actual)) {
         // Cada tecla reinicia la espera; al terminar se decide contra lo asentado.
         programar('texto', DEMORA_TEXTO_MS, () => {
-          const texto = decidirAnuncio(asentado, actual)
+          const texto = decidirAnuncio(asentado, actual) ?? toqueSinDecir
           asentado = actual
+          toqueSinDecir = null
           if (texto) deps.anunciar(texto)
         })
         return
@@ -282,7 +296,11 @@ export function crearAnunciadorDeConteo(deps: {
       }
       // Nada nuevo que decir: una espera del texto ya no corresponde (se volvió
       // a lo asentado); un anuncio de toque pendiente sigue en pie.
-      if (tipoPendiente === 'texto') cancelar()
+      if (tipoPendiente === 'texto') {
+        pararTimer()
+        // Si la tecla había pisado un toque sin decir, se dice ahora.
+        if (toqueSinDecir !== null) decir(toqueSinDecir)
+      }
     },
   }
 }
