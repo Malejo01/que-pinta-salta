@@ -17,7 +17,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const almacen = vi.hoisted(() => ({
   valores: new Map<string, string>(),
-  falla: { lectura: false, escritura: false },
+  // `ignora`: setItemAsync no tira pero tampoco guarda.
+  falla: { lectura: false, escritura: false, ignora: false },
   llamadas: { get: [] as string[], set: [] as Array<[string, string]> },
 }))
 
@@ -30,11 +31,29 @@ vi.mock('expo-secure-store', () => ({
   setItemAsync: vi.fn(async (clave: string, valor: string) => {
     almacen.llamadas.set.push([clave, valor])
     if (almacen.falla.escritura) throw new Error('SecureStore no disponible')
+    if (almacen.falla.ignora) return
     almacen.valores.set(clave, valor)
   }),
   deleteItemAsync: vi.fn(async (clave: string) => {
     almacen.valores.delete(clave)
   }),
+}))
+
+// Respaldo persistente (AsyncStorage): doble en memoria, sin módulo nativo.
+const respaldo = vi.hoisted(() => ({ valores: new Map<string, string>() }))
+
+vi.mock('@/lib/sin-conexion/almacen', () => ({
+  almacenPorDefecto: {
+    leer: async (clave: string) => respaldo.valores.get(clave) ?? null,
+    escribir: async (clave: string, valor: string) => {
+      respaldo.valores.set(clave, valor)
+    },
+    borrar: async (clave: string) => {
+      respaldo.valores.delete(clave)
+    },
+    claves: async () => [...respaldo.valores.keys()],
+    borrarVarias: async () => {},
+  },
 }))
 
 const supabaseDoble = vi.hoisted(() => ({
@@ -56,6 +75,7 @@ vi.mock('@/lib/supabase', () => ({
 }))
 
 import {
+  CLAVE_CAMPANIA_AVISOS,
   CLAVE_INVITACION_AVISOS_VISTA,
   invitacionFueVista,
   invitarTrasAccion,
@@ -70,9 +90,11 @@ import { cambiarAvisosEquipo } from '../lib/notificaciones'
 const leerFuente = (rutaRelativa: string) => readFileSync(fileURLToPath(new URL(`../${rutaRelativa}`, import.meta.url)), 'utf8')
 
 beforeEach(() => {
+  respaldo.valores.clear()
   almacen.valores.clear()
   almacen.falla.lectura = false
   almacen.falla.escritura = false
+  almacen.falla.ignora = false
   almacen.llamadas.get = []
   almacen.llamadas.set = []
   supabaseDoble.upserts = []
@@ -147,22 +169,44 @@ describe('la bandera de "invitación vista"', () => {
     expect(await invitacionFueVista()).toBe(false)
   })
 
-  it('marcarla guarda "1" bajo la clave y después queda vista', async () => {
+  it('marcarla guarda "1" en la bandera y la decisión en la campaña, y después queda vista', async () => {
     await marcarInvitacionVista()
-    expect(almacen.llamadas.set).toEqual([[CLAVE_INVITACION_AVISOS_VISTA, '1']])
+    expect(almacen.llamadas.set).toEqual([
+      [CLAVE_INVITACION_AVISOS_VISTA, '1'],
+      [CLAVE_CAMPANIA_AVISOS, JSON.stringify({ decidida: true })],
+    ])
+    expect(respaldo.valores.size).toBe(0)
     expect(await invitacionFueVista()).toBe(true)
   })
 
-  it('solo el valor "1" cuenta como vista (otros valores guardados, no)', async () => {
+  it('solo el valor "1" cuenta en la bandera de la R70 (otros valores guardados, no)', async () => {
     for (const valor of ['0', 'true', '', 'si']) {
       almacen.valores.set(CLAVE_INVITACION_AVISOS_VISTA, valor)
       expect(await invitacionFueVista(), `valor ${JSON.stringify(valor)}`).toBe(false)
     }
+    almacen.valores.set(CLAVE_INVITACION_AVISOS_VISTA, '1')
+    expect(await invitacionFueVista()).toBe(true)
   })
 
-  it('lee la clave de la invitación (no otra)', async () => {
+  it('lee la bandera de la R70 y lo guardado de la campaña (no otras claves de SecureStore)', async () => {
     await invitacionFueVista()
-    expect(almacen.llamadas.get).toEqual([CLAVE_INVITACION_AVISOS_VISTA])
+    expect(almacen.llamadas.get).toEqual([CLAVE_INVITACION_AVISOS_VISTA, CLAVE_CAMPANIA_AVISOS])
+  })
+
+  it.each([
+    ['hecha de una versión vieja', '{"version":"5","hecha":true}'],
+    ['pospuesta con plazo vencido', '{"version":"6","posponerHasta":1000}'],
+    ['de una versión futura', '{"version":"99"}'],
+    ['texto ilegible', '{no es json'],
+    ['decidida (formato actual)', '{"decidida":true}'],
+  ])('un registro de la campaña %s: cuenta como decidida (no vuelve a aparecer)', async (_nombre, crudo) => {
+    almacen.valores.set(CLAVE_CAMPANIA_AVISOS, crudo)
+    expect(await invitacionFueVista()).toBe(true)
+  })
+
+  it('cualquier contenido en el respaldo persistente cuenta como decidida', async () => {
+    respaldo.valores.set('qps.push.campania.respaldo', '{"version":"99"}')
+    expect(await invitacionFueVista()).toBe(true)
   })
 
   it('una lectura que falla cuenta como "ya vista" (nunca insistir)', async () => {
@@ -177,14 +221,50 @@ describe('la bandera de "invitación vista"', () => {
     expect(seMuestraInvitacion({ estado: 'sin-sesion', vista })).toBeNull()
   })
 
-  it('una escritura que falla no tira (en el peor caso se vuelve a mostrar una vez) y igual avisa a los oyentes', async () => {
+  it('una escritura que falla no tira, avisa a los oyentes y deja la decisión en el respaldo (sobrevive al arranque en frío)', async () => {
+    // Módulo propio: el respaldo en memoria no debe contaminar a los demás tests.
+    vi.resetModules()
+    const m1 = await import('../lib/push/invitacion')
     almacen.falla.escritura = true
     const oyente = vi.fn()
-    const baja = suscribirCambioVista(oyente)
-    await expect(marcarInvitacionVista()).resolves.toBeUndefined()
+    const baja = m1.suscribirCambioVista(oyente)
+    await expect(m1.marcarInvitacionVista()).resolves.toBeUndefined()
     expect(oyente).toHaveBeenCalledTimes(1)
-    expect(await invitacionFueVista()).toBe(false)
     baja()
+    expect(respaldo.valores.get('qps.push.campania.respaldo')).toBe(JSON.stringify({ decidida: true }))
+    expect(await m1.invitacionFueVista()).toBe(true)
+    // Arranque en frío: módulo nuevo, SecureStore sigue vacío, el respaldo manda.
+    vi.resetModules()
+    const m2 = await import('../lib/push/invitacion')
+    almacen.falla.escritura = false
+    expect(almacen.valores.size).toBe(0)
+    expect(await m2.invitacionFueVista()).toBe(true)
+  })
+
+  it('SecureStore que no guarda (sin tirar) también cae al respaldo', async () => {
+    vi.resetModules()
+    const m = await import('../lib/push/invitacion')
+    almacen.falla.ignora = true
+    await m.marcarInvitacionVista()
+    expect(respaldo.valores.get('qps.push.campania.respaldo')).toBe(JSON.stringify({ decidida: true }))
+    expect(await m.invitacionFueVista()).toBe(true)
+  })
+
+  it('si falla solo el respaldo (AsyncStorage), se ignora y manda SecureStore', async () => {
+    vi.resetModules()
+    vi.doMock('@/lib/sin-conexion/almacen', () => ({
+      almacenPorDefecto: {
+        leer: async () => {
+          throw new Error('AsyncStorage no disponible')
+        },
+      },
+    }))
+    try {
+      const m = await import('../lib/push/invitacion')
+      expect(await m.invitacionFueVista()).toBe(false)
+    } finally {
+      vi.doUnmock('@/lib/sin-conexion/almacen')
+    }
   })
 })
 
@@ -307,6 +387,20 @@ describe('componentes: la invitación sale solo de un Guardar / Voy exitoso', ()
     const src = leerFuente('components/InvitacionAvisos.tsx')
     expect(src).toMatch(/setTimeout\(/)
     expect(src).toMatch(/clearTimeout\(temporizador\)/)
+  })
+
+  it('InvitacionAvisos: la campaña vuelve a leer la bandera dentro del temporizador (si descartó la tarjeta en el retraso, no abre)', () => {
+    const src = leerFuente('components/InvitacionAvisos.tsx')
+    const iEfecto = src.indexOf('// Caso 2')
+    const iTemporizador = src.indexOf('setTimeout(() => {', iEfecto)
+    const iRetraso = src.indexOf('}, RETRASO_HOJA_MS)', iTemporizador)
+    expect(iEfecto).toBeGreaterThan(-1)
+    expect(iTemporizador).toBeGreaterThan(iEfecto)
+    expect(iRetraso).toBeGreaterThan(iTemporizador)
+    const dentro = src.slice(iTemporizador, iRetraso)
+    expect(dentro).toMatch(/invitacionFueVista\(\)\.then\(/)
+    expect(dentro).toMatch(/debeMostrarCampania\(\{ \.\.\.datosRef\.current, vista: vistaFresca \}\)/)
+    expect(dentro).not.toMatch(/vista \}\)/)
   })
 
   it('InvitacionAvisos: la tarjeta y la hoja esperan la sesión y la primera sincronización', () => {

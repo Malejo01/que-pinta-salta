@@ -22,10 +22,7 @@ import {
   borrarAvisosPendientesLogin,
   debeMostrarCampania,
   invitacionFueVista,
-  leerRegistroCampania,
-  marcarCampaniaHecha,
   marcarInvitacionVista,
-  posponerCampania,
   seMuestraInvitacion,
   suscribirCambioVista,
   suscribirTrasAccion,
@@ -71,7 +68,7 @@ function useInvitacionVista(): boolean | null {
 /**
  * Activa el push y, si quedó activo, guarda las preferencias al aceptar
  * (avisos del equipo y Radar por push; los patrocinados quedan apagados).
- * También marca la campaña de la R81 como hecha: quien activó no la vuelve a ver.
+ * Marca la invitación como decidida: quien activó no la vuelve a ver.
  */
 function useActivarAvisos() {
   const { activar } = usePush()
@@ -80,7 +77,6 @@ function useActivarAvisos() {
 
   return useCallback(async () => {
     await marcarInvitacionVista()
-    await marcarCampaniaHecha()
     const resultado = await activar()
     if (resultado === 'activo' && userId) {
       // `activarPreferenciasAlAceptar` no tira: devuelve `ok`. Si falla, los
@@ -184,9 +180,6 @@ export function InvitacionTrasAccion() {
   const [abierta, setAbierta] = useState(false)
   const datosRef = useRef({ estado, sincronizado, cargando })
   const activarRef = useRef(activar)
-  // La hoja abierta por la campaña (R81) se pospone al cerrarla; la de
-  // después de Guardar/Voy, no.
-  const origenRef = useRef<'accion' | 'campania'>('accion')
   const abiertaRef = useRef(false)
   // Una sola vez por arranque: ni el cierre ni un cambio de estado la reabren.
   const campaniaResueltaRef = useRef(false)
@@ -221,25 +214,28 @@ export function InvitacionTrasAccion() {
   }, [userId, cargando, estado, sincronizado])
 
   // Caso 2: quien ya pasó la Bienvenida (testers de builds anteriores). Con
-  // sesión, sincronizado y el permiso por pedir (o negado una vez), la hoja se
-  // abre sola, una vez por versión de campaña (`VERSION_CAMPANIA_AVISOS`),
-  // ignorando la bandera vieja de la R70.
+  // sesión, sincronizado y el permiso por pedir, la hoja se abre sola, una
+  // sola vez por persona (`invitacionFueVista` junta la bandera de la R70 y lo
+  // guardado de la campaña; "Ahora no" no se vuelve a preguntar).
   useEffect(() => {
     if (campaniaResueltaRef.current || abiertaRef.current) return
-    if (!debeMostrarCampania({ estado, sincronizado, cargando, registro: null, ahora: 0 })) return
+    if (!debeMostrarCampania({ estado, sincronizado, cargando, vista: false })) return
     let vigente = true
     let temporizador: ReturnType<typeof setTimeout> | null = null
-    leerRegistroCampania().then((registro) => {
+    invitacionFueVista().then((vista) => {
       if (!vigente) return
-      if (!debeMostrarCampania({ ...datosRef.current, registro, ahora: Date.now() })) return
+      if (!debeMostrarCampania({ ...datosRef.current, vista })) return
       temporizador = setTimeout(() => {
         temporizador = null
-        // Si en el medio se abrió por otro motivo o cambió el estado, no.
+        // Si en el medio se abrió por otro motivo o cambió el estado, no. Y se
+        // vuelve a leer la bandera: pudo descartar la tarjeta de Inicio.
         if (campaniaResueltaRef.current || abiertaRef.current) return
-        if (!debeMostrarCampania({ ...datosRef.current, registro, ahora: Date.now() })) return
-        campaniaResueltaRef.current = true
-        origenRef.current = 'campania'
-        setAbierta(true)
+        invitacionFueVista().then((vistaFresca) => {
+          if (!vigente || campaniaResueltaRef.current || abiertaRef.current) return
+          if (!debeMostrarCampania({ ...datosRef.current, vista: vistaFresca })) return
+          campaniaResueltaRef.current = true
+          setAbierta(true)
+        })
       }, RETRASO_HOJA_MS)
     })
     return () => {
@@ -259,7 +255,6 @@ export function InvitacionTrasAccion() {
         temporizador = null
         invitacionFueVista().then((vista) => {
           if (activo && !abiertaRef.current && seMuestraInvitacion({ ...datosRef.current, vista }) === 'activar') {
-            origenRef.current = 'accion'
             setAbierta(true)
           }
         })
@@ -275,7 +270,6 @@ export function InvitacionTrasAccion() {
   const cerrar = useCallback(() => {
     setAbierta(false)
     void marcarInvitacionVista()
-    if (origenRef.current === 'campania') void posponerCampania()
   }, [])
 
   return (

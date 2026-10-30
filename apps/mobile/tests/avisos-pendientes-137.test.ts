@@ -126,63 +126,48 @@ describe('1. pendiente tras login (InvitacionTrasAccion)', () => {
   })
 })
 
-describe('2. campaña: SecureStore no guarda', () => {
+describe('2. invitación: SecureStore no guarda', () => {
   async function cargar() {
     vi.resetModules()
     return import('../lib/push/invitacion')
   }
 
-  it.each(['tira', 'ignora'] as const)('escritura que %s: la lectura da "hecha" de esta versión', async (modo) => {
+  it.each(['tira', 'ignora'] as const)('escritura que %s: la lectura da "decidida" y no se muestra', async (modo) => {
     const m = await cargar()
     almacen.escritura = modo
-    await m.posponerCampania()
-    expect(await m.leerRegistroCampania()).toEqual({ version: m.VERSION_CAMPANIA_AVISOS, hecha: true })
-    expect(
-      m.debeMostrarCampania({
-        estado: 'sin-pedir',
-        sincronizado: true,
-        cargando: false,
-        registro: await m.leerRegistroCampania(),
-        ahora: Date.now(),
-      })
-    ).toBe(false)
+    await m.marcarInvitacionVista()
+    const vista = await m.invitacionFueVista()
+    expect(vista).toBe(true)
+    expect(m.debeMostrarCampania({ estado: 'sin-pedir', sincronizado: true, cargando: false, vista })).toBe(false)
   })
 
-  it.each(['tira', 'ignora'] as const)('escritura que %s: un arranque nuevo lee "hecha" del respaldo persistente', async (modo) => {
+  it.each(['tira', 'ignora'] as const)('escritura que %s: un arranque nuevo lee "decidida" del respaldo persistente', async (modo) => {
     const m1 = await cargar()
     almacen.escritura = modo
-    await m1.posponerCampania()
-    expect(respaldo.valores.get(m1.CLAVE_CAMPANIA_AVISOS_RESPALDO)).toBe(
-      JSON.stringify({ version: m1.VERSION_CAMPANIA_AVISOS, hecha: true })
-    )
+    await m1.marcarInvitacionVista()
+    expect(respaldo.valores.get(m1.CLAVE_CAMPANIA_AVISOS_RESPALDO)).toBe(JSON.stringify({ decidida: true }))
     // Arranque en frío: módulo nuevo (sin memoria), mismo almacenamiento.
     const m2 = await cargar()
-    expect(await m2.leerRegistroCampania()).toEqual({ version: m2.VERSION_CAMPANIA_AVISOS, hecha: true })
+    expect(await m2.invitacionFueVista()).toBe(true)
   })
 
   it('SecureStore y AsyncStorage fallan: queda el respaldo en memoria del proceso', async () => {
     const m = await cargar()
     almacen.escritura = 'tira'
     respaldo.falla = true
-    await m.posponerCampania()
-    expect(await m.leerRegistroCampania()).toEqual({ version: m.VERSION_CAMPANIA_AVISOS, hecha: true })
+    await m.marcarInvitacionVista()
+    expect(await m.invitacionFueVista()).toBe(true)
   })
 
-  it('respaldo ilegible (AsyncStorage falla al leer) y SecureStore vacío: null, no se inventa "hecha"', async () => {
+  it('respaldo ilegible (AsyncStorage falla al leer) y SecureStore vacío: no decidida, no se inventa', async () => {
     const m = await cargar()
     respaldo.falla = true
-    expect(await m.leerRegistroCampania()).toBeNull()
-  })
-
-  it('respaldo de otra versión: no cuenta', async () => {
-    const m = await cargar()
-    respaldo.valores.set(m.CLAVE_CAMPANIA_AVISOS_RESPALDO, JSON.stringify({ version: 'otra', hecha: true }))
-    expect(await m.leerRegistroCampania()).toBeNull()
+    expect(await m.invitacionFueVista()).toBe(false)
   })
 
   it('SecureStore guarda bien: no se escribe el respaldo', async () => {
     const m = await cargar()
-    await m.marcarCampaniaHecha()
+    await m.marcarInvitacionVista()
     expect(respaldo.escrituras).toBe(0)
     expect(respaldo.valores.size).toBe(0)
   })
@@ -193,18 +178,17 @@ describe('2. campaña: SecureStore no guarda', () => {
     expect(clave.startsWith('qps:busquedas:')).toBe(false)
   })
 
-  it('escritura OK: no hay respaldo, se lee lo guardado', async () => {
+  it('escritura OK: se lee lo guardado y no hay respaldo', async () => {
     const m = await cargar()
-    await m.posponerCampania(1000)
-    expect(await m.leerRegistroCampania()).toEqual({
-      version: m.VERSION_CAMPANIA_AVISOS,
-      posponerHasta: 1000 + m.PLAZO_POSPONER_CAMPANIA_MS,
-    })
+    await m.marcarInvitacionVista()
+    expect(almacen.valores.get(m.CLAVE_CAMPANIA_AVISOS)).toBe(JSON.stringify({ decidida: true }))
+    expect(almacen.valores.get(m.CLAVE_INVITACION_AVISOS_VISTA)).toBe('1')
+    expect(await m.invitacionFueVista()).toBe(true)
   })
 
-  it('sin guardar nada nunca: sigue siendo null (se puede preguntar)', async () => {
+  it('sin guardar nada nunca: no decidida (se puede preguntar)', async () => {
     const m = await cargar()
-    expect(await m.leerRegistroCampania()).toBeNull()
+    expect(await m.invitacionFueVista()).toBe(false)
   })
 })
 

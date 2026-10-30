@@ -3,10 +3,11 @@
 // `seMuestraInvitacion` es pura y se prueba sola; el acceso a SecureStore se
 // carga con `import()` dentro de las funciones que lo necesitan.
 //
-// Bandera propia en SecureStore (mismo patrón que `lib/bienvenida.ts`): si la
-// lectura falla se trata como "ya vista" (nunca insistir). Activar, descartar
-// o negar el permiso la marcan; la variante "entrá primero" (sin sesión) no
-// la marca hasta que la persona la descarta.
+// Un solo concepto: "la invitación ya se decidió" (`invitacionFueVista` /
+// `marcarInvitacionVista`). Activar, "Ahora no" o cerrar la marcan y no se
+// vuelve a preguntar, ni con el permiso negado ni al actualizar la app. Si la
+// lectura falla se trata como decidida (nunca insistir); la variante "entrá
+// primero" (sin sesión) no la marca hasta que la persona la descarta.
 import type { EstadoPush } from './estado'
 
 export const CLAVE_INVITACION_AVISOS_VISTA = 'qps.push.invitacion.vista'
@@ -39,67 +40,75 @@ export function seMuestraInvitacion({
   return null
 }
 
-/** `true` si ya se vio. Si la lectura falla, `true` (nunca insistir). */
-export async function invitacionFueVista(): Promise<boolean> {
-  try {
-    const SecureStore = await import('expo-secure-store')
-    return (await SecureStore.getItemAsync(CLAVE_INVITACION_AVISOS_VISTA)) === '1'
-  } catch {
-    return true
-  }
-}
-
 // ---------------------------------------------------------------------------
-// R81, 81-b: pedir los avisos al principio.
+// R81, 81-b: pedir los avisos al principio (R83: una sola vez por persona).
 // ---------------------------------------------------------------------------
 
 export const CLAVE_CAMPANIA_AVISOS = 'qps.push.campania'
 export const CLAVE_AVISOS_PENDIENTE_LOGIN = 'qps.push.pendiente-login'
 
 /**
- * Versión de la campaña "pedir los avisos". Subirla vuelve a preguntar una
- * vez a quien ya la había respondido o pospuesto (sin `expo-application` ni
- * nada del build: es una constante a mano).
+ * Clave del respaldo persistente (AsyncStorage, vía `almacenPorDefecto`).
+ * Fuera de `qps:cache:` y `qps:busquedas:`, los únicos prefijos que la app
+ * borra en masa de ese almacén, y con puntos como las demás claves `qps.push.*`.
  */
-export const VERSION_CAMPANIA_AVISOS = '6'
+export const CLAVE_CAMPANIA_AVISOS_RESPALDO = 'qps.push.campania.respaldo'
 
-/** "Ahora no" en la campaña la pospone 7 días. */
-export const PLAZO_POSPONER_CAMPANIA_MS = 7 * 24 * 60 * 60 * 1000
-
-/** Lo guardado de la campaña. `hecha`: activó o dijo "Sí"; `posponerHasta`: ms epoch. */
-export interface RegistroCampania {
-  version: string
-  posponerHasta?: number
-  hecha?: boolean
-}
+/**
+ * Respaldo si SecureStore no guarda (la escritura tira o lo leído de vuelta no
+ * coincide): la decisión queda en AsyncStorage (sobrevive al arranque en frío)
+ * y en memoria del módulo (por si AsyncStorage también falla; vale mientras
+ * viva el proceso). Si fallan los dos almacenes, la invitación puede volver a
+ * abrirse una vez por arranque en frío (nunca más de una vez por proceso).
+ */
+let decididaEnMemoria = false
 
 /**
  * ¿Se abre sola la hoja de la campaña? Solo con sesión leída, primera
- * sincronización resuelta y permiso por pedir (`sin-pedir`) o negado una vez
- * (`denegado`, se puede volver a preguntar). Una vez por versión: si ya está
- * hecha, no; si está pospuesta, no hasta `posponerHasta`; con otra versión, sí.
+ * sincronización resuelta, permiso por pedir (`sin-pedir`) y la invitación sin
+ * decidir (`vista` falso). Una sola vez por persona: con el permiso `denegado`
+ * no se vuelve a preguntar, ni por actualización de la app.
  */
 export function debeMostrarCampania({
   estado,
   sincronizado,
   cargando,
-  registro,
-  ahora,
-  version = VERSION_CAMPANIA_AVISOS,
+  vista,
 }: {
   estado: EstadoPush
   sincronizado: boolean
   cargando: boolean
-  registro: RegistroCampania | null
-  ahora: number
-  version?: string
+  vista: boolean
 }): boolean {
-  if (cargando || !sincronizado) return false
-  if (estado !== 'sin-pedir' && estado !== 'denegado') return false
-  if (!registro || registro.version !== version) return true
-  if (registro.hecha) return false
-  if (typeof registro.posponerHasta === 'number' && ahora < registro.posponerHasta) return false
-  return true
+  return !cargando && sincronizado && estado === 'sin-pedir' && !vista
+}
+
+/**
+ * `true` si la invitación ya se decidió (una sola vez por persona). Cuenta
+ * como decidida cualquiera de: la bandera en memoria, la bandera de la R70, o
+ * cualquier contenido guardado de la campaña de la R81 (de cualquier versión,
+ * pospuesto, hecho o ilegible), en SecureStore o en el respaldo. Si falla la
+ * lectura de SecureStore, `true` (nunca insistir); si falla solo el respaldo,
+ * se ignora el respaldo.
+ */
+export async function invitacionFueVista(): Promise<boolean> {
+  if (decididaEnMemoria) return true
+  try {
+    const SecureStore = await import('expo-secure-store')
+    if ((await SecureStore.getItemAsync(CLAVE_INVITACION_AVISOS_VISTA)) === '1') return true
+    const campania = await SecureStore.getItemAsync(CLAVE_CAMPANIA_AVISOS)
+    if (campania !== null && campania !== undefined) return true
+  } catch {
+    return true
+  }
+  try {
+    const { almacenPorDefecto } = await import('@/lib/sin-conexion/almacen')
+    const respaldo = await almacenPorDefecto.leer(CLAVE_CAMPANIA_AVISOS_RESPALDO)
+    if (respaldo !== null && respaldo !== undefined) return true
+  } catch {
+    // Sin respaldo legible: manda lo de SecureStore.
+  }
+  return false
 }
 
 export type AccionTrasLogin = 'nada' | 'activar' | 'borrar'
@@ -124,93 +133,6 @@ export function accionTrasLogin({
   if (estado === 'sin-pedir' || estado === 'denegado') return 'activar'
   if (estado === 'activo' || estado === 'bloqueado' || estado === 'no-disponible') return 'borrar'
   return 'nada'
-}
-
-/**
- * Lo guardado de la campaña. `null`: nunca se guardó nada. Si la lectura
- * falla o el contenido no se entiende, se devuelve un registro "hecha" de esta
- * versión: nunca insistir.
- */
-export async function leerRegistroCampania(): Promise<RegistroCampania | null> {
-  const noInsistir: RegistroCampania = { version: VERSION_CAMPANIA_AVISOS, hecha: true }
-  if (respaldoCampania) return respaldoCampania
-  try {
-    const SecureStore = await import('expo-secure-store')
-    const crudo = await SecureStore.getItemAsync(CLAVE_CAMPANIA_AVISOS)
-    if (crudo === null || crudo === undefined) return await leerRespaldoPersistente()
-    const valor: unknown = JSON.parse(crudo)
-    if (typeof valor !== 'object' || valor === null) return noInsistir
-    const { version, posponerHasta, hecha } = valor as Record<string, unknown>
-    if (typeof version !== 'string') return noInsistir
-    return {
-      version,
-      ...(typeof posponerHasta === 'number' ? { posponerHasta } : {}),
-      ...(hecha === true ? { hecha: true } : {}),
-    }
-  } catch {
-    return noInsistir
-  }
-}
-
-/**
- * Clave del respaldo persistente (AsyncStorage, vía `almacenPorDefecto`).
- * Fuera de `qps:cache:` y `qps:busquedas:`, los únicos prefijos que la app
- * borra en masa de ese almacén, y con puntos como las demás claves `qps.push.*`.
- */
-export const CLAVE_CAMPANIA_AVISOS_RESPALDO = 'qps.push.campania.respaldo'
-
-/**
- * Respaldo de la campaña si SecureStore no guarda (la escritura tira o lo
- * leído de vuelta no coincide): se da por «hecha» para esta versión, primero
- * en AsyncStorage (sobrevive al arranque en frío) y también en memoria del
- * módulo (por si AsyncStorage también falla; vale mientras viva el proceso).
- * Lo que NO cubre: si fallan los dos almacenes, la hoja puede volver a
- * abrirse una vez por arranque en frío (nunca más de una vez por proceso).
- */
-let respaldoCampania: RegistroCampania | null = null
-
-async function leerRespaldoPersistente(): Promise<RegistroCampania | null> {
-  try {
-    const { almacenPorDefecto } = await import('@/lib/sin-conexion/almacen')
-    const crudo = await almacenPorDefecto.leer(CLAVE_CAMPANIA_AVISOS_RESPALDO)
-    if (!crudo) return null
-    const valor: unknown = JSON.parse(crudo)
-    if (typeof valor !== 'object' || valor === null) return null
-    const { version, hecha } = valor as Record<string, unknown>
-    return version === VERSION_CAMPANIA_AVISOS && hecha === true ? { version, hecha: true } : null
-  } catch {
-    // Sin respaldo legible: se sigue con lo de SecureStore.
-    return null
-  }
-}
-
-async function guardarRegistroCampania(registro: RegistroCampania): Promise<void> {
-  const texto = JSON.stringify(registro)
-  try {
-    const SecureStore = await import('expo-secure-store')
-    await SecureStore.setItemAsync(CLAVE_CAMPANIA_AVISOS, texto)
-    if ((await SecureStore.getItemAsync(CLAVE_CAMPANIA_AVISOS)) === texto) return
-  } catch {
-    // Cae al respaldo.
-  }
-  const hecha: RegistroCampania = { version: VERSION_CAMPANIA_AVISOS, hecha: true }
-  respaldoCampania = hecha
-  try {
-    const { almacenPorDefecto } = await import('@/lib/sin-conexion/almacen')
-    await almacenPorDefecto.escribir(CLAVE_CAMPANIA_AVISOS_RESPALDO, JSON.stringify(hecha))
-  } catch {
-    // Queda solo el respaldo en memoria.
-  }
-}
-
-/** Activó o dijo "Sí": no se vuelve a mostrar esta versión. */
-export async function marcarCampaniaHecha(): Promise<void> {
-  await guardarRegistroCampania({ version: VERSION_CAMPANIA_AVISOS, hecha: true })
-}
-
-/** "Ahora no" / Atrás / tocar afuera: se pospone 7 días. */
-export async function posponerCampania(ahora: number = Date.now()): Promise<void> {
-  await guardarRegistroCampania({ version: VERSION_CAMPANIA_AVISOS, posponerHasta: ahora + PLAZO_POSPONER_CAMPANIA_MS })
 }
 
 /** La persona dijo "Sí" en la Bienvenida sin sesión: activar cuando inicie sesión. */
@@ -254,13 +176,31 @@ export function suscribirCambioVista(oyente: Oyente): () => void {
   }
 }
 
-/** Marca la invitación como vista. Si la escritura falla, no se rompe nada. */
+/**
+ * La invitación se decidió (activó, "Ahora no", cerró la hoja o la tarjeta):
+ * no se vuelve a mostrar. Escribe las dos claves (R70 y campaña) y verifica
+ * leyendo de vuelta; si SecureStore no guarda, cae al respaldo (memoria +
+ * AsyncStorage). Nunca tira.
+ */
 export async function marcarInvitacionVista(): Promise<void> {
+  const texto = JSON.stringify({ decidida: true })
+  let guardada = false
   try {
     const SecureStore = await import('expo-secure-store')
     await SecureStore.setItemAsync(CLAVE_INVITACION_AVISOS_VISTA, '1')
+    await SecureStore.setItemAsync(CLAVE_CAMPANIA_AVISOS, texto)
+    guardada = (await SecureStore.getItemAsync(CLAVE_CAMPANIA_AVISOS)) === texto
   } catch {
-    // En el peor caso se vuelve a mostrar una vez más.
+    // Cae al respaldo.
+  }
+  if (!guardada) {
+    decididaEnMemoria = true
+    try {
+      const { almacenPorDefecto } = await import('@/lib/sin-conexion/almacen')
+      await almacenPorDefecto.escribir(CLAVE_CAMPANIA_AVISOS_RESPALDO, texto)
+    } catch {
+      // Queda solo el respaldo en memoria.
+    }
   }
   oyentesVista.forEach((oyente) => oyente())
 }

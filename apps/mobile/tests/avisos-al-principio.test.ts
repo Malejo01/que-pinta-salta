@@ -29,6 +29,17 @@ vi.mock('expo-secure-store', () => ({
   }),
 }))
 
+// Respaldo persistente (AsyncStorage): doble en memoria, sin módulo nativo.
+vi.mock('@/lib/sin-conexion/almacen', () => ({
+  almacenPorDefecto: {
+    leer: async () => null,
+    escribir: async () => {},
+    borrar: async () => {},
+    claves: async () => [],
+    borrarVarias: async () => {},
+  },
+}))
+
 const supabaseDoble = vi.hoisted(() => ({
   canalActual: null as string | null,
   upserts: [] as { valores: Record<string, unknown>; opciones: unknown }[],
@@ -62,16 +73,14 @@ vi.mock('@/lib/supabase', () => ({
 import {
   CLAVE_AVISOS_PENDIENTE_LOGIN,
   CLAVE_CAMPANIA_AVISOS,
-  PLAZO_POSPONER_CAMPANIA_MS,
-  VERSION_CAMPANIA_AVISOS,
+  CLAVE_INVITACION_AVISOS_VISTA,
   accionTrasLogin,
   avisosPendientesLogin,
   borrarAvisosPendientesLogin,
   debeMostrarCampania,
-  leerRegistroCampania,
+  invitacionFueVista,
   marcarAvisosPendientesLogin,
-  marcarCampaniaHecha,
-  posponerCampania,
+  marcarInvitacionVista,
 } from '../lib/push/invitacion'
 import type { EstadoPush } from '../lib/push/estado'
 import { activarPreferenciasAlAceptar, canalRadarAlAceptar } from '../lib/notificaciones'
@@ -89,43 +98,31 @@ beforeEach(() => {
   supabaseDoble.lecturaArroja = false
 })
 
-const AHORA = 1_800_000_000_000
-const base = { estado: 'sin-pedir' as EstadoPush, sincronizado: true, cargando: false, registro: null, ahora: AHORA, version: '6' }
+const base = { estado: 'sin-pedir' as EstadoPush, sincronizado: true, cargando: false, vista: false }
 
-describe('debeMostrarCampania', () => {
+describe('debeMostrarCampania (una sola vez por persona)', () => {
   it('sin sesión, cargando o sin sincronizar: no', () => {
     expect(debeMostrarCampania({ ...base, estado: 'sin-sesion' })).toBe(false)
     expect(debeMostrarCampania({ ...base, cargando: true })).toBe(false)
     expect(debeMostrarCampania({ ...base, sincronizado: false })).toBe(false)
   })
 
-  it('sin-pedir y denegado sin registro: sí', () => {
+  it('sin-pedir y sin decidir: sí', () => {
     expect(debeMostrarCampania({ ...base, estado: 'sin-pedir' })).toBe(true)
-    expect(debeMostrarCampania({ ...base, estado: 'denegado' })).toBe(true)
+  })
+
+  it('denegado: no se vuelve a preguntar', () => {
+    expect(debeMostrarCampania({ ...base, estado: 'denegado' })).toBe(false)
   })
 
   it.each(['activo', 'bloqueado', 'no-disponible', 'pidiendo', 'error-registro'] as EstadoPush[])('estado %s: no', (estado) => {
     expect(debeMostrarCampania({ ...base, estado })).toBe(false)
   })
 
-  it('misma versión hecha: no', () => {
-    expect(debeMostrarCampania({ ...base, registro: { version: '6', hecha: true } })).toBe(false)
-  })
-
-  it('pospuesta: no antes de 7 días, sí desde los 7 días', () => {
-    const hasta = AHORA + PLAZO_POSPONER_CAMPANIA_MS
-    expect(PLAZO_POSPONER_CAMPANIA_MS).toBe(7 * 24 * 60 * 60 * 1000)
-    expect(debeMostrarCampania({ ...base, registro: { version: '6', posponerHasta: hasta }, ahora: hasta - 1 })).toBe(false)
-    expect(debeMostrarCampania({ ...base, registro: { version: '6', posponerHasta: hasta }, ahora: hasta })).toBe(true)
-  })
-
-  it('versión nueva: sí, aunque la anterior estuviera hecha o pospuesta', () => {
-    expect(debeMostrarCampania({ ...base, registro: { version: '5', hecha: true } })).toBe(true)
-    expect(debeMostrarCampania({ ...base, registro: { version: '5', posponerHasta: AHORA + 1000 } })).toBe(true)
-  })
-
-  it('la versión de campaña es la 6', () => {
-    expect(VERSION_CAMPANIA_AVISOS).toBe('6')
+  it('ya decidida ("Ahora no", cerrar o activar): no, en ningún estado', () => {
+    for (const estado of ['sin-pedir', 'denegado', 'sin-sesion', 'activo'] as EstadoPush[]) {
+      expect(debeMostrarCampania({ ...base, estado, vista: true })).toBe(false)
+    }
   })
 })
 
@@ -160,28 +157,42 @@ describe('guardado en SecureStore', () => {
     expect(CLAVE_AVISOS_PENDIENTE_LOGIN).toBe('qps.push.pendiente-login')
   })
 
-  it('sin nada guardado: registro null; hecha y pospuesta se leen de vuelta', async () => {
-    expect(await leerRegistroCampania()).toBeNull()
-    await marcarCampaniaHecha()
-    expect(await leerRegistroCampania()).toEqual({ version: VERSION_CAMPANIA_AVISOS, hecha: true })
-    await posponerCampania(AHORA)
-    expect(await leerRegistroCampania()).toEqual({ version: VERSION_CAMPANIA_AVISOS, posponerHasta: AHORA + PLAZO_POSPONER_CAMPANIA_MS })
+  it('sin nada guardado se puede mostrar; tras "Ahora no" / cerrar (marcarInvitacionVista) ya no', async () => {
+    const antes = await invitacionFueVista()
+    expect(antes).toBe(false)
+    expect(debeMostrarCampania({ ...base, vista: antes })).toBe(true)
+    await marcarInvitacionVista()
+    const despues = await invitacionFueVista()
+    expect(despues).toBe(true)
+    expect(debeMostrarCampania({ ...base, vista: despues })).toBe(false)
+    expect(debeMostrarCampania({ ...base, estado: 'denegado', vista: despues })).toBe(false)
   })
 
-  it('si la lectura falla o el contenido está roto, no se muestra (nunca insistir)', async () => {
+  it.each([
+    ['bandera de la R70 en "1"', CLAVE_INVITACION_AVISOS_VISTA, '1'],
+    ['campaña vieja hecha', CLAVE_CAMPANIA_AVISOS, '{"version":"5","hecha":true}'],
+    ['campaña vieja pospuesta con plazo vencido', CLAVE_CAMPANIA_AVISOS, '{"version":"6","posponerHasta":1000}'],
+    ['campaña de otra versión', CLAVE_CAMPANIA_AVISOS, '{"version":"99"}'],
+    ['campaña ilegible', CLAVE_CAMPANIA_AVISOS, '{no es json'],
+  ])('%s: no se vuelve a mostrar', async (_n, clave, valor) => {
+    almacen.valores.set(clave, valor)
+    const vista = await invitacionFueVista()
+    expect(debeMostrarCampania({ ...base, vista })).toBe(false)
+  })
+
+  it('si la lectura falla, no se muestra (nunca insistir)', async () => {
     almacen.falla.lectura = true
-    const registro = await leerRegistroCampania()
-    expect(debeMostrarCampania({ ...base, registro, version: VERSION_CAMPANIA_AVISOS })).toBe(false)
-    almacen.falla.lectura = false
-    almacen.valores.set(CLAVE_CAMPANIA_AVISOS, '{no es json')
-    expect(debeMostrarCampania({ ...base, registro: await leerRegistroCampania(), version: VERSION_CAMPANIA_AVISOS })).toBe(false)
+    const vista = await invitacionFueVista()
+    expect(debeMostrarCampania({ ...base, vista })).toBe(false)
   })
 
   it('si la escritura falla, no tira', async () => {
     almacen.falla.escritura = true
-    await expect(marcarCampaniaHecha()).resolves.toBeUndefined()
-    await expect(posponerCampania()).resolves.toBeUndefined()
-    await expect(marcarAvisosPendientesLogin()).resolves.toBeUndefined()
+    // Módulo fresco: `marcarInvitacionVista` deja estado en memoria.
+    vi.resetModules()
+    const m = await import('../lib/push/invitacion')
+    await expect(m.marcarInvitacionVista()).resolves.toBeUndefined()
+    await expect(m.marcarAvisosPendientesLogin()).resolves.toBeUndefined()
   })
 
   it('la bandera pendiente se marca, se lee y se borra; si la lectura falla, es false', async () => {
@@ -273,6 +284,34 @@ describe('detectores por texto', () => {
     const cuerpo = src.slice(iNo, src.indexOf('if (destino)'))
     expect(cuerpo).not.toMatch(/activar/)
   })
+
+  // R83: la invitación se decide una sola vez.
+  it('bienvenida.tsx: "Ahora no" marca la invitación como decidida (no la pospone) y "Sí" también', () => {
+    const src = leerFuente('app/bienvenida.tsx').replace(/\r\n/g, '\n').replace(/\/\/.*$/gm, '')
+    const iSi = src.indexOf('async function siAvisame')
+    const iNo = src.indexOf('async function ahoraNo')
+    const iFin = src.indexOf('if (destino)')
+    expect(src.slice(iSi, iNo)).toMatch(/await marcarInvitacionVista\(\)/)
+    expect(src.slice(iNo, iFin)).toMatch(/await marcarInvitacionVista\(\)/)
+  })
+
+  it('InvitacionAvisos: cerrar la hoja marca la invitación y la campaña lee invitacionFueVista', () => {
+    const src = leerFuente('components/InvitacionAvisos.tsx').replace(/\r\n/g, '\n').replace(/\/\/.*$/gm, '')
+    const iCerrar = src.indexOf('const cerrar = useCallback')
+    expect(src.slice(iCerrar, src.indexOf('return (', iCerrar))).toMatch(/void marcarInvitacionVista\(\)/)
+    expect(src).toMatch(/invitacionFueVista\(\)\.then\(\(vista\) =>/)
+    expect(src).toMatch(/debeMostrarCampania\(\{ \.\.\.datosRef\.current, vista \}\)/)
+  })
+
+  it.each(['lib/push/invitacion.ts', 'components/InvitacionAvisos.tsx', 'app/bienvenida.tsx'])(
+    '%s: sin comparación por versión ni plazo de 7 días',
+    (ruta) => {
+      const src = leerFuente(ruta)
+      for (const palabra of ['VERSION_CAMPANIA_AVISOS', 'posponerCampania', 'posponerHasta', 'marcarCampaniaHecha', 'leerRegistroCampania']) {
+        expect(src, `${ruta}: ${palabra}`).not.toContain(palabra)
+      }
+    }
+  )
 
   // R81, 81-c: accesibilidad de la Bienvenida.
   it('bienvenida.tsx: ScrollView, títulos header con foco al cambiar de paso y Atrás que vuelve al paso 1', () => {
