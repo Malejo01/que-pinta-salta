@@ -30,7 +30,7 @@ export default function Loading() {
       <noscript>
         <style>{SIN_JS_MOSTRAR_LA_PAGINA}</style>
       </noscript>
-      <span className="sr-only">Cargando…</span>
+      <span className="sr-only" lang="es">Cargando…</span>
       <div className="h-[65px] w-full border-b border-border/40 bg-background/95" />
       <div className="container mx-auto px-4 py-4 sm:py-8">
         <Skeleton className="h-8 w-72 max-w-full sm:h-9" />

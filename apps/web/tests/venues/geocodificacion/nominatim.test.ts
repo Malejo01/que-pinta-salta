@@ -487,6 +487,40 @@ describe('evaluarResultados', () => {
   })
 })
 
+describe('evaluarResultados: tipo compatible en una búsqueda por nombre', () => {
+  const LIBRE = consultaLibre('Lugar de Prueba, Salta Capital')
+
+  it('una calle (highway) buscada por nombre va a revisar, con categoría y tipo en el motivo', () => {
+    const r = evaluarResultados([unResultado({ category: 'highway', type: 'residential', place_rank: 26 })], LIBRE)
+    expect(r?.confianza).toBe('revisar')
+    expect(r?.motivo).toMatch(/highway/)
+    expect(r?.motivo).toMatch(/residential/)
+  })
+
+  it('un museo (tourism/museum) sigue siendo alta', () => {
+    const r = evaluarResultados([unResultado({ category: 'tourism', type: 'museum', place_rank: 30 })], LIBRE)
+    expect(r?.confianza).toBe('alta')
+    expect(r?.motivo).toBeNull()
+  })
+
+  it('amenity/parking va a revisar', () => {
+    const r = evaluarResultados([unResultado({ category: 'amenity', type: 'parking', place_rank: 30 })], LIBRE)
+    expect(r?.confianza).toBe('revisar')
+    expect(r?.motivo).toMatch(/amenity/)
+    expect(r?.motivo).toMatch(/parking/)
+  })
+
+  it('amenity/bank va a revisar, amenity/theatre sigue alta', () => {
+    expect(evaluarResultados([unResultado({ category: 'amenity', type: 'bank' })], LIBRE)?.confianza).toBe('revisar')
+    expect(evaluarResultados([unResultado({ category: 'amenity', type: 'theatre' })], LIBRE)?.confianza).toBe('alta')
+  })
+
+  it('la búsqueda estructurada no cambia: un building con el número exacto sigue alta', () => {
+    const r = evaluarResultados([unResultado({ category: 'building', type: 'yes', house_number: '719' })], ESTRUCTURADA)
+    expect(r?.confianza).toBe('alta')
+  })
+})
+
 describe('numeroDePuertaExacto', () => {
   it('el mismo número', () => {
     expect(numeroDePuertaExacto('719', '719')).toBe(true)

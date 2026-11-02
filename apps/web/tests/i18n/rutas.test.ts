@@ -3,8 +3,8 @@ import { describe, expect, it } from 'vitest'
 import { RUTAS_EN_INGLES, hrefLangDestino, rutaEn, rutaEnOtroIdioma, separarIdioma } from '@/lib/i18n/rutas'
 
 describe('RUTAS_EN_INGLES', () => {
-  it('la portada, /cines y la ficha del evento (/evento/<id>)', () => {
-    expect([...RUTAS_EN_INGLES]).toEqual(['/', '/cines', '/evento/*'])
+  it('la portada, /cines, /mapa, /buscar, /radar, /anunciantes y la ficha del evento (/evento/<id>)', () => {
+    expect([...RUTAS_EN_INGLES]).toEqual(['/', '/cines', '/mapa', '/buscar', '/radar', '/anunciantes', '/evento/*'])
   })
 })
 
@@ -31,9 +31,21 @@ describe('rutaEn', () => {
     expect(rutaEn('en', '/#arriba')).toBe('/en#arriba')
   })
 
+  it('/mapa y /buscar van a /en/mapa y /en/buscar, con su query', () => {
+    expect(rutaEn('en', '/mapa')).toBe('/en/mapa')
+    expect(rutaEn('en', '/mapa?cuando=fecha&dia=2026-10-30&lugar=v1')).toBe('/en/mapa?cuando=fecha&dia=2026-10-30&lugar=v1')
+    expect(rutaEn('en', '/buscar')).toBe('/en/buscar')
+    expect(rutaEn('en', '/buscar?q=pena')).toBe('/en/buscar?q=pena')
+  })
+
+  it('/radar y /anunciantes van a /en/radar y /en/anunciantes', () => {
+    expect(rutaEn('en', '/radar')).toBe('/en/radar')
+    expect(rutaEn('en', '/anunciantes')).toBe('/en/anunciantes')
+    expect(rutaEn('es', '/radar')).toBe('/radar')
+  })
+
   it('las rutas sin versión en inglés quedan en castellano (con su query)', () => {
-    expect(rutaEn('en', '/mapa')).toBe('/mapa')
-    expect(rutaEn('en', '/buscar?q=pena')).toBe('/buscar?q=pena')
+    expect(rutaEn('en', '/favoritos')).toBe('/favoritos')
     expect(rutaEn('en', '/auth/login?next=/nuevo-evento')).toBe('/auth/login?next=/nuevo-evento')
     // "/cinesxyz" no es "/cines".
     expect(rutaEn('en', '/cinesxyz')).toBe('/cinesxyz')
@@ -90,9 +102,17 @@ describe('rutaEnOtroIdioma', () => {
   })
 
   it('si la página no existe en inglés, va a /en (sin la query de la otra página)', () => {
-    expect(rutaEnOtroIdioma('/mapa', 'en')).toBe('/en')
-    expect(rutaEnOtroIdioma('/buscar?q=pena', 'en')).toBe('/en')
+    expect(rutaEnOtroIdioma('/perfil', 'en')).toBe('/en')
+    expect(rutaEnOtroIdioma('/favoritos?x=1', 'en')).toBe('/en')
     expect(rutaEnOtroIdioma('/entradas', 'en')).toBe('/en')
+  })
+
+  it('/mapa y /buscar, ida y vuelta (con la query)', () => {
+    expect(rutaEnOtroIdioma('/mapa', 'en')).toBe('/en/mapa')
+    expect(rutaEnOtroIdioma('/mapa?cuando=finde&gratis=1', 'en')).toBe('/en/mapa?cuando=finde&gratis=1')
+    expect(rutaEnOtroIdioma('/buscar?q=pena', 'en')).toBe('/en/buscar?q=pena')
+    expect(rutaEnOtroIdioma('/en/mapa?cuando=finde&gratis=1', 'es')).toBe('/mapa?cuando=finde&gratis=1')
+    expect(rutaEnOtroIdioma('/en/buscar', 'es')).toBe('/buscar')
   })
 
   it('de inglés a castellano: saca el /en y conserva query y hash', () => {
@@ -124,9 +144,10 @@ describe('hrefLangDestino', () => {
   })
 
   it('en inglés, "es-AR" solo para las páginas que existen solo en castellano', () => {
-    expect(hrefLangDestino('en', '/buscar')).toBe('es-AR')
-    expect(hrefLangDestino('en', '/mapa')).toBe('es-AR')
-    expect(hrefLangDestino('en', '/radar')).toBe('es-AR')
+    expect(hrefLangDestino('en', '/buscar')).toBeUndefined()
+    expect(hrefLangDestino('en', '/mapa?cuando=hoy')).toBeUndefined()
+    expect(hrefLangDestino('en', '/radar')).toBeUndefined()
+    expect(hrefLangDestino('en', '/anunciantes')).toBeUndefined()
     expect(hrefLangDestino('en', '/favoritos')).toBe('es-AR')
     expect(hrefLangDestino('en', '/auth/login?next=/nuevo-evento')).toBe('es-AR')
     expect(hrefLangDestino('en', '/')).toBeUndefined()

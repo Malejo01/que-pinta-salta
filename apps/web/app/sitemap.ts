@@ -3,6 +3,8 @@ import type { MetadataRoute } from "next"
 import { ANUNCIANTES } from "@/lib/config/anunciantes"
 import { VIGENTE_DESDE } from "@/components/legal/vigencia"
 import { fechaDeTextoEnCastellano } from "@/lib/seo/fecha-legal"
+import { rutaEn, tieneVersionEnIngles } from "@/lib/i18n/rutas"
+import { idiomasAlternos } from "@/lib/i18n/seo"
 
 const baseUrl = "https://www.quepintasalta.com.ar"
 
@@ -41,12 +43,30 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   // `lastModified` es opcional (B2): sin una fecha real se omite el campo,
   // en vez de poner `now` y decirle al crawler que la página cambió recién.
+  //
+  // hreflang en el sitemap (Q3): toda ruta con versión en inglés sale dos
+  // veces (castellano y /en), cada una con `alternates` hacia la otra. Se
+  // deriva de `tieneVersionEnIngles` e `idiomasAlternos`, los mismos que usa
+  // la metadata de las páginas, para que no puedan divergir. La portada es
+  // "/" y solo `absoluta` la traduce a `baseUrl`. Devuelve un arreglo: se
+  // esparce con `...`.
+  const absoluta = (ruta: string) => (ruta === "/" ? baseUrl : `${baseUrl}${ruta}`)
+  const conIdiomas = <T extends object>(ruta: string, entrada: T) => {
+    if (!tieneVersionEnIngles(ruta)) return [{ ...entrada, url: absoluta(ruta) }]
+    const languages = Object.fromEntries(
+      Object.entries(idiomasAlternos(ruta)).map(([idioma, r]) => [idioma, absoluta(r)]),
+    )
+    return [
+      { ...entrada, url: absoluta(ruta), alternates: { languages } },
+      { ...entrada, url: absoluta(rutaEn("en", ruta)), alternates: { languages } },
+    ]
+  }
   const staticRoute = (
     path: string,
     lastModified: Date | undefined,
     changeFrequency: "daily" | "weekly",
     priority: number,
-  ) => ({ url: `${baseUrl}${path}`, ...(lastModified && { lastModified }), changeFrequency, priority })
+  ) => conIdiomas(path, { ...(lastModified && { lastModified }), changeFrequency, priority })
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
   const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
@@ -54,14 +74,14 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   if (!supabaseUrl || !supabaseKey) {
     console.warn("[Sitemap] Faltan variables de entorno de Supabase")
     return [
-      staticRoute("", now, "daily", 1.0),
-      staticRoute("/cines", now, "daily", 0.8),
-      staticRoute("/buscar", now, "weekly", 0.5),
-      staticRoute("/mapa", now, "weekly", 0.5),
-      staticRoute("/privacidad", legalesUpdatedAt, "weekly", 0.2),
-      staticRoute("/terminos", legalesUpdatedAt, "weekly", 0.2),
-      staticRoute("/eliminar-cuenta", undefined, "weekly", 0.2),
-      ...(ANUNCIANTES.publicada ? [staticRoute("/anunciantes", now, "weekly", 0.3)] : []),
+      ...staticRoute("/", now, "daily", 1.0),
+      ...staticRoute("/cines", now, "daily", 0.8),
+      ...staticRoute("/buscar", now, "weekly", 0.5),
+      ...staticRoute("/mapa", now, "weekly", 0.5),
+      ...staticRoute("/privacidad", legalesUpdatedAt, "weekly", 0.2),
+      ...staticRoute("/terminos", legalesUpdatedAt, "weekly", 0.2),
+      ...staticRoute("/eliminar-cuenta", undefined, "weekly", 0.2),
+      ...(ANUNCIANTES.publicada ? staticRoute("/anunciantes", now, "weekly", 0.3) : []),
     ]
   }
 
@@ -111,12 +131,13 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const movies = moviesRes.data || []
 
   // 1. Rutas dinámicas para Eventos Publicados
-  const eventRoutes: MetadataRoute.Sitemap = events.map((event) => ({
-    url: `${baseUrl}/evento/${event.id}`,
-    lastModified: new Date(event.updated_at || now),
-    changeFrequency: "daily",
-    priority: 0.7,
-  }))
+  const eventRoutes: MetadataRoute.Sitemap = events.flatMap((event) =>
+    conIdiomas(`/evento/${event.id}`, {
+      lastModified: new Date(event.updated_at || now),
+      changeFrequency: "daily" as const,
+      priority: 0.7,
+    }),
+  )
 
   // 2. Rutas dinámicas para Flyers de Instagram Activos
   const flyerRoutes: MetadataRoute.Sitemap = flyers.map((flyer) => ({
@@ -137,17 +158,17 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const cinemaUpdatedAt = latest(movies.map((m) => m.updated_at), now)
 
   const staticRoutes: MetadataRoute.Sitemap = [
-    staticRoute("", homeUpdatedAt, "daily", 1.0),
-    staticRoute("/cines", cinemaUpdatedAt, "daily", 0.8),
-    staticRoute("/buscar", eventsUpdatedAt, "weekly", 0.5),
-    staticRoute("/mapa", eventsUpdatedAt, "weekly", 0.5),
-    staticRoute("/privacidad", legalesUpdatedAt, "weekly", 0.2),
-    staticRoute("/terminos", legalesUpdatedAt, "weekly", 0.2),
-    staticRoute("/eliminar-cuenta", undefined, "weekly", 0.2),
+    ...staticRoute("/", homeUpdatedAt, "daily", 1.0),
+    ...staticRoute("/cines", cinemaUpdatedAt, "daily", 0.8),
+    ...staticRoute("/buscar", eventsUpdatedAt, "weekly", 0.5),
+    ...staticRoute("/mapa", eventsUpdatedAt, "weekly", 0.5),
+    ...staticRoute("/privacidad", legalesUpdatedAt, "weekly", 0.2),
+    ...staticRoute("/terminos", legalesUpdatedAt, "weekly", 0.2),
+    ...staticRoute("/eliminar-cuenta", undefined, "weekly", 0.2),
     // /anunciantes solo mientras ANUNCIANTES.publicada sea true (ver
     // lib/config/anunciantes.ts): mientras haya precios sin completar la
     // página no se indexa ni se anuncia para rastreo.
-    ...(ANUNCIANTES.publicada ? [staticRoute("/anunciantes", now, "weekly", 0.3)] : []),
+    ...(ANUNCIANTES.publicada ? staticRoute("/anunciantes", now, "weekly", 0.3) : []),
   ]
 
   return [...staticRoutes, ...eventRoutes, ...flyerRoutes]

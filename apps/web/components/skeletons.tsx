@@ -30,7 +30,7 @@ function LoadingRegion({
 }) {
   return (
     <div role="status" aria-busy="true" className={className}>
-      <span className="sr-only">Cargando…</span>
+      <span className="sr-only" lang="es">Cargando…</span>
       {children}
     </div>
   )

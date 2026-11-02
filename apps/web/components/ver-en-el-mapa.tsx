@@ -52,14 +52,13 @@ export function VerEnElMapa({ venue, startDate, className = "flex-1", size = "de
   const dia = formatSaltaDayKey(startDate)
   // En inglés, `/mapa` va a `/en/mapa` cuando exista (`rutaEn`); mientras
   // tanto queda en castellano y el link lo avisa con `hrefLang`.
-  const href = rutaEn(
-    idioma,
-    `/mapa?cuando=fecha&dia=${encodeURIComponent(dia)}&lugar=${encodeURIComponent(venue.id)}`,
-  )
+  const rutaEs = `/mapa?cuando=fecha&dia=${encodeURIComponent(dia)}&lugar=${encodeURIComponent(venue.id)}`
+  const href = rutaEn(idioma, rutaEs)
 
   return (
     <Button variant="outline" size={size} className={className} asChild>
-      <Link href={href} prefetch={false} hrefLang={hrefLangDestino(idioma, href)}>
+      {/* El hrefLang se calcula sobre la ruta sin /en (rutaEs). */}
+      <Link href={href} prefetch={false} hrefLang={hrefLangDestino(idioma, rutaEs)}>
         <MapPin className="mr-2 size-4" />
         {textosDe(idioma).ficha.verEnElMapa}
       </Link>

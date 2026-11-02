@@ -16,6 +16,7 @@ import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { filtrarCombinado } from '@qps/core/home/filtros-combinados'
 import type { DisplayEvent } from '@qps/core/home/types'
+import { es } from '@/lib/i18n/diccionarios/es'
 
 const SOURCE_PATH = new URL('../../app/buscar/buscar-content.tsx', import.meta.url)
 const source = readFileSync(SOURCE_PATH, 'utf8')
@@ -99,13 +100,15 @@ describe('filtrado real de /buscar (filtrarCombinado → buscarEventosPorTexto d
 
 describe('tildes en /buscar', () => {
   it('"Explorar por categoría" con tilde', () => {
-    expect(source).toContain('Explorar por categoría')
-    expect(source).not.toContain('Explorar por categoria')
+    // Desde C4 los textos salen del diccionario: el componente los usa y el castellano tiene la tilde.
+    expect(source).toContain('{t.explorarPorCategoria}')
+    expect(es.buscar.explorarPorCategoria).toBe('Explorar por categoría')
   })
 
   it('el placeholder de búsqueda dice "descripción" con tilde', () => {
-    expect(source).toContain('lugar o descripción')
-    expect(source).not.toContain('lugar o descripcion')
+    expect(source).toContain('placeholder={t.placeholder}')
+    expect(es.buscar.placeholder).toContain('lugar o descripción')
+    expect(es.buscar.placeholder).not.toContain('lugar o descripcion')
   })
 })
 

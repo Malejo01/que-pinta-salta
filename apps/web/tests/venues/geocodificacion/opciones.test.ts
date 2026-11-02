@@ -8,6 +8,7 @@ describe('leerOpciones: valores por defecto', () => {
       limite: 200,
       rehacerNominatim: false,
       sinCache: false,
+      todos: false,
       salida: undefined,
       cache: undefined,
     })
@@ -17,6 +18,17 @@ describe('leerOpciones: valores por defecto', () => {
 describe('leerOpciones: banderas booleanas', () => {
   it('--apply', () => {
     expect(leerOpciones(['--apply']).apply).toBe(true)
+  })
+
+  it('--aplicar es un alias de --apply', () => {
+    expect(leerOpciones(['--aplicar']).apply).toBe(true)
+    expect(() => leerOpciones(['--aplicar=si'])).toThrow()
+  })
+
+  it('--todos (por defecto es false)', () => {
+    expect(leerOpciones([]).todos).toBe(false)
+    expect(leerOpciones(['--todos']).todos).toBe(true)
+    expect(() => leerOpciones(['--todos=si'])).toThrow()
   })
 
   it('--rehacer-nominatim', () => {
@@ -113,6 +125,7 @@ describe('leerOpciones: todas las banderas juntas', () => {
       apply: true,
       rehacerNominatim: true,
       sinCache: true,
+      todos: false,
       limite: 5,
       salida: 'ops/x',
       cache: 'ops/y.json',
