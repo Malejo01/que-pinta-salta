@@ -13,6 +13,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Pressable, StyleSheet, Switch, View } from 'react-native'
 import { botonParaEstado } from '@/components/AvisoActivarPush'
+import { InterruptorFinde } from '@/components/InterruptorFinde'
 import { Texto } from '@/components/Texto'
 import { avisar } from '@/lib/aviso'
 import { useColoresQPS } from '@/lib/colores'
@@ -143,6 +144,9 @@ export function AvisosSinSesion() {
           accessibilityState={{ checked: visibles.avisosPatrocinados, busy: guardando === 'avisosPatrocinados' }}
         />
       </View>
+
+      {/* Q4-11: también sin cuenta (es una notificación local del teléfono). */}
+      <InterruptorFinde />
     </View>
   )
 }

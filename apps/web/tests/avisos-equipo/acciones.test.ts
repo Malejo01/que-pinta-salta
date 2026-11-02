@@ -322,7 +322,8 @@ describe('enviarmePruebaAvisoEquipo: solo llega al admin', () => {
     const [m] = e.expo.mensajes()
     expect(m).toMatchObject({ to: TOKEN_ADMIN_1, title: 'Título', body: 'Cuerpo' })
     expect(m).not.toHaveProperty('categoryId')
-    expect(m).not.toHaveProperty('data')
+    // Q4-11: solo la marca del aviso del equipo (para que la app no duplique «Este finde pinta»).
+    expect(m.data).toEqual({ aviso: 'equipo' })
   })
 
   it('destino evento: data.url del evento; cines: data.destino = "cines"', async () => {
@@ -331,8 +332,8 @@ describe('enviarmePruebaAvisoEquipo: solo llega al admin', () => {
     await enviarmePruebaAvisoEquipo(aviso({ destino: { tipo: 'evento', eventId: EVENTO_ID } }))
     await enviarmePruebaAvisoEquipo(aviso({ destino: { tipo: 'cines' } }))
     const mensajes = e.expo.mensajes()
-    expect(mensajes[0].data).toEqual({ url: urlEvento(EVENTO_ID, 'app') })
-    expect(mensajes[2].data).toEqual({ destino: 'cines' })
+    expect(mensajes[0].data).toEqual({ url: urlEvento(EVENTO_ID, 'app'), aviso: 'equipo' })
+    expect(mensajes[2].data).toEqual({ destino: 'cines', aviso: 'equipo' })
     for (const m of mensajes) {
       expect(m).not.toHaveProperty('categoryId')
       expect(m.data as object).not.toHaveProperty('tipo')

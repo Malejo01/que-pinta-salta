@@ -234,21 +234,22 @@ describe('validarAvisoEquipo: destino', () => {
 describe('datosPushAvisoEquipo', () => {
   it('evento: { url } con el mismo link que arma la tanda (urlEvento con origen "app")', () => {
     const datos = datosPushAvisoEquipo({ tipo: 'evento', eventId: EVENTO })
-    expect(datos).toEqual({ url: urlEvento(EVENTO, 'app') })
+    // Q4-11: más la marca { aviso: 'equipo' } (la app no duplica «Este finde pinta»).
+    expect(datos).toEqual({ url: urlEvento(EVENTO, 'app'), aviso: 'equipo' })
     expect(datos?.url).toMatch(new RegExp(`/evento/${EVENTO}`))
   })
 
   it('cines: { destino: "cines" } y el valor es la constante que lee la app', () => {
     expect(DESTINO_CINES).toBe('cines')
-    expect(datosPushAvisoEquipo({ tipo: 'cines' })).toEqual({ destino: 'cines' })
+    expect(datosPushAvisoEquipo({ tipo: 'cines' })).toEqual({ destino: 'cines', aviso: 'equipo' })
   })
 
-  it('inicio: undefined (sin data)', () => {
-    expect(datosPushAvisoEquipo({ tipo: 'inicio' })).toBeUndefined()
+  it('inicio: solo la marca del aviso del equipo (Q4-11), sin url ni destino', () => {
+    expect(datosPushAvisoEquipo({ tipo: 'inicio' })).toEqual({ aviso: 'equipo' })
   })
 
-  it('evento con id que no es uuid (llegara por un bug): undefined, nunca { url: null }', () => {
-    expect(datosPushAvisoEquipo({ tipo: 'evento', eventId: 'no-es-uuid' })).toBeUndefined()
+  it('evento con id que no es uuid (llegara por un bug): sin url, nunca { url: null }', () => {
+    expect(datosPushAvisoEquipo({ tipo: 'evento', eventId: 'no-es-uuid' })).toEqual({ aviso: 'equipo' })
   })
 
   it.each([
