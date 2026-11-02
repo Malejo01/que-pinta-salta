@@ -145,13 +145,21 @@ export function validarAvisoEquipo(entrada: unknown): ResultadoValidacionAvisoEq
  * que `./tanda` (la app ya sabe abrirlo). Cines: `{ destino: 'cines' }`.
  * Inicio: `undefined` (sin data, abre la app). Nunca `tipo` ni `categoryId`.
  */
-export function datosPushAvisoEquipo(destino: DestinoAvisoEquipo): Record<string, unknown> | undefined {
+/**
+ * Q4-11: marca del aviso del equipo en `data` (`aviso: 'equipo'`). La app la
+ * usa para no mandar ese mismo día su aviso local «Este finde pinta» (no
+ * duplica). A propósito NO es `tipo`: esa clave es la del patrocinado y el
+ * aviso del equipo nunca la lleva. No cambia a dónde lleva el tap.
+ */
+export const MARCA_AVISO_EQUIPO = { aviso: 'equipo' } as const
+
+export function datosPushAvisoEquipo(destino: DestinoAvisoEquipo): Record<string, unknown> {
   if (destino.tipo === 'evento') {
     const url = urlEvento(destino.eventId, 'app')
-    return url ? { url } : undefined
+    return url ? { url, ...MARCA_AVISO_EQUIPO } : { ...MARCA_AVISO_EQUIPO }
   }
-  if (destino.tipo === 'cines') return { destino: DESTINO_CINES }
-  return undefined
+  if (destino.tipo === 'cines') return { destino: DESTINO_CINES, ...MARCA_AVISO_EQUIPO }
+  return { ...MARCA_AVISO_EQUIPO }
 }
 
 /** `notification_sends.dedupe_key` del aviso del equipo de `userId` en el día de Salta de `ahora`. */

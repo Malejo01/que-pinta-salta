@@ -36,6 +36,7 @@ import { EnlacesLegales } from '@/components/EnlacesLegales'
 import { Cargando } from '@/components/EstadoCarga'
 import { Icono, type NombreIcono } from '@/components/Icono'
 import { InterruptorRecordatorios } from '@/components/InterruptorRecordatorios'
+import { InterruptorFinde } from '@/components/InterruptorFinde'
 import { LoQueSeguis } from '@/components/LoQueSeguis'
 import { SeccionNotificaciones } from '@/components/SeccionNotificaciones'
 import { Texto } from '@/components/Texto'
@@ -428,6 +429,9 @@ export default function Cuenta() {
         <SeccionNotificaciones />
         {/* Q4-10: recordatorios locales de lo guardado (la tarde anterior). */}
         <InterruptorRecordatorios />
+
+        {/* Q4-11: «Este finde pinta» (jueves 18:00, local). */}
+        <InterruptorFinde />
 
         <FilaAcceso icono="Radio" texto="Mi Radar Salteño" onPress={() => router.push('/radar')} />
         <FilaAcceso icono="Heart" texto="Mis eventos" onPress={() => router.push('/favoritos')} />
