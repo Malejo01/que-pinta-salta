@@ -490,4 +490,12 @@ export const en = {
     // WCAG 2.5.3: el nombre accesible contiene el texto visible («ES» / «Español»).
     otroAria: 'Español (ES): ver el sitio en español',
   },
+  publicidad: {
+    etiqueta: 'Advertisement',
+    insignia: 'Advertise on Qué Pinta Salta',
+    titulo: 'Want to feature your event or promote your brand here?',
+    texto: 'Reach the people who are looking for things to do in Salta. Simple, fast and effective!',
+    verPaquetes: 'See advertising packages',
+    whatsapp: 'Contact us on WhatsApp',
+  },
 } satisfies Diccionario

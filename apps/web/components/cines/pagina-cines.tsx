@@ -32,8 +32,8 @@ export async function PaginaCines({ idioma }: { idioma: Idioma }) {
 
   const activeMovies = movies || []
   // B2: las películas en cartel como ItemList; sin películas no se publica.
-  // Solo en `/cines`: las URLs de cada Movie son anclas de la cartelera en castellano.
-  const listaDePeliculas = idioma === 'es' ? listaDePeliculasJsonLd(activeMovies) : null
+  // Q4-6: en `/en/cines`, las anclas apuntan a la cartelera en inglés.
+  const listaDePeliculas = listaDePeliculasJsonLd(activeMovies, idioma)
 
   return (
     // 77-a1: las barras de navegación quedan FUERA del `<main>`. El fondo

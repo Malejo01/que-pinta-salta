@@ -12,6 +12,8 @@ import { leerAsistencia } from "@/lib/asistencia-lectura"
 import { debenMostrarseBotonesAsistencia } from "@/lib/asistencia-visibilidad"
 import { obtenerSeguimientoDeEvento } from "@/lib/actions/radar"
 import { idiomasAlternos } from "@/lib/i18n/seo"
+import { nombreCategoria, textosDe } from "@/lib/i18n"
+import { rutaEn } from "@/lib/i18n/rutas"
 import { JsonLd } from "@/components/json-ld"
 import { conContexto, migasJsonLd } from "@/lib/seo/json-ld"
 import { descripcionParaMeta } from "@/lib/seo/descripcion"
@@ -154,7 +156,10 @@ export default async function EventPage({ params, searchParams, idioma = "es" }:
   // borrador o de algo pendiente de revisión sería datos estructurados de
   // contenido que el público no debería estar viendo.
   const isIndexable = ['PUBLISHED', 'CANCELLED', 'PAST'].includes(event.status)
-  const eventUrl = `${SITE_URL}/evento/${event.id}`
+  // Q4-6: `url` es la de la página que se está viendo (/en/evento/<id> en
+  // inglés); `@id` sigue siendo la ficha en castellano: es el mismo evento.
+  const eventId = `${SITE_URL}/evento/${event.id}`
+  const eventUrl = `${SITE_URL}${rutaEn(idioma, `/evento/${event.id}`)}`
   const venue = event.venue
   const hasCoords = typeof venue?.latitude === 'number' && typeof venue?.longitude === 'number'
   const isCancelled = event.status === 'CANCELLED'
@@ -191,7 +196,7 @@ export default async function EventPage({ params, searchParams, idioma = "es" }:
   const jsonLd = {
     '@context': 'https://schema.org',
     '@type': 'Event',
-    '@id': eventUrl,
+    '@id': eventId,
     'url': eventUrl,
     'name': event.title,
     'startDate': formatSaltaSchemaDate(event.start_date),
@@ -254,10 +259,16 @@ export default async function EventPage({ params, searchParams, idioma = "es" }:
   // una URL que funcione: la portada filtra con `?category=<slug>`
   // (`components/home-content.tsx` compara contra `category.slug`). Va en
   // un bloque aparte para que el `Event` de arriba quede igual que antes.
+  // Q4-6: en inglés, «Home» y las URLs /en (la categoría con su nombre en inglés).
   const migas = migasJsonLd([
-    { nombre: 'Inicio', url: '/' },
+    { nombre: idioma === 'en' ? 'Home' : 'Inicio', url: rutaEn(idioma, '/') },
     ...(event.category?.slug && event.category?.name
-      ? [{ nombre: event.category.name, url: `/?category=${encodeURIComponent(event.category.slug)}` }]
+      ? [
+          {
+            nombre: idioma === 'en' ? nombreCategoria(textosDe('en'), event.category.slug, event.category.name) : event.category.name,
+            url: rutaEn(idioma, `/?category=${encodeURIComponent(event.category.slug)}`),
+          },
+        ]
       : []),
     { nombre: event.title, url: eventUrl },
   ])
@@ -268,7 +279,7 @@ export default async function EventPage({ params, searchParams, idioma = "es" }:
         <>
           {/* JsonLd escapa "<": un título con "</script>" no rompe el documento. */}
           <JsonLd data={jsonLd} />
-          {idioma === "es" && <JsonLd data={conContexto(migas)} />}
+          <JsonLd data={conContexto(migas)} />
         </>
       )}
       <EventDetailPage

@@ -8,6 +8,7 @@ import { ANUNCIANTES } from "@/lib/config/anunciantes"
 import { TEXTO_ANUNCIAR, whatsappUrl } from "@/lib/contacto"
 import { rutaEn } from "@/lib/i18n/rutas"
 import { useIdioma } from "@/lib/i18n/use-idioma"
+import { textosDe } from "@/lib/i18n"
 
 interface AdSenseBannerProps {
   /** El lugar define el slot (ADSENSE_SLOTS) y el alto reservado (ALTO_RESERVADO_ANUNCIO), los dos en lib/config/monetization.ts. */
@@ -44,6 +45,7 @@ function AdSenseSlot({
 }: AdSenseBannerProps) {
   // Solo para el link a /anunciantes (el texto del cartel sigue en castellano).
   const idioma = useIdioma()
+  const textos = textosDe(idioma).publicidad
   const [adError, setAdError] = useState(false)
   const [isClient, setIsClient] = useState(false)
   const insRef = useRef<HTMLModElement>(null)
@@ -160,26 +162,26 @@ function AdSenseSlot({
 
   return (
     <div className={`flex w-full flex-col overflow-hidden ${ALTO_RESERVADO_CLASES} ${className}`}>
-      <p className="mb-2 text-center text-xs text-muted-foreground">Publicidad</p>
+      <p className="mb-2 text-center text-xs text-muted-foreground">{textos.etiqueta}</p>
       <div className="flex flex-1 items-center justify-center">
         {mostrarRespaldo ? (
           <div className="mx-auto flex max-w-lg flex-col items-center rounded-xl border border-primary/20 bg-gradient-to-r from-primary/5 via-card to-primary/5 p-6 text-center shadow-sm backdrop-blur-sm transition-all duration-300 hover:border-primary/40 hover:shadow-md">
             <div className="mb-2 flex items-center gap-1 rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold text-primary uppercase tracking-wider">
               <Sparkles className="size-3" />
-              Anunciá en Qué Pinta Salta
+              {textos.insignia}
             </div>
             <p className="text-lg font-bold text-foreground mb-1">
-              ¿Querés destacar tu evento o promocionar tu marca acá?
+              {textos.titulo}
             </p>
             <p className="text-sm text-muted-foreground mb-4 max-w-md">
-              Llegá directamente al público que está buscando salidas en Salta Capital. ¡Simple, rápido y efectivo!
+              {textos.texto}
             </p>
             {ANUNCIANTES.publicada ? (
               <Link
                 href={rutaEn(idioma, "/anunciantes")}
                 className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow-sm transition-all hover:bg-primary/90 hover:scale-[1.02] active:scale-[0.98]"
               >
-                Ver paquetes para anunciantes
+                {textos.verPaquetes}
               </Link>
             ) : (
               <a
@@ -188,7 +190,7 @@ function AdSenseSlot({
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow-sm transition-all hover:bg-primary/90 hover:scale-[1.02] active:scale-[0.98]"
               >
-                Contactar por WhatsApp
+                {textos.whatsapp}
                 <ExternalLink className="size-4" />
               </a>
             )}

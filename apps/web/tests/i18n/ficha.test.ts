@@ -234,13 +234,15 @@ describe('las vistas sin hooks, en inglés por prop', () => {
 })
 
 describe('las rutas en inglés reusan las de castellano', () => {
-  it('/en/evento/[id] dibuja el cuerpo de app/evento/[id]/page.tsx (con el Event, sin las migas en castellano)', () => {
+  it('/en/evento/[id] dibuja el cuerpo de app/evento/[id]/page.tsx (con el Event y las migas en inglés, Q4-6)', () => {
     const fuente = read('app/en/evento/[id]/page.tsx')
     expect(fuente).toContain('import EventPage from "@/app/evento/[id]/page"')
     expect(fuente).toMatch(/return await EventPage\(\{ \.\.\.props, idioma: "en" \}\)/)
     const ficha = read('app/evento/[id]/page.tsx')
     expect(ficha).toMatch(/idioma = "es" \}: EventPageProps/)
-    expect(ficha).toContain('{idioma === "es" && <JsonLd data={conContexto(migas)} />}')
+    expect(ficha).toContain('<JsonLd data={conContexto(migas)} />')
+    expect(ficha).toContain("nombre: idioma === 'en' ? 'Home' : 'Inicio', url: rutaEn(idioma, '/')")
+    expect(ficha).toContain('const eventUrl = `${SITE_URL}${rutaEn(idioma, `/evento/${event.id}`)}`')
     expect(ficha).toContain('<JsonLd data={jsonLd} />')
   })
 

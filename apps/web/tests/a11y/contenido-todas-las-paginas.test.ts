@@ -9,8 +9,10 @@
  * una página nueva no se olvide del ancla. Estático: sigue los imports `@/…` y
  * relativos hasta 5 niveles, sin red ni base.
  *
- * Fuera: /admin (no es pública) y las rutas interceptadas del modal `@modal/(.)…`,
- * que se dibujan encima de una página que ya tiene el ancla.
+ * Fuera: /admin (no es pública), las rutas interceptadas del modal `@modal/(.)…`,
+ * que se dibujan encima de una página que ya tiene el ancla, y el catch-all
+ * `app/en/[...resto]` (Q4-6), que solo llama a `notFound()`: lo dibuja
+ * `app/en/not-found.tsx`, que se revisa aparte abajo.
  */
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { dirname, join, relative, resolve } from 'node:path'
@@ -55,7 +57,7 @@ function paginas(dir: string): string[] {
 
 const PUBLICAS = paginas(APP)
   .map((abs) => relative(RAIZ, abs).replaceAll('\\', '/'))
-  .filter((rel) => !rel.startsWith('app/admin/') && !rel.startsWith('app/@modal/'))
+  .filter((rel) => !rel.startsWith('app/admin/') && !rel.startsWith('app/@modal/') && rel !== 'app/en/[...resto]/page.tsx')
   .sort()
 
 describe('cada página pública llega a un elemento con id="contenido"', () => {
@@ -64,7 +66,7 @@ describe('cada página pública llega a un elemento con id="contenido"', () => {
     expect(PUBLICAS.some((p) => p.startsWith('app/en/'))).toBe(true)
   })
 
-  it.each(PUBLICAS)('%s', (rel) => {
+  it.each([...PUBLICAS, 'app/not-found.tsx', 'app/en/not-found.tsx'])('%s', (rel) => {
     expect(
       llegaAlAncla(join(RAIZ, rel)),
       `${rel}: ni la página ni sus componentes tienen id="contenido"; el «Saltar al contenido» del layout no tiene a dónde ir`,
