@@ -234,7 +234,10 @@ export async function registrarToken(
   }
   if (anonimo.ok) {
     await guardarDeviceId(almacenamiento, anonimo.deviceId)
-    if (anonimo.avisosEquipo !== null) {
+    // R-4: solo sin sesión son «los avisos de este teléfono sin cuenta» (los
+    // que se siembran en la cuenta al entrar). Con sesión, mandan las
+    // preferencias de la cuenta: no se pisa lo guardado.
+    if (!conSesion && anonimo.avisosEquipo !== null) {
       await guardarAvisosAnonimos(almacenamiento, {
         avisosEquipo: anonimo.avisosEquipo,
         avisosPatrocinados: anonimo.avisosPatrocinados === true,

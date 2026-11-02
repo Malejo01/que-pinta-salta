@@ -182,6 +182,13 @@ describe('registrarToken / sincronizarPush sin sesión', () => {
     expect(orden).toEqual(['api', 'register_push_token'])
   })
 
+  it('R-4: con sesión NO guarda los interruptores como «sin cuenta» (no se siembran en la cuenta)', async () => {
+    const { api } = apiFalsa()
+    await registrarToken(TOKEN, { api })
+    expect(await getItem(CLAVE_AVISOS_ANONIMOS)).toBeNull()
+    expect(await getItem(CLAVE_DEVICE_ID)).toBe(DEVICE)
+  })
+
   it('con sesión, si la API falla igual registra por la RPC (como antes de la R82)', async () => {
     const { api } = apiFalsa({ registro: { ok: false, motivo: 'servidor' } })
     expect(await registrarToken(TOKEN, { api })).toBe('activo')

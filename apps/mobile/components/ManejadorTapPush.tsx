@@ -27,6 +27,7 @@ import {
 import { useRouter } from 'expo-router'
 import { avisar } from '@/lib/aviso'
 import { cambiarPatrocinados } from '@/lib/notificaciones'
+import { cambiarAvisosDeEsteTelefono } from '@/lib/push/registro'
 import { registrarCategoriasPush } from '@/lib/push/categorias'
 import { claveRespuesta, decidirBajaPatrocinados, interpretarRespuestaPush, type DecisionBajaPatrocinados } from '@/lib/push/tap'
 import { useSession } from '@/lib/session'
@@ -45,7 +46,16 @@ function aplicarDecisionBaja(decision: DecisionBajaPatrocinados): void {
   if (decision.accion === 'esperar') return // defensivo: no debería llegar nunca (ver resolverBajaPendiente)
 
   if (decision.accion === 'pedir-sesion') {
-    avisar('Entrá a tu cuenta para apagar los avisos patrocinados.')
+    // R-4 (R82): sin cuenta, el teléfono también recibe patrocinados si los
+    // activó: la baja rápida los apaga en su fila (token + device_id). Si
+    // este teléfono nunca se registró sin cuenta, se avisa como antes.
+    cambiarAvisosDeEsteTelefono({ avisosPatrocinados: false }).then((resultado) => {
+      avisar(
+        resultado.ok
+          ? 'Listo: no te vamos a mandar más avisos patrocinados. Podés volver a prenderlos en Cuenta.'
+          : 'No pudimos apagar los avisos patrocinados. Probá desde Cuenta.',
+      )
+    })
     return
   }
 

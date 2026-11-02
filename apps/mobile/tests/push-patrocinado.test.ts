@@ -210,15 +210,17 @@ describe('components/ManejadorTapPush.tsx: el userId sale de la sesión, nunca d
     expect(src).toMatch(/estadoCuentaRef\.current\s*=\s*\{[^}]*\bcargando\b[^}]*\}/)
   })
 
-  it('el aviso "Entrá a tu cuenta…" sale SOLO de la rama decision.accion === \'pedir-sesion\' (ya resuelta por decidirBajaPatrocinados), nunca de un chequeo directo de session/userId', () => {
-    const m = /if\s*\(\s*decision\.accion\s*===\s*'pedir-sesion'\s*\)\s*\{([^}]*)\}/.exec(src)
+  // R-4 (R82): sin cuenta, la baja ya no pide entrar: apaga los patrocinados
+  // de este teléfono. El invariante sigue: eso sale SOLO de la rama ya
+  // resuelta por decidirBajaPatrocinados, nunca de un chequeo directo de session/userId.
+  it('la baja sin cuenta sale SOLO de la rama decision.accion === \'pedir-sesion\' (ya resuelta por decidirBajaPatrocinados), nunca de un chequeo directo de session/userId', () => {
+    const m = /if\s*\(\s*decision\.accion\s*===\s*'pedir-sesion'\s*\)\s*\{([\s\S]*?)\n  \}/.exec(src)
     expect(m).not.toBeNull()
-    expect(m![1]).toMatch(/avisar\(\s*'Entrá a tu cuenta para apagar los avisos patrocinados\.'\s*\)/)
+    expect(m![1]).toMatch(/cambiarAvisosDeEsteTelefono\(\{ avisosPatrocinados: false \}\)/)
 
-    // Ese texto aparece una sola vez en todo el archivo: si alguien lo
-    // duplicara en un `if (!session)`/`if (!userId)` directo (el bug
-    // original), esta cuenta ya no daría 1.
-    const ocurrencias = src.match(/Entrá a tu cuenta para apagar los avisos patrocinados\./g) ?? []
+    // Una sola llamada en todo el archivo: si alguien la duplicara en un
+    // `if (!session)`/`if (!userId)` directo (el bug original), esto no daría 1.
+    const ocurrencias = src.match(/cambiarAvisosDeEsteTelefono\(/g) ?? []
     expect(ocurrencias).toHaveLength(1)
   })
 
