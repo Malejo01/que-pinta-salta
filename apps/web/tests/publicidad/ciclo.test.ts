@@ -142,7 +142,8 @@ describe('proponerCicloDelMes', () => {
       approved_at: null,
       approved_by: null,
       audiencia_web_28d: 0,
-      fuente_audiencia: 'manual',
+      // Q4-5: la audiencia copiada (o 0) queda marcada 'anterior'.
+      fuente_audiencia: 'anterior',
       mau_app_28d: null,
       dispositivos_push: null,
       tipo_cambio: 1530,
@@ -175,7 +176,7 @@ describe('proponerCicloDelMes', () => {
     const f = crearFake({ ad_price_cycles: [cicloAprobado()], ad_prices: preciosAprobados('2026-09-01', 1400), ad_occupancy_daily: [], ad_settings: [] })
     expect(await proponerCicloDelMes(f.cliente, { ahora: AHORA, fetch: fetchDolar(null) })).toBe('creado')
     const nuevo = f.datos.ad_price_cycles.find((c) => c.ciclo === '2026-10-01')
-    expect(nuevo).toMatchObject({ tipo_cambio: 1400, fuente_tipo_cambio: 'anterior', audiencia_web_28d: 300, fuente_audiencia: 'manual' })
+    expect(nuevo).toMatchObject({ tipo_cambio: 1400, fuente_tipo_cambio: 'anterior', audiencia_web_28d: 300, fuente_audiencia: 'anterior' })
   })
 
   it('una fuente que se desvía más de 30% del anterior se descarta y usa el anterior', async () => {

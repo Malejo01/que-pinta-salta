@@ -183,19 +183,32 @@ describe('/admin/publicidad: el ciclo propuesto', () => {
     expect(html).toContain('falta cargar el dólar del mes anterior')
   })
 
-  it('con la audiencia igual a la del ciclo vigente, avisa que falta cargarla y lo suma a "Antes de aprobar"', async () => {
-    const html = await renderizar() // propuesto 490 = vigente 490
+  // Q4-5 (pregunta 18): el aviso sale de fuente_audiencia = 'anterior' (lo
+  // escribe el cron al copiar la del ciclo previo), no de comparar números.
+  it('con fuente_audiencia "anterior", avisa que falta cargarla y lo suma a "Antes de aprobar"', async () => {
+    state.panel = panel({ propuesto: { ciclo: ciclo({ fuente_audiencia: 'anterior' }), precios: [] } })
+    const html = await renderizar()
     expect(html).toContain('Es la audiencia del mes anterior: cargala a mano antes de aprobar.')
     expect(html).toContain('falta cargar la audiencia del mes anterior')
   })
 
-  it('con la audiencia en 0 también avisa', async () => {
+  it('con la audiencia en 0 y fuente "anterior" también avisa', async () => {
     state.panel = panel({
-      propuesto: { ciclo: ciclo({ audiencia_web_28d: 0, audiencia: 0 }), precios: [] },
+      propuesto: { ciclo: ciclo({ audiencia_web_28d: 0, audiencia: 0, fuente_audiencia: 'anterior' }), precios: [] },
       vigente: null,
     })
     const html = await renderizar()
     expect(html).toContain('Es la audiencia del mes anterior')
+  })
+
+  it('el caso que fallaba antes: la audiencia real cargada a mano coincide con la del mes anterior → sin aviso', async () => {
+    const html = await renderizar() // propuesto 490 = vigente 490, fuente 'manual'
+    expect(html).not.toContain('Es la audiencia del mes anterior')
+  })
+
+  it('una audiencia real de 0 cargada a mano tampoco avisa', async () => {
+    state.panel = panel({ propuesto: { ciclo: ciclo({ audiencia_web_28d: 0, audiencia: 0 }), precios: [] }, vigente: null })
+    expect(await renderizar()).not.toContain('Es la audiencia del mes anterior')
   })
 
   it('con la audiencia cargada y el dólar al día: sin avisos y "Todo cargado"', async () => {
@@ -210,7 +223,7 @@ describe('/admin/publicidad: el ciclo propuesto', () => {
 
   it('el diálogo de Aprobar muestra en negrita lo que falta cargar', async () => {
     state.panel = panel({
-      propuesto: { ciclo: ciclo({ fuente_tipo_cambio: 'anterior' }), precios: [] }, // audiencia 490 = vigente, dólar anterior
+      propuesto: { ciclo: ciclo({ fuente_audiencia: 'anterior', fuente_tipo_cambio: 'anterior' }), precios: [] }, // audiencia y dólar copiados del anterior
     })
     const html = await renderizar()
     expect(html).toContain(

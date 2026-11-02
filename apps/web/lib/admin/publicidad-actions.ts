@@ -22,7 +22,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { createClient } from '@/lib/supabase/server'
 import { cargarCicloAnterior } from '@/lib/publicidad/ciclo'
 import { cargarOcupacion2Meses, type Ocupacion2Meses } from '@/lib/publicidad/ocupacion'
-import { armarPropuesta, type CicloAnterior } from '@qps/core/publicidad/formula'
+import { armarPropuesta, fuenteAudienciaGuardada, type CicloAnterior } from '@qps/core/publicidad/formula'
 
 type SupabaseUserClient = Awaited<ReturnType<typeof createClient>>
 
@@ -245,7 +245,9 @@ export async function cargarAudienciaYTipoCambio(entrada: unknown): Promise<Resu
     audienciaWeb28d: audienciaWeb28d ?? actual.audiencia_web_28d,
     mauApp28d: actual.mau_app_28d,
     dispositivosPush: actual.dispositivos_push,
-    fuenteAudiencia: audienciaWeb28d !== undefined ? 'manual' : actual.fuente_audiencia === 'manual' ? 'manual' : 'vercel',
+    // Q4-5: cargarla la pasa a 'manual'; si solo se cargó el dólar, la fuente
+    // queda como estaba (incluido 'anterior': el aviso sigue hasta cargarla).
+    fuenteAudiencia: audienciaWeb28d !== undefined ? 'manual' : fuenteAudienciaGuardada(actual.fuente_audiencia),
     tipoCambio: tipoCambio ?? actual.tipo_cambio,
     fuenteTipoCambio: tipoCambio !== undefined ? 'manual' : actual.fuente_tipo_cambio,
     ocupacionHero: ocupacion.hero,
