@@ -49,7 +49,8 @@ export function filtrarCombinado(items: ItemFiltrable[], filtros: FiltrosCombina
 
   if (filtros.soloGratis) eventos = soloGratis(eventos)
 
-  if (filtros.paraChicos) eventos = eventos.filter((evento) => esParaChicos({ categorySlug: evento.category, tags: evento.tags }))
+  // Q4-12: fuera lo de +18 (`vibe: 'adultos'`, de age_restriction >= 18).
+  if (filtros.paraChicos) eventos = eventos.filter((evento) => esParaChicos({ categorySlug: evento.category, tags: evento.tags, vibe: evento.vibe }))
 
   return eventos
 }

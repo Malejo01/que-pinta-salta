@@ -42,7 +42,16 @@ function normalizarMarca(valor: unknown): string {
  * `TAGS_PARA_CHICOS`. Tolerante a `null`/`undefined`, a strings vacíos, a
  * `tags` que no sea un array y a tags que no sean strings (se ignoran).
  */
-export function esParaChicos(e: { categorySlug?: string | null; tags?: readonly string[] | null }): boolean {
+const EDAD_SOLO_ADULTOS = 18
+
+/**
+ * Q4-12: un evento solo para adultos (`age_restriction >= 18`, o el chip
+ * `vibe: 'adultos'` que arma `transformEvent` con ese mismo dato) NUNCA es para
+ * chicos, aunque su categoría o sus tags digan lo contrario.
+ */
+export function esParaChicos(e: { categorySlug?: string | null; tags?: readonly string[] | null; ageRestriction?: number | null; vibe?: string | null }): boolean {
+  if (typeof e.ageRestriction === "number" && e.ageRestriction >= EDAD_SOLO_ADULTOS) return false
+  if (e.vibe === "adultos") return false
   if (normalizarMarca(e.categorySlug) === CATEGORIA_PARA_CHICOS) return true
   const tags: unknown = e.tags
   if (!Array.isArray(tags)) return false
