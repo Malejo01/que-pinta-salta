@@ -16,6 +16,7 @@ import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { filtrarCombinado, type FiltrosCombinados } from '@qps/core/home/filtros-combinados'
 import type { DisplayEvent } from '@qps/core/home/types'
+import { es } from '@/lib/i18n/diccionarios/es'
 
 const SOURCE_PATH = new URL('../../app/buscar/buscar-content.tsx', import.meta.url)
 const source = readFileSync(SOURCE_PATH, 'utf8')
@@ -69,7 +70,9 @@ describe('buscar-content.tsx: wiring del chip "Solo gratis"', () => {
   })
 
   it('el texto del chip sigue siendo "Solo gratis" (paridad con la app)', () => {
-    expect(source).toMatch(/>\s*Solo gratis\s*</)
+    // Desde C4 el texto sale del diccionario (en castellano, el mismo de siempre).
+    expect(source).toMatch(/>\s*\{t\.soloGratis\}\s*</)
+    expect(es.buscar.soloGratis).toBe('Solo gratis')
   })
 
   it('el wiring es exactamente "soloGratis: soloGratisActivo" dentro de la llamada a filtrarCombinado', () => {

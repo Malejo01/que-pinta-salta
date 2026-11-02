@@ -12,6 +12,7 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
 import { Linking } from 'react-native'
 import { useSession } from '@/lib/session'
+import { sembrarPreferenciasDeCuenta } from '@/lib/notificaciones'
 import { sincronizarPush } from './registro'
 import type { EstadoPush } from './estado'
 
@@ -46,76 +47,73 @@ const CONTEXTO_POR_DEFECTO: ContextoPush = {
 
 const PushContext = createContext<ContextoPush>(CONTEXTO_POR_DEFECTO)
 
+/** Clave de sincronización de quien usa la app sin cuenta (R82 / Q4-2). */
+const SIN_CUENTA = '__sin-cuenta__'
+
 export function PushProvider({ children }: { children: ReactNode }) {
   const { session, cargando } = useSession()
-  // El resultado de la última sincronización (automática o manual). Sin
-  // sesión, no importa lo que tenga: `estado` (más abajo) lo pisa con
-  // `sin-sesion`, derivado en el render, nunca con un `setEstado` sincrónico
-  // dentro del efecto (eso dispara "Calling setState synchronously within
-  // an effect", `react-hooks/set-state-in-effect`).
+  // El resultado de la última sincronización (automática o manual), con o
+  // sin sesión. Nunca se setea sincrónico dentro del efecto (eso dispara
+  // "Calling setState synchronously within an effect",
+  // `react-hooks/set-state-in-effect`).
   const [estadoSincronizado, setEstadoSincronizado] = useState<EstadoPush>('sin-pedir')
-  // El `user.id` cuya primera sincronización ya resolvió. `sincronizado` se
-  // deriva en el render comparándolo con el `userId` actual; el único
+  // La «clave» de quien está usando el teléfono: el `user.id` o, sin sesión,
+  // `SIN_CUENTA` (R82 / Q4-2: los avisos también funcionan sin cuenta). La
+  // clave cuya primera sincronización ya resolvió se guarda en estado y
+  // `sincronizado` se deriva en el render comparándola con la actual; el único
   // `setState` está dentro de `.then`/`.catch`, nunca sincrónico en el efecto.
-  const [userIdResuelto, setUserIdResuelto] = useState<string | null>(null)
-  const ultimoUserIdSincronizado = useRef<string | null>(null)
+  const [claveResuelta, setClaveResuelta] = useState<string | null>(null)
+  const ultimaClaveSincronizada = useRef<string | null>(null)
 
   const userId = session?.user?.id ?? null
+  const clave = userId ?? SIN_CUENTA
 
-  // Un intento por arranque con sesión (41-r, "nada de reintentos
-  // automáticos"): corre `sincronizarPush({ preguntar: false })` una sola
-  // vez por `user.id`, nunca por cada `session` nuevo (ver el comentario de
-  // arriba) y nunca por el resultado de la propia sincronización (sin
-  // `estadoSincronizado` en las dependencias: el único `setEstadoSincronizado`
-  // de este efecto está dentro del `.then`, nunca en el cuerpo sincrónico).
+  // Un intento por arranque y por cambio de sesión (41-r, "nada de
+  // reintentos automáticos"): corre `sincronizarPush({ preguntar: false })`
+  // una sola vez por clave (al entrar: vincula el teléfono a la cuenta; al
+  // salir: lo vuelve a registrar sin cuenta). Con `preguntar: false` nunca
+  // se pide el permiso en frío: si no estaba concedido, solo se lee.
   useEffect(() => {
     if (cargando) return
-
-    if (!userId) {
-      // Mutar el ref no es un `setState`: no dispara `set-state-in-effect`.
-      // Así, un reingreso (mismo u otro `user.id`) después de un cierre de
-      // sesión se vuelve a sincronizar en vez de darse por hecho.
-      ultimoUserIdSincronizado.current = null
-      return
-    }
-
-    if (ultimoUserIdSincronizado.current === userId) return
-    ultimoUserIdSincronizado.current = userId
+    if (ultimaClaveSincronizada.current === clave) return
+    ultimaClaveSincronizada.current = clave
 
     let vigente = true
-    sincronizarPush({ preguntar: false })
+    sincronizarPush({ preguntar: false, conSesion: userId !== null })
       .then((resultado) => {
         if (!vigente) return
         setEstadoSincronizado(resultado)
-        setUserIdResuelto(userId)
+        setClaveResuelta(clave)
+        // Al entrar a la cuenta con el teléfono ya registrado sin cuenta: si
+        // la cuenta todavía no eligió preferencias, se siembran con lo que
+        // el teléfono tenía. Si ya tenía, mandan las de la cuenta. No tira.
+        if (resultado === 'activo' && userId) void sembrarPreferenciasDeCuenta(userId)
       })
       .catch(() => {
-        // `sincronizarPush` ya no debería tirar (registro.ts protege las
-        // cuatro llamadas nativas), pero sin este `.catch()` una excepción
-        // inesperada queda como "unhandled rejection" silenciosa y
-        // `estadoSincronizado` se congela en `'sin-pedir'` para siempre
-        // (el hallazgo del revisor). Red de última instancia: deja el
-        // botón de "Reintentar" en vez de nada.
+        // Red de última instancia (`sincronizarPush` no debería tirar): deja
+        // el botón de "Reintentar" en vez de congelar el estado.
         if (!vigente) return
         setEstadoSincronizado('error-registro')
-        setUserIdResuelto(userId)
+        setClaveResuelta(clave)
       })
 
     return () => {
       vigente = false
+      // Si el efecto se limpia antes de resolver (cambió la sesión a mitad),
+      // la clave vuelve a quedar pendiente para la próxima vez.
+      if (ultimaClaveSincronizada.current === clave) ultimaClaveSincronizada.current = null
     }
-  }, [userId, cargando])
+  }, [clave, userId, cargando])
 
-  // Sin `userId`, el estado público es siempre `sin-sesion` (incluso si
-  // `ultimoUserIdSincronizado` todavía tiene el resultado de una sesión
-  // anterior): no hace falta "limpiar" nada en el efecto de arriba.
-  const estado: EstadoPush = !userId ? 'sin-sesion' : estadoSincronizado
-  const sincronizado = userId !== null && userIdResuelto === userId
+  // R82 / Q4-2: con el provider montado, el estado ya no es `sin-sesion`
+  // (ese valor queda solo para el contexto por defecto, sin provider).
+  const estado: EstadoPush = estadoSincronizado
+  const sincronizado = !cargando && claveResuelta === clave
 
   const correr = useCallback(async (preguntar: boolean): Promise<EstadoPush> => {
     setEstadoSincronizado('pidiendo')
     try {
-      const resultado = await sincronizarPush({ preguntar })
+      const resultado = await sincronizarPush({ preguntar, conSesion: userId !== null })
       setEstadoSincronizado(resultado)
       return resultado
     } catch {
@@ -127,7 +125,7 @@ export function PushProvider({ children }: { children: ReactNode }) {
       setEstadoSincronizado('error-registro')
       return 'error-registro'
     }
-  }, [])
+  }, [userId])
 
   const activar = useCallback(() => correr(true), [correr])
   const reintentar = useCallback(async () => {

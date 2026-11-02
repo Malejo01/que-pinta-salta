@@ -162,7 +162,8 @@ import { CampoTexto } from '@/components/CampoTexto'
 import { ChipsCategorias } from '@/components/ChipsCategorias'
 import { EsqueletoBuscar } from '@/components/Esqueleto'
 import { ErrorCarga, Vacio } from '@/components/EstadoCarga'
-import { Icono, iconoPorCategoria } from '@/components/Icono'
+import { Icono } from '@/components/Icono'
+import { TileCategoria } from '@/components/TileCategoria'
 import { PillsAtajos } from '@/components/PillsAtajos'
 import { TarjetaEvento } from '@/components/TarjetaEvento'
 import { Texto } from '@/components/Texto'
@@ -184,7 +185,6 @@ import {
   type CategoriaBasica,
   type EventoVigenteParaInicio,
 } from '@/lib/datos/eventos'
-import { textoCantidadEventos } from '@/lib/formato'
 import { filtrarConPublico, SLUG_INFANTIL, TEXTO_VER_TODAS_LAS_EDADES } from '@/lib/para-chicos'
 import {
   anuncioDeReintento,
@@ -458,9 +458,22 @@ export default function Buscar() {
 
   // Los conteos de la grilla "Explorar por categoría" son sobre TODOS los
   // eventos (sin fecha ni texto): esa grilla solo se ve sin filtros.
-  const cantidadPorCategoria = useCallback(
-    (slug: string) => (estado.tipo === 'ok' ? estado.items.filter((item) => item.evento.category === slug).length : 0),
-    [estado],
+  // Q4-13: un solo recorrido por carga (antes, un `filter` de todos los
+  // eventos por cada tile en cada render). Con los mismos números, el `Map`
+  // cambia de referencia, pero `TileCategoria` (memo) compara la cantidad.
+  const conteoPorCategoria = useMemo(() => {
+    const conteo = new Map<string, number>()
+    if (estado.tipo === 'ok') {
+      for (const item of estado.items) conteo.set(item.evento.category, (conteo.get(item.evento.category) ?? 0) + 1)
+    }
+    return conteo
+  }, [estado])
+
+  // Q4-13: la celda de la grilla de categorías, estable (antes, una flecha en
+  // línea: cada render de Buscar redibujaba todos los tiles).
+  const dibujarTile = useCallback<ListRenderItem<{ slug: string; name: string }>>(
+    ({ item }) => <TileCategoria slug={item.slug} nombre={item.name} cantidad={conteoPorCategoria.get(item.slug) ?? 0} onTocar={alTocarCategoria} />,
+    [conteoPorCategoria, alTocarCategoria],
   )
 
   // A3 (nube Q1): los textos salen de `lib/buscar-filtros.ts` (los mismos de
@@ -653,28 +666,7 @@ export default function Buscar() {
           // que sin esta guarda el banner quedaría pegado abajo de "Todavía
           // no hay categorías cargadas.", cerca del pliegue.
           ListFooterComponent={estado.categorias.length === 0 ? null : <BannerAnuncio lugar="buscar" />}
-          renderItem={({ item }) => {
-            const cantidad = cantidadPorCategoria(item.slug)
-            return (
-              <Pressable
-                onPress={() => alTocarCategoria(item.slug)}
-                accessibilityRole="button"
-                style={[estilos.tileCategoria, { backgroundColor: colores.card, borderColor: bordeInactivo }]}
-              >
-                <View style={[estilos.iconoCategoria, { backgroundColor: `${colores.primary}1A` }]}>
-                  <Icono nombre={iconoPorCategoria(item.slug)} tamanio={20} color={colores.primary} />
-                </View>
-                <View style={estilos.textoTile}>
-                  <Texto peso="semibold" numberOfLines={1}>
-                    {item.name}
-                  </Texto>
-                  <Texto tono="secundario" style={estilos.cantidadTile}>
-                    {textoCantidadEventos(cantidad)}
-                  </Texto>
-                </View>
-              </Pressable>
-            )
-          }}
+          renderItem={dibujarTile}
         />
       ) : null}
 
@@ -823,17 +815,4 @@ const estilos = StyleSheet.create({
   // Ver el comentario del mismo nombre en app/(tabs)/index.tsx: evita que la
   // última celda de un número impar de eventos se estire a todo el ancho.
   celda: { flex: 1, maxWidth: '50%' },
-  tileCategoria: {
-    flex: 1,
-    maxWidth: '50%',
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    borderWidth: 1,
-    borderRadius: 10,
-    padding: 16,
-  },
-  iconoCategoria: { width: 40, height: 40, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-  textoTile: { flex: 1 },
-  cantidadTile: { fontSize: 13, marginTop: 2 },
 })

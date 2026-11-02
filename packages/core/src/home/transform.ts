@@ -36,6 +36,8 @@ export function transformEvent(event: EventWithRelations): DisplayEvent {
     id: event.id,
     slug: event.slug,
     title: event.title,
+    titleEn: event.title_en ?? null,
+    descriptionEn: cleanDescription(event.description_en ?? null) ?? null,
     venue: event.venue?.name || 'Lugar por confirmar',
     date: formatDateInSalta(startDate),
     time: formatEventTimeDisplay(startDate) ?? '',

@@ -32,13 +32,19 @@ export async function PaginaPortada({ idioma }: { idioma: Idioma }) {
 
   // B2: quién publica el sitio, el sitio con su búsqueda y los próximos
   // eventos de la agenda, en un solo @graph. Sin eventos no va el ItemList.
-  // Solo en `/`: el WebSite es es-AR y su búsqueda va a la portada en castellano.
-  const listaDeEventos = idioma === "es" ? listaDeEventosJsonLd(eventosParaListaDeLaPortada(events, now)) : null
-  const nodos: NodoJsonLd[] = [organizacionJsonLd(), sitioWebJsonLd(), ...(listaDeEventos ? [listaDeEventos] : [])]
+  // La organización y el WebSite (es-AR, con la búsqueda en castellano) solo
+  // en `/`. Q4-6: en `/en`, solo la lista, con las fichas en inglés.
+  const listaDeEventos = listaDeEventosJsonLd(eventosParaListaDeLaPortada(events, now), idioma)
+  const nodos: NodoJsonLd[] =
+    idioma === "es"
+      ? [organizacionJsonLd(), sitioWebJsonLd(), ...(listaDeEventos ? [listaDeEventos] : [])]
+      : listaDeEventos
+        ? [listaDeEventos]
+        : []
 
   return (
     <>
-      {idioma === "es" && <JsonLd data={grafoJsonLd(nodos)} />}
+      {nodos.length > 0 && <JsonLd data={grafoJsonLd(nodos)} />}
       <HomeContent
         idioma={idioma}
         events={events}

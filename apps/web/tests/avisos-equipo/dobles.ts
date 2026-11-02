@@ -242,6 +242,15 @@ function consulta(db: BaseEnMemoria, tabla: string) {
       q.filtros.push((f) => valores.includes(f[columna]))
       return api
     },
+    // R82 / Q4-2: lecturas separadas de filas con cuenta y anónimas.
+    is(columna: string, valor: unknown) {
+      q.filtros.push((f) => (valor === null ? f[columna] == null : f[columna] === valor))
+      return api
+    },
+    not(columna: string, operador: string, valor: unknown) {
+      if (operador === 'is' && valor === null) q.filtros.push((f) => f[columna] != null)
+      return api
+    },
     gte(columna: string, valor: string) {
       q.filtros.push((f) => String(f[columna]) >= String(valor))
       return api

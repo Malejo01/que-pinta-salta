@@ -236,13 +236,13 @@ isOneToOne: false
                   ]
                 },"events": {
                   Row: {
-                    "age_restriction": number | null,"ai_metadata": Json | null,"category_id": string | null,"classification_source": string | null,"created_at": string | null,"created_by": string | null,"dedup_key": string | null,"description": string | null,"end_date": string | null,"featured_set_at": string | null,"featured_set_by": string | null,"featured_until": string | null,"gallery_urls": (string)[] | null,"id": string,"image_url": string | null,"is_commercial": boolean | null,"is_featured": boolean | null,"is_free": boolean | null,"is_recurring": boolean | null,"merge_audit": NonNullable<Json>,"price_max": number | null,"price_min": number | null,"recurrence_rule": string | null,"scrape_source_key": string | null,"short_description": string | null,"slug": string,"start_date": string,"status": Database["public"]['Enums']["event_status"] | null,"tags": (string)[] | null,"ticket_sources": Json | null,"ticket_url": string | null,"title": string,"updated_at": string | null,"venue_id": string | null,"view_count": number | null
+                    "age_restriction": number | null,"ai_metadata": Json | null,"category_id": string | null,"classification_source": string | null,"created_at": string | null,"created_by": string | null,"dedup_key": string | null,"description": string | null,"description_en": string | null,"end_date": string | null,"featured_set_at": string | null,"featured_set_by": string | null,"featured_until": string | null,"gallery_urls": (string)[] | null,"id": string,"image_url": string | null,"is_commercial": boolean | null,"is_featured": boolean | null,"is_free": boolean | null,"is_recurring": boolean | null,"merge_audit": NonNullable<Json>,"price_max": number | null,"price_min": number | null,"recurrence_rule": string | null,"scrape_source_key": string | null,"short_description": string | null,"slug": string,"start_date": string,"status": Database["public"]['Enums']["event_status"] | null,"tags": (string)[] | null,"ticket_sources": Json | null,"ticket_url": string | null,"title": string,"title_en": string | null,"traducido_en_at": string | null,"updated_at": string | null,"venue_id": string | null,"view_count": number | null
                   }
                   Insert: {
-                    "age_restriction"?: number | null,"ai_metadata"?: Json | null,"category_id"?: string | null,"classification_source"?: string | null,"created_at"?: string | null,"created_by"?: string | null,"dedup_key"?: string | null,"description"?: string | null,"end_date"?: string | null,"featured_set_at"?: string | null,"featured_set_by"?: string | null,"featured_until"?: string | null,"gallery_urls"?: (string)[] | null,"id"?: string,"image_url"?: string | null,"is_commercial"?: boolean | null,"is_featured"?: boolean | null,"is_free"?: boolean | null,"is_recurring"?: boolean | null,"merge_audit"?: NonNullable<Json>,"price_max"?: number | null,"price_min"?: number | null,"recurrence_rule"?: string | null,"scrape_source_key"?: string | null,"short_description"?: string | null,"slug": string,"start_date": string,"status"?: Database["public"]['Enums']["event_status"] | null,"tags"?: (string)[] | null,"ticket_sources"?: Json | null,"ticket_url"?: string | null,"title": string,"updated_at"?: string | null,"venue_id"?: string | null,"view_count"?: number | null
+                    "age_restriction"?: number | null,"ai_metadata"?: Json | null,"category_id"?: string | null,"classification_source"?: string | null,"created_at"?: string | null,"created_by"?: string | null,"dedup_key"?: string | null,"description"?: string | null,"description_en"?: string | null,"end_date"?: string | null,"featured_set_at"?: string | null,"featured_set_by"?: string | null,"featured_until"?: string | null,"gallery_urls"?: (string)[] | null,"id"?: string,"image_url"?: string | null,"is_commercial"?: boolean | null,"is_featured"?: boolean | null,"is_free"?: boolean | null,"is_recurring"?: boolean | null,"merge_audit"?: NonNullable<Json>,"price_max"?: number | null,"price_min"?: number | null,"recurrence_rule"?: string | null,"scrape_source_key"?: string | null,"short_description"?: string | null,"slug": string,"start_date": string,"status"?: Database["public"]['Enums']["event_status"] | null,"tags"?: (string)[] | null,"ticket_sources"?: Json | null,"ticket_url"?: string | null,"title": string,"title_en"?: string | null,"traducido_en_at"?: string | null,"updated_at"?: string | null,"venue_id"?: string | null,"view_count"?: number | null
                   }
                   Update: {
-                    "age_restriction"?: number | null,"ai_metadata"?: Json | null,"category_id"?: string | null,"classification_source"?: string | null,"created_at"?: string | null,"created_by"?: string | null,"dedup_key"?: string | null,"description"?: string | null,"end_date"?: string | null,"featured_set_at"?: string | null,"featured_set_by"?: string | null,"featured_until"?: string | null,"gallery_urls"?: (string)[] | null,"id"?: string,"image_url"?: string | null,"is_commercial"?: boolean | null,"is_featured"?: boolean | null,"is_free"?: boolean | null,"is_recurring"?: boolean | null,"merge_audit"?: NonNullable<Json>,"price_max"?: number | null,"price_min"?: number | null,"recurrence_rule"?: string | null,"scrape_source_key"?: string | null,"short_description"?: string | null,"slug"?: string,"start_date"?: string,"status"?: Database["public"]['Enums']["event_status"] | null,"tags"?: (string)[] | null,"ticket_sources"?: Json | null,"ticket_url"?: string | null,"title"?: string,"updated_at"?: string | null,"venue_id"?: string | null,"view_count"?: number | null
+                    "age_restriction"?: number | null,"ai_metadata"?: Json | null,"category_id"?: string | null,"classification_source"?: string | null,"created_at"?: string | null,"created_by"?: string | null,"dedup_key"?: string | null,"description"?: string | null,"description_en"?: string | null,"end_date"?: string | null,"featured_set_at"?: string | null,"featured_set_by"?: string | null,"featured_until"?: string | null,"gallery_urls"?: (string)[] | null,"id"?: string,"image_url"?: string | null,"is_commercial"?: boolean | null,"is_featured"?: boolean | null,"is_free"?: boolean | null,"is_recurring"?: boolean | null,"merge_audit"?: NonNullable<Json>,"price_max"?: number | null,"price_min"?: number | null,"recurrence_rule"?: string | null,"scrape_source_key"?: string | null,"short_description"?: string | null,"slug"?: string,"start_date"?: string,"status"?: Database["public"]['Enums']["event_status"] | null,"tags"?: (string)[] | null,"ticket_sources"?: Json | null,"ticket_url"?: string | null,"title"?: string,"title_en"?: string | null,"traducido_en_at"?: string | null,"updated_at"?: string | null,"venue_id"?: string | null,"view_count"?: number | null
                   }
                   Relationships: [
                     {
@@ -356,13 +356,13 @@ isOneToOne: false
                   ]
                 },"notification_sends": {
                   Row: {
-                    "campaign_id": string | null,"channel": string,"dedupe_key": string,"event_id": string | null,"id": string,"kind": string,"sent_at": string,"status": string,"user_id": string
+                    "campaign_id": string | null,"channel": string,"dedupe_key": string,"event_id": string | null,"id": string,"kind": string,"push_token_id": string | null,"sent_at": string,"status": string,"user_id": string | null
                   }
                   Insert: {
-                    "campaign_id"?: string | null,"channel": string,"dedupe_key": string,"event_id"?: string | null,"id"?: string,"kind": string,"sent_at"?: string,"status": string,"user_id": string
+                    "campaign_id"?: string | null,"channel": string,"dedupe_key": string,"event_id"?: string | null,"id"?: string,"kind": string,"push_token_id"?: string | null,"sent_at"?: string,"status": string,"user_id"?: string | null
                   }
                   Update: {
-                    "campaign_id"?: string | null,"channel"?: string,"dedupe_key"?: string,"event_id"?: string | null,"id"?: string,"kind"?: string,"sent_at"?: string,"status"?: string,"user_id"?: string
+                    "campaign_id"?: string | null,"channel"?: string,"dedupe_key"?: string,"event_id"?: string | null,"id"?: string,"kind"?: string,"push_token_id"?: string | null,"sent_at"?: string,"status"?: string,"user_id"?: string | null
                   }
                   Relationships: [
                     {
@@ -376,6 +376,12 @@ isOneToOne: false
       columns: ["event_id"]
 isOneToOne: false
       referencedRelation: "events"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "notification_sends_push_token_id_fkey"
+      columns: ["push_token_id"]
+isOneToOne: false
+      referencedRelation: "push_tokens"
       referencedColumns: ["id"]
     }
                   ]
@@ -394,13 +400,13 @@ isOneToOne: false
                   ]
                 },"push_tokens": {
                   Row: {
-                    "created_at": string,"id": string,"last_seen_at": string,"platform": string,"token": string,"user_id": string
+                    "avisos_equipo": boolean,"avisos_patrocinados": boolean,"created_at": string,"device_id": string | null,"id": string,"idioma": string | null,"last_seen_at": string,"platform": string,"token": string,"user_id": string | null
                   }
                   Insert: {
-                    "created_at"?: string,"id"?: string,"last_seen_at"?: string,"platform": string,"token": string,"user_id": string
+                    "avisos_equipo"?: boolean,"avisos_patrocinados"?: boolean,"created_at"?: string,"device_id"?: string | null,"id"?: string,"idioma"?: string | null,"last_seen_at"?: string,"platform": string,"token": string,"user_id"?: string | null
                   }
                   Update: {
-                    "created_at"?: string,"id"?: string,"last_seen_at"?: string,"platform"?: string,"token"?: string,"user_id"?: string
+                    "avisos_equipo"?: boolean,"avisos_patrocinados"?: boolean,"created_at"?: string,"device_id"?: string | null,"id"?: string,"idioma"?: string | null,"last_seen_at"?: string,"platform"?: string,"token"?: string,"user_id"?: string | null
                   }
                   Relationships: [
                     
@@ -652,13 +658,13 @@ isOneToOne: false
                   ]
                 },"venues": {
                   Row: {
-                    "address": string,"canonical_venue_id": string | null,"capacity": number | null,"created_at": string | null,"geocode_source": string | null,"geocoded_at": string | null,"google_maps_url": string | null,"id": string,"is_placeholder": boolean,"latitude": number | null,"longitude": number | null,"merged_at": string | null,"name": string,"phone": string | null,"slug": string | null,"updated_at": string
+                    "address": string,"canonical_venue_id": string | null,"capacity": number | null,"created_at": string | null,"geocode_intentado_at": string | null,"geocode_source": string | null,"geocoded_at": string | null,"google_maps_url": string | null,"id": string,"is_placeholder": boolean,"latitude": number | null,"longitude": number | null,"merged_at": string | null,"name": string,"phone": string | null,"slug": string | null,"updated_at": string
                   }
                   Insert: {
-                    "address": string,"canonical_venue_id"?: string | null,"capacity"?: number | null,"created_at"?: string | null,"geocode_source"?: string | null,"geocoded_at"?: string | null,"google_maps_url"?: string | null,"id"?: string,"is_placeholder"?: boolean,"latitude"?: number | null,"longitude"?: number | null,"merged_at"?: string | null,"name": string,"phone"?: string | null,"slug"?: string | null,"updated_at"?: string
+                    "address": string,"canonical_venue_id"?: string | null,"capacity"?: number | null,"created_at"?: string | null,"geocode_intentado_at"?: string | null,"geocode_source"?: string | null,"geocoded_at"?: string | null,"google_maps_url"?: string | null,"id"?: string,"is_placeholder"?: boolean,"latitude"?: number | null,"longitude"?: number | null,"merged_at"?: string | null,"name": string,"phone"?: string | null,"slug"?: string | null,"updated_at"?: string
                   }
                   Update: {
-                    "address"?: string,"canonical_venue_id"?: string | null,"capacity"?: number | null,"created_at"?: string | null,"geocode_source"?: string | null,"geocoded_at"?: string | null,"google_maps_url"?: string | null,"id"?: string,"is_placeholder"?: boolean,"latitude"?: number | null,"longitude"?: number | null,"merged_at"?: string | null,"name"?: string,"phone"?: string | null,"slug"?: string | null,"updated_at"?: string
+                    "address"?: string,"canonical_venue_id"?: string | null,"capacity"?: number | null,"created_at"?: string | null,"geocode_intentado_at"?: string | null,"geocode_source"?: string | null,"geocoded_at"?: string | null,"google_maps_url"?: string | null,"id"?: string,"is_placeholder"?: boolean,"latitude"?: number | null,"longitude"?: number | null,"merged_at"?: string | null,"name"?: string,"phone"?: string | null,"slug"?: string | null,"updated_at"?: string
                   }
                   Relationships: [
                     {
@@ -733,14 +739,26 @@ isOneToOne: true
 "purge_notification_sends":
 { Args: { "p_days"?: number }; Returns: number
                            },
+"purge_push_tokens_anonimos":
+{ Args: { "p_days"?: number }; Returns: number
+                           },
 "record_event_metric":
 { Args: { "p_event_id": string,"p_kind": string,"p_origin": string }; Returns: undefined
+                           },
+"register_anon_push_token":
+{ Args: { "p_device_id": string,"p_idioma"?: string,"p_platform": string,"p_token": string }; Returns: boolean
                            },
 "register_push_token":
 { Args: { "p_platform": string,"p_token": string }; Returns: undefined
                            },
 "resolve_venue_id":
 { Args: { "p_autocreate"?: boolean,"p_raw": string,"p_source"?: string,"p_threshold"?: number }; Returns: string
+                           },
+"set_push_preferences":
+{ Args: { "p_avisos_equipo"?: boolean,"p_avisos_patrocinados"?: boolean,"p_device_id": string,"p_token": string }; Returns: boolean
+                           },
+"unlink_push_token":
+{ Args: { "p_token": string }; Returns: boolean
                            },
 "unmerge_event":
 { Args: { "drop_id": string }; Returns: Json

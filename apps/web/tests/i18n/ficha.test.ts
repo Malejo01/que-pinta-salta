@@ -219,13 +219,14 @@ describe('las vistas sin hooks, en inglés por prop', () => {
     expect(vista({})).toContain('>+ Seguir<')
   })
 
-  it('VerEnElMapa: "View on map", con hrefLang porque /mapa existe solo en castellano', () => {
+  it('VerEnElMapa: "View on map", que va a /en/mapa (C4: /mapa ya existe en inglés)', () => {
     const venue = { id: 'v1', latitude: -24.78, longitude: -65.41 } as unknown as Venue
     const startDate = saltaWallClockToDate('2026-03-10T20:00:00')
     const html = renderToStaticMarkup(React.createElement(VerEnElMapa, { venue, startDate, idioma: 'en' }))
     expect(html).toContain('>View on map<')
-    expect(html).toContain('hrefLang="es-AR"')
-    expect(html).toContain('href="/mapa?cuando=fecha&amp;dia=2026-03-10&amp;lugar=v1"')
+    expect(html).toContain('href="/en/mapa?cuando=fecha&amp;dia=2026-03-10&amp;lugar=v1"')
+    // /en/mapa es una página en inglés: sin hrefLang.
+    expect(html).not.toContain('hrefLang')
     const htmlEs = renderToStaticMarkup(React.createElement(VerEnElMapa, { venue, startDate }))
     expect(htmlEs).toContain('Ver en el mapa')
     expect(htmlEs).not.toContain('hrefLang')
@@ -233,13 +234,15 @@ describe('las vistas sin hooks, en inglés por prop', () => {
 })
 
 describe('las rutas en inglés reusan las de castellano', () => {
-  it('/en/evento/[id] dibuja el cuerpo de app/evento/[id]/page.tsx (con el Event, sin las migas en castellano)', () => {
+  it('/en/evento/[id] dibuja el cuerpo de app/evento/[id]/page.tsx (con el Event y las migas en inglés, Q4-6)', () => {
     const fuente = read('app/en/evento/[id]/page.tsx')
     expect(fuente).toContain('import EventPage from "@/app/evento/[id]/page"')
     expect(fuente).toMatch(/return await EventPage\(\{ \.\.\.props, idioma: "en" \}\)/)
     const ficha = read('app/evento/[id]/page.tsx')
     expect(ficha).toMatch(/idioma = "es" \}: EventPageProps/)
-    expect(ficha).toContain('{idioma === "es" && <JsonLd data={conContexto(migas)} />}')
+    expect(ficha).toContain('<JsonLd data={conContexto(migas)} />')
+    expect(ficha).toContain("nombre: idioma === 'en' ? 'Home' : 'Inicio', url: rutaEn(idioma, '/')")
+    expect(ficha).toContain('const eventUrl = `${SITE_URL}${rutaEn(idioma, `/evento/${event.id}`)}`')
     expect(ficha).toContain('<JsonLd data={jsonLd} />')
   })
 

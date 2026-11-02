@@ -1,0 +1,63 @@
+# Lugares nuevos al mapa (Q4-3, pregunta 21, opción 1): cada día a las 06:30
+# de Salta (09:30 UTC) corre `scripts/geocodificar-lugares.ts --programado`.
+#
+# Es el ÚNICO proceso programado que habla con Nominatim (el geocodificador de
+# OpenStreetMap). Reglas propias, fijadas en
+# `apps/web/lib/venues/geocodificacion/programado.ts` y en
+# `apps/web/tests/venues/geocodificacion/no-programado.test.ts`:
+#   - una corrida por día, como mucho 10 lugares;
+#   - menos de 4 pedidos por minuto (15,1 s entre pedidos);
+#   - un lugar ya intentado no se repite antes de 30 días (venues.geocode_intentado_at);
+#   - User-Agent propio (`QuePintaSalta/1.0 (geocodificación de lugares; …)`);
+#   - registro en job_runs (job_key `geocodificacion`).
+# Los de confianza alta se guardan; los demás quedan en la pestaña «Sin
+# ubicación» de /admin/lugares. Nunca pisa coordenadas cargadas a mano.
+#
+# Corre en el runner (no en una función de Vercel): a 4 pedidos por minuto, 10
+# lugares pueden llevar hasta 10 minutos. Necesita los secrets
+# NEXT_PUBLIC_SUPABASE_URL y SUPABASE_SERVICE_ROLE_KEY; si faltan, avisa y no
+# hace nada (no falla todos los días).
+name: Lugares al mapa (geocodificación diaria)
+
+on:
+  schedule:
+    - cron: "30 9 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: geocodificar-lugares
+  cancel-in-progress: false
+
+jobs:
+  geocodificar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+    steps:
+      - name: Revisar los secrets
+        id: secrets
+        run: |
+          if [ -z "$NEXT_PUBLIC_SUPABASE_URL" ] || [ -z "$SUPABASE_SERVICE_ROLE_KEY" ]; then
+            echo "::warning::Faltan los secrets NEXT_PUBLIC_SUPABASE_URL o SUPABASE_SERVICE_ROLE_KEY: no se geocodifica nada hoy."
+            echo "listo=no" >> "$GITHUB_OUTPUT"
+          else
+            echo "listo=si" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/checkout@v4
+        if: steps.secrets.outputs.listo == 'si'
+      - uses: actions/setup-node@v4
+        if: steps.secrets.outputs.listo == 'si'
+        with:
+          node-version: 22
+          cache: npm
+      - if: steps.secrets.outputs.listo == 'si'
+        run: npm ci
+      - name: Geocodificar (corrida programada)
+        if: steps.secrets.outputs.listo == 'si'
+        working-directory: apps/web
+        run: npx tsx scripts/geocodificar-lugares.ts --programado --salida "$RUNNER_TEMP/geocodificacion" --cache "$RUNNER_TEMP/geocodificacion/cache.json"

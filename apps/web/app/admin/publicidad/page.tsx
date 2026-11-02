@@ -8,6 +8,7 @@ import {
   type PrecioPanel,
 } from '@/lib/admin/publicidad-actions'
 import { formatSaltaDayKey } from '@qps/core/date-format'
+import { faltaCargarAudiencia } from '@qps/core/publicidad/formula'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { AccionesCiclo, BotonCopiarLink, BotonReanudar, InterruptorAutomatico } from './controles-publicidad'
 
@@ -127,7 +128,6 @@ export default async function AdminPublicidadPage() {
           precios={propuesto.precios}
           preciosVigentes={preciosVigentes}
           cicloVigente={vigente?.ciclo.ciclo ?? null}
-          audienciaVigente={vigente?.ciclo.audiencia_web_28d ?? null}
         />
       ) : (
         <Card>
@@ -213,17 +213,16 @@ function CicloPropuesto({
   precios,
   preciosVigentes,
   cicloVigente,
-  audienciaVigente,
 }: {
   ciclo: CicloPanel
   precios: PrecioPanel[]
   preciosVigentes: Map<string, PrecioPanel>
   cicloVigente: string | null
-  audienciaVigente: number | null
 }) {
   const tipoCambioAnterior = ciclo.fuente_tipo_cambio === 'anterior'
-  // El cron copia la audiencia del ciclo anterior (o 0) con fuente 'manual': si no cambió, falta cargarla.
-  const audienciaAnterior = ciclo.audiencia_web_28d === 0 || ciclo.audiencia_web_28d === audienciaVigente
+  // Q4-5: el cron marca 'anterior' la audiencia que copió del ciclo previo (o
+  // 0); al cargarla, el admin la pasa a 'manual'. El aviso sale de ese valor.
+  const audienciaAnterior = faltaCargarAudiencia(ciclo.fuente_audiencia)
   const faltan = [
     ...(audienciaAnterior ? ['la audiencia del mes anterior'] : []),
     ...(tipoCambioAnterior ? ['el dólar del mes anterior'] : []),

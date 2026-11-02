@@ -20,6 +20,8 @@ import { iniciarAnuncios } from '@/lib/anuncios/consentimiento'
 import { SessionProvider } from '@/lib/session'
 import { PushProvider } from '@/lib/push'
 import { ManejadorTapPush } from '@/components/ManejadorTapPush'
+import { SincronizadorRecordatorios } from '@/components/SincronizadorRecordatorios'
+import { SincronizadorFinde } from '@/components/SincronizadorFinde'
 import { InvitacionTrasAccion } from '@/components/InvitacionAvisos'
 
 // Tema con los colores de la web (24-a) y, desde 29-g, con `fonts` en
@@ -129,6 +131,10 @@ function RootLayout() {
               eso tiene que seguir adentro de `SessionProvider`, como
               `PushProvider`. */}
           <ManejadorTapPush />
+          {/* Q4-10: recordatorios locales de lo guardado. */}
+          <SincronizadorRecordatorios />
+          {/* Q4-11: «Este finde pinta», los jueves a las 18 (local). */}
+          <SincronizadorFinde />
           {/* R70: hoja única de "activá los avisos" tras el primer Guardar/Voy. */}
           <InvitacionTrasAccion />
           <Stack>

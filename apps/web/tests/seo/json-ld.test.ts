@@ -299,9 +299,15 @@ describe('portada: JSON-LD en el HTML', () => {
     expect(todos.map((n) => n['@type']).sort()).toEqual(['Organization', 'WebSite'])
   })
 
-  it('en inglés (/en) no sale JSON-LD: el WebSite y las URLs son de la versión en castellano', async () => {
+  // Q4-6: en /en sale solo el ItemList, con las fichas en inglés. El WebSite
+  // (es-AR, con la búsqueda en castellano) y la Organization quedan en /.
+  it('en inglés (/en): solo el ItemList, con URLs /en/evento/<id>', async () => {
     getEvents.mockResolvedValue([evento(1)])
-    expect(bloquesJsonLd(renderToStaticMarkup(await PaginaPortada({ idioma: 'en' })))).toEqual([])
+    const todos = nodos(bloquesJsonLd(renderToStaticMarkup(await PaginaPortada({ idioma: 'en' }))))
+    expect(todos.map((n) => n['@type'])).toEqual(['ItemList'])
+    const urls = JSON.stringify(todos[0])
+    expect(urls).toContain('/en/evento/')
+    expect(urls).not.toMatch(/quepintasalta\.com\.ar\/evento\//)
   })
 })
 
@@ -428,8 +434,13 @@ describe('/cines: JSON-LD en el HTML', () => {
     expect(bloquesJsonLd(renderToStaticMarkup(await PaginaCines({ idioma: 'es' })))).toEqual([])
   })
 
-  it('en inglés (/en/cines) no sale JSON-LD: las URLs de las películas son anclas de /cines', async () => {
+  it('en inglés (/en/cines): las películas son anclas de /en/cines y la lista tiene nombre en inglés (Q4-6)', async () => {
     peliculas = PELICULAS
-    expect(bloquesJsonLd(renderToStaticMarkup(await PaginaCines({ idioma: 'en' })))).toEqual([])
+    const todos = nodos(bloquesJsonLd(renderToStaticMarkup(await PaginaCines({ idioma: 'en' }))))
+    expect(todos).toHaveLength(1)
+    const texto = JSON.stringify(todos[0])
+    expect(texto).toContain('Movies showing in Salta')
+    expect(texto).toContain('/en/cines#')
+    expect(texto).not.toMatch(/quepintasalta\.com\.ar\/cines/)
   })
 })

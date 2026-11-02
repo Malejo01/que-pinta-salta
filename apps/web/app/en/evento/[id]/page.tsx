@@ -33,12 +33,15 @@ export async function generateMetadata({ params }: EventPageEnProps): Promise<Me
 
   // Igual que la ficha en castellano (B2): el `title` va sin marca porque la
   // plantilla del layout ya la agrega; Open Graph y Twitter llevan la marca a mano.
-  const title = event.title
-  const socialTitle = tituloConMarca(event.title)
+  // Q4-7: la traducción si existe; si no, el título original (en castellano).
+  const titulo = event.title_en?.trim() || event.title
+  const title = titulo
+  const socialTitle = tituloConMarca(titulo)
   const description =
+    descripcionParaMeta(event.description_en ?? null) ??
     descripcionParaMeta(event.short_description) ??
     descripcionParaMeta(event.description) ??
-    `Discover ${event.title} in Salta, Argentina.`
+    `Discover ${titulo} in Salta, Argentina.`
   const imageUrl = event.image_url || "/og-image.png"
 
   return {
@@ -57,7 +60,7 @@ export async function generateMetadata({ params }: EventPageEnProps): Promise<Me
       images: [
         {
           url: imageUrl,
-          alt: event.title,
+          alt: titulo,
         },
       ],
     },

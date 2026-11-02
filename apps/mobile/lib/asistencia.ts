@@ -38,6 +38,7 @@ import { clasificarErrorTabla } from './errores'
 import { estadoPermiteAgregar } from './estado-evento'
 import { MENSAJE_SIN_CONFIGURACION } from './mensajes'
 import { supabase } from './supabase'
+import { avisarCambioGuardados } from './recordatorios/cambios'
 
 export { MENSAJE_SIN_CONFIGURACION }
 export const MENSAJE_ERROR = 'No pudimos cargar esta sección. Probá de nuevo.'
@@ -236,6 +237,8 @@ export async function marcarAsistencia(
       pasosHechos.push(paso)
     }
 
+    // Q4-10: Voy / Guardar cambió → reprogramar los recordatorios.
+    avisarCambioGuardados()
     return { tipo: 'ok', guardado: estadoTrasPasos(actual, pasosHechos).guardado }
   } catch (excepcion) {
     return resultadoMarcarDeError(excepcion, estadoTrasPasos(actual, pasosHechos).guardado)

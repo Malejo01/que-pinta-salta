@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils"
 import { fechaCorta, fechaDeFuncion, hora, precio, resumenFunciones } from "@/lib/i18n/fechas"
 import { langDeCategoria } from "@/lib/i18n"
 import { useIdioma, useTextos } from "@/lib/i18n/use-idioma"
+import { MARCA_EN_CASTELLANO, textoEnIdioma } from "@qps/core/events/traduccion"
 import { rutaEn } from "@/lib/i18n/rutas"
 import { FavoriteButton } from "@/components/favorite-button"
 import { ShareButton } from "@/components/share-button"
@@ -46,6 +47,7 @@ export function EventCard({ event, isFavorite, onToggleFavorite, onOpenMovie, cl
   const [failedImage, setFailedImage] = useState<string | null>(null)
   const { openDonationModal } = useDonation()
   const idioma = useIdioma()
+  const titulo = textoEnIdioma(event.title, event.titleEn, idioma)
   const t = useTextos().portada
 
   useEffect(() => {
@@ -277,9 +279,15 @@ export function EventCard({ event, isFavorite, onToggleFavorite, onOpenMovie, cl
         <InsigniaDestacado visible={event.isFeatured} className="absolute left-2 top-8" />
 
         <div className="absolute bottom-0 left-0 right-0 p-3 text-white transition-all duration-300 group-hover/card:-translate-y-1">
-          {/* El título viene de la fuente, en castellano: en /en va con lang="es". */}
-          <h3 lang={idioma === "es" ? undefined : "es"} className="mb-1 line-clamp-2 text-sm font-semibold leading-tight">
-            {event.title}
+          {/* Q4-7: en /en, la traducción si existe; si no, el original (lang="es") con «(in Spanish)». */}
+          <h3 lang={idioma !== "es" && titulo.lang === "es" ? "es" : undefined} className="mb-1 line-clamp-2 text-sm font-semibold leading-tight">
+            {titulo.texto}
+            {titulo.enCastellano && " "}
+            {titulo.enCastellano && (
+              <span lang="en" className="text-[11px] font-normal text-white/80">
+                {MARCA_EN_CASTELLANO}
+              </span>
+            )}
           </h3>
           
           <div className="mb-2 flex items-center gap-1 text-xs text-white/80">

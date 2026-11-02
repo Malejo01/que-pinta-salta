@@ -235,3 +235,20 @@ describe('PRODUCTOS_CON_PRECIO', () => {
     expect([...PRODUCTOS_CON_PRECIO].sort()).toEqual(ids.sort())
   })
 })
+
+describe('Q4-5: fuente de la audiencia (pregunta 18)', () => {
+  it('fuenteAudienciaGuardada conserva manual y anterior; lo demás es vercel (como antes)', async () => {
+    const { fuenteAudienciaGuardada } = await import('@qps/core/publicidad/formula')
+    expect(fuenteAudienciaGuardada('manual')).toBe('manual')
+    expect(fuenteAudienciaGuardada('anterior')).toBe('anterior')
+    expect(fuenteAudienciaGuardada('vercel')).toBe('vercel')
+    expect(fuenteAudienciaGuardada(null)).toBe('vercel')
+  })
+
+  it('faltaCargarAudiencia: solo con anterior, nunca por comparar números', async () => {
+    const { faltaCargarAudiencia } = await import('@qps/core/publicidad/formula')
+    expect(faltaCargarAudiencia('anterior')).toBe(true)
+    expect(faltaCargarAudiencia('manual')).toBe(false)
+    expect(faltaCargarAudiencia('vercel')).toBe(false)
+  })
+})

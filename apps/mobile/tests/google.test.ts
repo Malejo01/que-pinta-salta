@@ -35,6 +35,7 @@ vi.mock('@react-native-google-signin/google-signin', () => ({
   statusCodes: {
     PLAY_SERVICES_NOT_AVAILABLE: 'PLAY_SERVICES_NOT_AVAILABLE',
     SIGN_IN_CANCELLED: 'SIGN_IN_CANCELLED',
+    IN_PROGRESS: 'IN_PROGRESS',
     DEVELOPER_ERROR: 'DEVELOPER_ERROR',
   },
 }))
@@ -43,7 +44,16 @@ vi.mock('@/lib/env', () => ({
   leerEnv: () => ({ supabase: null, googleWebClientId: null, sentryDsn: null }),
 }))
 
-import { codigoErrorGoogle, eventoErrorGoogle } from '../lib/google'
+import {
+  codigoErrorGoogle,
+  eventoErrorGoogle,
+  mensajeErrorGoogle,
+  MENSAJE_GOOGLE_CONFIGURACION,
+  MENSAJE_GOOGLE_EN_CURSO,
+  MENSAJE_GOOGLE_SIN_RED,
+  registrarErrorGoogle,
+  tipoErrorGoogle,
+} from '../lib/google'
 
 describe('codigoErrorGoogle', () => {
   it('con un error con code: el código sale como string', () => {
@@ -59,30 +69,93 @@ describe('codigoErrorGoogle', () => {
   })
 })
 
+describe('tipoErrorGoogle (Q4-4): clasifica los códigos de Google Sign-In', () => {
+  it.each([
+    ['12501', 'cancelado'],
+    ['16', 'cancelado'],
+    ['SIGN_IN_CANCELLED', 'cancelado'],
+    ['IN_PROGRESS', 'en-curso'],
+    ['7', 'sin-red'],
+    ['NETWORK_ERROR', 'sin-red'],
+    ['PLAY_SERVICES_NOT_AVAILABLE', 'play-services'],
+    ['10', 'configuracion'],
+    ['DEVELOPER_ERROR', 'configuracion'],
+    ['12500', 'configuracion'],
+    ['NULL_PRESENTER', 'configuracion'],
+    ['8', 'otro'],
+    ['loQueSea', 'otro'],
+    [null, 'otro'],
+  ] as const)('%s → %s', (codigo, tipo) => {
+    expect(tipoErrorGoogle(codigo)).toBe(tipo)
+  })
+})
+
 describe('eventoErrorGoogle', () => {
-  it('el evento tiene solo el código en tags', () => {
-    const evento = eventoErrorGoogle('DEVELOPER_ERROR')
-    expect(evento.tags).toEqual({ codigo: 'DEVELOPER_ERROR' })
+  it('la cancelación, un ingreso en curso y la falta de red NO se reportan', () => {
+    for (const codigo of ['12501', 'SIGN_IN_CANCELLED', 'IN_PROGRESS', '7']) expect(eventoErrorGoogle(codigo)).toBeNull()
+  })
+
+  it('DEVELOPER_ERROR (10, lo que vio Sentry en el build 2) va como error, con el código y agrupado por tipo', () => {
+    expect(eventoErrorGoogle('10')).toEqual({
+      mensaje: 'google_signin_configuracion',
+      nivel: 'error',
+      tags: { codigo: '10', tipo: 'configuracion' },
+      fingerprint: ['google-signin', 'configuracion', '10'],
+    })
+  })
+
+  it('INTERNAL_ERROR (8) y lo desconocido van como aviso', () => {
+    expect(eventoErrorGoogle('8')).toMatchObject({ nivel: 'warning', tags: { codigo: '8', tipo: 'otro' } })
+    expect(eventoErrorGoogle(null)).toMatchObject({ nivel: 'warning', tags: { codigo: 'sin-codigo', tipo: 'otro' } })
   })
 
   it('un error con un email y un token inventados en el message: no aparecen en el evento', () => {
     const errorConDatosPersonales = {
-      code: 'SIGN_IN_CANCELLED',
+      code: 'DEVELOPER_ERROR',
       message:
         'Fallo el login de persona-de-prueba@ejemplo.com con el token eyJhbGciOiJIUzI1NiJ9.token-inventado-de-prueba.firma-inventada',
     }
 
     const codigo = codigoErrorGoogle(errorConDatosPersonales)
-    expect(codigo).toBe('SIGN_IN_CANCELLED')
+    expect(codigo).toBe('DEVELOPER_ERROR')
 
-    const evento = eventoErrorGoogle(codigo!)
+    const evento = eventoErrorGoogle(codigo)
     const textoCompleto = JSON.stringify(evento)
 
     expect(textoCompleto).not.toContain('persona-de-prueba@ejemplo.com')
     expect(textoCompleto).not.toContain('eyJhbGciOiJIUzI1NiJ9')
     expect(textoCompleto).not.toContain('token-inventado-de-prueba')
-    expect(evento.tags).toEqual({ codigo: 'SIGN_IN_CANCELLED' })
-    expect(evento).toEqual({ mensaje: 'google_signin_error', tags: { codigo: 'SIGN_IN_CANCELLED' } })
+    expect(evento?.tags).toEqual({ codigo: 'DEVELOPER_ERROR', tipo: 'configuracion' })
+  })
+})
+
+describe('mensajeErrorGoogle (Q4-4): siempre deja salida', () => {
+  it('cancelado: no se muestra nada', () => {
+    expect(mensajeErrorGoogle('12501')).toBeNull()
+  })
+
+  it('sin red, configuración y otros: mensajes distintos; los de falla ofrecen el email', () => {
+    expect(mensajeErrorGoogle('7')).toBe(MENSAJE_GOOGLE_SIN_RED)
+    expect(mensajeErrorGoogle('10')).toBe(MENSAJE_GOOGLE_CONFIGURACION)
+    expect(mensajeErrorGoogle('IN_PROGRESS')).toBe(MENSAJE_GOOGLE_EN_CURSO)
+    expect(mensajeErrorGoogle('10')).toMatch(/email/)
+    expect(mensajeErrorGoogle('8')).toMatch(/Probá de nuevo o entrá con tu email/)
+    expect(mensajeErrorGoogle('PLAY_SERVICES_NOT_AVAILABLE')).toMatch(/Google Play/)
+  })
+})
+
+describe('registrarErrorGoogle (Q4-4)', () => {
+  it('sin DSN de Sentry no llama a captureMessage; la cancelación tampoco', async () => {
+    const Sentry = await import('@sentry/react-native')
+    vi.stubGlobal('__DEV__', false)
+    registrarErrorGoogle({ code: '10' })
+    registrarErrorGoogle({ code: '12501' })
+    expect(Sentry.captureMessage).not.toHaveBeenCalled()
+  })
+
+  it('cuenta.tsx: con mensaje null (canceló) no pisa el error con nada', () => {
+    const src = readFileSync(fileURLToPath(new URL('../app/(tabs)/cuenta.tsx', import.meta.url)), 'utf8')
+    expect(src).toMatch(/const mensaje = mensajeErrorGoogle\(codigoErrorGoogle\(excepcion\)\)\s*\n\s*if \(mensaje\) setError\(mensaje\)/)
   })
 })
 

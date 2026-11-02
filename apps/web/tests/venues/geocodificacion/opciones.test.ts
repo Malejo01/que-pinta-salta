@@ -8,15 +8,41 @@ describe('leerOpciones: valores por defecto', () => {
       limite: 200,
       rehacerNominatim: false,
       sinCache: false,
+      todos: false,
       salida: undefined,
       cache: undefined,
+      programado: false,
     })
+  })
+})
+
+describe('leerOpciones: --programado (Q4-3)', () => {
+  it('implica apply, sin --todos y como mucho 10 lugares', () => {
+    expect(leerOpciones(['--programado'])).toMatchObject({ programado: true, apply: true, todos: false, rehacerNominatim: false, limite: 10 })
+    expect(leerOpciones(['--programado', '--limite', '50']).limite).toBe(10)
+    expect(leerOpciones(['--programado', '--limite', '3']).limite).toBe(3)
+  })
+
+  it('no se combina con lo que afloja sus reglas', () => {
+    expect(() => leerOpciones(['--programado', '--todos'])).toThrow(/--programado/)
+    expect(() => leerOpciones(['--programado', '--rehacer-nominatim'])).toThrow(/--programado/)
   })
 })
 
 describe('leerOpciones: banderas booleanas', () => {
   it('--apply', () => {
     expect(leerOpciones(['--apply']).apply).toBe(true)
+  })
+
+  it('--aplicar es un alias de --apply', () => {
+    expect(leerOpciones(['--aplicar']).apply).toBe(true)
+    expect(() => leerOpciones(['--aplicar=si'])).toThrow()
+  })
+
+  it('--todos (por defecto es false)', () => {
+    expect(leerOpciones([]).todos).toBe(false)
+    expect(leerOpciones(['--todos']).todos).toBe(true)
+    expect(() => leerOpciones(['--todos=si'])).toThrow()
   })
 
   it('--rehacer-nominatim', () => {
@@ -113,9 +139,11 @@ describe('leerOpciones: todas las banderas juntas', () => {
       apply: true,
       rehacerNominatim: true,
       sinCache: true,
+      todos: false,
       limite: 5,
       salida: 'ops/x',
       cache: 'ops/y.json',
+      programado: false,
     })
   })
 })

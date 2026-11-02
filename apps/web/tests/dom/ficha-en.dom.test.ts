@@ -112,11 +112,11 @@ function montarFicha(pathname: string) {
   )
 }
 
-function montarModal(pathname: string) {
+function montarModal(pathname: string, evento: typeof EVENTO & { title_en?: string | null; description_en?: string | null } = EVENTO) {
   navegacion.pathname = pathname
   return render(
     React.createElement(EventModalWrapper, {
-      event: EVENTO,
+      event: evento,
       cantidadesAsistencia: { voy: 12 },
       seguimiento: SEGUIMIENTO,
       haySesion: false,
@@ -188,12 +188,13 @@ describe('la ficha en inglés (/en/evento/<id>)', () => {
     expect(aviso.compareDocumentPosition(titulo) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
-  it('los links: volver a /en, el mapa (solo en castellano) avisa con hrefLang', () => {
+  it('los links: volver a /en, y el mapa va a /en/mapa (C4)', () => {
     montarFicha(`/en/evento/${ID}`)
     expect(screen.getByText(en.ficha.volverAEventos).closest('a')?.getAttribute('href')).toBe('/en')
     const mapa = screen.getByText(en.ficha.verEnElMapa).closest('a')
-    expect(mapa?.getAttribute('href')).toMatch(/^\/mapa\?/)
-    expect(mapa?.getAttribute('hreflang')).toBe('es-AR')
+    expect(mapa?.getAttribute('href')).toMatch(/^\/en\/mapa\?/)
+    // /en/mapa es una página en inglés: sin hreflang.
+    expect(mapa?.hasAttribute('hreflang')).toBe(false)
   })
 
   it('lugar sin nombre: "Venue to be confirmed", sin lang="es"', () => {
@@ -249,7 +250,10 @@ describe('el modal interceptado', () => {
     expect(texto).toContain('ARS 5,000')
     expect(texto).toContain(en.comun.avisoContenidoEs)
     expect(texto).not.toContain('Comprar tickets')
-    expect(langDe(screen.getByRole('heading', { name: 'Peña de Prueba' }))).toBe('es')
+    // Q4-7: sin traducción, el título original (lang="es") marcado «(in Spanish)» (lang="en").
+    const titulo = screen.getByRole('heading', { name: 'Peña de Prueba (in Spanish)' })
+    expect(titulo.getAttribute('lang')).toBe('es')
+    expect(titulo.querySelector('span[lang="en"]')?.textContent).toBe('(in Spanish)')
     expect(screen.getByRole('img', { name: 'Peña de Prueba' }).getAttribute('lang')).toBe('es')
     // El aviso es la descripción del diálogo: se anuncia junto con el nombre.
     const describedby = dialogo.getAttribute('aria-describedby')
@@ -257,6 +261,20 @@ describe('el modal interceptado', () => {
     expect(document.getElementById(describedby!)?.textContent).toBe(en.comun.avisoContenidoEs)
     expect(screen.getByRole('dialog', { description: en.comun.avisoContenidoEs })).toBe(dialogo)
     expect(advertenciasDeRadix()).toEqual([])
+  })
+
+  it('Q4-7: con traducción, en inglés se ve el título y la descripción traducidos, sin la marca', () => {
+    montarModal(`/en/evento/${ID}`, { ...EVENTO, title_en: 'Test Folk Night', description_en: 'A test night.' })
+    const titulo = screen.getByRole('heading', { name: 'Test Folk Night' })
+    expect(titulo.getAttribute('lang')).toBeNull()
+    expect(screen.getByRole('dialog').textContent).toContain('A test night.')
+    expect(screen.getByRole('dialog').textContent).not.toContain('(in Spanish)')
+  })
+
+  it('Q4-7: con traducción, en castellano se sigue viendo el original', () => {
+    montarModal(`/evento/${ID}`, { ...EVENTO, title_en: 'Test Folk Night', description_en: 'A test night.' })
+    expect(screen.getByRole('heading', { name: 'Peña de Prueba' })).toBeTruthy()
+    expect(screen.getByRole('dialog').textContent).not.toContain('Test Folk Night')
   })
 
   it('en castellano (/evento/<id>): igual que siempre', () => {

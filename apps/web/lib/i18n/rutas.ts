@@ -7,11 +7,10 @@ import type { Idioma } from './idiomas'
 /**
  * Rutas (en castellano, sin `/en`) que tienen versión en inglés. Un `*` final
  * vale por UN segmento: `/evento/*` es `/evento/<id>` (no `/evento` solo ni
- * `/evento/<id>/otra`). Falta sumar `/mapa` y `/buscar`; hasta entonces, un
- * link a cualquier otra ruta queda en castellano aunque se esté navegando en
- * inglés.
+ * `/evento/<id>/otra`). Un link a cualquier otra ruta queda en castellano
+ * aunque se esté navegando en inglés.
  */
-export const RUTAS_EN_INGLES: readonly string[] = ['/', '/cines', '/evento/*']
+export const RUTAS_EN_INGLES: readonly string[] = ['/', '/cines', '/mapa', '/buscar', '/radar', '/anunciantes', '/evento/*']
 
 const PREFIJO_EN = '/en'
 
@@ -83,10 +82,18 @@ export function separarIdioma(pathname: string): { idioma: Idioma; ruta: string 
  * `?query` y `#hash`). Si la página no existe en inglés, el destino en inglés
  * es la portada (`/en`), sin la query: la de otra página no le sirve.
  */
+/**
+ * Q4-6: páginas legales que quedan en castellano pero tienen, en /en/<ruta>,
+ * una nota en inglés que lo dice (noindex, sin hreflang: no son traducciones).
+ * Solo las usa el selector de idioma.
+ */
+export const RUTAS_CON_NOTA_EN_INGLES: readonly string[] = ['/privacidad', '/terminos', '/eliminar-cuenta']
+
 export function rutaEnOtroIdioma(pathname: string, destino: Idioma): string {
   const { camino, resto } = separarCamino(pathname)
   const { ruta } = separarIdioma(camino)
   if (destino === 'es') return ruta + resto
+  if (RUTAS_CON_NOTA_EN_INGLES.includes(sinBarraFinal(ruta))) return `${PREFIJO_EN}${sinBarraFinal(ruta)}`
   if (!tieneVersionEnIngles(ruta)) return PREFIJO_EN
   return rutaEn('en', ruta + resto)
 }

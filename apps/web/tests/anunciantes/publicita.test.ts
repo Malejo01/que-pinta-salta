@@ -13,6 +13,7 @@ import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import { ANUNCIANTES } from '@/lib/config/anunciantes'
+import { es } from '@/lib/i18n/diccionarios/es'
 import {
   PIE_TARIFARIO,
   TARIFARIO,
@@ -32,7 +33,12 @@ function leer(rutaRelativa: string): string {
   return readFileSync(ROOT + rutaRelativa, 'utf8')
 }
 
-const paginaFuente = leer(RUTA_PAGINA)
+// Desde la R78 el cuerpo de la página vive en `components/anunciantes/` (compartido con
+// /en/anunciantes) y los textos fijos en el diccionario: "la página" para estas
+// comprobaciones es page.tsx + el componente + los textos en castellano.
+const RUTA_COMPONENTE = 'apps/web/components/anunciantes/pagina-anunciantes.tsx'
+const componenteFuente = leer(RUTA_COMPONENTE)
+const paginaFuente = [leer(RUTA_PAGINA), componenteFuente, JSON.stringify(es.anunciantes)].join('\n')
 const configFuente = leer(RUTA_CONFIG)
 const preciosFuente = leer(RUTA_PRECIOS)
 
@@ -53,9 +59,9 @@ describe('/anunciantes: mail de contacto desde CONTACTO_EMAIL, nunca un literal'
 
 describe('/anunciantes: título "Publicitá tu evento"', () => {
   it('el <h1> dice exactamente "Publicitá tu evento"', () => {
-    const match = paginaFuente.match(/<h1[^>]*>([^<]*)<\/h1>/)
-    expect(match).not.toBeNull()
-    expect(match?.[1].trim()).toBe('Publicitá tu evento')
+    // El <h1> muestra el título del diccionario, que en castellano es ese texto.
+    expect(componenteFuente).toMatch(/<h1[^>]*>\s*\{t\.titulo\}\s*<\/h1>/)
+    expect(es.anunciantes.titulo).toBe('Publicitá tu evento')
   })
 
   it('metadata.title incluye "Publicitá tu evento"', () => {
@@ -155,8 +161,9 @@ describe('/anunciantes: la página usa el tarifario de core y los botones de con
     expect(paginaFuente).toMatch(/cargarTarifarioVigente\(\s*createAdminClient\(\)/)
     expect(paginaFuente).toMatch(/\.productos\.map\(/)
     expect(paginaFuente).not.toMatch(/\bTARIFARIO\.map\(/)
-    expect(paginaFuente).toMatch(/\{tarifario\.pie\}/)
-    expect(paginaFuente).toMatch(/\{tarifario\.vigencia\}/)
+    // (en inglés se traducen si tienen un formato conocido; si no, se muestran tal cual)
+    expect(paginaFuente).toMatch(/\btarifario\.pie\b/)
+    expect(paginaFuente).toMatch(/\btarifario\.vigencia\b/)
   })
 
   it('la página sigue siendo ISR: sin cookies() ni cliente de sesión', () => {

@@ -180,9 +180,9 @@ describe('contrato servidor <-> app: lo que arma el aviso del equipo es lo que l
     expect(interpretarRespuestaPush(respuesta(data))).toEqual({ accion: 'abrir', id: UUID, patrocinado: false })
   })
 
-  it('destino inicio del servidor (sin data) -> nada: solo abre la app', () => {
+  it('destino inicio del servidor (solo la marca del aviso del equipo, Q4-11) -> nada: solo abre la app', () => {
     const data = datosPushAvisoEquipo({ tipo: 'inicio' })
-    expect(data).toBeUndefined()
+    expect(data).toEqual({ aviso: 'equipo' })
     expect(interpretarRespuestaPush(respuesta(data))).toEqual({ accion: 'nada' })
   })
 

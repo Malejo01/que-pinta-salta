@@ -25,6 +25,7 @@ import { langDeCategoria, nombreCategoria } from "@/lib/i18n"
 import { rutaEn } from "@/lib/i18n/rutas"
 import { useIdioma, useTextos } from "@/lib/i18n/use-idioma"
 import { AvisoContenidoEs } from "@/components/aviso-contenido-es"
+import { MARCA_EN_CASTELLANO, textoEnIdioma } from "@qps/core/events/traduccion"
 import { ageChip, capitalizeFirst, cleanDescription, formatEventTimeDisplay } from "@/lib/event-display"
 import { createCategory, updateEventCategory } from "@/lib/admin-actions"
 import { deferredRefresh } from "@/lib/deferred-refresh"
@@ -99,9 +100,13 @@ export function EventDetailPage({
   }, [localCategories, currentCategoryId, event.category])
 
   const startDate = new Date(event.start_date)
+  const titulo = textoEnIdioma(event.title, event.title_en, idioma)
+  const descripcionOriginal = cleanDescription(event.description) ?? cleanDescription(event.short_description) ?? ""
+  const descripcion = textoEnIdioma(descripcionOriginal, cleanDescription(event.description_en ?? null), idioma)
   const displayEvent = {
     id: event.id,
-    title: event.title,
+    // Q4-7: en /en, la traducción si existe (si no, el original en castellano).
+    title: titulo.texto,
     venue: event.venue?.name || 'Lugar por confirmar',
     date: formatSaltaDayKey(startDate),
     time: formatEventTimeDisplay(startDate),
@@ -109,7 +114,7 @@ export function EventDetailPage({
     categoryName: currentCategory?.name || 'Sin categorizar',
     price: event.is_free ? "gratis" as const : (event.price_min === 0 ? "confirmar" as const : event.price_min),
     image: event.image_url || '/placeholder.svg?height=600&width=400',
-    description: cleanDescription(event.description) ?? cleanDescription(event.short_description),
+    description: descripcion.texto,
     address: event.venue?.address || '',
     ticketUrl: event.ticket_url || undefined,
     vibe: ageChip(event.age_restriction),
@@ -120,6 +125,9 @@ export function EventDetailPage({
   // Lo que viene de la fuente (título, descripción, lugar, dirección) queda en
   // castellano: en inglés lleva `lang="es"`. En castellano no se agrega nada.
   const langContenido = idioma === "es" ? undefined : "es"
+  // Q4-7: el título y la descripción pueden venir traducidos (lang="en").
+  const langTitulo = idioma !== "es" && titulo.lang === "es" ? "es" : undefined
+  const langDescripcion = idioma !== "es" && descripcion.lang === "es" ? "es" : undefined
   const lugarSinNombre = !event.venue?.name
   const lugarVisible = lugarSinNombre ? textos.portada.lugarPorConfirmar : displayEvent.venue
   // El nombre de la categoría para el público (en inglés, por slug); el bloque
@@ -201,7 +209,7 @@ export function EventDetailPage({
               variant={800}
               src={displayEvent.image}
               alt={displayEvent.title}
-              lang={langContenido}
+              lang={langTitulo}
               fill
               className="object-cover"
               // B3: el flyer es el LCP de la ficha. `priority` (deprecado en
@@ -239,8 +247,14 @@ export function EventDetailPage({
               de la fila nueva) para confirmar que salieron de acá.
             */}
             <div className="flex items-start justify-between gap-4 mb-4">
-              <h1 className="text-3xl font-bold text-foreground lg:text-4xl flex-1 leading-tight" lang={langContenido}>
+              <h1 className="text-3xl font-bold text-foreground lg:text-4xl flex-1 leading-tight" lang={langTitulo}>
                 {displayEvent.title}
+                {titulo.enCastellano && " "}
+                {titulo.enCastellano && (
+                  <span lang="en" className="align-middle text-base font-normal text-muted-foreground">
+                    {MARCA_EN_CASTELLANO}
+                  </span>
+                )}
               </h1>
             </div>
 
@@ -386,7 +400,7 @@ export function EventDetailPage({
             </div>
 
             {displayEvent.description ? (
-              <p className="mb-8 flex-1 text-muted-foreground" lang={langContenido}>{displayEvent.description}</p>
+              <p className="mb-8 flex-1 text-muted-foreground" lang={langDescripcion}>{displayEvent.description}</p>
             ) : (
               <div className="flex-1" />
             )}

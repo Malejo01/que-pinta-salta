@@ -293,19 +293,19 @@ describe('app/(tabs)/favoritos.tsx: monta AvisoActivarPush variante favoritos, a
 // cuenta.tsx: borrarTokenDeEsteTelefono se llama antes de auth.signOut,
 // dentro de salir().
 // ---------------------------------------------------------------------------
-describe('app/(tabs)/cuenta.tsx: salir() borra el token antes de cerrar la sesión', () => {
-  it('importa borrarTokenDeEsteTelefono de @/lib/push/registro', () => {
+describe('app/(tabs)/cuenta.tsx: salir() desvincula el token antes de cerrar la sesión (R82 / Q4-2; antes lo borraba)', () => {
+  it('importa desvincularTokenDeEsteTelefono de @/lib/push/registro', () => {
     expect(SRC_CUENTA).toMatch(
-      /import\s*\{\s*borrarTokenDeEsteTelefono\s*\}\s*from\s*['"]@\/lib\/push\/registro['"]/,
+      /import\s*\{\s*desvincularTokenDeEsteTelefono\s*\}\s*from\s*['"]@\/lib\/push\/registro['"]/,
     )
   })
 
-  it('dentro de salir(), borrarTokenDeEsteTelefono se llama antes que supabase.auth.signOut()', () => {
+  it('dentro de salir(), desvincularTokenDeEsteTelefono se llama antes que supabase.auth.signOut()', () => {
     const idxSalir = SRC_CUENTA.indexOf('async function salir()')
     const idxFinSalir = SRC_CUENTA.indexOf('\n  }', SRC_CUENTA.indexOf('setAccionEnCurso(null)', idxSalir))
     const cuerpoSalir = SRC_CUENTA.slice(idxSalir, idxFinSalir)
 
-    const idxBorrar = cuerpoSalir.indexOf('borrarTokenDeEsteTelefono()')
+    const idxBorrar = cuerpoSalir.indexOf('desvincularTokenDeEsteTelefono()')
     const idxSignOut = cuerpoSalir.indexOf('supabase.auth.signOut()')
 
     expect(idxBorrar).toBeGreaterThan(-1)
@@ -313,18 +313,18 @@ describe('app/(tabs)/cuenta.tsx: salir() borra el token antes de cerrar la sesi�
     expect(idxBorrar).toBeLessThan(idxSignOut)
   })
 
-  it('borrarTokenDeEsteTelefono() está dentro del mismo try que signOut (no en su propio try/catch aparte)', () => {
+  it('desvincularTokenDeEsteTelefono() está dentro del mismo try que signOut (no en su propio try/catch aparte)', () => {
     const idxSalir = SRC_CUENTA.indexOf('async function salir()')
     const idxTry = SRC_CUENTA.indexOf('try {', idxSalir)
     const idxCatch = SRC_CUENTA.indexOf('} catch (excepcion) {', idxTry)
     const bloqueTry = SRC_CUENTA.slice(idxTry, idxCatch)
 
-    expect(bloqueTry).toContain('borrarTokenDeEsteTelefono()')
+    expect(bloqueTry).toContain('desvincularTokenDeEsteTelefono()')
     expect(bloqueTry).toContain('supabase.auth.signOut()')
     // Ni un segundo "try {" (su propio try/catch) entre el borrado y el
     // signOut: un catch de más ocultaría si algún día empieza a tirar
-    // (borrarTokenDeEsteTelefono no tira, documentado en registro.ts).
-    const idxBorrar = bloqueTry.indexOf('borrarTokenDeEsteTelefono()')
+    // (desvincularTokenDeEsteTelefono no tira, documentado en registro.ts).
+    const idxBorrar = bloqueTry.indexOf('desvincularTokenDeEsteTelefono()')
     const idxSignOut = bloqueTry.indexOf('supabase.auth.signOut()')
     const entreLosDos = bloqueTry.slice(idxBorrar, idxSignOut)
     expect(entreLosDos).not.toContain('try {')

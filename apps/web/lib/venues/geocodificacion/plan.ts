@@ -21,6 +21,8 @@ export interface VenueParaGeocodificar {
   latitude: number | null
   longitude: number | null
   geocode_source: string | null
+  /** Q4-3: última vez que la corrida programada lo intentó (solo la lee `--programado`). */
+  geocode_intentado_at?: string | null
 }
 
 export type EstadoFilaGeocodificacion = 'guardado' | 'para-revisar' | 'sin-resultado' | 'error' | 'no-se-pisó'
@@ -305,6 +307,14 @@ export function contarEventosProximos(
     conteo.set(id, (conteo.get(id) ?? 0) + 1)
   }
   return conteo
+}
+
+/**
+ * Los lugares con al menos un evento próximo (el filtro por defecto de la
+ * corrida; `--todos` lo saltea). No modifica `lugares`.
+ */
+export function soloConEventosProximos<T extends { id: string }>(lugares: T[], conteo: Map<string, number>): T[] {
+  return lugares.filter((l) => (conteo.get(l.id) ?? 0) > 0)
 }
 
 /**

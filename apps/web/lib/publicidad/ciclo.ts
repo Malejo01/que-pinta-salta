@@ -213,7 +213,8 @@ export async function proponerCicloDelMes(admin: SupabaseClient, opciones: Opcio
   }
 
   // 5. La audiencia (decisión 1, default manual): la del anterior, o 0. Mauro
-  // carga el número en el admin antes de aprobar.
+  // carga el número en el admin antes de aprobar. Q4-5: se marca 'anterior'
+  // (no 'manual'), y de eso sale el aviso del admin.
   // [COMPLETAR: con VERCEL_ANALYTICS_TOKEN y el endpoint verificado, 'vercel'.]
   const audienciaWeb28d = anterior && Number.isFinite(anterior.audienciaWeb28d) ? Math.max(0, anterior.audienciaWeb28d) : 0
 
@@ -227,7 +228,7 @@ export async function proponerCicloDelMes(admin: SupabaseClient, opciones: Opcio
     audienciaWeb28d,
     mauApp28d: null,
     dispositivosPush: null,
-    fuenteAudiencia: 'manual',
+    fuenteAudiencia: 'anterior',
     tipoCambio,
     fuenteTipoCambio,
     anterior,

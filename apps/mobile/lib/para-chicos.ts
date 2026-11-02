@@ -58,8 +58,8 @@ export const EDAD_SOLO_ADULTOS = 18
  * para adultos (`age_restriction >= 18`).
  */
 export function paraChicosDeLaFila(f: { categorySlug: string | null; tags: readonly string[] | null; ageRestriction: number | null | undefined }): boolean {
-  if (typeof f.ageRestriction === 'number' && f.ageRestriction >= EDAD_SOLO_ADULTOS) return false
-  return esParaChicos({ categorySlug: f.categorySlug, tags: f.tags })
+  // Q4-12: la regla de +18 vive en core (`esParaChicos`), igual para la web.
+  return esParaChicos({ categorySlug: f.categorySlug, tags: f.tags, ageRestriction: f.ageRestriction ?? null })
 }
 
 /**
@@ -77,8 +77,7 @@ export type ItemConPublico = ItemFiltrable & { paraChicos?: unknown }
  */
 export function esItemParaChicos(item: { evento: Pick<DisplayEvent, 'category' | 'vibe'>; paraChicos?: unknown }): boolean {
   if (typeof item.paraChicos === 'boolean') return item.paraChicos
-  if (item.evento.vibe === 'adultos') return false
-  return esParaChicos({ categorySlug: item.evento.category })
+  return esParaChicos({ categorySlug: item.evento.category, vibe: item.evento.vibe })
 }
 
 /** Con `activo`, solo los items para chicos (en el mismo orden); sin `activo`, los mismos items. */

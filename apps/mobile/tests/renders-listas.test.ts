@@ -69,6 +69,8 @@ const medicion = vi.hoisted(() => ({
   cambiarTexto: null as null | ((texto: string) => void),
   eventos: [] as DisplayEvent[],
   favoritos: [] as DisplayEvent[],
+  /** Q4-13: renders de los tiles de «Explorar por categoría» (cada tile llama `iconoPorCategoria` una vez). */
+  tiles: 0,
 }))
 
 vi.mock('@/lib/rutas', async (importOriginal) => {
@@ -122,7 +124,13 @@ const { nulo, CATEGORIAS } = vi.hoisted(() => ({
 }))
 vi.mock('@/components/Afiche', () => ({ Afiche: nulo }))
 vi.mock('@/components/BotonCompartir', () => ({ BotonCompartir: nulo }))
-vi.mock('@/components/Icono', () => ({ Icono: nulo, iconoPorCategoria: () => 'Calendar' }))
+vi.mock('@/components/Icono', () => ({
+  Icono: nulo,
+  iconoPorCategoria: () => {
+    medicion.tiles++
+    return 'Calendar'
+  },
+}))
 vi.mock('@/components/BannerAnuncio', () => ({ BannerAnuncio: nulo }))
 vi.mock('@/components/BannerRadar', () => ({ BannerRadar: nulo }))
 vi.mock('@/components/Hero', () => ({ Hero: nulo, altoHero: () => 200 }))
@@ -247,6 +255,7 @@ function total(mapa: Map<string, number>): number {
 async function medir(accion: () => unknown): Promise<Conteo> {
   medicion.renders.clear()
   medicion.montajes.clear()
+  medicion.tiles = 0
   let pendiente: unknown
   act(() => {
     pendiente = accion()
@@ -257,6 +266,10 @@ async function medir(accion: () => unknown): Promise<Conteo> {
   await act(async () => {})
   return { renders: total(medicion.renders), montajes: total(medicion.montajes) }
 }
+
+/** Q4-13: renders de tiles de categoría de la última `medir`. */
+const tilesDeLaUltimaMedicion = () => medicion.tiles
+const tiles: Record<string, number> = {}
 
 async function montarPantalla(Pantalla: () => unknown): Promise<{ raiz: RaizDeReact; inicial: Conteo }> {
   const raiz = crearRaiz()
@@ -278,6 +291,7 @@ afterAll(() => {
   vi.useRealTimers()
   const filas = Object.entries(resultados).map(([escenario, c]) => `${escenario.padEnd(58)} renders=${String(c.renders).padStart(3)}  montajes=${String(c.montajes).padStart(3)}`)
   console.info(`\nRenders de TarjetaEvento (A7, nube Q1) — React ${versionDeReact}\n${filas.join('\n')}\n`)
+  console.info(`Renders de tiles de categoría en Buscar (Q4-13)\n${Object.entries(tiles).map(([k, v]) => `${k.padEnd(58)} tiles=${String(v).padStart(3)}`).join('\n')}\n`)
 })
 
 describe('la medición cuenta lo que dice que cuenta', () => {
@@ -388,6 +402,25 @@ describe('Buscar (grilla de 2 de resultados)', () => {
     expect(b2).toEqual({ renders: 1, montajes: 0 })
     const d = (resultados['Buscar · (d) texto que filtra ("evento 1")'] = await medir(() => medicion.cambiarTexto?.('evento 1')))
     expect(d.renders).toBeLessThanOrEqual(2 * VENTANA_RESULTADOS.initialNumToRender)
+    act(() => raiz.unmount())
+  })
+})
+
+describe('Buscar · «Explorar por categoría» (Q4-13)', () => {
+  it('cuenta los renders de los tiles', async () => {
+    medicion.eventos = AGENDA
+    const { raiz } = await montarPantalla(Buscar)
+    tiles['montaje'] = tilesDeLaUltimaMedicion()
+    await medir(refrescar)
+    tiles['refrescar, vuelve lo mismo'] = tilesDeLaUltimaMedicion()
+    medicion.eventos = conPrecioCambiado(AGENDA, 'ev-05')
+    await medir(refrescar)
+    tiles['refrescar, cambió el precio de un evento'] = tilesDeLaUltimaMedicion()
+    // Antes de Q4-13 (renderItem en línea, sin memo): 3 tiles al montar y 6
+    // en cada refresco (todos, dos veces). Ahora, 0: los tiles son memo.
+    expect(tiles['montaje']).toBe(3)
+    expect(tiles['refrescar, vuelve lo mismo']).toBe(0)
+    expect(tiles['refrescar, cambió el precio de un evento']).toBe(0)
     act(() => raiz.unmount())
   })
 })

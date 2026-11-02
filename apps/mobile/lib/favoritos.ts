@@ -30,6 +30,7 @@ import { MENSAJE_SIN_CONFIGURACION } from '@/lib/mensajes'
 import { esErrorDeRed } from '@/lib/red'
 import type { TipoFavorito } from '@/lib/rutas'
 import { supabase } from '@/lib/supabase'
+import { avisarCambioGuardados } from '@/lib/recordatorios/cambios'
 
 export { MENSAJE_SIN_CONFIGURACION }
 export const MENSAJE_ERROR_RED = 'No pudimos cargar tus favoritos. Revisá tu conexión.'
@@ -260,6 +261,8 @@ export async function marcarFavorito(id: string, userId: string, tipo: TipoFavor
           : { user_id: userId, event_id: id }
     const { error } = await supabase.from('user_favorites').insert(fila)
     if (error && error.code !== '23505') return { ok: false, error: MENSAJE_ERROR_GUARDAR }
+    // Q4-10: reprogramar los recordatorios de lo guardado.
+    avisarCambioGuardados()
     return { ok: true }
   } catch {
     return { ok: false, error: MENSAJE_ERROR_GUARDAR }
@@ -319,6 +322,8 @@ export async function desmarcarFavorito(id: string, userId: string, tipo: TipoFa
     const { error } = await supabase.from('user_favorites').delete().eq('user_id', userId).eq('event_id', eventId)
     if (error) return { ok: false, error: MENSAJE_ERROR_GUARDAR }
 
+    // Q4-10: sacado de guardados → se cancela su recordatorio.
+    avisarCambioGuardados()
     return { ok: true, voyQuitado }
   } catch {
     return { ok: false, error: MENSAJE_ERROR_GUARDAR }

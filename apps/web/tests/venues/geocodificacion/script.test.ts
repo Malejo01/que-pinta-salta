@@ -138,18 +138,31 @@ describe('geocodificar-lugares.ts: usa la lógica de 53-a, no la reimplementa', 
 })
 
 describe('geocodificar-lugares.ts: el guardado toca solo venues, nunca borra nada', () => {
-  it('hay exactamente un .update( en todo el archivo', () => {
-    const cantidad = (CONTENIDO.match(/\.update\(/g) ?? []).length
-    expect(cantidad).toBe(1)
+  // Q4-3: además del guardado de coordenadas, la corrida programada actualiza
+  // `venues.geocode_intentado_at` y cierra su fila de `job_runs`. Cada
+  // `.update(` tiene que ser sobre una de esas dos tablas, y el de
+  // coordenadas sigue siendo uno solo (el de `guardar`).
+  const updates = [...CONTENIDO.matchAll(/\.update\(/g)].map((m) => {
+    const antes = CONTENIDO.slice(0, m.index)
+    const froms = [...antes.matchAll(/\.from\(\s*['"]([^'"]+)['"]\s*\)/g)]
+    return { tabla: froms.length > 0 ? froms[froms.length - 1][1] : null, cuerpo: CONTENIDO.slice(m.index, m.index + 200) }
   })
 
-  it('ese único .update( es sobre la tabla venues (el .from(...) más cercano antes es .from(\'venues\'))', () => {
-    const idx = CONTENIDO.indexOf('.update(')
-    expect(idx).toBeGreaterThan(-1)
-    const antes = CONTENIDO.slice(0, idx)
-    const froms = [...antes.matchAll(/\.from\(\s*['"]([^'"]+)['"]\s*\)/g)]
-    expect(froms.length).toBeGreaterThan(0)
-    expect(froms[froms.length - 1][1]).toBe('venues')
+  it('cada .update( es sobre venues o job_runs', () => {
+    expect(updates.length).toBe(3)
+    for (const u of updates) expect(['venues', 'job_runs']).toContain(u.tabla)
+  })
+
+  it('solo UN .update( escribe latitude/longitude, y es sobre venues', () => {
+    const deCoordenadas = updates.filter((u) => /latitude/.test(u.cuerpo))
+    expect(deCoordenadas).toHaveLength(1)
+    expect(deCoordenadas[0].tabla).toBe('venues')
+  })
+
+  it('el otro .update( de venues solo toca geocode_intentado_at (Q4-3)', () => {
+    const otros = updates.filter((u) => u.tabla === 'venues' && !/latitude/.test(u.cuerpo))
+    expect(otros).toHaveLength(1)
+    expect(otros[0].cuerpo).toMatch(/\.update\(\{ geocode_intentado_at: new Date\(\)\.toISOString\(\) \}\)/)
   })
 
   it('no hay ningún .upsert( en todo el archivo', () => {
