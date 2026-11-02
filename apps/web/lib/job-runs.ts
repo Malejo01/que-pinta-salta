@@ -10,7 +10,7 @@ import { createAdminClient, createClient } from '@/lib/supabase/server'
  * trabajo corre igual.
  */
 
-export type JobKey = 'ticketeras' | 'instagram' | 'cines' | 'cola_ia' | 'radar_newsletter' | 'recurrentes' | 'notificaciones' | 'publicidad'
+export type JobKey = 'ticketeras' | 'instagram' | 'cines' | 'cola_ia' | 'radar_newsletter' | 'recurrentes' | 'notificaciones' | 'publicidad' | 'geocodificacion'
 
 export const JOB_LABELS: Record<JobKey, string> = {
   publicidad: 'Publicidad (precios, ocupación y reportes)',
@@ -21,6 +21,8 @@ export const JOB_LABELS: Record<JobKey, string> = {
   cola_ia: 'Cola de IA de flyers',
   radar_newsletter: 'Radar Salteño (newsletter)',
   notificaciones: 'Notificaciones push',
+  // Q4-3: la escribe el script `geocodificar-lugares.ts --programado` (workflow diario), no una ruta.
+  geocodificacion: 'Lugares al mapa (geocodificación diaria)',
 }
 
 export type JobRunStatus = 'RUNNING' | 'SUCCESS' | 'PARTIAL' | 'FAILED' | 'SKIPPED'

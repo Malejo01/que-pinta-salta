@@ -11,7 +11,21 @@ describe('leerOpciones: valores por defecto', () => {
       todos: false,
       salida: undefined,
       cache: undefined,
+      programado: false,
     })
+  })
+})
+
+describe('leerOpciones: --programado (Q4-3)', () => {
+  it('implica apply, sin --todos y como mucho 10 lugares', () => {
+    expect(leerOpciones(['--programado'])).toMatchObject({ programado: true, apply: true, todos: false, rehacerNominatim: false, limite: 10 })
+    expect(leerOpciones(['--programado', '--limite', '50']).limite).toBe(10)
+    expect(leerOpciones(['--programado', '--limite', '3']).limite).toBe(3)
+  })
+
+  it('no se combina con lo que afloja sus reglas', () => {
+    expect(() => leerOpciones(['--programado', '--todos'])).toThrow(/--programado/)
+    expect(() => leerOpciones(['--programado', '--rehacer-nominatim'])).toThrow(/--programado/)
   })
 })
 
@@ -129,6 +143,7 @@ describe('leerOpciones: todas las banderas juntas', () => {
       limite: 5,
       salida: 'ops/x',
       cache: 'ops/y.json',
+      programado: false,
     })
   })
 })

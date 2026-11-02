@@ -47,6 +47,7 @@ function venue(overrides: Partial<Venue> & { id: string }): Venue {
     capacity: null,
     created_at: null,
     geocode_source: null,
+    geocode_intentado_at: null,
     geocoded_at: null,
     google_maps_url: null,
     is_placeholder: false,

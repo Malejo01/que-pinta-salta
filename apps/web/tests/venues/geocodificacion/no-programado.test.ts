@@ -12,10 +12,14 @@
  * simple y más segura: ese script NO SE PROGRAMA nunca. Lo corre Mauro a
  * mano, en su máquina, cuando hace falta.
  *
- * Hoy eso se cumple porque nadie lo programó. Este test es lo que lo
- * mantiene así mañana: si alguien agrega un workflow de GitHub Actions, un
- * cron de `vercel.json` o una ruta de API que dispare ese script, este test
- * se tiene que poner en rojo. Barre (solo lectura, sin red ni base):
+ * Q4-3 (pregunta 21, opción 1, decisión de Mauro en docs/tanda-q4/README.md):
+ * la regla cambia a «UN SOLO proceso programado, con reglas propias». El
+ * único permitido es `.github/workflows/geocodificar-lugares.yml`
+ * (`WORKFLOW_PERMITIDO`), una vez por día, con `--programado` (≤ 10 lugares,
+ * < 4 pedidos por minuto, sin repetir un lugar antes de 30 días); el bloque
+ * «el único workflow permitido» de abajo fija esas reglas. Cualquier OTRO
+ * workflow, un cron de `vercel.json` o una ruta de API que lo mencione sigue
+ * poniendo este test en rojo. Barre (solo lectura, sin red ni base):
  *   1. todos los `.yml`/`.yaml` de `<raíz>/.github/workflows/`;
  *   2. `<raíz>/vercel.json`, si existe;
  *   3. `<raíz>/apps/web/vercel.json`, si existe;
@@ -183,14 +187,47 @@ describe('barrido real: cordura (el test no puede pasar en verde por no encontra
   })
 })
 
-describe('ningún workflow de .github/workflows/ programa el script de geocodificación', () => {
-  it.each(ARCHIVOS_WORKFLOWS.map((archivo) => [relative(REPO_ROOT, archivo).split('\\').join('/'), archivo] as const))(
+/** Q4-3: el único workflow que puede programar la geocodificación. */
+const WORKFLOW_PERMITIDO = '.github/workflows/geocodificar-lugares.yml'
+
+const etiquetaDe = (archivo: string) => relative(REPO_ROOT, archivo).split('\\').join('/')
+
+describe('ningún OTRO workflow de .github/workflows/ programa el script de geocodificación', () => {
+  it.each(ARCHIVOS_WORKFLOWS.filter((a) => etiquetaDe(a) !== WORKFLOW_PERMITIDO).map((archivo) => [etiquetaDe(archivo), archivo] as const))(
     '%s',
     (etiqueta, archivo) => {
       const encontradas = mencionesProhibidas(readFileSync(archivo, 'utf8'))
       expect(encontradas, mensajeFalla(etiqueta, encontradas)).toEqual([])
     },
   )
+})
+
+describe(`el único workflow permitido (${WORKFLOW_PERMITIDO}) respeta sus reglas (Q4-3)`, () => {
+  const ruta = `${REPO_ROOT}${WORKFLOW_PERMITIDO}`
+  const yml = existsSync(ruta) ? readFileSync(ruta, 'utf8') : ''
+  const sinComentarios = yml.replace(/^\s*#.*$/gm, '')
+
+  it('existe', () => {
+    expect(existsSync(ruta), `falta ${WORKFLOW_PERMITIDO}`).toBe(true)
+  })
+
+  it('una sola programación, una vez por día (minuto y hora fijos)', () => {
+    const crons = [...sinComentarios.matchAll(/cron:\s*["']([^"']+)["']/g)].map((m) => m[1])
+    expect(crons).toEqual(['30 9 * * *'])
+  })
+
+  it('corre el script con --programado (≤ 10 lugares, < 4 pedidos por minuto, registro en job_runs)', () => {
+    const corridas = [...sinComentarios.matchAll(/geocodificar-lugares\.ts([^\n]*)/g)].map((m) => m[1])
+    expect(corridas).toHaveLength(1)
+    expect(corridas[0]).toMatch(/--programado\b/)
+    // Nada que afloje las reglas de la corrida programada.
+    expect(corridas[0]).not.toMatch(/--todos|--rehacer-nominatim|--limite/)
+  })
+
+  it('no se pisa a sí mismo (concurrency sin cancelar) y solo lee el repo', () => {
+    expect(sinComentarios).toMatch(/concurrency:\s*\n\s*group:\s*geocodificar-lugares/)
+    expect(sinComentarios).toMatch(/permissions:\s*\n\s*contents:\s*read/)
+  })
 })
 
 describe('vercel.json (raíz y apps/web) no programa el script de geocodificación', () => {
