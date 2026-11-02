@@ -11,6 +11,9 @@ import { LugarMapaUbicar } from '@/components/admin/lugar-mapa-ubicar'
 import { isUuid } from '@/lib/metricas'
 import { direccionUtil } from '@/lib/venues/geocodificacion/consultas'
 import { proximaFuentePorLugar, type FilaFuente } from '@/lib/admin/fuente-lugar'
+import { coberturaDelMapa, textoCoberturaMapa } from '@/lib/admin/cobertura-mapa'
+import { posiblesDuplicados } from '@/lib/venues/posibles-duplicados'
+import type { VenueParaMapa } from '@qps/core/mapa/pines'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 
 export const dynamic = 'force-dynamic'
@@ -26,6 +29,9 @@ interface VenueFila {
   geocode_source: string | null
   geocoded_at: string | null
 }
+
+/** Fila de evento con el lugar propio del evento (como lo dibuja el mapa). */
+type FilaEvento = FilaFuente & { venue: VenueParaMapa | null }
 
 const TABS: Array<{ ver: Pestaña; label: string }> = [
   { ver: 'sin-ubicacion', label: 'Sin ubicación' },
@@ -104,14 +110,16 @@ export default async function AdminLugaresPage({
         .order('id')
         .range(desde, hasta)
     ),
-    traerTodasLasFilas<FilaFuente>((desde, hasta) =>
+    traerTodasLasFilas<FilaEvento>((desde, hasta) =>
       supabase
         .from('events')
-        .select('venue_id, start_date, ticket_url')
+        .select('venue_id, start_date, ticket_url, venue:venues(id, name, address, latitude, longitude)')
         .eq('status', 'PUBLISHED')
         .gte('start_date', saltaStartOfDayISO())
         .order('id')
         .range(desde, hasta)
+        // El embed a un solo lugar llega como objeto; el cliente lo infiere como lista.
+        .returns<FilaEvento[]>()
     ),
   ])
 
@@ -122,6 +130,8 @@ export default async function AdminLugaresPage({
   }
 
   const fuentePorVenue = proximaFuentePorLugar(eventRows)
+  const cobertura = textoCoberturaMapa(coberturaDelMapa(eventRows))
+  const duplicadosPorVenue = posiblesDuplicados(venues)
 
   const porPestaña: Record<Pestaña, VenueFila[]> = {
     'sin-ubicacion': venues.filter((v) => perteneceA(v, 'sin-ubicacion')),
@@ -168,6 +178,8 @@ export default async function AdminLugaresPage({
         </div>
       </div>
 
+      <p className="text-sm text-muted-foreground">{cobertura}</p>
+
       {/* Pestañas */}
       <nav className="flex flex-wrap gap-2 border-b border-border pb-2" aria-label="Pestañas de lugares">
         {TABS.map((tab) => (
@@ -203,6 +215,7 @@ export default async function AdminLugaresPage({
           {lugares.map((venue) => {
             const cantidadEventos = conteoPorVenue.get(venue.id) ?? 0
             const fuente = fuentePorVenue.get(venue.id) ?? null
+            const parecidos = duplicadosPorVenue.get(venue.id) ?? []
             return (
               <Card key={venue.id}>
                 <CardHeader className="pb-2">
@@ -224,6 +237,13 @@ export default async function AdminLugaresPage({
                     <p role="status" aria-live="polite" className="text-sm font-medium text-foreground">
                       Ubicación guardada.
                     </p>
+                  )}
+                  {parecidos.length > 0 && (
+                    <ul className="space-y-0.5 text-xs text-muted-foreground">
+                      {parecidos.slice(0, 3).map((otro) => (
+                        <li key={otro.id}>¿Es el mismo lugar que «{otro.name}»?</li>
+                      ))}
+                    </ul>
                   )}
                   <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
                     <span>
