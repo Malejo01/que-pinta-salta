@@ -175,7 +175,9 @@ describe('Gratis, Para chicos y categoría (Q3, C1)', () => {
 describe('qué llega al cliente', () => {
   it('solo las props esperadas, y los pines solo con los campos de PinLugar', async () => {
     const props = await propsDeContenido()
-    expect(Object.keys(props).sort()).toEqual(['ahoraISO', 'categorias', 'extra', 'filtro', 'lugarInicial', 'pines', 'sinUbicacion'])
+    // `idioma` ("es" en /mapa) es C4: la interfaz en inglés de /en/mapa.
+    expect(Object.keys(props).sort()).toEqual(['ahoraISO', 'categorias', 'extra', 'filtro', 'idioma', 'lugarInicial', 'pines', 'sinUbicacion'])
+    expect(props.idioma).toBe('es')
     const pines = props.pines as Record<string, unknown>[]
     expect(pines).toHaveLength(1)
     expect(Object.keys(pines[0]).sort()).toEqual(['direccion', 'eventos', 'lat', 'lng', 'nombre', 'venueId'])
@@ -228,12 +230,15 @@ describe('nada personal', () => {
     expect(accesoPersonal).not.toHaveBeenCalled()
   })
 
-  it('el código de la página no menciona sesión, favoritos ni Supabase', () => {
-    // El código sin comentarios (de bloque, de línea completa ni al final de una línea).
-    const fuente = readFileSync(path.join(WEB_ROOT, 'app/mapa/page.tsx'), 'utf8')
-      .replace(/\/\*[\s\S]*?\*\//g, '')
-      .replace(/^[^\S\n]*\/\/.*$/gm, '')
-      .replace(/(^|[^:'"`])\/\/.*$/gm, '$1')
-    expect(fuente).not.toMatch(/getUser|favorit|createClient|supabase/i)
-  })
+  it.each(['app/mapa/page.tsx', 'app/en/mapa/page.tsx', 'components/mapa/pagina-mapa.tsx'])(
+    'el código de %s no menciona sesión, favoritos ni Supabase',
+    (archivo) => {
+      // El código sin comentarios (de bloque, de línea completa ni al final de una línea).
+      const fuente = readFileSync(path.join(WEB_ROOT, archivo), 'utf8')
+        .replace(/\/\*[\s\S]*?\*\//g, '')
+        .replace(/^[^\S\n]*\/\/.*$/gm, '')
+        .replace(/(^|[^:'"`])\/\/.*$/gm, '$1')
+      expect(fuente).not.toMatch(/getUser|favorit|createClient|supabase/i)
+    }
+  )
 })

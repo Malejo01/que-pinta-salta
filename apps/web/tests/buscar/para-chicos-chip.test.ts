@@ -13,6 +13,7 @@ import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { filtrarCombinado, type FiltrosCombinados } from '@qps/core/home/filtros-combinados'
 import type { DisplayEvent } from '@qps/core/home/types'
+import { es } from '@/lib/i18n/diccionarios/es'
 
 const SOURCE_PATH = new URL('../../app/buscar/buscar-content.tsx', import.meta.url)
 const source = readFileSync(SOURCE_PATH, 'utf8')
@@ -54,14 +55,18 @@ describe('buscar-content.tsx: wiring del chip "Para chicos"', () => {
   it('el botón es accesible: aria-pressed enlazado al estado y el mismo estilo (44px) que "Solo gratis"', () => {
     expect(source).toContain('aria-pressed={paraChicosActivo}')
     expect(source).toContain('className={claseChip(paraChicosActivo)}')
-    expect(source).toMatch(/>\s*Para chicos\s*</)
+    // Desde C4 el texto sale del diccionario (en castellano, el mismo de siempre).
+    expect(source).toMatch(/>\s*\{t\.paraChicos\}\s*</)
+    expect(es.buscar.paraChicos).toBe('Para chicos')
   })
 
   it('los dos chips van en un grupo con nombre que se acomoda en 360px (flex-wrap)', () => {
-    expect(source).toMatch(/<div role="group" aria-label="Filtros" className="[^"]*\bflex flex-wrap gap-2\b[^"]*">/)
+    expect(source).toMatch(/<div role="group" aria-label=\{t\.filtros\} className="[^"]*\bflex flex-wrap gap-2\b[^"]*">/)
+    expect(es.buscar.filtros).toBe('Filtros')
     const grupo = source.slice(source.indexOf('role="group"'), source.indexOf('</div>', source.indexOf('role="group"')))
-    expect(grupo).toContain('Solo gratis')
-    expect(grupo).toContain('Para chicos')
+    expect(grupo).toContain('{t.soloGratis}')
+    expect(grupo).toContain('{t.paraChicos}')
+    expect(es.buscar.soloGratis).toBe('Solo gratis')
   })
 
   it('una sola llamada a filtrarCombinado con texto diferido, gratis y para chicos (sin fecha ni categoría)', () => {
@@ -88,16 +93,28 @@ describe('buscar-content.tsx: wiring del chip "Para chicos"', () => {
   })
 
   it('los textos del contador y del vacío nombran los chips prendidos', () => {
-    expect(source).toContain('`${cantidad} resultado${plural} para "${textoBuscado}"${sufijoChips}`')
-    expect(source).toContain('`${cantidad} evento${plural}${queEventos}`')
-    expect(source).toContain('`No se encontraron eventos para "${textoBuscado}"${sufijoChips}`')
-    expect(source).toContain('`No hay eventos${queEventos} por ahora.`')
-    expect(source).toContain('`${soloGratisActivo ? " · gratis" : ""}${paraChicosActivo ? " · para chicos" : ""}`')
-    expect(source).toContain('`${soloGratisActivo ? " gratis" : ""}${paraChicosActivo ? " para chicos" : ""}`')
+    // Desde C4 los textos salen del diccionario y reciben los dos chips.
+    expect(source).toContain('t.resultados(cantidad, textoBuscado, soloGratisActivo, paraChicosActivo)')
+    expect(source).toContain('t.eventosFiltrados(cantidad, soloGratisActivo, paraChicosActivo)')
+    expect(source).toContain('t.sinResultadosParaTexto(textoBuscado, soloGratisActivo, paraChicosActivo)')
+    expect(source).toContain('t.sinEventosFiltrados(soloGratisActivo, paraChicosActivo)')
+    // En castellano dicen exactamente lo de antes.
+    const b = es.buscar
+    expect(b.resultados(3, 'pena', true, true)).toBe('3 resultados para "pena" · gratis · para chicos')
+    expect(b.resultados(1, 'pena', false, false)).toBe('1 resultado para "pena"')
+    expect(b.resultados(2, 'pena', false, true)).toBe('2 resultados para "pena" · para chicos')
+    expect(b.eventosFiltrados(2, true, false)).toBe('2 eventos gratis')
+    expect(b.eventosFiltrados(1, false, true)).toBe('1 evento para chicos')
+    expect(b.eventosFiltrados(4, true, true)).toBe('4 eventos gratis para chicos')
+    expect(b.sinResultadosParaTexto('x', true, true)).toBe('No se encontraron eventos para "x" · gratis · para chicos')
+    expect(b.sinResultadosParaTexto('x', false, false)).toBe('No se encontraron eventos para "x"')
+    expect(b.sinEventosFiltrados(true, true)).toBe('No hay eventos gratis para chicos por ahora.')
+    expect(b.sinEventosFiltrados(false, true)).toBe('No hay eventos para chicos por ahora.')
   })
 
   it('"Quitar filtros" solo en el vacío con un chip prendido: apaga los dos (no el texto) y lleva el foco a "Solo gratis"', () => {
-    expect(source).toMatch(/\{sinResultados && hayChip && \(\s*<Button[^>]*onClick=\{quitarFiltros\}[^>]*>\s*Quitar filtros/)
+    expect(source).toMatch(/\{sinResultados && hayChip && \(\s*<Button[^>]*onClick=\{quitarFiltros\}[^>]*>\s*\{t\.quitarFiltros\}/)
+    expect(es.buscar.quitarFiltros).toBe('Quitar filtros')
     const cuerpo = source.slice(source.indexOf('const quitarFiltros'), source.indexOf('}', source.indexOf('const quitarFiltros') + 30) + 1)
     expect(cuerpo).toContain('setSoloGratisActivo(false)')
     expect(cuerpo).toContain('setParaChicosActivo(false)')

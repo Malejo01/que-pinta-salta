@@ -15,7 +15,11 @@ import {
   propsDeChip,
   urlDelMapa,
 } from "@/components/mapa/filtros-mapa"
+import { AvisoContenidoEs } from "@/components/aviso-contenido-es"
 import { formatSaltaDayKey } from "@/lib/date-format"
+import { textosDe } from "@/lib/i18n"
+import type { Idioma } from "@/lib/i18n/idiomas"
+import { rutaEn } from "@/lib/i18n/rutas"
 import { DIAS_MAXIMOS_FECHA_MAPA, type FiltroMapa, type PinLugar } from "@qps/core/mapa/pines"
 import {
   SIN_FILTROS_EXTRA,
@@ -38,6 +42,8 @@ interface MapaContenidoProps {
   lugarInicial: string | null
   /** El "ahora" del servidor: de ahí salen el mínimo y el máximo del selector de fecha. */
   ahoraISO: string
+  /** Idioma de la interfaz (`/en/mapa` es inglés). Los títulos y nombres de lugares quedan en castellano. */
+  idioma?: Idioma
 }
 
 /** `AAAA-MM-DD` más `dias` días de calendario (opera sobre el día, sin zonas horarias). */
@@ -48,9 +54,9 @@ function sumarDias(diaKey: string, dias: number): string {
 }
 
 /** "8 eventos en 5 lugares", "1 evento en 1 lugar". */
-function textoDelContador(pines: PinLugar[]): string {
+function textoDelContador(pines: PinLugar[], idioma: Idioma): string {
   const eventos = pines.reduce((total, pin) => total + pin.eventos.length, 0)
-  return `${eventos} ${eventos === 1 ? "evento" : "eventos"} en ${pines.length} ${pines.length === 1 ? "lugar" : "lugares"}`
+  return textosDe(idioma).mapa.contador(eventos, pines.length)
 }
 
 // El alto del mapa y de la lista en la compu: lo que queda de la pantalla
@@ -66,14 +72,13 @@ function comportamientoDeScroll(): ScrollBehavior {
 }
 
 /** Lo que dice el lector de pantalla al tocar un pin: "Peña La Casona, seleccionado: 3 eventos". */
-export function textoDeSeleccion(pin: PinLugar): string {
-  const eventos = pin.eventos.length
-  return `${pin.nombre}, seleccionado: ${eventos} ${eventos === 1 ? "evento" : "eventos"}`
+export function textoDeSeleccion(pin: PinLugar, idioma: Idioma = "es"): string {
+  return textosDe(idioma).mapa.seleccionado(pin.nombre, pin.eventos.length)
 }
 
 /** Lo que dice el lector de pantalla con "Ver en el mapa". */
-export function textoDeCentrado(pin: PinLugar): string {
-  return `Mapa centrado en ${pin.nombre}`
+export function textoDeCentrado(pin: PinLugar, idioma: Idioma = "es"): string {
+  return textosDe(idioma).mapa.centradoEn(pin.nombre)
 }
 
 /**
@@ -94,7 +99,8 @@ function seVeElCentro(elemento: HTMLElement): boolean {
  * lista de lugares. Guarda el lugar seleccionado, que comparten el mapa y la
  * lista.
  */
-export function MapaContenido({ pines, sinUbicacion, filtro, extra, categorias, lugarInicial, ahoraISO }: MapaContenidoProps) {
+export function MapaContenido({ pines, sinUbicacion, filtro, extra, categorias, lugarInicial, ahoraISO, idioma = "es" }: MapaContenidoProps) {
+  const t = textosDe(idioma).mapa
   const router = useRouter()
   const [cambiando, iniciarCambio] = useTransition()
   const [seleccionado, setSeleccionado] = useState<string | null>(lugarInicial)
@@ -183,9 +189,10 @@ export function MapaContenido({ pines, sinUbicacion, filtro, extra, categorias, 
 
   const hoy = formatSaltaDayKey(new Date(ahoraISO))
   const maximo = sumarDias(hoy, DIAS_MAXIMOS_FECHA_MAPA)
-  const textoDelFiltro = filtro.tipo === "hoy" ? "hoy" : filtro.tipo === "finde" ? "este finde" : "esta fecha"
+  const textoDelFiltro = filtro.tipo === "hoy" ? t.paraHoy : filtro.tipo === "finde" ? t.paraFinde : t.paraFecha
   const conFiltrosExtra = hayFiltrosExtra(extra)
-  const urlSinFiltros = urlDelMapa(pedido.filtro, SIN_FILTROS_EXTRA)
+  const urlSinFiltros = urlDelMapa(pedido.filtro, SIN_FILTROS_EXTRA, idioma)
+  const urlAgenda = rutaEn(idioma, "/buscar")
 
   function irA(consulta: string) {
     // Otro filtro, otra lista: el lugar seleccionado no tiene que revivir después.
@@ -193,7 +200,7 @@ export function MapaContenido({ pines, sinUbicacion, filtro, extra, categorias, 
     setCentrar(null)
     setAnuncio((anterior) => ({ texto: "", n: anterior.n }))
     iniciarCambio(() => {
-      router.replace(`/mapa?${consulta}`, { scroll: false })
+      router.replace(rutaEn(idioma, `/mapa?${consulta}`), { scroll: false })
     })
   }
 
@@ -222,7 +229,7 @@ export function MapaContenido({ pines, sinUbicacion, filtro, extra, categorias, 
     setSeleccionado(venueId)
     ordenarCentrar(venueId)
     const pin = pines.find((candidato) => candidato.venueId === venueId)
-    if (pin) anunciar(textoDeSeleccion(pin))
+    if (pin) anunciar(textoDeSeleccion(pin, idioma))
     document.getElementById(idBloqueLugar(venueId))?.scrollIntoView({ block: "nearest", behavior: comportamientoDeScroll() })
   }
 
@@ -230,7 +237,7 @@ export function MapaContenido({ pines, sinUbicacion, filtro, extra, categorias, 
     setSeleccionado(venueId)
     ordenarCentrar(venueId)
     const pin = pines.find((candidato) => candidato.venueId === venueId)
-    if (pin) anunciar(textoDeCentrado(pin))
+    if (pin) anunciar(textoDeCentrado(pin, idioma))
     // En el celular el mapa queda arriba de la lista. Si el centro del mapa (el
     // pin) ya se ve, no se mueve nada y el botón con el foco sigue en pantalla.
     // Si no se ve, se sube la página hasta el mapa y el botón con el foco queda
@@ -251,8 +258,9 @@ export function MapaContenido({ pines, sinUbicacion, filtro, extra, categorias, 
 
   return (
     <div aria-busy={cambiando}>
-      <h1 className="text-2xl font-bold text-foreground sm:text-3xl">Mapa de eventos en Salta</h1>
-      <p className="mt-1 text-sm text-muted-foreground">Mirá dónde pasa cada plan y elegí por día.</p>
+      <h1 className="text-2xl font-bold text-foreground sm:text-3xl">{t.titulo}</h1>
+      <p className="mt-1 text-sm text-muted-foreground">{t.bajada}</p>
+      {idioma === "en" && <AvisoContenidoEs className="mt-2" />}
 
       {/*
         Los chips son links a su URL (funcionan sin JavaScript y antes de
@@ -261,30 +269,30 @@ export function MapaContenido({ pines, sinUbicacion, filtro, extra, categorias, 
         formulario y los botones de los <noscript>. Con JavaScript el
         formulario no se envía nunca: cada cambio navega desde `pedir`.
       */}
-      <form action="/mapa" method="get" onSubmit={(evento) => evento.preventDefault()} className="mt-4 space-y-2">
-        <div role="group" aria-label="Cuándo" className="flex flex-wrap items-center gap-2">
+      <form action={rutaEn(idioma, "/mapa")} method="get" onSubmit={(evento) => evento.preventDefault()} className="mt-4 space-y-2">
+        <div role="group" aria-label={t.cuando} className="flex flex-wrap items-center gap-2">
           <Link
-            href={urlDelMapa({ tipo: "hoy" }, pedido.extra)}
+            href={urlDelMapa({ tipo: "hoy" }, pedido.extra, idioma)}
             prefetch={false}
             {...propsDeChip(filtro.tipo === "hoy")}
             onNavigate={navegarCon(() => pedir({ tipo: "hoy" }, pedido.extra))}
             className={`${BASE_BOTON} ${filtro.tipo === "hoy" ? BOTON_ACTIVO : BOTON_INACTIVO}`}
           >
-            Hoy
+            {t.hoy}
           </Link>
           <Link
-            href={urlDelMapa({ tipo: "finde" }, pedido.extra)}
+            href={urlDelMapa({ tipo: "finde" }, pedido.extra, idioma)}
             prefetch={false}
             {...propsDeChip(filtro.tipo === "finde")}
             onNavigate={navegarCon(() => pedir({ tipo: "finde" }, pedido.extra))}
             className={`${BASE_BOTON} ${filtro.tipo === "finde" ? BOTON_ACTIVO : BOTON_INACTIVO}`}
           >
-            Este finde
+            {t.esteFinde}
           </Link>
           <label
             className={`${BASE_BOTON} gap-2 focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-primary ${filtro.tipo === "fecha" ? BOTON_ACTIVO : BOTON_INACTIVO}`}
           >
-            <span>Elegir fecha</span>
+            <span>{t.elegirFecha}</span>
             <input
               type="date"
               name="dia"
@@ -302,7 +310,7 @@ export function MapaContenido({ pines, sinUbicacion, filtro, extra, categorias, 
           </label>
           <noscript>
             <button type="submit" name="cuando" value="fecha" className={`${BASE_BOTON} ${BOTON_INACTIVO}`}>
-              Ver ese día
+              {t.verEseDia}
             </button>
           </noscript>
         </div>
@@ -312,6 +320,7 @@ export function MapaContenido({ pines, sinUbicacion, filtro, extra, categorias, 
           categorias={categorias}
           onCambiar={(extraNuevo) => pedir(pedido.filtro, extraNuevo)}
           refGratis={chipGratis}
+          idioma={idioma}
         />
       </form>
 
@@ -321,10 +330,10 @@ export function MapaContenido({ pines, sinUbicacion, filtro, extra, categorias, 
           {/* Sin pines lo dice el vacío de abajo: acá queda solo para el lector de pantalla (no se repite a la vista). */}
           <p aria-live="polite" className={pines.length > 0 ? "text-sm font-medium text-foreground" : "sr-only"}>
             {pines.length > 0
-              ? textoDelContador(pines)
+              ? textoDelContador(pines, idioma)
               : conFiltrosExtra
-                ? "Ningún evento en el mapa con estos filtros"
-                : `No hay eventos con ubicación para ${textoDelFiltro}`}
+                ? t.sinEventosConFiltros
+                : t.sinEventosEnFecha(textoDelFiltro)}
           </p>
           {/* Sin pines, el "Quitar filtros" grande del vacío alcanza: no van dos botones iguales. */}
           {conFiltrosExtra && pines.length > 0 ? (
@@ -334,7 +343,7 @@ export function MapaContenido({ pines, sinUbicacion, filtro, extra, categorias, 
               onNavigate={alQuitarFiltros}
               className="inline-flex min-h-11 items-center rounded-sm text-sm font-medium text-primary underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
             >
-              Quitar filtros
+              {t.quitarFiltros}
             </Link>
           ) : null}
         </div>
@@ -346,19 +355,18 @@ export function MapaContenido({ pines, sinUbicacion, filtro, extra, categorias, 
         </p>
         {sinUbicacion > 0 ? (
           <p className="mt-1 text-sm text-muted-foreground">
-            {sinUbicacion} {sinUbicacion === 1 ? "evento no aparece" : "eventos no aparecen"} en el mapa porque{" "}
-            {sinUbicacion === 1 ? "su lugar todavía no tiene ubicación" : "sus lugares todavía no tienen ubicación"}.{" "}
-            <Link href="/buscar" className="font-medium text-primary underline-offset-2 hover:underline">
-              Ver la agenda completa
+            {t.sinUbicacion(sinUbicacion)}{" "}
+            <Link href={urlAgenda} className="font-medium text-primary underline-offset-2 hover:underline">
+              {t.verAgendaCompleta}
             </Link>
           </p>
         ) : null}
 
         {pines.length === 0 && conFiltrosExtra ? (
           <div className="mt-6 rounded-2xl border border-border bg-card p-8 text-center">
-            <h2 className="font-semibold text-foreground">No hay eventos en el mapa con estos filtros para {textoDelFiltro}</h2>
+            <h2 className="font-semibold text-foreground">{t.vacioConFiltrosTitulo(textoDelFiltro)}</h2>
             <p className="mt-2 text-sm text-muted-foreground">
-              Filtros: {nombresDeFiltrosExtra(extra, categorias)}. Probá con otra fecha o sacá alguno.
+              {t.vacioConFiltrosTexto(nombresDeFiltrosExtra(extra, categorias, idioma))}
             </p>
             <div className="mt-4 flex flex-wrap items-center justify-center gap-x-4 gap-y-2">
               <Link
@@ -367,25 +375,25 @@ export function MapaContenido({ pines, sinUbicacion, filtro, extra, categorias, 
                 onNavigate={alQuitarFiltros}
                 className="inline-flex min-h-11 items-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
               >
-                Quitar filtros
+                {t.quitarFiltros}
               </Link>
               {/* text-foreground y subrayado: el primario sobre bg-card no llega a 4,5:1 en el tema oscuro. */}
               <Link
-                href="/buscar"
+                href={urlAgenda}
                 className="inline-flex min-h-11 items-center rounded-sm text-sm font-medium text-foreground underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
               >
-                Ver la agenda completa
+                {t.verAgendaCompleta}
               </Link>
             </div>
           </div>
         ) : pines.length === 0 ? (
           <div className="mt-6 rounded-2xl border border-border bg-card p-8 text-center">
-            <p className="text-foreground">No hay eventos con ubicación para {textoDelFiltro}</p>
+            <p className="text-foreground">{t.sinEventosEnFecha(textoDelFiltro)}</p>
             <Link
-              href="/buscar"
+              href={urlAgenda}
               className="mt-4 inline-flex min-h-11 items-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground hover:opacity-90"
             >
-              Ver todos los eventos
+              {t.verTodosLosEventos}
             </Link>
           </div>
         ) : (
@@ -399,10 +407,11 @@ export function MapaContenido({ pines, sinUbicacion, filtro, extra, categorias, 
                 onFallo={alFallarElMapa}
                 onListo={() => setMapaDisponible(true)}
                 className={`h-[45dvh] min-h-64 ${ALTO_LG}`}
+                idioma={idioma}
               />
             </div>
             <div ref={bloqueLista} className={`${ALTO_MAX_LG} lg:overflow-y-auto lg:pr-1`}>
-              <ListaLugares pines={pines} seleccionado={seleccionVigente} onVerEnElMapa={alVerEnElMapa} mapaDisponible={mapaDisponible} />
+              <ListaLugares pines={pines} seleccionado={seleccionVigente} onVerEnElMapa={alVerEnElMapa} mapaDisponible={mapaDisponible} idioma={idioma} />
             </div>
           </div>
         )}
