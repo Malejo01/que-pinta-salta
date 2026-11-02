@@ -14,6 +14,10 @@ export interface DisplayEvent {
   id: string
   slug: string
   title: string
+  /** Q4-7: `events.title_en` (traducción). Opcional por los fixtures armados a mano. */
+  titleEn?: string | null
+  /** Q4-7: `events.description_en`, ya limpia. */
+  descriptionEn?: string | null
   venue: string
   date: string
   time: string
