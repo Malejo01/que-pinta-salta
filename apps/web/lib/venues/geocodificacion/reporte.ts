@@ -6,6 +6,8 @@
  * CSV que devuelve `aCsv`).
  */
 
+import { limpiarParaImprimir } from '../../events/revisar-gratis'
+
 /** Una fila de reporte: cualquier objeto plano (los valores van a texto; `null`/`undefined` quedan vacíos). */
 export type FilaCsv = Record<string, string | number | boolean | null | undefined>
 
@@ -95,6 +97,36 @@ export function aCsv(filas: FilaCsv[]): string {
   const lineas = filas.map((fila) => columnas.map((columna) => escaparCampoCsv(fila[columna])))
 
   return [encabezado, ...lineas].map((linea) => linea.join(',')).join('\r\n')
+}
+
+/** Lo que necesita `tablaDeConsola` de una fila del reporte. */
+export interface FilaParaTabla {
+  id: string
+  nombre: string
+  estado: string
+  confianza: 'alta' | 'revisar' | null
+  openStreetMapUrl: string | null
+}
+
+/**
+ * Tabla de texto para la consola, una fila por línea: lugar, eventos
+ * próximos, resultado (`estado`), confianza y link a OpenStreetMap. El
+ * nombre es dato externo: pasa por `limpiarParaImprimir` (sin saltos de
+ * línea ni caracteres de control). No incluye direcciones. Sin filas,
+ * devuelve una cadena vacía.
+ */
+export function tablaDeConsola(filas: FilaParaTabla[], conteo: Map<string, number>): string {
+  if (filas.length === 0) return ''
+  const lineas = filas.map((f) =>
+    [
+      limpiarParaImprimir(f.nombre),
+      String(conteo.get(f.id) ?? 0),
+      limpiarParaImprimir(f.estado),
+      f.confianza ?? '-',
+      f.openStreetMapUrl ? limpiarParaImprimir(f.openStreetMapUrl) : '-',
+    ].join(' | ')
+  )
+  return ['lugar | eventos | resultado | confianza | OpenStreetMap', ...lineas].join('\n')
 }
 
 /** Cuántas filas hay por cada valor de `estado`. */

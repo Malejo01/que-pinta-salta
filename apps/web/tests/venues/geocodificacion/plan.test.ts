@@ -6,6 +6,7 @@ import {
   lugaresAGeocodificar,
   ordenarPorEventosProximos,
   quedanParaCargarAMano,
+  soloConEventosProximos,
   type FilaReporteGeocodificacion,
   type VenueParaGeocodificar,
 } from '@/lib/venues/geocodificacion/plan'
@@ -542,6 +543,31 @@ describe('ordenarPorEventosProximos', () => {
     const copia = [...lugares]
     ordenarPorEventosProximos(lugares, new Map([['a', 1]]))
     expect(lugares).toEqual(copia)
+  })
+})
+
+describe('soloConEventosProximos', () => {
+  const a = venue({ id: 'a', name: 'A' })
+  const b = venue({ id: 'b', name: 'B' })
+  const c = venue({ id: 'c', name: 'C' })
+
+  it('deja solo los que tienen al menos un evento próximo, en el mismo orden', () => {
+    const conteo = new Map([
+      ['c', 2],
+      ['a', 1],
+      ['b', 0],
+    ])
+    expect(soloConEventosProximos([a, b, c], conteo).map((l) => l.id)).toEqual(['a', 'c'])
+  })
+
+  it('un lugar que no está en el conteo cuenta 0', () => {
+    expect(soloConEventosProximos([a, b], new Map([['a', 1]])).map((l) => l.id)).toEqual(['a'])
+  })
+
+  it('no modifica la entrada', () => {
+    const entrada = [a, b, c]
+    soloConEventosProximos(entrada, new Map([['a', 1]]))
+    expect(entrada.map((l) => l.id)).toEqual(['a', 'b', 'c'])
   })
 })
 

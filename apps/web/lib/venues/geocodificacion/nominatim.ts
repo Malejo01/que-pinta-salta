@@ -149,6 +149,10 @@ export function distanciaMetros(a: { lat: number; lon: number }, b: { lat: numbe
  * (`place/house`) o un edificio (`building`) es alta. Una consulta por una
  * dirección sin número (`soloCalle`) siempre va a revisar.
  *
+ * R84: en una búsqueda libre por nombre, un resultado que no es de un tipo de
+ * lugar donde pase un evento (`esTipoCompatible`: una calle, un estacionamiento,
+ * un banco) va a revisar.
+ *
  * Si no, la regla de la R53: confianza alta si el primero es de nivel calle,
  * número o edificio (`place_rank >= 26`; 16 es la ciudad) y además pasa
  * alguna de estas señales de que no hay ambigüedad real:
@@ -185,6 +189,9 @@ export function evaluarResultados(
     if (esCasaOEdificio(primero)) return alta
   } else if (consulta.soloCalle) {
     return revisar('dirección sin número: ubicar a mano sobre la calle')
+  } else if (!esTipoCompatible(primero)) {
+    // Búsqueda libre por nombre: una calle, un estacionamiento, etc. no es donde pasa un evento.
+    return revisar(`tipo de lugar no compatible (${primero.category}/${primero.type}): confirmar a mano`)
   }
 
   if (primero.place_rank < 26) return revisar('resultado poco preciso (no es calle, número ni edificio)')
@@ -199,6 +206,33 @@ export function numeroDePuertaExacto(houseNumber: string | null | undefined, num
   if (!houseNumber) return false
   const primerNumero = houseNumber.match(/\d+/)?.[0]
   return primerNumero !== undefined && Number(primerNumero) === Number(numero)
+}
+
+/** Categorías de OSM de lugares físicos donde puede pasar un evento. */
+const CATEGORIAS_COMPATIBLES = new Set(['amenity', 'tourism', 'leisure', 'building', 'historic', 'club', 'shop', 'office', 'craft'])
+
+/** Tipos de `amenity` donde no pasa un evento (servicios, transporte, estacionamientos). */
+const AMENITY_NO_COMPATIBLES = new Set([
+  'parking',
+  'parking_entrance',
+  'bus_station',
+  'fuel',
+  'bank',
+  'atm',
+  'pharmacy',
+  'hospital',
+  'clinic',
+  'doctors',
+  'dentist',
+  'police',
+  'post_office',
+  'toilets',
+])
+
+/** `true` si el resultado es de un tipo de lugar donde pasa un evento (ver las dos listas de arriba). */
+function esTipoCompatible(r: ResultadoNominatim): boolean {
+  if (!CATEGORIAS_COMPATIBLES.has(r.category)) return false
+  return !(r.category === 'amenity' && AMENITY_NO_COMPATIBLES.has(r.type))
 }
 
 /** Un punto de dirección (`place/house`) o un edificio (`building/*`): el resultado más preciso que da Nominatim. */

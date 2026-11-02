@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { aCsv, resumen, urlOpenStreetMap } from '@/lib/venues/geocodificacion/reporte'
+import { aCsv, resumen, tablaDeConsola, urlOpenStreetMap } from '@/lib/venues/geocodificacion/reporte'
 
 describe('aCsv', () => {
   it('filas vacías: cadena vacía', () => {
@@ -62,6 +62,29 @@ describe('aCsv: neutraliza la inyección de fórmulas (CSV injection)', () => {
   it('un nombre que arranca con "=" y tiene una coma: el apóstrofo queda adentro de las comillas', () => {
     const csv = aCsv([{ nombre: '=1+1, boom' }])
     expect(csv.split('\r\n')[1]).toBe(`"'=1+1, boom"`)
+  })
+})
+
+describe('tablaDeConsola', () => {
+  it('sin filas: cadena vacía', () => {
+    expect(tablaDeConsola([], new Map())).toBe('')
+  })
+
+  it('una fila por línea, con eventos, estado, confianza y link; un nombre con salto de línea no parte la fila', () => {
+    const filas = [
+      {
+        id: 'a',
+        nombre: 'Club\nde Prueba\u0007',
+        estado: 'para-revisar',
+        confianza: 'revisar' as const,
+        openStreetMapUrl: 'https://www.openstreetmap.org/?mlat=-24.7&mlon=-65.4#map=18/-24.7/-65.4',
+      },
+      { id: 'b', nombre: 'Otro Lugar', estado: 'sin-resultado', confianza: null, openStreetMapUrl: null },
+    ]
+    const lineas = tablaDeConsola(filas, new Map([['a', 3]])).split('\n')
+    expect(lineas).toHaveLength(3)
+    expect(lineas[1]).toBe('Club de Prueba? | 3 | para-revisar | revisar | https://www.openstreetmap.org/?mlat=-24.7&mlon=-65.4#map=18/-24.7/-65.4')
+    expect(lineas[2]).toBe('Otro Lugar | 0 | sin-resultado | - | -')
   })
 })
 
