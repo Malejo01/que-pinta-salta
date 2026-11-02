@@ -131,12 +131,16 @@ describe('"Solo gratis" combinado con el texto', () => {
 // SRC_BUSCAR en vez de un import).
 // ---------------------------------------------------------------------------
 describe('iconoDeCategoria: buscar.tsx usa iconoPorCategoria de components/Icono.tsx (no un mapeo propio)', () => {
-  it('importa iconoPorCategoria desde @/components/Icono', () => {
-    expect(SRC_BUSCAR).toMatch(/import\s*\{[^}]*\biconoPorCategoria\b[^}]*\}\s*from\s*['"]@\/components\/Icono['"]/)
+  // Q4-13: el tile se mudó a components/TileCategoria.tsx (con memo); Buscar lo usa.
+  const SRC_TILE = readFileSync(new URL('../components/TileCategoria.tsx', import.meta.url), 'utf8')
+
+  it('el tile importa iconoPorCategoria desde @/components/Icono, y Buscar usa el tile', () => {
+    expect(SRC_TILE).toMatch(/import\s*\{[^}]*\biconoPorCategoria\b[^}]*\}\s*from\s*['"]@\/components\/Icono['"]/)
+    expect(SRC_BUSCAR).toMatch(/<TileCategoria slug=\{item\.slug\}/)
   })
 
-  it('usa iconoPorCategoria(item.slug) en la tile de categoría (mismo fallback que la web)', () => {
-    expect(SRC_BUSCAR).toMatch(/iconoPorCategoria\(item\.slug\)/)
+  it('usa iconoPorCategoria(slug) del item en la tile de categoría (mismo fallback que la web)', () => {
+    expect(SRC_TILE).toMatch(/iconoPorCategoria\(slug\)/)
   })
 })
 

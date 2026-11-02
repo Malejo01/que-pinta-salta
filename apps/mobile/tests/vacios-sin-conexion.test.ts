@@ -692,7 +692,10 @@ describe('app/(tabs)/buscar.tsx: el vacío, el tile y la grilla vacía (detector
   })
 
   it('el tile ya no dice "1 eventos": textoCantidadEventos', () => {
-    expect(SRC_BUSCAR).toMatch(/\{textoCantidadEventos\(cantidad\)\}/)
+    // Q4-13: el tile vive en components/TileCategoria.tsx.
+    const tile = readFileSync(new URL('../components/TileCategoria.tsx', import.meta.url), 'utf8')
+    expect(tile).toMatch(/\{textoCantidadEventos\(cantidad\)\}/)
+    expect(tile).not.toMatch(/\{cantidad\} eventos/)
     expect(SRC_BUSCAR).not.toMatch(/\{cantidad\} eventos/)
     expect(textoCantidadEventos(1)).toBe('1 evento')
     expect(textoCantidadEventos(0)).toBe('0 eventos')

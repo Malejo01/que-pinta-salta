@@ -1105,7 +1105,8 @@ function violacionesBuscar(fuenteCruda: string): string[] {
   if (!memoChips || !/filtrarConPublico\(\s*estado\.items,\s*\{[^}]*categoria: null[^}]*\bparaChicos: paraChicosActivo\b[^}]*\}/.test(memoChips[1])) v.push('los chips de categoría no salen de lo que queda con Para chicos')
   if (!memoChips || !/\bparaChicosActivo\b/.test(memoChips[2])) v.push('los chips no dependen de Para chicos')
   // "Explorar por categoria" sigue contando sobre todos los eventos.
-  if (!/estado\.items\.filter\(\(item\) => item\.evento\.category === slug\)\.length/.test(c)) v.push('la grilla "Explorar por categoria" ya no cuenta sobre todos los eventos')
+  // Q4-13: el conteo se arma una vez por carga (un Map), siempre sobre TODOS los eventos.
+  if (!/for \(const item of estado\.items\) conteo\.set\(item\.evento\.category,/.test(c)) v.push('la grilla "Explorar por categoria" ya no cuenta sobre todos los eventos')
 
   // Textos y vacío.
   const filtrosTexto = /const filtrosTexto = \{[^}]*\}/.exec(c)?.[0] ?? ''
@@ -1139,7 +1140,7 @@ describe('app/(tabs)/buscar.tsx: el chip "Para chicos"', () => {
     ['resultados sin Para chicos', (s: string) => s.replace('{ atajo, categoria: categoriaFiltro, soloGratis: soloGratisActivo, texto, paraChicos: paraChicosActivo }', '{ atajo, categoria: categoriaFiltro, soloGratis: soloGratisActivo, texto }'), 'los resultados no filtran con Para chicos'],
     ['chips sin Para chicos', (s: string) => s.replace('{ atajo, categoria: null, soloGratis: soloGratisActivo, texto, paraChicos: paraChicosActivo }', '{ atajo, categoria: null, soloGratis: soloGratisActivo, texto }'), 'los chips de categoría no salen de lo que queda con Para chicos'],
     ['sin dependencia', (s: string) => s.replace('}, [estado, texto, atajo, categoriaFiltro, soloGratisActivo, paraChicosActivo])', '}, [estado, texto, atajo, categoriaFiltro, soloGratisActivo])'), 'los resultados no dependen de Para chicos'],
-    ['grilla de categorías filtrada', (s: string) => s.replace('estado.items.filter((item) => item.evento.category === slug).length', 'estado.items.filter((item) => item.paraChicos && item.evento.category === slug).length'), 'la grilla "Explorar por categoria" ya no cuenta sobre todos los eventos'],
+    ['grilla de categorías filtrada', (s: string) => s.replace('for (const item of estado.items) conteo.set(', 'for (const item of estado.items.filter((i) => i.paraChicos)) conteo.set('), 'la grilla "Explorar por categoria" ya no cuenta sobre todos los eventos'],
     ['textos sin Para chicos', (s: string) => s.replace('    paraChicos: paraChicosActivo,\n    categoria', '    paraChicos: false,\n    categoria'), 'los textos no saben de Para chicos'],
     ['vacío sin la salida', (s: string) => s.replace('texto: TEXTO_VER_TODAS_LAS_EDADES', "texto: 'Ver todo'"), 'el vacío no ofrece "Ver todas las edades" (salvo con Infantil)'],
     ['salida que no apaga', (s: string) => s.replace('alTocar: () => setParaChicosActivo(false)', 'alTocar: () => setAtajo(null)'), 'el vacío no ofrece "Ver todas las edades" (salvo con Infantil)'],
