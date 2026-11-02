@@ -4,6 +4,8 @@
 import { useCallback, useEffect, useState } from 'react'
 import { StyleSheet, Switch, View } from 'react-native'
 import { Texto } from '@/components/Texto'
+import { AVISO_SIN_PERMISO, PISTA_PIDE_PERMISO } from '@/lib/push/textos-interruptores'
+import { avisar } from '@/lib/aviso'
 import { usePush } from '@/lib/push'
 import { findeActivo, guardarPreferenciaFinde, programarFinde } from '@/lib/finde'
 
@@ -32,7 +34,11 @@ export function InterruptorFinde() {
       try {
         if (valor && estado !== 'activo') {
           const resultado = await activar()
-          if (resultado !== 'activo') return
+          if (resultado !== 'activo') {
+            // R-2: el interruptor queda apagado; se dice por qué (TalkBack lo lee).
+            avisar(AVISO_SIN_PERMISO)
+            return
+          }
         }
         await guardarPreferenciaFinde(valor)
         setActivo(valor)
@@ -57,7 +63,7 @@ export function InterruptorFinde() {
         onValueChange={(valor) => void cambiar(valor)}
         disabled={guardando}
         accessibilityLabel={ETIQUETA_FINDE}
-        accessibilityHint={DESCRIPCION_FINDE}
+        accessibilityHint={estado === 'activo' ? DESCRIPCION_FINDE : `${DESCRIPCION_FINDE} ${PISTA_PIDE_PERMISO}`}
         accessibilityState={{ checked: activo, busy: guardando }}
       />
     </View>

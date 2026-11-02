@@ -20,12 +20,14 @@ import { useColoresQPS } from '@/lib/colores'
 import { usePush } from '@/lib/push'
 import { avisosVisibles, type AvisosAnonimos } from '@/lib/push/dispositivo'
 import { TEXTOS_PUSH } from '@/lib/push/estado'
+import { AVISO_SIN_PERMISO, PISTA_PIDE_PERMISO } from '@/lib/push/textos-interruptores'
 import { avisosGuardadosDeEsteTelefono, cambiarAvisosDeEsteTelefono } from '@/lib/push/registro'
 
 export const TITULO_AVISOS_SIN_SESION = 'Avisos'
 export const TEXTO_AVISOS_SIN_SESION =
   'Sin cuenta te podemos mandar avisos del equipo y, si los activás, patrocinados. Para recordatorios de lo que guardás y tu Radar, entrá a tu cuenta.'
 export const AVISO_NO_SE_PUDO_CAMBIAR = 'No pudimos cambiar los avisos. Probá de nuevo en un rato.'
+
 
 type Avisos = AvisosAnonimos
 type Clave = keyof Avisos
@@ -59,7 +61,10 @@ export function AvisosSinSesion() {
           // Apagar sin permiso no cambia nada (no llega nada igual).
           if (!valor) return
           const resultado = await activar()
-          if (resultado !== 'activo') return
+          if (resultado !== 'activo') {
+            avisar(AVISO_SIN_PERMISO)
+            return
+          }
         }
         const anterior = guardados
         setGuardados({ ...avisosVisibles(true, guardados), [clave]: valor })
@@ -100,6 +105,7 @@ export function AvisosSinSesion() {
               disabled={boton.accion === null}
               accessibilityRole="button"
               accessibilityLabel={boton.etiqueta}
+              accessibilityState={{ disabled: boton.accion === null, busy: estado === 'pidiendo' }}
               style={[
                 estilos.boton,
                 { borderColor: colores.border, backgroundColor: boton.accion ? colores.primary : colores.muted },
@@ -125,6 +131,7 @@ export function AvisosSinSesion() {
           onValueChange={(valor) => void cambiar('avisosEquipo', valor)}
           disabled={guardando !== null}
           accessibilityLabel="Avisos de Qué Pinta Salta"
+          accessibilityHint={activo ? 'Novedades y avisos del equipo de Qué Pinta Salta.' : PISTA_PIDE_PERMISO}
           accessibilityState={{ checked: visibles.avisosEquipo, busy: guardando === 'avisosEquipo' }}
         />
       </View>
@@ -141,6 +148,7 @@ export function AvisosSinSesion() {
           onValueChange={(valor) => void cambiar('avisosPatrocinados', valor)}
           disabled={guardando !== null}
           accessibilityLabel="Avisos patrocinados"
+          accessibilityHint={activo ? 'Anuncios pagos: hasta 1 por semana.' : PISTA_PIDE_PERMISO}
           accessibilityState={{ checked: visibles.avisosPatrocinados, busy: guardando === 'avisosPatrocinados' }}
         />
       </View>
