@@ -35,6 +35,7 @@ import { CampoTexto } from '@/components/CampoTexto'
 import { EnlacesLegales } from '@/components/EnlacesLegales'
 import { Cargando } from '@/components/EstadoCarga'
 import { Icono, type NombreIcono } from '@/components/Icono'
+import { InterruptorRecordatorios } from '@/components/InterruptorRecordatorios'
 import { LoQueSeguis } from '@/components/LoQueSeguis'
 import { SeccionNotificaciones } from '@/components/SeccionNotificaciones'
 import { Texto } from '@/components/Texto'
@@ -425,6 +426,8 @@ export default function Cuenta() {
         {error ? <Texto style={estilos.error}>{error}</Texto> : null}
 
         <SeccionNotificaciones />
+        {/* Q4-10: recordatorios locales de lo guardado (la tarde anterior). */}
+        <InterruptorRecordatorios />
 
         <FilaAcceso icono="Radio" texto="Mi Radar Salteño" onPress={() => router.push('/radar')} />
         <FilaAcceso icono="Heart" texto="Mis eventos" onPress={() => router.push('/favoritos')} />
