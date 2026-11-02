@@ -24,6 +24,9 @@
 export const PUBLIC_EVENT_COLUMNS = [
   'id',
   'title',
+  // Q4-7: la traducción al inglés (NULL si no hay).
+  'title_en',
+  'description_en',
   'slug',
   'description',
   'short_description',

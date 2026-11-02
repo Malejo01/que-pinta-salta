@@ -42,6 +42,9 @@ export interface TicketSource {
 export interface Event {
   id: string
   title: string
+  /** Q4-7: traducción al inglés; opcional por los fixtures armados a mano (como `featured_until`). */
+  title_en?: string | null
+  description_en?: string | null
   slug: string
   description: string | null
   short_description: string | null

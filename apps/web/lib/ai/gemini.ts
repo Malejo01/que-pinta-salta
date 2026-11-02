@@ -145,3 +145,31 @@ REGLAS CRÍTICAS:
     throw error
   }
 }
+
+/**
+ * Q4-7: una llamada de solo texto al MISMO cliente y modelo (GEMINI_MODEL),
+ * con salida JSON estricta. La usa `lib/ai/traducir-evento.ts`; no cambia nada
+ * de la extracción de flyers. Tira si falta la clave o la respuesta no es JSON.
+ */
+export async function generarJsonDeTexto(
+  systemInstruction: string,
+  texto: string,
+  responseSchema: Record<string, unknown>
+): Promise<unknown> {
+  if (!apiKey) {
+    throw new Error('GEMINI_API_KEY no está configurada. Verifica las variables de entorno.')
+  }
+  const response = await ai.models.generateContent({
+    model: GEMINI_MODEL,
+    contents: [texto],
+    config: {
+      systemInstruction,
+      temperature: 0.1,
+      responseMimeType: 'application/json',
+      responseSchema,
+    },
+  })
+  const responseText = response.text
+  if (!responseText) throw new Error('Gemini devolvió una respuesta vacía')
+  return JSON.parse(responseText) as unknown
+}
