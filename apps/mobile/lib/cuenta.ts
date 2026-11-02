@@ -15,6 +15,7 @@ import { SITIO } from '@qps/core/metricas/links'
 import { CLAVE_BIENVENIDA_VISTA } from '@/lib/bienvenida'
 import { supabase } from '@/lib/supabase'
 import { borrarTodaLaCache } from '@/lib/sin-conexion/cache'
+import { borrarHistorialDeBusquedas } from '@/lib/busquedas-recientes'
 import { removeItem as borrarItemSeguro, setItem as guardarItemSeguro } from '@/lib/secure-storage'
 import { CLAVE_AVISOS_APAGAR_TRAS_BAJA, CLAVE_TOKEN_PUSH } from '@/lib/push/clave-token'
 
@@ -138,6 +139,11 @@ export async function limpiarTrasEliminarCuenta(entroConGoogle: boolean): Promis
     // Best-effort (ver el comentario de cabecera): la cuenta ya está
     // borrada en el servidor, no hay nada que reintentar.
   }
+
+  // Q4-12: las búsquedas recientes viven solo en el teléfono (fuera de
+  // `qps:cache:`, a propósito, para que no se borren con la caché): al
+  // eliminar la cuenta se borran también. Nunca tira.
+  await borrarHistorialDeBusquedas()
 
   try {
     await borrarItemSeguro(CLAVE_TOKEN_PUSH)

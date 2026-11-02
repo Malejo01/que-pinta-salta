@@ -157,7 +157,8 @@ describe('esParaChicos (@qps/core/filtros/publico)', () => {
 
 describe('packages/core/src/filtros/publico.ts: la firma compartida con la web', () => {
   const fuente = quitarComentarios(leer('../../../packages/core/src/filtros/publico.ts'))
-  const FIRMA = /export function esParaChicos\(e: \{ categorySlug\?: string \| null; tags\?: readonly string\[\] \| null \}\): boolean \{/
+  // Q4-12: suma `ageRestriction` y `vibe` (lo de +18 nunca es para chicos, en la web y en la app).
+  const FIRMA = /export function esParaChicos\(e: \{ categorySlug\?: string \| null; tags\?: readonly string\[\] \| null; ageRestriction\?: number \| null; vibe\?: string \| null \}\): boolean \{/
 
   it('la firma es exactamente la acordada y el archivo no importa React ni nada de la app', () => {
     expect(fuente).toMatch(FIRMA)
