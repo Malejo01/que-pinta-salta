@@ -120,6 +120,14 @@ vi.mock('@/lib/supabase', () => ({
   },
 }))
 
+// R82 / Q4-2: la API pública de avisos sin sesión, sin red. Con sesión
+// (lo que prueba este archivo), el registro manda por la RPC aunque la API
+// falle; los casos sin sesión están en tests/push-sin-sesion.test.ts.
+vi.mock('@/lib/push/api', () => ({
+  registrarAnonimo: vi.fn(async () => ({ ok: false, motivo: 'red' })),
+  cambiarPreferenciasAnonimas: vi.fn(async () => ({ ok: false, motivo: 'red' })),
+}))
+
 const almacenSeguro = new Map<string, string>()
 vi.mock('expo-secure-store', () => ({
   getItemAsync: vi.fn(async (clave: string) => (almacenSeguro.has(clave) ? almacenSeguro.get(clave)! : null)),

@@ -62,6 +62,10 @@ function clienteRealista(tablas: Partial<Record<string, Row[]>>) {
       const entrada: RegistroTabla = { llamadas: [] }
       registro[tabla] = [...(registro[tabla] ?? []), entrada]
       let idsFiltrados: string[] | null = null
+      let columnaIn = 'user_id'
+      // R82 / Q4-2: `.is(col, null)` y `.not(col, 'is', null)` filtran de verdad
+      // (la ruta lee por separado las filas con cuenta y las anónimas).
+      const filtrosNulos: Array<{ col: string; nulo: boolean }> = []
 
       const metodoSimple = (nombre: string) => (...args: unknown[]) => {
         entrada.llamadas.push({ metodo: nombre, args })
@@ -74,7 +78,16 @@ function clienteRealista(tablas: Partial<Record<string, Row[]>>) {
           return chain
         },
         eq: metodoSimple('eq'),
-        not: metodoSimple('not'),
+        not: (col: string, op: string, val: unknown) => {
+          entrada.llamadas.push({ metodo: 'not', args: [col, op, val] })
+          if (op === 'is' && val === null) filtrosNulos.push({ col, nulo: false })
+          return chain
+        },
+        is: (col: string, val: unknown) => {
+          entrada.llamadas.push({ metodo: 'is', args: [col, val] })
+          if (val === null) filtrosNulos.push({ col, nulo: true })
+          return chain
+        },
         gt: metodoSimple('gt'),
         gte: metodoSimple('gte'),
         lte: metodoSimple('lte'),
@@ -82,12 +95,14 @@ function clienteRealista(tablas: Partial<Record<string, Row[]>>) {
         in: (col: string, vals: string[]) => {
           entrada.llamadas.push({ metodo: 'in', args: [col, vals] })
           idsFiltrados = vals
+          columnaIn = col
           return chain
         },
         range: (desde: number, hasta: number) => {
           entrada.llamadas.push({ metodo: 'range', args: [desde, hasta] })
           const base = tablas[tabla] ?? []
-          const filtradas = idsFiltrados ? base.filter((fila) => idsFiltrados!.includes(fila.user_id as string)) : base
+          const porNulos = base.filter((fila) => filtrosNulos.every(({ col, nulo }) => (fila[col] == null) === nulo))
+          const filtradas = idsFiltrados ? porNulos.filter((fila) => idsFiltrados!.includes(fila[columnaIn] as string)) : porNulos
           return Promise.resolve({ data: filtradas.slice(desde, hasta + 1), error: null })
         },
         then: (res: (v: unknown) => unknown, rej: (e: unknown) => unknown) => {
@@ -165,7 +180,10 @@ describe('GET /api/cron/notificaciones: QPS-201, push_tokens paginado (sin .in)'
     expect(body.mensajes).toBe(2500)
     expect(body.tokensTruncados).toBeUndefined()
 
-    const llamadasRange = (registro.push_tokens ?? []).flatMap((e) => e.llamadas.filter((l) => l.metodo === 'range'))
+    // R82 / Q4-2: push_tokens se lee dos veces (con cuenta y sin cuenta); acá
+    // cuentan las páginas de la lectura CON cuenta (`.not('user_id', 'is', null)`).
+    const conCuenta = (registro.push_tokens ?? []).filter((e) => e.llamadas.some((l) => l.metodo === 'not'))
+    const llamadasRange = conCuenta.flatMap((e) => e.llamadas.filter((l) => l.metodo === 'range'))
     expect(llamadasRange).toHaveLength(3) // 2500 / 1000 por página: 1000 + 1000 + 500.
     expect(llamadasRange.map((l) => l.args)).toEqual([
       [0, TAMANIO_PAGINA_TOKENS - 1],

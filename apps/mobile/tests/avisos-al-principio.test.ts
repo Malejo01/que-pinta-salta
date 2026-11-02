@@ -333,11 +333,14 @@ describe('detectores por texto', () => {
     expect(codigo).toMatch(/color: colores\.primaryForeground/)
   })
 
-  it('bienvenida.tsx: el texto del paso 2 no dice "lo que guardaste" y sin sesión avisa que se pide al entrar', () => {
+  it('bienvenida.tsx: el texto del paso 2 no dice "lo que guardaste" y, sin sesión, ya no dice que se pide al entrar (R82 / Q4-2)', () => {
     const src = leerFuente('app/bienvenida.tsx')
     expect(src).not.toMatch(/lo que guardaste/)
     expect(src).toMatch(/de lo que guardes/)
-    expect(src).toMatch(/userId \? null : \([\s\S]*?Cuando entres a tu cuenta te lo pedimos\./)
+    // Los avisos andan sin cuenta: «Sí» activa con o sin sesión.
+    expect(src).not.toMatch(/Cuando entres a tu cuenta te lo pedimos\./)
+    expect(src).not.toMatch(/marcarAvisosPendientesLogin/)
+    expect(src).toMatch(/const resultado = await activar\(\)\s*\n[\s\S]*?if \(resultado === 'activo' && userId\) await activarPreferenciasAlAceptar\(userId\)/)
   })
 
   it('el upsert del "al aceptar" decide sponsored con la lectura (ver avisos-pendientes-137)', () => {

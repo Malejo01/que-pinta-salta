@@ -22,6 +22,12 @@ import {
 import { cargarNovedades } from '@/lib/notificaciones/novedades'
 import { leerPaginado, type RespuestaDePagina } from '@/lib/notificaciones/paginado'
 import { cargarCampaniaVigente, leerPausaPatrocinado } from '@/lib/notificaciones/patrocinados'
+import {
+  destinatarioDeEnvio,
+  sinTokensRepetidos,
+  usuarioParaTandaDeAnonimo,
+  type FilaTokenAnonimo,
+} from '@qps/core/notificaciones/anonimos'
 
 // Igual que recurrentes/route.ts: sin esto Vercel puede cortar la función a
 // mitad y dejar la corrida en RUNNING (como sus crones hermanos, scrape,
@@ -143,9 +149,13 @@ async function enviarNotificaciones(): Promise<NotificacionesReply> {
   // Sin token no hay nada que mandar, así que acota todo lo demás. QPS-201:
   // push_tokens no tiene `.in` (es la tabla entera), así que se pagina
   // directo con leerPaginado, con un orden estable (`id`).
-  const resultadoTokens = await leerPaginado<{ id: string; user_id: string; token: string }>(
+  // R82 / Q4-2: solo filas CON cuenta (`user_id` no nulo); las anónimas se
+  // leen aparte (paso 1b). Sin este filtro, una fila anónima metería la clave
+  // `null` en `tokensPorUsuario`.
+  const resultadoTokens = await leerPaginado<{ id: string; user_id: string | null; token: string }>(
     TAMANIO_PAGINA_TOKENS,
-    (desde, hasta) => comoPagina(supabase.from('push_tokens').select('id, user_id, token').order('id').range(desde, hasta)),
+    (desde, hasta) =>
+      comoPagina(supabase.from('push_tokens').select('id, user_id, token').not('user_id', 'is', null).order('id').range(desde, hasta)),
   )
   if (!resultadoTokens.ok) {
     console.error('[CronNotificaciones] Error al leer push_tokens:', resultadoTokens.error)
@@ -154,17 +164,43 @@ async function enviarNotificaciones(): Promise<NotificacionesReply> {
   // Si se llegó al tope de páginas sin ver nunca una corta, puede quedar
   // gente sin token en esta tanda: la corrida sigue (no es un error), pero
   // queda PARTIAL y lo dice el log — nunca un token ni un id en `details`.
-  const tokensTruncados = resultadoTokens.truncado
+  let tokensTruncados = resultadoTokens.truncado
 
   const tokensPorUsuario = new Map<string, string[]>()
   for (const fila of resultadoTokens.filas) {
+    if (!fila.user_id) continue
     const lista = tokensPorUsuario.get(fila.user_id)
     if (lista) lista.push(fila.token)
     else tokensPorUsuario.set(fila.user_id, [fila.token])
   }
   const userIds = [...tokensPorUsuario.keys()]
 
-  if (userIds.length === 0) {
+  // 1b. R82 / Q4-2: teléfonos SIN cuenta. Solo pueden recibir el patrocinado
+  // (si lo activaron): ni favoritos, ni novedades, ni Radar. Su «id» en la
+  // tanda es el id de su fila de push_tokens (ver @qps/core/notificaciones/anonimos).
+  const resultadoAnonimos = await leerPaginado<FilaTokenAnonimo & { user_id?: string | null }>(TAMANIO_PAGINA_TOKENS, (desde, hasta) =>
+    comoPagina(
+      supabase
+        .from('push_tokens')
+        .select('id, user_id, token, avisos_equipo, avisos_patrocinados')
+        .is('user_id', null)
+        .order('id')
+        .range(desde, hasta),
+    ),
+  )
+  if (!resultadoAnonimos.ok) {
+    console.error('[CronNotificaciones] Error al leer push_tokens sin cuenta:', resultadoAnonimos.error)
+    return reply(500, { error: 'push_tokens query failed' })
+  }
+  if (resultadoAnonimos.truncado) tokensTruncados = true
+  const tokensConCuenta = [...tokensPorUsuario.values()].flat()
+  const anonimos = sinTokensRepetidos(
+    resultadoAnonimos.filas.filter((fila) => !fila.user_id),
+    tokensConCuenta,
+  )
+  const idsAnonimos = new Set(anonimos.map((fila) => fila.id))
+
+  if (userIds.length === 0 && anonimos.length === 0) {
     // Sin tokens, no hay nada que armar, pero la ventana de novedades tiene
     // que avanzar igual (novedadesHasta = ahora): si no, el día que no haya
     // ningún token la ventana queda clavada, y al aparecer el primero se
@@ -288,6 +324,31 @@ async function enviarNotificaciones(): Promise<NotificacionesReply> {
     enviosPorUsuario.set(fila.user_id, lista)
   }
 
+  // 4b. R82 / Q4-2: envíos de los anónimos, por push_token_id (el tope
+  // semanal del patrocinado depende de esta lectura, igual que la de arriba).
+  type FilaEnvioAnonimo = { push_token_id: string; dedupe_key: string; sent_at: string }
+  const resultadoSendsAnonimos = await leerEnLotesYPaginas<FilaEnvioAnonimo>([...idsAnonimos], (loteIds, desde, hasta) =>
+    comoPagina(
+      supabase
+        .from('notification_sends')
+        .select('push_token_id, dedupe_key, sent_at')
+        .in('push_token_id', loteIds)
+        .order('id')
+        .range(desde, hasta),
+    ),
+  )
+  if (!resultadoSendsAnonimos.ok) {
+    console.error('[CronNotificaciones] Error al leer notification_sends sin cuenta:', resultadoSendsAnonimos.error)
+    return reply(500, { error: 'notification_sends query failed' })
+  }
+  const enviosPorAnonimo = new Map<string, EnvioRegistradoParaTanda[]>()
+  for (const fila of resultadoSendsAnonimos.filas) {
+    if (!fila.push_token_id || !idsAnonimos.has(fila.push_token_id)) continue
+    const lista = enviosPorAnonimo.get(fila.push_token_id) ?? []
+    lista.push({ dedupe_key: fila.dedupe_key, sent_at: fila.sent_at })
+    enviosPorAnonimo.set(fila.push_token_id, lista)
+  }
+
   // 5. Novedades (follow_news): cargarNovedades (apps/web/lib/notificaciones/novedades.ts,
   // tarea 41-b, con su propio loteo/paginado QPS-201 desde la 51-b) resuelve,
   // por cada usuario, la ventana de tiempo (inicioVentanaNovedades, 41-a, por
@@ -320,14 +381,18 @@ async function enviarNotificaciones(): Promise<NotificacionesReply> {
   const campania = estadoPausa === 'libre' ? resultadoCampania.campania : null
   const patrocinadoDescartado = resultadoCampania.descartada
 
-  const usuarios: UsuarioParaTanda[] = userIds.map((userId) => ({
-    userId,
-    preferencias: preferenciasPorUsuario.get(userId) ?? null,
-    tokens: tokensPorUsuario.get(userId) ?? [],
-    favoritos: favoritosPorUsuario.get(userId) ?? [],
-    novedades: novedadesPorUsuario.get(userId) ?? [],
-    enviosRegistrados: enviosPorUsuario.get(userId) ?? [],
-  }))
+  const usuarios: UsuarioParaTanda[] = [
+    ...userIds.map((userId) => ({
+      userId,
+      preferencias: preferenciasPorUsuario.get(userId) ?? null,
+      tokens: tokensPorUsuario.get(userId) ?? [],
+      favoritos: favoritosPorUsuario.get(userId) ?? [],
+      novedades: novedadesPorUsuario.get(userId) ?? [],
+      enviosRegistrados: enviosPorUsuario.get(userId) ?? [],
+    })),
+    // Después de los usuarios con cuenta (R82 / Q4-2).
+    ...anonimos.map((fila) => usuarioParaTandaDeAnonimo(fila, enviosPorAnonimo.get(fila.id) ?? [])),
+  ]
 
   const mensajes = armarTanda(
     { usuarios, patrocinado: campania ? { id: campania.id, titulo: campania.titulo, cuerpo: campania.cuerpo, eventId: campania.eventId } : null },
@@ -347,6 +412,7 @@ async function enviarNotificaciones(): Promise<NotificacionesReply> {
       dryRun: true,
       mensajes: mensajes.length,
       porTipo,
+      ...(anonimos.length > 0 ? { anonimos: anonimos.length } : {}),
       novedadesHasta: ahora.toISOString(),
       patrocinados,
       campaniaId,
@@ -427,7 +493,8 @@ async function enviarNotificaciones(): Promise<NotificacionesReply> {
 
   let erroresRegistro = 0
   const filas = [...porDedupe.values()].map((mensaje) => ({
-    user_id: mensaje.userId,
+    // R82 / Q4-2: un anónimo lleva push_token_id en vez de user_id.
+    ...destinatarioDeEnvio(mensaje.userId, idsAnonimos),
     kind: mensaje.kind,
     channel: 'push',
     status: 'SUCCESS',
@@ -496,10 +563,17 @@ async function enviarNotificaciones(): Promise<NotificacionesReply> {
     }
   }
 
+  // R82 / Q4-2 (decisión 8): limpieza de envíos viejos (QPS-238, 90 días) y
+  // de teléfonos sin cuenta que no se renuevan hace 180 días. Solo en modo
+  // real (el dryRun promete no escribir). Si falla, no tumba la corrida.
+  const limpieza = await limpiar(supabase)
+
   return reply(200, {
     dryRun: false,
     mensajes: mensajes.length,
     porTipo,
+    ...(anonimos.length > 0 ? { anonimos: anonimos.length } : {}),
+    ...limpieza,
     descartados,
     tokensInvalidosBorrados: invalidos.length,
     erroresLote: erroresEnvio.length + erroresReceipts.length,
@@ -515,6 +589,28 @@ async function enviarNotificaciones(): Promise<NotificacionesReply> {
     ...(patrocinadoSentAtError ? { patrocinadoSentAtError: true } : {}),
     ...(destinatariosError ? { destinatariosError } : {}),
   })
+}
+
+/** Días de `purge_notification_sends` (QPS-238) y de `purge_push_tokens_anonimos` (R82). */
+const DIAS_ENVIOS = 90
+const DIAS_ANONIMOS = 180
+
+type ResultadoLimpieza = { enviosPurgados?: number; anonimosPurgados?: number; limpiezaError?: true }
+
+async function limpiar(supabase: ReturnType<typeof createAdminClient>): Promise<ResultadoLimpieza> {
+  const resultado: ResultadoLimpieza = {}
+  try {
+    const envios = await supabase.rpc('purge_notification_sends', { p_days: DIAS_ENVIOS })
+    if (envios.error) resultado.limpiezaError = true
+    else if (typeof envios.data === 'number') resultado.enviosPurgados = envios.data
+    const anonimos = await supabase.rpc('purge_push_tokens_anonimos', { p_days: DIAS_ANONIMOS })
+    if (anonimos.error) resultado.limpiezaError = true
+    else if (typeof anonimos.data === 'number') resultado.anonimosPurgados = anonimos.data
+  } catch {
+    resultado.limpiezaError = true
+  }
+  if (resultado.limpiezaError) console.error('[CronNotificaciones] La limpieza de envíos o de teléfonos sin cuenta falló')
+  return resultado
 }
 
 /** Traduce la respuesta de la ruta a la fila de job_runs. */
@@ -536,6 +632,10 @@ function toOutcome(r: NotificacionesReply): JobOutcome {
     patrocinadoPausado?: boolean
     patrocinadoPausaIlegible?: boolean
     destinatariosError?: string
+    anonimos?: number
+    enviosPurgados?: number
+    anonimosPurgados?: number
+    limpiezaError?: true
   }
   // `erroresLote` solo cuenta lotes enteros que fallaron (timeout, red, HTTP);
   // `enviosNoRegistradosPorFalla` suma además los avisos que Expo procesó
@@ -570,6 +670,11 @@ function toOutcome(r: NotificacionesReply): JobOutcome {
       ...(body.patrocinadoPausado ? { patrocinadoPausado: true } : {}),
       ...(body.patrocinadoPausaIlegible ? { patrocinadoPausaIlegible: true } : {}),
       ...(body.destinatariosError ? { destinatariosError: body.destinatariosError } : {}),
+      // R82 / Q4-2: solo conteos, nunca tokens ni ids.
+      ...(body.anonimos ? { anonimos: body.anonimos } : {}),
+      ...(typeof body.enviosPurgados === 'number' ? { enviosPurgados: body.enviosPurgados } : {}),
+      ...(typeof body.anonimosPurgados === 'number' ? { anonimosPurgados: body.anonimosPurgados } : {}),
+      ...(body.limpiezaError ? { limpiezaError: true } : {}),
     },
   }
 }
