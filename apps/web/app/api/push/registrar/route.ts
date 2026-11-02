@@ -69,12 +69,14 @@ export async function POST(request: Request) {
 
     const { data: fila, error: errorLectura } = await admin
       .from('push_tokens')
-      .select('avisos_equipo, avisos_patrocinados')
+      .select('user_id, avisos_equipo, avisos_patrocinados')
       .eq('token', token)
       .eq('device_id', deviceId)
       .maybeSingle()
-    if (errorLectura || !fila) {
-      // Quedó registrado; los interruptores se leen en el próximo arranque.
+    // R-4: con cuenta (`user_id` no nulo), los interruptores de la fila no
+    // valen (mandan las preferencias de la cuenta, decisión 1): no se
+    // devuelven, para que la app no los tome como «el estado sin cuenta».
+    if (errorLectura || !fila || fila.user_id !== null) {
       return respuestaOk({ registrado: true, deviceId })
     }
     return respuestaOk({

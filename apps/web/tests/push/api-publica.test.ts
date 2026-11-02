@@ -35,7 +35,7 @@ function crearAdmin(opts: { rpc?: { data: unknown; error: unknown }; fila?: unkn
           return q
         },
         maybeSingle: async () => ({
-          data: opts.fila === undefined ? { avisos_equipo: true, avisos_patrocinados: false } : opts.fila,
+          data: opts.fila === undefined ? { user_id: null, avisos_equipo: true, avisos_patrocinados: false } : opts.fila,
           error: null,
         }),
       }
@@ -191,6 +191,13 @@ describe('POST /api/push/registrar', () => {
     const res = await registrar(pedido('/api/push/registrar', { token: TOKEN, plataforma: 'ios', deviceId: DEVICE }))
     expect((await res.json()).deviceId).toBe(DEVICE)
     expect(llamadas[0].args.p_device_id).toBe(DEVICE)
+  })
+
+  it('R-4: fila con cuenta (user_id): no devuelve los interruptores (mandan las preferencias de la cuenta)', async () => {
+    crearAdmin({ fila: { user_id: 'u-1', avisos_equipo: true, avisos_patrocinados: false } })
+    const { registrar } = await rutas()
+    const cuerpo = await (await registrar(pedido('/api/push/registrar', { token: TOKEN, plataforma: 'android', deviceId: DEVICE }))).json()
+    expect(cuerpo).toEqual({ ok: true, registrado: true, deviceId: DEVICE })
   })
 
   it('token de otro dispositivo: 200 registrado:false, sin deviceId ni interruptores', async () => {
