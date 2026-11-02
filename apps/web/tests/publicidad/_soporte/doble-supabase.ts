@@ -294,7 +294,7 @@ function validar(almacen: Almacen, tabla: string, fila: Fila, previa: Fila | nul
           fila.audiencia >= 0,
         'ad_price_cycles_audiencia_check',
       ) ??
-      check(['vercel', 'manual'].includes(String(fila.fuente_audiencia)), 'ad_price_cycles_fuente_audiencia_check') ??
+      check(['vercel', 'manual', 'anterior'].includes(String(fila.fuente_audiencia)), 'ad_price_cycles_fuente_audiencia_check') ??
       check(Number(fila.tramo_calculado) > 0 && Number(fila.tramo_vigente) > 0, 'ad_price_cycles_tramo_check') ??
       check(Number(fila.tipo_cambio) > 0, 'ad_price_cycles_tipo_cambio_check') ??
       check(

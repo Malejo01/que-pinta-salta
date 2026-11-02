@@ -183,13 +183,30 @@ export interface CicloAnterior {
   precios: Partial<Record<ProductoConPrecio, PrecioVigente>>
 }
 
+/**
+ * De dónde salió la audiencia del ciclo (Q4-5): `'vercel'` (automática),
+ * `'manual'` (la cargó un admin) o `'anterior'` (el cron la copió del ciclo
+ * previo, o 0: falta cargarla antes de aprobar).
+ */
+export type FuenteAudiencia = 'vercel' | 'manual' | 'anterior'
+
+/** La fuente guardada en la base, como `FuenteAudiencia` (lo desconocido cuenta como `'vercel'`, como antes). */
+export function fuenteAudienciaGuardada(valor: string | null | undefined): FuenteAudiencia {
+  return valor === 'manual' || valor === 'anterior' ? valor : 'vercel'
+}
+
+/** Q4-5: el aviso «Es la audiencia del mes anterior: cargala a mano» sale de la fuente, no de comparar números. */
+export function faltaCargarAudiencia(fuente: string | null | undefined): boolean {
+  return fuente === 'anterior'
+}
+
 export interface EntradaPropuesta {
   /** `'AAAA-MM-01'`. */
   ciclo: string
   audienciaWeb28d: number
   mauApp28d: number | null
   dispositivosPush: number | null
-  fuenteAudiencia: 'vercel' | 'manual'
+  fuenteAudiencia: FuenteAudiencia
   tipoCambio: number
   fuenteTipoCambio: string
   /** Ocupación del Hero de los dos meses anteriores, `[m-2, m-1]`. */
@@ -205,7 +222,7 @@ export interface FilaCicloPropuesto {
   mau_app_28d: number | null
   dispositivos_push: number | null
   audiencia: number
-  fuente_audiencia: 'vercel' | 'manual'
+  fuente_audiencia: FuenteAudiencia
   tramo_calculado: number
   tramo_vigente: number
   cambio_tramo_desde: string | null

@@ -278,11 +278,11 @@ describe('R58 de punta a punta: tres meses de corridas diarias', () => {
     expect(delPeriodo.every((f) => f.hero_ocupados === 6 && f.hero_cupos === 6)).toBe(true)
   })
 
-  it('el ciclo del 1/12 se propone: estado "propuesto", audiencia manual y el dólar de la fuente', () => {
+  it('el ciclo del 1/12 se propone: estado "propuesto", audiencia del anterior (Q4-5) y el dólar de la fuente', () => {
     expect(c.dic1).toMatchObject({ ciclo: 'creado' })
     expect(c.cicloDicPropuesto).toMatchObject({
       estado: 'propuesto',
-      fuente_audiencia: 'manual',
+      fuente_audiencia: 'anterior',
       fuente_tipo_cambio: 'dolarapi',
       tipo_cambio: 1530,
       approved_at: null,
