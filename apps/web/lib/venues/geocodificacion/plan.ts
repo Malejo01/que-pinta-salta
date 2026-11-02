@@ -308,6 +308,14 @@ export function contarEventosProximos(
 }
 
 /**
+ * Los lugares con al menos un evento próximo (el filtro por defecto de la
+ * corrida; `--todos` lo saltea). No modifica `lugares`.
+ */
+export function soloConEventosProximos<T extends { id: string }>(lugares: T[], conteo: Map<string, number>): T[] {
+  return lugares.filter((l) => (conteo.get(l.id) ?? 0) > 0)
+}
+
+/**
  * Los lugares de más a menos eventos próximos (los que no están en `conteo`
  * cuentan 0); a igual cantidad, por nombre. Así `--limite 20` mira primero
  * los que más importan, y el reporte sale en el orden en que conviene

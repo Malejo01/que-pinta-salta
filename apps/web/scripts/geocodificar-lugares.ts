@@ -10,7 +10,13 @@
  *   npx tsx scripts/geocodificar-lugares.ts                      # consulta y arma el reporte; NO escribe en la base
  *   npx tsx scripts/geocodificar-lugares.ts --limite 20
  *   npx tsx scripts/geocodificar-lugares.ts --apply               # además guarda los de confianza alta
+ *   npx tsx scripts/geocodificar-lugares.ts --aplicar             # igual que --apply
+ *   npx tsx scripts/geocodificar-lugares.ts --todos               # incluye los lugares sin eventos próximos
  *   npx tsx scripts/geocodificar-lugares.ts --rehacer-nominatim
+ *
+ * Por defecto mira solo los lugares con al menos un evento próximo; `--todos`
+ * mira todos los elegibles. Imprime una tabla (lugar, eventos, resultado,
+ * confianza, link a OpenStreetMap) antes del resumen.
  *
  * Sin `--apply` es modo consulta: no guarda nada, solo arma el reporte (JSON
  * y CSV en `ops/geocodificacion/`) para revisar a mano. Con `--apply`,
@@ -40,10 +46,11 @@ import {
   lugaresAGeocodificar,
   ordenarPorEventosProximos,
   quedanParaCargarAMano,
+  soloConEventosProximos,
   type FilaReporteGeocodificacion,
   type VenueParaGeocodificar,
 } from '../lib/venues/geocodificacion/plan'
-import { aCsv, resumen, urlOpenStreetMap, type FilaCsv } from '../lib/venues/geocodificacion/reporte'
+import { aCsv, resumen, tablaDeConsola, urlOpenStreetMap, type FilaCsv } from '../lib/venues/geocodificacion/reporte'
 import { traerTodasLasFilas } from '../lib/images/paginar-filas'
 
 /**
@@ -120,7 +127,7 @@ async function main() {
     return
   }
 
-  const { apply, limite, rehacerNominatim, sinCache, salida, cache: archivoCacheOpcion } = opciones
+  const { apply, limite, rehacerNominatim, sinCache, todos, salida, cache: archivoCacheOpcion } = opciones
 
   console.log(
     apply
@@ -186,12 +193,17 @@ async function main() {
 
   const { elegibles, paraRevisarPrevios: previosSinOrden } = lugaresAGeocodificar(venues, { rehacerNominatim })
   const paraRevisarPrevios = ordenarPorEventosProximos(previosSinOrden, conteoEventos)
-  const recortados = ordenarPorEventosProximos(elegibles, conteoEventos).slice(0, limite)
-  const descartadosPorTope = elegibles.length - recortados.length
+  // Por defecto solo los que tienen algún evento próximo; con --todos, todos los elegibles.
+  const aMirar = todos ? elegibles : soloConEventosProximos(elegibles, conteoEventos)
+  const sinEventosProximos = elegibles.length - aMirar.length
+  const recortados = ordenarPorEventosProximos(aMirar, conteoEventos).slice(0, limite)
+  const descartadosPorTope = aMirar.length - recortados.length
 
   const tiempoEstimadoSeg = Math.ceil(recortados.length * 4 * 1.1)
   console.log(
-    `[geocodificar-lugares] lugares a mirar: ${recortados.length} de ${elegibles.length} elegibles, de más a menos eventos próximos` +
+    `[geocodificar-lugares] lugares a mirar: ${recortados.length} de ${aMirar.length} (de ${elegibles.length} elegibles` +
+      (todos ? ', con --todos' : `; ${sinEventosProximos} sin eventos próximos quedan afuera, usá --todos para incluirlos`) +
+      '), de más a menos eventos próximos' +
       (descartadosPorTope > 0 ? ` (${descartadosPorTope} quedaron afuera por --limite ${limite})` : '') +
       `. Tiempo estimado: hasta ${tiempoEstimadoSeg}s (hasta 4 consultas por lugar, 1,1s entre pedidos).`
   )
@@ -277,7 +289,10 @@ async function main() {
     modo: apply ? ('apply' as const) : ('consulta' as const),
     rehacerNominatim,
     limite,
+    todos,
     elegibles: elegibles.length,
+    sinEventosProximos,
+    paraMirar: aMirar.length,
     mirados: recortados.length,
     descartadosPorTope,
     resumen: resumen(filas),
@@ -294,6 +309,9 @@ async function main() {
   // `eventos_proximos`: Mauro carga a mano empezando por los que más importan.
   const filasCsv: FilaCsv[] = todasLasFilas.map((fila) => ({ eventos_proximos: conteoEventos.get(fila.id) ?? 0, ...fila }))
   writeFileSync(rutaCsv, aCsv(filasCsv), 'utf8')
+
+  const tabla = tablaDeConsola(todasLasFilas, conteoEventos)
+  if (tabla) console.log(tabla)
 
   console.log('[geocodificar-lugares] resumen de esta corrida:', resumen(filas))
   console.log(
