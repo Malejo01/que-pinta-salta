@@ -42,6 +42,15 @@ export const TEXTO_PERMISO_CALENDARIO =
  * permiso se pide recién al tocar "Cerca mío" (R55); nada de ubicación en
  * segundo plano. Este texto es el de iOS; en Android el diálogo es del sistema.
  */
+/**
+ * Q4-8: permisos que el manifiesto final NO puede tener. La ubicación precisa
+ * (FINE) y la de segundo plano: alcanza con ACCESS_COARSE_LOCATION.
+ */
+export const PERMISOS_BLOQUEADOS = [
+  'android.permission.ACCESS_FINE_LOCATION',
+  'android.permission.ACCESS_BACKGROUND_LOCATION',
+]
+
 export const TEXTO_PERMISO_UBICACION =
   'Qué Pinta Salta usa tu ubicación solo cuando tocás "Cerca mío", para mostrarte los eventos que tenés más cerca.'
 
@@ -131,6 +140,11 @@ const config: ExpoConfig = {
   icon: './assets/icon.png',
   android: {
     package: 'ar.com.quepintasalta.app',
+    // Q4-8 (política de Play del 27/01/2027): la app pide SOLO la ubicación
+    // aproximada. expo-location y MapLibre declaran ACCESS_FINE_LOCATION en
+    // sus manifiestos; esto la saca del manifiesto final (tools:node="remove").
+    // Lo fija tests/ubicacion-aproximada.test.ts. Ver docs/play/ubicacion.md.
+    blockedPermissions: PERMISOS_BLOQUEADOS,
     ...(googleServicesFile(process.env) ? { googleServicesFile: googleServicesFile(process.env) } : {}),
     adaptiveIcon: {
       foregroundImage: './assets/adaptive-icon.png',
