@@ -54,7 +54,7 @@ function paginas(dir: string): string[] {
 }
 
 const PUBLICAS = paginas(APP)
-  .map((abs) => relative(RAIZ, abs))
+  .map((abs) => relative(RAIZ, abs).replaceAll('\\', '/'))
   .filter((rel) => !rel.startsWith('app/admin/') && !rel.startsWith('app/@modal/'))
   .sort()
 
