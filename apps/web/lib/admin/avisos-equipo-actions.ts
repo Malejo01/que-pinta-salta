@@ -25,6 +25,12 @@ import { formatSaltaDayKey } from '@qps/core/date-format'
 import { enLotes, TAMANIO_LOTE_IN, TAMANIO_PAGINA_TOKENS } from '@qps/core/notificaciones/lotes'
 import type { CanalRadar, PreferenciasNotificacion } from '@qps/core/notificaciones/preferencias'
 import {
+  destinatarioDeEnvio,
+  sinTokensRepetidos,
+  usuarioParaAvisoEquipoDeAnonimo,
+  type FilaTokenAnonimo,
+} from '@qps/core/notificaciones/anonimos'
+import {
   claveDedupeAvisoEquipo,
   datosPushAvisoEquipo,
   destinatariosAvisoEquipo,
@@ -116,12 +122,20 @@ type FilaPref = {
   daily_cap: number
 }
 
-type ResultadoUsuarios = { ok: true; usuarios: UsuarioParaAvisoEquipo[] } | { ok: false }
+type ResultadoUsuarios = { ok: true; usuarios: UsuarioParaAvisoEquipo[]; idsAnonimos: Set<string> } | { ok: false }
 
-/** Todos los usuarios con token, con sus preferencias y los envíos de las últimas 36 h. Cliente admin ya creado por quien llama. */
+/**
+ * Todos los teléfonos con token, con sus preferencias y los envíos de las
+ * últimas 36 h. Cliente admin ya creado por quien llama.
+ *
+ * R82 / Q4-2: los usuarios con cuenta (mandan sus `notification_preferences`)
+ * y, aparte, los teléfonos sin cuenta (mandan `push_tokens.avisos_equipo`),
+ * con filtros excluyentes por `user_id`: un token nunca sale dos veces. Un
+ * anónimo entra con el id de su fila de `push_tokens` (`idsAnonimos`).
+ */
 async function cargarUsuarios(admin: SupabaseClient, ahora: Date): Promise<ResultadoUsuarios> {
-  const resultadoTokens = await leerPaginado<{ user_id: string; token: string }>(TAMANIO_PAGINA_TOKENS, (desde, hasta) =>
-    comoPagina(admin.from('push_tokens').select('user_id, token').order('id').range(desde, hasta)),
+  const resultadoTokens = await leerPaginado<{ user_id: string | null; token: string }>(TAMANIO_PAGINA_TOKENS, (desde, hasta) =>
+    comoPagina(admin.from('push_tokens').select('user_id, token').not('user_id', 'is', null).order('id').range(desde, hasta)),
   )
   if (!resultadoTokens.ok) {
     console.error('avisos-equipo: error leyendo push_tokens')
@@ -135,6 +149,7 @@ async function cargarUsuarios(admin: SupabaseClient, ahora: Date): Promise<Resul
 
   const tokensPorUsuario = new Map<string, string[]>()
   for (const fila of resultadoTokens.filas) {
+    if (!fila.user_id) continue
     const lista = tokensPorUsuario.get(fila.user_id)
     if (lista) lista.push(fila.token)
     else tokensPorUsuario.set(fila.user_id, [fila.token])
@@ -191,14 +206,79 @@ async function cargarUsuarios(admin: SupabaseClient, ahora: Date): Promise<Resul
     }
   }
 
+  const anonimos = await cargarAnonimos(admin, desde, [...tokensPorUsuario.values()].flat())
+  if (!anonimos.ok) return { ok: false }
+
   return {
     ok: true,
-    usuarios: userIds.map((userId) => ({
-      userId,
-      preferencias: prefsPorUsuario.get(userId) ?? null,
-      tokens: tokensPorUsuario.get(userId) ?? [],
-      enviosRegistrados: enviosPorUsuario.get(userId) ?? [],
-    })),
+    usuarios: [
+      ...userIds.map((userId) => ({
+        userId,
+        preferencias: prefsPorUsuario.get(userId) ?? null,
+        tokens: tokensPorUsuario.get(userId) ?? [],
+        enviosRegistrados: enviosPorUsuario.get(userId) ?? [],
+      })),
+      ...anonimos.usuarios,
+    ],
+    idsAnonimos: anonimos.ids,
+  }
+}
+
+/** R82 / Q4-2: teléfonos sin cuenta y sus envíos (por `push_token_id`) desde `desde`. */
+async function cargarAnonimos(
+  admin: SupabaseClient,
+  desde: string,
+  tokensConCuenta: string[],
+): Promise<{ ok: true; usuarios: UsuarioParaAvisoEquipo[]; ids: Set<string> } | { ok: false }> {
+  const leidos = await leerPaginado<FilaTokenAnonimo & { user_id: string | null }>(TAMANIO_PAGINA_TOKENS, (d, h) =>
+    comoPagina(
+      admin
+        .from('push_tokens')
+        .select('id, user_id, token, avisos_equipo, avisos_patrocinados')
+        .is('user_id', null)
+        .order('id')
+        .range(d, h),
+    ),
+  )
+  if (!leidos.ok || leidos.truncado) {
+    console.error('avisos-equipo: error leyendo los teléfonos sin cuenta')
+    return { ok: false }
+  }
+  const filas = sinTokensRepetidos(
+    leidos.filas.filter((f) => !f.user_id).map((f) => ({ ...f, id: String(f.id) })),
+    tokensConCuenta,
+  )
+  const ids = new Set(filas.map((f) => f.id))
+
+  const enviosPorAnonimo = new Map<string, { dedupe_key: string; sent_at: string }[]>()
+  for (const lote of enLotes([...ids], TAMANIO_LOTE_IN)) {
+    const envios = await leerPaginado<{ push_token_id: string; dedupe_key: string; sent_at: string }>(TAMANIO_PAGINA_TOKENS, (d, h) =>
+      comoPagina(
+        admin
+          .from('notification_sends')
+          .select('push_token_id, dedupe_key, sent_at')
+          .in('push_token_id', lote)
+          .gte('sent_at', desde)
+          .order('id')
+          .range(d, h),
+      ),
+    )
+    if (!envios.ok) {
+      console.error('avisos-equipo: error leyendo los envíos de los teléfonos sin cuenta')
+      return { ok: false }
+    }
+    for (const fila of envios.filas) {
+      const clave = String(fila.push_token_id)
+      const lista = enviosPorAnonimo.get(clave) ?? []
+      lista.push({ dedupe_key: fila.dedupe_key, sent_at: fila.sent_at })
+      enviosPorAnonimo.set(clave, lista)
+    }
+  }
+
+  return {
+    ok: true,
+    usuarios: filas.map((f) => usuarioParaAvisoEquipoDeAnonimo(f, enviosPorAnonimo.get(f.id) ?? [])),
+    ids,
   }
 }
 
@@ -353,7 +433,8 @@ export async function enviarAvisoEquipoATodos(
   const reservadas = new Set<string>()
   for (const lote of enLotes(personasUnicas, TAMANIO_LOTE_INSERT)) {
     const filas = lote.map((userId) => ({
-      user_id: userId,
+      // R82 / Q4-2: un anónimo reserva con push_token_id y user_id nulo.
+      ...destinatarioDeEnvio(userId, cargados.idsAnonimos),
       kind: 'anuncio',
       channel: 'push',
       status: 'PENDIENTE',
@@ -363,14 +444,17 @@ export async function enviarAvisoEquipoATodos(
     const { data, error } = await admin
       .from('notification_sends')
       .upsert(filas, { onConflict: 'dedupe_key', ignoreDuplicates: true })
-      .select('user_id')
+      .select('user_id, push_token_id')
     if (error) {
       console.error('avisos-equipo: error reservando los envíos', error.code)
       // Lo ya reservado en lotes anteriores no se manda: se libera.
       await liberarReservas(admin, [...reservadas], ahora)
       return { ok: false, error: MENSAJE_ERROR_GENERICO }
     }
-    for (const fila of (data ?? []) as { user_id: string }[]) reservadas.add(fila.user_id)
+    for (const fila of (data ?? []) as { user_id: string | null; push_token_id?: string | null }[]) {
+      const id = fila.user_id ?? (fila.push_token_id != null ? String(fila.push_token_id) : null)
+      if (id) reservadas.add(id)
+    }
   }
   if (reservadas.size === 0) return { ok: false, error: MENSAJE_YA_HUBO_HOY }
 

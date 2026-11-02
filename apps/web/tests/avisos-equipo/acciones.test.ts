@@ -908,3 +908,63 @@ describe('sin tokens, emails ni ids de usuario en respuestas ni en logs', () => 
 function emailUsuarioDeLaFila(): string {
   return 'persona-1-de-prueba@ejemplo.invalid'
 }
+
+// ---------------------------------------------------------------------------
+// R82 / Q4-2: teléfonos sin cuenta
+// ---------------------------------------------------------------------------
+describe('aviso del equipo a teléfonos sin cuenta (R82 / Q4-2)', () => {
+  const TOKEN_ANON_SI = 'ExponentPushToken[anon-equipo-si]'
+  const TOKEN_ANON_NO = 'ExponentPushToken[anon-equipo-no]'
+
+  function sembrarAnonimo(db: BaseEnMemoria, token: string, avisosEquipo: boolean): string {
+    const id = `anon-${db.nuevoId()}`
+    db.tablas.push_tokens.push({ id, user_id: null, device_id: 'd', token, avisos_equipo: avisosEquipo, avisos_patrocinados: false })
+    return id
+  }
+
+  it('cuenta a los anónimos con avisos_equipo y a las cuentas según announcements', async () => {
+    const e = montar()
+    sembrarUsuario(e.db, 1) // announcements true
+    sembrarUsuario(e.db, 2, { prefs: { announcements: false } })
+    sembrarAnonimo(e.db, TOKEN_ANON_SI, true)
+    sembrarAnonimo(e.db, TOKEN_ANON_NO, false)
+    const r = await contarDestinatariosAvisoEquipo()
+    expect(r).toMatchObject({ ok: true, personas: 2, telefonos: 2 })
+  })
+
+  it('envío real: llega al anónimo una sola vez, reservado con push_token_id y user_id nulo', async () => {
+    vi.stubEnv('PUSH_ENVIO_REAL', '1')
+    const e = montar()
+    const { tokens } = sembrarUsuario(e.db, 1)
+    const idAnon = sembrarAnonimo(e.db, TOKEN_ANON_SI, true)
+    sembrarAnonimo(e.db, TOKEN_ANON_NO, false)
+    const r = await enviarAvisoEquipoATodos(aviso(), { telefonosEsperados: 2 })
+    expect(r).toMatchObject({ ok: true, simulado: false, personas: 2, telefonos: 2 })
+    expect(e.expo.destinatarios().sort()).toEqual([tokens[0], TOKEN_ANON_SI].sort())
+    const filaAnon = e.db.sends().find((f) => f.push_token_id === idAnon)
+    expect(filaAnon).toMatchObject({ user_id: null, status: 'SUCCESS', kind: 'anuncio', dedupe_key: claveDedupeAvisoEquipo(idAnon, AHORA) })
+    sinDatosPersonales(e, 1, r)
+
+    // El mismo día no sale otro (tope global de 1 por día).
+    const otra = await enviarAvisoEquipoATodos(aviso(), { telefonosEsperados: 2 })
+    expect(otra).toMatchObject({ ok: false, error: MENSAJE_YA_HUBO_HOY })
+  })
+
+  it('un token que aparece con cuenta y como anónimo (lectura cruzada) sale una sola vez', async () => {
+    vi.stubEnv('PUSH_ENVIO_REAL', '1')
+    const e = montar()
+    const { tokens } = sembrarUsuario(e.db, 1)
+    sembrarAnonimo(e.db, tokens[0], true)
+    const r = await enviarAvisoEquipoATodos(aviso(), { telefonosEsperados: 1 })
+    expect(r).toMatchObject({ ok: true, telefonos: 1 })
+    expect(e.expo.destinatarios()).toEqual([tokens[0]])
+  })
+
+  it('el anónimo respeta el silencio por defecto (23:00-09:00)', async () => {
+    vi.setSystemTime(AHORA_23_30_SALTA)
+    const e = montar()
+    sembrarAnonimo(e.db, TOKEN_ANON_SI, true)
+    const r = await contarDestinatariosAvisoEquipo()
+    expect(r).toMatchObject({ ok: true, telefonos: 0, excluidos: expect.objectContaining({ silencio: 1 }) })
+  })
+})
