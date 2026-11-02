@@ -8,6 +8,33 @@ Cada ítem dice **dónde** se toca y **qué se midió**, para no re-diagnosticar
 
 ---
 
+## Tanda Q4 (2–3/11/2026) — hecho y pendiente
+
+Integración: PR Malejo01/que-pinta-salta#142 (`ronda/integracion-q4` → `main`). Detalle de cada ticket en su PR.
+
+### Hecho
+- **Avisos sin sesión (R82, #146)**: API pública `POST /api/push/registrar` y `/api/push/preferencias`, envíos a anónimos (equipo y patrocinados), purga de anónimos y de envíos viejos en el cron (modo real), la app registra sin cuenta, desvincula al cerrar sesión y apaga los avisos al eliminar la cuenta. Migración **aplicada en producción**.
+- **Lugares al mapa, solos (#147)**: workflow diario `geocodificar-lugares.yml` (06:30, ≤ 10 lugares, < 4 pedidos/min, `job_runs`). Migración `venues.geocode_intentado_at` **aplicada**.
+- **Login con Google (#148)**: errores clasificados; la cancelación no va a Sentry; mensajes claros.
+- **Audiencia de la publicidad (#149)**: `fuente_audiencia = 'anterior'`. Migración **aplicada**.
+- **/en completo (#150)**: 404 en inglés, notas en inglés de las legales, JSON-LD con URLs /en, test de cobertura de rutas y diccionarios.
+- **Eventos en inglés (#151)**: `title_en`/`description_en` (migración **aplicada**), traducción diaria con tope (`TRADUCCION_TOPE_DIARIO`, 100 por defecto).
+- **Ubicación aproximada (#152)**, **docs de Play (#153)**, **recordatorios de lo guardado (#154)**, **«Este finde pinta» (#155)**, **búsquedas al eliminar la cuenta y «Para chicos» sin +18 (#156)**, **rendimiento de Buscar (#157)**, **accesibilidad (#158)**, **tests (#159)** y **la revisión del diff completo con 2 bloqueantes arreglados (#160)**.
+
+### Pendiente (lo decide o lo hace Mauro)
+- [ ] Cargar en GitHub los secrets `NEXT_PUBLIC_SUPABASE_URL` y `SUPABASE_SERVICE_ROLE_KEY` para que corra la geocodificación diaria (#147). Sin ellos, el workflow avisa y no hace nada.
+- [ ] Decidir si la traducción arranca prendida (tope 100) o con `TRADUCCION_TOPE_DIARIO=0` en Vercel (#151).
+- [ ] Ciclo de publicidad `2026-10-01` propuesto con audiencia copiada y fuente `manual`: cargar la audiencia o marcarlo `anterior` (#149).
+- [ ] `supabase migration repair` de las 4 migraciones aplicadas con el conector (quedaron con la versión de la hora de aplicación; son idempotentes).
+- [ ] Textos legales propuestos (avisos sin cuenta en #146, búsquedas recientes en #156) y la ficha de «Seguridad de los datos» (`docs/play/seguridad-de-datos.md`).
+- [ ] Pedido de producción en Play el 9/11 (`docs/play/produccion.md`).
+- [ ] Lugares para chicos en el mapa (`docs/propuestas/lugares-para-chicos.md`): necesita la tabla nueva y las respuestas del §6.4; no entró en la tanda.
+- [ ] Bajas de patrocinados de anónimos: `bajas_48h` no las mide (#146).
+- [ ] Traducción vieja al editar un evento: trigger propuesto en #160.
+- [ ] «Recordatorios de favoritos» del servidor (3 h antes) y los recordatorios locales (la tarde anterior) conviven: unificar cuando se prenda el cron de notificaciones.
+
+---
+
 ## Cerrados — no volver a abrirlos
 
 Están acá, y no simplemente borrados, porque en el historial de chat de esa noche
