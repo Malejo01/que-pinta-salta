@@ -358,8 +358,12 @@ export default function Cuenta() {
       // F8: solo el código del error de Google sale hacia Sentry/console;
       // el mensaje al usuario sigue siendo genérico salvo que Play Services
       // no esté disponible.
+      // Q4-4: la cancelación no es un error (ni Sentry ni mensaje); la falta
+      // de red no se reporta; la configuración (DEVELOPER_ERROR) sí, con el
+      // código. La persona siempre puede reintentar o entrar con su email.
       registrarErrorGoogle(excepcion)
-      setError(mensajeErrorGoogle(codigoErrorGoogle(excepcion)))
+      const mensaje = mensajeErrorGoogle(codigoErrorGoogle(excepcion))
+      if (mensaje) setError(mensaje)
     } finally {
       setAccionEnCurso(null)
     }
