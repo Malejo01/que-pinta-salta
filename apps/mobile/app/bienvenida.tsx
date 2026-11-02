@@ -6,9 +6,9 @@
 // ir; en el segundo se pregunta "¿Te avisamos de lo que pinta?" y recién ahí
 // se marca la Bienvenida como vista y se navega (Empezar -> Inicio, Entrar ->
 // Cuenta). El permiso del sistema SOLO se pide después de un "Sí, avisame"
-// (nunca en frío): con sesión, la función `activar` de usePush lo pide y registra el token; sin
-// sesión, se guarda una bandera y se activa cuando la persona inicia sesión
-// (`InvitacionTrasAccion`). "Ahora no" no pide nada y no se vuelve a preguntar
+// (nunca en frío): la función `activar` de usePush lo pide y registra el
+// token, con o sin sesión (R82 / Q4-2: sin cuenta, el teléfono queda con los
+// avisos del equipo y sin patrocinados). "Ahora no" no pide nada y no se vuelve a preguntar
 // (R83: la invitación se decide una sola vez; se activa desde Cuenta).
 //
 // R81, 81-c (accesibilidad): el contenido va en un `ScrollView` (con la fuente
@@ -25,7 +25,7 @@ import { marcarBienvenidaVista } from '@/lib/bienvenida'
 import { useColoresQPS } from '@/lib/colores'
 import { activarPreferenciasAlAceptar } from '@/lib/notificaciones'
 import { usePush } from '@/lib/push'
-import { marcarAvisosPendientesLogin, marcarInvitacionVista } from '@/lib/push/invitacion'
+import { marcarInvitacionVista } from '@/lib/push/invitacion'
 import { useSession } from '@/lib/session'
 
 type Destino = '/' | '/cuenta'
@@ -80,15 +80,14 @@ export default function Bienvenida() {
     try {
       // Ya respondió: ni la campaña ni la tarjeta de Inicio la vuelven a pedir.
       await marcarInvitacionVista()
-      if (userId) {
-        const resultado = await activar()
-        // Si no quedó activo (negó el permiso, sin token), no hay preferencias
-        // que guardar; en Cuenta puede reintentar. `activarPreferenciasAlAceptar`
-        // no tira: devuelve `ok`.
-        if (resultado === 'activo') await activarPreferenciasAlAceptar(userId)
-      } else {
-        await marcarAvisosPendientesLogin()
-      }
+      // R82 / Q4-2: con o sin sesión, se pide el permiso acá (la persona
+      // tocó «Sí»). Sin sesión, el teléfono se registra sin cuenta con los
+      // avisos del equipo prendidos y los patrocinados apagados.
+      const resultado = await activar()
+      // Si no quedó activo (negó el permiso, sin token), no hay preferencias
+      // que guardar; en Cuenta puede reintentar. `activarPreferenciasAlAceptar`
+      // no tira: devuelve `ok`.
+      if (resultado === 'activo' && userId) await activarPreferenciasAlAceptar(userId)
     } finally {
       await terminar(adonde)
     }
@@ -116,9 +115,6 @@ export default function Bienvenida() {
         <Text style={[estilos.linea, { color: colores.foreground }]}>
           Te avisamos antes de lo que guardes y te mandamos novedades de Qué Pinta Salta. Lo cambiás cuando quieras en Cuenta.
         </Text>
-        {userId ? null : (
-          <Text style={[estilos.linea, { color: colores.foreground }]}>Cuando entres a tu cuenta te lo pedimos.</Text>
-        )}
         <Pressable
           onPress={() => void siAvisame(destino)}
           disabled={trabajando}

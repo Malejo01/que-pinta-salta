@@ -274,3 +274,41 @@ export async function cambiarPatrocinados(userId: string, valor: boolean): Promi
       : { ok: false, mensaje: resultado.error }
   }
 }
+
+/**
+ * R82 / Q4-2: al entrar a la cuenta en un teléfono que venía recibiendo avisos
+ * sin cuenta. Si la cuenta NO tiene fila en `notification_preferences`, se
+ * crea con lo que tenía el teléfono (`announcements` = avisos del equipo,
+ * `sponsored` = patrocinados, el último estado guardado por `lib/push`). Si ya
+ * tiene fila, no se toca nada: mandan las preferencias de la cuenta
+ * (decisión 1). Si la lectura falla o no hay estado guardado del teléfono, no
+ * se siembra nada. Nunca tira.
+ */
+export async function sembrarPreferenciasDeCuenta(
+  userId: string,
+  leerAvisos: () => Promise<{ avisosEquipo: boolean; avisosPatrocinados: boolean } | null> = leerAvisosDelTelefono,
+): Promise<'sembradas' | 'sin-cambios'> {
+  if (!supabase) return 'sin-cambios'
+  try {
+    const avisos = await leerAvisos()
+    if (!avisos) return 'sin-cambios'
+    const { data, error: errorLectura } = await supabase
+      .from('notification_preferences')
+      .select('user_id')
+      .eq('user_id', userId)
+      .maybeSingle()
+    if (errorLectura || data) return 'sin-cambios'
+    const { error } = await supabase.from('notification_preferences').upsert(
+      { user_id: userId, announcements: avisos.avisosEquipo, sponsored: avisos.avisosPatrocinados === true },
+      { onConflict: 'user_id', ignoreDuplicates: true },
+    )
+    return error ? 'sin-cambios' : 'sembradas'
+  } catch {
+    return 'sin-cambios'
+  }
+}
+
+async function leerAvisosDelTelefono(): Promise<{ avisosEquipo: boolean; avisosPatrocinados: boolean } | null> {
+  const [{ leerAvisosAnonimos }, almacen] = await Promise.all([import('@/lib/push/dispositivo'), import('@/lib/secure-storage')])
+  return leerAvisosAnonimos({ getItem: almacen.getItem, setItem: almacen.setItem, removeItem: almacen.removeItem })
+}

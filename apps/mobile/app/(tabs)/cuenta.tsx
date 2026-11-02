@@ -29,6 +29,7 @@ import { MENSAJE_ALTA_CON_SESION, MENSAJE_ALTA_ENVIADA, mensajeErrorAlta, mensaj
 import LOGO_MARCA from '@/assets/logo-circular.png'
 import WORDMARK from '@/assets/titulo-horizontal.png'
 import PATRON_MARCA from '@/assets/patron-claro.png'
+import { AvisosSinSesion } from '@/components/AvisosSinSesion'
 import { BotonGoogle } from '@/components/BotonGoogle'
 import { CampoTexto } from '@/components/CampoTexto'
 import { EnlacesLegales } from '@/components/EnlacesLegales'
@@ -42,7 +43,7 @@ import { useColoresQPS } from '@/lib/colores'
 import { codigoErrorGoogle, mensajeErrorGoogle, registrarErrorGoogle } from '@/lib/google'
 import { leerEnv } from '@/lib/env'
 import { urlSitio } from '@/lib/links'
-import { borrarTokenDeEsteTelefono } from '@/lib/push/registro'
+import { desvincularTokenDeEsteTelefono } from '@/lib/push/registro'
 import { supabase } from '@/lib/supabase'
 import { avisar } from '@/lib/aviso'
 import { useSession } from '@/lib/session'
@@ -380,11 +381,12 @@ export default function Cuenta() {
     setAccionEnCurso('salir')
     try {
       const entroConGoogle = session?.user.app_metadata.provider === 'google'
-      // Ronda 41, 41-e: borra la fila del token de este teléfono antes de
-      // cerrar la sesión. `borrarTokenDeEsteTelefono` (41-c) nunca tira, así
-      // que no se envuelve en su propio try/catch (eso ocultaría si algún
-      // día empieza a tirar).
-      await borrarTokenDeEsteTelefono()
+      // Ronda 41, 41-e; R82 / Q4-2: antes de cerrar la sesión, el token de
+      // este teléfono se DESVINCULA de la cuenta (queda sin cuenta, con los
+      // patrocinados apagados); si eso falla, se borra como antes.
+      // `desvincularTokenDeEsteTelefono` nunca tira, así que no se envuelve en
+      // su propio try/catch (eso ocultaría si algún día empieza a tirar).
+      await desvincularTokenDeEsteTelefono()
       await supabase.auth.signOut()
       if (entroConGoogle) {
         try {
@@ -594,6 +596,11 @@ export default function Cuenta() {
           {/* QPS-237: la línea de aceptación y los links legales, al crear
               cuenta o continuar con Google. */}
           <EnlacesLegales conAceptacion />
+        </View>
+
+        {/* R82 / Q4-2: los avisos también andan sin cuenta. */}
+        <View style={[estilos.card, { marginTop: 16 }]}>
+          <AvisosSinSesion />
         </View>
 
         {/* F9: volver a ver la Bienvenida, al pie de Cuenta. */}

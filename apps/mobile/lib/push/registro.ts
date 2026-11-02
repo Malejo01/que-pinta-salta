@@ -27,6 +27,15 @@ import { supabase as supabaseReal } from '@/lib/supabase'
 import { getItem as getItemReal, removeItem as removeItemReal, setItem as setItemReal } from '@/lib/secure-storage'
 import { TIMEOUT_RED_MS } from '@/lib/red'
 import { estadoDesdePermiso, plataformaPush, type EstadoPush } from './estado'
+import * as apiReal from './api'
+import {
+  guardarAvisosAnonimos,
+  guardarDeviceId,
+  hayQueApagarTrasBaja,
+  leerAvisosAnonimos,
+  leerDeviceId,
+  marcarApagarTrasBaja,
+} from './dispositivo'
 
 // La constante vive en un módulo puro (`./clave-token`, R72, 72-e) para que
 // `lib/cuenta.ts` la use sin arrastrar módulos nativos; se re-exporta acá con
@@ -53,12 +62,16 @@ export interface Reloj {
   clearTimeout: typeof clearTimeout
 }
 
-/** Las cuatro dependencias con efectos, todas opcionales (por defecto, las reales). */
+/** R82 / Q4-2: el cliente de la API pública de avisos sin sesión (`./api`). */
+export type ApiPush = Pick<typeof apiReal, 'registrarAnonimo' | 'cambiarPreferenciasAnonimas'>
+
+/** Las dependencias con efectos, todas opcionales (por defecto, las reales). */
 export interface DependenciasPush {
   notificaciones?: ModuloNotificaciones
   supabase?: ClienteSupabase
   almacenamiento?: Almacenamiento
   reloj?: Reloj
+  api?: ApiPush
 }
 
 interface DependenciasResueltas {
@@ -66,6 +79,7 @@ interface DependenciasResueltas {
   supabase: ClienteSupabase
   almacenamiento: Almacenamiento
   reloj: Reloj
+  api: ApiPush
 }
 
 function resolverDependencias(deps: DependenciasPush): DependenciasResueltas {
@@ -74,6 +88,7 @@ function resolverDependencias(deps: DependenciasPush): DependenciasResueltas {
     supabase: deps.supabase !== undefined ? deps.supabase : supabaseReal,
     almacenamiento: deps.almacenamiento ?? { getItem: getItemReal, setItem: setItemReal, removeItem: removeItemReal },
     reloj: deps.reloj ?? { setTimeout, clearTimeout },
+    api: deps.api ?? apiReal,
   }
 }
 
@@ -184,26 +199,76 @@ export async function obtenerToken(deps: DependenciasPush = {}): Promise<Resulta
 export type ResultadoRegistro = 'activo' | 'error-registro'
 
 /**
- * `supabase.rpc('register_push_token', { p_token, p_platform })`. Nunca un
- * `insert`/`upsert` directo en `push_tokens`, y nunca un `user_id` (lo toma
- * la RPC de `auth.uid()`). Si sale bien, guarda el token en SecureStore
- * (best-effort: si falla ese guardado, el registro en el servidor ya salió
- * bien, así que no se tumba por eso). Si la RPC falla (o no hay `supabase`
- * configurado), da `error-registro`.
+ * Registra el token de este teléfono (R41; R82 / Q4-2):
+ *
+ * 1. SIEMPRE, con o sin sesión: `POST /api/push/registrar` (la API pública,
+ *    `./api`). Asegura el `device_id` de la fila (lo genera el servidor la
+ *    primera vez y acá se guarda) y trae los interruptores sin cuenta.
+ * 2. Con sesión (`conSesion`, por defecto `true`): además la RPC
+ *    `register_push_token` (`p_token`, `p_platform`; nunca un `user_id`, lo
+ *    toma de `auth.uid()`). Es el VÍNCULO con la cuenta: la misma fila pasa a
+ *    tener `user_id`. Si la API del paso 1 falló, la RPC igual registra (como
+ *    antes de la R82): con sesión, manda la RPC.
+ *
+ * Sin sesión, el resultado es el de la API. Si la persona eliminó su cuenta en
+ * este teléfono (decisión 6), al registrarse sin cuenta se apagan los dos
+ * interruptores; la marca se borra solo si el apagado salió bien.
+ *
+ * Si sale bien, guarda el token en SecureStore (best-effort). Nunca tira.
  */
-export async function registrarToken(token: string, deps: DependenciasPush = {}): Promise<ResultadoRegistro> {
-  const { supabase, almacenamiento } = resolverDependencias(deps)
-  if (!supabase) return 'error-registro'
+export async function registrarToken(
+  token: string,
+  deps: DependenciasPush = {},
+  { conSesion = true }: { conSesion?: boolean } = {},
+): Promise<ResultadoRegistro> {
+  const { supabase, almacenamiento, api } = resolverDependencias(deps)
 
   const plataforma = plataformaPush(Platform.OS)
   if (!plataforma) return 'error-registro'
 
+  let anonimo: Awaited<ReturnType<ApiPush['registrarAnonimo']>> = { ok: false, motivo: 'red' }
   try {
-    const { error } = await supabase.rpc('register_push_token', { p_token: token, p_platform: plataforma })
-    if (error) return 'error-registro'
+    anonimo = await api.registrarAnonimo({ token, plataforma, deviceId: await leerDeviceId(almacenamiento), idioma: 'es' })
   } catch (excepcion) {
-    registrarFallaSinDato('[push] falló el registro en el servidor', excepcion)
-    return 'error-registro'
+    registrarFallaSinDato('[push] falló el registro sin cuenta', excepcion)
+  }
+  if (anonimo.ok) {
+    await guardarDeviceId(almacenamiento, anonimo.deviceId)
+    if (anonimo.avisosEquipo !== null) {
+      await guardarAvisosAnonimos(almacenamiento, {
+        avisosEquipo: anonimo.avisosEquipo,
+        avisosPatrocinados: anonimo.avisosPatrocinados === true,
+      })
+    }
+  }
+
+  if (!conSesion) {
+    if (!anonimo.ok) return 'error-registro'
+    if (await hayQueApagarTrasBaja(almacenamiento)) {
+      try {
+        const apagado = await api.cambiarPreferenciasAnonimas({
+          token,
+          deviceId: anonimo.deviceId,
+          avisosEquipo: false,
+          avisosPatrocinados: false,
+        })
+        if (apagado.ok) {
+          await marcarApagarTrasBaja(almacenamiento, false)
+          await guardarAvisosAnonimos(almacenamiento, { avisosEquipo: false, avisosPatrocinados: false })
+        }
+      } catch (excepcion) {
+        registrarFallaSinDato('[push] no se pudieron apagar los avisos tras eliminar la cuenta', excepcion)
+      }
+    }
+  } else {
+    if (!supabase) return 'error-registro'
+    try {
+      const { error } = await supabase.rpc('register_push_token', { p_token: token, p_platform: plataforma })
+      if (error) return 'error-registro'
+    } catch (excepcion) {
+      registrarFallaSinDato('[push] falló el registro en el servidor', excepcion)
+      return 'error-registro'
+    }
   }
 
   try {
@@ -214,6 +279,48 @@ export async function registrarToken(token: string, deps: DependenciasPush = {})
   }
 
   return 'activo'
+}
+
+/**
+ * R82 / Q4-2: al cerrar sesión. Llama a la RPC `unlink_push_token` con el
+ * token guardado: la fila del teléfono NO se borra, queda sin cuenta
+ * (conserva el `device_id`, copia los avisos del equipo de la cuenta y deja
+ * los patrocinados en `false`, decisión 7). El token guardado se conserva
+ * (sigue siendo el de este teléfono).
+ *
+ * Si la RPC falla (sin red, una base vieja sin la función), cae al borrado de
+ * antes (`borrarTokenDeEsteTelefono`) para que un teléfono compartido no siga
+ * recibiendo los avisos de la cuenta anterior. Nunca tira.
+ */
+export async function desvincularTokenDeEsteTelefono(deps: DependenciasPush = {}): Promise<ResultadoBorrado> {
+  const { supabase, almacenamiento, reloj } = resolverDependencias(deps)
+
+  let tokenGuardado: string | null = null
+  try {
+    tokenGuardado = await almacenamiento.getItem(CLAVE_TOKEN_PUSH)
+  } catch {
+    tokenGuardado = null
+  }
+  if (!tokenGuardado) return 'ok'
+  if (!supabase) return borrarTokenDeEsteTelefono(deps)
+
+  const { promesa: promesaTimeoutDesvinculo, limpiar } = promesaTimeout(TIMEOUT_RED_MS, reloj)
+  try {
+    const { error } = await Promise.race([
+      supabase.rpc('unlink_push_token', { p_token: tokenGuardado }),
+      promesaTimeoutDesvinculo,
+    ])
+    if (error) return borrarTokenDeEsteTelefono(deps)
+  } catch {
+    return borrarTokenDeEsteTelefono(deps)
+  } finally {
+    limpiar()
+  }
+
+  // Los interruptores sin cuenta cambiaron en el servidor: el próximo
+  // registro (justo después del signOut) trae los nuevos.
+  await guardarAvisosAnonimos(almacenamiento, null)
+  return 'ok'
 }
 
 export type ResultadoBorrado = 'ok' | 'error'
@@ -283,7 +390,7 @@ export async function borrarTokenDeEsteTelefono(deps: DependenciasPush = {}): Pr
  * no en una función con nombre propio como las otras tres).
  */
 export async function sincronizarPush(
-  { preguntar }: { preguntar: boolean },
+  { preguntar, conSesion = true }: { preguntar: boolean; conSesion?: boolean },
   deps: DependenciasPush = {}
 ): Promise<EstadoPush> {
   const { notificaciones } = resolverDependencias(deps)
@@ -313,5 +420,48 @@ export async function sincronizarPush(
   const token = await obtenerToken(deps)
   if (!token.ok) return 'no-disponible'
 
-  return registrarToken(token.token, deps)
+  return registrarToken(token.token, deps, { conSesion })
+}
+
+export type ResultadoCambioAvisos = { ok: true; avisos: { avisosEquipo: boolean; avisosPatrocinados: boolean } } | { ok: false }
+
+/**
+ * R82 / Q4-2: prende o apaga los avisos del equipo o los patrocinados de este
+ * teléfono SIN cuenta (`POST /api/push/preferencias` con el token y el
+ * `device_id` guardados). Si sale bien, guarda el nuevo estado. Sin token o
+ * sin `device_id` guardado (nunca se registró), `{ ok: false }`. Nunca tira.
+ */
+export async function cambiarAvisosDeEsteTelefono(
+  cambio: { avisosEquipo?: boolean; avisosPatrocinados?: boolean },
+  deps: DependenciasPush = {},
+): Promise<ResultadoCambioAvisos> {
+  const { almacenamiento, api } = resolverDependencias(deps)
+  let token: string | null = null
+  try {
+    token = await almacenamiento.getItem(CLAVE_TOKEN_PUSH)
+  } catch {
+    token = null
+  }
+  const deviceId = await leerDeviceId(almacenamiento)
+  if (!token || !deviceId) return { ok: false }
+
+  try {
+    const resultado = await api.cambiarPreferenciasAnonimas({ token, deviceId, ...cambio })
+    if (!resultado.ok) return { ok: false }
+  } catch (excepcion) {
+    registrarFallaSinDato('[push] no se pudieron cambiar los avisos sin cuenta', excepcion)
+    return { ok: false }
+  }
+  const anteriores = (await leerAvisosAnonimos(almacenamiento)) ?? { avisosEquipo: true, avisosPatrocinados: false }
+  const avisos = {
+    avisosEquipo: cambio.avisosEquipo ?? anteriores.avisosEquipo,
+    avisosPatrocinados: cambio.avisosPatrocinados ?? anteriores.avisosPatrocinados,
+  }
+  await guardarAvisosAnonimos(almacenamiento, avisos)
+  return { ok: true, avisos }
+}
+
+/** R82 / Q4-2: el último estado guardado de los interruptores sin cuenta (`null` si no hay). */
+export function avisosGuardadosDeEsteTelefono(deps: DependenciasPush = {}) {
+  return leerAvisosAnonimos(resolverDependencias(deps).almacenamiento)
 }

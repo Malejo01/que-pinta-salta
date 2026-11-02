@@ -15,8 +15,8 @@ import { SITIO } from '@qps/core/metricas/links'
 import { CLAVE_BIENVENIDA_VISTA } from '@/lib/bienvenida'
 import { supabase } from '@/lib/supabase'
 import { borrarTodaLaCache } from '@/lib/sin-conexion/cache'
-import { removeItem as borrarItemSeguro } from '@/lib/secure-storage'
-import { CLAVE_TOKEN_PUSH } from '@/lib/push/clave-token'
+import { removeItem as borrarItemSeguro, setItem as guardarItemSeguro } from '@/lib/secure-storage'
+import { CLAVE_AVISOS_APAGAR_TRAS_BAJA, CLAVE_TOKEN_PUSH } from '@/lib/push/clave-token'
 
 const RUTA_ELIMINAR = `${SITIO}/api/cuenta/eliminar`
 
@@ -144,6 +144,18 @@ export async function limpiarTrasEliminarCuenta(entroConGoogle: boolean): Promis
   } catch {
     // Best-effort: un token viejo e inútil (la cuenta ya no existe) que no
     // se pudo borrar sigue cifrado; no se loguea nada (ni el token).
+  }
+
+  // R82 / Q4-2 (decisión 6): eliminar la cuenta apaga los avisos de este
+  // teléfono. `delete_my_account` ya borró su fila; como la app se vuelve a
+  // registrar sin cuenta en el próximo arranque, esta marca hace que ese
+  // registro apague los dos interruptores (lib/push/registro.ts). El
+  // `device_id` NO se borra: identifica la instalación, no a la persona.
+  try {
+    await guardarItemSeguro(CLAVE_AVISOS_APAGAR_TRAS_BAJA, '1')
+  } catch {
+    // Best-effort: sin la marca, el teléfono queda con los avisos del equipo
+    // prendidos (el default sin cuenta) y se apagan desde Cuenta.
   }
 
   if (supabase) {
