@@ -9,6 +9,8 @@
 import { useCallback, useEffect, useState } from 'react'
 import { StyleSheet, Switch, View } from 'react-native'
 import { Texto } from '@/components/Texto'
+import { AVISO_SIN_PERMISO, PISTA_PIDE_PERMISO } from '@/lib/push/textos-interruptores'
+import { avisar } from '@/lib/aviso'
 import { usePush } from '@/lib/push'
 import { avisarCambioGuardados } from '@/lib/recordatorios/cambios'
 import { estanActivos, guardarPreferencia } from '@/lib/recordatorios'
@@ -38,7 +40,11 @@ export function InterruptorRecordatorios() {
       try {
         if (valor && estado !== 'activo') {
           const resultado = await activar()
-          if (resultado !== 'activo') return
+          if (resultado !== 'activo') {
+            // R-2: el interruptor queda apagado; se dice por qué (TalkBack lo lee).
+            avisar(AVISO_SIN_PERMISO)
+            return
+          }
         }
         await guardarPreferencia(valor)
         setActivos(valor)
@@ -63,7 +69,7 @@ export function InterruptorRecordatorios() {
         onValueChange={(valor) => void cambiar(valor)}
         disabled={guardando}
         accessibilityLabel={ETIQUETA_RECORDATORIOS}
-        accessibilityHint={DESCRIPCION_RECORDATORIOS}
+        accessibilityHint={estado === 'activo' ? DESCRIPCION_RECORDATORIOS : `${DESCRIPCION_RECORDATORIOS} ${PISTA_PIDE_PERMISO}`}
         accessibilityState={{ checked: activos, busy: guardando }}
       />
     </View>
