@@ -3,9 +3,13 @@
  * OpenStreetMap), Ronda 53.
  *
  * Escribe `latitude`/`longitude` en la base de PRODUCCIÓN con `--apply`: lo
- * corre Mauro de día, nunca programado (ver
- * `tests/venues/geocodificacion/no-programado.test.ts`). De noche no se
- * ejecuta.
+ * corre Mauro a mano. Desde la Q4-3 (pregunta 21, opción 1) hay UNA sola
+ * corrida programada: `--programado`, una vez por día desde
+ * `.github/workflows/geocodificar-lugares.yml`, con reglas propias
+ * (`lib/venues/geocodificacion/programado.ts`: ≤ 10 lugares, < 4 pedidos por
+ * minuto, sin repetir un lugar antes de 30 días) y registro en `job_runs`.
+ * `tests/venues/geocodificacion/no-programado.test.ts` permite solo ese
+ * workflow.
  *
  *   npx tsx scripts/geocodificar-lugares.ts                      # consulta y arma el reporte; NO escribe en la base
  *   npx tsx scripts/geocodificar-lugares.ts --limite 20
@@ -13,6 +17,7 @@
  *   npx tsx scripts/geocodificar-lugares.ts --aplicar             # igual que --apply
  *   npx tsx scripts/geocodificar-lugares.ts --todos               # incluye los lugares sin eventos próximos
  *   npx tsx scripts/geocodificar-lugares.ts --rehacer-nominatim
+ *   npx tsx scripts/geocodificar-lugares.ts --programado          # la corrida diaria del workflow (Q4-3)
  *
  * Por defecto mira solo los lugares con al menos un evento próximo; `--todos`
  * mira todos los elegibles. Imprime una tabla (lugar, eventos, resultado,
@@ -52,6 +57,11 @@ import {
 } from '../lib/venues/geocodificacion/plan'
 import { aCsv, resumen, tablaDeConsola, urlOpenStreetMap, type FilaCsv } from '../lib/venues/geocodificacion/reporte'
 import { traerTodasLasFilas } from '../lib/images/paginar-filas'
+import {
+  INTERVALO_PROGRAMADO_MS,
+  resultadoDeCorrida,
+  sinIntentoReciente,
+} from '../lib/venues/geocodificacion/programado'
 
 /**
  * Carga .env.local sin dependencias, igual que scripts/imagenes-externas.ts
@@ -127,8 +137,9 @@ async function main() {
     return
   }
 
-  const { apply, limite, rehacerNominatim, sinCache, todos, salida, cache: archivoCacheOpcion } = opciones
+  const { apply, limite, rehacerNominatim, sinCache, todos, salida, cache: archivoCacheOpcion, programado } = opciones
 
+  if (programado) console.log('[geocodificar-lugares] PROGRAMADO (Q4-3): ≤ 10 lugares, < 4 pedidos por minuto, registro en job_runs.')
   console.log(
     apply
       ? '[geocodificar-lugares] APPLY: escribe latitude/longitude en venues de producción.'
@@ -154,14 +165,51 @@ async function main() {
 
   const supabase = createClient(supabaseUrl, supabaseKey, { auth: { persistSession: false } })
 
+  // Q4-3: la corrida programada queda en job_runs (RUNNING al empezar; el
+  // cierre, con conteos y nunca nombres ni ids, al final). Si no se puede
+  // abrir, se sigue igual: el registro no frena la geocodificación.
+  let jobRunId: string | null = null
+  const inicioCorrida = Date.now()
+  if (programado) {
+    const { data, error } = await supabase
+      .from('job_runs')
+      .insert({ job_key: 'geocodificacion', status: 'RUNNING', trigger_source: 'github-actions' })
+      .select('id')
+      .single()
+    if (error) console.error(`[geocodificar-lugares] No se pudo abrir la corrida en job_runs (${error.code ?? 'sin código'})`)
+    else jobRunId = data.id
+  }
+  async function cerrarCorrida(r: ReturnType<typeof resultadoDeCorrida>) {
+    if (!jobRunId) return
+    const { error } = await supabase
+      .from('job_runs')
+      .update({
+        status: r.status,
+        finished_at: new Date().toISOString(),
+        duration_ms: Date.now() - inicioCorrida,
+        items_processed: r.items_processed,
+        items_failed: r.items_failed,
+        details: r.details,
+      })
+      .eq('id', jobRunId)
+    if (error) console.error(`[geocodificar-lugares] No se pudo cerrar la corrida en job_runs (${error.code ?? 'sin código'})`)
+  }
+
   let venues: VenueParaGeocodificar[]
   try {
-    venues = await traerTodasLasFilas<VenueParaGeocodificar>((desde, hasta) =>
-      supabase
-        .from('venues')
-        .select('id, name, address, latitude, longitude, canonical_venue_id, merged_at, is_placeholder, geocode_source, geocoded_at')
-        .order('id')
-        .range(desde, hasta)
+    // Solo la corrida programada lee la columna de la Q4-3: la manual sigue
+    // andando aunque la migración no esté aplicada.
+    const columnas =
+      'id, name, address, latitude, longitude, canonical_venue_id, merged_at, is_placeholder, geocode_source, geocoded_at' +
+      (programado ? ', geocode_intentado_at' : '')
+    venues = await traerTodasLasFilas<VenueParaGeocodificar>(
+      (desde, hasta) =>
+        // Con un select armado en tiempo de ejecución supabase-js no infiere
+        // las columnas: la forma es la de VenueParaGeocodificar.
+        supabase.from('venues').select(columnas).order('id').range(desde, hasta) as unknown as PromiseLike<{
+          data: VenueParaGeocodificar[] | null
+          error: { message: string } | null
+        }>
     )
   } catch (error) {
     console.error(`[geocodificar-lugares] Error consultando venues: ${error instanceof Error ? error.message : String(error)}`)
@@ -194,24 +242,29 @@ async function main() {
   const { elegibles, paraRevisarPrevios: previosSinOrden } = lugaresAGeocodificar(venues, { rehacerNominatim })
   const paraRevisarPrevios = ordenarPorEventosProximos(previosSinOrden, conteoEventos)
   // Por defecto solo los que tienen algún evento próximo; con --todos, todos los elegibles.
-  const aMirar = todos ? elegibles : soloConEventosProximos(elegibles, conteoEventos)
+  const conEventos = todos ? elegibles : soloConEventosProximos(elegibles, conteoEventos)
+  // Q4-3: la corrida programada no repite un lugar intentado hace menos de 30 días.
+  const aMirar = programado ? sinIntentoReciente(conEventos, new Date()) : conEventos
   const sinEventosProximos = elegibles.length - aMirar.length
   const recortados = ordenarPorEventosProximos(aMirar, conteoEventos).slice(0, limite)
   const descartadosPorTope = aMirar.length - recortados.length
 
-  const tiempoEstimadoSeg = Math.ceil(recortados.length * 4 * 1.1)
+  const segundosPorPedido = programado ? INTERVALO_PROGRAMADO_MS / 1000 : 1.1
+  const tiempoEstimadoSeg = Math.ceil(recortados.length * 4 * segundosPorPedido)
   console.log(
     `[geocodificar-lugares] lugares a mirar: ${recortados.length} de ${aMirar.length} (de ${elegibles.length} elegibles` +
       (todos ? ', con --todos' : `; ${sinEventosProximos} sin eventos próximos quedan afuera, usá --todos para incluirlos`) +
       '), de más a menos eventos próximos' +
       (descartadosPorTope > 0 ? ` (${descartadosPorTope} quedaron afuera por --limite ${limite})` : '') +
-      `. Tiempo estimado: hasta ${tiempoEstimadoSeg}s (hasta 4 consultas por lugar, 1,1s entre pedidos).`
+      `. Tiempo estimado: hasta ${tiempoEstimadoSeg}s (hasta 4 consultas por lugar, ${segundosPorPedido}s entre pedidos).`
   )
 
   const cliente = crearClienteNominatim({
     fetch: globalThis.fetch,
     ahora: () => Date.now(),
     esperar: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+    // Q4-3: la corrida programada va a menos de 4 pedidos por minuto (política de Nominatim).
+    ...(programado ? { intervaloMinMs: INTERVALO_PROGRAMADO_MS } : {}),
   })
 
   const archivoCache = archivoCacheOpcion ?? join(OPS_DIR, 'cache-nominatim.json')
@@ -271,6 +324,20 @@ async function main() {
   // previos no dependen de Nominatim, así que concatenarlos antes de esta
   // comparación "completaría" la cuenta y escondería el 403 en silencio.
   const bloqueado = filas.length < recortados.length
+
+  // Q4-3: los lugares mirados quedan marcados (con o sin resultado) para no
+  // repetirlos antes de 30 días, y la corrida se cierra en job_runs.
+  if (programado) {
+    const mirados = filas.map((fila) => fila.id)
+    if (mirados.length > 0) {
+      const { error } = await supabase
+        .from('venues')
+        .update({ geocode_intentado_at: new Date().toISOString() })
+        .in('id', mirados)
+      if (error) console.error(`[geocodificar-lugares] No se pudo marcar el intento (${error.code ?? 'sin código'})`)
+    }
+    await cerrarCorrida(resultadoDeCorrida(filas, { candidatos: recortados.length, bloqueado }))
+  }
 
   // `paraRevisarPrevios` (venues con coordenadas pero sin `geocode_source`,
   // de `lugaresAGeocodificar`) no se tocan: van al reporte como

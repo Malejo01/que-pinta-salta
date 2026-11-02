@@ -21,6 +21,8 @@ export interface VenueParaGeocodificar {
   latitude: number | null
   longitude: number | null
   geocode_source: string | null
+  /** Q4-3: última vez que la corrida programada lo intentó (solo la lee `--programado`). */
+  geocode_intentado_at?: string | null
 }
 
 export type EstadoFilaGeocodificacion = 'guardado' | 'para-revisar' | 'sin-resultado' | 'error' | 'no-se-pisó'

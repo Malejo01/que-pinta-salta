@@ -1,3 +1,5 @@
+import { MAX_LUGARES_PROGRAMADO } from './programado'
+
 /**
  * Línea de comandos de `scripts/geocodificar-lugares.ts`: qué banderas
  * acepta y a qué opciones se traducen.
@@ -21,6 +23,13 @@ export interface Opciones {
   salida?: string
   /** Archivo de la caché de geocodificación. Por defecto, `ops/geocodificacion/cache-nominatim.json` de la raíz del repo. */
   cache?: string
+  /**
+   * Q4-3: corrida diaria del workflow (`--programado`). Implica `apply`, como
+   * mucho `MAX_LUGARES_PROGRAMADO` lugares, sin `--todos` ni
+   * `--rehacer-nominatim`, a menos de 4 pedidos por minuto y sin repetir un
+   * lugar intentado hace menos de 30 días (ver `./programado`).
+   */
+  programado: boolean
 }
 
 /** Las banderas que entiende el script, en el orden en que se listan en los mensajes de error. */
@@ -30,13 +39,14 @@ const BANDERAS_VALIDAS = [
   '--rehacer-nominatim',
   '--sin-cache',
   '--todos',
+  '--programado',
   '--limite',
   '--salida',
   '--cache',
 ] as const
 
 /** Banderas que no llevan valor (su sola presencia alcanza). */
-const BANDERAS_BOOLEANAS = new Set(['--apply', '--aplicar', '--rehacer-nominatim', '--sin-cache', '--todos'])
+const BANDERAS_BOOLEANAS = new Set(['--apply', '--aplicar', '--rehacer-nominatim', '--sin-cache', '--todos', '--programado'])
 
 /** Banderas que necesitan un valor, como `--limite 20` o `--limite=20`. */
 const BANDERAS_DE_VALOR = new Set(['--limite', '--salida', '--cache'])
@@ -66,6 +76,7 @@ export function leerOpciones(argv: string[]): Opciones {
   let rehacerNominatim = false
   let sinCache = false
   let todos = false
+  let programado = false
   let limiteTexto: string | undefined
   let salida: string | undefined
   let cache: string | undefined
@@ -87,6 +98,7 @@ export function leerOpciones(argv: string[]): Opciones {
       if (nombre === '--apply' || nombre === '--aplicar') apply = true
       else if (nombre === '--rehacer-nominatim') rehacerNominatim = true
       else if (nombre === '--todos') todos = true
+      else if (nombre === '--programado') programado = true
       else sinCache = true
       continue
     }
@@ -116,5 +128,13 @@ export function leerOpciones(argv: string[]): Opciones {
     limite = numero
   }
 
-  return { apply, limite, rehacerNominatim, sinCache, todos, salida, cache }
+  if (programado) {
+    // La corrida programada tiene reglas fijas: nada de lo que las afloja.
+    if (todos || rehacerNominatim) {
+      throw new Error('--programado no se combina con --todos ni con --rehacer-nominatim.')
+    }
+    return { apply: true, limite: Math.min(limite, MAX_LUGARES_PROGRAMADO), rehacerNominatim: false, sinCache, todos: false, salida, cache, programado }
+  }
+
+  return { apply, limite, rehacerNominatim, sinCache, todos, salida, cache, programado }
 }
