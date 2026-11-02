@@ -9,6 +9,8 @@ import type { CinemaMovie } from '@/lib/types'
 import { anclaDePelicula } from './anclas'
 import { listaJsonLd, type NodoJsonLd } from './json-ld'
 import { SITE_URL, urlAbsoluta } from './sitio'
+import type { Idioma } from '@/lib/i18n/idiomas'
+import { rutaEn } from '@/lib/i18n/rutas'
 
 export const MAX_EVENTOS_EN_LISTA = 20
 
@@ -34,9 +36,10 @@ export function eventosParaListaDeLaPortada(
 }
 
 /** `ItemList` de fichas (`/evento/<id>`). `null` si no hay ninguna: no se publica una lista vacía. */
-export function listaDeEventosJsonLd(eventos: { id: string; titulo: string }[]): NodoJsonLd | null {
+export function listaDeEventosJsonLd(eventos: { id: string; titulo: string }[], idioma: Idioma = 'es'): NodoJsonLd | null {
   if (eventos.length === 0) return null
-  return listaJsonLd(eventos.map((e) => ({ url: `/evento/${e.id}`, nombre: e.titulo })))
+  // Q4-6: en /en, las fichas en inglés (/en/evento/<id>).
+  return listaJsonLd(eventos.map((e) => ({ url: rutaEn(idioma, `/evento/${e.id}`), nombre: e.titulo })))
 }
 
 /**
@@ -50,7 +53,8 @@ export function listaDeEventosJsonLd(eventos: { id: string; titulo: string }[]):
  * cada `Movie` del carrusel. `null` si no queda ninguna.
  */
 export function listaDePeliculasJsonLd(
-  peliculas: Pick<CinemaMovie, 'title' | 'poster_url' | 'slug'>[]
+  peliculas: Pick<CinemaMovie, 'title' | 'poster_url' | 'slug'>[],
+  idioma: Idioma = 'es'
 ): NodoJsonLd | null {
   const conAfiche = peliculas.filter((p) => p.poster_url?.trim())
   if (conAfiche.length === 0) return null
@@ -59,10 +63,12 @@ export function listaDePeliculasJsonLd(
       item: {
         '@type': 'Movie',
         name: p.title,
-        url: `${SITE_URL}/cines#${anclaDePelicula(p.slug)}`,
+        url: `${SITE_URL}${rutaEn(idioma, '/cines')}#${anclaDePelicula(p.slug)}`,
         image: urlAbsoluta(p.poster_url!.trim()),
       },
     })),
-    { nombre: 'Películas en cartel en Salta', url: '/cines' }
+    idioma === 'en'
+      ? { nombre: 'Movies showing in Salta', url: rutaEn('en', '/cines') }
+      : { nombre: 'Películas en cartel en Salta', url: '/cines' }
   )
 }

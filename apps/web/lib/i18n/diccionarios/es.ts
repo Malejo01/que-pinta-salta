@@ -24,7 +24,7 @@ export const es = {
     apoyarTitulo: 'Apoyar a Qué Pinta Salta',
     apoyar: 'Apoyar',
     // Era así en inglés desde antes; se deja igual para no cambiar el texto.
-    cambiarTema: 'Toggle theme',
+    cambiarTema: 'Cambiar el tema',
     misEventos: 'Mis eventos',
     radarSalteno: 'Radar Salteño',
     miRadarSalteno: 'Mi Radar Salteño',
@@ -453,6 +453,15 @@ export const es = {
     // WCAG 2.5.3: el nombre accesible contiene el texto visible («EN» en
     // celular, «English» desde sm:).
     otroAria: 'English (EN): view this site in English',
+  },
+  // Q4-6: el cartel de respaldo de la publicidad (components/adsense-banner.tsx).
+  publicidad: {
+    etiqueta: 'Publicidad',
+    insignia: 'Anunciá en Qué Pinta Salta',
+    titulo: '¿Querés destacar tu evento o promocionar tu marca acá?',
+    texto: 'Llegá directamente al público que está buscando salidas en Salta Capital. ¡Simple, rápido y efectivo!',
+    verPaquetes: 'Ver paquetes para anunciantes',
+    whatsapp: 'Contactar por WhatsApp',
   },
 }
 

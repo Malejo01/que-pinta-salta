@@ -82,10 +82,18 @@ export function separarIdioma(pathname: string): { idioma: Idioma; ruta: string 
  * `?query` y `#hash`). Si la página no existe en inglés, el destino en inglés
  * es la portada (`/en`), sin la query: la de otra página no le sirve.
  */
+/**
+ * Q4-6: páginas legales que quedan en castellano pero tienen, en /en/<ruta>,
+ * una nota en inglés que lo dice (noindex, sin hreflang: no son traducciones).
+ * Solo las usa el selector de idioma.
+ */
+export const RUTAS_CON_NOTA_EN_INGLES: readonly string[] = ['/privacidad', '/terminos', '/eliminar-cuenta']
+
 export function rutaEnOtroIdioma(pathname: string, destino: Idioma): string {
   const { camino, resto } = separarCamino(pathname)
   const { ruta } = separarIdioma(camino)
   if (destino === 'es') return ruta + resto
+  if (RUTAS_CON_NOTA_EN_INGLES.includes(sinBarraFinal(ruta))) return `${PREFIJO_EN}${sinBarraFinal(ruta)}`
   if (!tieneVersionEnIngles(ruta)) return PREFIJO_EN
   return rutaEn('en', ruta + resto)
 }
