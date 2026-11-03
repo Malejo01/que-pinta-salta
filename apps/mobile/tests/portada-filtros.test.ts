@@ -300,7 +300,8 @@ function violacionesHoja(hojaCruda: string): string[] {
   if (!/onShow=\{[\s\S]*?setAccessibilityFocus\(/.test(modal)) v.push('al abrir no manda el foco al título')
   if (!/setAccessibilityFocus\(nodo\)[\s\S]*?\[visible, botonRef\]/.test(c)) v.push('al cerrar no devuelve el foco al botón')
   // Acciones y áreas táctiles.
-  if (!/textoVerEventos\(cantidad\)/.test(c)) v.push('falta «Ver N eventos»')
+  // Q6-1: las funciones de texto reciben el idioma de la app.
+  if (!/textoVerEventos\(cantidad, idioma\)/.test(c)) v.push('falta «Ver N eventos»')
   if (!/>\s*\{t\.limpiar\}\s*</.test(c)) v.push('falta «Limpiar»')
   if (!/onPress=\{onLimpiar\}/.test(c)) v.push('«Limpiar» no llama onLimpiar')
   for (const clave of ['boton', 'chipRemovible', 'tituloCaja', 'accion']) {
@@ -309,7 +310,7 @@ function violacionesHoja(hojaCruda: string): string[] {
     if (!minimo || Number(minimo) < 48) v.push(`área: ${clave} sin minHeight >= 48`)
   }
   // El botón y los chips removibles dicen qué hacen.
-  if (!/accessibilityLabel=\{etiquetaAccesibleFiltros\(activos\)\}/.test(c)) v.push('el botón no usa etiquetaAccesibleFiltros(activos)')
+  if (!/accessibilityLabel=\{etiquetaAccesibleFiltros\(activos, idioma\)\}/.test(c)) v.push('el botón no usa etiquetaAccesibleFiltros(activos)')
   if (!/accessibilityLabel=\{chip\.etiqueta\}/.test(c)) v.push('los chips removibles no dicen «Quitar …»')
   if (/#[0-9a-fA-F]{3,8}\b/.test(c)) v.push('hay un color hexadecimal literal')
   return v
@@ -336,10 +337,10 @@ describe('components/HojaFiltros.tsx', () => {
     ['«Limpiar» sin opacidad', (s: string) => s.replace('opacity: activos === 0 ?', 'opacity: false ?'), '«Limpiar» deshabilitado no se ve atenuado'],
     ['sin foco al abrir', (s: string) => s.replace('onShow={() => {', 'onDismiss={() => {'), 'al abrir no manda el foco al título'],
     ['sin devolver el foco', (s: string) => s.replace('[visible, botonRef]', '[botonRef]'), 'al cerrar no devuelve el foco al botón'],
-    ['sin «Ver N eventos»', (s: string) => s.replace('{textoVerEventos(cantidad)}', 'Ver'), 'falta «Ver N eventos»'],
+    ['sin «Ver N eventos»', (s: string) => s.replace('{textoVerEventos(cantidad, idioma)}', 'Ver'), 'falta «Ver N eventos»'],
     ['«Limpiar» que no limpia', (s: string) => s.replace('onPress={onLimpiar}', 'onPress={onCerrar}'), '«Limpiar» no llama onLimpiar'],
     ['botón chico', (s: string) => s.replace(/(boton: \{[^}]*?)minHeight: 48/, '$1minHeight: 40'), 'área: boton sin minHeight >= 48'],
-    ['botón sin etiqueta accesible', (s: string) => s.replace('accessibilityLabel={etiquetaAccesibleFiltros(activos)}', ''), 'el botón no usa etiquetaAccesibleFiltros(activos)'],
+    ['botón sin etiqueta accesible', (s: string) => s.replace('accessibilityLabel={etiquetaAccesibleFiltros(activos, idioma)}', ''), 'el botón no usa etiquetaAccesibleFiltros(activos)'],
     ['chip sin «Quitar»', (s: string) => s.replace('accessibilityLabel={chip.etiqueta}', ''), 'los chips removibles no dicen «Quitar …»'],
   ])('rotura en memoria: %s -> detectada', (_nombre, romper, esperada) => {
     const roto = romper(hoja)

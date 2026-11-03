@@ -18,6 +18,8 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { reiniciar } from './dobles/async-storage'
 import type { Almacen } from '@/lib/sin-conexion/almacen'
+import { en } from '@/lib/i18n/diccionarios/en'
+import { es } from '@/lib/i18n/diccionarios/es'
 import {
   agregarBusqueda,
   armarSobreBusquedas,
@@ -479,9 +481,11 @@ describe('detector: la sección de búsquedas recientes', () => {
 
   it('anuncia el borrado postergado DEMORA_ANUNCIO_BORRADO_MS (~400 ms), no en el mismo instante', () => {
     expect(COMPONENTE).toMatch(/DEMORA_ANUNCIO_BORRADO_MS = 400\b/)
-    expect(COMPONENTE).toMatch(
-      /setTimeout\(\(\) => anunciar\(ANUNCIO_HISTORIAL_BORRADO\), DEMORA_ANUNCIO_BORRADO_MS\)/,
-    )
+    // Q6-1: el anuncio sale del diccionario (`recientes.borrado`; en castellano, ANUNCIO_HISTORIAL_BORRADO).
+    expect(COMPONENTE).toMatch(/setTimeout\(\(\) => anunciar\(t\.borrado\), DEMORA_ANUNCIO_BORRADO_MS\)/)
+    expect(COMPONENTE).toMatch(/export const ANUNCIO_HISTORIAL_BORRADO = es\.recientes\.borrado/)
+    expect(es.recientes.borrado).toBe('Listo, borraste tus búsquedas recientes.')
+    expect(en.recientes.borrado).not.toBe(es.recientes.borrado)
     // R76: los anuncios pasan por lib/anunciar.ts (#122), nunca directo.
     expect(COMPONENTE).not.toMatch(/announceForAccessibility/)
   })
@@ -504,8 +508,11 @@ describe('detector: la sección de búsquedas recientes', () => {
   })
 
   it('cada búsqueda es un botón con la etiqueta «Buscar de nuevo: <texto>»', () => {
-    expect(COMPONENTE).toMatch(/return `Buscar de nuevo: \$\{busqueda\}`/)
-    expect(COMPONENTE).toMatch(/accessibilityRole="button"\s+accessibilityLabel=\{etiquetaBusquedaReciente\(busqueda\)\}/)
+    // Q6-1: la etiqueta sale del diccionario (`recientes.buscarDeNuevo`), con el idioma de la app.
+    expect(COMPONENTE).toMatch(/return textosDe\(idioma\)\.recientes\.buscarDeNuevo\(busqueda\)/)
+    expect(es.recientes.buscarDeNuevo('peña')).toBe('Buscar de nuevo: peña')
+    expect(en.recientes.buscarDeNuevo('peña')).toBe('Search again: peña')
+    expect(COMPONENTE).toMatch(/accessibilityRole="button"\s+accessibilityLabel=\{etiquetaBusquedaReciente\(busqueda, idioma\)\}/)
   })
 
   it('área táctil: el chip y el botón de borrar miden AREA_TACTIL_MINIMA de alto como mínimo', () => {
@@ -566,13 +573,18 @@ describe('detector: cómo lo usa buscar.tsx', () => {
     // Sin refs de «lo último escrito» para guardar al salir. Integración con A7:
     // la única ref es `textoVigente`, que solo usa `abrirResultado` (al tocar
     // una tarjeta) para ser estable y no invalidar el memo al tipear.
-    expect([...BUSCAR.matchAll(/useRef\(/g)]).toHaveLength(1)
+    // Q6-1: la segunda ref es `idiomaRef` (el idioma para el anuncio de un
+    // reintento, dentro del efecto de carga); no guarda nada de la búsqueda.
+    expect([...BUSCAR.matchAll(/useRef\(/g)]).toHaveLength(2)
+    expect(BUSCAR).toMatch(/const idiomaRef = useRef\(idioma\)/)
     expect(BUSCAR).toMatch(/const textoVigente = useRef\(texto\)/)
     expect(BUSCAR.match(/textoVigente\.current/g)).toHaveLength(2)
   })
 
   it('la sección va en el ListHeaderComponent de «Explorar por categoría» (arriba de la grilla, nunca en un footer con el banner)', () => {
-    expect(BUSCAR).toMatch(/ListHeaderComponent=\{\s*<>\s*<BusquedasRecientes\b[\s\S]*?Explorar por categoría/)
+    // Q6-1: «Explorar por categoría» sale del diccionario (`buscar.explorar`).
+    expect(BUSCAR).toMatch(/ListHeaderComponent=\{\s*<>\s*<BusquedasRecientes\b[\s\S]*?\{t\.buscar\.explorar\}/)
+    expect(es.buscar.explorar).toBe('Explorar por categoría')
     expect(BUSCAR).not.toMatch(/ListFooterComponent=\{[^}]*BusquedasRecientes/)
     expect(BUSCAR.match(/<BusquedasRecientes\b/g) ?? []).toHaveLength(1)
   })

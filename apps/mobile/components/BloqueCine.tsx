@@ -9,6 +9,7 @@ import { Icono } from '@/components/Icono'
 import { Texto } from '@/components/Texto'
 import { useColoresQPS } from '@/lib/colores'
 import { urlCompraCineSegura, type FuncionesDeCine } from '@/lib/datos/cines'
+import { useTextos } from '@/lib/i18n'
 
 /** El nombre del cine como trigger y, abierto, los formatos con sus horarios
  * en chips y "Comprar Entradas". */
@@ -29,6 +30,7 @@ export function BloqueCine({
   // directo — siempre pasa por `urlCompraCineSegura` (ver
   // `tests/aperturas-url.test.ts`).
   const urlCompra = urlCompraCineSegura(cine.urlCompra)
+  const t = useTextos().tarjeta
 
   return (
     <View style={[estilos.bloqueCine, !esUltimo && { borderBottomWidth: 1, borderColor: colores.border }]}>
@@ -69,7 +71,7 @@ export function BloqueCine({
             >
               <Icono nombre="Ticket" tamanio={14} color={colores.primary} />
               <Texto peso="semibold" style={estilos.textoComprar}>
-                Comprar Entradas
+                {t.comprarEntradas}
               </Texto>
             </Pressable>
           ) : null}

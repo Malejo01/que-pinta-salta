@@ -19,6 +19,8 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 import { ArrowLeft } from 'lucide-react'
+import { useIdioma, useTextos } from '@/lib/i18n/use-idioma'
+import { rutaEn } from '@/lib/i18n/rutas'
 
 const GoogleIcon = () => (
   <svg className="size-4 shrink-0" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
@@ -30,6 +32,14 @@ const GoogleIcon = () => (
 )
 
 export default function SignUpPage() {
+  // Q6-2: la misma página en /en/auth/sign-up (el idioma sale de la URL, como en el ingreso).
+  const idioma = useIdioma()
+  const textos = useTextos()
+  const t = textos.paginaAlta
+  const ti = textos.paginaIngreso
+  const langLegales = idioma === 'en' ? 'es' : undefined
+  // En inglés, los mensajes de core traducidos (auth.mensaje); en castellano, tal cual.
+  const mensaje = (texto: string) => (idioma === 'en' ? textos.auth.mensaje(texto) : texto)
   const [email, setEmail] = useState('')
   const [fullName, setFullName] = useState('')
   const [password, setPassword] = useState('')
@@ -46,7 +56,7 @@ export default function SignUpPage() {
       const { error } = await signInWithGoogle()
       if (error) throw error
     } catch {
-      setError('Ocurrió un error al registrarse con Google. Probá de nuevo.')
+      setError(t.errorGoogle)
       setIsLoading(false)
     }
   }
@@ -59,7 +69,7 @@ export default function SignUpPage() {
 
     const validacion = validarContrasenaNueva(password, repeatPassword)
     if (!validacion.ok) {
-      setError(validacion.mensaje)
+      setError(mensaje(validacion.mensaje))
       setIsLoading(false)
       return
     }
@@ -82,18 +92,19 @@ export default function SignUpPage() {
         // Supabase confirmó el alta solo: no sale ningún correo y el usuario
         // ya quedó logueado. El Toaster vive en el layout raíz, sobrevive a la navegación.
         toast({
-          title: '¡Bienvenido!',
-          description: MENSAJE_ALTA_CON_SESION,
+          title: textos.auth.bienvenido,
+          description: mensaje(MENSAJE_ALTA_CON_SESION),
         })
-        router.push('/')
+        // En /en/auth/sign-up vuelve a la portada en inglés (como el ingreso).
+        router.push(rutaEn(idioma, '/'))
         router.refresh()
       } else if (resultado.tipo === 'enviado') {
         router.push('/auth/sign-up-success')
       } else {
-        setError(resultado.mensaje)
+        setError(mensaje(resultado.mensaje))
       }
     } catch (error: unknown) {
-      setError(mensajeErrorAlta(error))
+      setError(mensaje(mensajeErrorAlta(error)))
     } finally {
       setIsLoading(false)
     }
@@ -102,54 +113,54 @@ export default function SignUpPage() {
   return (
     <main id="contenido" tabIndex={-1} className="flex min-h-svh w-full flex-col items-center justify-center bg-background p-6 md:p-10 focus:outline-none">
       <div className="w-full max-w-sm">
-        <Link 
-          href="/" 
+        <Link
+          href={rutaEn(idioma, '/')}
           className="mb-6 flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
         >
           <ArrowLeft className="size-4" />
-          Volver a inicio
+          {ti.volverAInicio}
         </Link>
         
         <div className="mb-8 text-center">
           <h1 className="text-2xl font-bold text-primary">Que pinta Salta</h1>
-          <p className="text-sm text-muted-foreground">Eventos en Salta Capital</p>
+          <p className="text-sm text-muted-foreground">{ti.eventosEnSalta}</p>
         </div>
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-2xl">Crear Cuenta</CardTitle>
-            <CardDescription>Registrate para publicar eventos y guardar favoritos</CardDescription>
+            <CardTitle className="text-2xl">{t.titulo}</CardTitle>
+            <CardDescription>{t.bajada}</CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSignUp}>
               <div className="flex flex-col gap-4">
                 <div className="grid gap-2">
-                  <Label htmlFor="fullName">Nombre completo</Label>
+                  <Label htmlFor="fullName">{t.nombreCompleto}</Label>
                   <Input
                     id="fullName"
                     autoComplete="name"
                     type="text"
-                    placeholder="Juan Perez"
+                    placeholder={t.nombrePlaceholder}
                     value={fullName}
                     onChange={(e) => setFullName(e.target.value)}
                   />
                 </div>
                 <div className="grid gap-2">
-                  <Label htmlFor="email">Email *</Label>
+                  <Label htmlFor="email">{textos.auth.email} *</Label>
                   <Input
                     id="email"
                     type="email"
                     autoComplete="email"
                     aria-invalid={error ? true : undefined}
                     aria-describedby={error ? 'signup-error' : undefined}
-                    placeholder="tu@email.com"
+                    placeholder={textos.auth.emailPlaceholder}
                     required
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                   />
                 </div>
                 <div className="grid gap-2">
-                  <Label htmlFor="password">Contraseña *</Label>
+                  <Label htmlFor="password">{textos.auth.contrasena} *</Label>
                   <PasswordInput
                     id="password"
                     autoComplete="new-password"
@@ -161,7 +172,7 @@ export default function SignUpPage() {
                   />
                 </div>
                 <div className="grid gap-2">
-                  <Label htmlFor="repeat-password">Repetir Contraseña *</Label>
+                  <Label htmlFor="repeat-password">{t.repetirContrasena} *</Label>
                   <PasswordInput
                     id="repeat-password"
                     autoComplete="new-password"
@@ -178,7 +189,7 @@ export default function SignUpPage() {
                   </p>
                 )}
                 <Button type="submit" className="w-full" disabled={isLoading}>
-                  {isLoading ? 'Creando cuenta...' : 'Crear cuenta'}
+                  {isLoading ? textos.auth.creandoCuenta : t.boton}
                 </Button>
               </div>
             </form>
@@ -188,7 +199,7 @@ export default function SignUpPage() {
                 <span className="w-full border-t" />
               </div>
               <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-card px-2 text-muted-foreground">O continuar con</span>
+                <span className="bg-card px-2 text-muted-foreground">{ti.oContinuarCon}</span>
               </div>
             </div>
 
@@ -204,24 +215,24 @@ export default function SignUpPage() {
             </Button>
 
             <p className="mt-4 text-xs text-muted-foreground text-center">
-              Al crear tu cuenta aceptás los{' '}
-              <Link href="/terminos" className="text-primary dark:text-[#F0585D] underline underline-offset-4">
-                Términos y condiciones
+              {t.aceptasAlCrear}{' '}
+              <Link href="/terminos" hrefLang={langLegales ? 'es-AR' : undefined} className="text-primary dark:text-[#F0585D] underline underline-offset-4">
+                {ti.terminos}
               </Link>{' '}
-              y la{' '}
-              <Link href="/privacidad" className="text-primary dark:text-[#F0585D] underline underline-offset-4">
-                Política de Privacidad
+              {ti.yLa}{' '}
+              <Link href="/privacidad" hrefLang={langLegales ? 'es-AR' : undefined} className="text-primary dark:text-[#F0585D] underline underline-offset-4">
+                {ti.privacidad}
               </Link>
-              .
+              {ti.cierreLegales}
             </p>
 
             <div className="mt-4 text-center text-sm">
-              ¿Ya tenés cuenta?{' '}
+              {t.yaTenesCuenta}{' '}
               <Link
-                href="/auth/login"
+                href={rutaEn(idioma, '/auth/login')}
                 className="text-primary dark:text-[#F0585D] underline underline-offset-4"
               >
-                Iniciar sesión
+                {t.iniciarSesion}
               </Link>
             </div>
           </CardContent>

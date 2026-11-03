@@ -25,6 +25,7 @@ import { Icono, iconoPorCategoria } from '@/components/Icono'
 import { TarjetaEvento } from '@/components/TarjetaEvento'
 import { Texto } from '@/components/Texto'
 import { useColoresQPS } from '@/lib/colores'
+import { useTextos } from '@/lib/i18n'
 
 const ANCHO_TARJETA = 180
 const ALTO_TARJETA = 270
@@ -81,6 +82,7 @@ export interface FilaCategoriaProps {
 
 export function FilaCategoria({ categoria, titulo, eventos, alVerTodos }: FilaCategoriaProps) {
   const colores = useColoresQPS()
+  const t = useTextos().tarjeta
 
   if (eventos.length === 0) return null
 
@@ -105,7 +107,7 @@ export function FilaCategoria({ categoria, titulo, eventos, alVerTodos }: FilaCa
               defecto de `Texto`), subrayado para no perder la señal de que
               se toca (no tiene ícono ni borde propio). */}
           <Texto peso="semibold" style={[estilos.textoVerTodos, estilos.subrayado]}>
-            Ver todos
+            {t.verTodos}
           </Texto>
         </Pressable>
       </View>

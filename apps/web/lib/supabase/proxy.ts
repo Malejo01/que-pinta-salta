@@ -1,5 +1,6 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
+import { rutaEn, separarIdioma } from '@/lib/i18n/rutas'
 
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({
@@ -42,14 +43,17 @@ export async function updateSession(request: NextRequest) {
   } = await supabase.auth.getUser()
 
   const protectedRoutes = ['/nuevo-evento', '/crear-evento', '/perfil', '/protected']
-  const isProtectedRoute = protectedRoutes.some(route => 
-    request.nextUrl.pathname.startsWith(route)
+  // Q6-2: /en/nuevo-evento y /en/perfil también; sin sesión van al ingreso en
+  // el mismo idioma (/en/auth/login?next=/en/...).
+  const { idioma, ruta } = separarIdioma(request.nextUrl.pathname)
+  const isProtectedRoute = protectedRoutes.some(route =>
+    ruta.startsWith(route)
   )
 
   if (isProtectedRoute && !user) {
     // no user, potentially respond by redirecting the user to the login page
     const url = request.nextUrl.clone()
-    url.pathname = '/auth/login'
+    url.pathname = rutaEn(idioma, '/auth/login')
     url.searchParams.set('next', request.nextUrl.pathname)
     return NextResponse.redirect(url)
   }

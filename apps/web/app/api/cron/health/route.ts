@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
 import { hasBearerSecret } from '@/lib/api-auth'
 import type { JobLastRun } from '@/lib/job-runs'
+import { chequeoTraduccion, VENTANA_FALLA_HORAS, type CorridaTraduccion } from '@/lib/traduccion/salud'
 
 export const dynamic = 'force-dynamic'
 
@@ -31,6 +32,10 @@ export const dynamic = 'force-dynamic'
  *
  * La cola de IA se mide por la antigüedad del flyer ACTIVE/PENDING más viejo:
  * con la cola vacía está sana aunque no haya procesado nada.
+ *
+ * traduccion (Q6-10): en rojo si la última corrida con trabajo falló en la
+ * llamada al modelo (402, clave, límite…) o lo descartó todo. Ver
+ * `lib/traduccion/salud.ts`.
  */
 
 const TICKETERAS = ['entradauno', 'norteticket', 'alpogo', 'vamos']
@@ -89,7 +94,9 @@ export async function GET(request: Request) {
   const recienteDesde = new Date(now - SIN_LUGAR_RECIENTE_HORAS * 3_600_000).toISOString()
   const proximosHasta = new Date(now + SIN_LUGAR_PROXIMOS_DIAS * 86_400_000).toISOString()
 
-  const [ticketeras, cines, instagram, oldestPending, lastProcessed, jobRuns, sinLugar, sinLugarUrgente] = await Promise.all([
+  const fallaDesde = new Date(now - VENTANA_FALLA_HORAS * 3_600_000).toISOString()
+
+  const [ticketeras, cines, instagram, oldestPending, lastProcessed, jobRuns, sinLugar, sinLugarUrgente, traduccionConTrabajo] = await Promise.all([
     supabase.from('events').select('updated_at').in('scrape_source_key', TICKETERAS)
       .order('updated_at', { ascending: false }).limit(1).maybeSingle(),
     supabase.from('cinema_movies').select('updated_at')
@@ -108,6 +115,10 @@ export async function GET(request: Request) {
       .eq('status', 'PUBLISHED').gte('start_date', nowIso).is('venue_id', null)
       .or(`created_at.gte.${recienteDesde},start_date.lte.${proximosHasta}`)
       .order('start_date', { ascending: true }).limit(5),
+    // Q6-10: la última corrida de la traducción que hizo algo (las SKIPPED de fin de tope no tapan una falla).
+    supabase.from('job_runs').select('status, errors, started_at').eq('job_key', 'traduccion')
+      .not('status', 'in', '("SKIPPED","RUNNING")').gte('started_at', fallaDesde)
+      .order('started_at', { ascending: false }).limit(1).maybeSingle(),
   ])
 
   const dbError = [ticketeras, cines, instagram, oldestPending, lastProcessed, sinLugar, sinLugarUrgente]
@@ -118,6 +129,7 @@ export async function GET(request: Request) {
   }
   // Sin job_runs (p. ej. antes de la migración) se cae al rastro en los datos.
   if (jobRuns.error) console.error('[Health] No se pudo leer job_last_runs:', jobRuns.error)
+  if (traduccionConTrabajo.error) console.error('[Health] No se pudo leer la última corrida de la traducción:', traduccionConTrabajo.error)
   const runs = new Map(((jobRuns.data ?? []) as JobLastRun[]).map((r) => [r.job_key, r]))
 
   const queueRun = runs.get('cola_ia')
@@ -179,6 +191,7 @@ export async function GET(request: Request) {
     jobCheck('instagram', runs.get('instagram'), instagram.data?.fetched_at ?? null, 100, now, 'cron vie/sáb/dom/lun 00:00 UTC'),
     queueCheck,
     recurrentesCheck,
+    chequeoTraduccion(runs.get('traduccion'), (traduccionConTrabajo.data ?? null) as CorridaTraduccion | null, now),
     sinLugarCheck,
   ]
 

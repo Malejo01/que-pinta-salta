@@ -42,6 +42,7 @@ import { Icono, iconoPorCategoria } from '@/components/Icono'
 import { Texto } from '@/components/Texto'
 import { destinoScrollChip, type MedidaChip } from '@/lib/chips-desplazamiento'
 import { bordeChipInactivo, useColoresQPS } from '@/lib/colores'
+import { useTextos } from '@/lib/i18n'
 
 export interface CategoriaChip {
   slug: string
@@ -121,8 +122,9 @@ function FilaCategorias({ categorias, seleccionada, onCambiar, mostrarBarra = fa
     traerALaVista(scrollRef, posiciones, anchoVisible, posicionada, seleccionada ?? 'todas')
   }, [seleccionada])
 
+  const t = useTextos().chipsCategorias
   const chips: { slug: string | null; nombre: string; etiqueta: string }[] = [
-    { slug: null, nombre: 'Todas', etiqueta: 'Todas las categorías' },
+    { slug: null, nombre: t.todas, etiqueta: t.todasLasCategorias },
     ...categorias.map((categoria) => ({ slug: categoria.slug, nombre: categoria.name, etiqueta: categoria.name })),
   ]
 
@@ -193,8 +195,9 @@ function FilaCategorias({ categorias, seleccionada, onCambiar, mostrarBarra = fa
 function GrillaCategorias({ categorias, seleccionada, onCambiar }: Pick<ChipsCategoriasProps, 'categorias' | 'seleccionada' | 'onCambiar'>) {
   const colores = useColoresQPS()
   const bordeInactivo = bordeChipInactivo(colores)
+  const t = useTextos().chipsCategorias
   const chips: { slug: string | null; nombre: string; etiqueta: string }[] = [
-    { slug: null, nombre: 'Todas', etiqueta: 'Todas las categorías' },
+    { slug: null, nombre: t.todas, etiqueta: t.todasLasCategorias },
     ...categorias.map((categoria) => ({ slug: categoria.slug, nombre: categoria.name, etiqueta: categoria.name })),
   ]
   return (

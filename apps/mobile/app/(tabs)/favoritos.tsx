@@ -111,14 +111,15 @@ import { LugaresQueSeguis } from '@/components/LugaresQueSeguis'
 import { esperarBorradoDeCache, reintentarSesion, useSession } from '@/lib/session'
 import { TITULO_SIN_CONEXION } from '@/lib/sin-conexion/aviso'
 import { cargarFavoritosConCache, leerFavoritosGuardados } from '@/lib/sin-conexion/favoritos'
+import { textosDe, useIdioma, useTextos } from '@/lib/i18n'
+import { localeDeIdioma, type Idioma } from '@/lib/i18n/idioma'
 import {
   anuncioDeReintento,
   avisoReintentoSesion,
   decidirRefresco,
   detalleAvisoFavoritos,
   mensajeErrorCarga,
-  SIN_CONEXION_POR_PANTALLA,
-  VACIO_FAVORITOS_SIN_CONEXION,
+  vacioFavoritos,
 } from '@/lib/vacios'
 
 // R43, 43-c: `desdeCache` en la rama 'ok' (cuándo se guardó lo que se está
@@ -199,7 +200,9 @@ function enFilasDeDos(items: DisplayEvent[]): DisplayEvent[][] {
  * en orden, y cada grupo ya viene ordenado). Exportada para probarla con
  * fixtures en `tests/favoritos-pantalla.test.ts`.
  */
-export function agruparFavoritosParaSecciones(eventos: DisplayEvent[]): SeccionFavoritos[] {
+export function agruparFavoritosParaSecciones(eventos: DisplayEvent[], idioma: Idioma = 'es'): SeccionFavoritos[] {
+  // Q6-1: los títulos de las secciones salen del diccionario y la fecha, de Intl.
+  const t = textosDe(idioma).misEventos
   const flexibles = eventos.filter((item) => item.isCinemaMovie || item.isInstagramFlyer)
 
   const porDia = new Map<string, DisplayEvent[]>()
@@ -215,7 +218,7 @@ export function agruparFavoritosParaSecciones(eventos: DisplayEvent[]): SeccionF
   if (flexibles.length > 0) {
     secciones.push({
       key: 'flexibles',
-      titulo: `Plan flexible / Sin fecha definida (${flexibles.length})`,
+      titulo: t.flexibles(flexibles.length),
       esFlexible: true,
       data: enFilasDeDos(flexibles),
     })
@@ -224,7 +227,7 @@ export function agruparFavoritosParaSecciones(eventos: DisplayEvent[]): SeccionF
   for (const [dia, items] of porDia) {
     secciones.push({
       key: dia,
-      titulo: `${capitalizeFirst(formatEventDate(dia))} (${items.length})`,
+      titulo: `${capitalizeFirst(formatEventDate(dia, false, localeDeIdioma(idioma)))} (${items.length})`,
       esFlexible: false,
       data: enFilasDeDos(items),
     })
@@ -240,9 +243,9 @@ export function agruparFavoritosParaSecciones(eventos: DisplayEvent[]): SeccionF
  * ninguno: la pantalla no dibuja ni el grupo ni su encabezado. Exportada
  * para probarla en `tests/favoritos-pantalla.test.ts`.
  */
-export function seccionVoy(voy: DisplayEvent[]): SeccionFavoritos | null {
+export function seccionVoy(voy: DisplayEvent[], idioma: Idioma = 'es'): SeccionFavoritos | null {
   if (voy.length === 0) return null
-  return { key: 'voy', titulo: `Voy (${voy.length})`, esFlexible: false, data: enFilasDeDos(voy) }
+  return { key: 'voy', titulo: textosDe(idioma).misEventos.voy(voy.length), esFlexible: false, data: enFilasDeDos(voy) }
 }
 
 export type VistaFavoritos = 'cargando-sesion' | 'invitar' | 'contenido'
@@ -287,6 +290,10 @@ export default function Favoritos() {
   // el token, Favoritos puede mostrar la caché en vez de "Entrá…" (ver
   // `useFocusEffect` y `decidirVistaFavoritos`, arriba).
   const { session, cargando: cargandoSesion, sinConexion } = useSession()
+  // Q6-1: Mis eventos en el idioma de la app. Los errores y las notas se
+  // guardan en castellano y se muestran y se anuncian traducidos.
+  const { idioma } = useIdioma()
+  const t = useTextos()
   const userId = session?.user.id ?? null
 
   const [estado, setEstado] = useState<EstadoLista>({ tipo: 'cargando' })
@@ -336,10 +343,10 @@ export default function Favoritos() {
     // A6: Android no anuncia la live region del aviso al montarse (R69) e
     // iOS las ignora: se anuncia acá. Y un "Reintentar" de `ErrorCarga` que
     // vuelve a dar error, también.
-    if (resultado.tipo === 'ok' && resultado.desdeCache) anunciar(TITULO_SIN_CONEXION)
+    if (resultado.tipo === 'ok' && resultado.desdeCache) anunciar(t.errores.traducir(TITULO_SIN_CONEXION))
     const anuncioError = anuncioDeReintento(habiaError, nuevo)
-    if (anuncioError) anunciar(anuncioError)
-  }, [userId])
+    if (anuncioError) anunciar(t.errores.traducir(anuncioError))
+  }, [userId, t])
 
   // Repite el cuerpo de `cargar` en vez de llamarla (ver el comentario de
   // cabecera sobre `tests/favoritos-armar.test.ts`, que cuenta los llamados a
@@ -378,7 +385,7 @@ export default function Favoritos() {
       const estaCarga = ++cargaVigenteRef.current
       try {
         const resultadoSesion = await reintentarSesion()
-        const avisoSesion = avisoReintentoSesion(resultadoSesion)
+        const avisoSesion = avisoReintentoSesion(resultadoSesion, idioma)
         if (resultadoSesion === 'volvio') {
           setNotaRefresco(null)
           if (avisoSesion.anuncio) anunciar(avisoSesion.anuncio)
@@ -402,7 +409,7 @@ export default function Favoritos() {
         const nota = decision.nota ?? (cache ? null : avisoSesion.nota)
         setNotaRefresco(nota)
         const anuncio = decision.anuncio ?? (cache ? null : avisoSesion.anuncio)
-        if (anuncio) anunciar(anuncio)
+        if (anuncio) anunciar(t.errores.traducir(anuncio))
       } finally {
         // Si `leerFavoritosGuardados` tirara, el spinner no puede quedar
         // girando (misma familia de bloqueante que R41/R42).
@@ -433,9 +440,9 @@ export default function Favoritos() {
     )
     setEstado(decision.estado)
     setNotaRefresco(decision.nota)
-    if (decision.anuncio) anunciar(decision.anuncio)
+    if (decision.anuncio) anunciar(t.errores.traducir(decision.anuncio))
     setRefrescando(false)
-  }, [userId, sinConexion, estado, notaRefresco])
+  }, [userId, sinConexion, estado, notaRefresco, idioma, t])
 
   useFocusEffect(
     useCallback(() => {
@@ -482,10 +489,10 @@ export default function Favoritos() {
   // dos listas ya vienen separadas sin repetidos (separarMisEventos, core).
   const secciones = useMemo(() => {
     if (estado.tipo !== 'ok') return []
-    const voy = seccionVoy(estado.voy)
-    const guardados = agruparFavoritosParaSecciones(estado.eventos)
+    const voy = seccionVoy(estado.voy, idioma)
+    const guardados = agruparFavoritosParaSecciones(estado.eventos, idioma)
     return voy ? [voy, ...guardados] : guardados
-  }, [estado])
+  }, [estado, idioma])
 
   const compartirPorWhatsApp = useCallback(async () => {
     if (estado.tipo !== 'ok') return
@@ -522,12 +529,12 @@ export default function Favoritos() {
       <View style={[estilos.centrado, { backgroundColor: colors.background, flex: 1 }]}>
         <Image source={LOGO_MARCA} style={estilos.logoVacio} resizeMode="contain" />
         <Texto tono="secundario" style={estilos.mensajeVacio}>
-          {SIN_CONEXION_POR_PANTALLA.favoritos}
+          {t.mensajes.sinConexion.favoritos}
         </Texto>
         <BotonReintentar onReintentar={refrescar} reintentando={refrescando} />
         {notaRefresco ? (
           <Texto tono="secundario" style={estilos.mensajeVacio}>
-            {notaRefresco}
+            {t.errores.traducir(notaRefresco)}
           </Texto>
         ) : null}
       </View>
@@ -544,17 +551,17 @@ export default function Favoritos() {
       <View style={[estilos.centrado, { backgroundColor: colors.background, flex: 1 }]}>
         <Image source={LOGO_MARCA} style={estilos.logoVacio} resizeMode="contain" />
         <Texto tono="secundario" style={estilos.mensajeVacio}>
-          Entrá para guardar tus favoritos
+          {t.misEventos.entraParaGuardar}
         </Texto>
         <Pressable
           onPress={() => router.push('/cuenta')}
           accessibilityRole="button"
-          accessibilityLabel="Ingresar"
+          accessibilityLabel={t.misEventos.ingresar}
           style={[estilos.botonIngresar, { backgroundColor: colores.primary }]}
         >
           <Icono nombre="LogIn" color={colores.primaryForeground} tamanio={18} />
           <Texto peso="semibold" style={{ color: colores.primaryForeground }}>
-            Ingresar
+            {t.misEventos.ingresar}
           </Texto>
         </Pressable>
       </View>
@@ -577,7 +584,7 @@ export default function Favoritos() {
 
       {estado.tipo === 'cargando' ? <Cargando /> : null}
 
-      {estado.tipo === 'error' ? <ErrorCarga mensaje={estado.error} onReintentar={cargar} /> : null}
+      {estado.tipo === 'error' ? <ErrorCarga mensaje={t.errores.traducir(estado.error)} onReintentar={cargar} /> : null}
 
       {estado.tipo === 'ok' ? (
         <SectionList
@@ -599,35 +606,34 @@ export default function Favoritos() {
               {estado.tipo === 'ok' && estado.desdeCache ? (
                 <AvisoSinConexion
                   guardadoEn={estado.desdeCache.guardadoEn}
-                  detalle={detalleAvisoFavoritos(estado.seOcultaronPasados === true)}
+                  detalle={detalleAvisoFavoritos(estado.seOcultaronPasados === true, idioma)}
                   onReintentar={refrescar}
                   reintentando={refrescando}
-                  nota={notaRefresco}
+                  nota={notaRefresco ? t.errores.traducir(notaRefresco) : null}
                 />
               ) : null}
               {/* A6: un refresco que falló con una carga fresca a la vista:
                   se conserva y se avisa. */}
               {estado.tipo === 'ok' && estado.desdeCache === null && notaRefresco ? (
-                <AvisoNoSeActualizo texto={notaRefresco} onReintentar={refrescar} reintentando={refrescando} />
+                <AvisoNoSeActualizo texto={t.errores.traducir(notaRefresco)} onReintentar={refrescar} reintentando={refrescando} />
               ) : null}
               {totalFavoritos > 0 ? (
                 <View style={[estilos.encabezado, { borderBottomColor: colors.border }]}>
                   <Texto peso="bold" accessibilityRole="header" style={estilos.titulo}>
-                    Mis eventos
+                    {t.misEventos.titulo}
                   </Texto>
                   <Texto tono="secundario" style={estilos.subtitulo}>
-                    Tenés {totalFavoritos} {totalFavoritos === 1 ? 'elemento guardado' : 'elementos guardados'} organizados
-                    para tu salida.
+                    {t.misEventos.guardados(totalFavoritos)}
                   </Texto>
                   <Pressable
                     onPress={compartirPorWhatsApp}
                     accessibilityRole="button"
-                    accessibilityLabel="Compartir agenda por WhatsApp"
+                    accessibilityLabel={t.misEventos.compartirWhatsApp}
                     style={estilos.botonWhatsApp}
                   >
                     <Icono nombre="Share2" tamanio={18} color="#fff" />
                     <Texto peso="semibold" style={estilos.textoBotonWhatsApp}>
-                      Compartir agenda por WhatsApp
+                      {t.misEventos.compartirWhatsApp}
                     </Texto>
                   </Pressable>
                 </View>
@@ -681,21 +687,11 @@ export default function Favoritos() {
           // red, el literal de siempre con "Mis eventos" (lo fija
           // tests/favoritos-pantalla.test.ts; espejo en `VACIO_FAVORITOS`).
           ListEmptyComponent={
-            estado.tipo === 'ok' && estado.desdeCache ? (
-              <Vacio
-                mensaje={VACIO_FAVORITOS_SIN_CONEXION.mensaje}
-                textoAccion={VACIO_FAVORITOS_SIN_CONEXION.textoAccion}
-                onAccion={() => router.push('/')}
-                accionPrincipal
-              />
-            ) : (
-              <Vacio
-                mensaje="Todavía no guardaste ningún evento en Mis eventos. Tocá el corazón o “Voy” en un evento y aparece acá."
-                textoAccion="Ver la agenda"
-                onAccion={() => router.push('/')}
-                accionPrincipal
-              />
-            )
+            <Vacio
+              {...vacioFavoritos(estado.tipo === 'ok' && estado.desdeCache !== null, idioma)}
+              onAccion={() => router.push('/')}
+              accionPrincipal
+            />
           }
         />
       ) : null}
@@ -747,6 +743,9 @@ const estilos = StyleSheet.create({
     justifyContent: 'center',
     gap: 8,
     alignSelf: 'flex-start',
+    // Q6-1: con la letra al 200 % (y en inglés) el texto envuelve dentro del
+    // botón en vez de salirse de la pantalla.
+    maxWidth: '100%',
     backgroundColor: '#047857',
     paddingHorizontal: 20,
     paddingVertical: 12,
@@ -754,7 +753,7 @@ const estilos = StyleSheet.create({
     borderRadius: 12,
     marginTop: 4,
   },
-  textoBotonWhatsApp: { color: '#fff', fontSize: 14 },
+  textoBotonWhatsApp: { color: '#fff', fontSize: 14, flexShrink: 1 },
   encabezadoSeccion: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12 },
   lineaSeccion: { flex: 1, height: 1 },
   tituloSeccionFlexible: { fontSize: 11, letterSpacing: 1, textTransform: 'uppercase' },

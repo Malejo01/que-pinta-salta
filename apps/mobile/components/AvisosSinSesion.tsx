@@ -19,14 +19,14 @@ import { avisar } from '@/lib/aviso'
 import { useColoresQPS } from '@/lib/colores'
 import { usePush } from '@/lib/push'
 import { avisosVisibles, type AvisosAnonimos } from '@/lib/push/dispositivo'
-import { TEXTOS_PUSH } from '@/lib/push/estado'
-import { AVISO_SIN_PERMISO, PISTA_PIDE_PERMISO } from '@/lib/push/textos-interruptores'
 import { avisosGuardadosDeEsteTelefono, cambiarAvisosDeEsteTelefono } from '@/lib/push/registro'
+import { useIdioma, useTextos } from '@/lib/i18n'
+import { es } from '@/lib/i18n/diccionarios/es'
 
-export const TITULO_AVISOS_SIN_SESION = 'Avisos'
-export const TEXTO_AVISOS_SIN_SESION =
-  'Sin cuenta te podemos mandar avisos del equipo y, si los activás, patrocinados. Para recordatorios de lo que guardás y tu Radar, entrá a tu cuenta.'
-export const AVISO_NO_SE_PUDO_CAMBIAR = 'No pudimos cambiar los avisos. Probá de nuevo en un rato.'
+// Q6-1: los textos viven en el diccionario (`notificaciones`); estas constantes son el castellano.
+export const TITULO_AVISOS_SIN_SESION = es.notificaciones.sinSesionTitulo
+export const TEXTO_AVISOS_SIN_SESION = es.notificaciones.sinSesionTexto
+export const AVISO_NO_SE_PUDO_CAMBIAR = es.notificaciones.noSePudoCambiar
 
 
 type Avisos = AvisosAnonimos
@@ -35,6 +35,8 @@ type Clave = keyof Avisos
 export function AvisosSinSesion() {
   const colores = useColoresQPS()
   const { estado, sincronizado, activar, reintentar, abrirAjustes } = usePush()
+  const { idioma } = useIdioma()
+  const t = useTextos().notificaciones
   const [guardados, setGuardados] = useState<Avisos | null>(null)
   const [guardando, setGuardando] = useState<Clave | null>(null)
   const activo = estado === 'activo'
@@ -62,7 +64,7 @@ export function AvisosSinSesion() {
           if (!valor) return
           const resultado = await activar()
           if (resultado !== 'activo') {
-            avisar(AVISO_SIN_PERMISO)
+            avisar(t.sinPermiso)
             return
           }
         }
@@ -72,32 +74,32 @@ export function AvisosSinSesion() {
         if (r.ok) setGuardados(r.avisos)
         else {
           setGuardados(anterior)
-          avisar(AVISO_NO_SE_PUDO_CAMBIAR)
+          avisar(t.noSePudoCambiar)
         }
       } finally {
         setGuardando(null)
       }
     },
-    [activar, activo, guardados, guardando],
+    [activar, activo, guardados, guardando, t],
   )
 
-  const boton = botonParaEstado(estado)
+  const boton = botonParaEstado(estado, idioma)
   const accionBoton =
     boton?.accion === 'abrirAjustes' ? abrirAjustes : boton?.accion === 'reintentar' ? () => void reintentar() : () => void activar()
 
   return (
     <View style={estilos.seccion}>
       <Texto peso="semibold" accessibilityRole="header" style={estilos.titulo}>
-        {TITULO_AVISOS_SIN_SESION}
+        {t.sinSesionTitulo}
       </Texto>
       <Texto tono="secundario" style={estilos.textoDescripcion}>
-        {TEXTO_AVISOS_SIN_SESION}
+        {t.sinSesionTexto}
       </Texto>
 
       {!activo && sincronizado ? (
         <View style={estilos.estadoPush}>
           <Texto tono="secundario" style={estilos.textoDescripcion}>
-            {TEXTOS_PUSH[estado]}
+            {t.estadosPush[estado]}
           </Texto>
           {boton ? (
             <Pressable
@@ -121,34 +123,34 @@ export function AvisosSinSesion() {
 
       <View style={estilos.filaInterruptor}>
         <View style={estilos.filaEtiquetaConDescripcion}>
-          <Texto>Avisos de Qué Pinta Salta</Texto>
+          <Texto>{t.equipo}</Texto>
           <Texto tono="secundario" style={estilos.textoDescripcion}>
-            Novedades y avisos del equipo de Qué Pinta Salta.
+            {t.equipoDescripcion}
           </Texto>
         </View>
         <Switch
           value={visibles.avisosEquipo}
           onValueChange={(valor) => void cambiar('avisosEquipo', valor)}
           disabled={guardando !== null}
-          accessibilityLabel="Avisos de Qué Pinta Salta"
-          accessibilityHint={activo ? 'Novedades y avisos del equipo de Qué Pinta Salta.' : PISTA_PIDE_PERMISO}
+          accessibilityLabel={t.equipo}
+          accessibilityHint={activo ? t.equipoDescripcion : t.pidePermiso}
           accessibilityState={{ checked: visibles.avisosEquipo, busy: guardando === 'avisosEquipo' }}
         />
       </View>
 
       <View style={estilos.filaInterruptor}>
         <View style={estilos.filaEtiquetaConDescripcion}>
-          <Texto>Avisos patrocinados</Texto>
+          <Texto>{t.patrocinados}</Texto>
           <Texto tono="secundario" style={estilos.textoDescripcion}>
-            {'Anuncios pagos: hasta 1 por semana, de eventos de Salta. Llevan la etiqueta "Patrocinado".'}
+            {t.patrocinadosSinSesion}
           </Texto>
         </View>
         <Switch
           value={visibles.avisosPatrocinados}
           onValueChange={(valor) => void cambiar('avisosPatrocinados', valor)}
           disabled={guardando !== null}
-          accessibilityLabel="Avisos patrocinados"
-          accessibilityHint={activo ? 'Anuncios pagos: hasta 1 por semana.' : PISTA_PIDE_PERMISO}
+          accessibilityLabel={t.patrocinados}
+          accessibilityHint={activo ? t.patrocinadosPista : t.pidePermiso}
           accessibilityState={{ checked: visibles.avisosPatrocinados, busy: guardando === 'avisosPatrocinados' }}
         />
       </View>

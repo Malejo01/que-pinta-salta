@@ -40,10 +40,14 @@ import { Texto } from '@/components/Texto'
 import { AREA_TACTIL_MINIMA } from '@/lib/accesibilidad'
 import { anunciar } from '@/lib/anunciar'
 import { bordeChipInactivo, useColoresQPS } from '@/lib/colores'
-import { useTextos } from '@/lib/i18n'
+import { useIdioma, useTextos } from '@/lib/i18n'
+import { es } from '@/lib/i18n/diccionarios/es'
+import type { Idioma } from '@/lib/i18n/idioma'
+import { textosDe } from '@/lib/i18n/textos'
 
 /** Lo que lee el lector de pantalla después de borrar el historial. */
-export const ANUNCIO_HISTORIAL_BORRADO = 'Listo, borraste tus búsquedas recientes.'
+// Q6-1: el castellano de siempre; la pantalla lo dice en el idioma de la app (`recientes.borrado`).
+export const ANUNCIO_HISTORIAL_BORRADO = es.recientes.borrado
 
 /** Cuánto se posterga ese anuncio (ms), para que no lo tape el cierre del diálogo. */
 export const DEMORA_ANUNCIO_BORRADO_MS = 400
@@ -52,8 +56,8 @@ export const DEMORA_ANUNCIO_BORRADO_MS = 400
 const ANCHO_MAXIMO_CHIP = 240
 
 /** La etiqueta de cada chip: el lector de pantalla dice qué hace, no solo el texto. */
-export function etiquetaBusquedaReciente(busqueda: string): string {
-  return `Buscar de nuevo: ${busqueda}`
+export function etiquetaBusquedaReciente(busqueda: string, idioma: Idioma = 'es'): string {
+  return textosDe(idioma).recientes.buscarDeNuevo(busqueda)
 }
 
 export interface BusquedasRecientesProps {
@@ -65,22 +69,23 @@ export interface BusquedasRecientesProps {
 export function BusquedasRecientes({ busquedas, onElegir, onBorrarHistorial }: BusquedasRecientesProps) {
   const colores = useColoresQPS()
   const t = useTextos().recientes
+  const { idioma } = useIdioma()
   const bordeInactivo = bordeChipInactivo(colores)
 
   if (busquedas.length === 0) return null
 
   function confirmarBorrado() {
     Alert.alert(
-      '¿Borrar el historial?',
-      'Se borran tus búsquedas recientes de este teléfono.',
+      t.confirmarTitulo,
+      t.confirmarTexto,
       [
-        { text: 'Cancelar', style: 'cancel' },
+        { text: t.cancelar, style: 'cancel' },
         {
-          text: 'Borrar',
+          text: t.confirmarBorrar,
           style: 'destructive',
           onPress: () => {
             onBorrarHistorial()
-            setTimeout(() => anunciar(ANUNCIO_HISTORIAL_BORRADO), DEMORA_ANUNCIO_BORRADO_MS)
+            setTimeout(() => anunciar(t.borrado), DEMORA_ANUNCIO_BORRADO_MS)
           },
         },
       ],
@@ -109,7 +114,7 @@ export function BusquedasRecientes({ busquedas, onElegir, onBorrarHistorial }: B
             key={busqueda}
             onPress={() => onElegir(busqueda)}
             accessibilityRole="button"
-            accessibilityLabel={etiquetaBusquedaReciente(busqueda)}
+            accessibilityLabel={etiquetaBusquedaReciente(busqueda, idioma)}
             style={[estilos.chip, { borderColor: bordeInactivo, backgroundColor: colores.card }]}
           >
             <Icono nombre="Clock" tamanio={16} color={colores.mutedForeground} />

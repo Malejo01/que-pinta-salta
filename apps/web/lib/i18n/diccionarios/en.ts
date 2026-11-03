@@ -9,12 +9,15 @@ import {
   MENSAJE_ALTA_ENVIADA,
   MENSAJE_ALTA_GENERICO,
   mensajeErrorAlta,
+  mensajeErrorContrasena,
   mensajeErrorIngreso,
 } from '@qps/core/auth/mensajes'
 import { LARGO_MINIMO_CONTRASENA, validarContrasenaNueva } from '@qps/core/auth/cuenta'
 import type { Diccionario } from './es'
 
 const validacionCorta = validarContrasenaNueva('', '')
+// Q6-2: el alta y el cambio de contraseña también avisan si no coinciden.
+const validacionDistinta = validarContrasenaNueva('a'.repeat(LARGO_MINIMO_CONTRASENA), 'b'.repeat(LARGO_MINIMO_CONTRASENA))
 
 /**
  * Los mensajes de ingreso y alta de core, en inglés. La clave es el texto en
@@ -37,6 +40,42 @@ const MENSAJES_AUTH: Record<string, string> = {
   ...(validacionCorta.ok
     ? {}
     : { [validacionCorta.mensaje]: `The password must be at least ${LARGO_MINIMO_CONTRASENA} characters long.` }),
+  ...(validacionDistinta.ok ? {} : { [validacionDistinta.mensaje]: 'The passwords do not match.' }),
+  // Q6-2: el cambio de contraseña de /en/perfil (el de `weak_password` es el mismo del alta).
+  [mensajeErrorContrasena({ code: 'same_password' })]: 'That is already your password. Choose another one.',
+  [mensajeErrorContrasena({ status: 401 })]: 'For your security, sign out, sign in again and try again.',
+  [mensajeErrorContrasena({})]: 'We could not save the password. Please try again in a few minutes.',
+}
+
+/**
+ * Q6-2: los errores que devuelven las acciones del formulario de eventos
+ * (`lib/actions.ts`: createEvent, updateUserEvent, uploadFlyer), en inglés.
+ * La clave es el texto exacto en castellano; los que terminan en «: » llevan
+ * después el detalle técnico (que se deja como viene). Un texto que no esté
+ * acá se muestra tal cual (en castellano). `tests/i18n/nuevo-evento-en.test.ts`
+ * revisa que cada `error: "..."` de esas acciones tenga su traducción.
+ */
+const ERRORES_EVENTO: Record<string, string> = {
+  'Debes iniciar sesión para crear un evento': 'You need to sign in to add an event.',
+  'Debes cambiar la fecha o la imagen para duplicar este evento': 'Change the date or the image to duplicate this event.',
+  'Debes iniciar sesión para subir imágenes': 'You need to sign in to upload images.',
+  'No se proporcionó ningún archivo': 'No file was selected.',
+  'Debes iniciar sesión para actualizar un evento': 'You need to sign in to update an event.',
+  'Falta el ID del evento a editar': 'The ID of the event to edit is missing.',
+  'No tienes permiso para editar este evento': 'You do not have permission to edit this event.',
+}
+
+const PREFIJOS_ERROR_EVENTO: readonly (readonly [string, string])[] = [
+  ['Error al crear el evento: ', 'We could not create the event: '],
+  ['Error al actualizar el evento: ', 'We could not update the event: '],
+  ['Error al subir la imagen: ', 'We could not upload the image: '],
+]
+
+function errorFormularioEvento(mensaje: string): string {
+  const texto = String(mensaje)
+  if (Object.hasOwn(ERRORES_EVENTO, texto)) return ERRORES_EVENTO[texto]
+  for (const [es, en] of PREFIJOS_ERROR_EVENTO) if (texto.startsWith(es)) return en + texto.slice(es.length)
+  return texto
 }
 
 export const en = {
@@ -536,6 +575,120 @@ export const en = {
     noTenesCuenta: "Don't have an account?",
     registrate: 'Sign up',
     errorGoogle: 'Something went wrong signing in with Google. Please try again.',
+  },
+  paginaAlta: {
+    titulo: 'Create an account',
+    bajada: 'Sign up to add events and save favorites',
+    nombreCompleto: 'Full name',
+    nombrePlaceholder: 'Jane Smith',
+    repetirContrasena: 'Repeat password',
+    boton: 'Create account',
+    aceptasAlCrear: 'By creating your account, you accept the',
+    yaTenesCuenta: 'Already have an account?',
+    iniciarSesion: 'Sign in',
+    errorGoogle: 'Something went wrong signing up with Google. Please try again.',
+  },
+  perfil: {
+    titulo: 'My profile',
+    eventosSubidos: (n: number) => `${n} ${n === 1 ? 'event added' : 'events added'}`,
+    misEventos: 'Events you added',
+    misEventosBajada: 'The events you added to the site and their review status.',
+    agregarNuevo: 'Add new',
+    errorHistorial: 'Something went wrong loading your events. Please try again later.',
+    vacioTitulo: "You haven't added any events yet",
+    vacioTexto: 'Be part of the community! Share folk music nights (peñas), fairs, workshops or clubs happening in Salta.',
+    subirPrimero: 'Add my first event',
+    estadoPendiente: 'Pending review',
+    estadoBorrador: 'Draft',
+    estadoPublicado: 'Approved and published',
+    estadoCancelado: 'Rejected / Cancelled',
+    estadoFinalizado: 'Ended',
+    hora: (hora: string) => `${hora}`,
+    verPublicado: 'View published',
+    sometidoARevision: (fecha: string) => `Submitted for review on ${fecha}`,
+    guardadoBorrador: 'Saved as a draft',
+    noPublicado: 'Not published',
+    eliminarCuenta: 'Delete my account',
+    enCastellano: '(in Spanish)',
+  },
+  loQueSeguis: {
+    titulo: 'What you follow',
+    bajada: 'The places, Instagram accounts and categories you chose to follow for your Radar.',
+    vacio: "You don't follow anything yet. Follow a place from an event page, or choose categories in the Radar.",
+    irAlRadar: 'Go to the Radar',
+    lugares: 'Places',
+    cuentas: 'Instagram accounts',
+    categorias: 'Categories',
+    dejarDeSeguir: 'Unfollow',
+    dejarDeSeguirAria: (nombre: string) => `Unfollow ${nombre}`,
+    errorTitulo: 'Could not unfollow',
+    errorTexto: 'We could not unfollow it. Please try again.',
+    errorConexionTitulo: 'Connection error',
+    errorConexionTexto: 'We could not reach the server. Please try again.',
+  },
+  cambioContrasena: {
+    modos: {
+      google: {
+        titulo: 'Password',
+        descripcion:
+          'You signed in with Google. You can create a password to also sign in with your email. If you already created one, this replaces it.',
+        boton: 'Save password',
+      },
+      email: { titulo: 'Change password', descripcion: 'Choose a new password.', boton: 'Save password' },
+      mixta: { titulo: 'Change password', descripcion: 'Choose a new password.', boton: 'Save password' },
+      desconocida: {
+        titulo: 'Password',
+        descripcion: 'You can choose a new password to sign in with your email. If you already had one, this replaces it.',
+        boton: 'Save password',
+      },
+      restablecer: { titulo: 'Choose your new password', descripcion: 'Type it twice to confirm.', boton: 'Save password' },
+    },
+    listoRestablecer: 'All set, you can now sign in with your email and this password.',
+    irALaPortada: 'Go to the home page',
+    guardada: 'Password saved.',
+    avisoGuardada: 'Password saved',
+    avisoError: 'Error saving the password',
+    nueva: 'New password',
+    confirmar: 'Confirm new password',
+    guardando: 'Saving...',
+  },
+  formularioEvento: {
+    volver: 'Back to home',
+    tituloCrear: 'Add a new event',
+    tituloEditar: 'Edit event',
+    flyer: 'Event flyer',
+    flyerBajada: 'Upload an image for your event (max. 5MB)',
+    flyerSubir: 'Click to upload an image',
+    flyerSubiendo: 'Uploading the image...',
+    flyerVistaPrevia: 'Flyer preview',
+    infoBasica: 'Basic information',
+    tituloEvento: 'Event title',
+    tituloPlaceholder: 'E.g.: Folk music night (peña) at La Casona',
+    descripcionCorta: 'Short description',
+    descripcionCortaPlaceholder: 'One line describing the event',
+    descripcionCompleta: 'Full description',
+    descripcionCompletaPlaceholder: 'Describe the event in detail...',
+    categoria: 'Category',
+    categoriaPlaceholder: 'Choose a category',
+    lugar: 'Venue',
+    lugarPlaceholder: 'Choose a venue (optional)',
+    fechaYHora: 'Date and time',
+    inicio: 'Start',
+    fin: 'End (optional)',
+    precio: 'Price',
+    gratuito: 'Free event',
+    precioMinimo: 'Minimum price (ARS)',
+    precioMaximo: 'Maximum price (ARS)',
+    linkEntradas: 'Ticket link (optional)',
+    ambiente: 'Atmosphere',
+    restriccionEdad: 'Age restriction',
+    todasLasEdades: 'All ages',
+    cancelar: 'Cancel',
+    creando: 'Creating...',
+    actualizando: 'Updating...',
+    crear: 'Create event',
+    actualizar: 'Update event',
+    error: errorFormularioEvento,
   },
   auth: {
     tituloIngresar: 'Sign in',

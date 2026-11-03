@@ -12,6 +12,8 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
+import { en } from '../lib/i18n/diccionarios/en'
+import { es } from '../lib/i18n/diccionarios/es'
 import { groupByCategory, selectTodayRow, type CategoryEventsRow } from '@qps/core/home/filters'
 import { sortCategories } from '@qps/core/home/carousel'
 import type { DisplayEvent } from '@qps/core/home/types'
@@ -284,8 +286,12 @@ describe('app/(tabs)/index.tsx: lectura estática', () => {
   })
 
   it('"Hoy en Salta": el texto vacío de la web, completo, y "Ver esta semana"', () => {
-    expect(content).toContain('Hoy no hay eventos cargados. Mirá qué viene en los próximos días.')
-    expect(content).toContain('Ver esta semana')
+    // Q6-1: los textos salen del diccionario (`portada`); en castellano, los de la web.
+    expect(content).toContain('t.portada.vacioHoy')
+    expect(content).toContain('t.portada.verEstaSemana')
+    expect(es.portada.vacioHoy).toBe('Hoy no hay eventos cargados. Mirá qué viene en los próximos días.')
+    expect(es.portada.verEstaSemana).toBe('Ver esta semana')
+    expect(en.portada.vacioHoy).not.toBe(es.portada.vacioHoy)
   })
 
   it('deja constancia de lo que no se copia a propósito (Más filtros, el switch de flyers)', () => {
@@ -398,11 +404,12 @@ describe('components/PillsAtajos.tsx: lectura estática', () => {
   const content = readFileSync(PILLS_ATAJOS_PATH, 'utf8')
 
   it('los 4 atajos, en el orden de la web/D3', () => {
-    expect(content).toMatch(/Hoy/)
-    expect(content).toMatch(/Esta noche/)
-    expect(content).toMatch(/Finde/)
-    expect(content).toMatch(/Semana/)
-    const orden = ['hoy', 'esta-noche', 'finde', 'semana'].map((id) => content.indexOf(`id: '${id}'`))
+    // Q6-1: las etiquetas salen del diccionario (`portada.atajos`); ATAJOS es la lista de ids.
+    expect(es.portada.atajos).toEqual({ hoy: 'Hoy', 'esta-noche': 'Esta noche', finde: 'Finde', semana: 'Semana' })
+    expect(Object.keys(en.portada.atajos)).toEqual(['hoy', 'esta-noche', 'finde', 'semana'])
+    expect(content).toMatch(/const etiquetas = useTextos\(\)\.portada\.atajos/)
+    const lista = content.slice(content.indexOf('const ATAJOS'), content.indexOf(']\n', content.indexOf('const ATAJOS')))
+    const orden = ['hoy', 'esta-noche', 'finde', 'semana'].map((id) => lista.indexOf(`'${id}'`))
     expect(orden.every((i) => i > -1)).toBe(true)
     expect(orden).toEqual([...orden].sort((a, b) => a - b))
   })
@@ -453,11 +460,14 @@ describe('components/BannerRadar.tsx: lectura estática', () => {
   const content = readFileSync(BANNER_RADAR_PATH, 'utf8')
 
   it('el texto literal de la web, completo', () => {
-    expect(content).toContain('¡No te pierdas ningún evento!')
-    expect(content).toContain(
-      'Elegí tus categorías favoritas y recibí la agenda del fin de semana directamente en tu correo.'
-    )
-    expect(content).toContain('Configurar mi Radar 📡')
+    // Q6-1: los textos salen del diccionario (`banners`); en castellano, los de la web.
+    expect(content).toContain('{t.radarTitulo}')
+    expect(content).toContain('{t.radarTexto}')
+    expect(content).toContain('{t.radarBoton}')
+    expect(es.banners.radarTitulo).toBe('¡No te pierdas ningún evento!')
+    expect(es.banners.radarTexto).toBe('Elegí tus categorías favoritas y recibí la agenda del fin de semana directamente en tu correo.')
+    expect(es.banners.radarBoton).toBe('Configurar mi Radar 📡')
+    expect(en.banners.radarTitulo).not.toBe(es.banners.radarTitulo)
   })
 
   it('el botón navega a /radar (la pestaña Radar)', () => {

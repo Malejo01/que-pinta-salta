@@ -27,6 +27,11 @@
 //
 // La decisión de qué botones mostrar vive en `botonesDeLaFila`, pura (sin
 // React, sin Supabase): se puede probar sin montar nada.
+//
+// Q6-1b: los textos salen del diccionario (`t.fila`); `botonesDeLaFila` y la
+// etiqueta accesible reciben el idioma al final (`'es'` por defecto: lo de
+// siempre). Los errores y el aviso de «sacaste el Voy» se guardan en
+// castellano y se muestran con `t.errores.traducir`.
 import { useEffect, useState } from 'react'
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native'
 import { useRouter, useTheme } from 'expo-router'
@@ -42,6 +47,9 @@ import type { DatosTarjetaCompartir } from '@/lib/compartir'
 import { marcarAsistencia, obtenerAsistencia } from '@/lib/asistencia'
 import { useColoresQPS } from '@/lib/colores'
 import { desmarcarFavorito, marcarFavorito } from '@/lib/favoritos'
+import { useIdioma, useTextos } from '@/lib/i18n'
+import type { Idioma } from '@/lib/i18n/idioma'
+import { textosDe } from '@/lib/i18n/textos'
 import { invitarTrasAccion } from '@/lib/push/invitacion'
 import { useSession } from '@/lib/session'
 
@@ -76,8 +84,10 @@ export interface BotonFila {
   seleccionado: boolean
 }
 
-export const MENSAJE_NO_DISPONIBLE_FILA = 'Pronto vas a poder guardar o marcar si vas.'
-export const TEXTO_ENTRAR_PARA_GUARDAR = 'Entrá para guardar o marcar si vas.'
+// Q6-1b: las constantes siguen siendo el castellano (las usan los tests);
+// la pantalla muestra `t.fila.*`, que en castellano es lo mismo.
+export const MENSAJE_NO_DISPONIBLE_FILA = textosDe('es').fila.noDisponible
+export const TEXTO_ENTRAR_PARA_GUARDAR = textosDe('es').fila.entrarParaGuardar
 
 /**
  * Qué botones mostrar, en qué orden y con qué texto/selección — pura, sin
@@ -85,24 +95,30 @@ export const TEXTO_ENTRAR_PARA_GUARDAR = 'Entrá para guardar o marcar si vas.'
  * ese arreglo a mano. `mostrarVoy` en `false` saca "voy" de la lista (evento
  * no `PUBLISHED`).
  */
-export function botonesDeLaFila(estado: EstadoFila, mostrarVoy: boolean): BotonFila[] {
+export function botonesDeLaFila(estado: EstadoFila, mostrarVoy: boolean, idioma: Idioma = 'es'): BotonFila[] {
+  const t = textosDe(idioma).fila
   return ORDEN_FILA_ACCIONES.filter((accion) => accion !== 'voy' || mostrarVoy).map((accion) => {
     if (accion === 'guardar') {
-      return { accion, texto: estado.guardado ? '♥ Guardado' : '♥ Guardar', seleccionado: estado.guardado }
+      return { accion, texto: estado.guardado ? t.guardado : t.guardar, seleccionado: estado.guardado }
     }
     if (accion === 'voy') {
-      return { accion, texto: `✓ ${textoBotonVoy(estado.cantidadVoy)}`, seleccionado: estado.voy }
+      // Como la web (`BotonVoy`): en castellano, `textoBotonVoy` de core tal
+      // cual (lo fija `apps/web/tests/asistencia/paridad.test.ts`); en
+      // inglés, el diccionario, con el mismo umbral.
+      const texto = idioma === 'es' ? `✓ ${textoBotonVoy(estado.cantidadVoy)}` : t.voy(estado.cantidadVoy)
+      return { accion, texto, seleccionado: estado.voy }
     }
-    return { accion, texto: 'Compartir', seleccionado: false }
+    return { accion, texto: t.compartir, seleccionado: false }
   })
 }
 
 /** El `accessibilityLabel` de cada botón (guardar/voy), según si ya está marcado. */
-function etiquetaAccesible(accion: 'guardar' | 'voy', seleccionado: boolean): string {
+export function etiquetaAccesible(accion: 'guardar' | 'voy', seleccionado: boolean, idioma: Idioma = 'es'): string {
+  const t = textosDe(idioma).fila
   if (accion === 'guardar') {
-    return seleccionado ? 'Quitar este evento de tus guardados' : 'Guardar este evento en tus favoritos'
+    return seleccionado ? t.etiquetaQuitarGuardado : t.etiquetaGuardar
   }
-  return seleccionado ? 'Dejar de marcar que vas a este evento' : 'Marcar que vas a este evento'
+  return seleccionado ? t.etiquetaNoVoy : t.etiquetaVoy
 }
 
 export function FilaAccionesEvento({ eventId, titulo, fecha, hora, lugar, status, tarjeta }: FilaAccionesEventoProps) {
@@ -111,6 +127,8 @@ export function FilaAccionesEvento({ eventId, titulo, fecha, hora, lugar, status
   const router = useRouter()
   const { session, cargando: cargandoSesion } = useSession()
   const userId = session?.user.id ?? null
+  const { idioma } = useIdioma()
+  const t = useTextos()
 
   const [estado, setEstado] = useState<Estado>({ tipo: 'cargando' })
   const [enVuelo, setEnVuelo] = useState<AccionFila | null>(null)
@@ -152,11 +170,11 @@ export function FilaAccionesEvento({ eventId, titulo, fecha, hora, lugar, status
   }
 
   if (estado.tipo === 'no-disponible') {
-    return <Text style={{ color: colores.mutedForeground }}>{MENSAJE_NO_DISPONIBLE_FILA}</Text>
+    return <Text style={{ color: colores.mutedForeground }}>{t.fila.noDisponible}</Text>
   }
 
   if (estado.tipo === 'error') {
-    return <Text style={{ color: colors.text }}>{estado.error}</Text>
+    return <Text style={{ color: colors.text }}>{t.errores.traducir(estado.error)}</Text>
   }
 
   // Se extraen a constantes locales (no `estado.guardado` suelto) porque
@@ -194,7 +212,7 @@ export function FilaAccionesEvento({ eventId, titulo, fecha, hora, lugar, status
           cantidadVoy: voyQuitado ? Math.max(0, cantidadVoy - 1) : cantidadVoy,
         })
         if (voyQuitado) {
-          avisar(TEXTO_SACASTE_GUARDADO_CON_VOY)
+          avisar(t.errores.traducir(TEXTO_SACASTE_GUARDADO_CON_VOY))
           setAvisoEnLinea(TEXTO_SACASTE_GUARDADO_CON_VOY)
         } else {
           setAvisoEnLinea(null)
@@ -247,7 +265,7 @@ export function FilaAccionesEvento({ eventId, titulo, fecha, hora, lugar, status
     if (accion === 'voy') tocarVoy()
   }
 
-  const botones = botonesDeLaFila(estado, mostrarVoy)
+  const botones = botonesDeLaFila(estado, mostrarVoy, idioma)
 
   return (
     <View style={estilos.contenedor}>
@@ -271,7 +289,7 @@ export function FilaAccionesEvento({ eventId, titulo, fecha, hora, lugar, status
               onPress={() => alPresionar(boton.accion)}
               disabled={enVuelo !== null}
               accessibilityRole="button"
-              accessibilityLabel={etiquetaAccesible(boton.accion as 'guardar' | 'voy', boton.seleccionado)}
+              accessibilityLabel={etiquetaAccesible(boton.accion as 'guardar' | 'voy', boton.seleccionado, idioma)}
               accessibilityState={{ selected: boton.seleccionado, busy: enVuelo === boton.accion }}
               style={[
                 estilos.boton,
@@ -290,8 +308,8 @@ export function FilaAccionesEvento({ eventId, titulo, fecha, hora, lugar, status
           )
         )}
       </View>
-      {avisoEnLinea ? <Text style={{ color: colores.mutedForeground }}>{avisoEnLinea}</Text> : null}
-      {!userId ? <Text style={{ color: colores.mutedForeground }}>{TEXTO_ENTRAR_PARA_GUARDAR}</Text> : null}
+      {avisoEnLinea ? <Text style={{ color: colores.mutedForeground }}>{t.errores.traducir(avisoEnLinea)}</Text> : null}
+      {!userId ? <Text style={{ color: colores.mutedForeground }}>{t.fila.entrarParaGuardar}</Text> : null}
     </View>
   )
 }
@@ -305,8 +323,11 @@ const estilos = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 8,
     minHeight: 48,
+    // Q6-1b: con la letra al 200 % («✓ Going · 12»), el botón no se pasa
+    // del ancho de la fila y el texto envuelve.
+    maxWidth: '100%',
     justifyContent: 'center',
   },
-  textoBoton: { fontWeight: '600' },
+  textoBoton: { fontWeight: '600', flexShrink: 1, textAlign: 'center' },
   espaciado: { marginTop: 8 },
 })

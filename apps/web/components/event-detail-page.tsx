@@ -3,6 +3,7 @@
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { createElement, useMemo, useState, useTransition } from "react"
+import dynamic from "next/dynamic"
 import { Calendar, MapPin, Clock, Users, ExternalLink, Navigation, ArrowLeft, Pencil, Check, X } from "lucide-react"
 import { Event, Category, Venue } from "@/lib/types"
 import { Navbar } from "@/components/navbar"
@@ -10,13 +11,6 @@ import { MobileNav } from "@/components/mobile-nav"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { ShareButton } from "@/components/share-button"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import { Input } from "@/components/ui/input"
 import { getCategoryIcon } from "@/lib/category-icons"
 import { formatSaltaDayKey } from "@/lib/date-format"
@@ -51,6 +45,15 @@ type EventWithRelations = Event & {
 
 /** Lo que devuelve `obtenerSeguimientoDeEvento` (lugar y, si hay, cuenta de Instagram a seguir). */
 type SeguimientoEvento = Awaited<ReturnType<typeof obtenerSeguimientoDeEvento>>
+
+
+// Q6-5: Radix Select solo para el admin, después de tocar «Editar» (ver
+// components/admin/selector-categoria.tsx). Mientras se descarga, un lugar
+// del mismo alto que el selector (sin salto).
+const SelectorCategoria = dynamic(
+  () => import("@/components/admin/selector-categoria").then((m) => m.SelectorCategoria),
+  { ssr: false, loading: () => <div aria-hidden className="h-9 w-48 rounded-md border border-input" /> },
+)
 
 interface EventDetailPageProps {
   event: EventWithRelations
@@ -300,18 +303,11 @@ export function EventDetailPage({
 
                 {isEditingCategory && (
                   <div className="mt-3 space-y-3">
-                    <Select value={selectedCategoryId} onValueChange={setSelectedCategoryId}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Seleccionar categoría" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {localCategories.map((category) => (
-                          <SelectItem key={category.id} value={category.id}>
-                            {category.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <SelectorCategoria
+                      value={selectedCategoryId}
+                      onValueChange={setSelectedCategoryId}
+                      categories={localCategories}
+                    />
 
                     <div className="flex flex-col gap-2 rounded-md border bg-background p-3">
                       <p className="text-xs text-muted-foreground">Crear nueva categoría y asignar este evento</p>

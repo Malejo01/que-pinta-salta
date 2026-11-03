@@ -4,16 +4,20 @@
 import { useCallback, useEffect, useState } from 'react'
 import { StyleSheet, Switch, View } from 'react-native'
 import { Texto } from '@/components/Texto'
-import { AVISO_SIN_PERMISO, PISTA_PIDE_PERMISO } from '@/lib/push/textos-interruptores'
+import { useIdioma, useTextos } from '@/lib/i18n'
+import { es } from '@/lib/i18n/diccionarios/es'
 import { avisar } from '@/lib/aviso'
 import { usePush } from '@/lib/push'
 import { findeActivo, guardarPreferenciaFinde, programarFinde } from '@/lib/finde'
 
-export const ETIQUETA_FINDE = 'Este finde pinta'
-export const DESCRIPCION_FINDE = 'Los jueves a las 18:00, cuántos planes hay para el fin de semana.'
+// Q6-1: los textos viven en el diccionario (`notificaciones.finde*`); estas constantes son el castellano.
+export const ETIQUETA_FINDE = es.notificaciones.finde
+export const DESCRIPCION_FINDE = es.notificaciones.findeDescripcion
 
 export function InterruptorFinde() {
   const { estado, activar } = usePush()
+  const { idioma } = useIdioma()
+  const t = useTextos().notificaciones
   const [activo, setActivo] = useState(false)
   const [guardando, setGuardando] = useState(false)
 
@@ -36,34 +40,34 @@ export function InterruptorFinde() {
           const resultado = await activar()
           if (resultado !== 'activo') {
             // R-2: el interruptor queda apagado; se dice por qué (TalkBack lo lee).
-            avisar(AVISO_SIN_PERMISO)
+            avisar(t.sinPermiso)
             return
           }
         }
         await guardarPreferenciaFinde(valor)
         setActivo(valor)
-        await programarFinde(new Date())
+        await programarFinde(new Date(), { idioma })
       } finally {
         setGuardando(false)
       }
     },
-    [activar, estado, guardando],
+    [activar, estado, guardando, idioma, t],
   )
 
   return (
     <View style={estilos.fila}>
       <View style={estilos.etiqueta}>
-        <Texto>{ETIQUETA_FINDE}</Texto>
+        <Texto>{t.finde}</Texto>
         <Texto tono="secundario" style={estilos.descripcion}>
-          {DESCRIPCION_FINDE}
+          {t.findeDescripcion}
         </Texto>
       </View>
       <Switch
         value={activo}
         onValueChange={(valor) => void cambiar(valor)}
         disabled={guardando}
-        accessibilityLabel={ETIQUETA_FINDE}
-        accessibilityHint={estado === 'activo' ? DESCRIPCION_FINDE : `${DESCRIPCION_FINDE} ${PISTA_PIDE_PERMISO}`}
+        accessibilityLabel={t.finde}
+        accessibilityHint={estado === 'activo' ? t.findeDescripcion : `${t.findeDescripcion} ${t.pidePermiso}`}
         accessibilityState={{ checked: activo, busy: guardando }}
       />
     </View>

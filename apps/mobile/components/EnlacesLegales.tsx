@@ -35,6 +35,7 @@ import { Texto } from '@/components/Texto'
 import { mostrarOpcionesDePrivacidad, necesitaOpcionesDePrivacidad, suscribirse } from '@/lib/anuncios/consentimiento'
 import { enlacesLegales, textoAceptacion } from '@/lib/legales'
 import { urlSitio } from '@/lib/links'
+import { useIdioma, useTextos } from '@/lib/i18n'
 
 export interface EnlacesLegalesProps {
   /** Muestra, arriba de los links, la línea de aceptación (rama sin sesión de cuenta.tsx). */
@@ -42,7 +43,9 @@ export interface EnlacesLegalesProps {
 }
 
 export function EnlacesLegales({ conAceptacion = false }: EnlacesLegalesProps) {
-  const enlaces = enlacesLegales()
+  const { idioma } = useIdioma()
+  const t = useTextos().cuenta
+  const enlaces = enlacesLegales(undefined, idioma)
 
   const [mostrarPrivacidadAnuncios, setMostrarPrivacidadAnuncios] = useState(necesitaOpcionesDePrivacidad())
   useEffect(() => suscribirse(() => setMostrarPrivacidadAnuncios(necesitaOpcionesDePrivacidad())), [])
@@ -61,7 +64,7 @@ export function EnlacesLegales({ conAceptacion = false }: EnlacesLegalesProps) {
     <View style={estilos.contenedor}>
       {conAceptacion ? (
         <Texto tono="secundario" style={estilos.aceptacion}>
-          {textoAceptacion()}
+          {textoAceptacion(undefined, idioma)}
         </Texto>
       ) : null}
       <View style={estilos.fila}>
@@ -81,7 +84,7 @@ export function EnlacesLegales({ conAceptacion = false }: EnlacesLegalesProps) {
         <Pressable
           onPress={() => mostrarOpcionesDePrivacidad().catch(() => {})}
           accessibilityRole="button"
-          accessibilityLabel="Privacidad de los anuncios"
+          accessibilityLabel={t.privacidadAnuncios}
           style={estilos.linkPrivacidad}
         >
           {/* Sin subrayado, a diferencia de los links de arriba (ux-ui, R60):
@@ -90,7 +93,7 @@ export function EnlacesLegales({ conAceptacion = false }: EnlacesLegalesProps) {
               encima de la pantalla. El `accessibilityRole="button"` ya lo
               distingue para el lector de pantalla; esto lo distingue para
               quien mira. */}
-          <Texto style={estilos.textoPrivacidad}>Privacidad de los anuncios</Texto>
+          <Texto style={estilos.textoPrivacidad}>{t.privacidadAnuncios}</Texto>
         </Pressable>
       ) : null}
     </View>

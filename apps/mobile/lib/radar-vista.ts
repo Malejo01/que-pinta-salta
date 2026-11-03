@@ -4,6 +4,8 @@
 // calcular qué mostrar. Separado de `lib/radar.ts` (que sí habla con la
 // base) para poder probar esta parte sin mockear nada.
 import type { EmailFrequency } from '@qps/core/radar/preferencias'
+import type { Idioma } from '@/lib/i18n/idioma'
+import { textosDe } from '@/lib/i18n/textos'
 
 /** Forma mínima de un lugar buscable (alcanza con el `name` de `LugarRadar`
  * en `lib/radar.ts`; no se repite el tipo completo para no acoplar este
@@ -82,14 +84,6 @@ export function buscarSeguibles(
   return resultados.slice(0, max)
 }
 
-/** Etiquetas del resumen de arriba, para las 3 frecuencias "activas" (todo
- * menos `'disabled'`, que tiene su propio texto). */
-const ETIQUETAS_RESUMEN: Record<Exclude<EmailFrequency, 'disabled'>, string> = {
-  weekly: 'cada semana',
-  biweekly: 'cada 2 semanas',
-  monthly: 'cada mes',
-}
-
 /**
  * El resumen de arriba cuando ya hay un Radar guardado (decisión 5 del
  * apéndice de `plan.md`; es el único texto nuevo de esta tarea, no sale de
@@ -97,9 +91,11 @@ const ETIQUETAS_RESUMEN: Record<Exclude<EmailFrequency, 'disabled'>, string> = {
  * cada mes} a {email}", o "Tu Radar está pausado" si la frecuencia es
  * `'disabled'`.
  */
-export function resumenRadar(frecuencia: EmailFrequency, email: string): string {
-  if (frecuencia === 'disabled') return 'Tu Radar está pausado'
-  return `Tu Radar está activo: te llega ${ETIQUETAS_RESUMEN[frecuencia]} a ${email}`
+export function resumenRadar(frecuencia: EmailFrequency, email: string, idioma: Idioma = 'es'): string {
+  // Q6-1: el texto sale del diccionario (`radar.resumen*`).
+  const t = textosDe(idioma).radar
+  if (frecuencia === 'disabled') return t.resumenPausado
+  return t.resumenActivo[frecuencia](email)
 }
 
 /** La parte del estado de la pantalla que importa para comparar "lo

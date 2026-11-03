@@ -14,6 +14,8 @@ import { readFileSync, readdirSync, statSync } from 'node:fs'
 import { join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
+import { en } from '../lib/i18n/diccionarios/en'
+import { es } from '../lib/i18n/diccionarios/es'
 
 const MOBILE_ROOT = fileURLToPath(new URL('..', import.meta.url))
 const INSIGNIA_PATH = join(MOBILE_ROOT, 'components', 'InsigniaDestacado.tsx')
@@ -127,7 +129,11 @@ describe('app/ y components/: una sola copia de la insignia (InsigniaDestacado.t
 
   it('InsigniaDestacado.tsx SÍ tiene la insignia (si esto da false, el detector de abajo no estaría probando nada)', () => {
     const contenido = quitarComentarios(readFileSync(INSIGNIA_PATH, 'utf8'))
-    expect(escribeBadgeDestacado(contenido)).toBe(true)
+    // Q6-1: el texto sale del diccionario (`tarjeta.destacado`); en castellano, «★ Destacado».
+    expect(escribeBadgeDestacado(contenido) || /<Text\b[^<]*>\s*\{t\.destacado\}/.test(contenido)).toBe(true)
+    expect(es.tarjeta.destacado).toBe('★ Destacado')
+    expect(escribeBadgeDestacado(`<Text>${es.tarjeta.destacado}</Text>`)).toBe(true)
+    expect(en.tarjeta.destacado).toBe('★ Featured')
   })
 
   it.each(archivos.map((file) => [relative(MOBILE_ROOT, file).replace(/\\/g, '/'), file] as const))(
@@ -138,6 +144,8 @@ describe('app/ y components/: una sola copia de la insignia (InsigniaDestacado.t
       if (escribeBadgeDestacado(contenido)) {
         throw new Error(`${label}: escribe "★ Destacado"/"Destacado" en un <Text/<Texto (copia duplicada de la insignia)`)
       }
+      // Q6-1: tampoco con el texto del diccionario.
+      expect(contenido).not.toMatch(/\{\s*(?:t|textos?)\.(?:tarjeta\.)?destacado\s*\}/)
       expect(escribeBadgeDestacado(contenido)).toBe(false)
     },
   )
