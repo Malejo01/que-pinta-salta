@@ -146,7 +146,6 @@ function ContenidoInvitacion({ variante, onPrincipal, onDescartar, conCerrar }: 
 /** Tarjeta de Inicio. No dibuja nada si no corresponde (ver `seMuestraInvitacion`). */
 export function InvitacionAvisos() {
   const colores = useColoresQPS()
-  const ti = useTextos().invitacion
   const router = useRouter()
   const { estado, sincronizado } = usePush()
   const { cargando } = useSession()
