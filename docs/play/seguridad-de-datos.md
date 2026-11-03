@@ -50,3 +50,11 @@ Verificado contra el código de `ronda/integracion-q4` (build 7) el 3/11/2026. C
 | Actividad en la app → Interacciones con la app | Sí: «la app se abrió hoy», con hashes diarios y semanales de un id aleatorio que no se guarda | **No** | No | Estadísticas | No (es anónimo y no identifica). *Alternativa:* un interruptor en Cuenta |
 
 Detalle en `docs/METRICAS.md` («Uso de la app y panel /admin/uso»).
+
+**Q6-7 (revisión de la Q5):** el id de métricas es un identificador aleatorio de la instalación que **sale del teléfono** (el servidor lo recibe y guarda solo sus hashes del día y de la semana). Lo conservador es declararlo también en la categoría que ya está marcada:
+
+| Tipo de dato | ¿Se recopila? | ¿Vinculado a la identidad? | ¿Se comparte? | Propósito | ¿Opcional? |
+|---|---|---|---|---|---|
+| ID de dispositivo u otros → id de métricas de la instalación (`qps.metricas.id`) | Sí (se guarda solo su hash diario y semanal) | **No** | No | Estadísticas | No |
+
+En la ficha alcanza con sumar «Estadísticas» como propósito de «ID de dispositivo u otros» (la categoría ya está por el token de avisos, el `device_id` y el ID de publicidad).

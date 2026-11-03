@@ -44,9 +44,30 @@ export type DatosPedido = {
 
 export type Leer = (clave: string) => string | null
 
-function limpio(valor: string | null, max: number): string {
-  return (valor ?? '').replace(/\s+/g, ' ').trim().slice(0, max)
+/**
+ * Q6-7: caracteres de control (U+0000, que Postgres rechaza en un `text`) y
+ * los de dirección del texto (U+202A–U+202E, U+2066–U+2069, que dan vuelta lo
+ * que ve el admin) se sacan antes de guardar.
+ */
+const CONTROL = /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f\u202a-\u202e\u2066-\u2069]/g
+
+/** Recorta a `max` caracteres como los cuenta Postgres (puntos de código): nunca parte un emoji. */
+function recortar(valor: string, max: number): string {
+  const caracteres = Array.from(valor)
+  return caracteres.length <= max ? valor : caracteres.slice(0, max).join('')
 }
+
+function limpio(valor: string | null, max: number): string {
+  return recortar((valor ?? '').replace(CONTROL, '').replace(/\s+/g, ' ').trim(), max).trim()
+}
+
+/** El comentario conserva los renglones (el admin lo ve con `whitespace-pre-line`). */
+function comentarioLimpio(valor: string | null): string {
+  return (valor ?? '').replace(/\r\n?/g, '\n').replace(CONTROL, '').trim()
+}
+
+/** Largo máximo del link (el check de la base). */
+export const MAX_LINK = 300
 
 export type ResultadoAntiSpam = 'ok' | 'bot' | 'vencido'
 
@@ -67,15 +88,20 @@ export function validarPedido(leer: Leer): { ok: true; datos: DatosPedido } | { 
   if (direccion.length < 3) return { ok: false, codigo: 'direccion' }
   const tipoCrudo = leer('tipo') ?? ''
   if (tipoCrudo !== '' && !esTipoLugar(tipoCrudo)) return { ok: false, codigo: 'tipo' }
-  const comentarioCrudo = (leer('comentario') ?? '').trim()
-  if (comentarioCrudo.length > 1000) return { ok: false, codigo: 'comentario' }
-  const linkCrudo = limpio(leer('link'), 300)
+  const comentarioCrudo = comentarioLimpio(leer('comentario'))
+  if (Array.from(comentarioCrudo).length > 1000) return { ok: false, codigo: 'comentario' }
+  const linkCrudo = limpio(leer('link'), MAX_LINK)
   let link: string | null = null
   if (linkCrudo) {
     try {
       const u = new URL(/^https?:\/\//i.test(linkCrudo) ? linkCrudo : `https://${linkCrudo}`)
       if (!['http:', 'https:'].includes(u.protocol) || !u.hostname.includes('.')) return { ok: false, codigo: 'link' }
+      // Q6-7: un link con usuario y clave (https://a:b@…) no es el de un lugar.
+      if (u.username || u.password) return { ok: false, codigo: 'link' }
       link = u.toString()
+      // Q6-7: al normalizar (acentos, espacios) puede pasarse del check de la
+      // base, que contestaría «no pudimos guardar»: mejor decir que el link no sirve.
+      if (link.length > MAX_LINK) return { ok: false, codigo: 'link' }
     } catch {
       return { ok: false, codigo: 'link' }
     }

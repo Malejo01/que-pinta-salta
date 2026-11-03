@@ -52,6 +52,61 @@ describe('validarPedido', () => {
   })
 })
 
+// Q6-7 · Bordes de la validación (revisión de la Q5).
+describe('validarPedido: bordes (Q6-7)', () => {
+  const base = { nombre: 'Plaza QA', direccion: 'Calle QA 1' }
+  it('saca caracteres de control y de dirección del texto (U+0000 haría fallar el insert)', () => {
+    const r = validarPedido(leer({ nombre: 'Pla\u0000za\u202e QA', direccion: 'Calle\u0007 1', comentario: 'a\u0000b\r\nc' }))
+    expect(r).toMatchObject({ ok: true, datos: { nombre: 'Plaza QA', direccion: 'Calle 1', comentario: 'ab\nc' } })
+  })
+  it('el comentario conserva los renglones', () => {
+    expect(validarPedido(leer({ ...base, comentario: 'Abre de tarde\nLunes cerrado' }))).toMatchObject({ datos: { comentario: 'Abre de tarde\nLunes cerrado' } })
+  })
+  it('recorta por caracteres, sin partir un emoji (Postgres cuenta puntos de código)', () => {
+    const r = validarPedido(leer({ ...base, nombre: '🛝'.repeat(250) }))
+    expect(r.ok).toBe(true)
+    if (r.ok) {
+      expect(Array.from(r.datos.nombre)).toHaveLength(200)
+      expect(r.datos.nombre).not.toMatch(/[\ud800-\udbff](?![\udc00-\udfff])/)
+    }
+  })
+  it('comentario: 1000 caracteres entran (aunque sean emojis), 1001 no', () => {
+    expect(validarPedido(leer({ ...base, comentario: '🎠'.repeat(1000) })).ok).toBe(true)
+    expect(validarPedido(leer({ ...base, comentario: 'x'.repeat(1001) }))).toEqual({ ok: false, codigo: 'comentario' })
+  })
+  it('link: solo espacios cuenta como vacío', () => {
+    expect(validarPedido(leer({ ...base, link: '   ' }))).toMatchObject({ ok: true, datos: { link: null } })
+  })
+  it.each([
+    ['con usuario y clave', 'https://usuario:clave@ejemplo.com'],
+    ['con otro protocolo', 'ftp://ejemplo.com'],
+    ['sin dominio', 'localhost'],
+    ['que al normalizarse pasa de 300 (el check de la base)', `https://ejemplo.com/${'ñ'.repeat(280)}`],
+  ])('link %s: rechazado con el código del campo, no «no pudimos guardar»', (_caso, link) => {
+    expect(validarPedido(leer({ ...base, link }))).toEqual({ ok: false, codigo: 'link' })
+  })
+  it('link sin https se completa', () => {
+    expect(validarPedido(leer({ ...base, link: 'www.ejemplo.com.ar/plaza' }))).toMatchObject({ datos: { link: 'https://www.ejemplo.com.ar/plaza' } })
+  })
+  it('nombre de 3 caracteres después de limpiar: entra; 2: no', () => {
+    expect(validarPedido(leer({ ...base, nombre: ' a  b ' }))).toMatchObject({ ok: true, datos: { nombre: 'a b' } })
+    expect(validarPedido(leer({ ...base, nombre: '\u0000ab\u0000' }))).toEqual({ ok: false, codigo: 'nombre' })
+  })
+})
+
+describe('evaluarAntiSpam: bordes (Q6-7)', () => {
+  it('exactamente el tiempo mínimo: persona; el máximo justo: todavía vale', () => {
+    expect(evaluarAntiSpam(leer({ iniciado: String(AHORA - TIEMPO_MINIMO_MS) }), AHORA)).toBe('ok')
+    expect(evaluarAntiSpam(leer({ iniciado: String(AHORA - TIEMPO_MAXIMO_MS) }), AHORA)).toBe('ok')
+  })
+  it('iniciado del futuro (reloj tocado): bot', () => {
+    expect(evaluarAntiSpam(leer({ iniciado: String(AHORA + 60_000) }), AHORA)).toBe('bot')
+  })
+  it('honeypot con solo espacios: no es bot (un autocompletado vacío)', () => {
+    expect(evaluarAntiSpam(leer({ sitio: '   ', iniciado: String(AHORA - 30_000) }), AHORA)).toBe('ok')
+  })
+})
+
 describe('server action y formulario', () => {
   const accion = readFileSync(join(process.cwd(), 'lib', 'actions', 'sumar-lugar-chicos.ts'), 'utf8')
   const formulario = readFileSync(join(process.cwd(), 'components', 'lugares-chicos', 'formulario-sumar.tsx'), 'utf8')
@@ -61,6 +116,10 @@ describe('server action y formulario', () => {
     expect(i('evaluarAntiSpam(')).toBeLessThan(i('porIp.permitir('))
     expect(i('porIp.permitir(')).toBeLessThan(i('validarPedido('))
     expect(i('validarPedido(')).toBeLessThan(i('createAdminClient()'))
+    // Q6-7: el cupo diario de la base va después de validar y antes del insert.
+    expect(i('validarPedido(')).toBeLessThan(i('tomarCupoPedido('))
+    expect(i('tomarCupoPedido(')).toBeLessThan(i(".from('lugares_chicos_pedidos')"))
+    expect(accion).toMatch(/=== 'agotado'\) \{\s*return \{ estado: 'error', codigo: 'limite' \}/)
     expect(accion).toMatch(/if \(antiSpam === 'bot'\) return \{ estado: 'enviado' \}/)
   })
   it('no loguea lo que escribió la persona', () => {
