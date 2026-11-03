@@ -33,6 +33,9 @@ export const PANTALLAS_MIGRADAS = [
   'app/lugares-chicos/[id].tsx',
   'components/AccesoLugaresChicos.tsx',
   'components/SelectorIdioma.tsx',
+  // Q5-12
+  'app/bienvenida.tsx',
+  'components/EstadoCarga.tsx',
 ]
 
 /** Textos visibles con un literal: entre etiquetas, o en props que se leen o se ven. */
@@ -82,7 +85,7 @@ describe('diccionarios', () => {
     expect(hojas(en).sort()).toEqual(hojas(es).sort())
   })
   it('lo que debe traducirse no quedó igual (salvo los nombres de los idiomas y las marcas)', () => {
-    const iguales = new Set(['idioma.castellano', 'idioma.ingles', 'lugaresChicos.instagram'])
+    const iguales = new Set(['idioma.castellano', 'idioma.ingles', 'lugaresChicos.instagram', 'pestanas.radar', 'bienvenida.marca'])
     const plano = (o: unknown, c = ''): [string, unknown][] =>
       typeof o === 'string' ? [[c, o]] : o && typeof o === 'object' ? Object.entries(o).flatMap(([k, v]) => plano(v, c ? `${c}.${k}` : k)) : []
     const esMapa = new Map(plano(es))
@@ -144,5 +147,21 @@ describe('cableado', () => {
       const s = quitarComentarios(readFileSync(join(RAIZ, 'lib', 'i18n', f), 'utf8'))
       expect(s).not.toMatch(/supabase|fetch\(/)
     }
+  })
+})
+
+describe('Q5-12: la ficha del evento en inglés', () => {
+  const ficha = quitarComentarios(readFileSync(join(RAIZ, 'app', 'evento', '[id].tsx'), 'utf8'))
+  it('muestra title_en / description_en si existen; si no, el original marcado «(in Spanish)» y leído en castellano', () => {
+    expect(ficha).toContain('textoEnIdioma(evento.title, evento.title_en, idioma)')
+    expect(ficha).toContain('cleanDescription(evento.description_en ?? null)')
+    expect(ficha).toContain('accessibilityLanguage={tituloMostrado.lang}')
+    expect(ficha).toContain('{tituloMostrado.enCastellano ? (')
+    expect(en.ficha.contenidoEnCastellano).toBe('(in Spanish)')
+    expect(es.ficha.contenidoEnCastellano).toBe('')
+  })
+  it('la fecha y la hora en inglés salen de Intl', () => {
+    expect(ficha).toContain("formatearDia('en', evento.start_date)")
+    expect(ficha).toContain("formatearHora('en', evento.start_date)")
   })
 })

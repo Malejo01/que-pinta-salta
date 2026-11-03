@@ -29,6 +29,7 @@
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native'
 import { Texto } from '@/components/Texto'
 import { bordeChipInactivo, useColoresQPS } from '@/lib/colores'
+import { useTextos } from '@/lib/i18n'
 
 /** Indicador de carga centrado. Sin texto: el mensaje de cada pantalla, si
  * lo tiene, vive afuera (por ejemplo, un título que ya se ve).
@@ -65,6 +66,8 @@ export interface BotonReintentarProps {
  */
 export function BotonReintentar({ onReintentar, reintentando = false }: BotonReintentarProps) {
   const colores = useColoresQPS()
+  // Q5-12: el texto del botón sale del diccionario (castellano / inglés).
+  const t = useTextos().estados
   return (
     <Pressable
       onPress={onReintentar}
@@ -74,7 +77,7 @@ export function BotonReintentar({ onReintentar, reintentando = false }: BotonRei
       style={[estilos.boton, { borderColor: bordeChipInactivo(colores), opacity: reintentando ? 0.6 : 1 }]}
     >
       <Texto peso="semibold" style={{ color: colores.foreground }}>
-        {reintentando ? 'Reintentando…' : 'Reintentar'}
+        {reintentando ? t.reintentando : t.reintentar}
       </Texto>
     </Pressable>
   )

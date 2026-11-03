@@ -957,7 +957,8 @@ describe('components/EstadoCarga.tsx: BotonReintentar y Vacio', () => {
     expect(boton).toMatch(/accessibilityRole="button"/)
     expect(boton).toMatch(/borderColor: bordeChipInactivo\(colores\)/)
     expect(boton).toMatch(/<Texto peso="semibold" style=\{\{ color: colores\.foreground \}\}>/)
-    expect(boton).toMatch(/\{reintentando \? 'Reintentando…' : 'Reintentar'\}/)
+    // Q5-12: «Reintentando…» / «Reintentar» salen del diccionario (y en inglés, «Trying again…» / «Try again»).
+    expect(boton).toMatch(/\{reintentando \? t\.reintentando : t\.reintentar\}/)
     expect(boton).toMatch(/disabled=\{reintentando\}/)
     expect(boton).not.toMatch(/<Text\b(?!o)/)
   })
