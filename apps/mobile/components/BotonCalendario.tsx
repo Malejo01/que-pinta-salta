@@ -6,6 +6,9 @@
 // `pedirPermiso` ni toque el calendario. Mismo estilo visual que el CTA
 // "Comprar tickets" (`ctaOutline`, borde `colores.border`) de
 // `app/evento/[id].tsx`.
+//
+// Q6-1b: los textos salen del diccionario (`t.calendario`); `mensajePara`
+// recibe el idioma al final (`'es'` por defecto).
 import { useState } from 'react'
 import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native'
 import * as Linking from 'expo-linking'
@@ -15,26 +18,32 @@ import { depsDelDispositivo } from '@/lib/calendario/dispositivo'
 import { Icono } from '@/components/Icono'
 import { Texto } from '@/components/Texto'
 import { useColoresQPS } from '@/lib/colores'
+import { useIdioma, useTextos } from '@/lib/i18n'
+import type { Idioma } from '@/lib/i18n/idioma'
+import { textosDe } from '@/lib/i18n/textos'
 
 export interface BotonCalendarioProps {
   evento: EventoParaCalendario
 }
 
-function mensajePara(resultado: ResultadoAgregar): string | null {
+export function mensajePara(resultado: ResultadoAgregar, idioma: Idioma = 'es'): string | null {
+  const t = textosDe(idioma).calendario
   switch (resultado.tipo) {
     case 'agregado':
-      return 'Listo, lo agregamos a tu calendario.'
+      return t.agregado
     case 'sin-permiso':
-      return 'Sin permiso para usar el calendario.'
+      return t.sinPermiso
     case 'sin-calendario':
-      return 'No encontramos un calendario donde guardarlo.'
+      return t.sinCalendario
     case 'error':
-      return 'No pudimos agregarlo al calendario. Probá de nuevo.'
+      return t.error
   }
 }
 
 export function BotonCalendario({ evento }: BotonCalendarioProps) {
   const colores = useColoresQPS()
+  const { idioma } = useIdioma()
+  const t = useTextos().calendario
   const [cargando, setCargando] = useState(false)
   const [resultado, setResultado] = useState<ResultadoAgregar | null>(null)
 
@@ -60,7 +69,7 @@ export function BotonCalendario({ evento }: BotonCalendarioProps) {
     setCargando(false)
   }
 
-  const mensaje = resultado ? mensajePara(resultado) : null
+  const mensaje = resultado ? mensajePara(resultado, idioma) : null
   const puedeAbrirAjustes = resultado?.tipo === 'sin-permiso' && resultado.puedeAbrirAjustes
 
   return (
@@ -69,7 +78,7 @@ export function BotonCalendario({ evento }: BotonCalendarioProps) {
         onPress={alAgregar}
         disabled={cargando || agregado}
         accessibilityRole="button"
-        accessibilityLabel={agregado ? 'En tu calendario' : 'Agregar al calendario'}
+        accessibilityLabel={agregado ? t.enTuCalendario : t.agregar}
         style={[estilos.ctaOutline, { borderColor: colores.border }]}
       >
         {cargando ? (
@@ -77,7 +86,9 @@ export function BotonCalendario({ evento }: BotonCalendarioProps) {
         ) : (
           <>
             <Icono nombre={agregado ? 'Check' : 'CalendarPlus'} tamanio={18} color={colores.foreground} />
-            <Texto peso="semibold">{agregado ? 'En tu calendario' : 'Agregar al calendario'}</Texto>
+            <Texto peso="semibold" style={estilos.textoCta}>
+              {agregado ? t.enTuCalendario : t.agregar}
+            </Texto>
           </>
         )}
       </Pressable>
@@ -92,7 +103,7 @@ export function BotonCalendario({ evento }: BotonCalendarioProps) {
         <Pressable
           onPress={() => Linking.openSettings()}
           accessibilityRole="button"
-          accessibilityLabel="Abrir Ajustes"
+          accessibilityLabel={t.abrirAjustes}
           hitSlop={10}
           style={estilos.botonAjustes}
         >
@@ -101,7 +112,7 @@ export function BotonCalendario({ evento }: BotonCalendarioProps) {
               defecto de `Texto`), subrayado para no perder la señal de que
               se toca (no tiene ícono ni borde propio). */}
           <Texto peso="semibold" style={estilos.textoAjustes}>
-            Abrir Ajustes
+            {t.abrirAjustes}
           </Texto>
         </Pressable>
       ) : null}
@@ -110,7 +121,10 @@ export function BotonCalendario({ evento }: BotonCalendarioProps) {
 }
 
 const estilos = StyleSheet.create({
-  ctaOutline: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 10, paddingVertical: 14, borderWidth: 1 },
+  ctaOutline: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 10, paddingVertical: 14, paddingHorizontal: 12, borderWidth: 1 },
+  // Q6-1b: con la letra al 200 %, el texto salta de línea (centrado) en vez
+  // de pasarse del borde, como «Ver en el mapa de eventos» de la ficha.
+  textoCta: { flexShrink: 1, textAlign: 'center' },
   mensaje: { marginTop: 6, fontSize: 13 },
   botonAjustes: { marginTop: 6, paddingVertical: 10, alignSelf: 'flex-start' },
   textoAjustes: { textDecorationLine: 'underline' },

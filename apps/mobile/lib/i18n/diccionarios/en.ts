@@ -1,14 +1,16 @@
 /** Q5-11 · Diccionario de la app en inglés. Mismas claves que `es.ts` (`satisfies`). */
 import type { Diccionario } from './es'
-import { TEXTO_SACASTE_GUARDADO_CON_VOY } from '@qps/core/asistencia'
+import { TEXTO_SACASTE_GUARDADO_CON_VOY, cantidadVisible } from '@qps/core/asistencia'
 import { validarContrasenaNueva } from '@qps/core/auth/cuenta'
 import {
   MENSAJE_ALTA_CON_SESION,
   MENSAJE_ALTA_ENVIADA,
   MENSAJE_ALTA_GENERICO,
   mensajeErrorAlta,
+  mensajeErrorContrasena,
   mensajeErrorIngreso,
 } from '@qps/core/auth/mensajes'
+import { CONTACTO_EMAIL } from '@qps/core/contacto'
 import * as M from '../../mensajes'
 
 const validacionCorta = validarContrasenaNueva('', '')
@@ -93,6 +95,15 @@ export const ERRORES_EN: Record<string, string> = {
   'Google no devolvió un token válido. Probá de nuevo.': 'Google did not return a valid token. Please try again.',
   'Si entraste con Google, usá el botón de Google.': 'If you signed up with Google, use the Google button.',
   [TEXTO_SACASTE_GUARDADO_CON_VOY]: 'You removed it from your saved events and are no longer marked as going.',
+  // Q6-1b: Contraseña (`mensajeErrorContrasena` de core; el de contraseña débil ya está arriba).
+  [mensajeErrorContrasena({ code: 'same_password' })]: 'That is already your password. Choose another one.',
+  [mensajeErrorContrasena({ code: 'reauthentication_needed' })]: 'For your security, sign out, sign in again and try again.',
+  [mensajeErrorContrasena({})]: 'We could not save the password. Please try again in a few minutes.',
+  // Q6-1b: Eliminar mi cuenta (`lib/cuenta.ts`, que importa Supabase: texto literal, lo
+  // compara con el real `tests/i18n-cuenta-ficha.test.ts`).
+  'No pudimos eliminar la cuenta. Revisá tu conexión.': 'We could not delete the account. Check your connection.',
+  [`No se borró nada. Probá de nuevo en unos minutos o escribinos a ${CONTACTO_EMAIL}.`]:
+    `Nothing was deleted. Please try again in a few minutes or email us at ${CONTACTO_EMAIL}.`,
 }
 
 
@@ -135,6 +146,9 @@ export const en = {
     comoLlegar: 'Directions',
     comprarTickets: 'Buy tickets',
     mapaDeEventos: 'See on the events map',
+    yaNoEsta: 'This event is no longer available.',
+    volverAInicio: 'Back to Home',
+    soloAdultos: 'Adults only (18+)',
   },
   pelicula: {
     titulo: 'Film',
@@ -577,5 +591,95 @@ export const en = {
   },
   esqueleto: {
     cargando: 'Loading',
+  },
+  eliminarCuenta: {
+    titulo: 'Delete my account',
+    paraSiempre: 'This is permanent and cannot be undone.',
+    cuenta: (email: string) => `Account: ${email}`,
+    queSeBorraTitulo: 'What gets deleted:',
+    // Q6-1b: la traducción de la lista de la web (que solo existe en castellano):
+    // mismos ítems, en el mismo orden (lo fija tests/i18n-cuenta-ficha.test.ts).
+    queSeBorra: [
+      'Your favourites.',
+      'Your “Going” marks.',
+      'Your My Radar and notification preferences.',
+      'The notifications you have turned on.',
+      'The history of the notifications we sent you.',
+      'Your phone’s notification tokens.',
+      'The account itself, with your email and password.',
+    ],
+    queNoSeBorraTitulo: 'What does not get deleted:',
+    queNoSeBorra: 'The events you added stay published, but without your name: they show up with no author.',
+    escribinos: 'If you cannot delete it from here, email us at',
+    correoContacto: (email: string) => `Contact email: ${email}`,
+    comoCopiar: 'Press and hold to copy it',
+    confirmar: 'Type ELIMINAR (Spanish for “delete”) to confirm',
+    palabra: 'ELIMINAR',
+    boton: 'Delete my account permanently',
+  },
+  contrasena: {
+    // Los mismos textos que la web en inglés (`cambioContrasena.modos`).
+    modos: {
+      google: {
+        titulo: 'Password',
+        descripcion:
+          'You signed in with Google. You can create a password to also sign in with your email. If you already created one, this replaces it.',
+        boton: 'Save password',
+      },
+      email: { titulo: 'Change password', descripcion: 'Choose a new password.', boton: 'Save password' },
+      mixta: { titulo: 'Change password', descripcion: 'Choose a new password.', boton: 'Save password' },
+      desconocida: {
+        titulo: 'Password',
+        descripcion: 'You can choose a new password to sign in with your email. If you already had one, this replaces it.',
+        boton: 'Save password',
+      },
+    },
+    contrasenaNueva: 'New password',
+    repetila: 'Repeat it',
+    guardada: 'Password saved. You can now sign in with your email and this password.',
+    volver: 'Back',
+  },
+  errorGeneral: {
+    titulo: 'Something went wrong.',
+    texto: 'Please try again in a moment.',
+    reintentar: 'Try again',
+  },
+  fila: {
+    guardar: '♥ Save',
+    guardado: '♥ Saved',
+    // Mismo umbral que el castellano (`cantidadVisible` de core).
+    voy: (cantidad: number) => {
+      const visible = cantidadVisible(cantidad)
+      return visible === null ? '✓ Going' : `✓ Going · ${visible}`
+    },
+    compartir: 'Share',
+    etiquetaGuardar: 'Save this event to your favourites',
+    etiquetaQuitarGuardado: 'Remove this event from your saved events',
+    etiquetaVoy: 'Mark that you are going to this event',
+    etiquetaNoVoy: 'Stop marking that you are going to this event',
+    noDisponible: 'Soon you will be able to save events or mark that you are going.',
+    entrarParaGuardar: 'Sign in to save events or mark that you are going.',
+  },
+  calendario: {
+    agregar: 'Add to calendar',
+    enTuCalendario: 'In your calendar',
+    agregado: 'Done, we added it to your calendar.',
+    sinPermiso: 'No permission to use the calendar.',
+    sinCalendario: 'We could not find a calendar to save it in.',
+    error: 'We could not add it to the calendar. Please try again.',
+    abrirAjustes: 'Open Settings',
+  },
+  seguir: {
+    lugar: (siguiendo: boolean) => (siguiendo ? '✓ Following' : '+ Follow'),
+    cuenta: (usuario: string, siguiendo: boolean) => (siguiendo ? `Following @${usuario}` : `Follow @${usuario}`),
+    seguirA: (nombre: string) => `Follow ${nombre}`,
+    dejarDeSeguirA: (nombre: string) => `Unfollow ${nombre}`,
+  },
+  patrocinado: {
+    franja: 'You came here from a sponsored notification',
+    boton: 'Stop sponsored notifications',
+    listo: 'Done, you will not get any more. You can turn them back on in Account.',
+    bajaPush: 'Done: we will not send you any more sponsored notifications. You can turn them back on in Account.',
+    bajaPushError: 'We could not turn off sponsored notifications. Try from Account.',
   },
 } satisfies Diccionario

@@ -48,7 +48,6 @@ import { formatEventDate } from '@qps/core/date-format'
 import { capitalizeFirst, cleanDescription, formatEventTimeDisplay } from '@qps/core/event-display'
 import { estaDestacado } from '@qps/core/events/destacados'
 import { urlComoLlegar, urlGo } from '@qps/core/metricas/links'
-import { vibeLabels } from '@qps/core/types'
 import { Afiche } from '@/components/Afiche'
 import { AvisoPatrocinado } from '@/components/AvisoPatrocinado'
 import { BotonCalendario } from '@/components/BotonCalendario'
@@ -86,7 +85,8 @@ export default function EventoPorId() {
   const { colors } = useTheme()
   const colores = useColoresQPS()
   const { idioma } = useIdioma()
-  const tf = useTextos().ficha
+  const t = useTextos()
+  const tf = t.ficha
   const router = useRouter()
   const { session } = useSession()
   const userId = session?.user.id ?? null
@@ -190,7 +190,7 @@ export default function EventoPorId() {
   if (estado.tipo === 'no-encontrado') {
     return (
       <View style={[estilos.centrado, { backgroundColor: colors.background }]}>
-        <Vacio mensaje="Este evento ya no está disponible." textoAccion="Volver a Inicio" onAccion={() => router.replace('/')} />
+        <Vacio mensaje={tf.yaNoEsta} textoAccion={tf.volverAInicio} onAccion={() => router.replace('/')} />
       </View>
     )
   }
@@ -198,7 +198,7 @@ export default function EventoPorId() {
   if (estado.tipo === 'error') {
     return (
       <View style={[estilos.centrado, { backgroundColor: colors.background }]}>
-        <ErrorCarga mensaje={estado.error} onReintentar={cargar} />
+        <ErrorCarga mensaje={t.errores.traducir(estado.error)} onReintentar={cargar} />
       </View>
     )
   }
@@ -327,7 +327,7 @@ export default function EventoPorId() {
         {vibe ? (
           <View style={estilos.filaDato}>
             <Icono nombre="Users" tamanio={20} color={colores.primary} />
-            <Texto tono="secundario">{vibeLabels[vibe]}</Texto>
+            <Texto tono="secundario">{tf.soloAdultos}</Texto>
           </View>
         ) : null}
       </View>

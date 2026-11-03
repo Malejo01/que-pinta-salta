@@ -178,22 +178,25 @@ describe('PaginaRadar: sesión y redirect en el mismo idioma', () => {
     return (await vi.importActual('@/components/radar/pagina-radar')) as typeof import('@/components/radar/pagina-radar')
   }
 
+  // Q6-1b: con regex anclada, no con substring: «/en/auth/login?next=…»
+  // contiene «/auth/login?next=…», así que el `toThrow(string)` de antes no
+  // distinguía el ingreso en castellano del ingreso en inglés.
   it('sin sesión en castellano: /auth/login?next=/radar', async () => {
     const { PaginaRadar } = await cargar()
-    await expect(PaginaRadar({ idioma: 'es' })).rejects.toThrow('redirect: /auth/login?next=/radar')
+    await expect(PaginaRadar({ idioma: 'es' })).rejects.toThrow(/^redirect: \/auth\/login\?next=\/radar$/)
   })
 
-  it('sin sesión en inglés: /auth/login?next=/en/radar (el login queda en castellano, vuelve al inglés)', async () => {
+  it('Q6-1b: sin sesión en inglés: al ingreso en inglés, /en/auth/login?next=/en/radar', async () => {
     const { PaginaRadar } = await cargar()
-    await expect(PaginaRadar({ idioma: 'en' })).rejects.toThrow('redirect: /auth/login?next=/en/radar')
+    await expect(PaginaRadar({ idioma: 'en' })).rejects.toThrow(/^redirect: \/en\/auth\/login\?next=\/en\/radar$/)
   })
 
   it('con error de autenticación aunque venga usuario: también redirige, en el mismo idioma', async () => {
     state.user = { id: 'usuario-de-prueba' }
     state.authError = { message: 'jwt expired' }
     const { PaginaRadar } = await cargar()
-    await expect(PaginaRadar({ idioma: 'en' })).rejects.toThrow('redirect: /auth/login?next=/en/radar')
-    await expect(PaginaRadar({ idioma: 'es' })).rejects.toThrow('redirect: /auth/login?next=/radar')
+    await expect(PaginaRadar({ idioma: 'en' })).rejects.toThrow(/^redirect: \/en\/auth\/login\?next=\/en\/radar$/)
+    await expect(PaginaRadar({ idioma: 'es' })).rejects.toThrow(/^redirect: \/auth\/login\?next=\/radar$/)
   })
 
   it('con sesión: renderiza el título del idioma y le pasa el idioma al formulario', async () => {
@@ -220,8 +223,10 @@ describe('PaginaRadar: sesión y redirect en el mismo idioma', () => {
     }
   })
 
+  // Q6-1b: el ingreso también pasa por rutaEn (como /perfil desde Q6-2);
+  // sigue midiendo que no hay ninguna ruta fija en el redirect.
   it('el archivo arma el redirect con rutaEn (no hay ruta fija)', () => {
-    expect(read('components/radar/pagina-radar.tsx')).toContain('redirect(`/auth/login?next=${rutaEn(idioma, "/radar")}`)')
+    expect(read('components/radar/pagina-radar.tsx')).toContain('redirect(`${rutaEn(idioma, "/auth/login")}?next=${rutaEn(idioma, "/radar")}`)')
   })
 })
 

@@ -19,15 +19,21 @@
 // `lib/contrasena.ts`, no acá — ver ese archivo para la garantía de que la
 // contraseña nunca se loguea ni se guarda en ningún lado. Esta pantalla solo
 // arma la UI y le pasa los dos valores que escribió la persona.
+//
+// Q6-1b: los textos salen del diccionario (`t.contrasena`): en castellano,
+// `modos` son los mismos de `textosContrasena` de core; en inglés, los de la
+// web. Los errores de `lib/contrasena.ts` (validación y Supabase, de core) se
+// guardan en castellano y se muestran con `t.errores.traducir`.
 import { useEffect, useState } from 'react'
 import { ActivityIndicator, Pressable, ScrollView, View } from 'react-native'
 import { Stack, useRouter } from 'expo-router'
-import { textosContrasena, tipoDeCuenta } from '@qps/core/auth/cuenta'
+import { tipoDeCuenta } from '@qps/core/auth/cuenta'
 import { CampoTexto } from '@/components/CampoTexto'
 import { Cargando } from '@/components/EstadoCarga'
 import { Texto } from '@/components/Texto'
 import { useColoresQPS } from '@/lib/colores'
 import { guardarContrasena } from '@/lib/contrasena'
+import { useTextos } from '@/lib/i18n'
 import { useSession } from '@/lib/session'
 
 // Mismo criterio que `app/(tabs)/cuenta.tsx` y `app/eliminar-cuenta.tsx`: un
@@ -40,6 +46,8 @@ export default function Contrasena() {
   const router = useRouter()
   const colores = useColoresQPS()
   const { session, cargando } = useSession()
+  const t = useTextos()
+  const tc = t.contrasena
 
   const [nueva, setNueva] = useState('')
   const [repetida, setRepetida] = useState('')
@@ -59,7 +67,7 @@ export default function Contrasena() {
     )
   }
 
-  const textos = textosContrasena(tipoDeCuenta(session.user))
+  const textos = tc.modos[tipoDeCuenta(session.user)]
 
   async function guardar() {
     setError(null)
@@ -77,12 +85,10 @@ export default function Contrasena() {
     return (
       <View style={[estilos.centrado, { backgroundColor: colores.background, padding: 24, gap: 16 }]}>
         <Stack.Screen options={{ title: textos.titulo }} />
-        <Texto style={{ textAlign: 'center' }}>
-          Contraseña guardada. Ya podés entrar con tu email y esta contraseña.
-        </Texto>
+        <Texto style={{ textAlign: 'center' }}>{tc.guardada}</Texto>
         <Pressable onPress={() => router.back()} accessibilityRole="button" style={estilos.botonVolver(colores.primary)}>
-          <Texto peso="semibold" style={{ color: colores.primaryForeground }}>
-            Volver
+          <Texto peso="semibold" style={{ color: colores.primaryForeground, textAlign: 'center' }}>
+            {tc.volver}
           </Texto>
         </Pressable>
       </View>
@@ -103,10 +109,10 @@ export default function Contrasena() {
       <Texto tono="secundario">{textos.descripcion}</Texto>
 
       <CampoTexto
-        label="Contraseña nueva"
+        label={tc.contrasenaNueva}
         value={nueva}
         onChangeText={setNueva}
-        placeholder="Contraseña nueva"
+        placeholder={tc.contrasenaNueva}
         secureTextEntry
         mostrarOcultar
         autoCapitalize="none"
@@ -114,10 +120,10 @@ export default function Contrasena() {
         editable={!guardando}
       />
       <CampoTexto
-        label="Repetila"
+        label={tc.repetila}
         value={repetida}
         onChangeText={setRepetida}
-        placeholder="Repetila"
+        placeholder={tc.repetila}
         secureTextEntry
         mostrarOcultar
         autoCapitalize="none"
@@ -125,7 +131,7 @@ export default function Contrasena() {
         editable={!guardando}
       />
 
-      {error ? <Texto style={{ color: COLOR_ERROR }}>{error}</Texto> : null}
+      {error ? <Texto style={{ color: COLOR_ERROR }}>{t.errores.traducir(error)}</Texto> : null}
 
       <Pressable
         onPress={guardar}
@@ -137,7 +143,7 @@ export default function Contrasena() {
         {guardando ? (
           <ActivityIndicator color={colores.primaryForeground} />
         ) : (
-          <Texto peso="semibold" style={{ color: colores.primaryForeground }}>
+          <Texto peso="semibold" style={{ color: colores.primaryForeground, textAlign: 'center' }}>
             {textos.boton}
           </Texto>
         )}
@@ -164,6 +170,8 @@ const estilos = {
   botonVolver: (color: string) => ({
     minHeight: 48,
     minWidth: 48,
+    // Q6-1b: sin pasarse del ancho con la letra al 200 % (el texto envuelve).
+    maxWidth: '100%' as const,
     paddingHorizontal: 20,
     borderRadius: 8,
     alignItems: 'center' as const,

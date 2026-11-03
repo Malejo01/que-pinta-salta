@@ -19,7 +19,7 @@ import { inicializarSentry } from '@/lib/sentry'
 import { iniciarAnuncios } from '@/lib/anuncios/consentimiento'
 import { SessionProvider } from '@/lib/session'
 import { PushProvider } from '@/lib/push'
-import { IdiomaProvider } from '@/lib/i18n'
+import { IdiomaProvider, useTextos, useTextosSinProvider } from '@/lib/i18n'
 import { SincronizadorApertura } from '@/components/SincronizadorApertura'
 import { ManejadorTapPush } from '@/components/ManejadorTapPush'
 import { SincronizadorRecordatorios } from '@/components/SincronizadorRecordatorios'
@@ -48,24 +48,29 @@ const sentryActivo = inicializarSentry(leerEnv().sentryDsn)
  * color directamente, no `useTheme`); D1 (29-g): siempre oscuro, como el
  * resto de la app, así que usa `COLORES_OSCURO` fijo, sin leer el esquema
  * de color del sistema.
+ *
+ * Q6-1b: también se dibuja FUERA del `IdiomaProvider` (está adentro de
+ * `RootLayout`, que es lo que esta pantalla reemplaza): el idioma sale de
+ * `useTextosSinProvider()` (el del teléfono y, apenas se lee, el elegido en
+ * Cuenta; castellano si no se puede leer), nunca de `useTextos()`.
  */
 export function ErrorBoundary({ retry }: ErrorBoundaryProps) {
   const colores = COLORES_OSCURO
+  const t = useTextosSinProvider()
+  const te = t.errorGeneral
 
   return (
     <View style={[estilosError.contenedor, { backgroundColor: colores.background }]}>
       <Image source={LOGO_MARCA} style={estilosError.logo} resizeMode="contain" />
-      <Text style={[estilosError.titulo, { color: colores.foreground }]}>Qué Pinta Salta</Text>
-      <Text style={[estilosError.mensaje, { color: colores.foreground }]}>Algo salió mal.</Text>
-      <Text style={[estilosError.submensaje, { color: colores.mutedForeground }]}>
-        Volvé a intentar en un momento.
-      </Text>
+      <Text style={[estilosError.titulo, { color: colores.foreground }]}>{t.bienvenida.marca}</Text>
+      <Text style={[estilosError.mensaje, { color: colores.foreground }]}>{te.titulo}</Text>
+      <Text style={[estilosError.submensaje, { color: colores.mutedForeground }]}>{te.texto}</Text>
       <Pressable
         onPress={retry}
         accessibilityRole="button"
         style={[estilosError.boton, { backgroundColor: colores.primary }]}
       >
-        <Text style={[estilosError.textoBoton, { color: colores.primaryForeground }]}>Reintentar</Text>
+        <Text style={[estilosError.textoBoton, { color: colores.primaryForeground }]}>{te.reintentar}</Text>
       </Pressable>
     </View>
   )
@@ -83,9 +88,31 @@ const estilosError = StyleSheet.create({
   titulo: { fontSize: 20, fontWeight: '700', textAlign: 'center' },
   mensaje: { fontSize: 16, fontWeight: '600', textAlign: 'center' },
   submensaje: { fontSize: 14, textAlign: 'center', marginBottom: 12 },
-  boton: { borderRadius: 8, paddingVertical: 12, paddingHorizontal: 24 },
-  textoBoton: { fontSize: 15, fontWeight: '600' },
+  // Q6-1b: el botón crece con el texto (letra al 200 %, «Try again»): sin
+  // ancho fijo, con el piso de 48 dp de alto y sin pasarse del ancho.
+  boton: { borderRadius: 8, paddingVertical: 12, paddingHorizontal: 24, minHeight: 48, maxWidth: '100%', justifyContent: 'center' },
+  textoBoton: { fontSize: 15, fontWeight: '600', textAlign: 'center' },
 })
+
+/**
+ * Q6-1b · Las rutas del `<Stack>`, en su propio componente para que los
+ * títulos de la barra («Evento», «Cines», «Lugares para chicos») salgan del
+ * diccionario: `RootLayout` está afuera del `IdiomaProvider`, esto adentro.
+ */
+function Rutas() {
+  const t = useTextos()
+  return (
+    <Stack>
+      <Stack.Screen name="bienvenida" options={{ headerShown: false }} />
+      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+      <Stack.Screen name="evento/[id]" options={{ title: t.ficha.titulo }} />
+      <Stack.Screen name="cines" options={{ title: t.cines.titulo }} />
+      <Stack.Screen name="lugares-chicos/index" options={{ title: t.lugaresChicos.titulo }} />
+      <Stack.Screen name="lugares-chicos/[id]" options={{ title: t.lugaresChicos.tituloFicha }} />
+      <Stack.Screen name="+not-found" options={{ headerShown: false }} />
+    </Stack>
+  )
+}
 
 function RootLayout() {
   // Montserrat (R25, decisión 3 de Mauro): nada de Yellowtail ni Poppins, el
@@ -143,15 +170,7 @@ function RootLayout() {
           <SincronizadorApertura />
           {/* R70: hoja única de "activá los avisos" tras el primer Guardar/Voy. */}
           <InvitacionTrasAccion />
-          <Stack>
-            <Stack.Screen name="bienvenida" options={{ headerShown: false }} />
-            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-            <Stack.Screen name="evento/[id]" options={{ title: 'Evento' }} />
-            <Stack.Screen name="cines" options={{ title: 'Cines' }} />
-            <Stack.Screen name="lugares-chicos/index" options={{ title: 'Lugares para chicos' }} />
-            <Stack.Screen name="lugares-chicos/[id]" options={{ title: 'Lugar para chicos' }} />
-            <Stack.Screen name="+not-found" options={{ headerShown: false }} />
-          </Stack>
+          <Rutas />
         </ThemeProvider>
       </PushProvider>
     </SessionProvider>

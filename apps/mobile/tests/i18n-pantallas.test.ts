@@ -445,6 +445,14 @@ const CON_BOTONES = [
   ['components', 'EnlacesLegales.tsx'],
   ['components', 'HojaCompartirTarjeta.tsx'],
   ['components', 'BloqueCine.tsx'],
+  // Q6-1b: Eliminar mi cuenta, Contraseña, la ficha y sus componentes.
+  ['app', 'eliminar-cuenta.tsx'],
+  ['app', 'contrasena.tsx'],
+  ['app', 'evento', '[id].tsx'],
+  ['components', 'FilaAccionesEvento.tsx'],
+  ['components', 'BotonCalendario.tsx'],
+  ['components', 'BotonSeguir.tsx'],
+  ['components', 'AvisoPatrocinado.tsx'],
 ]
 
 describe('4. los botones con texto crecen o envuelven (letra al 200 %, textos en inglés)', () => {

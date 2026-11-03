@@ -65,8 +65,8 @@ export function encontrarLiteralesDeMail(content: string): Violation[] {
 //    del primer <ul>...</ul> que viene después. Ese orden importa: la
 //    página pública tiene antes otra <ul> ("Cómo pedirlo", con <li> largos
 //    que tienen <strong> y links adentro) que no tiene que entrar.
-//  - App: no hay <ul>/<li> (es React Native), la lista son las líneas
-//    `<Texto>• ...</Texto>`.
+//  - App: no hay <ul>/<li> (es React Native); desde Q6-1b la lista es el
+//    arreglo `queSeBorra` del diccionario en castellano de la app.
 // Los dos tiran si no encuentran nada, con el nombre del archivo en el
 // mensaje: una lista vacía nunca es un resultado válido, es un fallo del
 // extractor (o de que la sección desapareció del archivo real).
@@ -97,15 +97,24 @@ export function extraerQueSeBorraWeb(content: string, archivo: string): string[]
   return items
 }
 
+// Q6-1b: la pantalla de la app ya no tiene la lista en el JSX: sale del
+// diccionario en castellano de la app (`apps/mobile/lib/i18n/diccionarios/es.ts`,
+// `eliminarCuenta.queSeBorra: [ '…', … ]`), y la pantalla la recorre
+// (`t.queSeBorra.map`, lo fija el describe de la sección 5). Este extractor
+// lee ese arreglo: sigue comparando el CASTELLANO con la web.
 export function extraerQueSeBorraApp(content: string, archivo: string): string[] {
-  const re = /<Texto>•\s*([\s\S]*?)<\/Texto>/g
+  const bloque = content.match(/\bqueSeBorra:\s*\[([\s\S]*?)\]/)
+  if (!bloque) {
+    throw new Error(`No se encontró el arreglo "queSeBorra: [ ... ]" en ${archivo}`)
+  }
+  const re = /'((?:[^'\\]|\\.)*)'/g
   const items: string[] = []
   let m: RegExpExecArray | null
-  while ((m = re.exec(content))) {
-    items.push(normalizar(m[1]))
+  while ((m = re.exec(bloque[1]))) {
+    items.push(normalizar(m[1].replace(/\\'/g, "'")))
   }
   if (items.length === 0) {
-    throw new Error(`No se encontró ninguna línea "<Texto>• ...</Texto>" en ${archivo}`)
+    throw new Error(`El arreglo "queSeBorra" de ${archivo} no tiene ningún ítem`)
   }
   return items
 }
@@ -213,24 +222,33 @@ describe("extraerQueSeBorraWeb (fixtures en memoria)", () => {
 })
 
 describe("extraerQueSeBorraApp (fixtures en memoria)", () => {
-  it("extrae las líneas <Texto>• ...</Texto>, ignorando el resto del archivo", () => {
+  // Q6-1b: sobre el arreglo del diccionario, no sobre líneas <Texto>• …</Texto>.
+  it("extrae los ítems del arreglo queSeBorra, ignorando el resto del archivo", () => {
     const fixture = `
-      <Texto peso="semibold">Qué se borra:</Texto>
-      <Texto>• Item de prueba A.</Texto>
-      <Texto>• Item de prueba B.</Texto>
-      <Texto tono="secundario">Esto no tiene viñeta y no debe entrar.</Texto>
+      eliminarCuenta: {
+        queSeBorraTitulo: 'Qué se borra:',
+        queSeBorra: [
+          'Item de prueba A.',
+          'Item de prueba B.',
+        ],
+        queNoSeBorra: 'Esto no está en el arreglo y no debe entrar.',
+      },
     `
-    expect(extraerQueSeBorraApp(fixture, "fixture.tsx")).toEqual(["Item de prueba A.", "Item de prueba B."])
+    expect(extraerQueSeBorraApp(fixture, "fixture.ts")).toEqual(["Item de prueba A.", "Item de prueba B."])
   })
 
-  it("normaliza &quot; a comillas normales y colapsa espacios de más", () => {
-    const fixture = `<Texto>• Tus marcas de &quot;Voy&quot;   y &quot;Me interesa&quot;.</Texto>`
-    expect(extraerQueSeBorraApp(fixture, "fixture.tsx")).toEqual(['Tus marcas de "Voy" y "Me interesa".'])
+  it("respeta las comillas dobles y colapsa espacios de más", () => {
+    const fixture = `queSeBorra: ['Tus marcas de "Voy"   y "Me interesa".']`
+    expect(extraerQueSeBorraApp(fixture, "fixture.ts")).toEqual(['Tus marcas de "Voy" y "Me interesa".'])
   })
 
-  it('tira si no encuentra ninguna línea "<Texto>• ...</Texto>", con el nombre del archivo en el mensaje', () => {
-    const fixture = `<Texto>Nada con viñeta acá.</Texto>`
-    expect(() => extraerQueSeBorraApp(fixture, "fixture-sin-bullets.tsx")).toThrow(/fixture-sin-bullets\.tsx/)
+  it('tira si no encuentra el arreglo, con el nombre del archivo en el mensaje', () => {
+    const fixture = `<Texto>• Una línea vieja con viñeta.</Texto>`
+    expect(() => extraerQueSeBorraApp(fixture, "fixture-sin-arreglo.ts")).toThrow(/fixture-sin-arreglo\.ts/)
+  })
+
+  it("tira si el arreglo está vacío, en vez de devolver []", () => {
+    expect(() => extraerQueSeBorraApp("queSeBorra: []", "fixture-vacio.ts")).toThrow(/fixture-vacio\.ts/)
   })
 })
 
@@ -291,11 +309,21 @@ describe('ningún archivo deja "[COMPLETAR: mail" sin resolver', () => {
 describe('las tres listas de "Qué se borra" son iguales (QPS-191)', () => {
   const RUTA_PUBLICA = "apps/web/app/eliminar-cuenta/page.tsx"
   const RUTA_PERFIL = "apps/web/app/perfil/eliminar-cuenta/page.tsx"
-  const RUTA_APP = "apps/mobile/app/eliminar-cuenta.tsx"
+  // Q6-1b: la lista de la app vive en su diccionario en castellano; la
+  // pantalla la recorre (se fija abajo, «la pantalla de la app muestra…»).
+  const RUTA_APP = "apps/mobile/lib/i18n/diccionarios/es.ts"
+  const RUTA_PANTALLA_APP = "apps/mobile/app/eliminar-cuenta.tsx"
 
   const listaPublica = extraerQueSeBorraWeb(leer(join(ROOT, RUTA_PUBLICA)), RUTA_PUBLICA)
   const listaPerfil = extraerQueSeBorraWeb(leer(join(ROOT, RUTA_PERFIL)), RUTA_PERFIL)
   const listaApp = extraerQueSeBorraApp(leer(join(ROOT, RUTA_APP)), RUTA_APP)
+
+  it(`${RUTA_PANTALLA_APP}: muestra esa lista del diccionario, con su viñeta (no otra escrita a mano)`, () => {
+    const pantalla = leer(join(ROOT, RUTA_PANTALLA_APP))
+    expect(pantalla).toContain("const t = textos.eliminarCuenta")
+    expect(pantalla).toContain("{t.queSeBorra.map((item) => (")
+    expect(pantalla).not.toMatch(/<Texto>•/)
+  })
 
   // Afirmación explícita, ANTES de comparar entre sí: si las tres salieran
   // vacías, el toEqual de abajo pasaría igual y este test no diría nada.

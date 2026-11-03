@@ -78,6 +78,18 @@ export const PANTALLAS_MIGRADAS = [
   'components/BotonFavorito.tsx',
   'components/BotonCompartir.tsx',
   'components/HojaCompartirTarjeta.tsx',
+  // Q6-1b: Eliminar mi cuenta, Contraseña, el layout (pantalla de error y
+  // títulos del Stack), la ficha del evento y los componentes que usa, y los
+  // avisos de la baja rápida de patrocinados.
+  'app/eliminar-cuenta.tsx',
+  'app/contrasena.tsx',
+  'app/_layout.tsx',
+  'app/evento/[id].tsx',
+  'components/FilaAccionesEvento.tsx',
+  'components/BotonCalendario.tsx',
+  'components/BotonSeguir.tsx',
+  'components/AvisoPatrocinado.tsx',
+  'components/ManejadorTapPush.tsx',
 ]
 
 /** Textos visibles con un literal: entre etiquetas, o en props que se leen o se ven. */
@@ -158,6 +170,8 @@ describe('diccionarios', () => {
       'radar.instagram',
       'notificaciones.canales.email',
       'notificaciones.canales.push',
+      // Q6-1b: la palabra que se escribe para eliminar la cuenta la exige el servidor (lib/cuenta.ts).
+      'eliminarCuenta.palabra',
     ])
     const plano = (o: unknown, c = ''): [string, unknown][] =>
       typeof o === 'string' ? [[c, o]] : o && typeof o === 'object' ? Object.entries(o).flatMap(([k, v]) => plano(v, c ? `${c}.${k}` : k)) : []

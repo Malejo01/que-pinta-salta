@@ -13,11 +13,17 @@
 // La lógica de texto (`textoDeBotonSeguir`) es pura: sin React, sin
 // Supabase. Las escrituras pasan siempre por `cambiarSeguimiento`
 // (`lib/radar.ts`): este archivo nunca importa `supabase`.
+//
+// Q6-1b: los textos salen del diccionario (`t.seguir`; en castellano, los de
+// core). `textoDeBotonSeguir` recibe el idioma al final (`'es'` por defecto).
 import { useState } from 'react'
 import { ActivityIndicator, Pressable, StyleSheet, Text } from 'react-native'
 import { useRouter } from 'expo-router'
-import { textoSeguir, textoSeguirCuenta, type TipoSeguimiento } from '@qps/core/radar/seguimiento'
+import type { TipoSeguimiento } from '@qps/core/radar/seguimiento'
 import { useColoresQPS } from '@/lib/colores'
+import { useIdioma, useTextos } from '@/lib/i18n'
+import type { Idioma } from '@/lib/i18n/idioma'
+import { textosDe } from '@/lib/i18n/textos'
 import { cambiarSeguimiento } from '@/lib/radar'
 import { useSession } from '@/lib/session'
 
@@ -31,8 +37,9 @@ export interface BotonSeguirProps {
 }
 
 /** El texto del botón, según el tipo y si ya lo sigue. Pura: la usa `BotonSeguir`. */
-export function textoDeBotonSeguir(tipo: TipoSeguimiento, etiqueta: string, siguiendo: boolean): string {
-  return tipo === 'cuenta' ? textoSeguirCuenta(etiqueta, siguiendo) : textoSeguir(siguiendo)
+export function textoDeBotonSeguir(tipo: TipoSeguimiento, etiqueta: string, siguiendo: boolean, idioma: Idioma = 'es'): string {
+  const t = textosDe(idioma).seguir
+  return tipo === 'cuenta' ? t.cuenta(etiqueta, siguiendo) : t.lugar(siguiendo)
 }
 
 export function BotonSeguir({ tipo, id, etiqueta, siguiendoInicial }: BotonSeguirProps) {
@@ -40,6 +47,8 @@ export function BotonSeguir({ tipo, id, etiqueta, siguiendoInicial }: BotonSegui
   const colores = useColoresQPS()
   const { session } = useSession()
   const userId = session?.user.id ?? null
+  const { idioma } = useIdioma()
+  const t = useTextos().seguir
 
   const [siguiendo, setSiguiendo] = useState(siguiendoInicial)
   const [guardando, setGuardando] = useState(false)
@@ -59,14 +68,14 @@ export function BotonSeguir({ tipo, id, etiqueta, siguiendoInicial }: BotonSegui
     setGuardando(false)
   }
 
-  const texto = textoDeBotonSeguir(tipo, etiqueta, siguiendo)
+  const texto = textoDeBotonSeguir(tipo, etiqueta, siguiendo, idioma)
 
   return (
     <Pressable
       onPress={alternar}
       disabled={guardando}
       accessibilityRole="button"
-      accessibilityLabel={siguiendo ? `Dejar de seguir ${etiqueta}` : `Seguir ${etiqueta}`}
+      accessibilityLabel={siguiendo ? t.dejarDeSeguirA(etiqueta) : t.seguirA(etiqueta)}
       accessibilityState={{ selected: siguiendo, busy: guardando }}
       style={[estilos.boton, { borderColor: colores.border }, siguiendo && { backgroundColor: colores.primary }]}
     >
@@ -91,6 +100,9 @@ const estilos = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     alignSelf: 'flex-start',
+    // Q6-1b: «Following @cuenta_larga» con la letra al 200 %: el botón no se
+    // pasa del ancho y el texto envuelve.
+    maxWidth: '100%',
   },
-  texto: { fontWeight: '600', fontSize: 13 },
+  texto: { fontWeight: '600', fontSize: 13, flexShrink: 1, textAlign: 'center' },
 })
