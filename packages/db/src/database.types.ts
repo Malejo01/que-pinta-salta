@@ -341,6 +341,31 @@ isOneToOne: false
                   Relationships: [
                     
                   ]
+                },"lugares_permanentes": {
+                  Row: {
+                    "acceso": string,"cargado_por": string | null,"contacto_instagram": string | null,"contacto_telefono": string | null,"contacto_web": string | null,"created_at": string,"descripcion_corta": string | null,"edad_max": number | null,"edad_min": number | null,"estado": string,"fuente": string,"fuente_detalle": string | null,"horarios": NonNullable<Json>,"id": string,"motivo_archivo": string | null,"nota_precio": string | null,"osm_ref": string | null,"techado": string | null,"tiene_bano_adaptado": boolean | null,"tiene_cambiador": boolean | null,"tiene_rampa": boolean | null,"tipo": string,"updated_at": string,"venue_id": string,"verificado_at": string | null,"verificado_por": string | null
+                  }
+                  Insert: {
+                    "acceso"?: string,"cargado_por"?: string | null,"contacto_instagram"?: string | null,"contacto_telefono"?: string | null,"contacto_web"?: string | null,"created_at"?: string,"descripcion_corta"?: string | null,"edad_max"?: number | null,"edad_min"?: number | null,"estado"?: string,"fuente": string,"fuente_detalle"?: string | null,"horarios"?: NonNullable<Json>,"id"?: string,"motivo_archivo"?: string | null,"nota_precio"?: string | null,"osm_ref"?: string | null,"techado"?: string | null,"tiene_bano_adaptado"?: boolean | null,"tiene_cambiador"?: boolean | null,"tiene_rampa"?: boolean | null,"tipo": string,"updated_at"?: string,"venue_id": string,"verificado_at"?: string | null,"verificado_por"?: string | null
+                  }
+                  Update: {
+                    "acceso"?: string,"cargado_por"?: string | null,"contacto_instagram"?: string | null,"contacto_telefono"?: string | null,"contacto_web"?: string | null,"created_at"?: string,"descripcion_corta"?: string | null,"edad_max"?: number | null,"edad_min"?: number | null,"estado"?: string,"fuente"?: string,"fuente_detalle"?: string | null,"horarios"?: NonNullable<Json>,"id"?: string,"motivo_archivo"?: string | null,"nota_precio"?: string | null,"osm_ref"?: string | null,"techado"?: string | null,"tiene_bano_adaptado"?: boolean | null,"tiene_cambiador"?: boolean | null,"tiene_rampa"?: boolean | null,"tipo"?: string,"updated_at"?: string,"venue_id"?: string,"verificado_at"?: string | null,"verificado_por"?: string | null
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "lugares_permanentes_venue_id_fkey"
+      columns: ["venue_id"]
+isOneToOne: true
+      referencedRelation: "venues"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "lugares_permanentes_venue_id_fkey"
+      columns: ["venue_id"]
+isOneToOne: true
+      referencedRelation: "venues_canonical"
+      referencedColumns: ["id"]
+    }
+                  ]
                 },"notification_preferences": {
                   Row: {
                     "announcements": boolean,"created_at": string,"daily_cap": number,"favorite_reminders": boolean,"follow_news": boolean,"quiet_end": string,"quiet_start": string,"radar_channel": string,"sponsored": boolean,"updated_at": string,"user_id": string
