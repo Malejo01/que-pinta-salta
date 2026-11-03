@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState, type ComponentType } from "react"
 import { Skeleton } from "@/components/ui/skeleton"
 import type { PinLugar } from "@qps/core/mapa/pines"
+import type { LugarChicosMapa } from "@qps/core/mapa/lugares-chicos"
 import { textosDe } from "@/lib/i18n"
 import type { Idioma } from "@/lib/i18n/idiomas"
 
@@ -14,6 +15,8 @@ export interface OrdenCentrar {
 /** Lo que recibe el mapa. `mapa-maplibre.tsx` importa este tipo (solo el tipo: no se carga nada). */
 export interface PropsMapa {
   pines: PinLugar[]
+  /** Q5-2: la capa «Lugares para chicos». `undefined` = capa apagada. */
+  lugaresChicos?: LugarChicosMapa[]
   /** El `venueId` seleccionado, o `null`. */
   seleccionado: string | null
   /**
@@ -67,7 +70,7 @@ function cuandoEstaLibre(tarea: () => void): () => void {
  * bien se avisa por `onListo`. Sin JavaScript, un
  * `<noscript>` tapa el esqueleto con su aviso.
  */
-export function MapaDiferido({ pines, seleccionado, centrar, onSeleccionar, onFallo, onListo, className = "", idioma = "es" }: MapaDiferidoProps) {
+export function MapaDiferido({ pines, lugaresChicos, seleccionado, centrar, onSeleccionar, onFallo, onListo, className = "", idioma = "es" }: MapaDiferidoProps) {
   const t = textosDe(idioma).mapa
   const contenedor = useRef<HTMLDivElement>(null)
   const [Mapa, setMapa] = useState<ComponentType<PropsMapa> | null>(null)
@@ -152,7 +155,7 @@ export function MapaDiferido({ pines, seleccionado, centrar, onSeleccionar, onFa
           {t.noCargoElMapa}
         </div>
       ) : Mapa ? (
-        <Mapa pines={pines} seleccionado={seleccionado} centrar={centrar} onSeleccionar={onSeleccionar} onError={fallar} idioma={idioma} />
+        <Mapa pines={pines} lugaresChicos={lugaresChicos} seleccionado={seleccionado} centrar={centrar} onSeleccionar={onSeleccionar} onError={fallar} idioma={idioma} />
       ) : (
         <>
           <Skeleton className="size-full rounded-none" aria-hidden="true" />

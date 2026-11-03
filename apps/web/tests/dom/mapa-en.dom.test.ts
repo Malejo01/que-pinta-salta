@@ -96,7 +96,7 @@ describe('FiltrosQue en inglés', () => {
     unmount()
     montarFiltros('es', extra)
     const hrefsEs = ['Gratis', 'Para chicos'].map((n) => screen.getByRole('button', { name: n }).getAttribute('href'))
-    expect(hrefsEn).toEqual(['/en/mapa?cuando=finde&categoria=teatro', '/en/mapa?cuando=finde&gratis=1&chicos=1&categoria=teatro'])
+    expect(hrefsEn).toEqual(['/en/mapa?cuando=finde&categoria=teatro', '/en/mapa?cuando=finde&gratis=1&chicos=1&categoria=teatro&capa=chicos'])
     expect(hrefsEn.map((h) => h!.replace('/en/mapa', '/mapa'))).toEqual(hrefsEs)
   })
 

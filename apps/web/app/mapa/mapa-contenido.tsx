@@ -16,6 +16,8 @@ import {
   urlDelMapa,
 } from "@/components/mapa/filtros-mapa"
 import { AvisoContenidoEs } from "@/components/aviso-contenido-es"
+import { SeccionLugaresChicos } from "@/components/mapa/seccion-lugares-chicos"
+import { idBloqueLugarChicos, type LugarChicosMapa } from "@qps/core/mapa/lugares-chicos"
 import { formatSaltaDayKey } from "@/lib/date-format"
 import { textosDe } from "@/lib/i18n"
 import type { Idioma } from "@/lib/i18n/idiomas"
@@ -31,6 +33,8 @@ import {
 
 interface MapaContenidoProps {
   pines: PinLugar[]
+  /** Q5-2: los lugares de la capa «Lugares para chicos» (vacío si la capa está apagada). */
+  lugaresChicos?: LugarChicosMapa[]
   /** Eventos del filtro cuyo lugar no tiene ubicación válida: no tienen pin. */
   sinUbicacion: number
   filtro: FiltroMapa
@@ -99,8 +103,11 @@ function seVeElCentro(elemento: HTMLElement): boolean {
  * lista de lugares. Guarda el lugar seleccionado, que comparten el mapa y la
  * lista.
  */
-export function MapaContenido({ pines, sinUbicacion, filtro, extra, categorias, lugarInicial, ahoraISO, idioma = "es" }: MapaContenidoProps) {
+export function MapaContenido({ pines, lugaresChicos = [], sinUbicacion, filtro, extra, categorias, lugarInicial, ahoraISO, idioma = "es" }: MapaContenidoProps) {
   const t = textosDe(idioma).mapa
+  const tChicos = textosDe(idioma).lugaresChicos
+  const capaChicos = extra.capaChicos === true
+  const hayLugares = pines.length > 0 || (capaChicos && lugaresChicos.length > 0)
   const router = useRouter()
   const [cambiando, iniciarCambio] = useTransition()
   const [seleccionado, setSeleccionado] = useState<string | null>(lugarInicial)
@@ -166,7 +173,9 @@ export function MapaContenido({ pines, sinUbicacion, filtro, extra, categorias, 
   // mueve solo la lista (`scrollTo`): `scrollIntoView` también corría la página.
   useEffect(() => {
     const lista = bloqueLista.current
-    const lugar = lugarInicial ? document.getElementById(idBloqueLugar(lugarInicial)) : null
+    const lugar = lugarInicial
+      ? document.getElementById(idBloqueLugar(lugarInicial)) ?? document.getElementById(idBloqueLugarChicos(lugarInicial))
+      : null
     if (!lista || !lugar || lista.scrollHeight <= lista.clientHeight) return
     const caja = lugar.getBoundingClientRect()
     const vista = lista.getBoundingClientRect()
@@ -185,7 +194,11 @@ export function MapaContenido({ pines, sinUbicacion, filtro, extra, categorias, 
   }, [mapaDisponible])
 
   // Si el filtro nuevo no trae el lugar seleccionado, no hay nada que resaltar.
-  const seleccionVigente = seleccionado && pines.some((pin) => pin.venueId === seleccionado) ? seleccionado : null
+  const seleccionVigente =
+    seleccionado && (pines.some((pin) => pin.venueId === seleccionado) || lugaresChicos.some((l) => l.venueId === seleccionado))
+      ? seleccionado
+      : null
+  const venuesConEventos = new Set(pines.map((pin) => pin.venueId))
 
   const hoy = formatSaltaDayKey(new Date(ahoraISO))
   const maximo = sumarDias(hoy, DIAS_MAXIMOS_FECHA_MAPA)
@@ -229,15 +242,21 @@ export function MapaContenido({ pines, sinUbicacion, filtro, extra, categorias, 
     setSeleccionado(venueId)
     ordenarCentrar(venueId)
     const pin = pines.find((candidato) => candidato.venueId === venueId)
-    if (pin) anunciar(textoDeSeleccion(pin, idioma))
-    document.getElementById(idBloqueLugar(venueId))?.scrollIntoView({ block: "nearest", behavior: comportamientoDeScroll() })
+    if (pin) {
+      anunciar(textoDeSeleccion(pin, idioma))
+      document.getElementById(idBloqueLugar(venueId))?.scrollIntoView({ block: "nearest", behavior: comportamientoDeScroll() })
+      return
+    }
+    const lugarChicos = lugaresChicos.find((candidato) => candidato.venueId === venueId)
+    if (lugarChicos) anunciar(tChicos.seleccionado(lugarChicos.nombre))
+    document.getElementById(idBloqueLugarChicos(venueId))?.scrollIntoView({ block: "nearest", behavior: comportamientoDeScroll() })
   }
 
   function alVerEnElMapa(venueId: string) {
     setSeleccionado(venueId)
     ordenarCentrar(venueId)
-    const pin = pines.find((candidato) => candidato.venueId === venueId)
-    if (pin) anunciar(textoDeCentrado(pin, idioma))
+    const pin = pines.find((candidato) => candidato.venueId === venueId) ?? lugaresChicos.find((candidato) => candidato.venueId === venueId)
+    if (pin) anunciar(t.centradoEn(pin.nombre))
     // En el celular el mapa queda arriba de la lista. Si el centro del mapa (el
     // pin) ya se ve, no se mueve nada y el botón con el foco sigue en pantalla.
     // Si no se ve, se sube la página hasta el mapa y el botón con el foco queda
@@ -328,15 +347,16 @@ export function MapaContenido({ pines, sinUbicacion, filtro, extra, categorias, 
         {/* Siempre montado: un aria-live que aparece junto con su texto no siempre se anuncia. */}
         <div className="flex flex-wrap items-center gap-x-3">
           {/* Sin pines lo dice el vacío de abajo: acá queda solo para el lector de pantalla (no se repite a la vista). */}
-          <p aria-live="polite" className={pines.length > 0 ? "text-sm font-medium text-foreground" : "sr-only"}>
+          <p aria-live="polite" className={hayLugares ? "text-sm font-medium text-foreground" : "sr-only"}>
             {pines.length > 0
               ? textoDelContador(pines, idioma)
               : conFiltrosExtra
                 ? t.sinEventosConFiltros
                 : t.sinEventosEnFecha(textoDelFiltro)}
+            {capaChicos ? ` · ${tChicos.contador(lugaresChicos.length)}` : ""}
           </p>
           {/* Sin pines, el "Quitar filtros" grande del vacío alcanza: no van dos botones iguales. */}
-          {conFiltrosExtra && pines.length > 0 ? (
+          {conFiltrosExtra && hayLugares ? (
             <Link
               href={urlSinFiltros}
               prefetch={false}
@@ -362,7 +382,7 @@ export function MapaContenido({ pines, sinUbicacion, filtro, extra, categorias, 
           </p>
         ) : null}
 
-        {pines.length === 0 && conFiltrosExtra ? (
+        {!hayLugares && conFiltrosExtra ? (
           <div className="mt-6 rounded-2xl border border-border bg-card p-8 text-center">
             <h2 className="font-semibold text-foreground">{t.vacioConFiltrosTitulo(textoDelFiltro)}</h2>
             <p className="mt-2 text-sm text-muted-foreground">
@@ -386,7 +406,7 @@ export function MapaContenido({ pines, sinUbicacion, filtro, extra, categorias, 
               </Link>
             </div>
           </div>
-        ) : pines.length === 0 ? (
+        ) : !hayLugares ? (
           <div className="mt-6 rounded-2xl border border-border bg-card p-8 text-center">
             <p className="text-foreground">{t.sinEventosEnFecha(textoDelFiltro)}</p>
             <Link
@@ -401,6 +421,7 @@ export function MapaContenido({ pines, sinUbicacion, filtro, extra, categorias, 
             <div ref={bloqueMapa} className="scroll-mt-20">
               <MapaDiferido
                 pines={pines}
+                lugaresChicos={capaChicos ? lugaresChicos : undefined}
                 seleccionado={seleccionVigente}
                 centrar={centrar}
                 onSeleccionar={alSeleccionarEnElMapa}
@@ -412,6 +433,17 @@ export function MapaContenido({ pines, sinUbicacion, filtro, extra, categorias, 
             </div>
             <div ref={bloqueLista} className={`${ALTO_MAX_LG} lg:overflow-y-auto lg:pr-1`}>
               <ListaLugares pines={pines} seleccionado={seleccionVigente} onVerEnElMapa={alVerEnElMapa} mapaDisponible={mapaDisponible} idioma={idioma} />
+              {capaChicos ? (
+                <SeccionLugaresChicos
+                  lugares={lugaresChicos}
+                  ahoraISO={ahoraISO}
+                  seleccionado={seleccionVigente}
+                  conEventos={venuesConEventos}
+                  onVerEnElMapa={alVerEnElMapa}
+                  mapaDisponible={mapaDisponible}
+                  idioma={idioma}
+                />
+              ) : null}
             </div>
           </div>
         )}

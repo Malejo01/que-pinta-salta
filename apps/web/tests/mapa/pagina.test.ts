@@ -176,7 +176,9 @@ describe('qué llega al cliente', () => {
   it('solo las props esperadas, y los pines solo con los campos de PinLugar', async () => {
     const props = await propsDeContenido()
     // `idioma` ("es" en /mapa) es C4: la interfaz en inglés de /en/mapa.
-    expect(Object.keys(props).sort()).toEqual(['ahoraISO', 'categorias', 'extra', 'filtro', 'idioma', 'lugarInicial', 'pines', 'sinUbicacion'])
+    // Q5-2: `lugaresChicos` (vacío sin `capa=chicos`: sin la capa no se lee la tabla).
+    expect(Object.keys(props).sort()).toEqual(['ahoraISO', 'categorias', 'extra', 'filtro', 'idioma', 'lugarInicial', 'lugaresChicos', 'pines', 'sinUbicacion'])
+    expect(props.lugaresChicos).toEqual([])
     expect(props.idioma).toBe('es')
     const pines = props.pines as Record<string, unknown>[]
     expect(pines).toHaveLength(1)

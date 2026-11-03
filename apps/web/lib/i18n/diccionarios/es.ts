@@ -197,6 +197,38 @@ export const es = {
     errorTitulo: 'No pudimos cargar el mapa',
     errorTexto: 'Tuvimos un problema de nuestro lado. Probá de nuevo en un momento.',
   },
+  // Q5-2: capa «Lugares para chicos» de /mapa (seccion-lugares-chicos.tsx).
+  lugaresChicos: {
+    capa: 'Lugares para chicos',
+    titulo: 'Lugares para chicos',
+    bajada: 'Plazas, peloteros, salones de juegos y espacios culturales, abiertos más allá de los eventos.',
+    contador: (n: number) => `${n} ${n === 1 ? 'lugar para chicos' : 'lugares para chicos'}`,
+    vacio: 'Todavía no hay lugares para chicos verificados con estos filtros.',
+    ariaMapa: 'Mapa de lugares con eventos y lugares para chicos',
+    ayudaMapa: 'La lista de esta página tiene los mismos lugares que el mapa: los de eventos y los lugares para chicos.',
+    leyenda:
+      'Los datos los carga y verifica el equipo de Qué Pinta Salta. No inspeccionamos los lugares: confirmá horarios antes de ir.',
+    verificadoEl: (fecha: string) => `Verificado el ${fecha}`,
+    puedeHaberCambiado: 'Puede haber cambiado: confirmá antes de ir.',
+    comoLlegar: 'Cómo llegar',
+    web: 'Web',
+    instagram: 'Instagram',
+    llamar: 'Llamar',
+    verFicha: 'Ver ficha',
+    // «Cerca de casa» (todo en el navegador)
+    cercaTitulo: 'Cerca de casa',
+    cercaMio: 'Cerca mío',
+    buscandoPosicion: 'Buscando tu ubicación…',
+    oElegiBarrio: 'O elegí tu barrio',
+    ningunBarrio: 'Sin ordenar por cercanía',
+    ordenadoDesdeTuPosicion: 'Ordenados por cercanía a tu ubicación.',
+    ordenadoDesdeBarrio: (barrio: string) => `Ordenados por cercanía a ${barrio}.`,
+    sinPermiso: 'No pudimos usar tu ubicación. Podés elegir un barrio.',
+    privacidadCerca:
+      'Tu ubicación o tu barrio se usan solo en este navegador para ordenar la lista: no se mandan ni se guardan.',
+    tambienTieneEventos: 'Este lugar también tiene eventos en el mapa',
+    seleccionado: (nombre: string) => `${nombre}, lugar para chicos seleccionado`,
+  },
   // /buscar (buscar-content.tsx)
   buscar: {
     volver: 'Volver',
