@@ -7,6 +7,12 @@ import { debePausar, motivoPausa } from '@qps/core/publicidad/bajas'
  * campaña, cuántos apagaron los avisos patrocinados (`sponsored = false`) dentro
  * de las 48 h posteriores a su envío.
  *
+ * Q5-16 (decisión nº2 de Mauro sobre la Q4): también cuentan los teléfonos SIN
+ * cuenta. Sus envíos llevan `push_token_id` en vez de `user_id`; su baja es
+ * `push_tokens.avisos_patrocinados = false` con `avisos_patrocinados_baja_at`
+ * (que marca `set_push_preferences` solo cuando la persona lo apaga; cerrar
+ * sesión lo vuelve a false sin marcar, así que no cuenta como baja).
+ *
  * SOLO NÚMEROS: los `user_id` viven en variables locales de este módulo. No se
  * devuelven, no van a `details`, ni a los errores, ni a la consola.
  */
@@ -30,27 +36,63 @@ interface Campania {
   sent_at: string
 }
 
-/** Los envíos de la campaña, paginados de a 1.000 (QPS-201). Devuelve `user_id -> primer sent_at`. */
-async function leerEnvios(admin: SupabaseClient, campaniaId: string): Promise<Map<string, number>> {
+interface Envios {
+  /** `user_id -> primer sent_at` (con cuenta). */
+  porUsuario: Map<string, number>
+  /** `push_token_id -> primer sent_at` (sin cuenta, Q5-16). */
+  porToken: Map<string, number>
+}
+
+function anotar(mapa: Map<string, number>, clave: string, t: number) {
+  const previo = mapa.get(clave)
+  if (previo === undefined || t < previo) mapa.set(clave, t)
+}
+
+/** Los envíos de la campaña, paginados de a 1.000 (QPS-201), separados con y sin cuenta. */
+async function leerEnvios(admin: SupabaseClient, campaniaId: string): Promise<Envios> {
   const porUsuario = new Map<string, number>()
+  const porToken = new Map<string, number>()
   for (let desde = 0; ; desde += TAMANIO_PAGINA_TOKENS) {
     const { data, error } = await admin
       .from('notification_sends')
-      .select('user_id, sent_at')
+      .select('user_id, push_token_id, sent_at')
       .eq('campaign_id', campaniaId)
       .order('id')
       .range(desde, desde + TAMANIO_PAGINA_TOKENS - 1)
     if (error) throw new Error('bajas: no se pudieron leer los envíos')
-    const filas = (data ?? []) as Array<{ user_id: string; sent_at: string }>
+    const filas = (data ?? []) as Array<{ user_id: string | null; push_token_id?: string | null; sent_at: string }>
     for (const f of filas) {
       const t = Date.parse(f.sent_at)
       if (!Number.isFinite(t)) continue
-      const previo = porUsuario.get(f.user_id)
-      if (previo === undefined || t < previo) porUsuario.set(f.user_id, t)
+      if (f.user_id) anotar(porUsuario, f.user_id, t)
+      else if (f.push_token_id) anotar(porToken, f.push_token_id, t)
     }
     if (filas.length < TAMANIO_PAGINA_TOKENS) break
   }
-  return porUsuario
+  return { porUsuario, porToken }
+}
+
+function dentroDeLaVentana(envio: number | undefined, cambioIso: string | null | undefined): boolean {
+  if (envio === undefined || !cambioIso) return false
+  const cambio = Date.parse(cambioIso)
+  return Number.isFinite(cambio) && cambio >= envio && cambio <= envio + VENTANA_BAJAS_MS
+}
+
+/** Q5-16: bajas de los teléfonos sin cuenta (por la fila de push_tokens). */
+async function contarBajasSinCuenta(admin: SupabaseClient, envios: Map<string, number>): Promise<number> {
+  let bajas = 0
+  for (const lote of enLotes([...envios.keys()], TAMANIO_LOTE_IN)) {
+    const { data, error } = await admin
+      .from('push_tokens')
+      .select('id, avisos_patrocinados_baja_at')
+      .eq('avisos_patrocinados', false)
+      .in('id', lote)
+    if (error) throw new Error('bajas: no se pudieron leer los teléfonos sin cuenta')
+    for (const t of (data ?? []) as Array<{ id: string; avisos_patrocinados_baja_at: string | null }>) {
+      if (dentroDeLaVentana(envios.get(t.id), t.avisos_patrocinados_baja_at)) bajas += 1
+    }
+  }
+  return bajas
 }
 
 async function contarBajas(admin: SupabaseClient, envios: Map<string, number>): Promise<number> {
@@ -63,10 +105,7 @@ async function contarBajas(admin: SupabaseClient, envios: Map<string, number>): 
       .in('user_id', lote)
     if (error) throw new Error('bajas: no se pudieron leer las preferencias')
     for (const p of (data ?? []) as Array<{ user_id: string; updated_at: string }>) {
-      const envio = envios.get(p.user_id)
-      const cambio = Date.parse(p.updated_at)
-      if (envio === undefined || !Number.isFinite(cambio)) continue
-      if (cambio >= envio && cambio <= envio + VENTANA_BAJAS_MS) bajas += 1
+      if (dentroDeLaVentana(envios.get(p.user_id), p.updated_at)) bajas += 1
     }
   }
   return bajas
@@ -105,8 +144,8 @@ export async function medirBajas(admin: SupabaseClient, ahora: Date): Promise<Re
   for (const campania of campanias) {
     try {
       const envios = await leerEnvios(admin, campania.id)
-      const destinatarios = envios.size
-      const bajas = await contarBajas(admin, envios)
+      const destinatarios = envios.porUsuario.size + envios.porToken.size
+      const bajas = (await contarBajas(admin, envios.porUsuario)) + (await contarBajasSinCuenta(admin, envios.porToken))
 
       // Primero la pausa y recién al final se marca la campaña como medida: si la
       // pausa falla, la campaña queda sin marcar y se reintenta en la próxima corrida.

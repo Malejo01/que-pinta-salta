@@ -24,6 +24,11 @@ export function esAvisoDelEquipo(data: unknown): boolean {
   return typeof data === 'object' && data !== null && (data as Record<string, unknown>).aviso === MARCA_AVISO_EQUIPO
 }
 
+/** Q5-16: `true` si es un «Aviso del equipo» que llegó hoy (`hoy`, día de Salta; `fecha` en ms). */
+export function avisoDelEquipoDeHoy(data: unknown, fecha: number, hoy: string): boolean {
+  return esAvisoDelEquipo(data) && Number.isFinite(fecha) && formatSaltaDayKey(new Date(fecha)) === hoy
+}
+
 export interface DependenciasFinde {
   notificaciones?: ModuloNotificacionesFinde
   almacen?: Almacen
