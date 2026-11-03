@@ -10,10 +10,14 @@
 //   cerrada. Al tocarlo sale de la bandeja y el listener de «recibido» no
 //   corre, así que se mira la última respuesta (`getLastNotificationResponseAsync`)
 //   y se escuchan los toques (`addNotificationResponseReceivedListener`).
-//   Lo que queda afuera: el aviso llega con la app cerrada, la persona lo
-//   descarta sin tocarlo y no abre la app antes de las 18. Cubrirlo
-//   necesita una tarea en segundo plano (expo-task-manager, dependencia
-//   nueva): anotado en docs/tanda-q5/README.md.
+// - Q6-8: si lo DESCARTÓ sin tocarlo (no queda en la bandeja), `programarFinde`
+//   le pregunta al servidor el jueves (`GET /api/app/aviso-equipo?dia=`) y,
+//   si el equipo ya lo mandó, no deja programado el del finde.
+//   Lo que queda afuera: el aviso llega con la app cerrada y la persona no
+//   abre la app (ni la trae al frente) entre ese momento y las 18. Sin código
+//   que corra con la app cerrada no hay forma de cancelar una notificación
+//   local ya programada; cubrirlo necesita `expo-task-manager` (dependencia
+//   nueva y build nativo): la opción quedó escrita en el PR de Q6-8.
 // Nunca pide el permiso.
 import { useEffect } from 'react'
 import { AppState } from 'react-native'
