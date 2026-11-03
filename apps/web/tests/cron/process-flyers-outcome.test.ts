@@ -14,7 +14,8 @@ vi.mock('@/lib/job-runs', () => ({
 vi.mock('@/lib/ai/process-flyer-ai', () => ({
   processFlyerWithAI: (...a: unknown[]) => processFlyerWithAI(...a),
 }))
-vi.mock('@/lib/ai/gemini', () => ({ GEMINI_MODEL: 'modelo-de-prueba' }))
+// Q6-3: el GET ya no lee GEMINI_MODEL sino el proveedor activo de lib/ia; el doble sigue fijando un modelo de prueba.
+vi.mock('@/lib/ia/seleccion', () => ({ proveedorYModeloActivos: () => ({ proveedor: 'gemini', modelo: 'modelo-de-prueba' }) }))
 
 import { POST } from '@/app/api/ai/process-flyers/route'
 

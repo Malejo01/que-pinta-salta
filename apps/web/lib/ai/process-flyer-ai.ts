@@ -1,5 +1,5 @@
 import { createAdminClient } from '@/lib/supabase/server'
-import { extractEventFromFlyer } from './gemini'
+import { extractEventFromFlyer } from './llamadas-ia'
 import { AIProcessingResult } from './types'
 import { upsertVenue, resolveCategoryId } from '@/lib/scraper/save-to-supabase'
 import { upsertEventWithDeduplication } from '@/lib/scraper/deduplicate'

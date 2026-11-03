@@ -208,7 +208,7 @@ El provider del cron lanza en vez de devolver un array vacío cuando la fuente n
 | Base de datos | Supabase (PostgreSQL) | RLS activo en todas las tablas de dominio |
 | Auth | Supabase Auth | Email/password y Google OAuth; middleware refresca la sesión en cada request |
 | Storage | Supabase Storage | Bucket `flyers_ig` para re-upload de imágenes de Instagram (máx. 5 MB) |
-| IA | Gemini 3.5 Flash-Lite vía `@google/genai` | `temperature: 0.1`, `responseMimeType: application/json`, `responseSchema` con enum de categorías |
+| IA | Gemini 3.5 Flash-Lite vía `@google/genai`, detrás de la capa `apps/web/lib/ia` (Q6-3: Claude listo con `IA_PROVEEDOR=claude`; cada llamada queda en `ia_llamadas`) | `temperature: 0.1`, `responseMimeType: application/json`, `responseSchema` con enum de categorías |
 | Scraping | Cheerio 1.2, Puppeteer 25 | Cheerio para HTML estático, Puppeteer disponible para carteleras de cine |
 | Scraping externo | Apify | Actor `apify~instagram-post-scraper`, disparado por cron con polling (timeout 3 min) o recibido por webhook |
 | Email | Resend | Newsletter del Radar |
@@ -332,6 +332,11 @@ SUPABASE_SERVICE_ROLE_KEY=
 
 # IA y scraping externo
 GEMINI_API_KEY=
+# Q6-3: proveedor de IA (gemini por defecto | claude). Con claude hace falta
+# ANTHROPIC_API_KEY (si falta, las llamadas fallan: no se usa Gemini en su lugar).
+# IA_PROVEEDOR=gemini
+# ANTHROPIC_API_KEY=
+# IA_MODELO_CLAUDE=claude-haiku-4-5
 APIFY_API_TOKEN=
 APIFY_WEBHOOK_SECRET=
 
