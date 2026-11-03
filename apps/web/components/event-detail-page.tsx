@@ -130,6 +130,9 @@ export function EventDetailPage({
   const langDescripcion = idioma !== "es" && descripcion.lang === "es" ? "es" : undefined
   const lugarSinNombre = !event.venue?.name
   const lugarVisible = lugarSinNombre ? textos.portada.lugarPorConfirmar : displayEvent.venue
+  // Q5-5: la ficha del lugar, si es un lugar real con slug (no el «Lugar no especificado»).
+  const fichaDelLugar =
+    event.venue && !event.venue.is_placeholder && event.venue.slug ? rutaEn(idioma, `/lugar/${event.venue.slug}`) : null
   // El nombre de la categoría para el público (en inglés, por slug); el bloque
   // de admin sigue mostrando el de la base (`displayEvent.categoryName`).
   const categoriaVisible = currentCategory?.name
@@ -365,7 +368,14 @@ export function EventDetailPage({
                 <div className="flex flex-wrap items-center gap-2">
                   <div>
                     <p className="font-medium text-foreground" lang={lugarSinNombre ? undefined : langContenido}>
-                      {lugarVisible}
+                      {/* Q5-5: el nombre del lugar lleva a su ficha (/lugar/<slug>). */}
+                      {fichaDelLugar ? (
+                        <Link href={fichaDelLugar} className="underline-offset-2 hover:text-primary hover:underline focus-visible:outline-2 focus-visible:outline-primary">
+                          {lugarVisible}
+                        </Link>
+                      ) : (
+                        lugarVisible
+                      )}
                     </p>
                     <p className="text-sm" lang={langContenido}>{displayEvent.address}</p>
                   </div>

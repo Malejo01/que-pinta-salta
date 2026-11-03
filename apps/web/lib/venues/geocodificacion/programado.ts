@@ -9,12 +9,19 @@
  *  - como mucho 10 lugares por corrida;
  *  - 15,1 s entre pedidos (menos de 4 por minuto, contando reintentos: el
  *    cliente espera su turno en cada intento);
- *  - un lugar ya intentado no se repite antes de 30 días
- *    (`venues.geocode_intentado_at`), haya dado resultado o no;
+ *  - un lugar sin resultado no se repite antes de 30 días
+ *    (`venues.geocode_intentado_at`);
+ *  - Q5-16 (decisión nº7): un lugar con una sugerencia pendiente
+ *    (`venues.geocode_sugerencia_lat` no nulo) no se vuelve a consultar NUNCA
+ *    solo, aunque hayan pasado los 30 días: espera a que un admin la confirme
+ *    o la descarte en /admin/lugares (al descartarla vuelve a la regla de los
+ *    30 días). Ya no se reintenta a ciegas;
  *  - solo lugares con eventos próximos (nunca `--todos`), y nunca rehace
  *    coordenadas de Nominatim ni pisa las cargadas a mano.
- * Los de confianza alta se guardan solos; los demás quedan sin coordenadas,
- * o sea, en la pestaña «Sin ubicación» de /admin/lugares (la cola de siempre).
+ * Los de confianza alta se guardan solos; los «para revisar» dejan guardada
+ * la mejor sugerencia (sin tocar `latitude`/`longitude`, ver `./sugerencia`)
+ * y, como los sin resultado, quedan en la pestaña «Sin ubicación» de
+ * /admin/lugares, donde la sugerencia se confirma con un botón.
  *
  * Puro: sin red ni base.
  */
@@ -26,14 +33,19 @@ export const DIAS_ENTRE_INTENTOS = 30
 
 const MS_POR_DIA = 24 * 60 * 60 * 1000
 
-/** Los lugares que no se intentaron en los últimos `dias` días (o nunca). */
-export function sinIntentoReciente<T extends { geocode_intentado_at?: string | null }>(
-  lugares: T[],
-  ahora: Date,
-  dias = DIAS_ENTRE_INTENTOS,
-): T[] {
+/**
+ * Los lugares que no se intentaron en los últimos `dias` días (o nunca) y que
+ * no tienen una sugerencia pendiente (Q5-16: esos esperan al admin, sin
+ * importar cuánto tiempo pasó).
+ */
+export function sinIntentoReciente<
+  T extends { geocode_intentado_at?: string | null; geocode_sugerencia_lat?: number | null },
+>(lugares: T[], ahora: Date, dias = DIAS_ENTRE_INTENTOS): T[] {
   const limite = ahora.getTime() - dias * MS_POR_DIA
   return lugares.filter((lugar) => {
+    // Q5-16: con sugerencia pendiente (el check de la base exige lat, lng y la
+    // fecha juntas, así que alcanza con la latitud) no se consulta de nuevo.
+    if (lugar.geocode_sugerencia_lat !== null && lugar.geocode_sugerencia_lat !== undefined) return false
     if (!lugar.geocode_intentado_at) return true
     const cuando = Date.parse(lugar.geocode_intentado_at)
     return Number.isNaN(cuando) || cuando < limite

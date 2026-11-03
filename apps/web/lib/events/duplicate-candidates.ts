@@ -8,6 +8,12 @@
  * sumaba falsos negativos (dos nombres muy distintos del mismo show) sin
  * ahorrar trabajo real de revisión.
  *
+ * Q5-9: una segunda pasada suma los pares de FUENTES distintas que no
+ * comparten `venue_id` (el flyer con el lugar escrito distinto o sin lugar),
+ * puntuados por `compararEntreFuentes` (@qps/core): ahí sí se compara el
+ * título, porque sin el mismo lugar el horario solo no alcanza. Solo se
+ * muestran los de confianza alta o media, y NINGUNO se fusiona solo.
+ *
  * Esto NO escribe nada: la fusión y el descarte los hace un admin a mano
  * desde app/admin/duplicados/page.tsx, que llama a lib/admin/duplicate-actions.ts
  * (`merge_events()` en la base, ver supabase/migrations/20261011120000_merge_events.sql).
@@ -17,6 +23,7 @@ import { cleanDescription, saltaStartOfDayISO } from '@/lib/event-display'
 import { mergedIntoId } from '@/lib/events/merged'
 import { hasRealTime, ticketUrlsOf } from '@/lib/scraper/dedup-key'
 import { formatSaltaDayKey } from '@/lib/date-format'
+import { compararEntreFuentes } from '@qps/core/events/duplicados-entre-fuentes'
 
 const HOUR_MS = 60 * 60 * 1000
 const DEFAULT_WINDOW_HOURS = 24
@@ -47,6 +54,12 @@ export type DuplicateCandidatePair = {
   a: DuplicateCandidateEvent
   b: DuplicateCandidateEvent
   hoursApart: number
+  /**
+   * Q5-9: los pares que salen de la segunda pasada (fuentes distintas, sin el
+   * mismo `venue_id`) llevan la confianza y los motivos. Igual que los demás,
+   * solo se muestran: nada se fusiona solo.
+   */
+  entreFuentes?: { confianza: 'alta' | 'media'; motivos: string[] }
 }
 
 /** Orden canónico de un par de ids (event_a < event_b, como exige el CHECK de duplicate_dismissals). */
@@ -105,6 +118,29 @@ export function findDuplicateCandidates(
           pairs.push({ a, b, hoursApart: diffMs / HOUR_MS })
         }
       }
+    }
+  }
+
+  // Q5-9: segunda pasada, entre FUENTES distintas y sin el mismo venue_id (lo
+  // que la primera no ve: el flyer con otro nombre del lugar o sin lugar).
+  // Solo confianza alta o media; nunca se fusiona solo.
+  const vigentes = events.filter((e) => e.status !== 'CANCELLED' && mergedIntoId(e) === null)
+  const vistos = new Set(pairs.map((p) => pairKey(p.a.id, p.b.id)))
+  for (let i = 0; i < vigentes.length; i++) {
+    for (let j = i + 1; j < vigentes.length; j++) {
+      const a = vigentes[i]
+      const b = vigentes[j]
+      if (a.venue_id && a.venue_id === b.venue_id) continue
+      const clave = pairKey(a.id, b.id)
+      if (vistos.has(clave) || dismissed?.has(clave)) continue
+      const r = compararEntreFuentes(
+        { id: a.id, title: a.title, start_date: a.start_date, venue_id: a.venue_id, venueNombre: a.venue?.name ?? null, fuente: a.scrape_source_key ?? null },
+        { id: b.id, title: b.title, start_date: b.start_date, venue_id: b.venue_id, venueNombre: b.venue?.name ?? null, fuente: b.scrape_source_key ?? null },
+      )
+      if (r.confianza === 'baja') continue
+      vistos.add(clave)
+      const diffMs = Math.abs(new Date(a.start_date).getTime() - new Date(b.start_date).getTime())
+      pairs.push({ a, b, hoursApart: diffMs / HOUR_MS, entreFuentes: { confianza: r.confianza, motivos: r.motivos } })
     }
   }
 

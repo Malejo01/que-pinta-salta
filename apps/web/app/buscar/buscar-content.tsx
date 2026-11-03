@@ -21,6 +21,7 @@ import { AvisoContenidoEs } from "@/components/aviso-contenido-es"
 import { langDeCategoria, textosDe } from "@/lib/i18n"
 import type { Idioma } from "@/lib/i18n/idiomas"
 import { localizarCategorias, localizarEventos } from "@/lib/i18n/portada"
+import { lugaresQueCoinciden } from "@qps/core/lugares/ficha"
 import { rutaEn } from "@/lib/i18n/rutas"
 
 /** Cuánto se espera a que se deje de tipear para anunciar el contador. */
@@ -205,6 +206,7 @@ export function BuscarContent({
   // grilla de categorías; sin texto y con un chip, todos los eventos que
   // pasan el chip (`filtrarCombinado` con texto vacío no filtra por texto).
   const textoBuscado = deferredSearchQuery.trim()
+  const lugaresCoincidentes = useMemo(() => lugaresQueCoinciden(events, textoBuscado), [events, textoBuscado])
   const hayChip = soloGratisActivo || paraChicosActivo
   const mostrarListaResultados = textoBuscado !== "" || hayChip
 
@@ -367,6 +369,26 @@ export function BuscarContent({
             </Button>
           )}
         </div>
+
+        {/* Q5-5: los lugares cuyo nombre coincide con lo que se buscó llevan a su ficha. */}
+        {lugaresCoincidentes.length > 0 && (
+          <nav aria-label={textosDe(idioma).buscar.lugares} className="mb-4">
+            <h2 className="mb-2 text-sm font-semibold text-foreground">{textosDe(idioma).buscar.lugares}</h2>
+            <ul className="flex flex-wrap gap-2">
+              {lugaresCoincidentes.map((lugar) => (
+                <li key={lugar.slug}>
+                  <Link
+                    href={rutaEn(idioma, `/lugar/${lugar.slug}`)}
+                    lang={idioma === "es" ? undefined : "es"}
+                    className="inline-flex min-h-11 items-center rounded-full border border-border bg-card px-4 text-sm font-medium text-foreground hover:bg-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+                  >
+                    {lugar.nombre}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </nav>
+        )}
 
         {mostrarListaResultados && cantidad > 0 && (
           <div className="flex flex-wrap gap-4">

@@ -244,6 +244,20 @@ export const COLUMNAS_A_DESVINCULAR: readonly EntradaTablaPersonal[] = [
       "ON DELETE SET NULL, nullable. Mismo criterio que events.featured_set_by.",
   },
   {
+    tabla: "lugares_permanentes",
+    columna: "cargado_por",
+    comentario:
+      "Q5-1: quién cargó la ficha del lugar para chicos (admin). FK a auth.users(id) ON DELETE SET NULL, " +
+      "nullable. Mismo criterio que events.featured_set_by.",
+  },
+  {
+    tabla: "lugares_permanentes",
+    columna: "verificado_por",
+    comentario:
+      "Q5-1: quién verificó por última vez la ficha (admin). FK a auth.users(id) ON DELETE SET NULL, " +
+      "nullable. Mismo criterio que events.featured_set_by.",
+  },
+  {
     tabla: "aliases",
     columna: "created_by",
     comentario:

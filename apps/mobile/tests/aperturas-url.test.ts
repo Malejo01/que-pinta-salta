@@ -28,6 +28,14 @@
 // arma la query) NO entra en la lista a propósito: abrirla directo saltearía
 // el chequeo de coordenadas (ver `tests/ver-en-el-mapa.test.ts`).
 //
+// Q5-4 (lugares para chicos): el sexto origen válido es `urlContactoLugar`
+// (`lib/links.ts`), para el contacto que publica el lugar (web, Instagram,
+// teléfono) y la licencia de OpenStreetMap. Valida esquema y dominio (ver el
+// describe «urlContactoLugar» de más abajo).
+//
+// Q5-6: el séptimo es `urlFichaLugarWeb` (`lib/links.ts`): la ficha web de
+// un lugar seguido, solo con un uuid.
+//
 // Primero el detector, probado con fixtures en memoria (mismo estilo que
 // `encontrarViolacionesDeIconos` en `tests/iconos.test.ts`); después se
 // aplica a los archivos reales de `app/` y `components/` con un `it.each`
@@ -37,7 +45,7 @@ import { readFileSync, readdirSync, statSync } from 'node:fs'
 import { join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
-import { urlMapaDelEvento, urlSitio } from '../lib/links'
+import { urlContactoLugar, urlFichaLugarWeb, urlMapaDelEvento, urlSitio } from '../lib/links'
 
 const MOBILE_ROOT = fileURLToPath(new URL('..', import.meta.url))
 const APP_DIR = join(MOBILE_ROOT, 'app')
@@ -70,7 +78,7 @@ function leerArgumentoBalanceado(content: string, desdeIndex: number): string {
 /** Variables (`const`/`let`) asignadas directamente desde `urlGo(...)`, `urlComoLlegar(...)`, `urlCompraCineSegura(...)`, `urlSitio(...)` o `urlMapaDelEvento(...)`. */
 function variablesSeguras(content: string): Set<string> {
   const vars = new Set<string>()
-  const re = /\b(?:const|let)\s+(\w+)\s*=\s*(?:await\s+)?(?:urlGo|urlComoLlegar|urlCompraCineSegura|urlSitio|urlMapaDelEvento)\s*\(/g
+  const re = /\b(?:const|let)\s+(\w+)\s*=\s*(?:await\s+)?(?:urlGo|urlComoLlegar|urlCompraCineSegura|urlSitio|urlMapaDelEvento|urlContactoLugar|urlFichaLugarWeb)\s*\(/g
   let m: RegExpExecArray | null
   while ((m = re.exec(content))) vars.add(m[1])
   return vars
@@ -96,7 +104,7 @@ export function encontrarAperturasInseguras(content: string): Violation[] {
     const inicioArg = m.index + m[0].length
     const arg = leerArgumentoBalanceado(content, inicioArg).trim()
     const esVariableSegura = /^\w+$/.test(arg) && seguras.has(arg)
-    const esLlamadaDirecta = /^(?:urlGo|urlComoLlegar|urlCompraCineSegura|urlSitio|urlMapaDelEvento)\s*\(/.test(arg)
+    const esLlamadaDirecta = /^(?:urlGo|urlComoLlegar|urlCompraCineSegura|urlSitio|urlMapaDelEvento|urlContactoLugar|urlFichaLugarWeb)\s*\(/.test(arg)
     if (!esVariableSegura && !esLlamadaDirecta) {
       violaciones.push({
         line: lineAt(content, m.index),
@@ -309,5 +317,34 @@ describe('app/ y components/: todo openURL viene de urlGo/urlComoLlegar/urlCompr
       throw new Error(`openURL sin pasar por urlGo/urlComoLlegar/urlCompraCineSegura/urlSitio/urlMapaDelEvento:\n${detalle}`)
     }
     expect(violaciones).toEqual([])
+  })
+})
+
+describe('urlContactoLugar (Q5-4)', () => {
+  it('web: solo http(s) con un host con punto', () => {
+    expect(urlContactoLugar('https://ejemplo.com.ar/x', 'web')).toBe('https://ejemplo.com.ar/x')
+    expect(urlContactoLugar('javascript:alert(1)', 'web')).toBeNull()
+    expect(urlContactoLugar('intent://x', 'web')).toBeNull()
+    expect(urlContactoLugar(null, 'web')).toBeNull()
+  })
+  it('instagram: solo https://instagram.com', () => {
+    expect(urlContactoLugar('https://www.instagram.com/lugar/', 'instagram')).toBe('https://www.instagram.com/lugar/')
+    expect(urlContactoLugar('https://evil.example.com/instagram.com', 'instagram')).toBeNull()
+    expect(urlContactoLugar('http://instagram.com/lugar', 'instagram')).toBeNull()
+  })
+  it('tel: solo dígitos y +', () => {
+    expect(urlContactoLugar('+54 387 400-0000', 'tel')).toBe('tel:+543874000000')
+    expect(urlContactoLugar('llamame', 'tel')).toBeNull()
+  })
+  it('osm: la licencia, fija', () => {
+    expect(urlContactoLugar('cualquier cosa', 'osm')).toBe('https://www.openstreetmap.org/copyright')
+  })
+})
+
+describe('urlFichaLugarWeb (Q5-6)', () => {
+  it('solo con un uuid', () => {
+    expect(urlFichaLugarWeb('12345678-1234-4234-8234-123456789012')).toBe('https://www.quepintasalta.com.ar/lugar/12345678-1234-4234-8234-123456789012')
+    expect(urlFichaLugarWeb('../admin')).toBeNull()
+    expect(urlFichaLugarWeb('teatro-provincial')).toBeNull()
   })
 })

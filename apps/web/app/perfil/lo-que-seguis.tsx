@@ -25,6 +25,8 @@ import { useToast } from "@/hooks/use-toast"
 export interface LugarSeguido {
   id: string
   nombre: string
+  /** Q5-6: para el link a la ficha; sin slug, el link va por id (redirige). */
+  slug?: string
 }
 
 export interface CuentaSeguida {
@@ -73,7 +75,13 @@ export function LoQueSeguisVista({ lugares, cuentas, categorias, onDejarDeSeguir
           <ul className="space-y-1.5">
             {lugares.map((lugar) => (
               <li key={lugar.id} className="flex items-center justify-between gap-3 text-sm">
-                <span className="truncate font-medium text-foreground">{lugar.nombre}</span>
+                {/* Q5-6: el nombre lleva a la ficha del lugar (por id, redirige al slug). */}
+                <Link
+                  href={`/lugar/${lugar.slug ?? lugar.id}`}
+                  className="truncate font-medium text-foreground underline-offset-2 hover:text-primary hover:underline"
+                >
+                  {lugar.nombre}
+                </Link>
                 <Button
                   type="button"
                   variant="ghost"

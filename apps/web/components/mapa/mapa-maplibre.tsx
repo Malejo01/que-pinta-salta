@@ -6,6 +6,7 @@ import "maplibre-gl/dist/maplibre-gl.css"
 import { useTheme } from "@/components/theme-provider"
 import { CENTRO_SALTA_CAPITAL } from "@qps/core/mapa/zona"
 import { pinesAGeoJson } from "@qps/core/mapa/pines"
+import { lugaresChicosAGeoJson } from "@qps/core/mapa/lugares-chicos"
 import { estiloSegunTema } from "@qps/core/mapa/estilos"
 import type { PropsMapa } from "./mapa-diferido"
 import { textosDe } from "@/lib/i18n"
@@ -27,6 +28,18 @@ const CAPA_PINES = "lugares-pines"
 /** Círculo invisible, más grande que el pin: el área de toque (alcanza el dedo). */
 const CAPA_TOQUE = "lugares-toque"
 const CAPA_SELECCION = "lugares-seleccion"
+// Q5-2: la capa «Lugares para chicos». Otra fuente y otras capas (no se
+// mezclan con las de eventos, que dependen de la fecha). Forma distinta, no
+// solo color: una casita con borde blanco, anclada abajo, que se distingue en
+// blanco y negro y con daltonismo. Va DEBAJO de los pines de eventos.
+const FUENTE_CHICOS = "lugares-chicos"
+const CAPA_CHICOS_PINES = "chicos-pines"
+const CAPA_CHICOS_TOQUE = "chicos-toque"
+const CAPA_CHICOS_SELECCION = "chicos-seleccion"
+const ICONO_CHICOS = "icono-chicos"
+const ICONO_CHICOS_SELECCION = "icono-chicos-seleccion"
+/** Verde azulado oscuro: más de 3:1 contra el blanco del borde y el fondo claro del mapa. */
+const COLOR_CHICOS = "#0f766e"
 const ZOOM_INICIAL = 13
 const ZOOM_AL_SELECCIONAR = 15
 /** Respaldo si no se puede leer `--primary` (rojo del tema claro). */
@@ -119,8 +132,105 @@ function agregarFuenteYCapas(mapa: MapaDeMapLibre, pines: PropsMapa["pines"], se
   }
 }
 
+/**
+ * El ícono de la capa de chicos, dibujado en un canvas (sin sprites externos):
+ * una casita con borde. `seleccion` = solo el contorno, más grueso, del color
+ * primario (la selección es una forma, no un cambio de color).
+ */
+function iconoCasita(seleccion: boolean, colorSeleccion: string): ImageData | null {
+  const escala = 2
+  const ancho = 30 * escala
+  const alto = 34 * escala
+  const lienzo = document.createElement("canvas")
+  lienzo.width = ancho
+  lienzo.height = alto
+  const c = lienzo.getContext("2d")
+  if (!c) return null
+  c.scale(escala, escala)
+  c.beginPath()
+  c.moveTo(15, 3) // techo
+  c.lineTo(27, 14)
+  c.lineTo(27, 26)
+  c.lineTo(18, 26)
+  c.lineTo(15, 31) // punta abajo (el ancla)
+  c.lineTo(12, 26)
+  c.lineTo(3, 26)
+  c.lineTo(3, 14)
+  c.closePath()
+  if (seleccion) {
+    c.lineWidth = 3
+    c.strokeStyle = colorSeleccion
+    c.stroke()
+  } else {
+    c.fillStyle = COLOR_CHICOS
+    c.fill()
+    c.lineWidth = 2
+    c.strokeStyle = "#ffffff"
+    c.stroke()
+    // Una puerta blanca: se lee como «casita» aun en gris.
+    c.fillStyle = "#ffffff"
+    c.fillRect(12.5, 17, 5, 9)
+  }
+  return c.getImageData(0, 0, ancho, alto)
+}
+
+/** La capa de chicos (fuente, ícono y capas), debajo de la de eventos. */
+function agregarCapaChicos(mapa: MapaDeMapLibre, lugares: PropsMapa["lugaresChicos"], seleccionado: string | null) {
+  if (!mapa.getSource(FUENTE_CHICOS)) {
+    mapa.addSource(FUENTE_CHICOS, { type: "geojson", data: lugaresChicosAGeoJson(lugares ?? []) })
+  }
+  const color = colorPrimario()
+  for (const [nombre, seleccion] of [[ICONO_CHICOS, false], [ICONO_CHICOS_SELECCION, true]] as const) {
+    if (mapa.hasImage(nombre)) continue
+    const imagen = iconoCasita(seleccion, color)
+    if (imagen) mapa.addImage(nombre, imagen, { pixelRatio: 2 })
+  }
+  const debajoDe = mapa.getLayer(CAPA_PINES) ? CAPA_PINES : undefined
+  if (!mapa.getLayer(CAPA_CHICOS_PINES)) {
+    mapa.addLayer(
+      {
+        id: CAPA_CHICOS_PINES,
+        type: "symbol",
+        source: FUENTE_CHICOS,
+        layout: { "icon-image": ICONO_CHICOS, "icon-anchor": "bottom", "icon-allow-overlap": true, "icon-ignore-placement": true },
+      },
+      debajoDe,
+    )
+  }
+  if (!mapa.getLayer(CAPA_CHICOS_SELECCION)) {
+    mapa.addLayer(
+      {
+        id: CAPA_CHICOS_SELECCION,
+        type: "symbol",
+        source: FUENTE_CHICOS,
+        filter: filtroSeleccion(seleccionado),
+        layout: {
+          "icon-image": ICONO_CHICOS_SELECCION,
+          "icon-anchor": "bottom",
+          "icon-size": 1.35,
+          "icon-allow-overlap": true,
+          "icon-ignore-placement": true,
+        },
+      },
+      debajoDe,
+    )
+  }
+  if (!mapa.getLayer(CAPA_CHICOS_TOQUE)) {
+    // Mismo blanco de toque que los eventos (unos 44 px), un poco arriba del ancla (el cuerpo del ícono).
+    mapa.addLayer(
+      {
+        id: CAPA_CHICOS_TOQUE,
+        type: "circle",
+        source: FUENTE_CHICOS,
+        paint: { "circle-color": COLOR_CHICOS, "circle-opacity": 0, "circle-radius": 22, "circle-translate": [0, -16] },
+      },
+      debajoDe,
+    )
+  }
+}
+
 /** Encuadra todos los pines (o centra el único). Sin pines, deja la vista donde está. */
-function encuadrar(mapa: MapaDeMapLibre, pines: PropsMapa["pines"]) {
+function encuadrar(mapa: MapaDeMapLibre, pines: { lat: number; lng: number }[]) {
   if (pines.length === 0) return
   if (pines.length === 1) {
     mapa.jumpTo({ center: [pines[0].lng, pines[0].lat], zoom: ZOOM_AL_SELECCIONAR })
@@ -136,8 +246,10 @@ function encuadrar(mapa: MapaDeMapLibre, pines: PropsMapa["pines"]) {
  * círculo por lugar. Tocar un pin selecciona el lugar; el detalle lo muestra
  * la lista de la página.
  */
-export default function MapaMaplibre({ pines, seleccionado, centrar, onSeleccionar, onError, idioma = "es" }: PropsMapa) {
+export default function MapaMaplibre({ pines, lugaresChicos, seleccionado, centrar, onSeleccionar, onError, idioma = "es" }: PropsMapa) {
   const t = textosDe(idioma).mapa
+  const tChicos = textosDe(idioma).lugaresChicos
+  const conCapaChicos = lugaresChicos !== undefined
   // Los textos de los controles se fijan al crear el mapa (no cambian con la página).
   const idiomaInicial = useRef(idioma)
   const { resolvedTheme } = useTheme()
@@ -148,9 +260,9 @@ export default function MapaMaplibre({ pines, seleccionado, centrar, onSeleccion
 
   // Lo último que llegó por props, para los manejadores del mapa (que se
   // registran una sola vez y no tienen que quedar con valores viejos).
-  const ultimo = useRef({ pines, seleccionado, onSeleccionar, onError })
+  const ultimo = useRef({ pines, lugaresChicos, seleccionado, onSeleccionar, onError })
   useEffect(() => {
-    ultimo.current = { pines, seleccionado, onSeleccionar, onError }
+    ultimo.current = { pines, lugaresChicos, seleccionado, onSeleccionar, onError }
   })
   const temaInicial = useRef(resolvedTheme)
 
@@ -185,6 +297,7 @@ export default function MapaMaplibre({ pines, seleccionado, centrar, onSeleccion
     mapa.on("style.load", () => {
       estiloCargado = true
       agregarFuenteYCapas(mapa, ultimo.current.pines, ultimo.current.seleccionado)
+      agregarCapaChicos(mapa, ultimo.current.lugaresChicos, ultimo.current.seleccionado)
     })
     // Los errores de un tile suelto no tumban el mapa: solo cuenta que el estilo no cargue.
     mapa.on("error", () => {
@@ -200,6 +313,18 @@ export default function MapaMaplibre({ pines, seleccionado, centrar, onSeleccion
       mapa.getCanvas().style.cursor = "pointer"
     })
     mapa.on("mouseleave", CAPA_TOQUE, () => {
+      mapa.getCanvas().style.cursor = ""
+    })
+    mapa.on("click", CAPA_CHICOS_TOQUE, (evento: MapLayerMouseEvent) => {
+      // Si el toque cae también sobre un pin de eventos, gana el de eventos (está arriba).
+      if (mapa.queryRenderedFeatures(evento.point, { layers: [CAPA_TOQUE] }).length > 0) return
+      const venueId = evento.features?.[0]?.properties?.venueId
+      if (typeof venueId === "string") ultimo.current.onSeleccionar(venueId)
+    })
+    mapa.on("mouseenter", CAPA_CHICOS_TOQUE, () => {
+      mapa.getCanvas().style.cursor = "pointer"
+    })
+    mapa.on("mouseleave", CAPA_CHICOS_TOQUE, () => {
       mapa.getCanvas().style.cursor = ""
     })
 
@@ -225,16 +350,19 @@ export default function MapaMaplibre({ pines, seleccionado, centrar, onSeleccion
     if (!mapa) return
     const fuente = mapa.getSource(FUENTE) as GeoJSONSource | undefined
     fuente?.setData(pinesAGeoJson(pines))
-    if (!seleccionado) encuadrar(mapa, pines)
+    const fuenteChicos = mapa.getSource(FUENTE_CHICOS) as GeoJSONSource | undefined
+    fuenteChicos?.setData(lugaresChicosAGeoJson(lugaresChicos ?? []))
+    if (!seleccionado) encuadrar(mapa, [...pines, ...(lugaresChicos ?? [])])
     // El encuadre solo depende de los pines: `seleccionado` no tiene que reencuadrar.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pines])
+  }, [pines, lugaresChicos])
 
   // Cambió el lugar seleccionado: se resalta su pin (la cámara no se mueve acá).
   useEffect(() => {
     const mapa = mapaRef.current
     if (!mapa) return
     if (mapa.getLayer(CAPA_SELECCION)) mapa.setFilter(CAPA_SELECCION, filtroSeleccion(seleccionado))
+    if (mapa.getLayer(CAPA_CHICOS_SELECCION)) mapa.setFilter(CAPA_CHICOS_SELECCION, filtroSeleccion(seleccionado))
   }, [seleccionado])
 
   // Llegó una orden de centrar (cada orden trae un `n` nuevo, aunque el lugar sea el mismo).
@@ -242,7 +370,9 @@ export default function MapaMaplibre({ pines, seleccionado, centrar, onSeleccion
   useEffect(() => {
     const mapa = mapaRef.current
     if (!mapa || !centrar) return
-    const pin = ultimo.current.pines.find((candidato) => candidato.venueId === centrar.venueId)
+    const pin =
+      ultimo.current.pines.find((candidato) => candidato.venueId === centrar.venueId) ??
+      ultimo.current.lugaresChicos?.find((candidato) => candidato.venueId === centrar.venueId)
     if (!pin) return
     mapa.easeTo({
       center: [pin.lng, pin.lat],
@@ -256,12 +386,12 @@ export default function MapaMaplibre({ pines, seleccionado, centrar, onSeleccion
       <div
         ref={contenedor}
         role="region"
-        aria-label={t.ariaMapa}
+        aria-label={conCapaChicos ? tChicos.ariaMapa : t.ariaMapa}
         aria-describedby={idAyuda}
         className="size-full"
       />
       <p id={idAyuda} className="sr-only">
-        {t.ayudaMapa}
+        {conCapaChicos ? tChicos.ayudaMapa : t.ayudaMapa}
       </p>
     </div>
   )

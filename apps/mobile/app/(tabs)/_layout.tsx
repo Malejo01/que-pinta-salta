@@ -4,6 +4,7 @@ import { Encabezado } from '@/components/Encabezado'
 import { EtiquetaPestana } from '@/components/EtiquetaPestana'
 import { Icono, type NombreIcono } from '@/components/Icono'
 import { useColoresQPS } from '@/lib/colores'
+import { useTextos } from '@/lib/i18n'
 
 // Las 4 pestañas de la barra de abajo de la web (ops/paridad-web-app.md §2
 // punto 8 y §3.1; inventario-web-mobile.md "Navegación"): Inicio · Buscar ·
@@ -33,6 +34,8 @@ function crearTabBarIcon(nombre: NombreIcono, colorHexActivo: string) {
 
 export default function TabsLayout() {
   const colores = useColoresQPS()
+  // Q5-12: los nombres de las pestañas, en el idioma de la app.
+  const t = useTextos().pestanas
 
   return (
     <Tabs
@@ -55,23 +58,23 @@ export default function TabsLayout() {
     >
       <Tabs.Screen
         name="index"
-        options={{ title: 'Inicio', tabBarIcon: crearTabBarIcon(ICONOS.inicio, colores.primary) }}
+        options={{ title: t.inicio, tabBarIcon: crearTabBarIcon(ICONOS.inicio, colores.primary) }}
       />
       <Tabs.Screen
         name="buscar"
-        options={{ title: 'Buscar', tabBarIcon: crearTabBarIcon(ICONOS.buscar, colores.primary) }}
+        options={{ title: t.buscar, tabBarIcon: crearTabBarIcon(ICONOS.buscar, colores.primary) }}
       />
       <Tabs.Screen
         name="radar"
-        options={{ title: 'Radar', tabBarIcon: crearTabBarIcon(ICONOS.radar, colores.primary) }}
+        options={{ title: t.radar, tabBarIcon: crearTabBarIcon(ICONOS.radar, colores.primary) }}
       />
       <Tabs.Screen
         name="favoritos"
-        options={{ title: 'Mis eventos', tabBarIcon: crearTabBarIcon(ICONOS.favoritos, colores.primary) }}
+        options={{ title: t.misEventos, tabBarIcon: crearTabBarIcon(ICONOS.favoritos, colores.primary) }}
       />
       {/* Cuenta sale de la barra (decisión A de Mauro) pero conserva su ruta: se
           llega desde el header, nunca desde acá. */}
-      <Tabs.Screen name="cuenta" options={{ title: 'Cuenta', href: null }} />
+      <Tabs.Screen name="cuenta" options={{ title: t.cuenta, href: null }} />
     </Tabs>
   )
 }

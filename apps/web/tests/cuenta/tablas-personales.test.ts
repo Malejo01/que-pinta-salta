@@ -71,13 +71,16 @@ function parsearColumnasPorTabla(bloqueDeTablas: string): Map<string, string[]> 
 /**
  * Una columna es "de usuario" si se llama `user_id`, si termina en `_by`
  * (cubre `created_by`, `reviewed_by`, `decided_by`, `triggered_by` y
- * cualquier `*_by` que se agregue después), o si es el caso especial
+ * cualquier `*_by` que se agregue después), si termina en `_por` (Q5-1:
+ * `lugares_permanentes.cargado_por` y `verificado_por`), o si es el caso especial
  * `profiles.id` (la fila del perfil es del usuario aunque su PK no se llame
  * `user_id` ni termine en `_by`).
  */
 function esColumnaDeUsuario(tabla: string, columna: string): boolean {
   if (columna === "user_id") return true
   if (columna.endsWith("_by")) return true
+  // Q5-1: las columnas nuevas en castellano (`cargado_por`, `verificado_por`).
+  if (columna.endsWith("_por")) return true
   if (tabla === "profiles" && columna === "id") return true
   return false
 }

@@ -4,6 +4,7 @@
 // la función pura `esErrorDeEnvio`, y RestablecerPage con Supabase mockeado.
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { es } from '@/lib/i18n/diccionarios/es'
 import { describe, expect, it, vi } from 'vitest'
 import { AuthRetryableFetchError } from '@supabase/supabase-js'
 import { textosContrasena } from '@qps/core/auth/cuenta'
@@ -90,7 +91,9 @@ describe('/auth/recuperar: el mensaje nunca revela si la cuenta existe', () => {
 
 describe('/auth/login: suma el link "¿Olvidaste tu contraseña?" a /auth/recuperar', () => {
   it('el link está y apunta a /auth/recuperar', () => {
-    expect(loginSrc).toMatch(/¿Olvidaste tu contraseña\?/)
+    // Q5-14: el texto sale del diccionario (también en /en/auth/login).
+    expect(loginSrc).toContain('{t.olvidaste}')
+    expect(es.paginaIngreso.olvidaste).toMatch(/¿Olvidaste tu contraseña\?/)
     expect(loginSrc).toMatch(/href=["']\/auth\/recuperar["']/)
   })
 })

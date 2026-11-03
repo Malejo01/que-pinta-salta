@@ -170,7 +170,8 @@ export async function obtenerSeguimientoDeEvento(eventId: string): Promise<{
  * registra el error y esa lista queda vacía, sin afectar a las otras dos.
  */
 export async function obtenerLoQueSeguis(): Promise<{
-  lugares: { id: string; nombre: string }[]
+  /** Q5-5/Q5-6: `slug` para enlazar la ficha del lugar (`/lugar/<slug>`). */
+  lugares: { id: string; nombre: string; slug?: string }[]
   cuentas: { id: string; username: string }[]
   categorias: { id: string; nombre: string }[]
 } | null> {
@@ -179,7 +180,7 @@ export async function obtenerLoQueSeguis(): Promise<{
   if (!user) return null
 
   const [respuestaLugares, respuestaCuentas, respuestaCategorias] = await Promise.all([
-    supabase.from("user_followed_venues").select("venue:venues(id, name)").eq("user_id", user.id),
+    supabase.from("user_followed_venues").select("venue:venues(id, name, slug)").eq("user_id", user.id),
     supabase.from("user_followed_instagram_accounts").select("account:instagram_accounts(id, username)").eq("user_id", user.id),
     supabase.from("user_followed_categories").select("category:categories(id, name)").eq("user_id", user.id),
   ])
@@ -194,10 +195,10 @@ export async function obtenerLoQueSeguis(): Promise<{
     console.error("[obtenerLoQueSeguis] Error al leer las categorías seguidas:", respuestaCategorias.error)
   }
 
-  const lugares = ((respuestaLugares.data ?? []) as unknown as Array<{ venue: { id: string; name: string } | null }>)
+  const lugares = ((respuestaLugares.data ?? []) as unknown as Array<{ venue: { id: string; name: string; slug?: string | null } | null }>)
     .map((fila) => fila.venue)
-    .filter((venue): venue is { id: string; name: string } => venue !== null)
-    .map((venue) => ({ id: venue.id, nombre: venue.name }))
+    .filter((venue): venue is { id: string; name: string; slug?: string | null } => venue !== null)
+    .map((venue) => ({ id: venue.id, nombre: venue.name, ...(venue.slug ? { slug: venue.slug } : {}) }))
 
   const cuentas = ((respuestaCuentas.data ?? []) as unknown as Array<{ account: { id: string; username: string } | null }>)
     .map((fila) => fila.account)

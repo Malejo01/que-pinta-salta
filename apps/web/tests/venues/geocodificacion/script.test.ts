@@ -149,20 +149,42 @@ describe('geocodificar-lugares.ts: el guardado toca solo venues, nunca borra nad
   })
 
   it('cada .update( es sobre venues o job_runs', () => {
-    expect(updates.length).toBe(3)
+    // Q5-16: son 4 y no 3 a propósito: se suma el de `guardarSugerencia`
+    // (decisión nº7), que escribe solo las columnas geocode_sugerencia_*.
+    expect(updates.length).toBe(4)
     for (const u of updates) expect(['venues', 'job_runs']).toContain(u.tabla)
   })
 
   it('solo UN .update( escribe latitude/longitude, y es sobre venues', () => {
-    const deCoordenadas = updates.filter((u) => /latitude/.test(u.cuerpo))
+    // Q5-16: se busca `latitude:` (la clave que se escribe) y no la palabra
+    // suelta: el update de la sugerencia FILTRA por `.is('latitude', null)`
+    // pero nunca la escribe.
+    const deCoordenadas = updates.filter((u) => /\blatitude\s*:/.test(u.cuerpo))
     expect(deCoordenadas).toHaveLength(1)
     expect(deCoordenadas[0].tabla).toBe('venues')
   })
 
   it('el otro .update( de venues solo toca geocode_intentado_at (Q4-3)', () => {
-    const otros = updates.filter((u) => u.tabla === 'venues' && !/latitude/.test(u.cuerpo))
-    expect(otros).toHaveLength(1)
-    expect(otros[0].cuerpo).toMatch(/\.update\(\{ geocode_intentado_at: new Date\(\)\.toISOString\(\) \}\)/)
+    // Q5-16: además del de coordenadas, hay dos: el de geocode_intentado_at y
+    // el de la sugerencia (`.update(sugerencia)`, que se fija en el test de abajo).
+    const otros = updates.filter((u) => u.tabla === 'venues' && !/\blatitude\s*:/.test(u.cuerpo))
+    expect(otros).toHaveLength(2)
+    const intentado = otros.filter((u) => /\.update\(\{ geocode_intentado_at: new Date\(\)\.toISOString\(\) \}\)/.test(u.cuerpo))
+    expect(intentado).toHaveLength(1)
+  })
+
+  it('Q5-16: el .update( de la sugerencia escribe solo la sugerencia, en un lugar sin coordenadas y nunca uno a mano', () => {
+    const deSugerencia = updates.filter((u) => /^\.update\(sugerencia\)/.test(u.cuerpo))
+    expect(deSugerencia).toHaveLength(1)
+    expect(deSugerencia[0].tabla).toBe('venues')
+    expect(deSugerencia[0].cuerpo).toMatch(/\.eq\(\s*['"]id['"]/)
+    expect(deSugerencia[0].cuerpo).toMatch(/\.is\(\s*['"]latitude['"],\s*null\s*\)/)
+    expect(deSugerencia[0].cuerpo).toMatch(/\.or\(FILTRO_NO_MANUAL\)/)
+  })
+
+  it('Q5-16: el guardado de coordenadas limpia la sugerencia (sugerenciaVacia)', () => {
+    const deCoordenadas = updates.filter((u) => /\blatitude\s*:/.test(u.cuerpo))
+    expect(deCoordenadas[0].cuerpo).toMatch(/\.\.\.sugerenciaVacia\(\)/)
   })
 
   it('no hay ningún .upsert( en todo el archivo', () => {

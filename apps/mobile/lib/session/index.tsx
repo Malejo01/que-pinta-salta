@@ -14,6 +14,7 @@ import { createContext, useContext, useEffect, useRef, useState, type ReactNode 
 import { isAuthRetryableFetchError, type AuthChangeEvent, type Session } from '@supabase/supabase-js'
 import { supabase } from '../supabase'
 import { borrarCacheFavoritos } from '../sin-conexion/cache'
+import { revisarCuentaExistente } from '../cuenta-inexistente'
 
 export type EstadoSesion = {
   session: Session | null
@@ -231,6 +232,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       .then(({ data, error }) => {
         if (!activo) return
         aplicar({ tipo: 'carga-inicial', session: data.session, errorDeRed: isAuthRetryableFetchError(error) })
+        // Q5-16 (nº18): con sesión guardada, ¿la cuenta sigue existiendo? Si
+        // se eliminó desde la web, borra las búsquedas y cierra la sesión local.
+        if (data.session && supabase) void revisarCuentaExistente({ supabase })
       })
       .catch((error) => {
         if (!activo) return

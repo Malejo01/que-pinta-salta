@@ -8,6 +8,51 @@ Cada ítem dice **dónde** se toca y **qué se midió**, para no re-diagnosticar
 
 ---
 
+## Tanda Q5 (3/11/2026) — hecho y pendiente
+
+Integración: PR Malejo01/que-pinta-salta#166 (`ronda/integracion-q5` → `main`). El detalle de cada ticket está en su PR; las decisiones de Mauro, en `docs/tanda-q5/README.md`.
+
+### Hecho
+- **Lugares para chicos**:
+  - modelo, admin e importador de OSM (#165);
+  - capa del mapa (#167), «Sumá un lugar» (#168) y la lista en la app (#169).
+  - Las 2 migraciones están **aplicadas**.
+- **Fichas de lugar**: `/lugar/<slug>` y `/en/place/<slug>` (#170); seguir lugares (#171).
+- **Eventos**:
+  - auditoría de fuentes (#172), calidad (#173) y duplicados entre fuentes en la cola de revisión (#174);
+  - fuentes candidatas (#175, solo plan: el proxy de la sesión bloqueaba los sitios externos).
+- **App en inglés**: infraestructura (#176) y primera parte (#177): la ficha y las pantallas de paso.
+- **Panel de uso**: `/admin/uso` con aperturas anónimas de la app (#178). Migración **aplicada**.
+- **Pendientes de Q4** (#179):
+  - el schedule de notificaciones quedó activo, en dryRun salvo `PUSH_ENVIO_REAL=1`;
+  - «N sin cuenta» en `/admin/avisos`;
+  - trigger que invalida la traducción vieja (migración **aplicada**);
+  - grilla de Inicio con `flexWrap`;
+  - `/en/auth/login`.
+- **Decisiones de Mauro sobre la Q4** (#180):
+  - las bajas sin cuenta cuentan en `bajas_48h`;
+  - registro limitado a 6 por hora;
+  - sugerencia de Nominatim con «Confirmar» en el admin;
+  - JSON-LD en inglés;
+  - el finde no se duplica si se tocó el aviso del equipo;
+  - las búsquedas se borran si la cuenta se eliminó desde la web.
+  - Migración **aplicada**.
+
+### Pendiente (lo decide o lo hace Mauro)
+- [ ] `supabase migration repair` de las 5 migraciones Q5 aplicadas con el conector. Quedaron con la versión de la hora en que se aplicaron; los comandos están en #166.
+- [ ] **Créditos de IA agotados** (respuesta 402 en la auditoría de #172): sin créditos no corren la cola de flyers ni la traducción.
+- [ ] Textos legales propuestos (en #166): pedidos de lugares para chicos (#168), aperturas de la app (#178) y «Cerca mío» en el mapa (#167).
+- [ ] Revisar los 20 barrios con puntos aproximados (`packages/core/src/datos/barrios.ts`, #167).
+- [ ] `inferCategorySlug` no reconoce «Peña» sola (#173). Se propone sumar `\bpena(s)?\b` a la regex.
+- [ ] La app en inglés, segunda parte: Inicio, Buscar, Mis eventos, Radar y Cuenta. Hay que reescribir unos 40 detectores (#177).
+- [ ] La web en inglés: `/auth/sign-up`, `/perfil` y `/nuevo-evento` siguen en castellano (#179).
+- [ ] «Este finde pinta» con la app cerrada y el aviso del equipo descartado sin tocarlo. Necesita `expo-task-manager`, que es una dependencia nueva (#180).
+- [ ] Fuentes candidatas de `docs/fuentes/candidatas.md`: probarlas desde una red sin el proxy de la sesión (#175).
+- [ ] Purgas sin automatizar: pedidos de lugares para chicos (#168) y `app_aperturas_diarias` (#178).
+- [ ] Sigue de Q4: los secrets de GitHub de la geocodificación diaria (#147), el ciclo de publicidad `2026-10-01` (#149) y el pedido de producción en Play del 9/11.
+
+---
+
 ## Tanda Q4 (2–3/11/2026) — hecho y pendiente
 
 Integración: PR Malejo01/que-pinta-salta#142 (`ronda/integracion-q4` → `main`). Detalle de cada ticket en su PR.
@@ -25,12 +70,12 @@ Integración: PR Malejo01/que-pinta-salta#142 (`ronda/integracion-q4` → `main`
 - [ ] Cargar en GitHub los secrets `NEXT_PUBLIC_SUPABASE_URL` y `SUPABASE_SERVICE_ROLE_KEY` para que corra la geocodificación diaria (#147). Sin ellos, el workflow avisa y no hace nada.
 - [ ] Decidir si la traducción arranca prendida (tope 100) o con `TRADUCCION_TOPE_DIARIO=0` en Vercel (#151).
 - [ ] Ciclo de publicidad `2026-10-01` propuesto con audiencia copiada y fuente `manual`: cargar la audiencia o marcarlo `anterior` (#149).
-- [ ] `supabase migration repair` de las 4 migraciones aplicadas con el conector (quedaron con la versión de la hora de aplicación; son idempotentes).
+- [x] `supabase migration repair` de las 4 migraciones de Q4: hecho (el historial de producción ya tiene sus versiones).
 - [ ] Textos legales propuestos (avisos sin cuenta en #146, búsquedas recientes en #156) y la ficha de «Seguridad de los datos» (`docs/play/seguridad-de-datos.md`).
 - [ ] Pedido de producción en Play el 9/11 (`docs/play/produccion.md`).
-- [ ] Lugares para chicos en el mapa (`docs/propuestas/lugares-para-chicos.md`): necesita la tabla nueva y las respuestas del §6.4; no entró en la tanda.
-- [ ] Bajas de patrocinados de anónimos: `bajas_48h` no las mide (#146).
-- [ ] Traducción vieja al editar un evento: trigger propuesto en #160.
+- [x] Lugares para chicos en el mapa: hecho en la tanda Q5 (#165, #167, #168, #169).
+- [x] Bajas de patrocinados de anónimos: ya cuentan en `bajas_48h` (Q5-16, #180).
+- [x] Traducción vieja al editar un evento: trigger `events_invalidar_traduccion` aplicado (Q5-14, #179).
 - [ ] «Recordatorios de favoritos» del servidor (3 h antes) y los recordatorios locales (la tarde anterior) conviven: unificar cuando se prenda el cron de notificaciones.
 
 ---

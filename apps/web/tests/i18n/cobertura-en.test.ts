@@ -16,7 +16,7 @@ import { join, relative, resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { en } from '@/lib/i18n/diccionarios/en'
 import { es } from '@/lib/i18n/diccionarios/es'
-import { RUTAS_CON_NOTA_EN_INGLES, RUTAS_EN_INGLES, rutaEnOtroIdioma, tieneVersionEnIngles } from '@/lib/i18n/rutas'
+import { RUTAS_CON_NOTA_EN_INGLES, RUTAS_EN_INGLES, caminoEnCastellano, rutaEnOtroIdioma, tieneVersionEnIngles } from '@/lib/i18n/rutas'
 
 const RAIZ = resolve(__dirname, '../..')
 const APP = join(RAIZ, 'app')
@@ -38,8 +38,7 @@ function rutaDe(archivo: string): string {
 
 /** Páginas públicas que quedan SOLO en castellano, con el motivo. */
 const SOLO_CASTELLANO: Record<string, string> = {
-  '/auth/login': 'cuenta (Q4-6: el modal de ingreso ya está en inglés; la página completa queda en castellano)',
-  '/auth/sign-up': 'cuenta',
+  '/auth/sign-up': 'cuenta (Q5-14: el alta en inglés va por el modal de ingreso, que ya está traducido)',
   '/auth/sign-up-success': 'cuenta',
   '/auth/recuperar': 'cuenta',
   '/auth/restablecer': 'cuenta',
@@ -56,7 +55,8 @@ const SOLO_CASTELLANO: Record<string, string> = {
 
 const TODAS = paginas(APP)
 const PUBLICAS_ES = TODAS.filter((p) => !p.startsWith('admin/') && !p.startsWith('@modal/') && !p.startsWith('en/')).map(rutaDe)
-const PAGINAS_EN = TODAS.filter((p) => p.startsWith('en/')).map((p) => rutaDe(p.slice(3)))
+// Q5-5: `/en/place/*` es la ficha `/lugar/*` (segmento traducido).
+const PAGINAS_EN = TODAS.filter((p) => p.startsWith('en/')).map((p) => caminoEnCastellano(rutaDe(p.slice(3))))
 
 describe('1. cada página pública está clasificada', () => {
   it.each(PUBLICAS_ES)('%s', (ruta) => {
@@ -112,6 +112,8 @@ const IGUALES_A_PROPOSITO = new Set([
   'favorito.errorTitulo',
   'asistencia.errorTitulo',
   'auth.email',
+  // Q5-2: la marca se llama igual en los dos idiomas.
+  'lugaresChicos.instagram',
 ])
 
 describe('3. ninguna clave quedó sin traducir', () => {

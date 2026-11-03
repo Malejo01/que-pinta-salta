@@ -146,6 +146,8 @@ vi.mock('@/components/Esqueleto', () => ({
 }))
 vi.mock('@/components/InvitacionAvisos', () => ({ InvitacionAvisos: nulo }))
 vi.mock('@/components/TarjetaPelicula', () => ({ TarjetaPelicula: nulo }))
+vi.mock('@/components/LugaresQueSeguis', () => ({ LugaresQueSeguis: nulo })) // Q5-6: lee la base; acá no importa
+vi.mock('@/components/AccesoLugaresChicos', () => ({ AccesoLugaresChicos: nulo })) // Q5-4
 vi.mock('@/components/AvisoSinConexion', () => ({ AvisoSinConexion: nulo }))
 vi.mock('@/components/AvisoActivarPush', () => ({ AvisoActivarPush: nulo }))
 vi.mock('@/components/ChipsCategorias', () => ({ ChipsCategorias: nulo }))

@@ -25,6 +25,8 @@ function consulta(tabla: string): Record<string, unknown> {
   c.select = encadenar
   c.eq = encadenar
   c.gte = encadenar
+  c.is = encadenar // Q5-5: el sitemap pide venues canónicos (`.is`, `.not`).
+  c.not = encadenar
   c.order = encadenar
   c.then = (ok?: (v: unknown) => unknown, error?: (e: unknown) => unknown) =>
     Promise.resolve({ data: tablas[tabla] ?? [], error: null }).then(ok, error)
@@ -250,5 +252,36 @@ describe('sitemap con un evento de prueba', () => {
     const es = urls.find((u) => u.url === `${BASE}/cines`)!
     const en = urls.find((u) => u.url === `${BASE}/en/cines`)!
     expect(en.alternates).toEqual(es.alternates)
+  })
+})
+
+describe('Q5-5: fichas de lugar en el sitemap', () => {
+  const ID_VENUE_CON = 'aaaaaaaa-1234-4234-8234-123456789012'
+  const ID_VENUE_SIN = 'bbbbbbbb-1234-4234-8234-123456789012'
+  const ID_VENUE_PERM = 'cccccccc-1234-4234-8234-123456789012'
+  beforeEach(() => {
+    vi.stubEnv('NEXT_PUBLIC_SUPABASE_URL', 'https://ejemplo.supabase.co')
+    vi.stubEnv('NEXT_PUBLIC_SUPABASE_ANON_KEY', 'clave-de-prueba')
+    tablas.events = [{ id: ID_EVENTO, updated_at: ACTUALIZADO, venue_id: ID_VENUE_CON }]
+    tablas.instagram_flyers = []
+    tablas.cinema_movies = []
+    tablas.venues = [
+      { id: ID_VENUE_CON, slug: 'con-eventos', updated_at: ACTUALIZADO },
+      { id: ID_VENUE_SIN, slug: 'sin-nada', updated_at: ACTUALIZADO },
+      { id: ID_VENUE_PERM, slug: 'plaza-permanente', updated_at: ACTUALIZADO },
+    ]
+    tablas.lugares_permanentes = [{ venue_id: ID_VENUE_PERM }]
+  })
+  afterEach(() => {
+    vi.unstubAllEnvs()
+    for (const k of Object.keys(tablas)) delete tablas[k]
+  })
+  it('solo los indexables (con eventos o permanentes), en castellano y en /en/place, con alternates', async () => {
+    const { default: sitemap } = await import('@/app/sitemap')
+    const urls = (await sitemap()).map((e) => e.url)
+    expect(urls).toContain(`${BASE}/lugar/con-eventos`)
+    expect(urls).toContain(`${BASE}/en/place/con-eventos`)
+    expect(urls).toContain(`${BASE}/lugar/plaza-permanente`)
+    expect(urls.some((u) => u.includes('sin-nada'))).toBe(false)
   })
 })

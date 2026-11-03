@@ -88,7 +88,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   // Instanciamos el cliente anon directamente para evitar usar cookies() en la generación del sitemap
   const supabase = createClient(supabaseUrl, supabaseKey)
 
-  const [eventsRes, flyersRes, moviesRes] = await Promise.all([
+  const [eventsRes, flyersRes, moviesRes, venuesRes, permanentesRes] = await Promise.all([
     // Sólo eventos vigentes: los futuros más una cola de 30 días.
     //
     // Sin el filtro el sitemap listaba los 824 publicados, de los cuales 744
@@ -101,7 +101,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     // anunciarse para rastreo.
     supabase
       .from("events")
-      .select("id, updated_at")
+      .select("id, updated_at, venue_id")
       .eq("status", "PUBLISHED")
       .gte("start_date", sitemapCutoff.toISOString())
       .order("start_date", { ascending: false }),
@@ -114,6 +114,16 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       .from("cinema_movies")
       .select("updated_at")
       .eq("is_currently_showing", true),
+    // Q5-5: las fichas de lugar. Solo las indexables (con eventos en la
+    // ventana del sitemap o con ficha de lugar permanente publicada), con el
+    // mismo criterio que el `noindex` de la página.
+    supabase
+      .from("venues")
+      .select("id, slug, updated_at")
+      .is("canonical_venue_id", null)
+      .eq("is_placeholder", false)
+      .not("slug", "is", null),
+    supabase.from("lugares_permanentes").select("venue_id").eq("estado", "publicado"),
   ])
 
   if (eventsRes.error) {
@@ -124,6 +134,13 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   }
   if (moviesRes.error) {
     console.error("[Sitemap] Error cargando cartelera para el sitemap:", moviesRes.error)
+  }
+
+  if (venuesRes.error) {
+    console.error("[Sitemap] Error cargando lugares para el sitemap:", venuesRes.error)
+  }
+  if (permanentesRes.error) {
+    console.error("[Sitemap] Error cargando lugares permanentes para el sitemap:", permanentesRes.error)
   }
 
   const events = eventsRes.data || []
@@ -171,5 +188,18 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     ...(ANUNCIANTES.publicada ? staticRoute("/anunciantes", now, "weekly", 0.3) : []),
   ]
 
-  return [...staticRoutes, ...eventRoutes, ...flyerRoutes]
+  // 4. Fichas de lugar (Q5-5): /lugar/<slug> y /en/place/<slug>.
+  const venuesConEventos = new Set(events.map((e) => e.venue_id).filter((id): id is string => Boolean(id)))
+  const venuesPermanentes = new Set((permanentesRes.data || []).map((p) => p.venue_id))
+  const venueRoutes: MetadataRoute.Sitemap = (venuesRes.data || [])
+    .filter((v) => v.slug && (venuesConEventos.has(v.id) || venuesPermanentes.has(v.id)))
+    .flatMap((v) =>
+      conIdiomas(`/lugar/${v.slug}`, {
+        lastModified: new Date(v.updated_at || now),
+        changeFrequency: "weekly" as const,
+        priority: 0.5,
+      }),
+    )
+
+  return [...staticRoutes, ...eventRoutes, ...flyerRoutes, ...venueRoutes]
 }

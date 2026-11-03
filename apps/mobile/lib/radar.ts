@@ -460,3 +460,23 @@ export async function probarEnvioRadar(accessToken: string): Promise<ResultadoPr
     return { ok: false, mensaje: MENSAJE_ERROR_RED_PRUEBA }
   }
 }
+
+/**
+ * Q5-6: si el usuario de la sesión ya sigue el lugar (para el botón «Seguir»
+ * de la ficha de un lugar para chicos). Solo lectura; las escrituras siguen
+ * pasando únicamente por `cambiarSeguimiento`. Sin sesión o con error, `false`.
+ */
+export async function siguesElLugar(venueId: string, userId: string | null): Promise<boolean> {
+  if (!supabase || !userId) return false
+  try {
+    const { data, error } = await supabase
+      .from('user_followed_venues')
+      .select('venue_id')
+      .eq('user_id', userId)
+      .eq('venue_id', venueId)
+      .maybeSingle()
+    return !error && data !== null
+  } catch {
+    return false
+  }
+}

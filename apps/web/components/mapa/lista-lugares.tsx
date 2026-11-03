@@ -65,7 +65,16 @@ export function ListaLugares({ pines, seleccionado, onVerEnElMapa, mapaDisponibl
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <h2 lang={langContenido} className="text-base font-semibold text-foreground">{pin.nombre}</h2>
+                  {/* Q5-5: el nombre lleva a la ficha del lugar (/lugar/<id> redirige al slug). */}
+                  <h2 lang={langContenido} className="text-base font-semibold text-foreground">
+                    <Link
+                      href={rutaEn(idioma, `/lugar/${pin.venueId}`)}
+                      prefetch={false}
+                      className="rounded-sm hover:text-primary hover:underline focus-visible:outline-2 focus-visible:outline-primary"
+                    >
+                      {pin.nombre}
+                    </Link>
+                  </h2>
                   <p lang={langContenido} className="mt-0.5 text-sm text-muted-foreground">{pin.direccion}</p>
                 </div>
                 {mapaDisponible ? (

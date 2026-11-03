@@ -29,6 +29,12 @@
  * `lib/venues/geocodificacion/nominatim.ts#evaluarResultados`); los de
  * confianza `'revisar'` nunca se guardan solos, quedan en el reporte.
  *
+ * Q5-16 (decisión nº7): con `--apply`/`--programado`, de los de confianza
+ * `'revisar'` se guarda la mejor sugerencia en `venues.geocode_sugerencia_*`
+ * (sin tocar `latitude`/`longitude`) para que un admin la confirme con un
+ * botón en /admin/lugares; al guardar uno de confianza alta, la sugerencia
+ * que hubiera se limpia. En modo consulta no se escribe nada.
+ *
  * Toda la lógica de la política de uso de Nominatim (ritmo de 1
  * pedido/segundo, reintentos, qué consultas probar, caché, cuándo confiar en
  * un resultado) vive en `lib/venues/geocodificacion/` (53-a): este script
@@ -62,6 +68,7 @@ import {
   resultadoDeCorrida,
   sinIntentoReciente,
 } from '../lib/venues/geocodificacion/programado'
+import { FILTRO_NO_MANUAL, sugerenciaVacia, type ColumnasSugerencia } from '../lib/venues/geocodificacion/sugerencia'
 
 /**
  * Carga .env.local sin dependencias, igual que scripts/imagenes-externas.ts
@@ -197,11 +204,11 @@ async function main() {
 
   let venues: VenueParaGeocodificar[]
   try {
-    // Solo la corrida programada lee la columna de la Q4-3: la manual sigue
-    // andando aunque la migración no esté aplicada.
+    // Solo la corrida programada lee las columnas de la Q4-3 y la Q5-16 (la
+    // sugerencia pendiente la deja afuera de la corrida).
     const columnas =
       'id, name, address, latitude, longitude, canonical_venue_id, merged_at, is_placeholder, geocode_source, geocoded_at' +
-      (programado ? ', geocode_intentado_at' : '')
+      (programado ? ', geocode_intentado_at, geocode_sugerencia_lat' : '')
     venues = await traerTodasLasFilas<VenueParaGeocodificar>(
       (desde, hasta) =>
         // Con un select armado en tiempo de ejecución supabase-js no infiere
@@ -244,6 +251,7 @@ async function main() {
   // Por defecto solo los que tienen algún evento próximo; con --todos, todos los elegibles.
   const conEventos = todos ? elegibles : soloConEventosProximos(elegibles, conteoEventos)
   // Q4-3: la corrida programada no repite un lugar intentado hace menos de 30 días.
+  // Q5-16: ni uno con una sugerencia pendiente de confirmar en el admin.
   const aMirar = programado ? sinIntentoReciente(conEventos, new Date()) : conEventos
   const sinEventosProximos = elegibles.length - aMirar.length
   const recortados = ordenarPorEventosProximos(aMirar, conteoEventos).slice(0, limite)
@@ -301,6 +309,8 @@ async function main() {
         longitude: lng,
         geocoded_at: new Date().toISOString(),
         geocode_source: 'nominatim',
+        // Q5-16: con confianza alta, la sugerencia que hubiera ya no hace falta.
+        ...sugerenciaVacia(),
       })
       .eq('id', id)
       .or(filtro.or)
@@ -317,7 +327,25 @@ async function main() {
     return (data?.length ?? 0) > 0
   }
 
-  const filas = await geocodificarLugares({ lugares: recortados, cliente, cache, apply, guardar })
+  // Q5-16: la mejor sugerencia de un 'para-revisar' (solo con apply: lo decide
+  // geocodificarLugares). Nunca escribe latitude/longitude, y solo en un lugar
+  // que sigue sin coordenadas y que no se cargó a mano mientras corría.
+  async function guardarSugerencia(id: string, sugerencia: ColumnasSugerencia): Promise<boolean> {
+    const { data, error } = await supabase
+      .from('venues')
+      .update(sugerencia)
+      .eq('id', id)
+      .is('latitude', null)
+      .or(FILTRO_NO_MANUAL)
+      .select('id')
+    if (error) {
+      console.error(`[geocodificar-lugares] No se pudo guardar la sugerencia de ${id}: ${error.message}`)
+      return false
+    }
+    return (data?.length ?? 0) > 0
+  }
+
+  const filas = await geocodificarLugares({ lugares: recortados, cliente, cache, apply, guardar, guardarSugerencia })
 
   // El corte por bloqueado se calcula con `filas` tal como las devolvió
   // `geocodificarLugares`, ANTES de agregarle `previosSinOrigen`: esos

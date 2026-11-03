@@ -9,8 +9,13 @@ export const dynamic = 'force-dynamic'
 const HORA_MS = 60 * 60 * 1000
 /** Generoso por IP: las operadoras móviles comparten IP entre mucha gente. */
 const porIp = crearLimitador({ max: 60, ventanaMs: HORA_MS })
-/** La app registra en cada arranque: 20 por hora alcanza y sobra. */
-const porDispositivo = crearLimitador({ max: 20, ventanaMs: HORA_MS })
+/**
+ * Q5-16 (decisión nº5 de Mauro sobre la Q4): 6 por hora por dispositivo, como
+ * decía la propuesta (antes, 20). La app registra al arrancar; si pasa el
+ * límite, recibe 429 y sigue con el registro que ya tenía (motivo «limite»).
+ */
+const MAX_REGISTROS_POR_HORA = 6
+const porDispositivo = crearLimitador({ max: MAX_REGISTROS_POR_HORA, ventanaMs: HORA_MS })
 
 /**
  * `POST /api/push/registrar` (R82 / Q4-2): alta o renovación del token de push

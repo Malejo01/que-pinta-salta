@@ -19,6 +19,8 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 import { ArrowLeft } from 'lucide-react'
+import { useIdioma, useTextos } from '@/lib/i18n/use-idioma'
+import { rutaEn } from '@/lib/i18n/rutas'
 
 const GoogleIcon = () => (
   <svg className="size-4 shrink-0" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
@@ -38,6 +40,11 @@ const GoogleIcon = () => (
 // `router.push` del ingreso con contraseña (el de Google lo lee por su cuenta
 // en `signInWithGoogle`, también de `window.location`).
 export default function LoginPage() {
+  // Q5-14: la misma página en /en/auth/login (el idioma sale de la URL).
+  const idioma = useIdioma()
+  const textos = useTextos()
+  const t = textos.paginaIngreso
+  const langLegales = idioma === 'en' ? 'es' : undefined
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -51,7 +58,7 @@ export default function LoginPage() {
       const { error } = await signInWithGoogle()
       if (error) throw error
     } catch {
-      setError('Ocurrió un error al iniciar sesión con Google. Probá de nuevo.')
+      setError(t.errorGoogle)
       setIsLoading(false)
     }
   }
@@ -67,11 +74,14 @@ export default function LoginPage() {
       password,
     })
     if (error) {
-      setError(mensajeErrorIngreso(error))
+      // En inglés, el mensaje traducido (los de @qps/core/auth/mensajes; si no está, en castellano).
+      setError(idioma === 'en' ? textos.auth.mensaje(mensajeErrorIngreso(error)) : mensajeErrorIngreso(error))
       setIsLoading(false)
       return
     }
-    const next = rutaSiguienteSegura(new URLSearchParams(window.location.search).get('next'))
+    const destino = rutaSiguienteSegura(new URLSearchParams(window.location.search).get('next'))
+    // En /en/auth/login, si el destino tiene versión en inglés, va a esa (rutaEn deja igual las que no).
+    const next = idioma === 'en' ? rutaEn('en', destino) : destino
     router.push(next)
     router.refresh()
   }
@@ -88,11 +98,11 @@ export default function LoginPage() {
 
       <div className="relative w-full max-w-sm">
         <Link
-          href="/"
+          href={rutaEn(idioma, '/')}
           className="mb-6 flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
         >
           <ArrowLeft className="size-4" />
-          Volver a inicio
+          {t.volverAInicio}
         </Link>
 
         {/* Logo y nombre de marca */}
@@ -121,7 +131,7 @@ export default function LoginPage() {
               Salta
             </p>
           </div>
-          <p className="text-sm text-muted-foreground">Eventos en Salta Capital</p>
+          <p className="text-sm text-muted-foreground">{t.eventosEnSalta}</p>
         </div>
 
         <Card>
@@ -130,10 +140,10 @@ export default function LoginPage() {
                 tamaño y peso (el reset de Tailwind no les pone estilo
                 propio a los encabezados), así que se ve igual. */}
             <CardTitle className="text-2xl">
-              <h1>Iniciar sesión</h1>
+              <h1>{t.titulo}</h1>
             </CardTitle>
             <CardDescription>
-              Ingresá tu email y contraseña para entrar
+              {t.bajada}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -147,14 +157,14 @@ export default function LoginPage() {
                     autoComplete="email"
                     aria-invalid={error ? true : undefined}
                     aria-describedby={error ? 'login-error' : undefined}
-                    placeholder="tu@email.com"
+                    placeholder={textos.auth.emailPlaceholder}
                     required
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                   />
                 </div>
                 <div className="grid gap-2">
-                  <Label htmlFor="password">Contraseña</Label>
+                  <Label htmlFor="password">{textos.auth.contrasena}</Label>
                   <PasswordInput
                     id="password"
                     autoComplete="current-password"
@@ -166,9 +176,10 @@ export default function LoginPage() {
                   />
                   <Link
                     href="/auth/recuperar"
+                    hrefLang={langLegales ? 'es-AR' : undefined}
                     className="text-sm text-muted-foreground underline underline-offset-4 hover:text-foreground"
                   >
-                    ¿Olvidaste tu contraseña?
+                    {t.olvidaste}
                   </Link>
                 </div>
                 {error && (
@@ -177,7 +188,7 @@ export default function LoginPage() {
                   </p>
                 )}
                 <Button type="submit" className="w-full" disabled={isLoading}>
-                  {isLoading ? 'Iniciando sesión...' : 'Iniciar sesión'}
+                  {isLoading ? t.iniciando : t.boton}
                 </Button>
               </div>
             </form>
@@ -187,7 +198,7 @@ export default function LoginPage() {
                 <span className="w-full border-t" />
               </div>
               <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-card px-2 text-muted-foreground">O continuar con</span>
+                <span className="bg-card px-2 text-muted-foreground">{t.oContinuarCon}</span>
               </div>
             </div>
 
@@ -203,24 +214,25 @@ export default function LoginPage() {
             </Button>
 
             <p className="mt-4 text-xs text-muted-foreground text-center">
-              Al continuar con Google aceptás los{' '}
-              <Link href="/terminos" className="text-primary dark:text-[#F0585D] underline underline-offset-4">
-                Términos y condiciones
+              {t.aceptasConGoogle}{' '}
+              <Link href="/terminos" hrefLang={langLegales ? 'es-AR' : undefined} className="text-primary dark:text-[#F0585D] underline underline-offset-4">
+                {t.terminos}
               </Link>{' '}
-              y la{' '}
-              <Link href="/privacidad" className="text-primary dark:text-[#F0585D] underline underline-offset-4">
-                Política de Privacidad
+              {t.yLa}{' '}
+              <Link href="/privacidad" hrefLang={langLegales ? 'es-AR' : undefined} className="text-primary dark:text-[#F0585D] underline underline-offset-4">
+                {t.privacidad}
               </Link>
-              .
+              {t.cierreLegales}
             </p>
 
             <div className="mt-4 text-center text-sm">
-              ¿No tenés cuenta?{' '}
+              {t.noTenesCuenta}{' '}
               <Link
                 href="/auth/sign-up"
+                hrefLang={langLegales ? 'es-AR' : undefined}
                 className="text-primary dark:text-[#F0585D] underline underline-offset-4"
               >
-                Registrate
+                {t.registrate}
               </Link>
             </div>
           </CardContent>

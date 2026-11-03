@@ -154,9 +154,10 @@ describe('las dos filas de filtros', () => {
     expect(chip('Para chicos').getAttribute('aria-pressed')).toBe('false')
     expect(chip('Gratis').className).toContain('bg-primary')
     expect(chip('Para chicos').className).not.toContain('bg-primary')
-    // Los cuatro chips son botones de alternar (aria-pressed solo vale con role="button"); ninguno usa aria-current.
+    // Los cinco chips son botones de alternar (aria-pressed solo vale con role="button"); ninguno usa aria-current.
+    // Q5-2: «Lugares para chicos» prende la capa de lugares.
     const conPressed = Array.from(document.querySelectorAll('[aria-pressed]'))
-    expect(conPressed.map((e) => e.textContent)).toEqual(['Hoy', 'Este finde', 'Gratis', 'Para chicos'])
+    expect(conPressed.map((e) => e.textContent)).toEqual(['Hoy', 'Este finde', 'Gratis', 'Para chicos', 'Lugares para chicos'])
     for (const e of conPressed) expect(e.getAttribute('role')).toBe('button')
     expect(document.querySelectorAll('[role="group"] [aria-current]')).toHaveLength(0)
   })
@@ -202,7 +203,9 @@ describe('sin JavaScript los filtros andan igual', () => {
     expect(chip('Hoy').getAttribute('href')).toBe('/mapa?cuando=hoy&gratis=1&categoria=teatro')
     expect(chip('Este finde').getAttribute('href')).toBe('/mapa?cuando=finde&gratis=1&categoria=teatro')
     expect(chip('Gratis').getAttribute('href')).toBe('/mapa?cuando=finde&categoria=teatro')
-    expect(chip('Para chicos').getAttribute('href')).toBe('/mapa?cuando=finde&gratis=1&chicos=1&categoria=teatro')
+    // Q5-2 (decisión 5): el chip «Para chicos» prende también la capa de lugares.
+    expect(chip('Para chicos').getAttribute('href')).toBe('/mapa?cuando=finde&gratis=1&chicos=1&categoria=teatro&capa=chicos')
+    expect(chip('Lugares para chicos').getAttribute('href')).toBe('/mapa?cuando=finde&gratis=1&categoria=teatro&capa=chicos')
     expect(quitar().getAttribute('href')).toBe('/mapa?cuando=finde')
   })
 
