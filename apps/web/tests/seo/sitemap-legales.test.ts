@@ -16,6 +16,8 @@ function consultaVacia(): Record<string, unknown> {
   consulta.select = encadenar
   consulta.eq = encadenar
   consulta.gte = encadenar
+  consulta.is = encadenar // Q5-5: el sitemap pide venues canónicos (`.is`, `.not`).
+  consulta.not = encadenar
   consulta.order = encadenar
   consulta.then = (ok?: (v: unknown) => unknown, error?: (e: unknown) => unknown) =>
     Promise.resolve({ data: [], error: null }).then(ok, error)

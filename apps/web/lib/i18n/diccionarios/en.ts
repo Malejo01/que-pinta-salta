@@ -215,6 +215,27 @@ export const en = {
     errorTitulo: 'We could not load the map',
     errorTexto: 'Something went wrong on our side. Please try again in a moment.',
   },
+  fichaLugar: {
+    proximos: 'Upcoming events',
+    pasados: 'Recent events',
+    sinProximos: 'No events announced at this place for now.',
+    horarios: 'Opening hours',
+    lugarParaChicos: 'Place for kids',
+    comoLlegar: 'Directions',
+    verEnElMapa: 'See on the map',
+    compartir: 'Share',
+    linkCopiado: 'Link copied',
+    noSePudoCompartir: 'Could not share',
+    gratis: 'Free',
+    sinUbicacion: 'We do not have the exact location of this place yet.',
+    metaDescripcion: (nombre: string, n: number) =>
+      n > 0
+        ? `${n} upcoming ${n === 1 ? 'event' : 'events'} at ${nombre}, Salta: dates, times and directions.`
+        : `${nombre}, Salta: address, directions and events.`,
+    mapaDelLugar: (nombre: string) => `Map showing where ${nombre} is`,
+    ayudaMapa: 'The address and the «Directions» button have the same information as the map.',
+    noEncontrado: 'We could not find that place',
+  },
   lugaresChicos: {
     capa: 'Places for kids',
     titulo: 'Places for kids',
@@ -279,6 +300,7 @@ export const en = {
     linkDesdeMapa: 'Missing a place? Suggest it',
   },
   buscar: {
+    lugares: 'Places',
     volver: 'Back',
     titulo: 'Search events',
     placeholder: 'Search by event, venue or description...',

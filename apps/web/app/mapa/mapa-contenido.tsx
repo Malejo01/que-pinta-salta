@@ -190,7 +190,7 @@ export function MapaContenido({ pines, lugaresChicos = [], sinUbicacion, filtro,
     const lugar = document.getElementById(rescatarFocoEn.current)
     rescatarFocoEn.current = null
     const activo = document.activeElement
-    if (activo === null || activo === document.body) lugar?.querySelector<HTMLElement>("a[href]")?.focus()
+    if (activo === null || activo === document.body) lugar?.querySelector<HTMLElement>(":scope ul a[href]")?.focus() // Q5-5: el primer EVENTO (el nombre ahora también es un link)
   }, [mapaDisponible])
 
   // Si el filtro nuevo no trae el lugar seleccionado, no hay nada que resaltar.
