@@ -107,6 +107,19 @@ isOneToOne: false
       referencedColumns: ["id"]
     }
                   ]
+                },"app_aperturas_diarias": {
+                  Row: {
+                    "aperturas": number,"con_cuenta": boolean,"created_at": string,"day": string,"hash_dia": string,"hash_semana": string,"plataforma": string,"updated_at": string,"version_app": string | null
+                  }
+                  Insert: {
+                    "aperturas"?: number,"con_cuenta"?: boolean,"created_at"?: string,"day": string,"hash_dia": string,"hash_semana": string,"plataforma"?: string,"updated_at"?: string,"version_app"?: string | null
+                  }
+                  Update: {
+                    "aperturas"?: number,"con_cuenta"?: boolean,"created_at"?: string,"day"?: string,"hash_dia"?: string,"hash_semana"?: string,"plataforma"?: string,"updated_at"?: string,"version_app"?: string | null
+                  }
+                  Relationships: [
+                    
+                  ]
                 },"categories": {
                   Row: {
                     "color": string | null,"created_at": string | null,"icon": string | null,"id": string,"name": string,"slug": string
@@ -794,6 +807,9 @@ isOneToOne: true
                            },
 "register_push_token":
 { Args: { "p_platform": string,"p_token": string }; Returns: undefined
+                           },
+"registrar_apertura_app":
+{ Args: { "p_con_cuenta": boolean,"p_day": string,"p_hash_dia": string,"p_hash_semana": string,"p_plataforma": string,"p_version": string }; Returns: undefined
                            },
 "resolve_venue_id":
 { Args: { "p_autocreate"?: boolean,"p_raw": string,"p_source"?: string,"p_threshold"?: number }; Returns: string
