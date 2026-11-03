@@ -4,7 +4,16 @@ import { RUTAS_EN_INGLES, hrefLangDestino, rutaEn, rutaEnOtroIdioma, separarIdio
 
 describe('RUTAS_EN_INGLES', () => {
   it('la portada, /cines, /mapa, /buscar, /radar, /anunciantes, la ficha del evento (/evento/<id>) y «Sumá un lugar» (Q5-3)', () => {
-    expect([...RUTAS_EN_INGLES]).toEqual(['/', '/cines', '/mapa', '/buscar', '/radar', '/anunciantes', '/evento/*', '/lugares-chicos/sumar'])
+    expect([...RUTAS_EN_INGLES]).toEqual(['/', '/cines', '/mapa', '/buscar', '/radar', '/anunciantes', '/evento/*', '/lugares-chicos/sumar', '/lugar/*'])
+  })
+
+  it('Q5-5: /lugar/<slug> ↔ /en/place/<slug> (segmento traducido, ida y vuelta)', () => {
+    expect(rutaEn('en', '/lugar/teatro-provincial?x=1')).toBe('/en/place/teatro-provincial?x=1')
+    expect(rutaEn('es', '/lugar/teatro-provincial')).toBe('/lugar/teatro-provincial')
+    expect(separarIdioma('/en/place/teatro-provincial')).toEqual({ idioma: 'en', ruta: '/lugar/teatro-provincial' })
+    expect(rutaEnOtroIdioma('/en/place/teatro-provincial', 'es')).toBe('/lugar/teatro-provincial')
+    expect(rutaEnOtroIdioma('/lugar/teatro-provincial', 'en')).toBe('/en/place/teatro-provincial')
+    expect(rutaEn('en', '/lugares-chicos/sumar')).toBe('/en/lugares-chicos/sumar')
   })
 })
 

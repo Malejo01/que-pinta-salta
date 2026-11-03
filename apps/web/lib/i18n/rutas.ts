@@ -10,9 +10,38 @@ import type { Idioma } from './idiomas'
  * `/evento/<id>/otra`). Un link a cualquier otra ruta queda en castellano
  * aunque se esté navegando en inglés.
  */
-export const RUTAS_EN_INGLES: readonly string[] = ['/', '/cines', '/mapa', '/buscar', '/radar', '/anunciantes', '/evento/*', '/lugares-chicos/sumar']
+export const RUTAS_EN_INGLES: readonly string[] = [
+  '/',
+  '/cines',
+  '/mapa',
+  '/buscar',
+  '/radar',
+  '/anunciantes',
+  '/evento/*',
+  '/lugares-chicos/sumar',
+  '/lugar/*',
+]
 
 const PREFIJO_EN = '/en'
+
+/**
+ * Q5-5: segmentos que en inglés se llaman distinto (pedido de Mauro:
+ * `/lugar/<slug>` ↔ `/en/place/<slug>`). El resto de las rutas en inglés
+ * conserva el nombre en castellano (`/en/mapa`, `/en/evento/<id>`).
+ */
+const SEGMENTOS_TRADUCIDOS: readonly (readonly [string, string])[] = [['/lugar/', '/place/']]
+
+/** `/lugar/x` → `/place/x` (lo que va después de `/en`). */
+function caminoAlIngles(camino: string): string {
+  for (const [es, en] of SEGMENTOS_TRADUCIDOS) if (camino.startsWith(es)) return en + camino.slice(es.length)
+  return camino
+}
+
+/** `/place/x` (sin `/en`) → `/lugar/x`. Exportada para el test de cobertura de /en. */
+export function caminoEnCastellano(camino: string): string {
+  for (const [es, en] of SEGMENTOS_TRADUCIDOS) if (camino.startsWith(en)) return es + camino.slice(en.length)
+  return camino
+}
 
 /** Separa "/cines?x=1#a" en { camino: "/cines", resto: "?x=1#a" }. */
 function separarCamino(ruta: string): { camino: string; resto: string } {
@@ -52,7 +81,7 @@ export function rutaEn(idioma: Idioma, ruta: string): string {
   const { camino, resto } = separarCamino(ruta)
   if (!tieneVersionEnIngles(camino)) return ruta
   const limpio = sinBarraFinal(camino)
-  return (limpio === '/' ? PREFIJO_EN : `${PREFIJO_EN}${limpio}`) + resto
+  return (limpio === '/' ? PREFIJO_EN : `${PREFIJO_EN}${caminoAlIngles(limpio)}`) + resto
 }
 
 /**
@@ -72,7 +101,7 @@ export function hrefLangDestino(idioma: Idioma, ruta: string): 'es-AR' | undefin
 export function separarIdioma(pathname: string): { idioma: Idioma; ruta: string } {
   if (pathname === PREFIJO_EN || pathname === `${PREFIJO_EN}/`) return { idioma: 'en', ruta: '/' }
   if (pathname.startsWith(`${PREFIJO_EN}/`)) {
-    return { idioma: 'en', ruta: pathname.slice(PREFIJO_EN.length) }
+    return { idioma: 'en', ruta: caminoEnCastellano(pathname.slice(PREFIJO_EN.length)) }
   }
   return { idioma: 'es', ruta: pathname }
 }

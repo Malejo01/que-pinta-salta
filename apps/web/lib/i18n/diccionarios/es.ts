@@ -197,6 +197,28 @@ export const es = {
     errorTitulo: 'No pudimos cargar el mapa',
     errorTexto: 'Tuvimos un problema de nuestro lado. Probá de nuevo en un momento.',
   },
+  // Q5-5: ficha de un lugar (/lugar/<slug>, components/lugares/pagina-lugar.tsx).
+  fichaLugar: {
+    proximos: 'Próximos eventos',
+    pasados: 'Eventos recientes',
+    sinProximos: 'No hay eventos anunciados en este lugar por ahora.',
+    horarios: 'Horarios',
+    lugarParaChicos: 'Lugar para chicos',
+    comoLlegar: 'Cómo llegar',
+    verEnElMapa: 'Ver en el mapa',
+    compartir: 'Compartir',
+    linkCopiado: 'Link copiado',
+    noSePudoCompartir: 'No se pudo compartir',
+    gratis: 'Gratis',
+    sinUbicacion: 'Todavía no tenemos la ubicación exacta de este lugar.',
+    metaDescripcion: (nombre: string, n: number) =>
+      n > 0
+        ? `${n} ${n === 1 ? 'evento próximo' : 'eventos próximos'} en ${nombre}, Salta: fechas, horarios y cómo llegar.`
+        : `${nombre}, Salta: dirección, cómo llegar y eventos.`,
+    mapaDelLugar: (nombre: string) => `Mapa con la ubicación de ${nombre}`,
+    ayudaMapa: 'La dirección y el botón «Cómo llegar» tienen la misma información que el mapa.',
+    noEncontrado: 'No encontramos ese lugar',
+  },
   // Q5-2: capa «Lugares para chicos» de /mapa (seccion-lugares-chicos.tsx).
   lugaresChicos: {
     capa: 'Lugares para chicos',
@@ -265,6 +287,7 @@ export const es = {
   },
   // /buscar (buscar-content.tsx)
   buscar: {
+    lugares: 'Lugares',
     volver: 'Volver',
     titulo: 'Buscar eventos',
     placeholder: 'Buscar por evento, lugar o descripción...',

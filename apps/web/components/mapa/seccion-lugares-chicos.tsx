@@ -163,7 +163,14 @@ export function SeccionLugaresChicos({ lugares, ahoraISO, seleccionado, conEvent
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <h3 lang={langContenido} className="text-base font-semibold text-foreground">
-                      {lugar.nombre}
+                      {/* Q5-5: el nombre lleva a la ficha del lugar. */}
+                      {lugar.slug ? (
+                        <a href={rutaEn(idioma, `/lugar/${lugar.slug}`)} className="rounded-sm hover:text-primary hover:underline focus-visible:outline-2 focus-visible:outline-primary">
+                          {lugar.nombre}
+                        </a>
+                      ) : (
+                        lugar.nombre
+                      )}
                     </h3>
                     <p className="mt-0.5 text-sm text-muted-foreground">
                       {ETIQUETA_TIPO[idioma][lugar.tipo]} · {textoEdades(lugar.edadMin, lugar.edadMax, idioma)}
