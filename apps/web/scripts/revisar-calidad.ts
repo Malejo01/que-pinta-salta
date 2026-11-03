@@ -114,16 +114,18 @@ async function main() {
   if (opciones.ia) {
     const { generarJsonDeTexto } = await import('../lib/ai/llamadas-ia')
     const { ErrorIA } = await import('../lib/ia/tipos')
+    // Q6-4: el prompt y el esquema viven en lib/ai/clasificar-categoria (los usa también el banco de evaluación).
+    const { INSTRUCCION_CLASIFICACION, MAX_TOKENS_CLASIFICACION, esquemaClasificacion, textoClasificacion } = await import(
+      '../lib/ai/clasificar-categoria'
+    )
     const slugs = (categorias.data ?? []).map((c) => c.slug as string)
     clasificar = async (titulo, descripcion) => {
       let r: { slug?: unknown }
       try {
-        r = (await generarJsonDeTexto(
-          'Clasificás eventos culturales de Salta (Argentina) en UNA categoría de la lista. Respondé solo el slug.',
-          `Título: ${titulo}\nDescripción: ${descripcion}`,
-          { type: 'object', properties: { slug: { type: 'string', enum: slugs } }, required: ['slug'] },
-          { uso: 'clasificacion', maxTokens: 256 },
-        )) as { slug?: unknown }
+        r = (await generarJsonDeTexto(INSTRUCCION_CLASIFICACION, textoClasificacion(titulo, descripcion), esquemaClasificacion(slugs), {
+          uso: 'clasificacion',
+          maxTokens: MAX_TOKENS_CLASIFICACION,
+        })) as { slug?: unknown }
       } catch (error) {
         // Un slug fuera de la lista se salteaba en silencio antes de Q6-3: sigue igual.
         if (error instanceof ErrorIA && error.codigo === 'respuesta_invalida') return null

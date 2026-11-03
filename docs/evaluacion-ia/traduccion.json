@@ -1,0 +1,364 @@
+{
+  "version": 1,
+  "uso": "traduccion",
+  "descripcion": "Q6-4 · Banco de evaluación de IA: 30 eventos publicados reales (título y descripción en castellano) con una traducción de referencia al inglés.",
+  "extraido": "2026-11-03",
+  "criterio": "Eventos PUBLISHED vigentes y sin title_en (la cola real de traducción del 3/11/2026), mezclando fuentes (entradauno, norteticket, alpogo, recurrentes, Instagram) y largos (sin descripción, la descripción de relleno «Evento importado automáticamente…», textos largos con emojis y tipografía Unicode). En producción no hay ninguna traducción revisada (title_en está vacío en todos los eventos), así que TODAS las referencias las escribió el agente: referencia = 'agente'. lugar = nombre del venue (lo que el pipeline marca como «no traducir»); artistas = [] como en producción (traducir-pendientes lee ai_metadata.artists, que hoy no se completa). nombres_a_conservar = nombres propios y títulos de obra/marca que la rúbrica exige que sigan iguales (los elige el agente). Descripciones de más de 1000 caracteres recortadas a 1000 (descripcion_recortada). Sin datos personales: teléfonos, emails y @menciones de personas o comercios reemplazados.",
+  "consulta": "select e.id, e.title, v.name, e.tags, left(e.description, 1000) from events e left join venues v on v.id = e.venue_id where e.status = 'PUBLISHED' and e.start_date >= now() - interval '1 day' and e.title_en is null (solo select, proyecto de producción)",
+  "cuentas_publicas": ["brickell_club"],
+  "casos": [
+    {
+      "id": "trad-01",
+      "origen": { "tabla": "events", "id": "a3c88f6a-c6f3-4ac0-b9c8-3c799e454d18" },
+      "titulo": "TEMPLE: La Leyenda del Tiempo",
+      "descripcion": "Evento importado automáticamente desde entradauno",
+      "lugar": "Teatro Provincial Juan Carlos Saravia",
+      "artistas": [],
+      "nombres_a_conservar": ["TEMPLE", "entradauno"],
+      "referencia": "agente",
+      "esperado": { "title_en": "TEMPLE: The Legend of Time", "description_en": "Event automatically imported from entradauno" }
+    },
+    {
+      "id": "trad-02",
+      "origen": { "tabla": "events", "id": "cdf37dfb-51aa-4476-9532-816a140172c1" },
+      "titulo": "Fiesta Latina: Emi y Gonza Rumbo al Mundial",
+      "descripcion": "𝟖/𝟏𝟏 𝐅𝐈𝐄𝐒𝐓𝐀 𝐋𝐀𝐓𝐈𝐍𝐀 - 𝐄𝐌𝐈 𝐘 𝐆𝐎𝐍𝐙𝐀 𝐑𝐔𝐌𝐁𝐎 𝐀𝐋 𝐌𝐔𝐍𝐃𝐈𝐀𝐋 🇲🇽\n\nEste 𝐃𝐎𝐌𝐈𝐍𝐆𝐎 𝟖 𝐃𝐄 𝐍𝐎𝐕𝐈𝐄𝐌𝐁𝐑𝐄 (𝐕𝐈́𝐒𝐏𝐄𝐑𝐀 𝐃𝐄 𝐅𝐄𝐑𝐈𝐀𝐃𝐎) llega nuestra 𝐅𝐈𝐄𝐒𝐓𝐀 𝐋𝐀𝐓𝐈𝐍𝐀 𝐃𝐄 𝐒𝐀𝐋𝐒𝐀 𝐘 𝐁𝐀𝐂𝐇𝐀𝐓𝐀 en @brickell_club 🎶❤️‍🔥\n\n🎧 DJs invitados para bailar toda la noche.\n🏆 Shows de primer nivel.\n📸 Fotos y videos para guardar los mejores momentos.\n🎁 Sorteos y sorpresas.\n\nEsta fiesta tiene algo especial: cada aporte nos ayuda a estar un poquito más cerca de un gran sueño! ❤️‍🔥\n\nEstamos recaudando fondos para representar a la ARGENTINA 🇦🇷 en el @[cuenta] y llevar bien alto el nombre de SALTA. ¡Vos también podés ser parte de esta meta!\n\n🎟️ 𝐏𝐑𝐎𝐌𝐎 𝐋𝐀𝐍𝐙𝐀𝐌𝐈𝐄𝐍𝐓𝐎: 𝟐𝐱𝟏\n\n🔥 𝐃𝐎𝐒 𝐄𝐍𝐓𝐑𝐀𝐃𝐀𝐒 𝐏𝐎𝐑 𝐒𝐎𝐋𝐎 $𝟖.𝟎𝟎𝟎\n⏳ ¡Solo hasta el 31/10!\n\n📅 Domingo 8 de noviembre\n📍 BRICKELL — Jujuy 913\n🥳 Víspera de feriado. ¡No hay excusas!\n\n📲 Etiquetá a esa persona con la que vas a venir, compartí esta publicación y preparate para una noche increíble.\n\nNos apoyan: @[cuenta] @[cuenta] @[cuenta] @[cuenta] @[cuenta] @[cuenta]",
+      "descripcion_recortada": true,
+      "lugar": "Brickell",
+      "artistas": [],
+      "nombres_a_conservar": ["Emi", "Gonza", "BRICKELL", "Jujuy"],
+      "referencia": "agente",
+      "esperado": {
+        "title_en": "Latin Party: Emi and Gonza on the Road to the World Championship",
+        "description_en": "𝟖/𝟏𝟏 LATIN PARTY - EMI AND GONZA ON THE ROAD TO THE WORLD CHAMPIONSHIP 🇲🇽\n\nThis SUNDAY, NOVEMBER 8 (EVE OF A PUBLIC HOLIDAY) our SALSA AND BACHATA LATIN PARTY comes to @brickell_club 🎶❤️‍🔥\n\n🎧 Guest DJs to dance all night long.\n🏆 Top-level shows.\n📸 Photos and videos to keep the best moments.\n🎁 Raffles and surprises.\n\nThis party has something special: every contribution brings us a little closer to a big dream! ❤️‍🔥\n\nWe are raising funds to represent ARGENTINA 🇦🇷 at the @[cuenta] and put SALTA's name up high. You can be part of this goal too!\n\n🎟️ LAUNCH PROMO: 2x1\n\n🔥 TWO TICKETS FOR ONLY $8,000\n⏳ Only until 31/10!\n\n📅 Sunday, November 8\n📍 BRICKELL — Jujuy 913\n🥳 Eve of a public holiday. No excuses!\n\n📲 Tag the person you're coming with, share this post and get ready for an amazing night.\n\nSupported by: @[cuenta] @[cuenta] @[cuenta] @[cuenta] @[cuenta] @[cuenta]"
+      }
+    },
+    {
+      "id": "trad-03",
+      "origen": { "tabla": "events", "id": "8da0c7a5-a287-4108-bb27-b3308981c7cd" },
+      "titulo": "Gala de Ballet: Convergencia, dos estilos en un mismo escenario",
+      "descripcion": "Evento importado automáticamente desde entradauno",
+      "lugar": "Casa de la Cultura",
+      "artistas": [],
+      "nombres_a_conservar": ["Convergencia", "entradauno"],
+      "referencia": "agente",
+      "esperado": { "title_en": "Ballet Gala: Convergencia, two styles on one stage", "description_en": "Event automatically imported from entradauno" }
+    },
+    {
+      "id": "trad-04",
+      "origen": { "tabla": "events", "id": "931ba102-9e5f-495d-8313-a1c974007580" },
+      "titulo": "Club de Vampiros - Especial Día de Muertos",
+      "descripcion": "■ Industrial Sexy Party /////////////////////////////////////////////////////////\n\n■🦇CLUB DE VAMPIROS🦇 ESPECIAL: \"DÍA DE MUERTOS\" FIESTA POST-PUNK, DARKWAVE Y GOTICOS ESCENCIALES EN ESPAÑOL ///\n\n■ EL CLUB nuevamente invoca a un nuevo aquelarre bailable, esta vez para invocar a todos los difuntos y bailar hasta que la velas se extingan. Noviembre nos encuentra en el panteon a todos, en unas de las epocas donde rendimos homenaje a nuestros difuntos. El momento donde el más allá y el mundo terrenal se unen para reencontrarse nuevamente en un abrazo eterno. Una fiesta que vibra en la frecuencia funeral codificado en el POSTPUNK, DARKWAVE, COLDWAVE Y SYNTHPOP con lo mejor de ayer y Hoy : FRENCH POLICE, DECEITS, VACIOS CUERPOS, TWIN TRIBES, LEONORA POST PUNK, EUROSHIMA, DEPRESION SONORA, CAIFANES, LA ERAS, VESTRON VULTURES, TELEFONEMA, BUENOS VAMPIROS, SAKATUMBAS, SALAS VELATORIAS y muchos más.\n\nBANDAS EN VIVO: @[cuenta] y @[cuenta]\n/////////////////////////////////////\nDj set",
+      "descripcion_recortada": true,
+      "lugar": "Bonadea",
+      "artistas": [],
+      "nombres_a_conservar": ["Club de Vampiros", "CLUB DE VAMPIROS", "DÍA DE MUERTOS", "Día de Muertos", "Industrial Sexy Party", "FRENCH POLICE", "DECEITS", "VACIOS CUERPOS", "TWIN TRIBES", "LEONORA POST PUNK", "EUROSHIMA", "DEPRESION SONORA", "CAIFANES", "LA ERAS", "VESTRON VULTURES", "TELEFONEMA", "BUENOS VAMPIROS", "SAKATUMBAS", "SALAS VELATORIAS"],
+      "referencia": "agente",
+      "esperado": {
+        "title_en": "Club de Vampiros - Día de Muertos Special",
+        "description_en": "■ Industrial Sexy Party /////////////////////////////////////////////////////////\n\n■🦇CLUB DE VAMPIROS🦇 SPECIAL: \"DÍA DE MUERTOS\" POST-PUNK, DARKWAVE AND ESSENTIAL GOTH PARTY IN SPANISH ///\n\n■ THE CLUB once again summons a new dancing coven, this time to call on all the departed and dance until the candles burn out. November finds us all in the pantheon, in one of the times of the year when we pay tribute to our departed. The moment when the afterlife and the earthly world come together to meet again in an eternal embrace. A party that vibrates on the funeral frequency encoded in POSTPUNK, DARKWAVE, COLDWAVE AND SYNTHPOP with the best of yesterday and today: FRENCH POLICE, DECEITS, VACIOS CUERPOS, TWIN TRIBES, LEONORA POST PUNK, EUROSHIMA, DEPRESION SONORA, CAIFANES, LA ERAS, VESTRON VULTURES, TELEFONEMA, BUENOS VAMPIROS, SAKATUMBAS, SALAS VELATORIAS and many more.\n\nLIVE BANDS: @[cuenta] and @[cuenta]\n/////////////////////////////////////\nDJ set"
+      }
+    },
+    {
+      "id": "trad-05",
+      "origen": { "tabla": "events", "id": "73b56d77-d0ac-4e57-8211-1bdabb89f78d" },
+      "titulo": "Lucía Díaz de Vivar presenta nuevo disco “Bailando con mis sombras”",
+      "descripcion": "Evento importado automáticamente desde entradauno",
+      "lugar": "Usina Cultural",
+      "artistas": [],
+      "nombres_a_conservar": ["Lucía Díaz de Vivar", "Bailando con mis sombras", "entradauno"],
+      "referencia": "agente",
+      "esperado": { "title_en": "Lucía Díaz de Vivar presents her new album “Bailando con mis sombras”", "description_en": "Event automatically imported from entradauno" }
+    },
+    {
+      "id": "trad-06",
+      "origen": { "tabla": "events", "id": "fb23738b-b7ab-4ea9-a257-e38ddfc829d8" },
+      "titulo": "KE PERSONAJES EN SALTA",
+      "descripcion": "Evento importado automáticamente desde norteticket",
+      "lugar": "Universitario Rugby Club",
+      "artistas": [],
+      "nombres_a_conservar": ["KE PERSONAJES", "norteticket"],
+      "referencia": "agente",
+      "esperado": { "title_en": "KE PERSONAJES IN SALTA", "description_en": "Event automatically imported from norteticket" }
+    },
+    {
+      "id": "trad-07",
+      "origen": { "tabla": "events", "id": "966d4039-3a80-4254-b77b-f5c30ea6f51f" },
+      "titulo": "SER PADRES NO PARES",
+      "descripcion": "Evento importado automáticamente desde norteticket",
+      "lugar": "Salón Colegio San Pablo",
+      "artistas": [],
+      "nombres_a_conservar": ["SER PADRES NO PARES", "norteticket"],
+      "referencia": "agente",
+      "esperado": { "title_en": "SER PADRES NO PARES", "description_en": "Event automatically imported from norteticket" }
+    },
+    {
+      "id": "trad-08",
+      "origen": { "tabla": "events", "id": "7acf5b97-df14-4c31-b9ef-699786394b89" },
+      "titulo": "Crónica de una mujer",
+      "descripcion": "Evento importado automáticamente desde entradauno",
+      "lugar": "Casa de la Cultura",
+      "artistas": [],
+      "nombres_a_conservar": ["entradauno"],
+      "referencia": "agente",
+      "esperado": { "title_en": "Chronicle of a Woman", "description_en": "Event automatically imported from entradauno" }
+    },
+    {
+      "id": "trad-09",
+      "origen": { "tabla": "events", "id": "288e3fdc-bc02-4b97-9de0-74011d842d9e" },
+      "titulo": "La Ñata Contra el Vidrio",
+      "descripcion": "Evento importado automáticamente desde entradauno",
+      "lugar": "Usina Cultural",
+      "artistas": [],
+      "nombres_a_conservar": ["La Ñata Contra el Vidrio", "entradauno"],
+      "referencia": "agente",
+      "esperado": { "title_en": "La Ñata Contra el Vidrio", "description_en": "Event automatically imported from entradauno" }
+    },
+    {
+      "id": "trad-10",
+      "origen": { "tabla": "events", "id": "ecfb5b09-389d-4700-8a3b-22466ce55569" },
+      "titulo": "Destino - Pasión Caribeña",
+      "descripcion": "Evento importado automáticamente desde entradauno",
+      "lugar": "Casa de la Cultura",
+      "artistas": [],
+      "nombres_a_conservar": ["Destino", "entradauno"],
+      "referencia": "agente",
+      "esperado": { "title_en": "Destino - Caribbean Passion", "description_en": "Event automatically imported from entradauno" }
+    },
+    {
+      "id": "trad-11",
+      "origen": { "tabla": "events", "id": "447d79b4-9481-4608-92c8-acd621ddbe18" },
+      "titulo": "Il Viaggio di Dante",
+      "descripcion": "Evento importado automáticamente desde entradauno",
+      "lugar": "Teatro Provincial Juan Carlos Saravia",
+      "artistas": [],
+      "nombres_a_conservar": ["Il Viaggio di Dante", "entradauno"],
+      "referencia": "agente",
+      "esperado": { "title_en": "Il Viaggio di Dante", "description_en": "Event automatically imported from entradauno" }
+    },
+    {
+      "id": "trad-12",
+      "origen": { "tabla": "events", "id": "a4a6c495-1e0e-4eb6-aa15-93ec8cc31665" },
+      "titulo": "Aires de Blues Salta - Edición Deluxe",
+      "descripcion": "Evento importado automáticamente desde entradauno",
+      "lugar": "Usina Cultural",
+      "artistas": [],
+      "nombres_a_conservar": ["Aires de Blues Salta", "entradauno"],
+      "referencia": "agente",
+      "esperado": { "title_en": "Aires de Blues Salta - Deluxe Edition", "description_en": "Event automatically imported from entradauno" }
+    },
+    {
+      "id": "trad-13",
+      "origen": { "tabla": "events", "id": "23962657-2bda-4fd7-99bc-8f3b26685f8a" },
+      "titulo": "Cuando sea grande",
+      "descripcion": "Evento importado automáticamente desde entradauno",
+      "lugar": "Teatro Provincial Juan Carlos Saravia",
+      "artistas": [],
+      "nombres_a_conservar": ["entradauno"],
+      "referencia": "agente",
+      "esperado": { "title_en": "When I Grow Up", "description_en": "Event automatically imported from entradauno" }
+    },
+    {
+      "id": "trad-14",
+      "origen": { "tabla": "events", "id": "ee374cef-a650-4479-b110-510c475a9981" },
+      "titulo": "Una Noche en la Ópera",
+      "descripcion": "Evento importado automáticamente desde entradauno",
+      "lugar": "Usina Cultural",
+      "artistas": [],
+      "nombres_a_conservar": ["entradauno"],
+      "referencia": "agente",
+      "esperado": { "title_en": "A Night at the Opera", "description_en": "Event automatically imported from entradauno" }
+    },
+    {
+      "id": "trad-15",
+      "origen": { "tabla": "events", "id": "654a6a8d-fe36-40b4-a711-c7cf0833ffda" },
+      "titulo": "BERSUIT EN SALTA 2026",
+      "descripcion": "Evento importado automáticamente desde norteticket",
+      "lugar": "La Roka",
+      "artistas": [],
+      "nombres_a_conservar": ["BERSUIT", "norteticket"],
+      "referencia": "agente",
+      "esperado": { "title_en": "BERSUIT IN SALTA 2026", "description_en": "Event automatically imported from norteticket" }
+    },
+    {
+      "id": "trad-16",
+      "origen": { "tabla": "events", "id": "6c2d0329-4e15-439a-92d3-dfed9835ab5e" },
+      "titulo": "Luis Fonsi - Mar Infinito",
+      "descripcion": "Evento importado automáticamente desde entradauno",
+      "lugar": "Teatro Provincial Juan Carlos Saravia",
+      "artistas": [],
+      "nombres_a_conservar": ["Luis Fonsi", "Mar Infinito", "entradauno"],
+      "referencia": "agente",
+      "esperado": { "title_en": "Luis Fonsi - Mar Infinito", "description_en": "Event automatically imported from entradauno" }
+    },
+    {
+      "id": "trad-17",
+      "origen": { "tabla": "events", "id": "2419ea64-ba22-4975-a25f-d0946dcc6fc8" },
+      "titulo": "Pablo Molinari - Demasiado",
+      "descripcion": "Evento importado automáticamente desde entradauno",
+      "lugar": "Usina Cultural",
+      "artistas": [],
+      "nombres_a_conservar": ["Pablo Molinari", "Demasiado", "entradauno"],
+      "referencia": "agente",
+      "esperado": { "title_en": "Pablo Molinari - Demasiado", "description_en": "Event automatically imported from entradauno" }
+    },
+    {
+      "id": "trad-18",
+      "origen": { "tabla": "events", "id": "0f2f87e8-724d-4311-9a39-da8dfa23b2da" },
+      "titulo": "Pequeño Pez - Tour 2026",
+      "descripcion": null,
+      "lugar": "Teatro Provincial Juan Carlos Saravia",
+      "artistas": [],
+      "nombres_a_conservar": ["Pequeño Pez"],
+      "referencia": "agente",
+      "esperado": { "title_en": "Pequeño Pez - Tour 2026", "description_en": null }
+    },
+    {
+      "id": "trad-19",
+      "origen": { "tabla": "events", "id": "657611b4-c6ea-47a4-b9d4-1a7cf244e2a4" },
+      "titulo": "Museo de Arqueología de Alta Montaña",
+      "descripcion": "Evento importado automáticamente desde entradauno",
+      "lugar": "Museo de Arqueología de Alta Montaña",
+      "artistas": [],
+      "nombres_a_conservar": ["entradauno"],
+      "referencia": "agente",
+      "esperado": { "title_en": "Museo de Arqueología de Alta Montaña", "description_en": "Event automatically imported from entradauno" }
+    },
+    {
+      "id": "trad-20",
+      "origen": { "tabla": "events", "id": "f34ae70a-be61-4761-a65c-ca49adce6750" },
+      "titulo": "Museo Güemes",
+      "descripcion": "Evento importado automáticamente desde entradauno",
+      "lugar": "Museo Güemes",
+      "artistas": [],
+      "nombres_a_conservar": ["entradauno"],
+      "referencia": "agente",
+      "esperado": { "title_en": "Museo Güemes", "description_en": "Event automatically imported from entradauno" }
+    },
+    {
+      "id": "trad-21",
+      "origen": { "tabla": "events", "id": "cdafa5ac-1ea4-4f77-9054-2f8e1a74be68" },
+      "titulo": "Julieta Laso en Salta",
+      "descripcion": "Evento importado automáticamente desde alpogo",
+      "lugar": "Museo del Instrumento",
+      "artistas": [],
+      "nombres_a_conservar": ["Julieta Laso", "alpogo"],
+      "referencia": "agente",
+      "esperado": { "title_en": "Julieta Laso in Salta", "description_en": "Event automatically imported from alpogo" }
+    },
+    {
+      "id": "trad-22",
+      "origen": { "tabla": "events", "id": "ea7d8059-c062-4501-a5a1-837925d93f27" },
+      "titulo": "Peña folklórica en La Vieja Estación",
+      "descripcion": "Peña folklórica con show en vivo en La Vieja Estación, sobre calle Balcarce, en Salta Capital. El espectáculo comienza a las 22 hs, todos los días. Conviene confirmar la cartelera y los precios directamente con el local antes de ir.",
+      "lugar": "La Vieja Estación",
+      "artistas": [],
+      "nombres_a_conservar": ["Balcarce"],
+      "referencia": "agente",
+      "esperado": {
+        "title_en": "Folk peña at La Vieja Estación",
+        "description_en": "Folk peña with a live show at La Vieja Estación, on Balcarce street, in Salta city. The show starts at 22 hs, every day. It is best to confirm the line-up and prices directly with the venue before going."
+      }
+    },
+    {
+      "id": "trad-23",
+      "origen": { "tabla": "events", "id": "427c74d9-2c91-4504-a3c6-ea7b396b2473" },
+      "titulo": "Peña folklórica en Balderrama",
+      "descripcion": "Peña folklórica con música en vivo en Balderrama, sobre Av. San Martín, en Salta Capital. El show arranca a las 21 hs, de miércoles a domingo. Conviene confirmar la cartelera y los precios directamente con el local antes de ir.",
+      "lugar": "Balderrama",
+      "artistas": [],
+      "nombres_a_conservar": ["Av. San Martín"],
+      "referencia": "agente",
+      "esperado": {
+        "title_en": "Folk peña at Balderrama",
+        "description_en": "Folk peña with live music at Balderrama, on Av. San Martín, in Salta city. The show starts at 21 hs, Wednesday to Sunday. It is best to confirm the line-up and prices directly with the venue before going."
+      }
+    },
+    {
+      "id": "trad-24",
+      "origen": { "tabla": "events", "id": "fc858dbc-98e4-4ea4-ac38-3df48f980b93" },
+      "titulo": "Homenaje a Black Sabbath y Ozzy Osbourne por Músicos Salteños",
+      "descripcion": "🔥🤘🏻 NOVEDADES: YA PODES CONSEGUIR TU ANTICIPADA Y EMPEZAR A PALPITAR ESTA FECHAZA🤘🏻🔥\n🎟️Puntos de venta: \n🦇@[cuenta] Caseros 646 Local 7\n🦇@[cuenta] Córdoba 235\n🦇@[cuenta] Pellegrini 331 Local 25\n📲 Por transferencia vía WhatsApp \n[telefono] - [telefono]\n🎫Preventa 1: $10.000\n\n🗓️ SÁBADO 14 DE NOVIEMBRE \n📍@brickell_club – Jujuy 913\n🕚 23 HS\n🎸 Invitado especial: @[cuenta]\npresentando su nuevo disco 👊🏻\n\n🔱 Organiza HELLYEAH PRODUCCIONES🔱",
+      "lugar": "Brickell Club",
+      "artistas": [],
+      "nombres_a_conservar": ["Black Sabbath", "Ozzy Osbourne", "HELLYEAH PRODUCCIONES", "Caseros", "Córdoba", "Pellegrini", "Jujuy", "WhatsApp"],
+      "referencia": "agente",
+      "esperado": {
+        "title_en": "Tribute to Black Sabbath and Ozzy Osbourne by Salta Musicians",
+        "description_en": "🔥🤘🏻 NEWS: YOU CAN NOW GET YOUR ADVANCE TICKET AND START COUNTING DOWN TO THIS BIG NIGHT🤘🏻🔥\n🎟️Points of sale: \n🦇@[cuenta] Caseros 646 Local 7\n🦇@[cuenta] Córdoba 235\n🦇@[cuenta] Pellegrini 331 Local 25\n📲 By bank transfer via WhatsApp \n[telefono] - [telefono]\n🎫Presale 1: $10,000\n\n🗓️ SATURDAY, NOVEMBER 14 \n📍@brickell_club – Jujuy 913\n🕚 23 HS\n🎸 Special guest: @[cuenta]\npresenting his new album 👊🏻\n\n🔱 Organized by HELLYEAH PRODUCCIONES🔱"
+      }
+    },
+    {
+      "id": "trad-25",
+      "origen": { "tabla": "events", "id": "7df1b767-d216-4a29-b08d-7bef1fd1e8ae" },
+      "titulo": "Elena Roger en Concierto",
+      "descripcion": "Evento importado automáticamente desde entradauno",
+      "lugar": "Teatro Provincial Juan Carlos Saravia",
+      "artistas": [],
+      "nombres_a_conservar": ["Elena Roger", "entradauno"],
+      "referencia": "agente",
+      "esperado": { "title_en": "Elena Roger in Concert", "description_en": "Event automatically imported from entradauno" }
+    },
+    {
+      "id": "trad-26",
+      "origen": { "tabla": "events", "id": "e5a481b7-ac35-4a5b-8de9-ba18f001b9ea" },
+      "titulo": "ROCK SALTA 2026",
+      "descripcion": "Evento importado automáticamente desde norteticket",
+      "lugar": "Club Gimnasia y Tiro",
+      "artistas": [],
+      "nombres_a_conservar": ["ROCK SALTA", "norteticket"],
+      "referencia": "agente",
+      "esperado": { "title_en": "ROCK SALTA 2026", "description_en": "Event automatically imported from norteticket" }
+    },
+    {
+      "id": "trad-27",
+      "origen": { "tabla": "events", "id": "ee12100a-78bf-41e1-ae57-4aed0da10197" },
+      "titulo": "1ER DÍA INFERNALES FEST 2DA EDICIÓN",
+      "descripcion": "Evento importado automáticamente desde norteticket",
+      "lugar": "Universitario Rugby Club",
+      "artistas": [],
+      "nombres_a_conservar": ["INFERNALES FEST", "norteticket"],
+      "referencia": "agente",
+      "esperado": { "title_en": "DAY 1 INFERNALES FEST 2ND EDITION", "description_en": "Event automatically imported from norteticket" }
+    },
+    {
+      "id": "trad-28",
+      "origen": { "tabla": "events", "id": "e12db829-9f34-4994-97a7-5e9116465279" },
+      "titulo": "Lienzo en blanco - Otra forma de hacer teatro",
+      "descripcion": "Evento importado automáticamente desde entradauno",
+      "lugar": "Usina Cultural",
+      "artistas": [],
+      "nombres_a_conservar": ["Lienzo en blanco", "entradauno"],
+      "referencia": "agente",
+      "esperado": { "title_en": "Lienzo en blanco - Another Way of Doing Theater", "description_en": "Event automatically imported from entradauno" }
+    },
+    {
+      "id": "trad-29",
+      "origen": { "tabla": "events", "id": "46e2a61b-f9e2-43f4-8fe8-0b3247a685c8" },
+      "titulo": "La Casa de Bernarda Alba",
+      "descripcion": "🎭 ¡EL TEATRO LLEGA A CASA GRANDE!\n\nUna noche diferente, una historia intensa y una experiencia que te va a atrapar de principio a fin. ✨\n\nLlega “LA CASA DE BERNARDA ALBA”, la obra de Federico García Lorca, en una propuesta teatral inmersiva que promete emociones y mucho talento sobre el escenario.\n\n📅 8 de noviembre 🕖 19:00 hs 📍 Casa Grande – Alberdi 1107\n\n❤️ ¡Te esperamos para vivir una experiencia cultural diferente!\n\n#CasaGrande #LaCasaDeBernardaAlba #Teatro #Cultura #Salta",
+      "lugar": "Casagrande Peña",
+      "artistas": [],
+      "nombres_a_conservar": ["LA CASA DE BERNARDA ALBA", "Bernarda Alba", "Federico García Lorca", "CASA GRANDE", "Casa Grande", "Alberdi"],
+      "referencia": "agente",
+      "esperado": {
+        "title_en": "The House of Bernarda Alba",
+        "description_en": "🎭 THEATER COMES TO CASA GRANDE!\n\nA different night, an intense story and an experience that will grip you from start to finish. ✨\n\n“LA CASA DE BERNARDA ALBA” (The House of Bernarda Alba), the play by Federico García Lorca, arrives in an immersive theatrical production that promises emotion and plenty of talent on stage.\n\n📅 November 8 🕖 19:00 hs 📍 Casa Grande – Alberdi 1107\n\n❤️ We look forward to seeing you for a different cultural experience!\n\n#CasaGrande #LaCasaDeBernardaAlba #Teatro #Cultura #Salta"
+      }
+    },
+    {
+      "id": "trad-30",
+      "origen": { "tabla": "events", "id": "02e1d998-57f8-4776-9890-23c71863d2b3" },
+      "titulo": "Boca vs Athletico Paranaense",
+      "descripcion": "En el marco de la pretemporada de invierno 2026 regresa el fútbol sudámericano con el Desafío de Invierno Betwarrior, en el que Boca Juniors enfrentará a Athletico Paranaense Brasil en el Estadio Padre Martearena de Salta..El próximo miércoles 8 de julio a las 21:00hs, volverá a rodar la pelota para el Xeneize. En lo que será el reestreno del Vasco Arruabarrena como director técnico del equipo de la ribera, por su parte el elenco brasileño, continuará su preparación para la segunda mitad del año en Argentina, en un partido con un marco imponente en Salta.",
+      "lugar": "Estadio Padre Ernesto Martearena",
+      "artistas": [],
+      "nombres_a_conservar": ["Boca", "Boca Juniors", "Athletico Paranaense", "Desafío de Invierno Betwarrior", "Estadio Padre Martearena", "Xeneize", "Vasco Arruabarrena"],
+      "referencia": "agente",
+      "esperado": {
+        "title_en": "Boca vs Athletico Paranaense",
+        "description_en": "As part of the 2026 winter preseason, South American football returns with the Desafío de Invierno Betwarrior, in which Boca Juniors will face Athletico Paranaense (Brazil) at the Estadio Padre Martearena in Salta. Next Wednesday, July 8, at 21:00hs, the ball will roll again for the Xeneize. It will mark Vasco Arruabarrena's return as Boca's head coach, while the Brazilian side will continue preparing for the second half of the year in Argentina, in a match with an impressive setting in Salta."
+      }
+    }
+  ]
+}
