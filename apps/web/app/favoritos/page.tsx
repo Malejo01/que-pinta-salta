@@ -4,6 +4,7 @@ import { redirect } from "next/navigation"
 import { Navbar } from "@/components/navbar"
 import { MobileNav } from "@/components/mobile-nav"
 import { FavoritosList } from "./favoritos-list"
+import { LugaresQueSeguis } from "@/components/lugares/lugares-que-seguis"
 import { applyVigenciaPrefilter } from "@/lib/events/vigencia"
 import { PUBLIC_EVENT_SELECT } from "@/lib/events/public-select"
 import { armarFavoritos, idsDeFavoritos } from "@qps/core/favoritos/armar"
@@ -125,6 +126,8 @@ export default async function FavoritosPage() {
 
       <main id="contenido" tabIndex={-1} className="container mx-auto px-4 py-8 focus:outline-none">
         <FavoritosList voy={voy} flexibles={guardados.flexibles} porDia={guardados.porDia} />
+        {/* Q5-6: los lugares que sigue, con sus próximos eventos y link a la ficha. */}
+        <LugaresQueSeguis userId={user.id} />
       </main>
 
       <MobileNav />

@@ -107,6 +107,7 @@ import { TarjetaEvento } from '@/components/TarjetaEvento'
 import { Texto } from '@/components/Texto'
 import { anunciar } from '@/lib/anunciar'
 import { useColoresQPS } from '@/lib/colores'
+import { LugaresQueSeguis } from '@/components/LugaresQueSeguis'
 import { esperarBorradoDeCache, reintentarSesion, useSession } from '@/lib/session'
 import { TITULO_SIN_CONEXION } from '@/lib/sin-conexion/aviso'
 import { cargarFavoritosConCache, leerFavoritosGuardados } from '@/lib/sin-conexion/favoritos'
@@ -631,6 +632,8 @@ export default function Favoritos() {
                   </Pressable>
                 </View>
               ) : null}
+              {/* Q5-6: «Lugares que seguís», también con la lista vacía. */}
+              {userId ? <LugaresQueSeguis userId={userId} /> : null}
             </>
           }
           renderSectionHeader={({ section }) => (
