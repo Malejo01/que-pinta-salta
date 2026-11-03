@@ -112,6 +112,8 @@ const IGUALES_A_PROPOSITO = new Set([
   'favorito.errorTitulo',
   'asistencia.errorTitulo',
   'auth.email',
+  // Q5-2: la marca se llama igual en los dos idiomas.
+  'lugaresChicos.instagram',
 ])
 
 describe('3. ninguna clave quedó sin traducir', () => {

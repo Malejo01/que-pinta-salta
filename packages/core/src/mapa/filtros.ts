@@ -17,6 +17,12 @@ export interface FiltrosExtraMapa {
   gratis: boolean
   chicos: boolean
   categoria: string | null
+  /**
+   * Q5-2: la capa «Lugares para chicos» (`capa=chicos`). No es un filtro de
+   * eventos (no cuenta en `hayFiltrosExtra`): suma otra capa al mapa. El chip
+   * «Para chicos» la prende y la apaga junto con él (decisión 5).
+   */
+  capaChicos?: boolean
 }
 
 export const SIN_FILTROS_EXTRA: FiltrosExtraMapa = { gratis: false, chicos: false, categoria: null }
@@ -40,16 +46,19 @@ export function hayFiltrosExtra(extra: FiltrosExtraMapa): boolean {
  * un mapa vacío). Nunca tira una excepción.
  */
 export function parsearFiltrosExtraMapa(
-  params: { gratis?: string | null; chicos?: string | null; categoria?: string | null },
+  params: { gratis?: string | null; chicos?: string | null; categoria?: string | null; capa?: string | null },
   categoriasValidas: ReadonlySet<string>
 ): FiltrosExtraMapa {
   const categoria = params.categoria && categoriasValidas.has(params.categoria) ? params.categoria : null
-  return { gratis: params.gratis === '1', chicos: params.chicos === '1', categoria }
+  const extra: FiltrosExtraMapa = { gratis: params.gratis === '1', chicos: params.chicos === '1', categoria }
+  if (params.capa === 'chicos') extra.capaChicos = true
+  return extra
 }
 
 /**
  * La query de `/mapa` (sin el `?`) para un filtro de fecha y unos filtros
- * "qué", en un orden fijo: `cuando`, `dia`, `gratis`, `chicos`, `categoria`.
+ * "qué", en un orden fijo: `cuando`, `dia`, `gratis`, `chicos`, `categoria`
+ * y, al final, `capa` (Q5-2).
  * Es lo que se comparte: el mismo link abre el mismo mapa filtrado.
  */
 export function consultaDelMapa(filtro: FiltroMapa, extra: FiltrosExtraMapa): string {
@@ -59,6 +68,7 @@ export function consultaDelMapa(filtro: FiltroMapa, extra: FiltrosExtraMapa): st
   if (extra.gratis) partes.set('gratis', '1')
   if (extra.chicos) partes.set('chicos', '1')
   if (extra.categoria !== null) partes.set('categoria', extra.categoria)
+  if (extra.capaChicos) partes.set('capa', 'chicos')
   return partes.toString()
 }
 
