@@ -462,12 +462,13 @@ describe('detector: la sección de búsquedas recientes', () => {
   const COMPONENTE = sinComentarios(SRC_COMPONENTE)
 
   it('título de sección con accessibilityRole="header"', () => {
-    expect(COMPONENTE).toMatch(/<Texto[^>]*accessibilityRole="header"[^>]*>\s*Búsquedas recientes\s*</)
+    // Q5-12: los textos salen del diccionario.
+    expect(COMPONENTE).toMatch(/<Texto[^>]*accessibilityRole="header"[^>]*>\s*\{t\.titulo\}\s*</)
   })
 
   it('«Borrar historial» es un Pressable con rol de botón y etiqueta', () => {
     expect(COMPONENTE).toMatch(
-      /<Pressable[^>]*accessibilityRole="button"[^>]*accessibilityLabel="Borrar historial de búsquedas"[^>]*>[\s\S]*?Borrar historial[\s\S]*?<\/Pressable>/,
+      /<Pressable[^>]*accessibilityRole="button"[^>]*accessibilityLabel=\{t\.borrarEtiqueta\}[^>]*>[\s\S]*?\{t\.borrar\}[\s\S]*?<\/Pressable>/,
     )
   })
 
@@ -495,7 +496,7 @@ describe('detector: la sección de búsquedas recientes', () => {
 
   it('«Borrar historial» va DESPUÉS de los chips en el árbol (orden de foco), a la derecha', () => {
     const finChips = COMPONENTE.indexOf('</ScrollView>')
-    const borrar = COMPONENTE.indexOf('accessibilityLabel="Borrar historial de búsquedas"')
+    const borrar = COMPONENTE.indexOf('accessibilityLabel={t.borrarEtiqueta}')
     expect(finChips).toBeGreaterThan(0)
     expect(borrar).toBeGreaterThan(finChips)
     expect(COMPONENTE).toMatch(/botonBorrar: \{[^}]*alignSelf: 'flex-end'/)

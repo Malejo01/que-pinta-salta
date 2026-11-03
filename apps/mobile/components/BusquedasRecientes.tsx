@@ -40,6 +40,7 @@ import { Texto } from '@/components/Texto'
 import { AREA_TACTIL_MINIMA } from '@/lib/accesibilidad'
 import { anunciar } from '@/lib/anunciar'
 import { bordeChipInactivo, useColoresQPS } from '@/lib/colores'
+import { useTextos } from '@/lib/i18n'
 
 /** Lo que lee el lector de pantalla después de borrar el historial. */
 export const ANUNCIO_HISTORIAL_BORRADO = 'Listo, borraste tus búsquedas recientes.'
@@ -63,6 +64,7 @@ export interface BusquedasRecientesProps {
 
 export function BusquedasRecientes({ busquedas, onElegir, onBorrarHistorial }: BusquedasRecientesProps) {
   const colores = useColoresQPS()
+  const t = useTextos().recientes
   const bordeInactivo = bordeChipInactivo(colores)
 
   if (busquedas.length === 0) return null
@@ -89,7 +91,7 @@ export function BusquedasRecientes({ busquedas, onElegir, onBorrarHistorial }: B
   return (
     <View style={estilos.seccion}>
       <Texto peso="semibold" accessibilityRole="header" style={estilos.titulo}>
-        Búsquedas recientes
+        {t.titulo}
       </Texto>
       {/* Mismo truco que `ChipsCategorias` en Buscar: la lista ya trae 16 de
           padding horizontal, así que el scroll lo compensa con margen
@@ -120,11 +122,11 @@ export function BusquedasRecientes({ busquedas, onElegir, onBorrarHistorial }: B
       <Pressable
         onPress={confirmarBorrado}
         accessibilityRole="button"
-        accessibilityLabel="Borrar historial de búsquedas"
+        accessibilityLabel={t.borrarEtiqueta}
         style={estilos.botonBorrar}
       >
         <Texto peso="semibold" style={estilos.subrayado}>
-          Borrar historial
+          {t.borrar}
         </Texto>
       </Pressable>
     </View>

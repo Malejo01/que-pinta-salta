@@ -30,6 +30,7 @@ import { Pressable, StyleSheet } from 'react-native'
 import { Icono } from '@/components/Icono'
 import { Texto } from '@/components/Texto'
 import { bordeChipInactivo, useColoresQPS } from '@/lib/colores'
+import { useTextos } from '@/lib/i18n'
 
 export interface ChipParaChicosProps {
   activo: boolean
@@ -38,6 +39,7 @@ export interface ChipParaChicosProps {
 
 export function ChipParaChicos({ activo, onCambiar }: ChipParaChicosProps) {
   const colores = useColoresQPS()
+  const t = useTextos().filtros
   const bordeInactivo = bordeChipInactivo(colores)
 
   return (
@@ -45,7 +47,7 @@ export function ChipParaChicos({ activo, onCambiar }: ChipParaChicosProps) {
       onPress={() => onCambiar(!activo)}
       accessibilityRole="button"
       accessibilityState={{ selected: activo }}
-      accessibilityLabel="Solo eventos para chicos"
+      accessibilityLabel={t.soloParaChicos}
       style={[
         estilos.chipParaChicos,
         // 2 + 15 = 1 + 16 y 2 + 9 = 1 + 10: mide lo mismo prendido y apagado.
@@ -56,7 +58,7 @@ export function ChipParaChicos({ activo, onCambiar }: ChipParaChicosProps) {
     >
       <Icono nombre={activo ? 'Check' : 'Balloon'} tamanio={16} color={activo ? colores.primaryForeground : colores.foreground} />
       <Texto peso={activo ? 'bold' : 'semibold'} style={{ color: activo ? colores.primaryForeground : colores.foreground }}>
-        Para chicos
+        {t.paraChicos}
       </Texto>
     </Pressable>
   )

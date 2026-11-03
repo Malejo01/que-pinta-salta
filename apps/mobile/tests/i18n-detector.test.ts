@@ -36,6 +36,15 @@ export const PANTALLAS_MIGRADAS = [
   // Q5-12
   'app/bienvenida.tsx',
   'components/EstadoCarga.tsx',
+  'app/pelicula/[id].tsx',
+  'app/flyer/[id].tsx',
+  'app/cines.tsx',
+  'components/ChipGratis.tsx',
+  'components/ChipParaChicos.tsx',
+  'components/HojaFiltros.tsx',
+  'components/BusquedasRecientes.tsx',
+  'components/InvitacionAvisos.tsx',
+  'components/LoQueSeguis.tsx',
 ]
 
 /** Textos visibles con un literal: entre etiquetas, o en props que se leen o se ven. */
@@ -85,7 +94,7 @@ describe('diccionarios', () => {
     expect(hojas(en).sort()).toEqual(hojas(es).sort())
   })
   it('lo que debe traducirse no quedó igual (salvo los nombres de los idiomas y las marcas)', () => {
-    const iguales = new Set(['idioma.castellano', 'idioma.ingles', 'lugaresChicos.instagram', 'pestanas.radar', 'bienvenida.marca'])
+    const iguales = new Set(['idioma.castellano', 'idioma.ingles', 'lugaresChicos.instagram', 'pestanas.radar', 'bienvenida.marca', 'flyer.titulo'])
     const plano = (o: unknown, c = ''): [string, unknown][] =>
       typeof o === 'string' ? [[c, o]] : o && typeof o === 'object' ? Object.entries(o).flatMap(([k, v]) => plano(v, c ? `${c}.${k}` : k)) : []
     const esMapa = new Map(plano(es))

@@ -31,6 +31,7 @@ import { Pressable, StyleSheet } from 'react-native'
 import { Icono } from '@/components/Icono'
 import { Texto } from '@/components/Texto'
 import { bordeChipInactivo, useColoresQPS } from '@/lib/colores'
+import { useTextos } from '@/lib/i18n'
 
 export interface ChipGratisProps {
   activo: boolean
@@ -39,6 +40,7 @@ export interface ChipGratisProps {
 
 export function ChipGratis({ activo, onCambiar }: ChipGratisProps) {
   const colores = useColoresQPS()
+  const t = useTextos().filtros
   const bordeInactivo = bordeChipInactivo(colores)
 
   return (
@@ -48,7 +50,7 @@ export function ChipGratis({ activo, onCambiar }: ChipGratisProps) {
       accessibilityState={{ selected: activo }}
       // A2, ronda de correcciones: "Gratis, botón" sonaba a una categoría más;
       // la etiqueta dice qué filtra (el texto visible sigue siendo "Gratis").
-      accessibilityLabel="Solo eventos gratis"
+      accessibilityLabel={t.soloGratis}
       style={[
         estilos.chipGratis,
         // 2 + 15 = 1 + 16 y 2 + 9 = 1 + 10: mide lo mismo prendido y apagado.
@@ -59,7 +61,7 @@ export function ChipGratis({ activo, onCambiar }: ChipGratisProps) {
     >
       <Icono nombre={activo ? 'Check' : 'Ticket'} tamanio={16} color={activo ? colores.primaryForeground : colores.foreground} />
       <Texto peso={activo ? 'bold' : 'semibold'} style={{ color: activo ? colores.primaryForeground : colores.foreground }}>
-        Gratis
+        {t.gratis}
       </Texto>
     </Pressable>
   )
