@@ -173,6 +173,7 @@ import { groupByCategory, selectTodayRow, type CategoryEventsRow } from '@qps/co
 import { eventoEnAtajo, type Atajo } from '@qps/core/home/atajos'
 import type { DisplayEvent } from '@qps/core/home/types'
 import type { Category } from '@qps/core/types'
+import { AccesoLugaresChicos } from '@/components/AccesoLugaresChicos'
 import { AvisoNoSeActualizo, AvisoSinConexion } from '@/components/AvisoSinConexion'
 import { BannerAnuncio } from '@/components/BannerAnuncio'
 import { BannerRadar } from '@/components/BannerRadar'
@@ -352,11 +353,6 @@ export function conteoCategoria(peliculas: number, eventos: number): string {
   return eventos === 0 ? textoPeliculas : `${textoPeliculas} · ${textoEventos}`
 }
 
-function enFilasDeDos<T>(lista: T[]): T[][] {
-  const filas: T[][] = []
-  for (let i = 0; i < lista.length; i += 2) filas.push(lista.slice(i, i + 2))
-  return filas
-}
 
 /**
  * Vacío del modo "Gratis" (A2, nube Q1): dice por qué está vacío
@@ -914,6 +910,8 @@ export default function Inicio() {
                 {/* El mismo string que va en el anuncio (`tituloGrilla`, A8). */}
                 {tituloGrilla}
               </Texto>
+              {/* Q5-4: con «Para chicos», el acceso a los lugares para chicos (plazas, peloteros…). */}
+              {paraChicos ? <AccesoLugaresChicos /> : null}
               {/* El vacío del modo categoría va primero; el de "Para chicos"
                   (A3), después; el de "Gratis" (A2), en la última. */}
               {datosPortada.eventosCategoria.length === 0 && categoria !== null && !gratis && !paraChicos ? (
@@ -979,15 +977,18 @@ export default function Inicio() {
                   {datosPortada.peliculasCategoria.map((pelicula) => (
                     <TarjetaPelicula key={pelicula.id} pelicula={pelicula} compacta />
                   ))}
-                  {enFilasDeDos(datosPortada.eventosSinPelicula).map((fila) => (
-                  <View key={fila[0].id} style={estilos.filaGrilla}>
-                    {fila.map((evento) => (
-                      <View key={evento.id} style={estilos.celda}>
+                  {/* Q5-14 (pendiente 19 de la Q4): UN solo contenedor que envuelve
+                      de a 2, con cada tarjeta por su id. Antes eran filas con
+                      key={fila[0].id}: al cambiar de filtro, un evento que
+                      pasaba de la columna derecha a la izquierda cambiaba de
+                      fila y su tarjeta se remontaba (imagen y corazón otra vez). */}
+                  <View style={estilos.grillaEnvuelta}>
+                    {datosPortada.eventosSinPelicula.map((evento) => (
+                      <View key={evento.id} style={estilos.celdaEnvuelta}>
                         <TarjetaEvento evento={evento} />
                       </View>
                     ))}
                   </View>
-                  ))}
                 </>
               )}
             </View>
@@ -1101,9 +1102,14 @@ const estilos = StyleSheet.create({
   // La fila: el botón fijo a la izquierda y las pills (con su scroll) ocupando
   // el resto. `alignItems: 'center'` centra el botón (48) contra las pills (68).
   filaCabecera: { flexDirection: 'row', alignItems: 'center' },
-  botonFiltros: { paddingLeft: 16 },
+  // Build 7 (bug de Mauro, 3/11): en Android, al deslizar las pills hacia la
+  // derecha el contenido del scroll horizontal se dibujaba por encima del
+  // botón y se quedaba con los toques: «Filtros» dejaba de abrir la hoja.
+  // El botón va arriba (`zIndex`) y el scroll recorta lo que se sale de su
+  // lugar (`overflow: 'hidden'`). Lo mira `tests/portada-cabecera.test.ts` §6.
+  botonFiltros: { paddingLeft: 16, zIndex: 2 },
   // `minWidth: 0` deja que el scroll se achique en vez de empujar al botón.
-  pillsYChips: { flex: 1, minWidth: 0 },
+  pillsYChips: { flex: 1, minWidth: 0, overflow: 'hidden', zIndex: 1 },
   vacioHoy: {
     marginHorizontal: 16,
     marginTop: 20,
@@ -1122,9 +1128,10 @@ const estilos = StyleSheet.create({
   vacioHoyTitulo: { fontSize: 20 },
   bloqueCategoria: { paddingHorizontal: 16, paddingTop: 8, gap: 12 },
   tituloCategoria: { fontSize: 20 },
-  filaGrilla: { flexDirection: 'row', gap: 12 },
+  // Q5-14: 2 columnas con 12 de separación (6 de cada lado), sin filas.
+  grillaEnvuelta: { flexDirection: 'row', flexWrap: 'wrap', marginHorizontal: -6, rowGap: 12 },
+  celdaEnvuelta: { width: '50%', paddingHorizontal: 6 },
   // Evita que la última celda de un número impar se estire a todo el ancho.
-  celda: { flex: 1, maxWidth: '50%' },
   vacioHoyBoton: { borderRadius: 10, paddingVertical: 12, alignItems: 'center' },
   // El bloque de la categoría ya tiene su propio padding horizontal.
   vacioCategoria: { marginHorizontal: 0, marginTop: 0, gap: 12 },

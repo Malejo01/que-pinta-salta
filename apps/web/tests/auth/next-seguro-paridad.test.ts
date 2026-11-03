@@ -170,7 +170,9 @@ describe('cableado: el login y /auth/confirm usan rutaSiguienteSegura SIEMPRE, e
   it('app/auth/login/page.tsx: importa rutaSiguienteSegura y la única variable que llega a router.push es la saneada (ya fijado en tests/auth/login-next.test.ts; se repite acá, liviano, para que viva junto a la comparación de arriba)', () => {
     const src = readFileSync(join(ROOT_WEB, 'app', 'auth', 'login', 'page.tsx'), 'utf8')
     expect(src).toMatch(/import\s*\{[^}]*rutaSiguienteSegura[^}]*\}\s*from\s*['"]@qps\/core\/auth\/cuenta['"]/)
-    expect(src).toMatch(/const next = rutaSiguienteSegura\(/)
+    // Q5-14: en /en/auth/login el destino saneado pasa por rutaEn (solo antepone /en a una ruta interna).
+    expect(src).toMatch(/const destino = rutaSiguienteSegura\(/)
+    expect(src).toMatch(/const next = idioma === 'en' \? rutaEn\('en', destino\) : destino/)
     expect(src).toMatch(/router\.push\(next\)/)
     // Nunca un router.push('/') fijo que esquive el saneo en el camino de éxito.
     expect(src).not.toMatch(/router\.push\(\s*['"]\/['"]\s*\)/)

@@ -6,19 +6,35 @@
 // - Si llega un «Aviso del equipo» (`data.aviso === 'equipo'`), lo anota: ese
 //   día no sale el del finde. Lo ve en primer plano (al recibirlo) y en la
 //   bandeja del sistema (al volver la app al frente).
+// - Q5-16 (decisión nº17): también si la persona TOCÓ el aviso con la app
+//   cerrada. Al tocarlo sale de la bandeja y el listener de «recibido» no
+//   corre, así que se mira la última respuesta (`getLastNotificationResponseAsync`)
+//   y se escuchan los toques (`addNotificationResponseReceivedListener`).
+//   Lo que queda afuera: el aviso llega con la app cerrada, la persona lo
+//   descarta sin tocarlo y no abre la app antes de las 18. Cubrirlo
+//   necesita una tarea en segundo plano (expo-task-manager, dependencia
+//   nueva): anotado en docs/tanda-q5/README.md.
 // Nunca pide el permiso.
 import { useEffect } from 'react'
 import { AppState } from 'react-native'
-import { addNotificationReceivedListener, getPresentedNotificationsAsync } from 'expo-notifications'
+import {
+  addNotificationReceivedListener,
+  addNotificationResponseReceivedListener,
+  getLastNotificationResponseAsync,
+  getPresentedNotificationsAsync,
+} from 'expo-notifications'
 import { formatSaltaDayKey } from '@qps/core/date-format'
 import { usePush } from '@/lib/push'
-import { esAvisoDelEquipo, programarFinde, registrarAvisoDelEquipo } from '@/lib/finde'
+import { avisoDelEquipoDeHoy, esAvisoDelEquipo, programarFinde, registrarAvisoDelEquipo } from '@/lib/finde'
 
 async function revisarBandeja(): Promise<boolean> {
   try {
     const hoy = formatSaltaDayKey(new Date())
     const presentes = await getPresentedNotificationsAsync()
-    return presentes.some((n) => esAvisoDelEquipo(n.request.content.data) && formatSaltaDayKey(new Date(n.date)) === hoy)
+    if (presentes.some((n) => avisoDelEquipoDeHoy(n.request.content.data, n.date, hoy))) return true
+    // Q5-16: el aviso que se tocó ya no está en la bandeja.
+    const tocada = await getLastNotificationResponseAsync()
+    return !!tocada && avisoDelEquipoDeHoy(tocada.notification.request.content.data, tocada.notification.date, hoy)
   } catch {
     return false
   }
@@ -42,10 +58,14 @@ export function SincronizadorFinde() {
     const bajaAvisos = addNotificationReceivedListener((n) => {
       if (esAvisoDelEquipo(n.request.content.data)) void registrarAvisoDelEquipo(new Date()).catch(() => {})
     })
+    const bajaToques = addNotificationResponseReceivedListener((r) => {
+      if (esAvisoDelEquipo(r.notification.request.content.data)) void registrarAvisoDelEquipo(new Date()).catch(() => {})
+    })
     return () => {
       vigente = false
       bajaApp.remove()
       bajaAvisos.remove()
+      bajaToques.remove()
     }
   }, [estado])
 

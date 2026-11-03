@@ -69,6 +69,9 @@ import { obtenerSeguimientoDeEvento, type SeguimientoDeEvento } from '@/lib/rada
 import { rutaPorPrefijo } from '@/lib/rutas'
 import { useSession } from '@/lib/session'
 import { useVistaEvento } from '@/lib/metricas-hook'
+import { useIdioma, useTextos } from '@/lib/i18n'
+import { formatearDia, formatearHora } from '@/lib/i18n/idioma'
+import { textoEnIdioma } from '@qps/core/events/traduccion'
 
 type Estado = { tipo: 'cargando' } | ResultadoEvento
 
@@ -82,6 +85,8 @@ export default function EventoPorId() {
   const esAvisoPatrocinado = (Array.isArray(patrocinado) ? patrocinado[0] : patrocinado) === '1'
   const { colors } = useTheme()
   const colores = useColoresQPS()
+  const { idioma } = useIdioma()
+  const tf = useTextos().ficha
   const router = useRouter()
   const { session } = useSession()
   const userId = session?.user.id ?? null
@@ -199,12 +204,19 @@ export default function EventoPorId() {
   }
 
   const { evento } = estado
-  const fecha = capitalizeFirst(formatEventDate(evento.start_date, true))
-  const hora = formatEventTimeDisplay(evento.start_date)
-  const descripcion = cleanDescription(evento.description) ?? cleanDescription(evento.short_description)
-  const lugar = evento.venue?.name || 'Lugar por confirmar'
+  // Q5-12: en inglés, el título y la descripción traducidos (title_en /
+  // description_en); si no hay traducción, el original marcado «(in Spanish)»
+  // y leído por TalkBack en castellano (`accessibilityLanguage`).
+  const fecha = idioma === 'en' ? capitalizeFirst(formatearDia('en', evento.start_date)) : capitalizeFirst(formatEventDate(evento.start_date, true))
+  const hora = idioma === 'en' ? (formatEventTimeDisplay(evento.start_date) ? formatearHora('en', evento.start_date) : null) : formatEventTimeDisplay(evento.start_date)
+  const descripcionOriginal = cleanDescription(evento.description) ?? cleanDescription(evento.short_description)
+  const tituloMostrado = textoEnIdioma(evento.title, evento.title_en, idioma)
+  const descripcionMostrada = descripcionOriginal
+    ? textoEnIdioma(descripcionOriginal, cleanDescription(evento.description_en ?? null), idioma)
+    : null
+  const lugar = evento.venue?.name || tf.lugarPorConfirmar
   const direccion = evento.venue?.address || ''
-  const categoryName = evento.category?.name || 'Sin categorizar'
+  const categoryName = evento.category?.name || tf.sinCategorizar
   const vibe = evento.age_restriction >= 18 ? 'adultos' : null
   // `EventoDetalle` (arriba) NO pasa por `transformEvent`, así que no tiene
   // `isFeatured`: trae la columna cruda `featured_until` (`PUBLIC_EVENT_SELECT`).
@@ -217,7 +229,7 @@ export default function EventoPorId() {
   // Mismo criterio que la web (`event-detail-page.tsx`): "gratis", "confirmar"
   // (precio en 0 sin marcar gratis, se oculta la caja) o un número.
   const precioEvento: PrecioEvento = evento.is_free ? 'gratis' : evento.price_min === 0 ? 'confirmar' : evento.price_min
-  const precioTexto = precioEvento === 'gratis' ? 'Entrada Gratuita' : textoPrecio(precioEvento)
+  const precioTexto = precioEvento === 'gratis' ? tf.entradaGratuita : textoPrecio(precioEvento)
 
   // Como la web (`displayEvent.ticketUrl &&`, en `event-detail-page.tsx`):
   // `/go/<id>` solo redirige a `events.ticket_url` (`urlGo`/`urlCompra` de
@@ -261,9 +273,14 @@ export default function EventoPorId() {
       {/* El corazón y Compartir se mudaron a FilaAccionesEvento (R47, 47-f,
           QPS-197): ya no van sueltos junto al título (antes, acá, con
           `estilos.accionesTitulo`). */}
-      <Texto peso="bold" accessibilityRole="header" style={estilos.titulo}>
-        {evento.title}
+      <Texto peso="bold" accessibilityRole="header" accessibilityLanguage={tituloMostrado.lang} style={estilos.titulo}>
+        {tituloMostrado.texto}
       </Texto>
+      {tituloMostrado.enCastellano ? (
+        <Texto tono="secundario" style={estilos.marcaCastellano}>
+          {tf.contenidoEnCastellano}
+        </Texto>
+      ) : null}
 
       <View style={estilos.filasDatos}>
         <View style={estilos.filaDato}>
@@ -274,7 +291,7 @@ export default function EventoPorId() {
         {hora ? (
           <View style={estilos.filaDato}>
             <Icono nombre="Clock" tamanio={20} color={colores.primary} />
-            <Texto tono="secundario">{hora} hs</Texto>
+            <Texto tono="secundario">{`${hora}${tf.horaSufijo}`}</Texto>
           </View>
         ) : null}
 
@@ -315,12 +332,17 @@ export default function EventoPorId() {
         ) : null}
       </View>
 
-      {descripcion ? <Texto tono="secundario">{descripcion}</Texto> : null}
+      {descripcionMostrada ? (
+        <Texto tono="secundario" accessibilityLanguage={descripcionMostrada.lang}>
+          {descripcionMostrada.texto}
+          {descripcionMostrada.enCastellano && !tituloMostrado.enCastellano ? ` ${tf.contenidoEnCastellano}` : ''}
+        </Texto>
+      ) : null}
 
       {precioTexto ? (
         <View style={[estilos.cajaPrecio, { backgroundColor: colores.muted }]}>
           <Texto tono="secundario" style={estilos.etiquetaPrecio}>
-            Precio de entrada
+            {tf.precioDeEntrada}
           </Texto>
           <Texto peso="bold" style={estilos.valorPrecio}>
             {precioTexto}
@@ -333,7 +355,7 @@ export default function EventoPorId() {
           <Pressable onPress={comoLlegar} accessibilityRole="link" style={[estilos.ctaPrimario, { backgroundColor: colores.primary }]}>
             <Icono nombre="Navigation" tamanio={18} color={colores.primaryForeground} />
             <Texto peso="semibold" style={{ color: colores.primaryForeground }}>
-              Cómo llegar
+              {tf.comoLlegar}
             </Texto>
           </Pressable>
         ) : null}
@@ -341,7 +363,7 @@ export default function EventoPorId() {
         {tieneTicket && urlCompra ? (
           <Pressable onPress={comprar} accessibilityRole="link" style={[estilos.ctaOutline, { borderColor: colores.border }]}>
             <Icono nombre="ExternalLink" tamanio={18} color={colores.foreground} />
-            <Texto peso="semibold">Comprar tickets</Texto>
+            <Texto peso="semibold">{tf.comprarTickets}</Texto>
           </Pressable>
         ) : null}
 
@@ -353,7 +375,7 @@ export default function EventoPorId() {
           >
             <Icono nombre="MapPin" tamanio={18} color={colores.foreground} />
             <Texto peso="semibold" style={estilos.textoCtaMapa}>
-              Ver en el mapa de eventos
+              {tf.mapaDeEventos}
             </Texto>
           </Pressable>
         ) : null}
@@ -388,6 +410,7 @@ const estilos = StyleSheet.create({
   // `filaTitulo`/`accionesTitulo` (el corazón y Compartir junto al título)
   // se sacaron en la R47 (47-f, QPS-197): se mudaron a FilaAccionesEvento.
   titulo: { fontSize: 30, lineHeight: 36 },
+  marcaCastellano: { fontSize: 13, marginTop: -8 },
   filasDatos: { gap: 12 },
   filaDato: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
   lugarTexto: { flex: 1, gap: 2 },

@@ -107,6 +107,19 @@ isOneToOne: false
       referencedColumns: ["id"]
     }
                   ]
+                },"app_aperturas_diarias": {
+                  Row: {
+                    "aperturas": number,"con_cuenta": boolean,"created_at": string,"day": string,"hash_dia": string,"hash_semana": string,"plataforma": string,"updated_at": string,"version_app": string | null
+                  }
+                  Insert: {
+                    "aperturas"?: number,"con_cuenta"?: boolean,"created_at"?: string,"day": string,"hash_dia": string,"hash_semana": string,"plataforma"?: string,"updated_at"?: string,"version_app"?: string | null
+                  }
+                  Update: {
+                    "aperturas"?: number,"con_cuenta"?: boolean,"created_at"?: string,"day"?: string,"hash_dia"?: string,"hash_semana"?: string,"plataforma"?: string,"updated_at"?: string,"version_app"?: string | null
+                  }
+                  Relationships: [
+                    
+                  ]
                 },"categories": {
                   Row: {
                     "color": string | null,"created_at": string | null,"icon": string | null,"id": string,"name": string,"slug": string
@@ -341,6 +354,50 @@ isOneToOne: false
                   Relationships: [
                     
                   ]
+                },"lugares_chicos_pedidos": {
+                  Row: {
+                    "comentario": string | null,"contacto": string | null,"created_at": string,"direccion": string,"estado": string,"id": string,"idioma": string,"link": string | null,"lugar_id": string | null,"nombre": string,"revisado_at": string | null,"tipo": string | null
+                  }
+                  Insert: {
+                    "comentario"?: string | null,"contacto"?: string | null,"created_at"?: string,"direccion": string,"estado"?: string,"id"?: string,"idioma"?: string,"link"?: string | null,"lugar_id"?: string | null,"nombre": string,"revisado_at"?: string | null,"tipo"?: string | null
+                  }
+                  Update: {
+                    "comentario"?: string | null,"contacto"?: string | null,"created_at"?: string,"direccion"?: string,"estado"?: string,"id"?: string,"idioma"?: string,"link"?: string | null,"lugar_id"?: string | null,"nombre"?: string,"revisado_at"?: string | null,"tipo"?: string | null
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "lugares_chicos_pedidos_lugar_id_fkey"
+      columns: ["lugar_id"]
+isOneToOne: false
+      referencedRelation: "lugares_permanentes"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"lugares_permanentes": {
+                  Row: {
+                    "acceso": string,"cargado_por": string | null,"contacto_instagram": string | null,"contacto_telefono": string | null,"contacto_web": string | null,"created_at": string,"descripcion_corta": string | null,"edad_max": number | null,"edad_min": number | null,"estado": string,"fuente": string,"fuente_detalle": string | null,"horarios": NonNullable<Json>,"id": string,"motivo_archivo": string | null,"nota_precio": string | null,"osm_ref": string | null,"techado": string | null,"tiene_bano_adaptado": boolean | null,"tiene_cambiador": boolean | null,"tiene_rampa": boolean | null,"tipo": string,"updated_at": string,"venue_id": string,"verificado_at": string | null,"verificado_por": string | null
+                  }
+                  Insert: {
+                    "acceso"?: string,"cargado_por"?: string | null,"contacto_instagram"?: string | null,"contacto_telefono"?: string | null,"contacto_web"?: string | null,"created_at"?: string,"descripcion_corta"?: string | null,"edad_max"?: number | null,"edad_min"?: number | null,"estado"?: string,"fuente": string,"fuente_detalle"?: string | null,"horarios"?: NonNullable<Json>,"id"?: string,"motivo_archivo"?: string | null,"nota_precio"?: string | null,"osm_ref"?: string | null,"techado"?: string | null,"tiene_bano_adaptado"?: boolean | null,"tiene_cambiador"?: boolean | null,"tiene_rampa"?: boolean | null,"tipo": string,"updated_at"?: string,"venue_id": string,"verificado_at"?: string | null,"verificado_por"?: string | null
+                  }
+                  Update: {
+                    "acceso"?: string,"cargado_por"?: string | null,"contacto_instagram"?: string | null,"contacto_telefono"?: string | null,"contacto_web"?: string | null,"created_at"?: string,"descripcion_corta"?: string | null,"edad_max"?: number | null,"edad_min"?: number | null,"estado"?: string,"fuente"?: string,"fuente_detalle"?: string | null,"horarios"?: NonNullable<Json>,"id"?: string,"motivo_archivo"?: string | null,"nota_precio"?: string | null,"osm_ref"?: string | null,"techado"?: string | null,"tiene_bano_adaptado"?: boolean | null,"tiene_cambiador"?: boolean | null,"tiene_rampa"?: boolean | null,"tipo"?: string,"updated_at"?: string,"venue_id"?: string,"verificado_at"?: string | null,"verificado_por"?: string | null
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "lugares_permanentes_venue_id_fkey"
+      columns: ["venue_id"]
+isOneToOne: true
+      referencedRelation: "venues"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "lugares_permanentes_venue_id_fkey"
+      columns: ["venue_id"]
+isOneToOne: true
+      referencedRelation: "venues_canonical"
+      referencedColumns: ["id"]
+    }
+                  ]
                 },"notification_preferences": {
                   Row: {
                     "announcements": boolean,"created_at": string,"daily_cap": number,"favorite_reminders": boolean,"follow_news": boolean,"quiet_end": string,"quiet_start": string,"radar_channel": string,"sponsored": boolean,"updated_at": string,"user_id": string
@@ -400,13 +457,13 @@ isOneToOne: false
                   ]
                 },"push_tokens": {
                   Row: {
-                    "avisos_equipo": boolean,"avisos_patrocinados": boolean,"created_at": string,"device_id": string | null,"id": string,"idioma": string | null,"last_seen_at": string,"platform": string,"token": string,"user_id": string | null
+                    "avisos_equipo": boolean,"avisos_patrocinados": boolean,"avisos_patrocinados_baja_at": string | null,"created_at": string,"device_id": string | null,"id": string,"idioma": string | null,"last_seen_at": string,"platform": string,"token": string,"user_id": string | null
                   }
                   Insert: {
-                    "avisos_equipo"?: boolean,"avisos_patrocinados"?: boolean,"created_at"?: string,"device_id"?: string | null,"id"?: string,"idioma"?: string | null,"last_seen_at"?: string,"platform": string,"token": string,"user_id"?: string | null
+                    "avisos_equipo"?: boolean,"avisos_patrocinados"?: boolean,"avisos_patrocinados_baja_at"?: string | null,"created_at"?: string,"device_id"?: string | null,"id"?: string,"idioma"?: string | null,"last_seen_at"?: string,"platform": string,"token": string,"user_id"?: string | null
                   }
                   Update: {
-                    "avisos_equipo"?: boolean,"avisos_patrocinados"?: boolean,"created_at"?: string,"device_id"?: string | null,"id"?: string,"idioma"?: string | null,"last_seen_at"?: string,"platform"?: string,"token"?: string,"user_id"?: string | null
+                    "avisos_equipo"?: boolean,"avisos_patrocinados"?: boolean,"avisos_patrocinados_baja_at"?: string | null,"created_at"?: string,"device_id"?: string | null,"id"?: string,"idioma"?: string | null,"last_seen_at"?: string,"platform"?: string,"token"?: string,"user_id"?: string | null
                   }
                   Relationships: [
                     
@@ -658,13 +715,13 @@ isOneToOne: false
                   ]
                 },"venues": {
                   Row: {
-                    "address": string,"canonical_venue_id": string | null,"capacity": number | null,"created_at": string | null,"geocode_intentado_at": string | null,"geocode_source": string | null,"geocoded_at": string | null,"google_maps_url": string | null,"id": string,"is_placeholder": boolean,"latitude": number | null,"longitude": number | null,"merged_at": string | null,"name": string,"phone": string | null,"slug": string | null,"updated_at": string
+                    "address": string,"canonical_venue_id": string | null,"capacity": number | null,"created_at": string | null,"geocode_intentado_at": string | null,"geocode_source": string | null,"geocode_sugerencia_at": string | null,"geocode_sugerencia_lat": number | null,"geocode_sugerencia_lng": number | null,"geocode_sugerencia_texto": string | null,"geocoded_at": string | null,"google_maps_url": string | null,"id": string,"is_placeholder": boolean,"latitude": number | null,"longitude": number | null,"merged_at": string | null,"name": string,"phone": string | null,"slug": string | null,"updated_at": string
                   }
                   Insert: {
-                    "address": string,"canonical_venue_id"?: string | null,"capacity"?: number | null,"created_at"?: string | null,"geocode_intentado_at"?: string | null,"geocode_source"?: string | null,"geocoded_at"?: string | null,"google_maps_url"?: string | null,"id"?: string,"is_placeholder"?: boolean,"latitude"?: number | null,"longitude"?: number | null,"merged_at"?: string | null,"name": string,"phone"?: string | null,"slug"?: string | null,"updated_at"?: string
+                    "address": string,"canonical_venue_id"?: string | null,"capacity"?: number | null,"created_at"?: string | null,"geocode_intentado_at"?: string | null,"geocode_source"?: string | null,"geocode_sugerencia_at"?: string | null,"geocode_sugerencia_lat"?: number | null,"geocode_sugerencia_lng"?: number | null,"geocode_sugerencia_texto"?: string | null,"geocoded_at"?: string | null,"google_maps_url"?: string | null,"id"?: string,"is_placeholder"?: boolean,"latitude"?: number | null,"longitude"?: number | null,"merged_at"?: string | null,"name": string,"phone"?: string | null,"slug"?: string | null,"updated_at"?: string
                   }
                   Update: {
-                    "address"?: string,"canonical_venue_id"?: string | null,"capacity"?: number | null,"created_at"?: string | null,"geocode_intentado_at"?: string | null,"geocode_source"?: string | null,"geocoded_at"?: string | null,"google_maps_url"?: string | null,"id"?: string,"is_placeholder"?: boolean,"latitude"?: number | null,"longitude"?: number | null,"merged_at"?: string | null,"name"?: string,"phone"?: string | null,"slug"?: string | null,"updated_at"?: string
+                    "address"?: string,"canonical_venue_id"?: string | null,"capacity"?: number | null,"created_at"?: string | null,"geocode_intentado_at"?: string | null,"geocode_source"?: string | null,"geocode_sugerencia_at"?: string | null,"geocode_sugerencia_lat"?: number | null,"geocode_sugerencia_lng"?: number | null,"geocode_sugerencia_texto"?: string | null,"geocoded_at"?: string | null,"google_maps_url"?: string | null,"id"?: string,"is_placeholder"?: boolean,"latitude"?: number | null,"longitude"?: number | null,"merged_at"?: string | null,"name"?: string,"phone"?: string | null,"slug"?: string | null,"updated_at"?: string
                   }
                   Relationships: [
                     {
@@ -750,6 +807,9 @@ isOneToOne: true
                            },
 "register_push_token":
 { Args: { "p_platform": string,"p_token": string }; Returns: undefined
+                           },
+"registrar_apertura_app":
+{ Args: { "p_con_cuenta": boolean,"p_day": string,"p_hash_dia": string,"p_hash_semana": string,"p_plataforma": string,"p_version": string }; Returns: undefined
                            },
 "resolve_venue_id":
 { Args: { "p_autocreate"?: boolean,"p_raw": string,"p_source"?: string,"p_threshold"?: number }; Returns: string

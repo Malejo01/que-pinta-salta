@@ -335,8 +335,11 @@ describe('detectores por texto', () => {
 
   it('bienvenida.tsx: el texto del paso 2 no dice "lo que guardaste" y, sin sesión, ya no dice que se pide al entrar (R82 / Q4-2)', () => {
     const src = leerFuente('app/bienvenida.tsx')
-    expect(src).not.toMatch(/lo que guardaste/)
-    expect(src).toMatch(/de lo que guardes/)
+    // Q5-12: el texto vive en el diccionario (lib/i18n/diccionarios/es.ts).
+    const textos = leerFuente('lib/i18n/diccionarios/es.ts')
+    expect(src).toContain('{t.avisosTexto}')
+    expect(textos).not.toMatch(/lo que guardaste/)
+    expect(textos).toMatch(/de lo que guardes/)
     // Los avisos andan sin cuenta: «Sí» activa con o sin sesión.
     expect(src).not.toMatch(/Cuando entres a tu cuenta te lo pedimos\./)
     expect(src).not.toMatch(/marcarAvisosPendientesLogin/)

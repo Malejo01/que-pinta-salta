@@ -168,7 +168,8 @@ describe('components/LoQueSeguis.tsx: accesibilidad del botón "Dejar de seguir"
   })
 
   it('accessibilityLabel dice DE QUÉ es ("Dejar de seguir <etiqueta>", no un texto fijo repetido)', () => {
-    expect(CONTENIDO).toMatch(/accessibilityLabel=\{`Dejar de seguir \$\{fila\.etiqueta\}`\}/)
+    // Q5-12: el texto sale del diccionario (`dejarDeSeguirA(etiqueta)` = «Dejar de seguir <etiqueta>»).
+    expect(CONTENIDO).toMatch(/accessibilityLabel=\{t\.dejarDeSeguirA\(fila\.etiqueta\)\}/)
   })
 
   it('accessibilityState usa "busy" (no "selected" ni "checked": no es un toggle)', () => {
@@ -202,7 +203,7 @@ describe('components/LoQueSeguis.tsx: grupo vacío, vacío total y estados de ca
     expect(CONTENIDO_CRUDO).toContain(
       'Todavía no seguís nada. Seguí un lugar desde la ficha de un evento, o elegí categorías en el Radar.',
     )
-    expect(CONTENIDO).toMatch(/<Vacio\s+mensaje=\{MENSAJE_SIN_NADA\}[^>]*textoAccion="Ir al Radar"/)
+    expect(CONTENIDO).toMatch(/<Vacio\s+mensaje=\{MENSAJE_SIN_NADA\}[^>]*textoAccion=\{t\.irAlRadar\}/)
     expect(CONTENIDO).toMatch(/onAccion=\{\(\)\s*=>\s*router\.push\(\s*['"]\/radar['"]\s*\)\}/)
   })
 

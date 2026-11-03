@@ -9,6 +9,7 @@
 import { claveDeConsulta, consultasParaLugar, describirConsulta, type ConsultaGeocodificacion } from './consultas'
 import { evaluarResultados, type ResultadoBusqueda } from './nominatim'
 import { urlOpenStreetMap } from './reporte'
+import { columnasDeSugerencia, type ColumnasSugerencia } from './sugerencia'
 
 /** Lo mínimo de una fila de `venues` que necesita el plan (subconjunto de `database.types.ts`). */
 export interface VenueParaGeocodificar {
@@ -23,6 +24,12 @@ export interface VenueParaGeocodificar {
   geocode_source: string | null
   /** Q4-3: última vez que la corrida programada lo intentó (solo la lee `--programado`). */
   geocode_intentado_at?: string | null
+  /**
+   * Q5-16: latitud de la sugerencia pendiente (la mejor de Nominatim sin
+   * confianza alta, para confirmar en /admin/lugares). Solo la lee
+   * `--programado`: con una sugerencia pendiente el lugar no se vuelve a consultar.
+   */
+  geocode_sugerencia_lat?: number | null
 }
 
 export type EstadoFilaGeocodificacion = 'guardado' | 'para-revisar' | 'sin-resultado' | 'error' | 'no-se-pisó'
@@ -139,6 +146,13 @@ export function filtroDeActualizacion({
  * `'guardado'`. Con confianza `'revisar'`, o con `apply: false`, nunca se
  * llama a `guardar`: el estado queda en `'para-revisar'`.
  *
+ * Q5-16 (decisión nº7): si `apply` es `true`, la fila queda en
+ * `'para-revisar'` por confianza `'revisar'`, el lugar no tiene coordenadas
+ * y se pasó `guardarSugerencia`, se le llama con las columnas de la mejor
+ * sugerencia (`columnasDeSugerencia`: lat, lng, `display_name` recortado y la
+ * hora de `ahora()`). Nunca toca `latitude`/`longitude`; sin `apply` (modo
+ * consulta) no se llama nunca. El estado de la fila no cambia.
+ *
  * Un `{ tipo: 'bloqueado' }` de Nominatim corta toda la corrida ahí mismo:
  * ni el lugar que estaba en curso ni los que faltaban se agregan al reporte.
  */
@@ -148,12 +162,18 @@ export async function geocodificarLugares({
   cache,
   apply,
   guardar,
+  guardarSugerencia,
+  ahora = () => new Date(),
 }: {
   lugares: VenueParaGeocodificar[]
   cliente: ClienteGeocodificacion
   cache: CacheGeocodificacion
   apply: boolean
   guardar: (id: string, lat: number, lng: number) => boolean | Promise<boolean>
+  /** Q5-16: cómo se persiste la sugerencia de un `'para-revisar'` (solo con `apply`). */
+  guardarSugerencia?: (id: string, sugerencia: ColumnasSugerencia) => boolean | void | Promise<boolean | void>
+  /** La hora de la sugerencia (inyectable para los tests). */
+  ahora?: () => Date
 }): Promise<FilaReporteGeocodificacion[]> {
   const filas: FilaReporteGeocodificacion[] = []
 
@@ -176,6 +196,10 @@ export async function geocodificarLugares({
       }
     } else {
       estado = 'para-revisar'
+      // Q5-16: la mejor sugerencia queda guardada para que un admin la confirme.
+      if (apply && confianza === 'revisar' && guardarSugerencia && lugar.latitude === null) {
+        await guardarSugerencia(lugar.id, columnasDeSugerencia(elegido, ahora()))
+      }
     }
 
     return {

@@ -54,8 +54,10 @@ describe('app/auth/login/page.tsx', () => {
     expect(archivo).toContain('href="/privacidad"')
   })
 
+  // Q5-14: los textos de la página salen del diccionario (paginaIngreso), también en /en/auth/login.
   it('contiene la cadena "aceptás" (texto de aceptación de legales)', () => {
-    expect(archivo).toContain('aceptás')
+    expect(archivo).toContain('{t.aceptasConGoogle}')
+    expect(es.paginaIngreso.aceptasConGoogle).toContain('aceptás')
   })
 
   it('no contiene formas de tuteo que debían corregirse en esta tarea', () => {

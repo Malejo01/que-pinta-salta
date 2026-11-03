@@ -108,8 +108,11 @@ function secretoEnQueryString(yaml: string): boolean {
 describe('.github/workflows/notificaciones.yml (solo lectura)', () => {
   const yaml = readFileSync(RUTA_WORKFLOW, 'utf8')
 
-  it('no tiene un schedule activo: apagado a propósito hasta que Mauro lo prenda', () => {
-    expect(tieneScheduleActivo(yaml)).toBe(false)
+  // Q5-14 (pedido de Mauro, 3/11): el schedule se prende, cada hora al minuto 5. El envío real
+  // sigue detrás de PUSH_ENVIO_REAL=1 en Vercel (lo fija tests/app/push-envio-real-repo.test.ts).
+  it('tiene el schedule activo, cada hora al minuto 5 (Q5-14)', () => {
+    expect(tieneScheduleActivo(yaml)).toBe(true)
+    expect(lineasActivas(yaml).filter((l) => /^\s*-\s*cron\s*:/.test(l))).toEqual(['    - cron: "5 * * * *"'])
   })
 
   it('llama a la ruta correcta, /api/cron/notificaciones', () => {

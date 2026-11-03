@@ -197,8 +197,97 @@ export const es = {
     errorTitulo: 'No pudimos cargar el mapa',
     errorTexto: 'Tuvimos un problema de nuestro lado. Probá de nuevo en un momento.',
   },
+  // Q5-5: ficha de un lugar (/lugar/<slug>, components/lugares/pagina-lugar.tsx).
+  fichaLugar: {
+    proximos: 'Próximos eventos',
+    pasados: 'Eventos recientes',
+    sinProximos: 'No hay eventos anunciados en este lugar por ahora.',
+    horarios: 'Horarios',
+    lugarParaChicos: 'Lugar para chicos',
+    comoLlegar: 'Cómo llegar',
+    verEnElMapa: 'Ver en el mapa',
+    compartir: 'Compartir',
+    linkCopiado: 'Link copiado',
+    noSePudoCompartir: 'No se pudo compartir',
+    gratis: 'Gratis',
+    sinUbicacion: 'Todavía no tenemos la ubicación exacta de este lugar.',
+    metaDescripcion: (nombre: string, n: number) =>
+      n > 0
+        ? `${n} ${n === 1 ? 'evento próximo' : 'eventos próximos'} en ${nombre}, Salta: fechas, horarios y cómo llegar.`
+        : `${nombre}, Salta: dirección, cómo llegar y eventos.`,
+    mapaDelLugar: (nombre: string) => `Mapa con la ubicación de ${nombre}`,
+    ayudaMapa: 'La dirección y el botón «Cómo llegar» tienen la misma información que el mapa.',
+    noEncontrado: 'No encontramos ese lugar',
+  },
+  // Q5-2: capa «Lugares para chicos» de /mapa (seccion-lugares-chicos.tsx).
+  lugaresChicos: {
+    capa: 'Lugares para chicos',
+    titulo: 'Lugares para chicos',
+    bajada: 'Plazas, peloteros, salones de juegos y espacios culturales, abiertos más allá de los eventos.',
+    contador: (n: number) => `${n} ${n === 1 ? 'lugar para chicos' : 'lugares para chicos'}`,
+    vacio: 'Todavía no hay lugares para chicos verificados con estos filtros.',
+    ariaMapa: 'Mapa de lugares con eventos y lugares para chicos',
+    ayudaMapa: 'La lista de esta página tiene los mismos lugares que el mapa: los de eventos y los lugares para chicos.',
+    leyenda:
+      'Los datos los carga y verifica el equipo de Qué Pinta Salta. No inspeccionamos los lugares: confirmá horarios antes de ir.',
+    verificadoEl: (fecha: string) => `Verificado el ${fecha}`,
+    puedeHaberCambiado: 'Puede haber cambiado: confirmá antes de ir.',
+    comoLlegar: 'Cómo llegar',
+    web: 'Web',
+    instagram: 'Instagram',
+    llamar: 'Llamar',
+    verFicha: 'Ver ficha',
+    // «Cerca de casa» (todo en el navegador)
+    cercaTitulo: 'Cerca de casa',
+    cercaMio: 'Cerca mío',
+    buscandoPosicion: 'Buscando tu ubicación…',
+    oElegiBarrio: 'O elegí tu barrio',
+    ningunBarrio: 'Sin ordenar por cercanía',
+    ordenadoDesdeTuPosicion: 'Ordenados por cercanía a tu ubicación.',
+    ordenadoDesdeBarrio: (barrio: string) => `Ordenados por cercanía a ${barrio}.`,
+    sinPermiso: 'No pudimos usar tu ubicación. Podés elegir un barrio.',
+    privacidadCerca:
+      'Tu ubicación o tu barrio se usan solo en este navegador para ordenar la lista: no se mandan ni se guardan.',
+    tambienTieneEventos: 'Este lugar también tiene eventos en el mapa',
+    seleccionado: (nombre: string) => `${nombre}, lugar para chicos seleccionado`,
+  },
+  // Q5-3: «Sumá un lugar para chicos» (/lugares-chicos/sumar).
+  sumarLugar: {
+    titulo: 'Sumá un lugar para chicos',
+    bajada:
+      '¿Conocés una plaza con juegos, un pelotero, un salón de juegos o un espacio cultural para chicos en Salta Capital que no está en el mapa? Contanos y lo verificamos antes de publicarlo.',
+    nombre: 'Nombre del lugar',
+    direccion: 'Dirección o esquina',
+    tipo: 'Qué tipo de lugar es (opcional)',
+    tipoNoSe: 'No sé',
+    link: 'Web o Instagram del lugar (opcional)',
+    comentario: 'Algo más que nos sirva (opcional): horarios, edades, si hay que reservar',
+    contacto: 'Tu email o teléfono (opcional)',
+    contactoAyuda:
+      'Solo lo usamos para avisarte cuando el lugar esté publicado o si tenemos una duda. No lo publicamos, no lo compartimos y lo borramos cuando terminamos de revisar el pedido.',
+    noCasas: 'No sumamos emprendimientos que funcionan en casas particulares.',
+    enviar: 'Enviar',
+    enviando: 'Enviando…',
+    gracias: '¡Gracias! Lo vamos a verificar antes de publicarlo.',
+    otroMas: 'Sumar otro lugar',
+    volverAlMapa: 'Ver los lugares para chicos en el mapa',
+    sitioNoCompletar: 'No completes este campo',
+    errores: {
+      nombre: 'Escribí el nombre del lugar (al menos 3 letras).',
+      direccion: 'Escribí la dirección o una esquina (al menos 3 letras).',
+      tipo: 'Elegí un tipo de la lista.',
+      link: 'El link no parece válido.',
+      contacto: 'El contacto es muy corto.',
+      comentario: 'El comentario es muy largo (hasta 1000 caracteres).',
+      vencido: 'El formulario estuvo abierto mucho tiempo. Recargá la página y probá de nuevo.',
+      limite: 'Ya recibimos varios pedidos desde tu conexión. Probá de nuevo en un rato.',
+      servidor: 'No pudimos guardar el pedido. Probá de nuevo en un rato.',
+    },
+    linkDesdeMapa: '¿Falta un lugar? Sumalo',
+  },
   // /buscar (buscar-content.tsx)
   buscar: {
+    lugares: 'Lugares',
     volver: 'Volver',
     titulo: 'Buscar eventos',
     placeholder: 'Buscar por evento, lugar o descripción...',
@@ -386,6 +475,25 @@ export const es = {
   },
   // Modal de ingreso y alta (auth-modal.tsx): lo abren ♥ Guardar, ✓ Voy y
   // + Seguir sin sesión.
+  // Q5-14: la página /auth/login (y /en/auth/login), aparte del modal.
+  paginaIngreso: {
+    volverAInicio: 'Volver a inicio',
+    eventosEnSalta: 'Eventos en Salta Capital',
+    titulo: 'Iniciar sesión',
+    bajada: 'Ingresá tu email y contraseña para entrar',
+    boton: 'Iniciar sesión',
+    iniciando: 'Iniciando sesión...',
+    olvidaste: '¿Olvidaste tu contraseña?',
+    oContinuarCon: 'O continuar con',
+    aceptasConGoogle: 'Al continuar con Google aceptás los',
+    terminos: 'Términos y condiciones',
+    yLa: 'y la',
+    privacidad: 'Política de Privacidad',
+    cierreLegales: '.',
+    noTenesCuenta: '¿No tenés cuenta?',
+    registrate: 'Registrate',
+    errorGoogle: 'Ocurrió un error al iniciar sesión con Google. Probá de nuevo.',
+  },
   auth: {
     tituloIngresar: 'Iniciar Sesión',
     tituloCrear: 'Crear Cuenta',

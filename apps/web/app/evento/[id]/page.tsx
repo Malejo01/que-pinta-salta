@@ -2,6 +2,7 @@ import { notFound, permanentRedirect } from "next/navigation"
 import { findMergeRedirect } from "@/lib/events/merged"
 
 import { getEventById } from "@/lib/data"
+import { textosJsonLdEvento } from "@/lib/seo/json-ld-evento-idioma"
 import { getCategories } from "@/lib/data"
 import { EventDetailPage } from "@/components/event-detail-page"
 import { createClient, createAdminClient } from "@/lib/supabase/server"
@@ -193,12 +194,16 @@ export default async function EventPage({ params, searchParams, idioma = "es" }:
     .filter((tag) => tag.length > 0 && !INTERNAL_TAGS.has(tag.toLowerCase()))
     .join(', ')
 
+  // Q5-16 (nº13): en /en, el título y la descripción traducidos con inLanguage "en";
+  // sin traducción, los originales con "es-AR".
+  const textosJsonLd = textosJsonLdEvento(event, idioma)
+
   const jsonLd = {
     '@context': 'https://schema.org',
     '@type': 'Event',
     '@id': eventId,
     'url': eventUrl,
-    'name': event.title,
+    'name': textosJsonLd.name,
     'startDate': formatSaltaSchemaDate(event.start_date),
     // Sólo si hay una fecha de fin de verdad. Antes se repetía `start_date`
     // cuando faltaba, y un evento que empieza y termina en el mismo instante
@@ -207,7 +212,7 @@ export default async function EventPage({ params, searchParams, idioma = "es" }:
     ...(event.end_date && { 'endDate': formatSaltaSchemaDate(event.end_date) }),
     'eventStatus': isCancelled ? 'https://schema.org/EventCancelled' : 'https://schema.org/EventScheduled',
     'eventAttendanceMode': 'https://schema.org/OfflineEventAttendanceMode',
-    'inLanguage': 'es-AR',
+    'inLanguage': textosJsonLd.inLanguage,
     'isAccessibleForFree': !!event.is_free,
     'location': {
       '@type': 'Place',
@@ -229,7 +234,7 @@ export default async function EventPage({ params, searchParams, idioma = "es" }:
       ...(venue?.google_maps_url && { 'hasMap': venue.google_maps_url }),
     },
     'image': event.image_url ? [event.image_url] : ['https://www.quepintasalta.com.ar/og-image.png'],
-    'description': event.short_description || event.description || `${event.title} en Salta Capital.`,
+    'description': textosJsonLd.description,
     'offers': {
       '@type': 'Offer',
       'name': event.is_free ? 'Entrada libre y gratuita' : 'Entrada',

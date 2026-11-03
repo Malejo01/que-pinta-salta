@@ -61,8 +61,9 @@ describe('lib/datos/cines.ts', () => {
 describe('lib/datos/: ningún archivo pide "*" a la base', () => {
   const archivos = readdirSync(DATOS_DIR).filter((f) => f.endsWith('.ts'))
 
-  it('encuentra los 3 archivos de datos', () => {
-    expect(archivos.sort()).toEqual(['cines.ts', 'eventos.ts', 'flyers.ts'])
+  it('encuentra los 4 archivos de datos', () => {
+    // Q5-4: lugares-chicos.ts (las columnas públicas de lugares_permanentes, sin cargado_por ni verificado_por).
+    expect(archivos.sort()).toEqual(['cines.ts', 'eventos.ts', 'flyers.ts', 'lugares-chicos.ts'])
   })
 
   it.each(archivos)('%s no usa select("*")', (archivo) => {

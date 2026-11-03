@@ -27,12 +27,15 @@ import { activarPreferenciasAlAceptar } from '@/lib/notificaciones'
 import { usePush } from '@/lib/push'
 import { marcarInvitacionVista } from '@/lib/push/invitacion'
 import { useSession } from '@/lib/session'
+import { useTextos } from '@/lib/i18n'
 
 type Destino = '/' | '/cuenta'
 
 export default function Bienvenida() {
   const colores = useColoresQPS()
   const router = useRouter()
+  // Q5-12: pantalla migrada al diccionario.
+  const t = useTextos().bienvenida
   const { activar } = usePush()
   const { session } = useSession()
   const userId = session?.user.id ?? null
@@ -110,10 +113,10 @@ export default function Bienvenida() {
         keyboardShouldPersistTaps="handled"
       >
         <Text ref={tituloRef} accessibilityRole="header" style={[estilos.titulo, { color: colores.foreground }]}>
-          ¿Te avisamos de lo que pinta?
+          {t.avisosTitulo}
         </Text>
         <Text style={[estilos.linea, { color: colores.foreground }]}>
-          Te avisamos antes de lo que guardes y te mandamos novedades de Qué Pinta Salta. Lo cambiás cuando quieras en Cuenta.
+          {t.avisosTexto}
         </Text>
         <Pressable
           onPress={() => void siAvisame(destino)}
@@ -121,7 +124,7 @@ export default function Bienvenida() {
           accessibilityRole="button"
           style={[estilos.boton, { backgroundColor: colores.primary }]}
         >
-          <Text style={[estilos.textoBoton, { color: colores.primaryForeground }]}>Sí, avisame</Text>
+          <Text style={[estilos.textoBoton, { color: colores.primaryForeground }]}>{t.siAvisame}</Text>
         </Pressable>
         <Pressable
           onPress={() => void ahoraNo(destino)}
@@ -129,7 +132,7 @@ export default function Bienvenida() {
           accessibilityRole="button"
           style={estilos.botonSecundario}
         >
-          <Text style={[estilos.textoSecundario, { color: colores.foreground }]}>Ahora no</Text>
+          <Text style={[estilos.textoSecundario, { color: colores.foreground }]}>{t.ahoraNo}</Text>
         </Pressable>
       </ScrollView>
     )
@@ -149,20 +152,20 @@ export default function Bienvenida() {
         importantForAccessibility="no-hide-descendants"
       />
       <Text ref={tituloRef} accessibilityRole="header" style={[estilos.titulo, { color: colores.foreground }]}>
-        Qué Pinta Salta
+        {t.marca}
       </Text>
       <Text style={[estilos.linea, { color: colores.foreground }]}>
-        Todo lo que pasa en Salta, en un solo lugar.
+        {t.bajada}
       </Text>
       <Pressable
         onPress={() => setDestino('/')}
         accessibilityRole="button"
         style={[estilos.boton, { backgroundColor: colores.primary }]}
       >
-        <Text style={[estilos.textoBoton, { color: colores.primaryForeground }]}>Empezar</Text>
+        <Text style={[estilos.textoBoton, { color: colores.primaryForeground }]}>{t.empezar}</Text>
       </Pressable>
       <Pressable onPress={() => setDestino('/cuenta')} accessibilityRole="button" style={estilos.botonSecundario}>
-        <Text style={[estilos.textoSecundario, { color: colores.foreground }]}>Entrar</Text>
+        <Text style={[estilos.textoSecundario, { color: colores.foreground }]}>{t.entrar}</Text>
       </Pressable>
     </ScrollView>
   )

@@ -19,6 +19,8 @@ import { inicializarSentry } from '@/lib/sentry'
 import { iniciarAnuncios } from '@/lib/anuncios/consentimiento'
 import { SessionProvider } from '@/lib/session'
 import { PushProvider } from '@/lib/push'
+import { IdiomaProvider } from '@/lib/i18n'
+import { SincronizadorApertura } from '@/components/SincronizadorApertura'
 import { ManejadorTapPush } from '@/components/ManejadorTapPush'
 import { SincronizadorRecordatorios } from '@/components/SincronizadorRecordatorios'
 import { SincronizadorFinde } from '@/components/SincronizadorFinde'
@@ -112,6 +114,8 @@ function RootLayout() {
   }
 
   return (
+    // Q5-11: el idioma de la app (el del teléfono, o el que se eligió en Cuenta).
+    <IdiomaProvider>
     <SessionProvider>
       {/* Ronda 41 (41-c/41-d): `PushProvider` lee `useSession()` por dentro,
           así que va adentro de `SessionProvider`. */}
@@ -135,6 +139,8 @@ function RootLayout() {
           <SincronizadorRecordatorios />
           {/* Q4-11: «Este finde pinta», los jueves a las 18 (local). */}
           <SincronizadorFinde />
+          {/* Q5-13: «la app se abrió hoy», anónimo, una vez por día. */}
+          <SincronizadorApertura />
           {/* R70: hoja única de "activá los avisos" tras el primer Guardar/Voy. */}
           <InvitacionTrasAccion />
           <Stack>
@@ -142,11 +148,14 @@ function RootLayout() {
             <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
             <Stack.Screen name="evento/[id]" options={{ title: 'Evento' }} />
             <Stack.Screen name="cines" options={{ title: 'Cines' }} />
+            <Stack.Screen name="lugares-chicos/index" options={{ title: 'Lugares para chicos' }} />
+            <Stack.Screen name="lugares-chicos/[id]" options={{ title: 'Lugar para chicos' }} />
             <Stack.Screen name="+not-found" options={{ headerShown: false }} />
           </Stack>
         </ThemeProvider>
       </PushProvider>
     </SessionProvider>
+    </IdiomaProvider>
   )
 }
 

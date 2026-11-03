@@ -24,12 +24,17 @@ import { Cargando, ErrorCarga, Vacio } from '@/components/EstadoCarga'
 import { Texto } from '@/components/Texto'
 import { useColoresQPS, type ColoresQPS } from '@/lib/colores'
 import { abrirPostDeInstagram, obtenerFlyerPorId, urlInstagramSegura, type FlyerFicha } from '@/lib/datos/flyers'
+import { useIdioma, useTextos } from '@/lib/i18n'
 
 type Estado = { tipo: 'cargando' } | { tipo: 'error'; error: string } | { tipo: 'no-encontrado' } | { tipo: 'ok'; flyer: FlyerFicha }
 
 export default function FlyerPorId() {
   const { id } = useLocalSearchParams<{ id: string }>()
   const colores = useColoresQPS()
+  // Q5-12: pantalla migrada al diccionario.
+  const { idioma } = useIdioma()
+  const textos = useTextos()
+  const tfl = textos.flyer
   const router = useRouter()
 
   const [estado, setEstado] = useState<Estado>({ tipo: 'cargando' })
@@ -59,7 +64,7 @@ export default function FlyerPorId() {
 
   return (
     <View style={[estilos.contenedor, { backgroundColor: colores.background }]}>
-      <Stack.Screen options={{ title: 'Flyer' }} />
+      <Stack.Screen options={{ title: tfl.titulo }} />
 
       {estado.tipo === 'cargando' ? (
         <View style={estilos.centrado}>
@@ -69,13 +74,13 @@ export default function FlyerPorId() {
 
       {estado.tipo === 'error' ? (
         <View style={estilos.centrado}>
-          <ErrorCarga mensaje={estado.error} onReintentar={cargar} />
+          <ErrorCarga mensaje={idioma === 'en' ? tfl.errorCarga : estado.error} onReintentar={cargar} />
         </View>
       ) : null}
 
       {estado.tipo === 'no-encontrado' ? (
         <View style={estilos.centrado}>
-          <Vacio mensaje="Este flyer ya no está disponible." textoAccion="Volver" onAccion={() => router.back()} />
+          <Vacio mensaje={tfl.yaNoEsta} textoAccion={textos.navegacion.volver} onAccion={() => router.back()} />
         </View>
       ) : null}
 
@@ -85,6 +90,7 @@ export default function FlyerPorId() {
 }
 
 function Ficha({ flyer, colores }: { flyer: FlyerFicha; colores: ColoresQPS }) {
+  const tfl = useTextos().flyer
   const urlSegura = urlInstagramSegura(flyer.ig_post_url)
 
   return (
@@ -100,7 +106,7 @@ function Ficha({ flyer, colores }: { flyer: FlyerFicha; colores: ColoresQPS }) {
         {/* R69, 69-a (QPS-353): el corazón del flyer, con el uuid pelado
             (`flyer.id`, nunca `ig-…`). */}
         <View style={estilos.corazonTitulo}>
-          <BotonFavorito objetivo={{ tipo: 'flyer', id: flyer.id }} nombre={`el flyer de ${flyer.account.display_name}`} tamanio={40} fondo="muted" />
+          <BotonFavorito objetivo={{ tipo: 'flyer', id: flyer.id }} nombre={tfl.deCuenta(flyer.account.display_name)} tamanio={40} fondo="muted" />
         </View>
       </View>
 
@@ -117,7 +123,7 @@ function Ficha({ flyer, colores }: { flyer: FlyerFicha; colores: ColoresQPS }) {
               usar ahí. El borde del botón (`estilos.boton`, arriba) sigue en
               `colores.primary`: ahí es un componente (mínimo 3), no texto. */}
           <Texto peso="semibold">
-            Ver en Instagram
+            {tfl.verEnInstagram}
           </Texto>
         </Pressable>
       ) : null}

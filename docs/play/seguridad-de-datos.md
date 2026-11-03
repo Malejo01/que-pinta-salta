@@ -43,3 +43,10 @@ Verificado contra el código de `ronda/integracion-q4` (build 7) el 3/11/2026. C
 - No usa la ubicación en segundo plano.
 - No vende datos.
 - No manda a los anunciantes ningún identificador de la persona: los avisos patrocinados los manda Qué Pinta Salta y al anunciante le llegan solo totales.
+
+## Q5-13 · Aperturas de la app (desde el build que lo trae)
+| Tipo de dato | ¿Se recopila? | ¿Vinculado a la identidad? | ¿Se comparte? | Propósito | ¿Opcional? |
+|---|---|---|---|---|---|
+| Actividad en la app → Interacciones con la app | Sí: «la app se abrió hoy», con hashes diarios y semanales de un id aleatorio que no se guarda | **No** | No | Estadísticas | No (es anónimo y no identifica). *Alternativa:* un interruptor en Cuenta |
+
+Detalle en `docs/METRICAS.md` («Uso de la app y panel /admin/uso»).

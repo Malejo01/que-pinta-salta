@@ -1,17 +1,21 @@
 # Notificaciones push (R39): llama GET /api/cron/notificaciones, que arma la tanda de recordatorios y
 # novedades y la manda por la API HTTP de Expo Push.
 #
-# APAGADO A PROPÓSITO (encargo de Mauro, 16/10):
-#   - Sin `schedule`: solo corre a mano (`workflow_dispatch`). Para encenderlo cada hora, descomentar el
-#     bloque `schedule` de abajo. Eso lo hace Mauro cuando la app tenga push (expo-notifications).
-#   - Además, la ruta está en modo dryRun por defecto: arma la tanda y la registra, pero no manda nada
-#     mientras la variable de entorno PUSH_ENVIO_REAL no sea "1" en Vercel.
+# PRENDIDO EN Q5-14 (pedido de Mauro, 3/11: «el envío real»):
+#   - `schedule` cada hora al minuto 5. GitHub solo corre los `schedule` de la rama por defecto: recién
+#     arranca cuando la integración llegue a `main`.
+#   - La ruta sigue en dryRun por defecto: arma la tanda y la registra, pero no manda nada mientras la
+#     variable PUSH_ENVIO_REAL no sea "1" en Vercel (la pone Mauro; el agente no toca variables).
+#   - Cada corrida respeta las horas de silencio y el tope diario de cada persona (`armarTanda`,
+#     @qps/core/notificaciones/tanda: `estaEnHorarioDeSilencio` y `hayLugarEnTopeDiario`), y los avisos
+#     sin cuenta excluyen igual por silencio y tope (@qps/core/notificaciones/equipo).
+#   - `workflow_dispatch` sigue para correrlo a mano.
 # Lo creó el lead de día, porque el perfil de noche no puede escribir en .github/.
 name: Notificaciones push
 
 on:
-  # schedule:
-  #   - cron: "5 * * * *"
+  schedule:
+    - cron: "5 * * * *"
   workflow_dispatch:
 
 permissions: {}

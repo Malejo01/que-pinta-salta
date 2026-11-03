@@ -407,9 +407,10 @@ function violacionesChipGratis(fuenteCruda: string): string[] {
   if (!/accessibilityRole="button"/.test(pressable)) v.push('rol: el chip no es accessibilityRole="button"')
   if (!/accessibilityState=\{\{\s*selected:\s*activo\s*\}\}/.test(pressable)) v.push('estado: falta accessibilityState={{ selected: activo }}')
   if (!/onPress=\{\(\) => onCambiar\(!activo\)\}/.test(pressable)) v.push('no es un interruptor: onPress no llama onCambiar(!activo)')
-  if (!/>\s*Gratis\s*</.test(pressable)) v.push('el texto visible no es "Gratis"')
+  // Q5-12: el texto sale del diccionario (`t.gratis` = «Gratis» en castellano).
+  if (!/>\s*\{t\.gratis\}\s*</.test(pressable)) v.push('el texto visible no es "Gratis"')
   // Ronda de correcciones: "Gratis, botón" sonaba a categoría.
-  if (!/accessibilityLabel="Solo eventos gratis"/.test(pressable)) v.push('etiqueta: falta accessibilityLabel="Solo eventos gratis"')
+  if (!/accessibilityLabel=\{t\.soloGratis\}/.test(pressable)) v.push('etiqueta: falta accessibilityLabel="Solo eventos gratis"')
 
   // Área táctil: la clave de estilo del Pressable con minHeight >= 48 (detector `area-chica`).
   const clave = /style=\{\[\s*estilos\.(\w+)/.exec(pressable)
@@ -469,11 +470,17 @@ describe('components/ChipGratis.tsx', () => {
     expect(violacionesChipGratis(real)).toEqual([])
   })
 
+  it('Q5-12: el diccionario de castellano conserva los textos («Gratis» y «Solo eventos gratis»)', () => {
+    const dic = leer('../lib/i18n/diccionarios/es.ts')
+    expect(dic).toContain("gratis: 'Gratis',")
+    expect(dic).toContain("soloGratis: 'Solo eventos gratis',")
+  })
+
   it.each([
     ['sin rol', (s: string) => s.replace('accessibilityRole="button"\n      accessibilityState', 'accessibilityState'), 'rol: el chip no es accessibilityRole="button"'],
     ['estado fijo', (s: string) => s.replace('selected: activo', 'selected: false'), 'estado: falta accessibilityState={{ selected: activo }}'],
     ['checked en vez de selected', (s: string) => s.replace('selected: activo', 'checked: activo'), 'estado: falta accessibilityState={{ selected: activo }}'],
-    ['etiqueta "Gratis"', (s: string) => s.replace('accessibilityLabel="Solo eventos gratis"', 'accessibilityLabel="Gratis"'), 'etiqueta: falta accessibilityLabel="Solo eventos gratis"'],
+    ['etiqueta "Gratis"', (s: string) => s.replace('accessibilityLabel={t.soloGratis}', 'accessibilityLabel={t.gratis}'), 'etiqueta: falta accessibilityLabel="Solo eventos gratis"'],
     ['no alterna', (s: string) => s.replace('onCambiar(!activo)', 'onCambiar(true)'), 'no es un interruptor: onPress no llama onCambiar(!activo)'],
     ['minHeight 40', (s: string) => s.replace('minHeight: 48,\n  },\n})', 'minHeight: 40,\n  },\n})'), 'área: la clave "chipGratis" no tiene minHeight >= 48'],
     ['contorno igual', (s: string) => s.replace('borderWidth: 2', 'borderWidth: 1'), 'forma: el activo no tiene un contorno más grueso que el inactivo'],

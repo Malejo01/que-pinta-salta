@@ -3,8 +3,17 @@ import { describe, expect, it } from 'vitest'
 import { RUTAS_EN_INGLES, hrefLangDestino, rutaEn, rutaEnOtroIdioma, separarIdioma } from '@/lib/i18n/rutas'
 
 describe('RUTAS_EN_INGLES', () => {
-  it('la portada, /cines, /mapa, /buscar, /radar, /anunciantes y la ficha del evento (/evento/<id>)', () => {
-    expect([...RUTAS_EN_INGLES]).toEqual(['/', '/cines', '/mapa', '/buscar', '/radar', '/anunciantes', '/evento/*'])
+  it('la portada, /cines, /mapa, /buscar, /radar, /anunciantes, la ficha del evento (/evento/<id>) y «Sumá un lugar» (Q5-3)', () => {
+    expect([...RUTAS_EN_INGLES]).toEqual(['/', '/cines', '/mapa', '/buscar', '/radar', '/anunciantes', '/evento/*', '/lugares-chicos/sumar', '/lugar/*', '/auth/login'])
+  })
+
+  it('Q5-5: /lugar/<slug> ↔ /en/place/<slug> (segmento traducido, ida y vuelta)', () => {
+    expect(rutaEn('en', '/lugar/teatro-provincial?x=1')).toBe('/en/place/teatro-provincial?x=1')
+    expect(rutaEn('es', '/lugar/teatro-provincial')).toBe('/lugar/teatro-provincial')
+    expect(separarIdioma('/en/place/teatro-provincial')).toEqual({ idioma: 'en', ruta: '/lugar/teatro-provincial' })
+    expect(rutaEnOtroIdioma('/en/place/teatro-provincial', 'es')).toBe('/lugar/teatro-provincial')
+    expect(rutaEnOtroIdioma('/lugar/teatro-provincial', 'en')).toBe('/en/place/teatro-provincial')
+    expect(rutaEn('en', '/lugares-chicos/sumar')).toBe('/en/lugares-chicos/sumar')
   })
 })
 
@@ -46,7 +55,9 @@ describe('rutaEn', () => {
 
   it('las rutas sin versión en inglés quedan en castellano (con su query)', () => {
     expect(rutaEn('en', '/favoritos')).toBe('/favoritos')
-    expect(rutaEn('en', '/auth/login?next=/nuevo-evento')).toBe('/auth/login?next=/nuevo-evento')
+    expect(rutaEn('en', '/auth/sign-up?next=/nuevo-evento')).toBe('/auth/sign-up?next=/nuevo-evento')
+    // Q5-14: /auth/login sí tiene versión en inglés.
+    expect(rutaEn('en', '/auth/login?next=/nuevo-evento')).toBe('/en/auth/login?next=/nuevo-evento')
     // "/cinesxyz" no es "/cines".
     expect(rutaEn('en', '/cinesxyz')).toBe('/cinesxyz')
   })
@@ -149,7 +160,8 @@ describe('hrefLangDestino', () => {
     expect(hrefLangDestino('en', '/radar')).toBeUndefined()
     expect(hrefLangDestino('en', '/anunciantes')).toBeUndefined()
     expect(hrefLangDestino('en', '/favoritos')).toBe('es-AR')
-    expect(hrefLangDestino('en', '/auth/login?next=/nuevo-evento')).toBe('es-AR')
+    expect(hrefLangDestino('en', '/auth/sign-up?next=/nuevo-evento')).toBe('es-AR')
+    expect(hrefLangDestino('en', '/auth/login?next=/nuevo-evento')).toBeUndefined()
     expect(hrefLangDestino('en', '/')).toBeUndefined()
     expect(hrefLangDestino('en', '/?category=cine')).toBeUndefined()
     expect(hrefLangDestino('en', '/cines#x')).toBeUndefined()

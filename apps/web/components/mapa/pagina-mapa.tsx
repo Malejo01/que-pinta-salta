@@ -7,6 +7,7 @@ import type { Idioma } from "@/lib/i18n/idiomas"
 import { parsearFiltroMapa } from "@qps/core/mapa/pines"
 import { armarMapaFiltrado, categoriasDeLosEventos, parsearFiltrosExtraMapa } from "@qps/core/mapa/filtros"
 import { MapaContenido } from "@/app/mapa/mapa-contenido"
+import { traerLugaresChicosPublicados } from "@/lib/lugares-chicos/publicos"
 
 type ParametroDeUrl = string | string[] | undefined
 
@@ -18,6 +19,7 @@ export interface MapaPageProps {
     gratis?: ParametroDeUrl
     chicos?: ParametroDeUrl
     categoria?: ParametroDeUrl
+    capa?: ParametroDeUrl
   }>
 }
 
@@ -55,13 +57,17 @@ export async function PaginaMapa({ searchParams, idioma }: MapaPageProps & { idi
 
   const slugsValidos = new Set(categoriasDeLosEventos(eventos).map((categoria) => categoria.slug))
   const extra = parsearFiltrosExtraMapa(
-    { gratis: primero(params.gratis), chicos: primero(params.chicos), categoria: primero(params.categoria) },
+    { gratis: primero(params.gratis), chicos: primero(params.chicos), categoria: primero(params.categoria), capa: primero(params.capa) },
     slugsValidos
   )
   const { pines, sinUbicacion, categorias } = armarMapaFiltrado(eventos, filtro, extra, ahora)
+  // Q5-2: la tabla de lugares para chicos se lee SOLO con `capa=chicos`; sin la
+  // capa, /mapa hace las mismas consultas que antes. `gratis=1` también la filtra.
+  const lugaresChicos = extra.capaChicos ? await traerLugaresChicosPublicados({ soloGratis: extra.gratis }) : []
 
   const lugar = primero(params.lugar)
-  const lugarInicial = lugar && UUID.test(lugar) && pines.some((pin) => pin.venueId === lugar) ? lugar : null
+  const lugarInicial =
+    lugar && UUID.test(lugar) && (pines.some((pin) => pin.venueId === lugar) || lugaresChicos.some((l) => l.venueId === lugar)) ? lugar : null
 
   return (
     // `data-pagina-mapa`: sin JavaScript, el <noscript> de `loading.tsx` muestra la página con esto.
@@ -70,6 +76,7 @@ export async function PaginaMapa({ searchParams, idioma }: MapaPageProps & { idi
       <main id="contenido" tabIndex={-1} className="container mx-auto px-4 py-4 sm:py-8 focus:outline-none">
         <MapaContenido
           pines={pines}
+          lugaresChicos={lugaresChicos}
           sinUbicacion={sinUbicacion}
           filtro={filtro}
           extra={extra}

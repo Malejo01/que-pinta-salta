@@ -164,6 +164,41 @@ describe('medirBajas', () => {
     expect(r.pausado).toBe(false)
   })
 
+  // Q5-16 (decisión nº2): los teléfonos sin cuenta también cuentan.
+  it('teléfonos sin cuenta: sus envíos suman destinatarios y sus bajas (avisos_patrocinados_baja_at) entran en bajas_48h', async () => {
+    const f = escenario({ n: 100, bajasEn: [1] })
+    const enviado = hace(60)
+    const tokens: Fila[] = []
+    for (let i = 0; i < 100; i++) {
+      const id = `tok-${i}`
+      f.datos.notification_sends.push({ id: `a-${i}`, user_id: null, push_token_id: id, campaign_id: 'camp-1', sent_at: enviado })
+      // 0-4: bajas dentro de las 48 h; 5: a las 50 h (fuera); 6: apagado sin marca (cerró sesión: no cuenta); el resto, prendido.
+      const baja = i <= 4 ? new Date(Date.parse(enviado) + (i + 1) * H).toISOString() : i === 5 ? new Date(Date.parse(enviado) + 50 * H).toISOString() : null
+      tokens.push({ id, avisos_patrocinados: i > 6, avisos_patrocinados_baja_at: baja })
+    }
+    f.datos.push_tokens = tokens
+    const r = await medirBajas(f.cliente, AHORA)
+    expect(r).toEqual({ medidas: 1, pausado: true, fallidas: 0 })
+    // 1 con cuenta + 5 sin cuenta = 6 sobre 200 (3%): supera el 2%.
+    expect(f.datos.sponsored_campaigns[0].bajas_48h).toBe(6)
+    expect(f.datos.ad_settings[0].push_patrocinado_pausa_motivo).toMatch(/6 de 200/)
+  })
+
+  it('un envío sin cuenta repetido cuenta una sola vez, y sin teléfonos sin cuenta no se consulta push_tokens', async () => {
+    const f = escenario({ n: 10, bajasEn: [] })
+    f.datos.notification_sends.push(
+      { id: 'a-1', user_id: null, push_token_id: 'tok-1', campaign_id: 'camp-1', sent_at: hace(60) },
+      { id: 'a-2', user_id: null, push_token_id: 'tok-1', campaign_id: 'camp-1', sent_at: hace(59) },
+    )
+    f.datos.push_tokens = [{ id: 'tok-1', avisos_patrocinados: false, avisos_patrocinados_baja_at: hace(58) }]
+    await medirBajas(f.cliente, AHORA)
+    expect(f.datos.sponsored_campaigns[0].bajas_48h).toBe(1)
+
+    const g = escenario({ n: 10, bajasEn: [1] })
+    await medirBajas(g.cliente, AHORA)
+    expect(g.llamadas.some((l) => l.tabla === 'push_tokens')).toBe(false)
+  })
+
   it('una campaña que falla no frena a las otras y se cuenta en fallidas', async () => {
     const f = escenario({ n: 10, bajasEn: [1] })
     f.datos.sponsored_campaigns.push({ id: 'camp-2', sent_at: hace(60), bajas_medidas_at: null })

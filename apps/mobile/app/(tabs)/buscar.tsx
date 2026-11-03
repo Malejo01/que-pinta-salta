@@ -155,6 +155,7 @@ import { useFocusEffect, useLocalSearchParams } from 'expo-router'
 import type { Atajo } from '@qps/core/home/atajos'
 import { atajoDesdeParametro, categoriasDisponibles } from '@qps/core/home/filtros-combinados'
 import type { DisplayEvent } from '@qps/core/home/types'
+import { AccesoLugaresChicos } from '@/components/AccesoLugaresChicos'
 import { AvisoNoSeActualizo } from '@/components/AvisoSinConexion'
 import { BannerAnuncio } from '@/components/BannerAnuncio'
 import { BusquedasRecientes } from '@/components/BusquedasRecientes'
@@ -696,6 +697,12 @@ export default function Buscar() {
               <View style={estilos.chipsEnLista}>
                 <ChipsCategorias categorias={categoriasParaChips} seleccionada={categoriaFiltro} onCambiar={setCategoriaFiltro} />
               </View>
+              {/* Q5-4: con «Para chicos», el acceso a los lugares para chicos. */}
+              {paraChicosActivo ? (
+                <View style={estilos.accesoLugaresEnLista}>
+                  <AccesoLugaresChicos />
+                </View>
+              ) : null}
               <Texto tono="secundario" style={estilos.tituloSeccion}>
                 {textoResultadosBuscar(resultadosMostrados.length, filtrosTexto)}
               </Texto>
@@ -768,6 +775,7 @@ const estilos = StyleSheet.create({
   campo: { paddingHorizontal: 16 },
   // `ChipsCategorias` trae su padding horizontal (16) y la lista también: se
   // compensa para que el primer chip quede alineado con el campo, como antes.
+  accesoLugaresEnLista: { marginBottom: 12 },
   chipsEnLista: { marginHorizontal: -16 },
   // A6: la banda de "No pudimos actualizar" va de borde a borde, como en Inicio.
   avisoEnLista: { marginHorizontal: -16 },

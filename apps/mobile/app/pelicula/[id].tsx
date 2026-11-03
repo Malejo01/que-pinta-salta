@@ -31,12 +31,17 @@ import { Cargando, ErrorCarga, Vacio } from '@/components/EstadoCarga'
 import { Texto } from '@/components/Texto'
 import { useColoresQPS } from '@/lib/colores'
 import { funcionesPorCine, obtenerPeliculaPorId, type Pelicula } from '@/lib/datos/cines'
+import { useIdioma, useTextos } from '@/lib/i18n'
 
 type Estado = { tipo: 'cargando' } | { tipo: 'error'; error: string } | { tipo: 'no-encontrada' } | { tipo: 'ok'; pelicula: Pelicula }
 
 export default function PeliculaPorId() {
   const { id } = useLocalSearchParams<{ id: string }>()
   const colores = useColoresQPS()
+  // Q5-12: pantalla migrada al diccionario.
+  const { idioma } = useIdioma()
+  const textos = useTextos()
+  const tp = textos.pelicula
   const router = useRouter()
 
   const [estado, setEstado] = useState<Estado>({ tipo: 'cargando' })
@@ -80,7 +85,7 @@ export default function PeliculaPorId() {
 
   return (
     <View style={[estilos.contenedor, { backgroundColor: colores.background }]}>
-      <Stack.Screen options={{ title: 'Película' }} />
+      <Stack.Screen options={{ title: tp.titulo }} />
 
       {estado.tipo === 'cargando' ? (
         <View style={estilos.centrado}>
@@ -90,13 +95,13 @@ export default function PeliculaPorId() {
 
       {estado.tipo === 'error' ? (
         <View style={estilos.centrado}>
-          <ErrorCarga mensaje={estado.error} onReintentar={cargar} />
+          <ErrorCarga mensaje={idioma === 'en' ? tp.errorCarga : estado.error} onReintentar={cargar} />
         </View>
       ) : null}
 
       {estado.tipo === 'no-encontrada' ? (
         <View style={estilos.centrado}>
-          <Vacio mensaje="Esta película ya no está en cartelera." textoAccion="Volver" onAccion={() => router.back()} />
+          <Vacio mensaje={tp.yaNoEsta} textoAccion={textos.navegacion.volver} onAccion={() => router.back()} />
         </View>
       ) : null}
 
@@ -108,6 +113,7 @@ export default function PeliculaPorId() {
 /** El mismo armado que la tarjeta abierta de `app/cines.tsx`: el póster, el
  * título y el acordeón por cine. */
 function Ficha({ pelicula }: { pelicula: Pelicula }) {
+  const tp = useTextos().pelicula
   const cines = funcionesPorCine(pelicula.showings)
   const [abierto, setAbierto] = useState<string | null>(null)
 
@@ -130,7 +136,7 @@ function Ficha({ pelicula }: { pelicula: Pelicula }) {
 
       {cines.length === 0 ? (
         <Texto tono="secundario" style={estilos.sinFunciones}>
-          Sin funciones para hoy
+          {tp.sinFunciones}
         </Texto>
       ) : (
         cines.map((cine, indice) => (

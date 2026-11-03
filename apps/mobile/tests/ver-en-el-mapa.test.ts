@@ -381,7 +381,8 @@ describe('app/evento/[id].tsx: "Ver en el mapa" solo con urlMapaDelEvento y solo
     expect(boton).toMatch(/estilos\.ctaOutline/)
     expect(boton).toMatch(/estilos\.ctaMapa/)
     expect(boton).toMatch(/<Icono nombre="MapPin"/)
-    expect(boton).toMatch(/<Texto peso="semibold" style=\{estilos\.textoCtaMapa\}>\s*Ver en el mapa de eventos\s*<\/Texto>/)
+    // Q5-12: el texto sale del diccionario.
+    expect(boton).toMatch(/<Texto peso="semibold" style=\{estilos\.textoCtaMapa\}>\s*\{tf\.mapaDeEventos\}\s*<\/Texto>/)
   })
 
   it('el texto salta de línea con fuente grande: textoCtaMapa con flexShrink: 1 y textAlign: center', () => {
@@ -389,8 +390,11 @@ describe('app/evento/[id].tsx: "Ver en el mapa" solo con urlMapaDelEvento y solo
   })
 
   it('no queda el texto viejo "Ver en el mapa" a secas (se confundía con "Cómo llegar", que abre Google Maps)', () => {
-    expect(content.match(/Ver en el mapa/g)).toHaveLength(1)
-    expect(content).toContain('Ver en el mapa de eventos')
+    // Q5-12: el texto vive en el diccionario de castellano.
+    const dic = readFileSync(FICHA_PATH.replace(/app\/evento\/\[id\]\.tsx$/, 'lib/i18n/diccionarios/es.ts'), 'utf8')
+    expect(content).not.toMatch(/Ver en el mapa/)
+    expect(dic.match(/Ver en el mapa/g)).toHaveLength(1)
+    expect(dic).toContain("mapaDeEventos: 'Ver en el mapa de eventos'")
   })
 
   it('el piso de 48 dp sale de AREA_TACTIL_MINIMA', () => {

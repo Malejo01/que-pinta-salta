@@ -100,7 +100,9 @@ export function nombresDeFiltrosExtra(extra: FiltrosExtraMapa, categorias: Categ
 export function FiltrosQue({ extra, filtro, categorias, onCambiar, refGratis, idioma = "es" }: FiltrosQueProps) {
   const t = textosDe(idioma).mapa
   const conGratis = { ...extra, gratis: !extra.gratis }
-  const conChicos = { ...extra, chicos: !extra.chicos }
+  // Q5-2 (decisión 5): el chip «Para chicos» prende y apaga también la capa de lugares.
+  const conChicos = { ...extra, chicos: !extra.chicos, capaChicos: !extra.chicos }
+  const conCapa = { ...extra, capaChicos: !extra.capaChicos }
   return (
     <div role="group" aria-label={t.queTipoDePlan} className="flex flex-wrap items-center gap-2">
       <Link
@@ -122,9 +124,19 @@ export function FiltrosQue({ extra, filtro, categorias, onCambiar, refGratis, id
       >
         {t.paraChicos}
       </Link>
+      <Link
+        href={urlDelMapa(filtro, conCapa, idioma)}
+        prefetch={false}
+        {...propsDeChip(extra.capaChicos === true)}
+        onNavigate={navegarCon(() => onCambiar(conCapa))}
+        className={`${BASE_BOTON} ${extra.capaChicos ? BOTON_ACTIVO : BOTON_INACTIVO}`}
+      >
+        {textosDe(idioma).lugaresChicos.capa}
+      </Link>
       {/* Sin JavaScript el formulario manda lo de siempre (que el servidor ya sabe leer); con JS no se envía. */}
       {extra.gratis ? <input type="hidden" name="gratis" value="1" /> : null}
       {extra.chicos ? <input type="hidden" name="chicos" value="1" /> : null}
+      {extra.capaChicos ? <input type="hidden" name="capa" value="chicos" /> : null}
       <label
         className={`${BASE_BOTON} min-w-0 max-w-full gap-2 focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-primary ${extra.categoria !== null ? BOTON_ACTIVO : BOTON_INACTIVO}`}
       >
