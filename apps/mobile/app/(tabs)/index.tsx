@@ -1102,9 +1102,14 @@ const estilos = StyleSheet.create({
   // La fila: el botón fijo a la izquierda y las pills (con su scroll) ocupando
   // el resto. `alignItems: 'center'` centra el botón (48) contra las pills (68).
   filaCabecera: { flexDirection: 'row', alignItems: 'center' },
-  botonFiltros: { paddingLeft: 16 },
+  // Build 7 (bug de Mauro, 3/11): en Android, al deslizar las pills hacia la
+  // derecha el contenido del scroll horizontal se dibujaba por encima del
+  // botón y se quedaba con los toques: «Filtros» dejaba de abrir la hoja.
+  // El botón va arriba (`zIndex`) y el scroll recorta lo que se sale de su
+  // lugar (`overflow: 'hidden'`). Lo mira `tests/portada-cabecera.test.ts` §6.
+  botonFiltros: { paddingLeft: 16, zIndex: 2 },
   // `minWidth: 0` deja que el scroll se achique en vez de empujar al botón.
-  pillsYChips: { flex: 1, minWidth: 0 },
+  pillsYChips: { flex: 1, minWidth: 0, overflow: 'hidden', zIndex: 1 },
   vacioHoy: {
     marginHorizontal: 16,
     marginTop: 20,
