@@ -54,8 +54,44 @@ describe('GET /api/cron/traducir-eventos', () => {
     expect(toOutcome({ tope: 100, traducidosHoyAntes: 100, intentados: 0, traducidos: 0, descartados: 0, errores: 0, quedan: false }).status).toBe('SKIPPED')
     const parcial = toOutcome({ tope: 100, traducidosHoyAntes: 0, intentados: 10, traducidos: 8, descartados: 1, errores: 1, quedan: false })
     expect(parcial).toMatchObject({ status: 'PARTIAL', itemsProcessed: 10, itemsFailed: 1 })
-    expect(Object.keys(parcial.details ?? {}).sort()).toEqual(['descartados', 'quedan', 'tope', 'traducidos', 'traducidosHoyAntes'])
+    // Q6-10: los details suman los motivos (descartes por motivo, el fallo del proveedor y lo
+    // que quedó sin intentar). Sigue midiendo que sean SOLO conteos y códigos: ningún título ni id.
+    expect(Object.keys(parcial.details ?? {}).sort()).toEqual([
+      'descartados',
+      'descartesPorMotivo',
+      'errorProveedor',
+      'quedan',
+      'sinIntentar',
+      'tope',
+      'traducidos',
+      'traducidosHoyAntes',
+    ])
     expect(toOutcome({ error: 'traduccion: no se pudieron leer los eventos pendientes' })).toMatchObject({ status: 'FAILED' })
+  })
+
+  // Q6-10: el 3/11 la corrida dio SUCCESS con 100 «descartados»: era el proveedor sin crédito.
+  it('error del proveedor: FAILED con aviso proveedor:<código>, 503 para que el workflow falle', async () => {
+    const cortada = { tope: 100, traducidosHoyAntes: 0, intentados: 0, traducidos: 0, descartados: 0, errores: 0, quedan: false, descartesPorMotivo: {}, errorProveedor: 'sin_credito', sinIntentar: 10 }
+    traducirPendientes.mockResolvedValue(cortada)
+    const res = await llamar()
+    expect(res.status).toBe(503)
+    expect(await res.json()).toMatchObject({ status: 'FAILED', errorProveedor: 'sin_credito' })
+    const toOutcome = withJobRun.mock.calls[0][3] as ToOutcome
+    const o = toOutcome(cortada)
+    expect(o).toMatchObject({ status: 'FAILED', itemsProcessed: 0, details: { errorProveedor: 'sin_credito', sinIntentar: 10 } })
+    expect(o.errors).toEqual([expect.stringMatching(/^proveedor:sin_credito — créditos de IA agotados/)])
+    // Con algo ya traducido antes del corte: PARTIAL (y el aviso igual).
+    expect(toOutcome({ ...cortada, intentados: 3, traducidos: 3, sinIntentar: 7 })).toMatchObject({ status: 'PARTIAL', errors: [expect.stringMatching(/^proveedor:/)] })
+  })
+
+  it('todo descartado por validación: PARTIAL con aviso validacion:todo_descartado y motivos', async () => {
+    traducirPendientes.mockResolvedValue({ tope: 100, traducidosHoyAntes: 0, intentados: 0, traducidos: 0, descartados: 0, errores: 0, quedan: false, descartesPorMotivo: {}, errorProveedor: null, sinIntentar: 0 })
+    await llamar()
+    const toOutcome = withJobRun.mock.calls[0][3] as ToOutcome
+    const r = { tope: 100, traducidosHoyAntes: 0, intentados: 10, traducidos: 0, descartados: 10, errores: 0, quedan: true, descartesPorMotivo: { nombre_cambiado: 10 }, errorProveedor: null, sinIntentar: 0 }
+    expect(toOutcome(r)).toMatchObject({ status: 'PARTIAL', errors: [expect.stringMatching(/^validacion:todo_descartado/)], details: { descartesPorMotivo: { nombre_cambiado: 10 } } })
+    // Unos pocos descartes sueltos no avisan.
+    expect(toOutcome({ ...r, traducidos: 8, descartados: 2 })).toMatchObject({ status: 'SUCCESS', errors: [] })
   })
 
   it('si el proceso tira: 500 genérico, sin el mensaje en la respuesta', async () => {

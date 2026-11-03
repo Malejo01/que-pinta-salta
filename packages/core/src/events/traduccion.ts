@@ -62,20 +62,38 @@ export function nombresProtegidosEnTitulo(evento: Pick<EventoParaTraducir, 'titl
 }
 
 /**
- * Valida lo que devolvió el modelo. `null` si se descarta: vacía, demasiado
- * larga, o le cambió un nombre protegido. Si el título en inglés quedó igual
- * al original (por ejemplo, un nombre propio), se acepta igual.
+ * Q6-10: por qué se descartó una respuesta del modelo. Solo códigos fijos (van
+ * a `job_runs.details`): nunca el texto del evento ni de la respuesta.
+ *  - `no_es_objeto`: la respuesta no es un objeto JSON.
+ *  - `sin_titulo`: falta `title_en`, no es texto o quedó vacío.
+ *  - `titulo_largo`: `title_en` pasa `LARGO_MAXIMO_TITULO_EN`.
+ *  - `nombre_cambiado`: tradujo o cambió un lugar/artista protegido del título.
  */
-export function validarTraduccion(evento: EventoParaTraducir, propuesta: unknown): TraduccionPropuesta | null {
-  if (!propuesta || typeof propuesta !== 'object') return null
+export type MotivoDescarteTraduccion = 'no_es_objeto' | 'sin_titulo' | 'titulo_largo' | 'nombre_cambiado'
+
+export const MOTIVOS_DESCARTE_TRADUCCION: readonly MotivoDescarteTraduccion[] = ['no_es_objeto', 'sin_titulo', 'titulo_largo', 'nombre_cambiado']
+
+export type ValidacionTraduccion =
+  | { ok: true; traduccion: TraduccionPropuesta }
+  | { ok: false; motivo: MotivoDescarteTraduccion }
+
+/**
+ * Valida lo que devolvió el modelo y, si lo descarta, dice por qué (Q6-10).
+ * Descarta si viene vacía, demasiado larga, o le cambió un nombre protegido.
+ * Si el título en inglés quedó igual al original (por ejemplo, un nombre
+ * propio), se acepta igual.
+ */
+export function validarTraduccionConMotivo(evento: EventoParaTraducir, propuesta: unknown): ValidacionTraduccion {
+  if (!propuesta || typeof propuesta !== 'object' || Array.isArray(propuesta)) return { ok: false, motivo: 'no_es_objeto' }
   const { title_en, description_en } = propuesta as Record<string, unknown>
-  if (typeof title_en !== 'string') return null
+  if (typeof title_en !== 'string') return { ok: false, motivo: 'sin_titulo' }
   const titulo = normalizar(title_en)
-  if (titulo.length === 0 || titulo.length > LARGO_MAXIMO_TITULO_EN) return null
+  if (titulo.length === 0) return { ok: false, motivo: 'sin_titulo' }
+  if (titulo.length > LARGO_MAXIMO_TITULO_EN) return { ok: false, motivo: 'titulo_largo' }
 
   const tituloMinuscula = titulo.toLowerCase()
   for (const nombre of nombresProtegidosEnTitulo(evento)) {
-    if (!tituloMinuscula.includes(nombre.toLowerCase())) return null
+    if (!tituloMinuscula.includes(nombre.toLowerCase())) return { ok: false, motivo: 'nombre_cambiado' }
   }
 
   let descripcion: string | null = null
@@ -83,7 +101,16 @@ export function validarTraduccion(evento: EventoParaTraducir, propuesta: unknown
     const d = description_en.trim()
     if (d.length > 0 && d.length <= LARGO_MAXIMO_DESCRIPCION_EN) descripcion = d
   }
-  return { title_en: titulo, description_en: descripcion }
+  return { ok: true, traduccion: { title_en: titulo, description_en: descripcion } }
+}
+
+/**
+ * Valida lo que devolvió el modelo. `null` si se descarta (el motivo, con
+ * `validarTraduccionConMotivo`).
+ */
+export function validarTraduccion(evento: EventoParaTraducir, propuesta: unknown): TraduccionPropuesta | null {
+  const r = validarTraduccionConMotivo(evento, propuesta)
+  return r.ok ? r.traduccion : null
 }
 
 /** Lo que se le manda al modelo: la descripción recortada para acotar el costo. */
