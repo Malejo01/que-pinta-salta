@@ -41,8 +41,10 @@ describe('app/auth/sign-up/page.tsx', () => {
     expect(archivo).toContain('href="/privacidad"')
   })
 
+  // Q6-2: los textos de la página salen del diccionario (paginaAlta), también en /en/auth/sign-up.
   it('contiene la cadena "aceptás" (texto de aceptación de legales)', () => {
-    expect(archivo).toContain('aceptás')
+    expect(archivo).toContain('{t.aceptasAlCrear}')
+    expect(es.paginaAlta.aceptasAlCrear).toBe('Al crear tu cuenta aceptás los')
   })
 })
 

@@ -21,6 +21,9 @@ import { cambiarSeguimiento } from "@/lib/actions/radar"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { useToast } from "@/hooks/use-toast"
+import { textosDe } from "@/lib/i18n"
+import type { Idioma } from "@/lib/i18n/idiomas"
+import { rutaEn } from "@/lib/i18n/rutas"
 
 export interface LugarSeguido {
   id: string
@@ -45,20 +48,25 @@ export interface LoQueSeguisVistaProps {
   categorias: CategoriaSeguida[]
   /** El tipo y el id correctos (nunca "copiado y pegado" entre los tres grupos). */
   onDejarDeSeguir: (tipo: TipoSeguimiento, id: string) => void
+  /** Q6-2: el idioma de la página (/perfil o /en/perfil). Por defecto, castellano. */
+  idioma?: Idioma
 }
 
 /** La vista pura: sin estado, sin hooks. */
-export function LoQueSeguisVista({ lugares, cuentas, categorias, onDejarDeSeguir }: LoQueSeguisVistaProps) {
+export function LoQueSeguisVista({ lugares, cuentas, categorias, onDejarDeSeguir, idioma = "es" }: LoQueSeguisVistaProps) {
+  const t = textosDe(idioma).loQueSeguis
+  // Los nombres de lugares y categorías vienen de la base, en castellano.
+  const langContenido = idioma === "en" ? "es-AR" : undefined
   const vacio = lugares.length === 0 && cuentas.length === 0 && categorias.length === 0
 
   if (vacio) {
     return (
       <div className="flex flex-col items-start gap-2 text-sm text-muted-foreground">
         <p>
-          Todavía no seguís nada. Seguí un lugar desde la ficha de un evento, o elegí categorías en el Radar.
+          {t.vacio}
         </p>
         <Button asChild variant="outline" size="sm">
-          <Link href="/radar">Ir al Radar</Link>
+          <Link href={rutaEn(idioma, "/radar")}>{t.irAlRadar}</Link>
         </Button>
       </div>
     )
@@ -70,14 +78,15 @@ export function LoQueSeguisVista({ lugares, cuentas, categorias, onDejarDeSeguir
         <div className="space-y-2">
           <h3 className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-widest text-muted-foreground">
             <MapPin className="size-3.5" />
-            Lugares
+            {t.lugares}
           </h3>
           <ul className="space-y-1.5">
             {lugares.map((lugar) => (
               <li key={lugar.id} className="flex items-center justify-between gap-3 text-sm">
                 {/* Q5-6: el nombre lleva a la ficha del lugar (por id, redirige al slug). */}
                 <Link
-                  href={`/lugar/${lugar.slug ?? lugar.id}`}
+                  href={rutaEn(idioma, `/lugar/${lugar.slug ?? lugar.id}`)}
+                  lang={langContenido}
                   className="truncate font-medium text-foreground underline-offset-2 hover:text-primary hover:underline"
                 >
                   {lugar.nombre}
@@ -87,10 +96,10 @@ export function LoQueSeguisVista({ lugares, cuentas, categorias, onDejarDeSeguir
                   variant="ghost"
                   size="sm"
                   className="shrink-0 text-muted-foreground hover:text-destructive"
-                  aria-label={`Dejar de seguir ${lugar.nombre}`}
+                  aria-label={t.dejarDeSeguirAria(lugar.nombre)}
                   onClick={() => onDejarDeSeguir("lugar", lugar.id)}
                 >
-                  Dejar de seguir
+                  {t.dejarDeSeguir}
                 </Button>
               </li>
             ))}
@@ -102,7 +111,7 @@ export function LoQueSeguisVista({ lugares, cuentas, categorias, onDejarDeSeguir
         <div className="space-y-2">
           <h3 className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-widest text-muted-foreground">
             <Instagram className="size-3.5" />
-            Cuentas de Instagram
+            {t.cuentas}
           </h3>
           <ul className="space-y-1.5">
             {cuentas.map((cuenta) => (
@@ -113,10 +122,10 @@ export function LoQueSeguisVista({ lugares, cuentas, categorias, onDejarDeSeguir
                   variant="ghost"
                   size="sm"
                   className="shrink-0 text-muted-foreground hover:text-destructive"
-                  aria-label={`Dejar de seguir @${cuenta.username}`}
+                  aria-label={t.dejarDeSeguirAria(`@${cuenta.username}`)}
                   onClick={() => onDejarDeSeguir("cuenta", cuenta.id)}
                 >
-                  Dejar de seguir
+                  {t.dejarDeSeguir}
                 </Button>
               </li>
             ))}
@@ -128,21 +137,21 @@ export function LoQueSeguisVista({ lugares, cuentas, categorias, onDejarDeSeguir
         <div className="space-y-2">
           <h3 className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-widest text-muted-foreground">
             <Tags className="size-3.5" />
-            Categorías
+            {t.categorias}
           </h3>
           <ul className="space-y-1.5">
             {categorias.map((categoria) => (
               <li key={categoria.id} className="flex items-center justify-between gap-3 text-sm">
-                <span className="truncate font-medium text-foreground">{categoria.nombre}</span>
+                <span lang={langContenido} className="truncate font-medium text-foreground">{categoria.nombre}</span>
                 <Button
                   type="button"
                   variant="ghost"
                   size="sm"
                   className="shrink-0 text-muted-foreground hover:text-destructive"
-                  aria-label={`Dejar de seguir ${categoria.nombre}`}
+                  aria-label={t.dejarDeSeguirAria(categoria.nombre)}
                   onClick={() => onDejarDeSeguir("categoria", categoria.id)}
                 >
-                  Dejar de seguir
+                  {t.dejarDeSeguir}
                 </Button>
               </li>
             ))}
@@ -157,6 +166,8 @@ export interface LoQueSeguisProps {
   lugares: LugarSeguido[]
   cuentas: CuentaSeguida[]
   categorias: CategoriaSeguida[]
+  /** Q6-2: el idioma de la página. Por defecto, castellano. */
+  idioma?: Idioma
 }
 
 /**
@@ -164,7 +175,8 @@ export interface LoQueSeguisProps {
  * false })` y, si sale bien, saca el ítem de la lista local correspondiente.
  * Si falla, lo deja (sigue apareciendo) y avisa con un toast de error.
  */
-export function LoQueSeguis({ lugares: lugaresIniciales, cuentas: cuentasIniciales, categorias: categoriasIniciales }: LoQueSeguisProps) {
+export function LoQueSeguis({ lugares: lugaresIniciales, cuentas: cuentasIniciales, categorias: categoriasIniciales, idioma = "es" }: LoQueSeguisProps) {
+  const t = textosDe(idioma).loQueSeguis
   const [lugares, setLugares] = useState(lugaresIniciales)
   const [cuentas, setCuentas] = useState(cuentasIniciales)
   const [categorias, setCategorias] = useState(categoriasIniciales)
@@ -176,8 +188,8 @@ export function LoQueSeguis({ lugares: lugaresIniciales, cuentas: cuentasInicial
 
       if (!resultado.ok) {
         toast({
-          title: "Error",
-          description: "No pudimos dejar de seguir. Probá de nuevo.",
+          title: t.errorTitulo,
+          description: t.errorTexto,
           variant: "destructive",
         })
         return
@@ -188,8 +200,8 @@ export function LoQueSeguis({ lugares: lugaresIniciales, cuentas: cuentasInicial
       else setCategorias((anteriores) => anteriores.filter((categoria) => categoria.id !== id))
     } catch {
       toast({
-        title: "Error de conexión",
-        description: "No pudimos conectarnos al servidor. Probá de nuevo.",
+        title: t.errorConexionTitulo,
+        description: t.errorConexionTexto,
         variant: "destructive",
       })
     }
@@ -198,8 +210,8 @@ export function LoQueSeguis({ lugares: lugaresIniciales, cuentas: cuentasInicial
   return (
     <Card className="bg-card/60 backdrop-blur-sm shadow-sm">
       <CardHeader>
-        <CardTitle className="text-lg">Lo que seguís</CardTitle>
-        <CardDescription>Los lugares, cuentas de Instagram y categorías que elegiste seguir para tu Radar.</CardDescription>
+        <CardTitle className="text-lg">{t.titulo}</CardTitle>
+        <CardDescription>{t.bajada}</CardDescription>
       </CardHeader>
       <CardContent>
         <LoQueSeguisVista
@@ -207,6 +219,7 @@ export function LoQueSeguis({ lugares: lugaresIniciales, cuentas: cuentasInicial
           cuentas={cuentas}
           categorias={categorias}
           onDejarDeSeguir={alDejarDeSeguir}
+          idioma={idioma}
         />
       </CardContent>
     </Card>

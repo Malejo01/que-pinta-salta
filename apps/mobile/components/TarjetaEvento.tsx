@@ -44,6 +44,7 @@ import { memo } from 'react'
 import { Pressable, StyleSheet, Text, View } from 'react-native'
 import { useRouter } from 'expo-router'
 import { formatEventDateShort } from '@qps/core/date-format'
+import { textoEnIdioma } from '@qps/core/events/traduccion'
 import type { DisplayEvent } from '@qps/core/home/types'
 import { Afiche } from '@/components/Afiche'
 import { BotonCompartir } from '@/components/BotonCompartir'
@@ -54,6 +55,8 @@ import { ESCALA_MAXIMA_COMPACTA, TARJETA_GAP_ACCIONES, TARJETA_MARGEN, TARJETA_T
 import { useColoresQPS } from '@/lib/colores'
 import { textoPrecio } from '@/lib/formato'
 import { esEventoReal, objetivoDeFavorito, rutaDeEvento } from '@/lib/rutas'
+import { useIdioma, useTextos } from '@/lib/i18n'
+import { localeDeIdioma } from '@/lib/i18n/idioma'
 
 export interface TarjetaEventoProps {
   evento: DisplayEvent
@@ -106,8 +109,14 @@ function TarjetaEventoSinMemo({ evento, onAbrir }: TarjetaEventoProps) {
   // `evento.date` es la fecha calendario ("YYYY-MM-DD", `formatDateInSalta`
   // en `@qps/core/home/transform`), igual que `event.date` en la web:
   // `formatEventDateShort` le aplica el mismo formato corto ("vie 12 oct").
-  const fecha = formatEventDateShort(evento.date)
-  const precio = textoPrecio(evento.price)
+  // Q6-1: la fecha con Intl en el idioma de la app («sáb 7 nov» / «Sat 7 Nov»)
+  // y, en inglés, el título traducido si lo hay (`title_en`). Lo que se
+  // comparte (`BotonCompartir`) sigue en castellano: es para mandar a otros.
+  const { idioma } = useIdioma()
+  const t = useTextos().tarjeta
+  const fecha = formatEventDateShort(evento.date, localeDeIdioma(idioma))
+  const titulo = textoEnIdioma(evento.title, evento.titleEn, idioma).texto
+  const precio = textoPrecio(evento.price, idioma)
   const inicialCategoria = (evento.categoryName || 'Q').charAt(0).toUpperCase()
   const otrasFechas = evento.occurrences && evento.occurrences.length > 1 ? evento.occurrences.length - 1 : 0
 
@@ -123,13 +132,17 @@ function TarjetaEventoSinMemo({ evento, onAbrir }: TarjetaEventoProps) {
 
   // R72, 72-c (vuelta 1): la etiqueta suma lo que se ve y antes no se leía:
   // destacado, precio y cuántas fechas más tiene.
-  const extras =
-    (evento.isFeatured ? ', destacado' : '') +
-    (precio ? `, ${precio}` : '') +
-    (otrasFechas > 0 ? `, ${otrasFechas} ${otrasFechas === 1 ? 'fecha más' : 'fechas más'}` : '')
   const etiqueta = evento.isCinemaMovie
-    ? `${evento.title}, en cartel${evento.isFeatured ? ', destacado' : ''}${precio ? `, ${precio}` : ''}`
-    : `${evento.title}, ${fecha}${evento.time ? ` ${evento.time}` : ''}, en ${evento.venue}${extras}`
+    ? t.etiquetaPelicula({ titulo, destacado: evento.isFeatured === true, precio })
+    : t.etiquetaEvento({
+        titulo,
+        fecha,
+        hora: evento.time,
+        lugar: evento.venue,
+        destacado: evento.isFeatured === true,
+        precio,
+        otrasFechas,
+      })
 
   return (
     <View style={[estilos.contenedor, { backgroundColor: colores.card }]}>
@@ -151,7 +164,7 @@ function TarjetaEventoSinMemo({ evento, onAbrir }: TarjetaEventoProps) {
                 {inicialCategoria}
               </Text>
               <Text style={[estilos.marcaTexto, { color: colores.primaryForeground }]} numberOfLines={1}>
-                QUÉ PINTA SALTA
+                {t.marca}
               </Text>
             </View>
           }
@@ -183,7 +196,7 @@ function TarjetaEventoSinMemo({ evento, onAbrir }: TarjetaEventoProps) {
 
         <View style={estilos.abajo} pointerEvents="none">
           <Text style={estilos.titulo} numberOfLines={2} maxFontSizeMultiplier={ESCALA_MAXIMA_COMPACTA}>
-            {evento.title}
+            {titulo}
           </Text>
 
           <View style={estilos.filaLugar}>
@@ -196,12 +209,12 @@ function TarjetaEventoSinMemo({ evento, onAbrir }: TarjetaEventoProps) {
           <Text style={estilos.fecha} numberOfLines={1} maxFontSizeMultiplier={ESCALA_MAXIMA_COMPACTA}>
             {/* R69, 69-b (QPS-338): una película no tiene "fecha" (la de hoy no
                 significa nada); lo visible coincide con la etiqueta de accesibilidad. */}
-            {evento.isCinemaMovie ? 'En cartel' : `${fecha}${evento.time ? ` ${evento.time}` : ''}`}
+            {evento.isCinemaMovie ? t.enCartel : `${fecha}${evento.time ? ` ${evento.time}` : ''}`}
           </Text>
 
           {otrasFechas > 0 ? (
             <Text style={estilos.masFechas} numberOfLines={1} maxFontSizeMultiplier={ESCALA_MAXIMA_COMPACTA}>
-              +{otrasFechas} fechas
+              {t.masFechas(otrasFechas)}
             </Text>
           ) : null}
 
@@ -223,12 +236,12 @@ function TarjetaEventoSinMemo({ evento, onAbrir }: TarjetaEventoProps) {
       {botonesArriba > 0 ? (
         <View style={estilos.accionesArriba} pointerEvents="box-none">
           {esEventoReal(evento) ? (
-            <BotonCompartir eventId={evento.id} titulo={evento.title} fecha={fecha} hora={evento.time} lugar={evento.venue} tamanio={TAMANIO_ACCION} fondo="oscuro" />
+            <BotonCompartir eventId={evento.id} titulo={evento.title} fecha={formatEventDateShort(evento.date)} hora={evento.time} lugar={evento.venue} tamanio={TAMANIO_ACCION} fondo="oscuro" />
           ) : null}
           {objetivoFavorito ? (
             <BotonFavorito
               objetivo={objetivoFavorito}
-              nombre={evento.title}
+              nombre={titulo}
               tamanio={TAMANIO_ACCION}
               fondo="oscuro"
               conVecino={hayCompartir}
@@ -252,6 +265,8 @@ function TarjetaEventoSinMemo({ evento, onAbrir }: TarjetaEventoProps) {
 export const CAMPOS_QUE_USA_LA_TARJETA = [
   'id',
   'title',
+  // Q6-1: en inglés se muestra el título traducido, si lo hay.
+  'titleEn',
   'venue',
   'date',
   'time',

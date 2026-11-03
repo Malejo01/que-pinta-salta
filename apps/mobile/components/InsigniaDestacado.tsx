@@ -17,12 +17,14 @@
 // reporte de la tarea 50-e, no es un diseño nuevo de este componente.
 import { StyleSheet, Text, View } from 'react-native'
 import { ESCALA_MAXIMA_COMPACTA } from '@/lib/accesibilidad'
+import { useTextos } from '@/lib/i18n'
 
 export interface InsigniaDestacadoProps {
   visible: boolean
 }
 
 export function InsigniaDestacado({ visible }: InsigniaDestacadoProps) {
+  const t = useTextos().tarjeta
   if (!visible) return null
 
   return (
@@ -31,9 +33,9 @@ export function InsigniaDestacado({ visible }: InsigniaDestacadoProps) {
         style={estilos.textoBadgeDestacado}
         numberOfLines={1}
         maxFontSizeMultiplier={ESCALA_MAXIMA_COMPACTA}
-        accessibilityLabel="Evento destacado"
+        accessibilityLabel={t.eventoDestacado}
       >
-        ★ Destacado
+        {t.destacado}
       </Text>
     </View>
   )

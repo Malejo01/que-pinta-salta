@@ -3,9 +3,13 @@
 // `@qps/core/date-format`, nunca `Date.getHours()`/`getDay()` de la
 // máquina del teléfono.
 import { formatSaltaClock, formatSaltaDayKey } from '@qps/core/date-format'
+import { es } from '@/lib/i18n/diccionarios/es'
+import type { Idioma } from '@/lib/i18n/idioma'
+import { textosDe } from '@/lib/i18n/textos'
 
 /** Título fijo del aviso (plan §7). La hora de guardado va en una segunda línea, con `textoGuardadoEn`. */
-export const TITULO_SIN_CONEXION = 'Sin conexión, mostrando lo último guardado'
+// Q6-1: los textos viven en el diccionario (`mensajes`).
+export const TITULO_SIN_CONEXION = es.mensajes.tituloSinConexion
 
 /**
  * `formatSaltaDayKey`/`formatSaltaClock` tiran `RangeError` con una fecha
@@ -17,7 +21,7 @@ export const TITULO_SIN_CONEXION = 'Sin conexión, mostrando lo último guardado
  * (por ejemplo, desde un test o un cambio futuro que se olvide de pasar
  * por `leerCache`), devuelve este texto neutro en vez de romper la pantalla.
  */
-export const TEXTO_GUARDADO_INVALIDO = 'Guardado hace un tiempo'
+export const TEXTO_GUARDADO_INVALIDO = es.mensajes.guardadoInvalido
 
 /** `'YYYY-MM-DD'` (el día de ayer, como día de calendario, sin tocar la hora). */
 function diaAnteriorKey(diaKey: string): string {
@@ -39,16 +43,17 @@ function comoDiaYMes(diaKey: string): string {
  * cualquiera de las dos fechas es inválida, devuelve ese texto neutro en vez
  * de dejar que `formatSaltaDayKey`/`formatSaltaClock` tiren `RangeError`.
  */
-export function textoGuardadoEn(guardadoEn: Date, ahora: Date): string {
+export function textoGuardadoEn(guardadoEn: Date, ahora: Date, idioma: Idioma = 'es'): string {
+  const t = textosDe(idioma).mensajes
   if (Number.isNaN(guardadoEn.getTime()) || Number.isNaN(ahora.getTime())) {
-    return TEXTO_GUARDADO_INVALIDO
+    return t.guardadoInvalido
   }
 
   const diaGuardado = formatSaltaDayKey(guardadoEn)
   const diaAhora = formatSaltaDayKey(ahora)
   const hora = formatSaltaClock(guardadoEn)
 
-  if (diaGuardado === diaAhora) return `Guardado hoy a las ${hora}`
-  if (diaGuardado === diaAnteriorKey(diaAhora)) return `Guardado ayer a las ${hora}`
-  return `Guardado el ${comoDiaYMes(diaGuardado)} a las ${hora}`
+  if (diaGuardado === diaAhora) return t.guardadoHoy(hora)
+  if (diaGuardado === diaAnteriorKey(diaAhora)) return t.guardadoAyer(hora)
+  return t.guardadoEl(comoDiaYMes(diaGuardado), hora)
 }

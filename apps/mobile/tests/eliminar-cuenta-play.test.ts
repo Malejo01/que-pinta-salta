@@ -14,6 +14,8 @@
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { en } from '../lib/i18n/diccionarios/en'
+import { es } from '../lib/i18n/diccionarios/es'
 
 const estado = vi.hoisted(() => ({
   ultimoSignOut: undefined as unknown,
@@ -104,8 +106,13 @@ describe('app/eliminar-cuenta.tsx (detector de texto): QPS-191, el mail de conta
     expect(codigo).toContain('selectable')
   })
 
+  // Q6-1b: la lista pasó al diccionario (`es.eliminarCuenta.queSeBorra`, la
+  // que compara con la web apps/web/tests/cuenta/play-pendientes.test.ts) y
+  // la pantalla la recorre con su viñeta.
   it('agrega el ítem exacto del historial de avisos a la lista de "qué se borra"', () => {
-    expect(codigo).toContain('• El historial de los avisos que te mandamos.')
+    expect(es.eliminarCuenta.queSeBorra).toContain('El historial de los avisos que te mandamos.')
+    expect(codigo).toContain('{t.queSeBorra.map((item) => (')
+    expect(codigo).toContain('{`• ${item}`}')
   })
 
   it('no abre el mail con Linking.openURL ni con un link mailto: armado a mano', () => {
@@ -120,20 +127,26 @@ describe('app/eliminar-cuenta.tsx (detector de texto): QPS-191, el mail de conta
   // desde la app, así que el aviso tiene que estar sí o sí: para quien ve la
   // pantalla (leyenda visible) y para TalkBack (accessibilityHint).
   // -------------------------------------------------------------------------
+  // Q6-1b: los textos salen del diccionario; se mide la clave en la pantalla
+  // y el texto en los dos idiomas.
   it('el mail tiene un accessibilityLabel que lo identifica como correo de contacto', () => {
-    expect(codigo).toMatch(/accessibilityLabel=\{`Correo de contacto: \$\{CONTACTO_EMAIL\}`\}/)
+    expect(codigo).toMatch(/accessibilityLabel=\{t\.correoContacto\(CONTACTO_EMAIL\)\}/)
+    expect(es.eliminarCuenta.correoContacto('x@y.z')).toBe('Correo de contacto: x@y.z')
+    expect(en.eliminarCuenta.correoContacto('x@y.z')).toBe('Contact email: x@y.z')
   })
 
   it('el bloque del mail tiene un accessibilityHint cuyo texto nombra "copiar"', () => {
-    expect(codigo).toMatch(/accessibilityHint="[^"]*copiar[^"]*"/i)
+    expect(codigo).toMatch(/accessibilityHint=\{t\.comoCopiar\}/)
+    expect(es.eliminarCuenta.comoCopiar).toMatch(/copiar/i)
+    expect(en.eliminarCuenta.comoCopiar).toMatch(/copy/i)
   })
 
   it('hay una leyenda visible (no solo el accessibilityHint) que dice cómo copiar el mail', () => {
     // Si alguien borra la leyenda visible pero deja el accessibilityHint,
     // sacar el accessibilityHint del código no debería dejar ningún rastro
-    // de "copiar" en lo que queda.
-    const sinAccessibilityHint = codigo.replace(/accessibilityHint="[^"]*"/g, '')
-    expect(sinAccessibilityHint.toLowerCase()).toMatch(/copiar/)
+    // del texto de copiar en lo que queda.
+    const sinAccessibilityHint = codigo.replace(/accessibilityHint=\{[^}]*\}/g, '')
+    expect(sinAccessibilityHint).toMatch(/>\s*\{t\.comoCopiar\}\s*</)
   })
 })
 

@@ -6,19 +6,21 @@ import { Pressable, StyleSheet, View } from 'react-native'
 import { useRouter } from 'expo-router'
 import { Texto } from '@/components/Texto'
 import { useColoresQPS } from '@/lib/colores'
+import { useTextos } from '@/lib/i18n'
 
 export function BannerRadar() {
   const router = useRouter()
   const colores = useColoresQPS()
+  const t = useTextos().banners
 
   return (
     <View style={[estilos.contenedor, { backgroundColor: colores.card, borderColor: colores.border }]}>
       <View style={estilos.texto}>
         <Texto peso="bold" style={estilos.titulo}>
-          ¡No te pierdas ningún evento!
+          {t.radarTitulo}
         </Texto>
         <Texto tono="secundario" style={estilos.subtitulo}>
-          Elegí tus categorías favoritas y recibí la agenda del fin de semana directamente en tu correo.
+          {t.radarTexto}
         </Texto>
       </View>
 
@@ -28,7 +30,7 @@ export function BannerRadar() {
         style={[estilos.boton, { backgroundColor: colores.primary }]}
       >
         <Texto peso="bold" style={{ color: colores.primaryForeground }}>
-          Configurar mi Radar 📡
+          {t.radarBoton}
         </Texto>
       </Pressable>
     </View>

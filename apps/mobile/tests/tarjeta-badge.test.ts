@@ -11,6 +11,8 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import { TARJETA_GAP_ACCIONES, TARJETA_MARGEN, TARJETA_TAMANIO_ACCION } from '../lib/accesibilidad'
+import { en } from '../lib/i18n/diccionarios/en'
+import { es } from '../lib/i18n/diccionarios/es'
 
 const MOBILE_ROOT = fileURLToPath(new URL('..', import.meta.url))
 const leer = (...partes: string[]) => readFileSync(join(MOBILE_ROOT, ...partes), 'utf8').replace(/\r\n/g, '\n')
@@ -44,13 +46,16 @@ export function violacionesDeEtiquetaFavorito(boton: string, usos: Record<string
   const c = sinComentarios(boton)
   const v: string[] = []
   if (!/nombre\?:\s*string/.test(c)) v.push('BotonFavorito no tiene la prop opcional nombre')
-  if (!/accessibilityLabel=\{etiquetaFavorito\(marcado,\s*nombre\)\}/.test(c)) v.push('la etiqueta no sale de etiquetaFavorito(marcado, nombre)')
+  // Q6-1: con el idioma de la app; los textos salen del diccionario
+  // (`tarjeta.agregarFavorito` / `tarjeta.quitarFavorito`, que reciben el nombre).
+  if (!/accessibilityLabel=\{etiquetaFavorito\(marcado,\s*nombre,\s*idioma\)\}/.test(c)) v.push('la etiqueta no sale de etiquetaFavorito(marcado, nombre)')
   const fn = /function etiquetaFavorito\([^)]*\)[^{]*\{([\s\S]*?)\n\}/.exec(c)
   if (!fn) v.push('no hay etiquetaFavorito')
   else {
-    if (!/`Agregar \$\{nombre\} a favoritos`/.test(fn[1])) v.push('falta "Agregar <nombre> a favoritos"')
-    if (!/`Quitar \$\{nombre\} de favoritos`/.test(fn[1])) v.push('falta "Quitar <nombre> de favoritos"')
-    if (!/'Agregar a favoritos'/.test(fn[1]) || !/'Quitar de favoritos'/.test(fn[1])) v.push('falta la etiqueta sin nombre')
+    if (!/t\.agregarFavorito\(nombre \|\| undefined\)/.test(fn[1]) || es.tarjeta.agregarFavorito('X') !== 'Agregar X a favoritos') v.push('falta "Agregar <nombre> a favoritos"')
+    if (!/t\.quitarFavorito\(nombre \|\| undefined\)/.test(fn[1]) || es.tarjeta.quitarFavorito('X') !== 'Quitar X de favoritos') v.push('falta "Quitar <nombre> de favoritos"')
+    if (es.tarjeta.agregarFavorito() !== 'Agregar a favoritos' || es.tarjeta.quitarFavorito() !== 'Quitar de favoritos') v.push('falta la etiqueta sin nombre')
+    if (en.tarjeta.agregarFavorito('X') !== 'Add X to favourites') v.push('falta el inglés')
   }
   for (const [archivo, fuente] of Object.entries(usos)) {
     if (!/<BotonFavorito[^>]*\bnombre=\{/.test(sinComentarios(fuente))) v.push(`${archivo} no pasa nombre a BotonFavorito`)
@@ -105,13 +110,14 @@ describe('BotonFavorito: la etiqueta dice qué se guarda', () => {
   })
 
   it('rotura: la etiqueta ignora el nombre', () => {
-    const roto = boton.replace('accessibilityLabel={etiquetaFavorito(marcado, nombre)}', "accessibilityLabel={marcado ? 'Quitar de favoritos' : 'Agregar a favoritos'}")
+    const roto = boton.replace('accessibilityLabel={etiquetaFavorito(marcado, nombre, idioma)}', "accessibilityLabel={marcado ? 'Quitar de favoritos' : 'Agregar a favoritos'}")
     expect(roto).not.toBe(boton)
     expect(violacionesDeEtiquetaFavorito(roto, usos).length).toBeGreaterThan(0)
   })
 
   it('rotura: la etiqueta con nombre sin el nombre', () => {
-    const roto = boton.replace('`Agregar ${nombre} a favoritos`', "'Agregar a favoritos'")
+    // Q6-1: la rotura es dejar de pasarle el nombre al texto del diccionario.
+    const roto = boton.replace('t.agregarFavorito(nombre || undefined)', 't.agregarFavorito()')
     expect(roto).not.toBe(boton)
     expect(violacionesDeEtiquetaFavorito(roto, usos)).toContain('falta "Agregar <nombre> a favoritos"')
   })

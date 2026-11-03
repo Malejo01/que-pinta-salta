@@ -4,7 +4,8 @@
 # (GEMINI_MODEL). Repite mientras queden eventos y no se llegue al tope diario
 # (TRADUCCION_TOPE_DIARIO en Vercel, por defecto 100; con 0 no traduce nada),
 # como mucho 10 llamadas. El tope lo cuenta la base: correrlo a mano el mismo
-# día no lo pasa. Falla (y GitHub manda mail) si una llamada da error HTTP.
+# día no lo pasa. Falla (y GitHub manda mail) si una llamada da error HTTP
+# (Q6-10: 503 cuando la IA corta la corrida: sin crédito, clave, límite…).
 name: Eventos en inglés (traducción diaria)
 
 on:
@@ -36,11 +37,16 @@ jobs:
             *) echo "::error::SITE_URL no permitido"; exit 1 ;;
           esac
           for i in $(seq 1 10); do
-            body=$(curl -sS --fail-with-body --max-time 120 \
+            # Q6-10: con 503 (la IA cortó la corrida: sin crédito, clave, límite…) se muestra el motivo y falla.
+            if ! body=$(curl -sS --fail-with-body --max-time 120 \
               -H "Authorization: Bearer $CRON_SECRET" \
               -H "x-job-trigger: github-actions" \
-              "$SITE_URL/api/cron/traducir-eventos")
-            echo "$body" | jq '{status, tope, traducidosHoyAntes, intentados, traducidos, descartados, errores, quedan}'
+              "$SITE_URL/api/cron/traducir-eventos"); then
+              echo "$body" | jq '{status, errorProveedor, intentados, traducidos, descartados}' 2>/dev/null || true
+              echo "::error::La traducción falló: mirá errorProveedor arriba y job_runs (traduccion)"
+              exit 1
+            fi
+            echo "$body" | jq '{status, tope, traducidosHoyAntes, intentados, traducidos, descartados, descartesPorMotivo, errorProveedor, errores, quedan}'
             quedan=$(echo "$body" | jq -r '.quedan')
             if [ "$quedan" != "true" ]; then break; fi
           done

@@ -12,12 +12,16 @@ import { usePush } from '@/lib/push'
 import { suscribirCambiosGuardados } from '@/lib/recordatorios/cambios'
 import { sincronizarRecordatorios } from '@/lib/recordatorios'
 import { useSession } from '@/lib/session'
+import { useIdioma } from '@/lib/i18n'
 
 const ESPERA_MS = 800
 
 export function SincronizadorRecordatorios() {
   const { session, cargando } = useSession()
   const { estado } = usePush()
+  // Q6-1: los avisos salen en el idioma de la app; cambiarlo en Cuenta vuelve
+  // a correr este efecto y reprograma todo con los textos nuevos.
+  const { idioma, listo } = useIdioma()
   const userId = session?.user?.id ?? null
   const temporizador = useRef<ReturnType<typeof setTimeout> | null>(null)
   const userIdRef = useRef<string | null>(userId)
@@ -27,19 +31,19 @@ export function SincronizadorRecordatorios() {
   }, [userId])
 
   useEffect(() => {
-    if (cargando) return
+    if (cargando || !listo) return
     let vigente = true
 
     const correr = async () => {
       const id = userIdRef.current
       if (!id) {
-        await sincronizarRecordatorios([], new Date())
+        await sincronizarRecordatorios([], new Date(), { idioma })
         return
       }
       const r = await obtenerFavoritos(id)
       // Sin red no se toca nada: los recordatorios ya programados siguen.
       if (!vigente || !r.ok) return
-      await sincronizarRecordatorios([...r.voy, ...r.eventos], new Date())
+      await sincronizarRecordatorios([...r.voy, ...r.eventos], new Date(), { idioma })
     }
 
     const programar = () => {
@@ -61,7 +65,7 @@ export function SincronizadorRecordatorios() {
       bajaCambios()
       bajaApp.remove()
     }
-  }, [userId, cargando, estado])
+  }, [userId, cargando, estado, idioma, listo])
 
   return null
 }

@@ -9,6 +9,8 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { en } from '../lib/i18n/diccionarios/en'
+import { es } from '../lib/i18n/diccionarios/es'
 
 const MOBILE_ROOT = fileURLToPath(new URL('..', import.meta.url))
 const PANTALLA_RADAR_PATH = join(MOBILE_ROOT, 'components', 'PantallaRadar.tsx')
@@ -175,8 +177,11 @@ describe('components/PantallaRadar.tsx: "Enviar un email de prueba" solo para ad
   it('el texto "Enviar un email de prueba" está envuelto en un condicional sobre esAdmin', () => {
     // Comillas simples: el JSX real (`'Enviar un email de prueba'`), no el
     // comentario de arriba del archivo (que lo nombra entre comillas dobles).
-    const idxTexto = content.indexOf("'Enviar un email de prueba'")
+    // Q6-1: el texto sale del diccionario (`radar.enviarPrueba`).
+    const idxTexto = content.indexOf('t.enviarPrueba')
     expect(idxTexto).toBeGreaterThan(-1)
+    expect(es.radar.enviarPrueba).toBe('Enviar un email de prueba')
+    expect(en.radar.enviarPrueba).not.toBe(es.radar.enviarPrueba)
 
     // Busca, yendo hacia atrás desde el texto, la apertura del condicional
     // más cercana (`{esAdmin ? (` o `esAdmin &&`) antes que cualquier otro

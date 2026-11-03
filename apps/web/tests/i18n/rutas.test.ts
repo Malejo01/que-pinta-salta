@@ -4,7 +4,8 @@ import { RUTAS_EN_INGLES, hrefLangDestino, rutaEn, rutaEnOtroIdioma, separarIdio
 
 describe('RUTAS_EN_INGLES', () => {
   it('la portada, /cines, /mapa, /buscar, /radar, /anunciantes, la ficha del evento (/evento/<id>) y «Sumá un lugar» (Q5-3)', () => {
-    expect([...RUTAS_EN_INGLES]).toEqual(['/', '/cines', '/mapa', '/buscar', '/radar', '/anunciantes', '/evento/*', '/lugares-chicos/sumar', '/lugar/*', '/auth/login'])
+    // Q6-2: + el alta, el perfil y la carga de eventos.
+    expect([...RUTAS_EN_INGLES]).toEqual(['/', '/cines', '/mapa', '/buscar', '/radar', '/anunciantes', '/evento/*', '/lugares-chicos/sumar', '/lugar/*', '/auth/login', '/auth/sign-up', '/perfil', '/nuevo-evento'])
   })
 
   it('Q5-5: /lugar/<slug> ↔ /en/place/<slug> (segmento traducido, ida y vuelta)', () => {
@@ -55,7 +56,9 @@ describe('rutaEn', () => {
 
   it('las rutas sin versión en inglés quedan en castellano (con su query)', () => {
     expect(rutaEn('en', '/favoritos')).toBe('/favoritos')
-    expect(rutaEn('en', '/auth/sign-up?next=/nuevo-evento')).toBe('/auth/sign-up?next=/nuevo-evento')
+    // Q6-2: /auth/sign-up ya tiene versión en inglés; /auth/recuperar sigue sin ella.
+    expect(rutaEn('en', '/auth/recuperar?next=/nuevo-evento')).toBe('/auth/recuperar?next=/nuevo-evento')
+    expect(rutaEn('en', '/auth/sign-up?next=/nuevo-evento')).toBe('/en/auth/sign-up?next=/nuevo-evento')
     // Q5-14: /auth/login sí tiene versión en inglés.
     expect(rutaEn('en', '/auth/login?next=/nuevo-evento')).toBe('/en/auth/login?next=/nuevo-evento')
     // "/cinesxyz" no es "/cines".
@@ -113,7 +116,11 @@ describe('rutaEnOtroIdioma', () => {
   })
 
   it('si la página no existe en inglés, va a /en (sin la query de la otra página)', () => {
-    expect(rutaEnOtroIdioma('/perfil', 'en')).toBe('/en')
+    // Q6-2: /perfil ya tiene versión en inglés (va a /en/perfil); /perfil/eliminar-cuenta no.
+    expect(rutaEnOtroIdioma('/perfil/eliminar-cuenta', 'en')).toBe('/en')
+    expect(rutaEnOtroIdioma('/perfil', 'en')).toBe('/en/perfil')
+    expect(rutaEnOtroIdioma('/nuevo-evento?cloneId=abc', 'en')).toBe('/en/nuevo-evento?cloneId=abc')
+    expect(rutaEnOtroIdioma('/en/auth/sign-up', 'es')).toBe('/auth/sign-up')
     expect(rutaEnOtroIdioma('/favoritos?x=1', 'en')).toBe('/en')
     expect(rutaEnOtroIdioma('/entradas', 'en')).toBe('/en')
   })
@@ -160,7 +167,9 @@ describe('hrefLangDestino', () => {
     expect(hrefLangDestino('en', '/radar')).toBeUndefined()
     expect(hrefLangDestino('en', '/anunciantes')).toBeUndefined()
     expect(hrefLangDestino('en', '/favoritos')).toBe('es-AR')
-    expect(hrefLangDestino('en', '/auth/sign-up?next=/nuevo-evento')).toBe('es-AR')
+    // Q6-2: /auth/sign-up ya tiene versión en inglés; /auth/recuperar sigue sin ella.
+    expect(hrefLangDestino('en', '/auth/recuperar?next=/nuevo-evento')).toBe('es-AR')
+    expect(hrefLangDestino('en', '/auth/sign-up?next=/nuevo-evento')).toBeUndefined()
     expect(hrefLangDestino('en', '/auth/login?next=/nuevo-evento')).toBeUndefined()
     expect(hrefLangDestino('en', '/')).toBeUndefined()
     expect(hrefLangDestino('en', '/?category=cine')).toBeUndefined()

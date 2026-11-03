@@ -200,12 +200,13 @@ import {
   type EventoVigenteParaInicio,
 } from '@/lib/datos/eventos'
 import { cargarAgendaConCache } from '@/lib/sin-conexion/agenda'
+import { textosDe, useIdioma, useTextos } from '@/lib/i18n'
+import type { Idioma } from '@/lib/i18n/idioma'
 import type { ItemConPublico } from '@/lib/para-chicos'
 import {
   anuncioDeLaGrilla,
   chipsDeLaPortada,
   enModoGrilla,
-  ETIQUETA_ATAJO,
   eventosDeLaGrilla,
   eventosDeLosChips,
   segundaSalidaVacioGratis,
@@ -346,11 +347,9 @@ export function seccionesPortada(filas: CategoryEventsRow[], hoyEventos: Display
  * siempre; con películas del chip "Cine", "N películas" y, si además hay
  * eventos reales, "N películas · M eventos". Singular/plural bien en ambos.
  */
-export function conteoCategoria(peliculas: number, eventos: number): string {
-  const textoEventos = `${eventos} ${eventos === 1 ? 'evento' : 'eventos'}`
-  if (peliculas === 0) return textoEventos
-  const textoPeliculas = `${peliculas} ${peliculas === 1 ? 'película' : 'películas'}`
-  return eventos === 0 ? textoPeliculas : `${textoPeliculas} · ${textoEventos}`
+export function conteoCategoria(peliculas: number, eventos: number, idioma: Idioma = 'es'): string {
+  // Q6-1: el texto sale del diccionario (`portada.conteo`).
+  return textosDe(idioma).portada.conteo(peliculas, eventos)
 }
 
 
@@ -380,6 +379,7 @@ function VacioGratis({
   bordeSecundario: string
 }) {
   const colores = useColoresQPS()
+  const t = useTextos().portada
   return (
     <View style={[estilos.vacioHoy, estilos.vacioCategoria, { backgroundColor: colores.card, borderColor: colores.border }]}>
       <Texto tono="secundario">
@@ -391,7 +391,7 @@ function VacioGratis({
         style={[estilos.vacioHoyBoton, estilos.botonVacio, { backgroundColor: colores.primary }]}
       >
         <Texto peso="bold" style={{ color: colores.primaryForeground }}>
-          Ver todos los precios
+          {t.verTodosLosPrecios}
         </Texto>
       </Pressable>
       {segunda !== null ? (
@@ -480,6 +480,15 @@ export default function Inicio() {
   // "Gratis") a 3:1; antes el de categoría usaba `colores.border` (~1,2:1).
   const bordeInactivo = bordeChipInactivo(colores)
   const router = useRouter()
+  // Q6-1: la portada en el idioma de la app. Los errores y las notas del
+  // refresco se guardan en castellano (como los arma `lib/vacios.ts`) y se
+  // muestran y se anuncian traducidos (`t.errores.traducir`).
+  const { idioma } = useIdioma()
+  const t = useTextos()
+  const idiomaRef = useRef(idioma)
+  useEffect(() => {
+    idiomaRef.current = idioma
+  }, [idioma])
   const [atajo, setAtajo] = useState<Atajo>('hoy')
   const [categoria, setCategoria] = useState<string | null>(null)
   // A2 (nube Q1): el chip "Gratis" (prendido/apagado), aparte de la categoría.
@@ -576,9 +585,10 @@ export default function Inicio() {
       // acá, en el callback de la carga (no es `setState`). Y si fue un
       // "Reintentar" de `ErrorCarga` (`intento > 0`) que volvió a dar error,
       // se anuncia el error: si no, parecía que el botón no hizo nada.
-      if (resultado.tipo === 'ok' && resultado.desdeCache) anunciar(TITULO_SIN_CONEXION)
+      const traducir = textosDe(idiomaRef.current).errores.traducir
+      if (resultado.tipo === 'ok' && resultado.desdeCache) anunciar(traducir(TITULO_SIN_CONEXION))
       const avisoError = anuncioDeReintento(intento > 0, resultado)
-      if (avisoError) anunciar(avisoError)
+      if (avisoError) anunciar(traducir(avisoError))
     })
 
     return () => {
@@ -611,9 +621,9 @@ export default function Inicio() {
     if (decision.estado.tipo !== 'ok') setHojaAbierta(false)
     setNotaRefresco(decision.nota)
     const aviso = decision.anuncio
-    if (aviso) anunciar(aviso)
+    if (aviso) anunciar(t.errores.traducir(aviso))
     setRefrescando(false)
-  }, [cargarDatos, estado, notaRefresco])
+  }, [cargarDatos, estado, notaRefresco, t])
 
   const datosPortada = useMemo(() => {
     if (estado.tipo !== 'ok') return null
@@ -780,6 +790,7 @@ export default function Inicio() {
           hayEventosEnAtajo: datosPortada.hayEventosEnAtajo,
           hayEventosEnFinde: datosPortada.hayEventosEnFinde,
           desdeCache: estado.desdeCache !== null,
+          idioma,
         })
       : null
 
@@ -804,14 +815,15 @@ export default function Inicio() {
   // A6 (integración R76): el vacío del modo categoría es el de `lib/vacios.ts`
   // (con el porqué sin conexión); el mismo texto se ve y se anuncia.
   const textoVacio = paraChicos
-    ? textoVacioParaChicos(categoria, nombreCategoria, atajo, gratis)
+    ? textoVacioParaChicos(categoria, nombreCategoria, atajo, gratis, idioma)
     : gratis
-      ? textoVacioGratis(categoria, nombreCategoria, atajo)
+      ? textoVacioGratis(categoria, nombreCategoria, atajo, idioma)
       : textoVacioCategoria({
           nombre: nombreCategoria,
           atajo,
           esCine: categoria === 'cine',
           desdeCache: estado.tipo === 'ok' && estado.desdeCache !== null,
+          idioma,
         })
   const anuncio = datosPortada
     ? anuncioDeLaGrilla({
@@ -819,7 +831,7 @@ export default function Inicio() {
         gratis,
         paraChicos,
         cantidad: datosPortada.eventosCategoria.length,
-        textoConteo: conteoCategoria(datosPortada.peliculasCategoria.length, datosPortada.eventosSinPelicula.length),
+        textoConteo: conteoCategoria(datosPortada.peliculasCategoria.length, datosPortada.eventosSinPelicula.length, idioma),
         textoVacio,
       })
     : null
@@ -830,13 +842,13 @@ export default function Inicio() {
   // películas). A3 (nube Q1): con "Para chicos", "Para chicos · Finde",
   // "Música para chicos · Hoy" o "Gratis para chicos · Hoy".
   const tituloGrilla = paraChicos
-    ? tituloParaChicos(categoria === null ? null : nombreCategoria, categoria, atajo, gratis)
+    ? tituloParaChicos(categoria === null ? null : nombreCategoria, categoria, atajo, gratis, idioma)
     : gratis
-      ? tituloGratis(categoria === null ? null : nombreCategoria, atajo)
-      : `${nombreCategoria} · ${categoria === 'cine' ? 'En cartel' : ETIQUETA_ATAJO[atajo]}`
+      ? tituloGratis(categoria === null ? null : nombreCategoria, atajo, idioma)
+      : `${nombreCategoria} · ${categoria === 'cine' ? t.portada.enCartel : t.portada.atajos[atajo]}`
   // R81, 81-a: con la hoja de filtros abierta no se anuncia cada toque
   // (`pausado`); al cerrarla se anuncia el resultado una sola vez.
-  useAnunciarConteo(datosPortada ? estadoAnunciablePortada({ atajo, categoria, gratis, paraChicos, tituloGrilla, anuncio }) : null, hojaAbierta)
+  useAnunciarConteo(datosPortada ? estadoAnunciablePortada({ atajo, categoria, gratis, paraChicos, tituloGrilla, anuncio, idioma }) : null, hojaAbierta)
 
   if (cargandoBienvenida) return null
   if (!vista) return <Redirect href="/bienvenida" />
@@ -848,7 +860,7 @@ export default function Inicio() {
           no pasa por acá: sigue mostrando lo que había (`refrescando`). */}
       {estado.tipo === 'cargando' ? <EsqueletoPortada /> : null}
 
-      {estado.tipo === 'error' ? <ErrorCarga mensaje={estado.error} onReintentar={cargar} /> : null}
+      {estado.tipo === 'error' ? <ErrorCarga mensaje={t.errores.traducir(estado.error)} onReintentar={cargar} /> : null}
 
       {estado.tipo === 'ok' && datosPortada ? (
         <>
@@ -892,12 +904,12 @@ export default function Inicio() {
 
           {/* A6: "Reintentar" al lado del aviso (es `refrescar`: lo que se ve
               no se va mientras se reintenta) y la nota del último refresco. */}
-          {estado.desdeCache ? <AvisoSinConexion guardadoEn={estado.desdeCache.guardadoEn} onReintentar={refrescar} reintentando={refrescando} nota={notaRefresco} /> : null}
+          {estado.desdeCache ? <AvisoSinConexion guardadoEn={estado.desdeCache.guardadoEn} onReintentar={refrescar} reintentando={refrescando} nota={notaRefresco ? t.errores.traducir(notaRefresco) : null} /> : null}
 
           {/* A6: un refresco que falló con una carga fresca a la vista: se
               conserva lo que se ve y se avisa. */}
           {estado.desdeCache === null && notaRefresco ? (
-            <AvisoNoSeActualizo texto={notaRefresco} onReintentar={refrescar} reintentando={refrescando} />
+            <AvisoNoSeActualizo texto={t.errores.traducir(notaRefresco)} onReintentar={refrescar} reintentando={refrescando} />
           ) : null}
 
           {!modoGrilla && datosPortada.carrusel.length > 0 ? <Hero eventos={datosPortada.carrusel} /> : null}
@@ -931,7 +943,7 @@ export default function Inicio() {
                     style={[estilos.vacioHoyBoton, estilos.botonVacio, { backgroundColor: colores.primary }]}
                   >
                     <Texto peso="bold" style={{ color: colores.primaryForeground }}>
-                      {categoria === 'cine' ? 'Ver cartelera' : `Ver ${nombreCategoria} en todas las fechas`}
+                      {categoria === 'cine' ? t.portada.verCartelera : t.portada.verCategoriaEnTodasLasFechas(nombreCategoria)}
                     </Texto>
                   </Pressable>
                   <Pressable
@@ -939,13 +951,13 @@ export default function Inicio() {
                     accessibilityRole="button"
                     style={[estilos.vacioHoyBoton, estilos.botonVacio, { borderWidth: 1, borderColor: bordeInactivo }]}
                   >
-                    <Texto peso="bold">Todas las categorías</Texto>
+                    <Texto peso="bold">{t.portada.todasLasCategorias}</Texto>
                   </Pressable>
                 </View>
               ) : datosPortada.eventosCategoria.length === 0 && paraChicos ? (
                 <VacioParaChicos
                   texto={textoVacio}
-                  {...salidasVacioParaChicos(categoria, atajo, gratis)}
+                  {...salidasVacioParaChicos(categoria, atajo, gratis, idioma)}
                   onTodasLasEdades={() => cambiarParaChicos(false)}
                   onTodasLasCategorias={() => cambiarCategoria(null)}
                   onEstaSemana={() => cambiarAtajo('semana')}
@@ -955,7 +967,7 @@ export default function Inicio() {
               ) : datosPortada.eventosCategoria.length === 0 ? (
                 <VacioGratis
                   texto={textoVacio}
-                  segunda={segundaSalidaVacioGratis(categoria, atajo)}
+                  segunda={segundaSalidaVacioGratis(categoria, atajo, idioma)}
                   onVerTodosLosPrecios={() => cambiarGratis(false)}
                   onTodasLasCategorias={() => cambiarCategoria(null)}
                   onEstaSemana={() => cambiarAtajo('semana')}
@@ -964,7 +976,7 @@ export default function Inicio() {
               ) : (
                 <>
                   <Texto tono="secundario">
-                    {conteoCategoria(datosPortada.peliculasCategoria.length, datosPortada.eventosSinPelicula.length)}
+                    {conteoCategoria(datosPortada.peliculasCategoria.length, datosPortada.eventosSinPelicula.length, idioma)}
                   </Texto>
                   {/* A8 (nube Q1, QPS-339): sin live region; lo anuncia `useAnunciarConteo`. */}
                   {/* R67, 67-c: el scroll no salta al abrir el acordeón de la
@@ -1001,7 +1013,7 @@ export default function Inicio() {
                   <FilaCategoria
                     key="hoy-en-salta"
                     categoria="hoy"
-                    titulo="Hoy en Salta"
+                    titulo={t.portada.hoyEnSalta}
                     eventos={seccion.eventos}
                     alVerTodos={() => cambiarAtajo('hoy')}
                   />
@@ -1015,10 +1027,10 @@ export default function Inicio() {
                 >
                   <View style={estilos.vacioHoyTexto}>
                     <Texto peso="bold" style={estilos.vacioHoyTitulo}>
-                      Hoy en Salta
+                      {t.portada.hoyEnSalta}
                     </Texto>
                     <Texto tono="secundario">
-                      {vacioHoy ? vacioHoy.texto : 'Hoy no hay eventos cargados. Mirá qué viene en los próximos días.'}
+                      {vacioHoy ? vacioHoy.texto : t.portada.vacioHoy}
                     </Texto>
                   </View>
                   <Pressable
@@ -1027,7 +1039,7 @@ export default function Inicio() {
                     style={[estilos.vacioHoyBoton, estilos.botonVacio, { backgroundColor: colores.primary }]}
                   >
                     <Texto peso="bold" style={{ color: colores.primaryForeground }}>
-                      {vacioHoy ? vacioHoy.accion.texto : 'Ver esta semana'}
+                      {vacioHoy ? vacioHoy.accion.texto : t.portada.verEstaSemana}
                     </Texto>
                   </Pressable>
                 </View>

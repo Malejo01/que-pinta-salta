@@ -12,8 +12,9 @@ import { Radio } from "lucide-react"
 
 /**
  * La página de `/radar` y `/en/radar` (compartida; cada una pone su metadata,
- * con `noindex, follow`). Es privada: sin sesión redirige al ingreso (que
- * queda en castellano) y vuelve a la misma página en el mismo idioma.
+ * con `noindex, follow`). Es privada: sin sesión redirige al ingreso en el
+ * mismo idioma (Q6-1b: `/en/auth/login` existe desde Q5-14) y vuelve a la
+ * misma página, también en ese idioma.
  *
  * Se llama como función desde `app/radar/page.tsx` y `app/en/radar/page.tsx`.
  */
@@ -24,7 +25,7 @@ export async function PaginaRadar({ idioma }: { idioma: Idioma }) {
 
   // Redirigir al login si no tiene sesión activa
   if (!user || authError) {
-    redirect(`/auth/login?next=${rutaEn(idioma, "/radar")}`)
+    redirect(`${rutaEn(idioma, "/auth/login")}?next=${rutaEn(idioma, "/radar")}`)
   }
 
   // Carga paralela de configuraciones, locales, categorías, Instagram accounts y rol

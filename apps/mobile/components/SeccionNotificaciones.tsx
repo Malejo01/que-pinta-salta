@@ -37,12 +37,12 @@ import {
   obtenerNotificaciones,
 } from '@/lib/notificaciones'
 import { useSession } from '@/lib/session'
+import { useTextos } from '@/lib/i18n'
 
-const ETIQUETAS_CANAL: Record<CanalRadar, string> = {
-  email: 'Email',
-  push: 'Push',
-  ambos: 'Ambos',
-}
+// Q6-1: las etiquetas de los canales salen del diccionario (`notificaciones.canales`).
+// Los ejemplos de horario no son texto: son iguales en los dos idiomas (24 h).
+const EJEMPLO_DESDE = '23:00'
+const EJEMPLO_HASTA = '09:00'
 
 // Mismo valor que `COLOR_ERROR` de `app/(tabs)/cuenta.tsx` (33-a, QPS-146).
 const COLOR_ERROR = '#f87171'
@@ -65,6 +65,8 @@ type Estado =
 export function SeccionNotificaciones() {
   const colores = useColoresQPS()
   const { session } = useSession()
+  const textos = useTextos()
+  const t = textos.notificaciones
   const userId = session?.user.id ?? null
 
   // El estado se guarda con el usuario al que pertenece: si cambia, el
@@ -125,8 +127,8 @@ export function SeccionNotificaciones() {
   if (estado.tipo === 'no-disponible') {
     return (
       <View style={estilos.seccion}>
-        <Texto peso="bold" style={estilos.titulo}>Notificaciones</Texto>
-        <Texto tono="secundario">{MENSAJE_NO_DISPONIBLE}</Texto>
+        <Texto peso="bold" style={estilos.titulo}>{t.titulo}</Texto>
+        <Texto tono="secundario">{textos.errores.traducir(MENSAJE_NO_DISPONIBLE)}</Texto>
       </View>
     )
   }
@@ -134,8 +136,8 @@ export function SeccionNotificaciones() {
   if (estado.tipo === 'error') {
     return (
       <View style={estilos.seccion}>
-        <Texto peso="bold" style={estilos.titulo}>Notificaciones</Texto>
-        <ErrorCarga mensaje={estado.error} onReintentar={cargar} />
+        <Texto peso="bold" style={estilos.titulo}>{t.titulo}</Texto>
+        <ErrorCarga mensaje={textos.errores.traducir(estado.error)} onReintentar={cargar} />
       </View>
     )
   }
@@ -169,7 +171,7 @@ export function SeccionNotificaciones() {
     } else if (resultado.tipo === 'error') {
       setMensaje({ tipo: 'error', texto: resultado.error })
     } else {
-      setMensaje({ tipo: 'ok', texto: 'Guardamos tus notificaciones.' })
+      setMensaje({ tipo: 'ok', texto: t.guardadas })
     }
     setGuardando(false)
   }
@@ -223,49 +225,49 @@ export function SeccionNotificaciones() {
 
   return (
     <View style={estilos.seccion}>
-      <Texto peso="bold" style={estilos.titulo}>Notificaciones</Texto>
+      <Texto peso="bold" style={estilos.titulo}>{t.titulo}</Texto>
 
       <AvisoActivarPush variante="cuenta" />
 
       <View style={estilos.filaInterruptor}>
-        <Texto>Recordatorios de favoritos</Texto>
+        <Texto>{t.recordatoriosFavoritos}</Texto>
         <Switch
           value={favoriteReminders}
           onValueChange={(valor) => setEstado({ ...estado, favoriteReminders: valor })}
-          accessibilityLabel="Recordatorios de favoritos"
+          accessibilityLabel={t.recordatoriosFavoritos}
         />
       </View>
 
       <View style={estilos.filaInterruptor}>
-        <Texto>Novedades de lo que seguís</Texto>
+        <Texto>{t.novedadesSeguis}</Texto>
         <Switch
           value={followNews}
           onValueChange={(valor) => setEstado({ ...estado, followNews: valor })}
-          accessibilityLabel="Novedades de lo que seguís"
+          accessibilityLabel={t.novedadesSeguis}
         />
       </View>
 
       <View style={estilos.filaInterruptor}>
         <View style={estilos.filaEtiquetaConDescripcion}>
-          <Texto>Avisos patrocinados</Texto>
+          <Texto>{t.patrocinados}</Texto>
           <Texto tono="secundario" style={estilos.textoDescripcion}>
-            {'Hasta 1 por semana, de eventos de Salta. Llevan la etiqueta "Patrocinado".'}
+            {t.patrocinadosDescripcion}
           </Texto>
         </View>
         <Switch
           value={sponsored}
           onValueChange={cambiarSponsored}
           disabled={guardandoPatrocinados}
-          accessibilityLabel="Avisos patrocinados"
+          accessibilityLabel={t.patrocinados}
           accessibilityState={{ checked: sponsored, busy: guardandoPatrocinados }}
         />
       </View>
 
       <View style={estilos.filaInterruptor}>
         <View style={estilos.filaEtiquetaConDescripcion}>
-          <Texto>Avisos de Qué Pinta Salta</Texto>
+          <Texto>{t.equipo}</Texto>
           <Texto tono="secundario" style={estilos.textoDescripcion}>
-            Novedades y avisos del equipo de Qué Pinta Salta.
+            {t.equipoDescripcion}
           </Texto>
         </View>
         {/* R70: se prende y apaga al tocar y guarda solo `announcements`
@@ -274,13 +276,13 @@ export function SeccionNotificaciones() {
           value={announcements}
           onValueChange={cambiarAnnouncements}
           disabled={guardandoAvisos}
-          accessibilityLabel="Avisos de Qué Pinta Salta"
-          accessibilityHint="Novedades y avisos del equipo de Qué Pinta Salta."
+          accessibilityLabel={t.equipo}
+          accessibilityHint={t.equipoDescripcion}
           accessibilityState={{ checked: announcements, busy: guardandoAvisos }}
         />
       </View>
 
-      <Texto peso="semibold" style={estilos.subtitulo}>Canal del Radar</Texto>
+      <Texto peso="semibold" style={estilos.subtitulo}>{t.canalRadar}</Texto>
       <View style={estilos.filaChips}>
         {CANALES_RADAR.map((canal) => {
           const seleccionado = radarChannel === canal
@@ -293,40 +295,40 @@ export function SeccionNotificaciones() {
               style={[estilos.chip, { borderColor: colores.border }, seleccionado && { backgroundColor: colores.primary }]}
             >
               <Texto peso="semibold" style={{ color: seleccionado ? colores.primaryForeground : colores.foreground }}>
-                {ETIQUETAS_CANAL[canal]}
+                {t.canales[canal]}
               </Texto>
             </Pressable>
           )
         })}
       </View>
       {radarPorPush ? (
-        <Texto tono="secundario">Por ahora el Radar te sigue llegando por email.</Texto>
+        <Texto tono="secundario">{t.radarPorEmail}</Texto>
       ) : null}
 
-      <Texto peso="semibold" style={estilos.subtitulo}>Horario de silencio</Texto>
+      <Texto peso="semibold" style={estilos.subtitulo}>{t.silencio}</Texto>
       <View style={estilos.filaHorario}>
         <View style={estilos.campoHorario}>
           <CampoTexto
-            label="Desde"
+            label={t.desde}
             value={quietStart}
             onChangeText={(valor) => setEstado({ ...estado, quietStart: valor })}
-            placeholder="23:00"
+            placeholder={EJEMPLO_DESDE}
             style={estilos.textoHorario}
           />
         </View>
         <View style={estilos.campoHorario}>
           <CampoTexto
-            label="Hasta"
+            label={t.hasta}
             value={quietEnd}
             onChangeText={(valor) => setEstado({ ...estado, quietEnd: valor })}
-            placeholder="09:00"
+            placeholder={EJEMPLO_HASTA}
             style={estilos.textoHorario}
           />
         </View>
       </View>
 
       {mensaje ? (
-        <Texto style={{ color: mensaje.tipo === 'error' ? COLOR_ERROR : colores.foreground }}>{mensaje.texto}</Texto>
+        <Texto style={{ color: mensaje.tipo === 'error' ? COLOR_ERROR : colores.foreground }}>{textos.errores.traducir(mensaje.texto)}</Texto>
       ) : null}
 
       <Pressable
@@ -339,7 +341,7 @@ export function SeccionNotificaciones() {
         {guardando ? (
           <ActivityIndicator color={colores.primaryForeground} />
         ) : (
-          <Texto peso="semibold" style={{ color: colores.primaryForeground }}>Guardar notificaciones</Texto>
+          <Texto peso="semibold" style={{ color: colores.primaryForeground }}>{t.guardar}</Texto>
         )}
       </Pressable>
     </View>

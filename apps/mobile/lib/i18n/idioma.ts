@@ -2,7 +2,8 @@
 // dependencias (no hay expo-localization): el idioma del dispositivo sale de
 // `Intl` (Hermes usa el del sistema), y la elección de la persona se guarda
 // en el teléfono con el almacén de siempre (AsyncStorage), nunca en el servidor.
-import type { Almacen } from '@/lib/sin-conexion/almacen'
+// Relativo (no `@/`): la web llega a este archivo por `lib/formato.ts` en sus tests.
+import type { Almacen } from '../sin-conexion/almacen'
 
 export type Idioma = 'es' | 'en'
 export type PreferenciaIdioma = 'auto' | Idioma
@@ -48,6 +49,15 @@ export async function guardarPreferenciaIdioma(almacen: Almacen, preferencia: Pr
   } catch {
     // Si no se pudo guardar, la app sigue en el idioma elegido mientras esté abierta.
   }
+}
+
+/**
+ * Q6-1 · El idioma efectivo leído del teléfono (preferencia guardada + idioma
+ * del dispositivo), para lo que se arma fuera de React: los avisos locales
+ * («Mañana: …», «Este finde pinta»).
+ */
+export async function idiomaGuardado(almacen: Almacen, locale: string = localeDelDispositivo()): Promise<Idioma> {
+  return idiomaEfectivo(await leerPreferenciaIdioma(almacen), locale)
 }
 
 /** El locale de Intl para fechas y horas: es-AR o en (con 24 h, como en Salta). */

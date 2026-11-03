@@ -24,6 +24,7 @@ import { Texto } from '@/components/Texto'
 import { useColoresQPS } from '@/lib/colores'
 import { cambiarSeguimiento, obtenerLoQueSeguis, type LoQueSeguis as ListasDeSeguimiento } from '@/lib/radar'
 import { useTextos } from '@/lib/i18n'
+import { es } from '@/lib/i18n/diccionarios/es'
 
 export type TipoDeSeguimiento = 'lugar' | 'cuenta' | 'categoria'
 
@@ -35,10 +36,10 @@ export interface FilaLoQueSeguis {
 
 
 // Mismo texto que la web (ver el encargo de esta tarea).
-const MENSAJE_SIN_NADA =
-  'Todavía no seguís nada. Seguí un lugar desde la ficha de un evento, o elegí categorías en el Radar.'
-export const MENSAJE_ERROR_CARGA = 'No pudimos cargar lo que seguís. Probá de nuevo.'
-export const MENSAJE_ERROR_DEJAR_DE_SEGUIR = 'No pudimos actualizar el seguimiento. Probá de nuevo.'
+// Q6-1: los textos viven en el diccionario (`cuenta.seguis`); los errores se
+// guardan con su castellano de siempre y se muestran en el idioma de la app.
+export const MENSAJE_ERROR_CARGA = es.cuenta.seguis.errorCarga
+export const MENSAJE_ERROR_DEJAR_DE_SEGUIR = es.cuenta.seguis.errorCambio
 
 // Mismo valor que `COLOR_ERROR` de `app/(tabs)/cuenta.tsx` y
 // `components/SeccionNotificaciones.tsx` (33-a, QPS-146): un rojo fijo (D1,
@@ -83,6 +84,9 @@ export interface LoQueSeguisProps {
 
 export function LoQueSeguis({ userId }: LoQueSeguisProps) {
   const t = useTextos().loQueSeguis
+  const s = useTextos().cuenta.seguis
+  const enIdioma = (mensaje: string) =>
+    mensaje === MENSAJE_ERROR_CARGA ? s.errorCarga : mensaje === MENSAJE_ERROR_DEJAR_DE_SEGUIR ? s.errorCambio : mensaje
   const router = useRouter()
   const colores = useColoresQPS()
 
@@ -152,7 +156,7 @@ export function LoQueSeguis({ userId }: LoQueSeguisProps) {
         <Texto peso="bold" style={estilos.titulo}>
           {t.titulo}
         </Texto>
-        <ErrorCarga mensaje={estado.error} onReintentar={cargar} />
+        <ErrorCarga mensaje={enIdioma(estado.error)} onReintentar={cargar} />
       </View>
     )
   }
@@ -163,7 +167,7 @@ export function LoQueSeguis({ userId }: LoQueSeguisProps) {
         <Texto peso="bold" style={estilos.titulo}>
           {t.titulo}
         </Texto>
-        <Vacio mensaje={MENSAJE_SIN_NADA} textoAccion={t.irAlRadar} onAccion={() => router.push('/radar')} />
+        <Vacio mensaje={s.vacio} textoAccion={t.irAlRadar} onAccion={() => router.push('/radar')} />
       </View>
     )
   }
@@ -176,7 +180,7 @@ export function LoQueSeguis({ userId }: LoQueSeguisProps) {
         {t.titulo}
       </Texto>
 
-      {errorAccion ? <Texto style={{ color: COLOR_ERROR }}>{errorAccion}</Texto> : null}
+      {errorAccion ? <Texto style={{ color: COLOR_ERROR }}>{enIdioma(errorAccion)}</Texto> : null}
 
       {grupos.map((tipo) => {
         const filasDelGrupo = estado.filas.filter((fila) => fila.tipo === tipo)

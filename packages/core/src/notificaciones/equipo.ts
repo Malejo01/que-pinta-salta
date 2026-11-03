@@ -14,7 +14,7 @@
  */
 import { esUuid } from '../radar/preferencias'
 import { normalizeFilterText } from '../home/filters'
-import { formatSaltaDayKey } from '../date-format'
+import { formatSaltaDayKey, saltaWallClockToUtcISO } from '../date-format'
 import { urlEvento } from '../metricas/links'
 import {
   claveDedupe,
@@ -229,4 +229,38 @@ export function destinatariosAvisoEquipo(
   }
 
   return { mensajes, resumen: { personas, telefonos: mensajes.length, excluidos } }
+}
+
+// ---------------------------------------------------------------------------
+// Q6-8: «¿hubo aviso del equipo tal día?» (para «Este finde pinta»)
+// ---------------------------------------------------------------------------
+
+/**
+ * Ruta pública (sin sesión, sin datos personales) que responde si el equipo
+ * mandó un aviso en un día de Salta: `GET /api/app/aviso-equipo?dia=AAAA-MM-DD`
+ * → `{ ok: true, dia, hubo }`. La app la consulta el jueves antes de dejar
+ * programado «Este finde pinta», por si el aviso llegó con la app cerrada y la
+ * persona lo descartó sin tocarlo (no queda en la bandeja).
+ */
+export const RUTA_AVISO_EQUIPO_DEL_DIA = '/api/app/aviso-equipo'
+
+const DIA_RE = /^\d{4}-\d{2}-\d{2}$/
+
+function diaMas(dia: string, dias: number): string {
+  const [a, m, d] = dia.split('-').map(Number)
+  return new Date(Date.UTC(a, m - 1, d + dias)).toISOString().slice(0, 10)
+}
+
+/**
+ * Q6-8: el rango UTC `[desde, hasta)` del día de Salta `dia`, si se puede
+ * consultar: formato `AAAA-MM-DD`, fecha real y solo ayer, hoy o mañana
+ * (Salta, según `ahora`). Así la ruta pública no sirve para recorrer el
+ * historial. `null` si no.
+ */
+export function rangoDiaAvisoEquipo(dia: unknown, ahora: Date): { desde: string; hasta: string } | null {
+  if (typeof dia !== 'string' || !DIA_RE.test(dia)) return null
+  if (diaMas(dia, 0) !== dia) return null // 2026-02-30 y parecidos
+  const hoy = formatSaltaDayKey(ahora)
+  if (dia !== hoy && dia !== diaMas(hoy, -1) && dia !== diaMas(hoy, 1)) return null
+  return { desde: saltaWallClockToUtcISO(`${dia}T00:00:00`), hasta: saltaWallClockToUtcISO(`${diaMas(dia, 1)}T00:00:00`) }
 }

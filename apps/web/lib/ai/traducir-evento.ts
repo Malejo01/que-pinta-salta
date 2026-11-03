@@ -10,10 +10,12 @@
 import { generarJsonDeTexto } from '@/lib/ai/llamadas-ia'
 import {
   descripcionParaTraducir,
-  validarTraduccion,
+  validarTraduccionConMotivo,
   type EventoParaTraducir,
+  type MotivoDescarteTraduccion,
   type TraduccionPropuesta,
 } from '@qps/core/events/traduccion'
+import { codigoDelFallo, esRespuestaDelModelo, type CodigoFalloTraduccion } from '@/lib/traduccion/motivos'
 
 const INSTRUCCION = `You translate cultural event listings from Salta, Argentina, from Spanish into clear, neutral English for tourists.
 RULES:
@@ -45,16 +47,42 @@ export function textoParaElModelo(evento: EventoParaTraducir): string {
   ].join('\n')
 }
 
+/**
+ * Q6-10: el resultado con su motivo, para que la corrida distinga:
+ *  - `traducido`: la traducción validada.
+ *  - `descartado`: el modelo contestó, pero la respuesta no sirve (validación
+ *    o formato). El evento se marca y no se reintenta.
+ *  - `error_proveedor`: la llamada falló (sin crédito, clave, límite, red…).
+ *    El evento NO se marca y la corrida se corta.
+ * Nunca tira y nunca loguea el mensaje del error (puede traer el texto del
+ * evento o datos de la API): solo el código.
+ */
+export type ResultadoTraduccionEvento =
+  | { tipo: 'traducido'; traduccion: TraduccionPropuesta }
+  | { tipo: 'descartado'; motivo: MotivoDescarteTraduccion | 'respuesta_invalida' }
+  | { tipo: 'error_proveedor'; codigo: CodigoFalloTraduccion }
+
+export async function traducirEventoConMotivo(
+  evento: EventoParaTraducir,
+  traductor: Traductor = traductorReal
+): Promise<ResultadoTraduccionEvento> {
+  let respuesta: unknown
+  try {
+    respuesta = await traductor(textoParaElModelo(evento))
+  } catch (error) {
+    const codigo = codigoDelFallo(error)
+    console.error(`[traducir-evento] la traducción falló: ${codigo}`)
+    return esRespuestaDelModelo(codigo) ? { tipo: 'descartado', motivo: 'respuesta_invalida' } : { tipo: 'error_proveedor', codigo }
+  }
+  const validacion = validarTraduccionConMotivo(evento, respuesta)
+  return validacion.ok ? { tipo: 'traducido', traduccion: validacion.traduccion } : { tipo: 'descartado', motivo: validacion.motivo }
+}
+
+/** La traducción validada, o `null` si se descartó o falló la llamada. */
 export async function traducirEvento(
   evento: EventoParaTraducir,
   traductor: Traductor = traductorReal
 ): Promise<TraduccionPropuesta | null> {
-  try {
-    const respuesta = await traductor(textoParaElModelo(evento))
-    return validarTraduccion(evento, respuesta)
-  } catch {
-    // Sin el mensaje: puede traer el texto del evento o datos de la API.
-    console.error('[traducir-evento] la traducción falló')
-    return null
-  }
+  const r = await traducirEventoConMotivo(evento, traductor)
+  return r.tipo === 'traducido' ? r.traduccion : null
 }

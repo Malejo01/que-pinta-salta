@@ -15,6 +15,7 @@ import {
 } from '@qps/core/asistencia'
 import { TARIFARIO } from '@qps/core/publicidad/precios'
 import { textoSeguir, textoSeguirCuenta } from '@qps/core/radar/seguimiento'
+import { textosContrasena } from '@qps/core/auth/cuenta'
 import { vibeLabels } from '@qps/core/types'
 
 export const es = {
@@ -493,6 +494,125 @@ export const es = {
     noTenesCuenta: '¿No tenés cuenta?',
     registrate: 'Registrate',
     errorGoogle: 'Ocurrió un error al iniciar sesión con Google. Probá de nuevo.',
+  },
+  // Q6-2: la página /auth/sign-up (y /en/auth/sign-up). Lo que comparte con el
+  // ingreso (volver, marca, legales, «O continuar con») sale de `paginaIngreso`.
+  paginaAlta: {
+    titulo: 'Crear Cuenta',
+    bajada: 'Registrate para publicar eventos y guardar favoritos',
+    nombreCompleto: 'Nombre completo',
+    nombrePlaceholder: 'Juan Perez',
+    repetirContrasena: 'Repetir Contraseña',
+    boton: 'Crear cuenta',
+    aceptasAlCrear: 'Al crear tu cuenta aceptás los',
+    yaTenesCuenta: '¿Ya tenés cuenta?',
+    iniciarSesion: 'Iniciar sesión',
+    errorGoogle: 'Ocurrió un error al registrarse con Google. Probá de nuevo.',
+  },
+  // Q6-2: /perfil (y /en/perfil).
+  perfil: {
+    titulo: 'Mi Perfil',
+    eventosSubidos: (n: number) => `${n} ${n === 1 ? 'evento subido' : 'eventos subidos'}`,
+    misEventos: 'Mis Eventos Colaborados',
+    misEventosBajada: 'Listado de los eventos que has subido a la plataforma y su estado de revisión.',
+    agregarNuevo: 'Agregar Nuevo',
+    errorHistorial: 'Ocurrió un error al cargar tu historial. Inténtalo más tarde.',
+    vacioTitulo: 'Aún no has colaborado con eventos',
+    vacioTexto: '¡Sé parte activa de la comunidad! Comparte peñas, ferias, talleres o boliches que ocurran en Salta.',
+    subirPrimero: 'Subir mi primer evento',
+    estadoPendiente: 'Pendiente de revisión',
+    estadoBorrador: 'Borrador local',
+    estadoPublicado: 'Aprobado y publicado',
+    estadoCancelado: 'Rechazado / Cancelado',
+    estadoFinalizado: 'Finalizado',
+    hora: (hora: string) => `${hora} hs`,
+    verPublicado: 'Ver publicado',
+    sometidoARevision: (fecha: string) => `Sometido a revisión el ${fecha}`,
+    guardadoBorrador: 'Guardado como borrador',
+    noPublicado: 'No publicado',
+    eliminarCuenta: 'Eliminar mi cuenta',
+    // Solo se muestra en inglés, junto al link a eliminar la cuenta (esa página queda en castellano).
+    enCastellano: '(en castellano)',
+  },
+  // Q6-2: «Lo que seguís» de /perfil (app/perfil/lo-que-seguis.tsx).
+  loQueSeguis: {
+    titulo: 'Lo que seguís',
+    bajada: 'Los lugares, cuentas de Instagram y categorías que elegiste seguir para tu Radar.',
+    vacio: 'Todavía no seguís nada. Seguí un lugar desde la ficha de un evento, o elegí categorías en el Radar.',
+    irAlRadar: 'Ir al Radar',
+    lugares: 'Lugares',
+    cuentas: 'Cuentas de Instagram',
+    categorias: 'Categorías',
+    dejarDeSeguir: 'Dejar de seguir',
+    dejarDeSeguirAria: (nombre: string) => `Dejar de seguir ${nombre}`,
+    errorTitulo: 'Error',
+    errorTexto: 'No pudimos dejar de seguir. Probá de nuevo.',
+    errorConexionTitulo: 'Error de conexión',
+    errorConexionTexto: 'No pudimos conectarnos al servidor. Probá de nuevo.',
+  },
+  // Q6-2: el formulario de contraseña (components/change-password-form.tsx).
+  // En castellano, título/descripción/botón salen de `textosContrasena` (core);
+  // acá van los mismos, para que el inglés tenga dónde traducirlos.
+  cambioContrasena: {
+    modos: {
+      google: textosContrasena('google'),
+      email: textosContrasena('email'),
+      mixta: textosContrasena('mixta'),
+      desconocida: textosContrasena('desconocida'),
+      restablecer: textosContrasena('restablecer'),
+    },
+    listoRestablecer: 'Listo, ya podés entrar con tu email y esta contraseña.',
+    irALaPortada: 'Ir a la portada',
+    guardada: 'Contraseña guardada.',
+    avisoGuardada: 'Contraseña guardada',
+    avisoError: 'Error al guardar la contraseña',
+    nueva: 'Contraseña nueva',
+    confirmar: 'Confirmar contraseña nueva',
+    guardando: 'Guardando...',
+  },
+  // Q6-2: el formulario de carga de eventos (components/event-form.tsx), en
+  // /nuevo-evento y /en/nuevo-evento.
+  formularioEvento: {
+    volver: 'Volver a inicio',
+    tituloCrear: 'Crear Nuevo Evento',
+    tituloEditar: 'Editar Evento',
+    flyer: 'Flyer del Evento',
+    flyerBajada: 'Sube una imagen para tu evento (máx. 5MB)',
+    flyerSubir: 'Click para subir imagen',
+    flyerSubiendo: 'Subiendo la imagen...',
+    flyerVistaPrevia: 'Vista previa del flyer',
+    infoBasica: 'Información Básica',
+    tituloEvento: 'Título del Evento',
+    tituloPlaceholder: 'Ej: Peña Folklórica en La Casona',
+    descripcionCorta: 'Descripción Corta',
+    descripcionCortaPlaceholder: 'Una línea describiendo el evento',
+    descripcionCompleta: 'Descripción Completa',
+    descripcionCompletaPlaceholder: 'Describe el evento en detalle...',
+    categoria: 'Categoría',
+    categoriaPlaceholder: 'Selecciona una categoría',
+    lugar: 'Lugar',
+    lugarPlaceholder: 'Selecciona un lugar (opcional)',
+    fechaYHora: 'Fecha y Hora',
+    inicio: 'Inicio',
+    fin: 'Fin (opcional)',
+    precio: 'Precio',
+    gratuito: 'Evento gratuito',
+    precioMinimo: 'Precio Mínimo (ARS)',
+    precioMaximo: 'Precio Máximo (ARS)',
+    linkEntradas: 'Link de Entradas (opcional)',
+    ambiente: 'Ambiente',
+    restriccionEdad: 'Restricción de Edad',
+    todasLasEdades: 'Todas las edades',
+    cancelar: 'Cancelar',
+    creando: 'Creando...',
+    actualizando: 'Actualizando...',
+    crear: 'Crear Evento',
+    actualizar: 'Actualizar Evento',
+    /**
+     * Los errores de `lib/actions.ts` (createEvent, updateUserEvent,
+     * uploadFlyer). En castellano van tal cual; en inglés, traducidos.
+     */
+    error: (mensaje: string) => `${mensaje}`,
   },
   auth: {
     tituloIngresar: 'Iniciar Sesión',

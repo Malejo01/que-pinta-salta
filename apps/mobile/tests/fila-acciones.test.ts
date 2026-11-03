@@ -27,6 +27,9 @@ import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { afterEach, describe, expect, it } from 'vitest'
 import { ORDEN_FILA_ACCIONES, textoBotonVoy } from '@qps/core/asistencia'
+import { textoSeguir, textoSeguirCuenta } from '@qps/core/radar/seguimiento'
+import { en } from '../lib/i18n/diccionarios/en'
+import { es } from '../lib/i18n/diccionarios/es'
 
 const MOBILE_ROOT = fileURLToPath(new URL('..', import.meta.url))
 const FILA_PATH = join(MOBILE_ROOT, 'components', 'FilaAccionesEvento.tsx')
@@ -81,6 +84,15 @@ describe('components/FilaAccionesEvento.tsx (detectores estáticos)', () => {
     expect(/textoBotonVoy\s*\(/.test(contenido)).toBe(true)
   })
 
+  // Q6-1b: en inglés, del diccionario (`t.voy`), con el mismo umbral de core;
+  // `es.fila.voy` es el mismo texto que arma la fila en castellano.
+  it('Q6-1b: en inglés el texto del Voy sale del diccionario, con el mismo umbral', () => {
+    expect(contenido).toMatch(/idioma === 'es' \? `✓ \$\{textoBotonVoy\(estado\.cantidadVoy\)\}` : t\.voy\(estado\.cantidadVoy\)/)
+    for (const n of [0, 2, 3, 12]) expect(es.fila.voy(n)).toBe(`✓ ${textoBotonVoy(n)}`)
+    expect(en.fila.voy(2)).toBe('✓ Going')
+    expect(en.fila.voy(12)).toBe('✓ Going · 12')
+  })
+
   it('usa BotonCompartir (de la R42) para "compartir", no lo reimplementa', () => {
     expect(/<BotonCompartir\b/.test(contenido)).toBe(true)
   })
@@ -111,8 +123,15 @@ describe('components/FilaAccionesEvento.tsx (detectores estáticos)', () => {
 describe('components/BotonSeguir.tsx (detectores estáticos)', () => {
   const contenido = quitarComentarios(readFileSync(SEGUIR_PATH, 'utf8'))
 
-  it('usa textoSeguir/textoSeguirCuenta de @qps/core/radar/seguimiento', () => {
+  // Q6-1b: el texto pasó al diccionario (`t.seguir`); en castellano sigue
+  // siendo el de core (lo llama es.ts), y acá se importa su tipo.
+  it('usa textoSeguir/textoSeguirCuenta de @qps/core/radar/seguimiento (vía es.seguir)', () => {
     expect(/from\s*['"]@qps\/core\/radar\/seguimiento['"]/.test(contenido)).toBe(true)
+    expect(contenido).toMatch(/t\.cuenta\(etiqueta, siguiendo\) : t\.lugar\(siguiendo\)/)
+    for (const siguiendo of [true, false]) {
+      expect(es.seguir.lugar(siguiendo)).toBe(textoSeguir(siguiendo))
+      expect(es.seguir.cuenta('usina', siguiendo)).toBe(textoSeguirCuenta('usina', siguiendo))
+    }
   })
 
   it('escribe siempre a través de cambiarSeguimiento (lib/radar.ts)', () => {

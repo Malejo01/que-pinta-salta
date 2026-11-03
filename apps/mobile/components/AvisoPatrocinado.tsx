@@ -15,17 +15,17 @@
 // (franja con borde/fondo de `useColoresQPS()`, botón con fondo `primary` y
 // texto `primaryForeground` — nunca `color: colores.primary` como color de
 // TEXTO, regla de la R49 que vigila `tests/primario-texto.test.ts`).
+//
+// Q6-1b: los textos salen del diccionario (`t.patrocinado`); el error de
+// `cambiarPatrocinados` se guarda en castellano y se muestra traducido.
 import { useState } from 'react'
 import { Pressable, StyleSheet, View } from 'react-native'
 import { Texto } from '@/components/Texto'
 import { AREA_TACTIL_MINIMA } from '@/lib/accesibilidad'
 import { useColoresQPS } from '@/lib/colores'
+import { useTextos } from '@/lib/i18n'
 import { cambiarPatrocinados } from '@/lib/notificaciones'
 import { useSession } from '@/lib/session'
-
-const TEXTO_FRANJA = 'Llegaste por un aviso patrocinado'
-const TEXTO_BOTON = 'No recibir más avisos patrocinados'
-const TEXTO_EXITO = 'Listo, no vas a recibir más. Podés volver a prenderlos en Cuenta.'
 
 // Mismo valor que `COLOR_ERROR` de `SeccionNotificaciones.tsx` y
 // `app/(tabs)/cuenta.tsx` (33-a, QPS-146): fijo, no depende de
@@ -47,6 +47,8 @@ type Estado = { tipo: 'inicial' } | { tipo: 'guardando' } | { tipo: 'ok' } | { t
 export function AvisoPatrocinado() {
   const colores = useColoresQPS()
   const { session } = useSession()
+  const textos = useTextos()
+  const t = textos.patrocinado
   const [estado, setEstado] = useState<Estado>({ tipo: 'inicial' })
 
   if (!session) return null
@@ -73,23 +75,23 @@ export function AvisoPatrocinado() {
   return (
     <View style={[estilos.contenedor, { borderColor: colores.border, backgroundColor: colores.card }]}>
       {estado.tipo === 'ok' ? (
-        <Texto tono="secundario">{TEXTO_EXITO}</Texto>
+        <Texto tono="secundario">{t.listo}</Texto>
       ) : (
         <>
-          <Texto tono="secundario">{TEXTO_FRANJA}</Texto>
+          <Texto tono="secundario">{t.franja}</Texto>
 
-          {estado.tipo === 'error' ? <Texto style={{ color: COLOR_ERROR }}>{estado.mensaje}</Texto> : null}
+          {estado.tipo === 'error' ? <Texto style={{ color: COLOR_ERROR }}>{textos.errores.traducir(estado.mensaje)}</Texto> : null}
 
           <Pressable
             onPress={noRecibirMas}
             disabled={busy}
             accessibilityRole="button"
-            accessibilityLabel={TEXTO_BOTON}
+            accessibilityLabel={t.boton}
             accessibilityState={{ busy }}
             style={[estilos.boton, { borderColor: colores.border, backgroundColor: busy ? colores.muted : colores.primary }]}
           >
-            <Texto peso="semibold" style={{ color: busy ? colores.mutedForeground : colores.primaryForeground }}>
-              {TEXTO_BOTON}
+            <Texto peso="semibold" style={{ color: busy ? colores.mutedForeground : colores.primaryForeground, textAlign: 'center' }}>
+              {t.boton}
             </Texto>
           </Pressable>
         </>

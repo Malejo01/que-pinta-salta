@@ -543,7 +543,8 @@ const PANTALLAS: { ruta: string[]; llamada: RegExp; romperNodo: (s: string) => s
   {
     ruta: ['app', '(tabs)', 'buscar.tsx'],
     llamada:
-      /useAnunciarConteo\(\s*estado\.tipo === 'ok'\s*\?\s*estadoAnunciableBuscar\(\{\s*mostrarResultados,\s*cantidad: resultadosMostrados\.length,\s*filtros: filtrosTexto,\s*v: vParam,\s*toque: toqueTexto\s*\}\)\s*:\s*null,?\s*\)/,
+      // Q6-1: también le pasa el idioma de la app.
+      /useAnunciarConteo\(\s*estado\.tipo === 'ok'\s*\?\s*estadoAnunciableBuscar\(\{\s*mostrarResultados,\s*cantidad: resultadosMostrados\.length,\s*filtros: filtrosTexto,\s*v: vParam,\s*toque: toqueTexto,\s*idioma\s*\}\)\s*:\s*null,?\s*\)/,
     romperNodo: (s) => s.replace('<Texto tono="secundario" style={estilos.tituloSeccion}>', '<Texto tono="secundario" accessibilityLiveRegion="polite" style={estilos.tituloSeccion}>'),
   },
   {
