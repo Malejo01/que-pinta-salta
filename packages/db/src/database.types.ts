@@ -341,6 +341,25 @@ isOneToOne: false
                   Relationships: [
                     
                   ]
+                },"lugares_chicos_pedidos": {
+                  Row: {
+                    "comentario": string | null,"contacto": string | null,"created_at": string,"direccion": string,"estado": string,"id": string,"idioma": string,"link": string | null,"lugar_id": string | null,"nombre": string,"revisado_at": string | null,"tipo": string | null
+                  }
+                  Insert: {
+                    "comentario"?: string | null,"contacto"?: string | null,"created_at"?: string,"direccion": string,"estado"?: string,"id"?: string,"idioma"?: string,"link"?: string | null,"lugar_id"?: string | null,"nombre": string,"revisado_at"?: string | null,"tipo"?: string | null
+                  }
+                  Update: {
+                    "comentario"?: string | null,"contacto"?: string | null,"created_at"?: string,"direccion"?: string,"estado"?: string,"id"?: string,"idioma"?: string,"link"?: string | null,"lugar_id"?: string | null,"nombre"?: string,"revisado_at"?: string | null,"tipo"?: string | null
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "lugares_chicos_pedidos_lugar_id_fkey"
+      columns: ["lugar_id"]
+isOneToOne: false
+      referencedRelation: "lugares_permanentes"
+      referencedColumns: ["id"]
+    }
+                  ]
                 },"lugares_permanentes": {
                   Row: {
                     "acceso": string,"cargado_por": string | null,"contacto_instagram": string | null,"contacto_telefono": string | null,"contacto_web": string | null,"created_at": string,"descripcion_corta": string | null,"edad_max": number | null,"edad_min": number | null,"estado": string,"fuente": string,"fuente_detalle": string | null,"horarios": NonNullable<Json>,"id": string,"motivo_archivo": string | null,"nota_precio": string | null,"osm_ref": string | null,"techado": string | null,"tiene_bano_adaptado": boolean | null,"tiene_cambiador": boolean | null,"tiene_rampa": boolean | null,"tipo": string,"updated_at": string,"venue_id": string,"verificado_at": string | null,"verificado_por": string | null

@@ -33,6 +33,7 @@ import {
 import { idBloqueLugarChicos, ordenarPorDistancia, type LugarChicosMapa } from "@qps/core/mapa/lugares-chicos"
 import { textosDe } from "@/lib/i18n"
 import type { Idioma } from "@/lib/i18n/idiomas"
+import { rutaEn } from "@/lib/i18n/rutas"
 
 type Origen = { tipo: "posicion"; lat: number; lng: number } | { tipo: "barrio"; id: string; nombre: string; lat: number; lng: number }
 
@@ -237,6 +238,10 @@ export function SeccionLugaresChicos({ lugares, ahoraISO, seleccionado, conEvent
         </ul>
       )}
       <p className="mt-3 text-xs text-muted-foreground">{t.leyenda}</p>
+      {/* Q5-3: el formulario público para sumar un lugar. */}
+      <a href={rutaEn(idioma, "/lugares-chicos/sumar")} className={ENLACE}>
+        {textosDe(idioma).sumarLugar.linkDesdeMapa}
+      </a>
     </section>
   )
 }
