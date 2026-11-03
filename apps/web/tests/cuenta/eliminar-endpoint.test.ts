@@ -579,11 +579,28 @@ function resolverArchivoLocal(especificador: string, archivoQueImporta: string):
   return null
 }
 
+/**
+ * Q6-5: `import("…")` con el especificador escrito como UN literal de string
+ * (comillas simples o dobles, sin nada más entre los paréntesis: ni `+`, ni
+ * variables, ni template literal) es tan estático como un `from "…"`: el
+ * destino se lee en el texto. Es lo que usan `next/dynamic` y la carga
+ * diferida de supabase-js (lib/supabase/cliente-diferido.ts) para sacar
+ * código del JavaScript inicial. Estos imports el cierre transitivo los SIGUE
+ * (ver `especificadoresImportados`), así que el archivo de destino se revisa
+ * con las mismas reglas que uno importado de forma estática. La evasión que
+ * cerró la regla del `import()` (armar el especificador en memoria) sigue
+ * prohibida: ese `import(especificador)` no es un literal.
+ */
+const IMPORT_DINAMICO_LITERAL = /\bimport\s*\(\s*(["'])([^"'`$]+)\1\s*\)/g
+
 function especificadoresImportados(contenido: string): string[] {
   const especificadores: string[] = []
   const regex = /\bfrom\s+["']([^"']+)["']/g
   let m: RegExpExecArray | null
   while ((m = regex.exec(contenido)) !== null) especificadores.push(m[1])
+  // Q6-5: también los `import("…")` literales, leídos SIN comentarios (así un
+  // `import/* x */("…")` se sigue igual que uno escrito de corrido).
+  for (const literal of sanearComentarios(contenido).matchAll(IMPORT_DINAMICO_LITERAL)) especificadores.push(literal[2])
   return especificadores
 }
 
@@ -676,7 +693,18 @@ function sanearComentarios(contenido: string): string {
  */
 function contienePatronProhibido(contenido: string): { prohibido: boolean; cual?: string } {
   const saneado = sanearComentarios(contenido)
-  if (/\bimport\s*\(/.test(saneado)) return { prohibido: true, cual: "import() dinámico" }
+  // Q6-5: el `import("…")` literal se permite (el cierre lo sigue, ver
+  // IMPORT_DINAMICO_LITERAL), salvo hacia lib/supabase/server: con el módulo
+  // en la mano, `modulo["create" + "AdminClient"]` sería el LÍMITE CONOCIDO
+  // de abajo por otra vía, y ese hueco hoy está cerrado. Cualquier otro
+  // `import(` (especificador armado en memoria, template literal,
+  // concatenación) sigue siendo "import() dinámico".
+  for (const literal of saneado.matchAll(IMPORT_DINAMICO_LITERAL)) {
+    if (/(^|\/)supabase\/server(\.tsx?)?$/.test(literal[2])) {
+      return { prohibido: true, cual: "import() dinámico de lib/supabase/server" }
+    }
+  }
+  if (/\bimport\s*\(/.test(saneado.replace(IMPORT_DINAMICO_LITERAL, " "))) return { prohibido: true, cual: "import() dinámico" }
   if (/\brequire\b/.test(saneado)) return { prohibido: true, cual: "require" }
   if (/\bcreateRequire\b/.test(saneado)) return { prohibido: true, cual: "createRequire (node:module)" }
   if (/process\.env\s*\[/.test(saneado)) return { prohibido: true, cual: "process.env[...] por corchete" }
@@ -961,5 +989,46 @@ describe('LÍMITE CONOCIDO de contienePatronProhibido: el import de namespace co
       "const admin = modulo[nombreFuncion]()",
     ].join("\n")
     expect(contienePatronProhibido(codigo).prohibido).toBe(false)
+  })
+})
+
+// Q6-5: el `import("…")` con un literal de string se sigue como un import
+// estático (lo usan next/dynamic y la carga diferida de supabase-js); el resto
+// de las formas de `import(` sigue prohibido.
+describe("import() con un literal de string: se sigue en el cierre, no se prohíbe (Q6-5)", () => {
+  it("un import() literal (comillas simples o dobles) no es un patrón prohibido", () => {
+    expect(contienePatronProhibido('const m = await import("@/components/navbar-usuario")').prohibido).toBe(false)
+    expect(contienePatronProhibido("const m = await import('./client')").prohibido).toBe(false)
+    expect(contienePatronProhibido('dynamic(() => import("./x").then((m) => m.X), { ssr: false })').prohibido).toBe(false)
+  })
+
+  it("el cierre transitivo los sigue: el especificador literal aparece como uno más", () => {
+    expect(especificadoresImportados('const m = await import("./client")')).toEqual(["./client"])
+    expect(especificadoresImportados('import { a } from "./a"\nconst b = import(/* x */ "./b")')).toEqual(["./a", "./b"])
+  })
+
+  it("siguen prohibidos: especificador en una variable, template literal, concatenación", () => {
+    for (const codigo of [
+      "const m = await import(especificador)",
+      "const m = await import(`@/lib/${nombre}`)",
+      'const m = await import("@/lib/supabase/" + "server")',
+      "const m = await import(`@/components/navbar-usuario`)",
+    ]) {
+      const resultado = contienePatronProhibido(codigo)
+      expect(resultado.prohibido, codigo).toBe(true)
+      expect(resultado.cual).toBe("import() dinámico")
+    }
+  })
+
+  it("un import() literal de lib/supabase/server sigue prohibido (con el módulo en la mano, el acceso por corchete esquivaría el substring)", () => {
+    for (const codigo of [
+      'const m = await import("@/lib/supabase/server")',
+      "const m = await import('../../lib/supabase/server.ts')",
+      'const m = await import(/* x */ "@/lib/supabase/server")',
+    ]) {
+      const resultado = contienePatronProhibido(codigo)
+      expect(resultado.prohibido, codigo).toBe(true)
+      expect(resultado.cual).toBe("import() dinámico de lib/supabase/server")
+    }
   })
 })

@@ -3,30 +3,27 @@
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
+import dynamic from "next/dynamic"
 import Image from "next/image"
-import { Moon, Sun, Plus, LogIn, LogOut, User, Settings, SearchCheck, Tags, Heart, Radio, Coffee, Search, Calendar, Map } from "lucide-react"
+import { Moon, Sun, Plus, LogIn, Coffee, Search, Map } from "lucide-react"
 import { useTheme } from "@/components/theme-provider"
 import { useDonation } from "@/components/donation-context"
 import { DONATIONS_ENABLED } from "@/lib/config/monetization"
 import { Button } from "@/components/ui/button"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip"
-import { createClient } from "@/lib/supabase/client"
+import { clienteSupabase, cuandoEsteLibre, type ClienteSupabaseNavegador } from "@/lib/supabase/cliente-diferido"
 import { hrefLangDestino, rutaEn } from "@/lib/i18n/rutas"
 import { useIdioma, useTextos } from "@/lib/i18n/use-idioma"
 import { SelectorIdioma } from "@/components/selector-idioma"
 import type { User as SupabaseUser } from "@supabase/supabase-js"
+
+// Q6-5: solo con sesión (ver navbar-usuario.tsx). Sin SSR: la sesión se lee
+// en el navegador, así que en el servidor `user` siempre es null. Mientras se
+// descarga, el lugar del botón de usuario queda reservado (sin salto).
+const AccesosConSesion = dynamic(() => import("@/components/navbar-usuario").then((m) => m.AccesosConSesion), { ssr: false })
+const MenuUsuario = dynamic(() => import("@/components/navbar-usuario").then((m) => m.MenuUsuario), {
+  ssr: false,
+  loading: () => <div aria-hidden className="size-9" />,
+})
 
 export function Navbar() {
   const { resolvedTheme, setTheme } = useTheme()
@@ -39,11 +36,16 @@ export function Navbar() {
   const textos = useTextos()
   const t = textos.nav
 
+  // Q6-5: supabase-js no viaja en el JavaScript inicial (ver
+  // lib/supabase/cliente-diferido.ts): la sesión se lee cuando el navegador
+  // queda libre después de hidratar. Mientras tanto `loading` sigue en true.
   useEffect(() => {
-    const supabase = createClient()
-    
-    const getUser = async () => {
+    let cancelado = false
+    let desuscribir = () => {}
+
+    const getUser = async (supabase: ClienteSupabaseNavegador) => {
       const { data: { user } } = await supabase.auth.getUser()
+      if (cancelado) return
       setUser(user)
       
       if (user) {
@@ -53,25 +55,41 @@ export function Navbar() {
           .eq('id', user.id)
           .single()
         
+        if (cancelado) return
         setIsAdmin(profile?.role === 'ADMIN')
       }
       setLoading(false)
     }
-    
-    getUser()
-    
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null)
-      if (!session?.user) {
-        setIsAdmin(false)
-      }
+
+    const cancelarEspera = cuandoEsteLibre(() => {
+      clienteSupabase()
+        .then((supabase) => {
+          if (cancelado) return
+          getUser(supabase)
+
+          const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+            setUser(session?.user ?? null)
+            if (!session?.user) {
+              setIsAdmin(false)
+            }
+          })
+          desuscribir = () => subscription.unsubscribe()
+        })
+        // Sin red no hay sesión que mostrar: queda el botón de ingresar.
+        .catch(() => {
+          if (!cancelado) setLoading(false)
+        })
     })
     
-    return () => subscription.unsubscribe()
+    return () => {
+      cancelado = true
+      cancelarEspera()
+      desuscribir()
+    }
   }, [])
 
   const handleSignOut = async () => {
-    const supabase = createClient()
+    const supabase = await clienteSupabase()
     await supabase.auth.signOut()
     router.refresh()
   }
@@ -83,13 +101,16 @@ export function Navbar() {
         <Link href={rutaEn(idioma, "/")} className="flex shrink-0 items-center gap-2.5">
           {/* Wrapper con ring rojo en dark mode para reemplazar el halo crema */}
           <div className="rounded-full dark:ring-2 dark:ring-[#C12026]/70 dark:ring-offset-1 dark:ring-offset-background">
+            {/* Q6-5: WebP de 128 px (7 KB; el PNG de 160 px pesa 20 KB) y sin
+                `priority`: el logo no es el LCP y su precarga competía con el
+                CSS y la imagen del LCP. Va `eager` igual (está arriba de todo). */}
             <Image
-              src="/brand/logo-circular.png"
+              src="/brand/logo-circular-128.webp"
               alt="Que pinta Salta logo"
               width={44}
               height={44}
               className="rounded-full object-contain block"
-              priority
+              loading="eager"
             />
           </div>
           <div className="hidden sm:block leading-none">
@@ -153,39 +174,10 @@ export function Navbar() {
           
           {/* Favoritos y Radar: ocultos en celular (están en la barra inferior,
               mobile-nav.tsx); así el header con sesión entra en 320 px. */}
-          {user && (
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button asChild variant="ghost" className="hidden sm:inline-flex text-muted-foreground hover:text-red-500 transition-colors mr-1 gap-2 font-semibold text-sm">
-                    <Link href={rutaEn(idioma, "/favoritos")} hrefLang={hrefLangDestino(idioma, "/favoritos")}>
-                      <Heart aria-hidden="true" className="size-4.5 text-red-500 fill-red-500/10" />
-                      {/* El link ya es `hidden` debajo de `sm`; el texto no se oculta nunca,
-                          así el nombre accesible siempre coincide con lo visible. */}
-                      <span>{t.misEventos}</span>
-                    </Link>
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>{t.misEventos}</p>
-                </TooltipContent>
-              </Tooltip>
-
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button asChild variant="ghost" className="hidden sm:inline-flex text-muted-foreground hover:text-primary transition-colors mr-1 gap-2 font-semibold text-sm">
-                    <Link href={rutaEn(idioma, "/radar")} hrefLang={hrefLangDestino(idioma, "/radar")}>
-                      <Radio aria-hidden="true" className="size-4.5 text-primary" />
-                      <span>{t.radarSalteno}</span>
-                    </Link>
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>{t.radarSalteno}</p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          )}
+          {/* Q6-5: lo que solo se ve con sesión (estos accesos y el menú de
+              usuario, con Radix Tooltip/DropdownMenu) se carga diferido desde
+              navbar-usuario.tsx: casi todas las visitas son sin sesión. */}
+          {user && <AccesosConSesion />}
 
           {isAdmin && (
             <Button asChild variant="outline" className="hidden sm:inline-flex">
@@ -202,84 +194,7 @@ export function Navbar() {
           {!loading && (
             <>
               {user ? (
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon" aria-label={t.menuUsuario}>
-                      <User aria-hidden="true" className="size-5" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <div className="px-2 py-1.5">
-                      <p className="text-sm font-medium">{user.email}</p>
-                      {isAdmin && (
-                        <p className="text-xs text-primary">{t.administrador}</p>
-                      )}
-                    </div>
-                    <DropdownMenuSeparator />
-                    {/* Grupo 1: Perfil, Favoritos, Radar */}
-                    <DropdownMenuItem asChild>
-                      <Link href={rutaEn(idioma, "/perfil")} hrefLang={hrefLangDestino(idioma, "/perfil")}>
-                        <User className="mr-2 size-4" />
-                        {t.miPerfil}
-                      </Link>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem asChild>
-                      <Link href={rutaEn(idioma, "/favoritos")} hrefLang={hrefLangDestino(idioma, "/favoritos")}>
-                        <Heart className="mr-2 size-4 text-red-500" />
-                        {t.misEventos}
-                      </Link>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem asChild>
-                      <Link href={rutaEn(idioma, "/radar")} hrefLang={hrefLangDestino(idioma, "/radar")}>
-                        <Radio className="mr-2 size-4 text-primary" />
-                        {t.miRadarSalteno}
-                      </Link>
-                    </DropdownMenuItem>
-                    
-                    <DropdownMenuSeparator />
-                    
-                    {/* Grupo 2: Mis Eventos */}
-                    <DropdownMenuItem asChild>
-                      <Link href={rutaEn(idioma, "/mis-eventos")} hrefLang={hrefLangDestino(idioma, "/mis-eventos")}>
-                        <Calendar className="mr-2 size-4" />
-                        {t.eventosQueCargaste}
-                      </Link>
-                    </DropdownMenuItem>
-
-                    <DropdownMenuSeparator />
-
-                    {/* Grupo 3: Admin (herramienta interna, solo en castellano: sin traducir) */}
-                    {isAdmin && (
-                      <>
-                        <DropdownMenuItem asChild>
-                          <Link href="/admin">
-                            <Settings className="mr-2 size-4" />
-                            Panel Admin
-                          </Link>
-                        </DropdownMenuItem>
-                        <DropdownMenuItem asChild>
-                          <Link href="/admin/scrape">
-                            <SearchCheck className="mr-2 size-4" />
-                            Scrapers
-                          </Link>
-                        </DropdownMenuItem>
-                        <DropdownMenuItem asChild>
-                          <Link href="/admin/clasificacion">
-                            <Tags className="mr-2 size-4" />
-                            Clasificación
-                          </Link>
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                      </>
-                    )}
-                    
-                    {/* Grupo 4: Logout */}
-                    <DropdownMenuItem onClick={handleSignOut}>
-                      <LogOut className="mr-2 size-4" />
-                      {t.cerrarSesion}
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                <MenuUsuario email={user.email} isAdmin={isAdmin} onSignOut={handleSignOut} />
               ) : (
                 <Button asChild variant="default" className="min-w-[115px]">
                   <Link href={rutaEn(idioma, "/auth/login")} hrefLang={hrefLangDestino(idioma, "/auth/login")} prefetch={false}>
