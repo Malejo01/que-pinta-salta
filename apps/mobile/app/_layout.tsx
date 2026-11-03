@@ -19,6 +19,7 @@ import { inicializarSentry } from '@/lib/sentry'
 import { iniciarAnuncios } from '@/lib/anuncios/consentimiento'
 import { SessionProvider } from '@/lib/session'
 import { PushProvider } from '@/lib/push'
+import { IdiomaProvider } from '@/lib/i18n'
 import { ManejadorTapPush } from '@/components/ManejadorTapPush'
 import { SincronizadorRecordatorios } from '@/components/SincronizadorRecordatorios'
 import { SincronizadorFinde } from '@/components/SincronizadorFinde'
@@ -112,6 +113,8 @@ function RootLayout() {
   }
 
   return (
+    // Q5-11: el idioma de la app (el del teléfono, o el que se eligió en Cuenta).
+    <IdiomaProvider>
     <SessionProvider>
       {/* Ronda 41 (41-c/41-d): `PushProvider` lee `useSession()` por dentro,
           así que va adentro de `SessionProvider`. */}
@@ -149,6 +152,7 @@ function RootLayout() {
         </ThemeProvider>
       </PushProvider>
     </SessionProvider>
+    </IdiomaProvider>
   )
 }
 

@@ -117,7 +117,8 @@ describe('datos y accesos', () => {
     const ficha = leer('app', 'lugares-chicos', '[id].tsx')
     expect(ficha).toContain('urlComoLlegar(')
     expect(ficha).toContain("urlContactoLugar(lugar.web, 'web')")
-    expect(ficha).toContain('ATRIBUCION_OSM.es')
-    expect(ficha).toContain('Con reserva')
+    expect(ficha).toContain('ATRIBUCION_OSM[idioma]')
+    // Q5-11: los textos salen del diccionario («Con reserva» en castellano y en inglés).
+    expect(ficha).toContain('{t.conReserva}')
   })
 })

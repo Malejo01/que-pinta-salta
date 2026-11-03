@@ -6,23 +6,24 @@ import { useRouter } from 'expo-router'
 import { Icono } from '@/components/Icono'
 import { Texto } from '@/components/Texto'
 import { useColoresQPS } from '@/lib/colores'
-import { TEXTO_ACCESO_LUGARES, TITULO_LUGARES_CHICOS } from '@/lib/lugares-chicos'
+import { useTextos } from '@/lib/i18n'
 
 export function AccesoLugaresChicos() {
   const colores = useColoresQPS()
   const router = useRouter()
+  const t = useTextos().lugaresChicos
   return (
     <Pressable
       onPress={() => router.push('/lugares-chicos')}
       accessibilityRole="button"
-      accessibilityLabel={`${TITULO_LUGARES_CHICOS}: ${TEXTO_ACCESO_LUGARES}`}
+      accessibilityLabel={`${t.titulo}: ${t.acceso}`}
       style={[estilos.accesoLugares, { backgroundColor: colores.card, borderColor: colores.border }]}
     >
       <Icono nombre="Balloon" tamanio={20} color={colores.foreground} />
       <View style={estilos.textos}>
-        <Texto peso="bold">{TITULO_LUGARES_CHICOS}</Texto>
+        <Texto peso="bold">{t.titulo}</Texto>
         <Texto tono="secundario" style={estilos.bajada}>
-          {TEXTO_ACCESO_LUGARES}
+          {t.acceso}
         </Texto>
       </View>
     </Pressable>
