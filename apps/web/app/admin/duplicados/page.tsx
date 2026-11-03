@@ -141,7 +141,7 @@ export default async function AdminDuplicadosPage() {
         </div>
       ) : (
         <div className="space-y-4">
-          {pairs.map(({ a, b, hoursApart }) => {
+          {pairs.map(({ a, b, hoursApart, entreFuentes }) => {
             const warnings = pairWarnings(a, b)
             return (
             <Card key={`${a.id}-${b.id}`}>
@@ -158,6 +158,12 @@ export default async function AdminDuplicadosPage() {
                     <Clock className="size-4" />
                     {hoursApart.toFixed(1)} h de diferencia
                   </span>
+                  {/* Q5-9: par de fuentes distintas (sin el mismo lugar): nunca se fusiona solo. */}
+                  {entreFuentes && (
+                    <Badge variant="outline" className="text-xs">
+                      Entre fuentes · confianza {entreFuentes.confianza} · {entreFuentes.motivos.join(' · ')}
+                    </Badge>
+                  )}
                 </div>
               </CardHeader>
               <CardContent className="flex flex-col gap-3">
