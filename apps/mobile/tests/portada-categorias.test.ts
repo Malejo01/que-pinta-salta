@@ -317,7 +317,8 @@ describe('portada (app/(tabs)/index.tsx) en modo categoría', () => {
     expect(codigo).toMatch(/eventosCategoria = eventosDeLaGrilla\(items,\s*\{\s*atajo,\s*categoria,\s*gratis,\s*paraChicos\s*\},\s*ahora\)/)
     // R67, 67-c: la grilla de 2 columnas toma `eventosSinPelicula` (con otra
     // categoría, es todo `eventosCategoria`; con "Cine", lo que no es película).
-    expect(bloqueCategoria).toMatch(/enFilasDeDos\(datosPortada\.eventosSinPelicula\)/)
+    // Q5-14: sin filas (enFilasDeDos): el contenedor envuelve de a 2.
+    expect(bloqueCategoria).toMatch(/datosPortada\.eventosSinPelicula\.map\(/)
     expect(codigo).toMatch(/eventosSinPelicula = eventosCategoria/)
   })
 

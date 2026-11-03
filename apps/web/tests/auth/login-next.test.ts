@@ -43,7 +43,8 @@ describe('/auth/login: los errores de signInWithPassword pasan por mensajeErrorI
   })
 
   it('usa mensajeErrorIngreso(error) para setError en el login con password', () => {
-    expect(src).toMatch(/setError\(mensajeErrorIngreso\(error\)\)/)
+    // Q5-14: en /en/auth/login el mismo mensaje pasa por el diccionario (auth.mensaje).
+    expect(src).toMatch(/setError\(idioma === 'en' \? textos\.auth\.mensaje\(mensajeErrorIngreso\(error\)\) : mensajeErrorIngreso\(error\)\)/)
   })
 
   it('ningún camino muestra error.message (ni .message de ningún objeto de error)', () => {

@@ -475,6 +475,25 @@ export const es = {
   },
   // Modal de ingreso y alta (auth-modal.tsx): lo abren ♥ Guardar, ✓ Voy y
   // + Seguir sin sesión.
+  // Q5-14: la página /auth/login (y /en/auth/login), aparte del modal.
+  paginaIngreso: {
+    volverAInicio: 'Volver a inicio',
+    eventosEnSalta: 'Eventos en Salta Capital',
+    titulo: 'Iniciar sesión',
+    bajada: 'Ingresá tu email y contraseña para entrar',
+    boton: 'Iniciar sesión',
+    iniciando: 'Iniciando sesión...',
+    olvidaste: '¿Olvidaste tu contraseña?',
+    oContinuarCon: 'O continuar con',
+    aceptasConGoogle: 'Al continuar con Google aceptás los',
+    terminos: 'Términos y condiciones',
+    yLa: 'y la',
+    privacidad: 'Política de Privacidad',
+    cierreLegales: '.',
+    noTenesCuenta: '¿No tenés cuenta?',
+    registrate: 'Registrate',
+    errorGoogle: 'Ocurrió un error al iniciar sesión con Google. Probá de nuevo.',
+  },
   auth: {
     tituloIngresar: 'Iniciar Sesión',
     tituloCrear: 'Crear Cuenta',
