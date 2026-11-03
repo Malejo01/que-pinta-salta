@@ -11,9 +11,9 @@
  * Los códigos son los mismos que `CodigoErrorIA` de la capa `lib/ia` (Q6-3,
  * #187), más `desconocido`. Se reconocen por forma (sin importar clases):
  *  - `codigo` (texto): el `ErrorIA` de `lib/ia` después de #187.
- *  - `status` o `estado` (número): el `ApiError` de `@google/genai`, que es
- *    lo que tira `lib/ai/gemini.ts` hoy.
- *  - el aviso de clave faltante de `lib/ai/gemini.ts`, la respuesta vacía y
+ *  - `status` o `estado` (número): el `ApiError` del SDK de Gemini (respaldo:
+ *    con #187 la capa ya lo normaliza a `codigo`).
+ *  - el aviso de clave faltante de Gemini, la respuesta vacía y
  *    el JSON roto (`SyntaxError`).
  */
 export type CodigoFalloTraduccion =
