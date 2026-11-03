@@ -230,3 +230,31 @@ export function urlMapaDelEvento(
 
   return urlMapaLugar(venue.id, dia >= hoy ? dia : null)
 }
+
+/**
+ * Q5-4 · El sexto origen válido de `openURL` (ver `tests/aperturas-url.test.ts`):
+ * el contacto que publica un lugar para chicos (web, Instagram, teléfono) y
+ * la licencia de OpenStreetMap. Devuelve la URL solo si es segura:
+ *  - `web`: `https://` o `http://` con un host con punto;
+ *  - `instagram`: solo `https://(www.)instagram.com/…`;
+ *  - `tel`: `tel:` con solo dígitos y `+` (de 6 a 20);
+ *  - `osm`: la página de copyright de OpenStreetMap, fija.
+ * Cualquier otra cosa (javascript:, intent:, otro dominio) da `null`.
+ */
+export function urlContactoLugar(valor: string | null | undefined, tipo: 'web' | 'instagram' | 'tel' | 'osm'): string | null {
+  if (tipo === 'osm') return 'https://www.openstreetmap.org/copyright'
+  if (!valor) return null
+  if (tipo === 'tel') {
+    const numero = valor.replace(/[^0-9+]/g, '')
+    return /^\+?[0-9]{6,20}$/.test(numero) ? `tel:${numero}` : null
+  }
+  try {
+    const url = new URL(valor)
+    if (tipo === 'instagram') {
+      return url.protocol === 'https:' && /^(www\.)?instagram\.com$/.test(url.hostname) ? url.toString() : null
+    }
+    return (url.protocol === 'https:' || url.protocol === 'http:') && url.hostname.includes('.') ? url.toString() : null
+  } catch {
+    return null
+  }
+}
