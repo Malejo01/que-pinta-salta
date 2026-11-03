@@ -442,3 +442,44 @@ describe('5. TarjetaPelicula y BloqueCine no llaman scrollTo', () => {
     expect(sinComentarios('// scrollTo({ y: 0 })\nconst a = 1')).not.toMatch(/\bscrollTo\b/)
   })
 })
+
+// ---------------------------------------------------------------------------
+// 6. El botón «Filtros» sigue respondiendo con las pills deslizadas
+// ---------------------------------------------------------------------------
+// Build 7 (3/11): en Android, al deslizar las pills hacia la derecha el
+// contenido del scroll horizontal tapaba el botón y «Filtros» dejaba de abrir
+// la hoja. El contenedor de las pills recorta (`overflow: 'hidden'`) y el del
+// botón va por encima (`zIndex` mayor).
+function estilo(codigo: string, nombre: string): string | null {
+  const m = new RegExp(`\\n\\s*${nombre}:\\s*\\{([^}]*)\\}`).exec(codigo)
+  return m ? m[1] : null
+}
+function zIndexDe(cuerpo: string | null): number | null {
+  const m = cuerpo ? /\bzIndex:\s*(\d+)/.exec(cuerpo) : null
+  return m ? Number(m[1]) : null
+}
+function violacionesBotonTapado(codigo: string): string[] {
+  const v: string[] = []
+  const pills = estilo(codigo, 'pillsYChips')
+  const boton = estilo(codigo, 'botonFiltros')
+  if (pills === null || boton === null) return ['no están los estilos pillsYChips y botonFiltros']
+  if (!/\boverflow:\s*'hidden'/.test(pills)) v.push("pillsYChips no recorta (falta overflow: 'hidden')")
+  const zb = zIndexDe(boton)
+  const zp = zIndexDe(pills) ?? 0
+  if (zb === null || zb <= zp) v.push('botonFiltros no va por encima de las pills (zIndex)')
+  return v
+}
+
+describe('6. «Filtros» no queda tapado por las pills deslizadas', () => {
+  it('el fuente real recorta las pills y deja el botón arriba', () => {
+    expect(violacionesBotonTapado(codigo)).toEqual([])
+  })
+  it('fixture falso: sin overflow hidden', () => {
+    const roto = codigo.replace("pillsYChips: { flex: 1, minWidth: 0, overflow: 'hidden', zIndex: 1 }", 'pillsYChips: { flex: 1, minWidth: 0 }')
+    expect(violacionesBotonTapado(roto)).toContain("pillsYChips no recorta (falta overflow: 'hidden')")
+  })
+  it('fixture falso: el botón sin zIndex', () => {
+    const roto = codigo.replace('botonFiltros: { paddingLeft: 16, zIndex: 2 }', 'botonFiltros: { paddingLeft: 16 }')
+    expect(violacionesBotonTapado(roto)).toEqual(['botonFiltros no va por encima de las pills (zIndex)'])
+  })
+})
