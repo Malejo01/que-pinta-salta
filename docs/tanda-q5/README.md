@@ -27,3 +27,24 @@ Base: `ronda/integracion-q5`, que sale de la punta de `ronda/integracion-q4` (PR
 - Web, `/en/auth/login`: es la misma página, con los textos en el diccionario `paginaIngreso`.
   - Hay que tener en cuenta que el alta en inglés va por el modal de ingreso, que ya estaba traducido.
   - `/auth/sign-up`, `/perfil` y `/nuevo-evento` quedan en castellano como pendiente, anotado en `cobertura-en`.
+
+## Q5-16 · Decisiones de Mauro sobre la Q4 (3/11)
+Las tomó Mauro sobre las «Decisiones para Mauro» de #142. Las implementó el agente en `nube/q5-decisiones-q4`.
+- **nº2 · Bajas sin cuenta**: las bajas de patrocinados de los teléfonos **sin** cuenta también cuentan en `bajas_48h`.
+  - Columna nueva `push_tokens.avisos_patrocinados_baja_at`. La marca `set_push_preferences` solo cuando el interruptor pasa de prendido a apagado.
+  - Cerrar sesión lo apaga sin marcar, así que no cuenta como baja.
+  - `medirBajas` suma los destinatarios y las bajas de las dos vías (`user_id` y `push_token_id`).
+- **nº5 · Límite de registro**: `POST /api/push/registrar` permite 6 pedidos por hora por dispositivo (antes, 20). Si se pasa, la app recibe 429 y sigue con el registro que ya tenía.
+- **nº7 · Sugerencia de geocodificación**: si Nominatim no da un match seguro, se guarda la mejor sugerencia.
+  - Va en `venues.geocode_sugerencia_lat`, `_lng`, `_texto` y `_at`, y no toca `latitude` ni `longitude`.
+  - En `/admin/lugares`, pestaña «Sin ubicación», aparecen la sugerencia con «© colaboradores de OpenStreetMap» y los botones «Confirmar» y «Descartar».
+  - Un lugar con sugerencia pendiente ya no se reintenta solo a los 30 días. Al descartarla, vuelve a la regla de los 30 días.
+  - Confirmar nunca pisa una ubicación cargada a mano.
+- **nº13 · JSON-LD en inglés**: en `/en/evento/<id>`, el JSON-LD lleva `name` y `description` traducidos, con `inLanguage: "en"`.
+  - Sin traducción, van los originales con `"es-AR"`.
+  - Si está el título traducido pero no la descripción, la descripción va en castellano.
+- **nº17 · «Este finde pinta»**: ya se cancelaba cuando la app veía el aviso del equipo (en primer plano, o en la bandeja al volver a abrirse). Ahora también se cancela cuando la persona **tocó** el aviso con la app cerrada, porque al tocarlo sale de la bandeja.
+  - Queda afuera un caso: el aviso llega con la app cerrada, se descarta sin tocarlo y la app no se abre antes de las 18. Cubrirlo necesita una tarea en segundo plano con `expo-task-manager`, que es una dependencia nueva, así que lo salteé.
+- **nº18 · Búsquedas de una cuenta borrada desde la web**: al arrancar con una sesión guardada, la app pregunta por la cuenta (`auth.getUser()`).
+  - Si el servidor responde `user_not_found`, borra las búsquedas recientes y cierra la sesión local.
+  - Sin red, con otro error o con un cierre de sesión común no se borra nada.
