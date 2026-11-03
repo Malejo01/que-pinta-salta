@@ -83,7 +83,8 @@ function tramo(src: string, desde: RegExp, hasta: RegExp): string {
 
 describe('CABLEADO: app/auth/sign-up/page.tsx', () => {
   const bloqueSesion = tramo(SRC_PAGINA, /resultado\.tipo\s*===\s*['"]sesion['"]/, /resultado\.tipo\s*===\s*['"]enviado['"]/)
-  const bloqueEnviado = tramo(SRC_PAGINA, /resultado\.tipo\s*===\s*['"]enviado['"]/, /setError\(resultado\.mensaje\)/)
+  // Q6-2: en /en/auth/sign-up el mensaje de core pasa por `mensaje(...)` (auth.mensaje en inglés; tal cual en castellano).
+  const bloqueEnviado = tramo(SRC_PAGINA, /resultado\.tipo\s*===\s*['"]enviado['"]/, /setError\(mensaje\(resultado\.mensaje\)\)/)
 
   it('decide con resultadoAltaConSesion y distingue tipo === "sesion"', () => {
     expect(SRC_PAGINA).toMatch(/resultadoAltaConSesion\(respuesta\)/)
@@ -93,11 +94,14 @@ describe('CABLEADO: app/auth/sign-up/page.tsx', () => {
   it('importa MENSAJE_ALTA_CON_SESION de @/lib/auth/mensajes y lo usa en el toast', () => {
     expect(SRC_PAGINA).toMatch(/import\s*\{[^}]*MENSAJE_ALTA_CON_SESION[^}]*\}\s*from\s*['"]@\/lib\/auth\/mensajes['"]/)
     expect(bloqueSesion).toMatch(/toast\(/)
-    expect(bloqueSesion).toMatch(/description:\s*MENSAJE_ALTA_CON_SESION/)
+    // Q6-2: pasa por `mensaje(...)`, que en castellano lo deja igual.
+    expect(bloqueSesion).toMatch(/description:\s*mensaje\(MENSAJE_ALTA_CON_SESION\)/)
+    expect(SRC_PAGINA).toContain("const mensaje = (texto: string) => (idioma === 'en' ? textos.auth.mensaje(texto) : texto)")
   })
 
   it('con "sesion": va a "/" y refresca; NO va a /auth/sign-up-success ni usa MENSAJE_ALTA_ENVIADA', () => {
-    expect(bloqueSesion).toMatch(/router\.push\(['"]\/['"]\)/)
+    // Q6-2: a la portada en el idioma de la página (rutaEn('es', '/') es '/'; en inglés, '/en').
+    expect(bloqueSesion).toMatch(/router\.push\(rutaEn\(idioma, ['"]\/['"]\)\)/)
     expect(bloqueSesion).toMatch(/router\.refresh\(\)/)
     expect(bloqueSesion).not.toMatch(/sign-up-success/)
     expect(bloqueSesion).not.toMatch(/MENSAJE_ALTA_ENVIADA/)

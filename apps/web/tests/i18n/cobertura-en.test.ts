@@ -38,16 +38,15 @@ function rutaDe(archivo: string): string {
 
 /** Páginas públicas que quedan SOLO en castellano, con el motivo. */
 const SOLO_CASTELLANO: Record<string, string> = {
-  '/auth/sign-up': 'cuenta (Q5-14: el alta en inglés va por el modal de ingreso, que ya está traducido)',
   '/auth/sign-up-success': 'cuenta',
   '/auth/recuperar': 'cuenta',
   '/auth/restablecer': 'cuenta',
   '/auth/error': 'cuenta',
   '/favoritos': 'con sesión',
   '/mis-eventos': 'con sesión',
-  '/perfil': 'con sesión',
-  '/perfil/eliminar-cuenta': 'con sesión',
-  '/nuevo-evento': 'con sesión (carga de eventos)',
+  // Q6-2: /perfil, /nuevo-evento y /auth/sign-up ya tienen versión en inglés.
+  '/perfil/eliminar-cuenta':
+    'con sesión (Q6-2: la lista de qué se borra está fijada igual que en /eliminar-cuenta y en la app; desde /en/perfil el link lo avisa)',
   '/radar/baja': 'link del mail del Radar, que sale en castellano',
   '/reporte/*': 'reporte privado para anunciantes',
   '/flyer/*': 'flyer de Instagram en revisión: el contenido es el flyer en castellano',
@@ -142,7 +141,9 @@ describe('4. el selector de idioma conserva la ruta y los filtros', () => {
     ['/evento/abc?o=hoy', '/en/evento/abc?o=hoy'],
     ['/?category=musica', '/en?category=musica'],
     ['/privacidad', '/en/privacidad'],
-    ['/perfil', '/en'],
+    // Q6-2: /perfil ya tiene versión en inglés; una ruta sin inglés sigue yendo a /en.
+    ['/perfil', '/en/perfil'],
+    ['/favoritos', '/en'],
   ])('%s → %s', (desde, hacia) => {
     expect(rutaEnOtroIdioma(desde, 'en')).toBe(hacia)
     if (hacia !== '/en') expect(rutaEnOtroIdioma(hacia, 'es')).toBe(desde)

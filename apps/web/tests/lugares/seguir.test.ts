@@ -25,7 +25,8 @@ describe('dónde aparece', () => {
     expect(c).not.toMatch(/\.insert\(|\.delete\(|\.upsert\(/)
   })
   it('Perfil › Lo que seguís enlaza cada lugar a su ficha', () => {
-    expect(leer('app', 'perfil', 'lo-que-seguis.tsx')).toContain('href={`/lugar/${lugar.slug ?? lugar.id}`}')
+    // Q6-2: en /en/perfil el link va a /en/place/<slug> (rutaEn deja igual el castellano).
+    expect(leer('app', 'perfil', 'lo-que-seguis.tsx')).toContain('href={rutaEn(idioma, `/lugar/${lugar.slug ?? lugar.id}`)}')
     expect(leer('lib', 'actions', 'radar.ts')).toContain('select("venue:venues(id, name, slug)")')
   })
   it('la ficha del lugar tiene «Seguir»', () => {
