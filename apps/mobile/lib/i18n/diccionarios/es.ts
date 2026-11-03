@@ -26,6 +26,11 @@ import {
   MENSAJE_VOLVIO_LA_CONEXION,
 } from '../../mensajes'
 import { AVISO_SIN_PERMISO, PISTA_PIDE_PERMISO } from '../../push/textos-interruptores'
+// Q6-1b: lo que ya vivía en core (una sola definición, compartida con la web).
+import { textoBotonVoy } from '@qps/core/asistencia'
+import { textosContrasena } from '@qps/core/auth/cuenta'
+import { textoSeguir, textoSeguirCuenta } from '@qps/core/radar/seguimiento'
+import { vibeLabels } from '@qps/core/types'
 
 export const es = {
   comun: {
@@ -66,6 +71,11 @@ export const es = {
     comoLlegar: 'Cómo llegar',
     comprarTickets: 'Comprar tickets',
     mapaDeEventos: 'Ver en el mapa de eventos',
+    // Q6-1b: lo que quedaba suelto en la ficha.
+    yaNoEsta: 'Este evento ya no está disponible.',
+    volverAInicio: 'Volver a Inicio',
+    /** La única «vibe» que muestra la ficha (`age_restriction >= 18`); el texto es el de core. */
+    soloAdultos: vibeLabels.adultos,
   },
   pelicula: {
     titulo: 'Película',
@@ -525,6 +535,95 @@ export const es = {
   },
   esqueleto: {
     cargando: 'Cargando',
+  },
+  // ── Q6-1b: Eliminar mi cuenta, Contraseña, la pantalla de error general y
+  // los componentes de la ficha (fila de acciones, calendario, seguir, aviso
+  // patrocinado) ──
+  eliminarCuenta: {
+    titulo: 'Eliminar mi cuenta',
+    paraSiempre: 'Esta acción es para siempre y no se puede deshacer.',
+    cuenta: (email: string) => `Cuenta: ${email}`,
+    queSeBorraTitulo: 'Qué se borra:',
+    /**
+     * PARIDAD: la MISMA lista, en el mismo orden, que la web (`/eliminar-cuenta`
+     * y `/perfil/eliminar-cuenta`). La compara, en castellano,
+     * `apps/web/tests/cuenta/play-pendientes.test.ts` (lee este bloque).
+     */
+    queSeBorra: [
+      'Tus favoritos.',
+      'Tus marcas de "Voy".',
+      'Las preferencias de Mi Radar y de notificaciones.',
+      'Los avisos que tenés activados.',
+      'El historial de los avisos que te mandamos.',
+      'Los tokens de aviso de tu celular.',
+      'La cuenta misma, con tu email y tu contraseña.',
+    ],
+    queNoSeBorraTitulo: 'Qué no se borra:',
+    queNoSeBorra: 'Los eventos que cargaste siguen publicados, pero quedan sin tu nombre: pasan a figurar sin autor.',
+    escribinos: 'Si no podés eliminarla desde acá, escribinos a',
+    correoContacto: (email: string) => `Correo de contacto: ${email}`,
+    comoCopiar: 'Mantené presionado para copiarlo',
+    /** La palabra que se escribe es siempre ELIMINAR (la exige el servidor, `lib/cuenta.ts`). */
+    confirmar: 'Escribí ELIMINAR para confirmar',
+    palabra: 'ELIMINAR',
+    boton: 'Eliminar mi cuenta para siempre',
+  },
+  contrasena: {
+    /** Los textos de core (`textosContrasena`), por tipo de cuenta: en inglés, los de la web (`cambioContrasena.modos`). */
+    modos: {
+      google: textosContrasena('google'),
+      email: textosContrasena('email'),
+      mixta: textosContrasena('mixta'),
+      desconocida: textosContrasena('desconocida'),
+    },
+    contrasenaNueva: 'Contraseña nueva',
+    repetila: 'Repetila',
+    guardada: 'Contraseña guardada. Ya podés entrar con tu email y esta contraseña.',
+    volver: 'Volver',
+  },
+  /** La pantalla de error de todo el árbol (`ErrorBoundary` de `app/_layout.tsx`). */
+  errorGeneral: {
+    titulo: 'Algo salió mal.',
+    texto: 'Volvé a intentar en un momento.',
+    reintentar: 'Reintentar',
+  },
+  /** ♥ Guardar · ✓ Voy · Compartir, de la ficha (`FilaAccionesEvento`). */
+  fila: {
+    guardar: '♥ Guardar',
+    guardado: '♥ Guardado',
+    /** El texto de core («Voy» / «Voy · 5 van») con el ✓ de la interfaz. */
+    voy: (cantidad: number) => `✓ ${textoBotonVoy(cantidad)}`,
+    compartir: 'Compartir',
+    etiquetaGuardar: 'Guardar este evento en tus favoritos',
+    etiquetaQuitarGuardado: 'Quitar este evento de tus guardados',
+    etiquetaVoy: 'Marcar que vas a este evento',
+    etiquetaNoVoy: 'Dejar de marcar que vas a este evento',
+    noDisponible: 'Pronto vas a poder guardar o marcar si vas.',
+    entrarParaGuardar: 'Entrá para guardar o marcar si vas.',
+  },
+  calendario: {
+    agregar: 'Agregar al calendario',
+    enTuCalendario: 'En tu calendario',
+    agregado: 'Listo, lo agregamos a tu calendario.',
+    sinPermiso: 'Sin permiso para usar el calendario.',
+    sinCalendario: 'No encontramos un calendario donde guardarlo.',
+    error: 'No pudimos agregarlo al calendario. Probá de nuevo.',
+    abrirAjustes: 'Abrir Ajustes',
+  },
+  /** «+ Seguir» de un lugar o una cuenta, en la ficha (`BotonSeguir`): el texto visible es el de core. */
+  seguir: {
+    lugar: (siguiendo: boolean) => textoSeguir(siguiendo),
+    cuenta: (usuario: string, siguiendo: boolean) => textoSeguirCuenta(usuario, siguiendo),
+    seguirA: (nombre: string) => `Seguir ${nombre}`,
+    dejarDeSeguirA: (nombre: string) => `Dejar de seguir ${nombre}`,
+  },
+  /** La franja de la ficha que llega por un push patrocinado y la baja rápida del push. */
+  patrocinado: {
+    franja: 'Llegaste por un aviso patrocinado',
+    boton: 'No recibir más avisos patrocinados',
+    listo: 'Listo, no vas a recibir más. Podés volver a prenderlos en Cuenta.',
+    bajaPush: 'Listo: no te vamos a mandar más avisos patrocinados. Podés volver a prenderlos en Cuenta.',
+    bajaPushError: 'No pudimos apagar los avisos patrocinados. Probá desde Cuenta.',
   },
 }
 

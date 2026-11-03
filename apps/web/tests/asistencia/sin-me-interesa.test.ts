@@ -286,10 +286,22 @@ describe('"Me interesa" como texto visible (sin comentarios): solo en las excepc
   it.each([
     'apps/web/app/eliminar-cuenta/page.tsx',
     'apps/web/app/perfil/eliminar-cuenta/page.tsx',
-    'apps/mobile/app/eliminar-cuenta.tsx',
   ])('%s: "Qué se borra" menciona las marcas de "Voy" y ya no "Me interesa" (#77)', (archivo) => {
     const pagina = quitarComentarios(readFileSync(join(REPO_ROOT, archivo), 'utf8'))
     expect(pagina).toContain('Voy')
     expect(pagina).not.toContain('Me interesa')
+  })
+
+  // Q6-1b: en la app, la lista salió de la pantalla al diccionario en
+  // castellano (`eliminarCuenta.queSeBorra`); se mide ese arreglo, y que la
+  // pantalla no tenga «Me interesa» por ningún lado.
+  it('apps/mobile (eliminar cuenta): "Qué se borra" menciona las marcas de "Voy" y ya no "Me interesa" (#77)', () => {
+    const diccionario = quitarComentarios(readFileSync(join(REPO_ROOT, 'apps/mobile/lib/i18n/diccionarios/es.ts'), 'utf8'))
+    const lista = diccionario.match(/\bqueSeBorra:\s*\[([\s\S]*?)\]/)?.[1] ?? ''
+    expect(lista).toContain('Voy')
+    expect(lista).not.toContain('Me interesa')
+    const pantalla = quitarComentarios(readFileSync(join(REPO_ROOT, 'apps/mobile/app/eliminar-cuenta.tsx'), 'utf8'))
+    expect(pantalla).toContain('t.queSeBorra')
+    expect(pantalla).not.toContain('Me interesa')
   })
 })

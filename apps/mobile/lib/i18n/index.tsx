@@ -12,6 +12,7 @@ import { textosDe } from './textos'
 import {
   guardarPreferenciaIdioma,
   idiomaEfectivo,
+  idiomaGuardado,
   leerPreferenciaIdioma,
   type Idioma,
   type PreferenciaIdioma,
@@ -79,4 +80,31 @@ export function useIdioma(): ValorIdioma {
 
 export function useTextos(): Diccionario {
   return textosDe(useIdioma().idioma)
+}
+
+/**
+ * Q6-1b · El diccionario para lo que se dibuja FUERA del `IdiomaProvider`: la
+ * pantalla de error general (`ErrorBoundary` de `app/_layout.tsx`), que
+ * expo-router muestra en lugar del layout entero (provider incluido) cuando
+ * algo tira. Arranca con el idioma del teléfono (`idiomaEfectivo('auto')`,
+ * castellano si no se puede leer) y pasa al elegido en Cuenta apenas se lee
+ * del teléfono. Si la lectura falla, se queda como estaba: nunca tira.
+ */
+export function useTextosSinProvider(almacen: Almacen = almacenPorDefecto): Diccionario {
+  const [idioma, setIdioma] = useState<Idioma>(() => idiomaEfectivo('auto'))
+
+  useEffect(() => {
+    let vigente = true
+    idiomaGuardado(almacen).then(
+      (guardado) => {
+        if (vigente) setIdioma(guardado)
+      },
+      () => {},
+    )
+    return () => {
+      vigente = false
+    }
+  }, [almacen])
+
+  return textosDe(idioma)
 }

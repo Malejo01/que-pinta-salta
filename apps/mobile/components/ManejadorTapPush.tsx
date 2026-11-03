@@ -16,6 +16,11 @@
 // es quien distingue ese caso ("esperar") de "no hay sesión de verdad"
 // ("pedir-sesion"): acá solo se cablea el estado pendiente (`bajaPendienteRef`)
 // y se la vuelve a evaluar cuando la sesión se resuelve.
+//
+// Q6-1b: los avisos de la baja rápida salen del diccionario
+// (`t.patrocinado.bajaPush*`) en el idioma de la app, leído de una `ref`
+// (`idiomaRef`) en el momento de avisar, igual que el estado de la sesión;
+// el error de `cambiarPatrocinados` llega en castellano y se traduce.
 import { useEffect, useRef } from 'react'
 import type { MutableRefObject } from 'react'
 import {
@@ -26,6 +31,8 @@ import {
 } from 'expo-notifications'
 import { useRouter } from 'expo-router'
 import { avisar } from '@/lib/aviso'
+import { useIdioma, type Idioma } from '@/lib/i18n'
+import { textosDe } from '@/lib/i18n/textos'
 import { cambiarPatrocinados } from '@/lib/notificaciones'
 import { cambiarAvisosDeEsteTelefono } from '@/lib/push/registro'
 import { registrarCategoriasPush } from '@/lib/push/categorias'
@@ -42,28 +49,26 @@ type EstadoCuentaParaBaja = { userId: string | null; cargando: boolean }
  * componente): no depende de ninguna variable de render, así que no hace
  * falta memoizarla ni declararla en ningún arreglo de dependencias.
  */
-function aplicarDecisionBaja(decision: DecisionBajaPatrocinados): void {
+function aplicarDecisionBaja(decision: DecisionBajaPatrocinados, idiomaRef: MutableRefObject<Idioma>): void {
   if (decision.accion === 'esperar') return // defensivo: no debería llegar nunca (ver resolverBajaPendiente)
+  // El idioma se lee recién al avisar (la respuesta puede tardar).
+  const textos = () => textosDe(idiomaRef.current)
 
   if (decision.accion === 'pedir-sesion') {
     // R-4 (R82): sin cuenta, el teléfono también recibe patrocinados si los
     // activó: la baja rápida los apaga en su fila (token + device_id). Si
     // este teléfono nunca se registró sin cuenta, se avisa como antes.
     cambiarAvisosDeEsteTelefono({ avisosPatrocinados: false }).then((resultado) => {
-      avisar(
-        resultado.ok
-          ? 'Listo: no te vamos a mandar más avisos patrocinados. Podés volver a prenderlos en Cuenta.'
-          : 'No pudimos apagar los avisos patrocinados. Probá desde Cuenta.',
-      )
+      avisar(resultado.ok ? textos().patrocinado.bajaPush : textos().patrocinado.bajaPushError)
     })
     return
   }
 
   cambiarPatrocinados(decision.userId, false).then((resultadoCambio) => {
     if (resultadoCambio.ok) {
-      avisar('Listo: no te vamos a mandar más avisos patrocinados. Podés volver a prenderlos en Cuenta.')
+      avisar(textos().patrocinado.bajaPush)
     } else {
-      avisar(resultadoCambio.mensaje)
+      avisar(textos().errores.traducir(resultadoCambio.mensaje))
     }
   })
 }
@@ -80,12 +85,13 @@ function aplicarDecisionBaja(decision: DecisionBajaPatrocinados): void {
 function resolverBajaPendiente(
   bajaPendienteRef: MutableRefObject<boolean>,
   estadoCuentaRef: MutableRefObject<EstadoCuentaParaBaja>,
+  idiomaRef: MutableRefObject<Idioma>,
 ): void {
   if (!bajaPendienteRef.current) return
   const decision = decidirBajaPatrocinados(estadoCuentaRef.current)
   if (decision.accion === 'esperar') return
   bajaPendienteRef.current = false
-  aplicarDecisionBaja(decision)
+  aplicarDecisionBaja(decision, idiomaRef)
 }
 
 // A NIVEL DE MÓDULO, no dentro del componente ni de un efecto: con la app
@@ -128,12 +134,20 @@ export function ManejadorTapPush() {
   // (arranque en frío, ver el comentario de cabecera): queda marcada acá
   // hasta que la sesión se resuelva.
   const bajaPendienteRef = useRef(false)
+  // Q6-1b: el idioma de la app para los avisos, espejado en una `ref` por el
+  // mismo motivo que la sesión (el listener se arma una sola vez).
+  const { idioma } = useIdioma()
+  const idiomaRef = useRef<Idioma>(idioma)
+
+  useEffect(() => {
+    idiomaRef.current = idioma
+  }, [idioma])
 
   useEffect(() => {
     estadoCuentaRef.current = { userId: session?.user.id ?? null, cargando }
     // La sesión acaba de resolver (o cambió): si quedó una baja pendiente
     // del arranque en frío, reintentarla ahora con el estado ya conocido.
-    resolverBajaPendiente(bajaPendienteRef, estadoCuentaRef)
+    resolverBajaPendiente(bajaPendienteRef, estadoCuentaRef, idiomaRef)
   }, [session, cargando])
 
   // Un intento por arranque, no por aviso: ver `registrarCategoriasPush`
@@ -188,7 +202,7 @@ export function ManejadorTapPush() {
         // los tres casos: si ya se puede, se aplica ahora mismo; si no, la
         // deja para el efecto que actualiza `estadoCuentaRef` (arriba).
         bajaPendienteRef.current = true
-        resolverBajaPendiente(bajaPendienteRef, estadoCuentaRef)
+        resolverBajaPendiente(bajaPendienteRef, estadoCuentaRef, idiomaRef)
         return
       }
 
