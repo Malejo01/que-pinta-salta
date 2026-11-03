@@ -39,6 +39,7 @@ import { InterruptorRecordatorios } from '@/components/InterruptorRecordatorios'
 import { InterruptorFinde } from '@/components/InterruptorFinde'
 import { LoQueSeguis } from '@/components/LoQueSeguis'
 import { SeccionNotificaciones } from '@/components/SeccionNotificaciones'
+import { SelectorIdioma } from '@/components/SelectorIdioma'
 import { Texto } from '@/components/Texto'
 import { hitSlopPara } from '@/lib/accesibilidad'
 import { useColoresQPS } from '@/lib/colores'
@@ -465,6 +466,9 @@ export default function Cuenta() {
           {version}
         </Texto>
 
+        {/* Q5-11: el idioma de la app, guardado en el teléfono. */}
+        <SelectorIdioma />
+
         {/* QPS-237: los links legales, al pie, antes de "Cerrar sesión". */}
         <EnlacesLegales />
 
@@ -612,6 +616,8 @@ export default function Cuenta() {
         {/* R82 / Q4-2: los avisos también andan sin cuenta. */}
         <View style={[estilos.card, { marginTop: 16 }]}>
           <AvisosSinSesion />
+          {/* Q5-11: el idioma también sin cuenta (se guarda en el teléfono). */}
+          <SelectorIdioma />
         </View>
 
         {/* F9: volver a ver la Bienvenida, al pie de Cuenta. */}

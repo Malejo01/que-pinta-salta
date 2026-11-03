@@ -16,7 +16,8 @@ import { obtenerLugaresChicos } from '@/lib/datos/lugares-chicos'
 import { urlContactoLugar } from '@/lib/links'
 import { siguesElLugar } from '@/lib/radar'
 import { useSession } from '@/lib/session'
-import { LEYENDA_LUGARES, fechaVerificado } from '@/lib/lugares-chicos'
+import { useIdioma, useTextos } from '@/lib/i18n'
+import { formatearFechaCorta } from '@/lib/i18n/idioma'
 import { urlComoLlegar } from '@qps/core/metricas/links'
 import {
   ATRIBUCION_OSM,
@@ -31,10 +32,14 @@ import {
 } from '@qps/core/lugares/permanentes'
 import type { LugarChicosMapa } from '@qps/core/mapa/lugares-chicos'
 
-type Estado = { tipo: 'cargando' } | { tipo: 'error'; error: string } | { tipo: 'ok'; lugar: LugarChicosMapa | null }
+type Estado = { tipo: 'cargando' } | { tipo: 'error'; error: 'errorCarga' } | { tipo: 'ok'; lugar: LugarChicosMapa | null }
 
 export default function FichaLugarChicos() {
   const colores = useColoresQPS()
+  // Q5-11: pantalla migrada al diccionario (castellano / inglés).
+  const { idioma } = useIdioma()
+  const textos = useTextos()
+  const t = textos.lugaresChicos
   const { id } = useLocalSearchParams<{ id: string }>()
   const [estado, setEstado] = useState<Estado>({ tipo: 'cargando' })
   const [intento, setIntento] = useState(0)
@@ -59,7 +64,7 @@ export default function FichaLugarChicos() {
     obtenerLugaresChicos().then((r) => {
       if (cancelado) return
       setAhora(new Date())
-      setEstado(r.ok ? { tipo: 'ok', lugar: r.lugares.find((l) => l.venueId === id) ?? null } : { tipo: 'error', error: r.error })
+      setEstado(r.ok ? { tipo: 'ok', lugar: r.lugares.find((l) => l.venueId === id) ?? null } : { tipo: 'error', error: 'errorCarga' })
     })
     return () => {
       cancelado = true
@@ -70,7 +75,7 @@ export default function FichaLugarChicos() {
   if (estado.tipo === 'error') {
     return (
       <ErrorCarga
-        mensaje={estado.error}
+        mensaje={t.errorCarga}
         onReintentar={() => {
           setEstado({ tipo: 'cargando' })
           setIntento((n) => n + 1)
@@ -79,14 +84,13 @@ export default function FichaLugarChicos() {
     )
   }
   const lugar = estado.lugar
-  if (!lugar) return <Vacio mensaje="Este lugar ya no está publicado." />
+  if (!lugar) return <Vacio mensaje={t.yaNoEsta} />
 
   const llegar = urlComoLlegar({ address: `${lugar.nombre}, ${lugar.direccion}, Salta` })
-  const accesibilidad = accesibilidadVerificada({
-    tiene_rampa: lugar.tieneRampa,
-    tiene_bano_adaptado: lugar.tieneBanoAdaptado,
-    tiene_cambiador: lugar.tieneCambiador,
-  })
+  const accesibilidad = accesibilidadVerificada(
+    { tiene_rampa: lugar.tieneRampa, tiene_bano_adaptado: lugar.tieneBanoAdaptado, tiene_cambiador: lugar.tieneCambiador },
+    idioma,
+  )
   const urlWeb = urlContactoLugar(lugar.web, 'web')
   const urlInstagram = urlContactoLugar(lugar.instagram, 'instagram')
   const urlTelefono = urlContactoLugar(lugar.telefono, 'tel')
@@ -110,12 +114,12 @@ export default function FichaLugarChicos() {
 
   return (
     <ScrollView style={{ backgroundColor: colores.background }} contentContainerStyle={estilos.contenido}>
-      <Stack.Screen options={{ title: 'Lugar para chicos' }} />
+      <Stack.Screen options={{ title: t.tituloFicha }} />
       <Texto peso="bold" accessibilityRole="header" style={estilos.titulo}>
         {lugar.nombre}
       </Texto>
       <Texto tono="secundario">
-        {ETIQUETA_TIPO.es[lugar.tipo]} · {textoEdades(lugar.edadMin, lugar.edadMax)}
+        {ETIQUETA_TIPO[idioma][lugar.tipo]} · {textoEdades(lugar.edadMin, lugar.edadMax, idioma)}
       </Texto>
       <Texto tono="secundario">{lugar.direccion}</Texto>
       {lugar.descripcion ? <Texto>{lugar.descripcion}</Texto> : null}
@@ -125,26 +129,26 @@ export default function FichaLugarChicos() {
       ) : null}
 
       {llegar ? (
-        <Pressable onPress={abrirLlegar} accessibilityRole="link" accessibilityLabel={`Cómo llegar a ${lugar.nombre}`} style={[estilos.ctaLlegar, { backgroundColor: colores.primary }]}>
+        <Pressable onPress={abrirLlegar} accessibilityRole="link" accessibilityLabel={t.comoLlegarA(lugar.nombre)} style={[estilos.ctaLlegar, { backgroundColor: colores.primary }]}>
           <Icono nombre="Navigation" tamanio={18} color={colores.primaryForeground} />
           <Texto peso="bold" style={{ color: colores.primaryForeground }}>
-            Cómo llegar
+            {t.comoLlegar}
           </Texto>
         </Pressable>
       ) : null}
 
       <View style={[estilos.bloque, { borderColor: colores.border }]}>
         <Texto peso="semibold" accessibilityRole="header">
-          Horarios
+          {t.horarios}
         </Texto>
         {reserva ? (
-          <Texto peso="semibold">Con reserva: escribiles o llamalos antes de ir.</Texto>
+          <Texto peso="semibold">{t.conReserva}</Texto>
         ) : lugar.horarios.siempre_abierto ? (
-          <Texto>Espacio abierto</Texto>
+          <Texto>{t.espacioAbierto}</Texto>
         ) : (
           <>
-            <Texto>{textoHorarioDeHoy(lugar.horarios, ahora)}</Texto>
-            {filasDeHorarios(lugar.horarios).map((fila) => (
+            <Texto>{textoHorarioDeHoy(lugar.horarios, ahora, idioma)}</Texto>
+            {filasDeHorarios(lugar.horarios, idioma).map((fila) => (
               <View key={fila.dia} style={estilos.filaHorario} accessible accessibilityLabel={`${fila.etiqueta}: ${fila.texto}`}>
                 <Texto>{fila.etiqueta}</Texto>
                 <Texto tono="secundario">{fila.texto}</Texto>
@@ -157,42 +161,42 @@ export default function FichaLugarChicos() {
 
       <View style={[estilos.bloque, { borderColor: colores.border }]}>
         <Texto>
-          {ETIQUETA_ACCESO.es[lugar.acceso]}
+          {ETIQUETA_ACCESO[idioma][lugar.acceso]}
           {lugar.notaPrecio ? ` · ${lugar.notaPrecio}` : ''}
-          {lugar.techado ? ` · ${ETIQUETA_TECHADO.es[lugar.techado]}` : ''}
+          {lugar.techado ? ` · ${ETIQUETA_TECHADO[idioma][lugar.techado]}` : ''}
         </Texto>
         {accesibilidad.length > 0 ? <Texto>{accesibilidad.join(' · ')}</Texto> : null}
-        {lugar.verificadoAt ? <Texto tono="secundario">Verificado el {fechaVerificado(lugar.verificadoAt)}</Texto> : null}
+        {lugar.verificadoAt ? <Texto tono="secundario">{t.verificadoEl(formatearFechaCorta(idioma, lugar.verificadoAt))}</Texto> : null}
         {estadoDeRevision(lugar.tipo, lugar.verificadoAt, ahora) === 'puede_haber_cambiado' ? (
-          <Texto peso="semibold">Puede haber cambiado: confirmá antes de ir.</Texto>
+          <Texto peso="semibold">{t.puedeHaberCambiado}</Texto>
         ) : null}
       </View>
 
       <View style={estilos.filaContacto}>
         {urlWeb ? (
-          <Pressable onPress={abrirWeb} accessibilityRole="link" accessibilityLabel={`Web de ${lugar.nombre}`} style={[estilos.botonContacto, { borderColor: colores.border }]}>
-            <Texto peso="semibold">Web</Texto>
+          <Pressable onPress={abrirWeb} accessibilityRole="link" accessibilityLabel={t.webDe(lugar.nombre)} style={[estilos.botonContacto, { borderColor: colores.border }]}>
+            <Texto peso="semibold">{t.web}</Texto>
           </Pressable>
         ) : null}
         {urlInstagram ? (
-          <Pressable onPress={abrirInstagram} accessibilityRole="link" accessibilityLabel={`Instagram de ${lugar.nombre}`} style={[estilos.botonContacto, { borderColor: colores.border }]}>
-            <Texto peso="semibold">Instagram</Texto>
+          <Pressable onPress={abrirInstagram} accessibilityRole="link" accessibilityLabel={t.instagramDe(lugar.nombre)} style={[estilos.botonContacto, { borderColor: colores.border }]}>
+            <Texto peso="semibold">{t.instagram}</Texto>
           </Pressable>
         ) : null}
         {urlTelefono ? (
-          <Pressable onPress={llamar} accessibilityRole="link" accessibilityLabel={`Llamar a ${lugar.nombre}`} style={[estilos.botonContacto, { borderColor: colores.border }]}>
-            <Texto peso="semibold">Llamar</Texto>
+          <Pressable onPress={llamar} accessibilityRole="link" accessibilityLabel={t.llamarA(lugar.nombre)} style={[estilos.botonContacto, { borderColor: colores.border }]}>
+            <Texto peso="semibold">{t.llamar}</Texto>
           </Pressable>
         ) : null}
       </View>
 
       <Texto tono="secundario" style={estilos.leyenda}>
-        {LEYENDA_LUGARES}
+        {t.leyenda}
       </Texto>
       {lugar.deOsm ? (
         <Pressable onPress={abrirLicenciaOsm} accessibilityRole="link" style={estilos.botonOsm}>
           <Texto tono="secundario" style={estilos.leyenda}>
-            {ATRIBUCION_OSM.es}
+            {ATRIBUCION_OSM[idioma]}
           </Texto>
         </Pressable>
       ) : null}

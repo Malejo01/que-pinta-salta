@@ -1,4 +1,6 @@
-// Q5-4 · «Lugares para chicos» en la app: filtros y textos (puro, probado en
+// Q5-4 · «Lugares para chicos» en la app: filtros (puro, probado en
+// tests/lugares-chicos.test.ts). Q5-11: los textos visibles están en
+// lib/i18n/diccionarios. Antes: filtros y textos (probado en
 // tests/lugares-chicos.test.ts). Los datos y las reglas de horarios son los
 // de @qps/core/lugares/permanentes, los mismos que la web.
 import {
@@ -9,10 +11,6 @@ import {
 } from '@qps/core/lugares/permanentes'
 import { ordenarPorDistancia, type LugarChicosMapa } from '@qps/core/mapa/lugares-chicos'
 
-export const TITULO_LUGARES_CHICOS = 'Lugares para chicos'
-export const TEXTO_ACCESO_LUGARES = 'Plazas, peloteros, salones de juegos y espacios culturales'
-export const LEYENDA_LUGARES =
-  'Los datos los carga y verifica el equipo de Qué Pinta Salta. No inspeccionamos los lugares: confirmá horarios antes de ir.'
 
 export interface FiltrosLugares {
   tipo: TipoLugarPermanente | null
@@ -43,10 +41,10 @@ export function lugaresParaMostrar(
   return ordenarPorDistancia(filtrarLugares(lugares, filtros, ahora), origen)
 }
 
-/** «Pelotero · a 850 m en línea recta». */
-export function subtituloLugar(lugar: LugarChicosMapa & { metros: number | null }): string {
-  const tipo = ETIQUETA_TIPO.es[lugar.tipo]
-  return lugar.metros === null ? tipo : `${tipo} · ${textoDistancia(lugar.metros)}`
+/** «Pelotero · a 850 m en línea recta» (o en inglés, Q5-11). */
+export function subtituloLugar(lugar: LugarChicosMapa & { metros: number | null }, idioma: 'es' | 'en' = 'es'): string {
+  const tipo = ETIQUETA_TIPO[idioma][lugar.tipo]
+  return lugar.metros === null ? tipo : `${tipo} · ${textoDistancia(lugar.metros, idioma)}`
 }
 
 /** El conteo que se anuncia y se ve: «3 lugares», «1 lugar», «Ningún lugar con estos filtros». */

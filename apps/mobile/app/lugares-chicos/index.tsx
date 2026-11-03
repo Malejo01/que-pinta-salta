@@ -21,26 +21,28 @@ import { anunciar } from '@/lib/anunciar'
 import { useColoresQPS } from '@/lib/colores'
 import { obtenerLugaresChicos } from '@/lib/datos/lugares-chicos'
 import {
-  LEYENDA_LUGARES,
   SIN_FILTROS_LUGARES,
-  TITULO_LUGARES_CHICOS,
   lugaresParaMostrar,
   rutaLugarChicos,
   subtituloLugar,
-  textoConteoLugares,
   type FiltrosLugares,
   type OrigenLugares,
 } from '@/lib/lugares-chicos'
+import { useIdioma, useTextos } from '@/lib/i18n'
 import { ubicacionSiYaConcedida } from '@/lib/ubicacion'
 import { BARRIOS_SALTA_CAPITAL } from '@qps/core/datos/barrios'
 import { ETIQUETA_ACCESO, ETIQUETA_TIPO, TIPOS_LUGAR, textoEdades, textoHorarioDeHoy } from '@qps/core/lugares/permanentes'
 import type { LugarChicosMapa } from '@qps/core/mapa/lugares-chicos'
 
-type Estado = { tipo: 'cargando' } | { tipo: 'error'; error: string } | { tipo: 'ok'; lugares: LugarChicosMapa[] }
+type Estado = { tipo: 'cargando' } | { tipo: 'error'; error: 'errorCarga' } | { tipo: 'ok'; lugares: LugarChicosMapa[] }
 
 export default function LugaresChicos() {
   const colores = useColoresQPS()
   const router = useRouter()
+  // Q5-11: pantalla migrada al diccionario (castellano / inglés).
+  const { idioma } = useIdioma()
+  const textosComunes = useTextos().comun
+  const t = useTextos().lugaresChicos
   const [estado, setEstado] = useState<Estado>({ tipo: 'cargando' })
   const [intento, setIntento] = useState(0)
   const [filtros, setFiltros] = useState<FiltrosLugares>(SIN_FILTROS_LUGARES)
@@ -54,7 +56,7 @@ export default function LugaresChicos() {
     obtenerLugaresChicos().then((r) => {
       if (cancelado) return
       setAhora(new Date())
-      setEstado(r.ok ? { tipo: 'ok', lugares: r.lugares } : { tipo: 'error', error: r.error })
+      setEstado(r.ok ? { tipo: 'ok', lugares: r.lugares } : { tipo: 'error', error: 'errorCarga' })
     })
     // Solo si el permiso YA estaba concedido (nunca se pide acá).
     ubicacionSiYaConcedida().then((u) => {
@@ -73,38 +75,38 @@ export default function LugaresChicos() {
   const cambiarFiltros = useCallback(
     (nuevos: FiltrosLugares) => {
       setFiltros(nuevos)
-      if (estado.tipo === 'ok') anunciar(textoConteoLugares(lugaresParaMostrar(estado.lugares, nuevos, origen, ahora).length))
+      if (estado.tipo === 'ok') anunciar(t.conteo(lugaresParaMostrar(estado.lugares, nuevos, origen, ahora).length))
     },
-    [estado, origen, ahora],
+    [estado, origen, ahora, t],
   )
 
   const elegirBarrio = (id: string | null) => {
     const barrio = BARRIOS_SALTA_CAPITAL.find((b) => b.id === id)
     setOrigen(barrio ? { tipo: 'barrio', id: barrio.id, nombre: barrio.nombre, lat: barrio.lat, lng: barrio.lng } : null)
     setVerBarrios(false)
-    anunciar(barrio ? `Ordenados por cercanía a ${barrio.nombre}` : 'Sin ordenar por cercanía')
+    anunciar(barrio ? t.ordenadosPorBarrio(barrio.nombre) : t.sinOrdenar)
   }
 
   const encabezado = (
     <View style={estilos.encabezado}>
       <Texto peso="bold" accessibilityRole="header" style={estilos.titulo}>
-        {TITULO_LUGARES_CHICOS}
+        {t.titulo}
       </Texto>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={estilos.filaChips}>
-        <ChipFiltroLugar texto="Todos" activo={filtros.tipo === null} onPress={() => cambiarFiltros({ ...filtros, tipo: null })} etiqueta="Todos los tipos" />
+        <ChipFiltroLugar texto={t.todos} activo={filtros.tipo === null} onPress={() => cambiarFiltros({ ...filtros, tipo: null })} etiqueta={t.todosLosTipos} />
         {TIPOS_LUGAR.map((tipo) => (
           <ChipFiltroLugar
             key={tipo}
-            texto={ETIQUETA_TIPO.es[tipo]}
+            texto={ETIQUETA_TIPO[idioma][tipo]}
             activo={filtros.tipo === tipo}
             onPress={() => cambiarFiltros({ ...filtros, tipo: filtros.tipo === tipo ? null : tipo })}
           />
         ))}
       </ScrollView>
       <View style={estilos.filaChipsFija}>
-        <ChipFiltroLugar texto="Gratis" activo={filtros.gratis} onPress={() => cambiarFiltros({ ...filtros, gratis: !filtros.gratis })} etiqueta="Solo lugares gratis" />
+        <ChipFiltroLugar texto={t.gratis} activo={filtros.gratis} onPress={() => cambiarFiltros({ ...filtros, gratis: !filtros.gratis })} etiqueta={t.soloGratis} />
         <ChipFiltroLugar
-          texto="Abierto ahora"
+          texto={t.abiertoAhora}
           activo={filtros.abiertoAhora}
           onPress={() => cambiarFiltros({ ...filtros, abiertoAhora: !filtros.abiertoAhora })}
         />
@@ -112,7 +114,7 @@ export default function LugaresChicos() {
 
       {origen?.tipo === 'ubicacion' ? (
         <Texto tono="secundario" style={estilos.nota}>
-          Ordenados por cercanía a tu ubicación aproximada.
+          {t.ordenadosPorUbicacion}
         </Texto>
       ) : (
         <View style={estilos.barrio}>
@@ -120,28 +122,28 @@ export default function LugaresChicos() {
             onPress={() => setVerBarrios((v) => !v)}
             accessibilityRole="button"
             accessibilityState={{ expanded: verBarrios }}
-            accessibilityLabel={origen?.tipo === 'barrio' ? `Barrio: ${origen.nombre}. Cambiar` : 'Elegí tu barrio para ordenar por cercanía'}
+            accessibilityLabel={origen?.tipo === 'barrio' ? t.barrioCambiar(origen.nombre) : t.elegiTuBarrioEtiqueta}
             style={[estilos.botonBarrio, { borderColor: colores.border, backgroundColor: colores.card }]}
           >
             <Icono nombre="MapPin" tamanio={16} color={colores.foreground} />
-            <Texto peso="semibold">{origen?.tipo === 'barrio' ? `Cerca de ${origen.nombre}` : 'Elegí tu barrio'}</Texto>
+            <Texto peso="semibold">{origen?.tipo === 'barrio' ? t.cercaDe(origen.nombre) : t.elegiTuBarrio}</Texto>
           </Pressable>
           {verBarrios ? (
             <View style={estilos.listaBarrios}>
-              {origen ? <ChipFiltroLugar texto="Sin barrio" activo={false} onPress={() => elegirBarrio(null)} etiqueta="Sin ordenar por cercanía" /> : null}
+              {origen ? <ChipFiltroLugar texto={t.sinBarrio} activo={false} onPress={() => elegirBarrio(null)} etiqueta={t.sinOrdenar} /> : null}
               {BARRIOS_SALTA_CAPITAL.map((b) => (
                 <ChipFiltroLugar key={b.id} texto={b.nombre} activo={origen?.tipo === 'barrio' && origen.id === b.id} onPress={() => elegirBarrio(b.id)} />
               ))}
             </View>
           ) : null}
           <Texto tono="secundario" style={estilos.nota}>
-            El barrio se usa solo en el teléfono para ordenar la lista: no se guarda ni se manda.
+            {t.barrioPrivacidad}
           </Texto>
         </View>
       )}
       {estado.tipo === 'ok' ? (
         <Texto peso="semibold" style={estilos.nota}>
-          {textoConteoLugares(lugares.length)}
+          {t.conteo(lugares.length)}
         </Texto>
       ) : null}
     </View>
@@ -151,7 +153,7 @@ export default function LugaresChicos() {
   if (estado.tipo === 'error') {
     return (
       <ErrorCarga
-        mensaje={estado.error}
+        mensaje={t.errorCarga}
         onReintentar={() => {
           setEstado({ tipo: 'cargando' })
           setIntento((n) => n + 1)
@@ -169,31 +171,31 @@ export default function LugaresChicos() {
       ListHeaderComponent={encabezado}
       ListEmptyComponent={
         <Vacio
-          mensaje={estado.lugares.length === 0 ? 'Todavía no hay lugares verificados. Estamos cargando los primeros.' : 'No hay lugares con estos filtros.'}
-          textoAccion={estado.lugares.length === 0 ? undefined : 'Quitar filtros'}
+          mensaje={estado.lugares.length === 0 ? t.vacioSinDatos : t.vacioConFiltros}
+          textoAccion={estado.lugares.length === 0 ? undefined : textosComunes.quitarFiltros}
           onAccion={estado.lugares.length === 0 ? undefined : () => cambiarFiltros(SIN_FILTROS_LUGARES)}
         />
       }
       ListFooterComponent={
         <Texto tono="secundario" style={estilos.leyenda}>
-          {LEYENDA_LUGARES}
+          {t.leyenda}
         </Texto>
       }
       renderItem={({ item }) => (
         <Pressable
           onPress={() => router.push(rutaLugarChicos(item.venueId))}
           accessibilityRole="button"
-          accessibilityLabel={`${item.nombre}. ${subtituloLugar(item)}. ${textoHorarioDeHoy(item.horarios, ahora)}. ${ETIQUETA_ACCESO.es[item.acceso]}`}
-          accessibilityHint="Abre la ficha del lugar"
+          accessibilityLabel={`${item.nombre}. ${subtituloLugar(item, idioma)}. ${textoHorarioDeHoy(item.horarios, ahora, idioma)}. ${ETIQUETA_ACCESO[idioma][item.acceso]}`}
+          accessibilityHint={t.abreLaFicha}
           style={[estilos.tarjetaLugar, { backgroundColor: colores.card, borderColor: colores.border }]}
         >
           <Texto peso="bold" style={estilos.nombre}>
             {item.nombre}
           </Texto>
-          <Texto tono="secundario">{subtituloLugar(item)}</Texto>
-          <Texto>{textoHorarioDeHoy(item.horarios, ahora)}</Texto>
+          <Texto tono="secundario">{subtituloLugar(item, idioma)}</Texto>
+          <Texto>{textoHorarioDeHoy(item.horarios, ahora, idioma)}</Texto>
           <Texto tono="secundario">
-            {ETIQUETA_ACCESO.es[item.acceso]} · {textoEdades(item.edadMin, item.edadMax)}
+            {ETIQUETA_ACCESO[idioma][item.acceso]} · {textoEdades(item.edadMin, item.edadMax, idioma)}
           </Texto>
         </Pressable>
       )}
