@@ -61,7 +61,9 @@ describe('components/auth-modal.tsx: el modo login enlaza a /auth/recuperar', ()
     const bloqueLink = src.match(/<Link[^>]*href="\/auth\/recuperar"[\s\S]*?\/Link>/)![0]
     expect(bloqueLink).toContain('{t.olvidasteContrasena}')
     expect(es.auth.olvidasteContrasena).toBe('¿Olvidaste tu contraseña?')
-    expect(readSource(LOGIN_PAGE)).toContain('¿Olvidaste tu contraseña?')
+    // Q5-14: la página también lo saca del diccionario (paginaIngreso.olvidaste).
+    expect(readSource(LOGIN_PAGE)).toContain('{t.olvidaste}')
+    expect(es.paginaIngreso.olvidaste).toBe('¿Olvidaste tu contraseña?')
   })
 
   it('el link cierra el modal al navegar, usando la forma de cerrar que ya existe en el archivo (close)', () => {

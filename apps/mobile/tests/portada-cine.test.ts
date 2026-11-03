@@ -174,9 +174,10 @@ function violacionesDibujo(codigo: string): string[] {
   if (!/\bpelicula=\{pelicula\}/.test(usos[0])) v.push('<TarjetaPelicula no recibe pelicula={pelicula}')
   const mapa = entreONull(codigo, 'datosPortada.peliculasCategoria.map(', '<TarjetaPelicula')
   if (mapa === null) v.push('las tarjetas no salen de datosPortada.peliculasCategoria.map(')
-  const grilla = entreONull(codigo, 'enFilasDeDos(datosPortada.', '<TarjetaEvento')
-  if (grilla === null) v.push('la grilla de TarjetaEvento no pasa por enFilasDeDos(datosPortada.…)')
-  else if (!grilla.startsWith('enFilasDeDos(datosPortada.eventosSinPelicula)')) v.push('la grilla de TarjetaEvento no usa la lista sin películas (eventosSinPelicula)')
+  // Q5-14: la grilla ya no arma filas (enFilasDeDos): un contenedor que envuelve, con cada tarjeta por su id.
+  const grilla = entreONull(codigo, '<View style={estilos.grillaEnvuelta}>', '<TarjetaEvento')
+  if (grilla === null) v.push('la grilla de TarjetaEvento no está en el contenedor estilos.grillaEnvuelta')
+  else if (!/datosPortada\.eventosSinPelicula\.map\(/.test(grilla)) v.push('la grilla de TarjetaEvento no usa la lista sin películas (eventosSinPelicula)')
   if (/<TarjetaEvento\b[^>]*isCinemaMovie/.test(codigo)) v.push('se dibuja una TarjetaEvento para una película')
   return v
 }
@@ -233,7 +234,7 @@ describe('app/(tabs)/index.tsx con el chip "Cine"', () => {
     })
 
     it('la grilla de TarjetaEvento con la lista que sigue teniendo las películas', () => {
-      const roto = codigo.replace('enFilasDeDos(datosPortada.eventosSinPelicula)', 'enFilasDeDos(datosPortada.eventosCategoria)')
+      const roto = codigo.replace('datosPortada.eventosSinPelicula.map(', 'datosPortada.eventosCategoria.map(')
       expect(violacionesDibujo(roto)).toEqual(['la grilla de TarjetaEvento no usa la lista sin películas (eventosSinPelicula)'])
     })
 

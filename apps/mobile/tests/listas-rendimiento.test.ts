@@ -191,9 +191,12 @@ describe('app/(tabs)/index.tsx: sin listas virtualizadas propias, y la grilla de
   it('no tiene FlatList/SectionList (las filas son FilaCategoria)', () => {
     expect(listasDe(fuente)).toEqual([])
   })
-  it('la grilla usa key={fila[0].id} y key={evento.id}', () => {
-    expect(fuente).toMatch(/enFilasDeDos\(datosPortada\.eventosSinPelicula\)\.map\(\(fila\) => \(\s*<View key=\{fila\[0\]\.id\}/)
-    expect(fuente).toMatch(/fila\.map\(\(evento\) => \(\s*<View key=\{evento\.id\}/)
+  // Q5-14 (pendiente 19 de la Q4): sin filas con key={fila[0].id}, que remontaban la tarjeta que
+  // cambiaba de fila al filtrar. Un solo contenedor que envuelve, con cada tarjeta por su id.
+  it('la grilla no arma filas: cada tarjeta con key={evento.id} dentro de un contenedor que envuelve', () => {
+    expect(fuente).not.toMatch(/key=\{fila\[0\]\.id\}/)
+    expect(fuente).toMatch(/<View style=\{estilos\.grillaEnvuelta\}>\s*\{datosPortada\.eventosSinPelicula\.map\(\(evento\) => \(\s*<View key=\{evento\.id\} style=\{estilos\.celdaEnvuelta\}>/)
+    expect(fuente).toMatch(/grillaEnvuelta: \{ flexDirection: 'row', flexWrap: 'wrap'/)
   })
 })
 

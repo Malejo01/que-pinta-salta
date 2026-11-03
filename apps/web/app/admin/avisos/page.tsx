@@ -118,6 +118,8 @@ export default async function AdminAvisosPage({
                 {historial.map((fila) => (
                   <li key={fila.dia}>
                     {formatDia(fila.dia)}: llegó a {fila.personas} {fila.personas === 1 ? 'persona' : 'personas'}
+                    {/* Q5-14: los teléfonos sin cuenta (R82), aparte. */}
+                    {fila.sinCuenta > 0 ? ` (${fila.sinCuenta} sin cuenta)` : ''}
                   </li>
                 ))}
               </ul>

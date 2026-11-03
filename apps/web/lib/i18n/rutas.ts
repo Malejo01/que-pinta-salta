@@ -20,6 +20,7 @@ export const RUTAS_EN_INGLES: readonly string[] = [
   '/evento/*',
   '/lugares-chicos/sumar',
   '/lugar/*',
+  '/auth/login',
 ]
 
 const PREFIJO_EN = '/en'
