@@ -75,3 +75,43 @@ from event_metrics_daily group by featured;
 ## Despliegue
 
 La migración `supabase/migrations/20261005120000_event_metrics.sql` la aplica Mauro en producción **antes** del merge. Si el código se despliega sin la migración, todo funciona igual pero no cuenta (la escritura falla en silencio y `/go` redirige igual).
+
+## Uso de la app y panel `/admin/uso` (Q5-13)
+
+### Qué se cuenta
+| Métrica | De dónde sale | Cómo |
+|---|---|---|
+| **Personas activas por día (app)** | `app_aperturas_diarias` | Una fila por día de Salta y por **hash del día** de un id de métricas. La app avisa una vez por día, al abrirse o al volver al frente (`apps/mobile/lib/apertura.ts` → `POST /api/app/apertura`) |
+| **Personas activas por semana (app)** | ídem | Hashes **semanales** distintos (semana ISO). Es también el indicio de «testers activos» |
+| **Aperturas con sesión** | ídem | Si ese día se abrió al menos una vez con la sesión iniciada (sí/no, sin el usuario) |
+| **Avisos activos, con y sin cuenta** | `push_tokens` | Solo el **total** de filas con y sin `user_id` (`count`, sin traer filas) |
+| **Guardados y «Voy»** | `user_favorites`, `event_attendance` | Solo **totales**: en los últimos 30 días y desde siempre |
+| **Vistas de eventos, web y app** | `event_metrics_daily` | Las vistas de siempre, separadas por `origin = 'app'` |
+
+El panel incluye además la tarjeta **«¿Llegamos al pedido de producción?»**, con los criterios de `docs/play/produccion.md`. Lo que solo se ve en Play Console (testers que aceptaron la invitación, build y ficha) queda marcado «Ver en Play Console». Hay gráficos en SVG, cada uno con su tabla, y el botón **Descargar CSV** (`/admin/uso/csv`, solo admins).
+
+### El id de métricas
+- La app genera **un id aleatorio** de 32 caracteres hex y lo guarda **solo en el teléfono** (`qps.metricas.id`).
+- **No** es el `device_id` del push ni sale de ningún dato del teléfono o de la cuenta.
+- El servidor **no lo guarda**: guarda `sha256(id:díaDeSalta)` y `sha256(id:semanaISO)`. Con el hash del día no se puede seguir a nadie de un día al otro; con el de la semana, solo dentro de esa semana.
+- Desinstalar la app o borrar sus datos genera un id nuevo.
+
+### Qué NO se guarda
+Ni el id crudo, ni IP, ni user agent (se usa para exigir que el aviso venga de la app y se descarta), ni usuario, ni ubicación. El endpoint tiene límite por IP y por id (en memoria, por instancia) y un formato estricto.
+
+### Límites que hay que decir siempre
+- **Son instalaciones, no personas**: dos teléfonos de la misma persona cuentan dos; reinstalar cuenta como otra.
+- **Play cuenta testers en Play Console**, no aperturas: la tarjeta de producción es un indicio.
+- Empieza a contar con el build que trae Q5-13 (antes no hay datos).
+
+### PROPUESTA de texto para `/privacidad` (no se tocó la página)
+> **Cuando abrís la app:** una vez por día la app nos avisa que se abrió, para saber cuántas personas la usan por día y por semana. Para eso genera un número al azar que queda solo en tu teléfono; nosotros no lo guardamos: guardamos una versión cifrada que cambia cada día y cada semana, así que no podemos seguirte ni saber quién sos. También guardamos la versión de la app y si tenías la sesión iniciada (sí o no). No guardamos tu IP, tu ubicación ni datos de tu cuenta.
+
+### Para la ficha de Play («Seguridad de los datos»)
+Declarar **Actividad en la app → Interacciones con la app**:
+- recopilado;
+- **no vinculado** a la identidad;
+- no compartido;
+- con fines de **estadísticas**.
+
+Ver `docs/play/seguridad-de-datos.md`.

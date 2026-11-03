@@ -20,6 +20,7 @@ import { iniciarAnuncios } from '@/lib/anuncios/consentimiento'
 import { SessionProvider } from '@/lib/session'
 import { PushProvider } from '@/lib/push'
 import { IdiomaProvider } from '@/lib/i18n'
+import { SincronizadorApertura } from '@/components/SincronizadorApertura'
 import { ManejadorTapPush } from '@/components/ManejadorTapPush'
 import { SincronizadorRecordatorios } from '@/components/SincronizadorRecordatorios'
 import { SincronizadorFinde } from '@/components/SincronizadorFinde'
@@ -138,6 +139,8 @@ function RootLayout() {
           <SincronizadorRecordatorios />
           {/* Q4-11: «Este finde pinta», los jueves a las 18 (local). */}
           <SincronizadorFinde />
+          {/* Q5-13: «la app se abrió hoy», anónimo, una vez por día. */}
+          <SincronizadorApertura />
           {/* R70: hoja única de "activá los avisos" tras el primer Guardar/Voy. */}
           <InvitacionTrasAccion />
           <Stack>
