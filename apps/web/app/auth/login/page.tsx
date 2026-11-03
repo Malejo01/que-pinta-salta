@@ -227,9 +227,9 @@ export default function LoginPage() {
 
             <div className="mt-4 text-center text-sm">
               {t.noTenesCuenta}{' '}
+              {/* Q6-2: el alta también existe en inglés (/en/auth/sign-up). */}
               <Link
-                href="/auth/sign-up"
-                hrefLang={langLegales ? 'es-AR' : undefined}
+                href={rutaEn(idioma, '/auth/sign-up')}
                 className="text-primary dark:text-[#F0585D] underline underline-offset-4"
               >
                 {t.registrate}

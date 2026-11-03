@@ -22,6 +22,8 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
+import { en } from '../lib/i18n/diccionarios/en'
+import { es } from '../lib/i18n/diccionarios/es'
 
 const MOBILE_ROOT = fileURLToPath(new URL('..', import.meta.url))
 
@@ -94,14 +96,20 @@ describe('CTAs externos: accessibilityRole="link" (ficha, flyer, película, cine
   it('app/pelicula/[id].tsx: "Comprar Entradas" (por BloqueCine) es link', () => {
     expect(leer('app', 'pelicula', '[id].tsx')).toMatch(/<BloqueCine\b/)
     const content = leer('components', 'BloqueCine.tsx')
-    expect(aperturaPressableQueContiene(content, 'Comprar Entradas')).toMatch(/accessibilityRole="link"/)
+    // Q6-1: el texto sale del diccionario (`tarjeta.comprarEntradas`).
+    expect(aperturaPressableQueContiene(content, '{t.comprarEntradas}')).toMatch(/accessibilityRole="link"/)
+    expect(es.tarjeta.comprarEntradas).toBe('Comprar Entradas')
+    expect(en.tarjeta.comprarEntradas).not.toBe('Comprar Entradas')
   })
 
   it('app/cines.tsx: "Comprar Entradas" (por TarjetaPelicula → BloqueCine) es link', () => {
     expect(leer('app', 'cines.tsx')).toMatch(/<TarjetaPelicula\b/)
     expect(leer('components', 'TarjetaPelicula.tsx')).toMatch(/<BloqueCine\b/)
     const content = leer('components', 'BloqueCine.tsx')
-    expect(aperturaPressableQueContiene(content, 'Comprar Entradas')).toMatch(/accessibilityRole="link"/)
+    // Q6-1: el texto sale del diccionario (`tarjeta.comprarEntradas`).
+    expect(aperturaPressableQueContiene(content, '{t.comprarEntradas}')).toMatch(/accessibilityRole="link"/)
+    expect(es.tarjeta.comprarEntradas).toBe('Comprar Entradas')
+    expect(en.tarjeta.comprarEntradas).not.toBe('Comprar Entradas')
   })
 })
 

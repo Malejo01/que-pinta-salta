@@ -23,6 +23,8 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import { transformMovie } from '@qps/core/home/transform'
+import { en } from '@/lib/i18n/diccionarios/en'
+import { es } from '@/lib/i18n/diccionarios/es'
 import { contraste, cumpleContraste } from '@/lib/accesibilidad'
 import { bordeChipInactivo } from '@/lib/colores'
 import { COLORES_CLARO, COLORES_OSCURO } from '@/lib/theme'
@@ -145,13 +147,15 @@ export function violacionesDeEnCartel(fuente: string): string[] {
   const v: string[] = []
   const contenido = textoDeFecha(fuente)
   if (contenido === null) return ['no se encontró el <Text style={estilos.fecha}>']
-  const m = /\{\s*evento\.isCinemaMovie\s*\?\s*'En cartel'\s*:\s*([\s\S]*)\}\s*$/.exec(contenido)
+  // Q6-1: «En cartel» sale del diccionario (`t.enCartel`).
+  const m = /\{\s*evento\.isCinemaMovie\s*\?\s*t\.enCartel\s*:\s*([\s\S]*)\}\s*$/.exec(contenido)
   if (!m) {
     v.push("la fecha no es `evento.isCinemaMovie ? 'En cartel' : <fecha>`")
   } else if (!/\$\{fecha\}/.test(m[1])) {
     v.push('la rama de eventos no muestra la fecha')
   }
-  if (!/isCinemaMovie\s*\?\s*`\$\{evento\.title\}, en cartel/.test(sinComentarios(fuente))) {
+  // Q6-1: la etiqueta de la película la arma el diccionario (`tarjeta.etiquetaPelicula`).
+  if (!/isCinemaMovie\s*\?\s*t\.etiquetaPelicula\(/.test(sinComentarios(fuente)) || !es.tarjeta.etiquetaPelicula({ titulo: 'X', destacado: false, precio: null }).includes('en cartel') || !en.tarjeta.etiquetaPelicula({ titulo: 'X', destacado: false, precio: null }).includes('now showing')) {
     v.push('la etiqueta de accesibilidad de la película no dice "en cartel"')
   }
   return v
@@ -167,15 +171,15 @@ describe('components/TarjetaEvento.tsx: "En cartel" para películas (QPS-338)', 
   it.each([
     [
       'la película muestra la fecha',
-      (s: string) => s.replace("evento.isCinemaMovie ? 'En cartel' : `${fecha}${evento.time ? ` ${evento.time}` : ''}`", '`${fecha}${evento.time ? ` ${evento.time}` : \'\'}`'),
+      (s: string) => s.replace("evento.isCinemaMovie ? t.enCartel : `${fecha}${evento.time ? ` ${evento.time}` : ''}`", '`${fecha}${evento.time ? ` ${evento.time}` : \'\'}`'),
     ],
     [
       "'En cartel' para todos (sin fecha en la rama de eventos)",
-      (s: string) => s.replace("evento.isCinemaMovie ? 'En cartel' : `${fecha}${evento.time ? ` ${evento.time}` : ''}`", "evento.isCinemaMovie ? 'En cartel' : `${evento.venue}`"),
+      (s: string) => s.replace("evento.isCinemaMovie ? t.enCartel : `${fecha}${evento.time ? ` ${evento.time}` : ''}`", 'evento.isCinemaMovie ? t.enCartel : `${evento.venue}`'),
     ],
     [
       'la etiqueta de accesibilidad pierde "en cartel"',
-      (s: string) => s.replace('${evento.title}, en cartel', '${evento.title}'),
+      (s: string) => s.replace('? t.etiquetaPelicula(', '? t.etiquetaEvento('),
     ],
   ])('rotura en memoria: %s -> detectada', (_nombre, romper) => {
     const roto = romper(real)
@@ -271,7 +275,8 @@ describe('app/(tabs)/index.tsx: anuncio del conteo de la grilla (QPS-354, A8)', 
   it.each([
     ['sin el hook', (s: string) => s.replace(/useAnunciarConteo\(datosPortada \?/, 'void (datosPortada ?')],
     ['el hook siempre con null', (s: string) => s.replace('useAnunciarConteo(datosPortada ? estadoAnunciablePortada(', 'useAnunciarConteo(false ? estadoAnunciablePortada(')],
-    ['sin título', (s: string) => s.replace('paraChicos, tituloGrilla, anuncio })', 'paraChicos, tituloGrilla: \'\', anuncio })')],
+    // Q6-1: el estado anunciable también lleva el idioma.
+    ['sin título', (s: string) => s.replace('paraChicos, tituloGrilla, anuncio, idioma })', 'paraChicos, tituloGrilla: \'\', anuncio, idioma })')],
     ['anuncio suelto de vuelta', (s: string) => s.replace('const tituloGrilla = ', "AccessibilityInfo.announceForAccessibility('x')\n  const tituloGrilla = ")],
     ['live region de vuelta en el conteo', (s: string) => s.replace(/<Texto tono="secundario">(\s*\{conteoCategoria)/, '<Texto tono="secundario" accessibilityLiveRegion="polite">$1')],
   ])('rotura en memoria: %s -> detectada', (_nombre, romper) => {

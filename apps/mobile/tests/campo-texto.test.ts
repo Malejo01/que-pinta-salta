@@ -5,6 +5,8 @@
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
+import { en } from '../lib/i18n/diccionarios/en'
+import { es } from '../lib/i18n/diccionarios/es'
 
 const RUTA_CUENTA = fileURLToPath(new URL('../app/(tabs)/cuenta.tsx', import.meta.url))
 const RUTA_CAMPO_TEXTO = fileURLToPath(new URL('../components/CampoTexto.tsx', import.meta.url))
@@ -37,12 +39,17 @@ describe('CampoTexto.tsx: define el fondo y el color del placeholder', () => {
 })
 
 describe('CampoTexto.tsx: el "ojito" (F5) tiene los dos accessibilityLabel', () => {
+  // Q6-1: las etiquetas salen del diccionario (`cuenta.mostrarContrasena` / `cuenta.ocultarContrasena`).
   it('"Mostrar contraseña"', () => {
-    expect(SRC_CAMPO_TEXTO).toContain('Mostrar contraseña')
+    expect(SRC_CAMPO_TEXTO).toContain('t.mostrarContrasena')
+    expect(es.cuenta.mostrarContrasena).toBe('Mostrar contraseña')
+    expect(en.cuenta.mostrarContrasena).toBe('Show password')
   })
 
   it('"Ocultar contraseña"', () => {
-    expect(SRC_CAMPO_TEXTO).toContain('Ocultar contraseña')
+    expect(SRC_CAMPO_TEXTO).toContain('t.ocultarContrasena')
+    expect(es.cuenta.ocultarContrasena).toBe('Ocultar contraseña')
+    expect(en.cuenta.ocultarContrasena).toBe('Hide password')
   })
 })
 

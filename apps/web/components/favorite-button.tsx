@@ -6,7 +6,6 @@ import { toggleFavorite } from "@/lib/actions/favorites"
 import { useAuthModal } from "./auth-modal"
 import { cn } from "@/lib/utils"
 import { useToast } from "@/hooks/use-toast"
-import { ToastAction } from "@/components/ui/toast"
 import { useDonation } from "@/components/donation-context"
 import { DONATIONS_ENABLED } from "@/lib/config/monetization"
 import { useTextos } from "@/lib/i18n/use-idioma"
@@ -87,13 +86,16 @@ export function FavoriteButton({
         sessionStorage.setItem('favorite_toast_count', count.toString());
         
         const shouldShowDonation = DONATIONS_ENABLED && count % 2 !== 0; // 1, 3, 5, etc.
+        // Q6-5: Radix Toast (el botón del aviso) se pide solo si hace falta,
+        // así no viaja en el JavaScript inicial de cada tarjeta.
+        const ToastAction = shouldShowDonation ? (await import("@/components/ui/toast")).ToastAction : null
 
         toast({
           title: t.guardadoTitulo,
           description: shouldShowDonation 
             ? t.pedidoCafecito
             : t.guardadoTexto,
-          action: shouldShowDonation ? (
+          action: ToastAction ? (
             <ToastAction
               altText={t.donarAhora}
               onClick={() => openDonationModal(t.pedidoCafecito)}

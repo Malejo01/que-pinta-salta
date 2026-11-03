@@ -181,6 +181,13 @@ vi.mock('react', async () => {
   }
 })
 
+// Q6-1: el componente lee el idioma (useIdioma/useTextos); fuera de React,
+// el doble devuelve el castellano, que es lo que mide este archivo.
+vi.mock('@/lib/i18n', async () => {
+  const { es } = await vi.importActual<typeof import('../lib/i18n/diccionarios/es')>('../lib/i18n/diccionarios/es')
+  return { useIdioma: () => ({ idioma: 'es' }), useTextos: () => es }
+})
+
 vi.mock('@/components/Texto', () => ({
   Texto: (props: unknown) => ({ tipo: 'Texto', props }),
 }))

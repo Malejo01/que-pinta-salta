@@ -20,6 +20,8 @@ import { quitarComentarios } from '@qps/core/tests/convencion-entorno'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
+import { en } from '../lib/i18n/diccionarios/en'
+import { es } from '../lib/i18n/diccionarios/es'
 import {
   animacionEsqueleto,
   cantidadQueAsoma,
@@ -206,14 +208,17 @@ describe('components/Esqueleto.tsx', () => {
   })
 
   it('un único elemento accesible: un solo accessibilityLabel="Cargando", un solo `accessible`', () => {
-    expect(contar(src, /accessibilityLabel="Cargando"/g)).toBe(1)
+    // Q6-1: la etiqueta sale del diccionario (`esqueleto.cargando`).
+    expect(contar(src, /accessibilityLabel=\{t\.cargando\}/g)).toBe(1)
+    expect(es.esqueleto.cargando).toBe('Cargando')
+    expect(en.esqueleto.cargando).toBe('Loading')
     expect(contar(src, /accessibilityLabel=/g)).toBe(1)
     expect(contar(src, /\saccessible(?=[\s>/]|=\{true\})/g)).toBe(1)
   })
 
   it('el elemento accesible es una barra de progreso ocupada', () => {
     expect(src).toMatch(
-      /accessible\s+accessibilityRole="progressbar"\s+accessibilityLabel="Cargando"\s+accessibilityState=\{\{\s*busy:\s*true\s*\}\}/,
+      /accessible\s+accessibilityRole="progressbar"\s+accessibilityLabel=\{t\.cargando\}\s+accessibilityState=\{\{\s*busy:\s*true\s*\}\}/,
     )
   })
 

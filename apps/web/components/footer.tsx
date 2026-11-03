@@ -4,7 +4,7 @@ import Link from "next/link"
 import Image from "next/image"
 import { useEffect, useState } from "react"
 import { Github, Linkedin, Globe, MessageCircle, Coffee } from "lucide-react"
-import { createClient } from "@/lib/supabase/client"
+import { clienteSupabase, cuandoEsteLibre } from "@/lib/supabase/cliente-diferido"
 import { useDonation } from "@/components/donation-context"
 import { DONATIONS_ENABLED } from "@/lib/config/monetization"
 import { ANUNCIANTES } from "@/lib/config/anunciantes"
@@ -48,19 +48,29 @@ export function Footer() {
   // El mensaje de WhatsApp va en castellano en los dos idiomas: lo lee el equipo.
   const anunciarWhatsappUrl = whatsappUrl(TEXTO_ANUNCIAR)
 
+  // Q6-5: supabase-js se carga diferido (lib/supabase/cliente-diferido.ts).
   useEffect(() => {
-    const supabase = createClient()
-    const getSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession()
-      setUser(session?.user ?? null)
-    }
-    getSession()
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null)
+    let cancelado = false
+    let desuscribir = () => {}
+    const cancelarEspera = cuandoEsteLibre(() => {
+      clienteSupabase()
+        .then(async (supabase) => {
+          if (cancelado) return
+          const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+            setUser(session?.user ?? null)
+          })
+          desuscribir = () => subscription.unsubscribe()
+          const { data: { session } } = await supabase.auth.getSession()
+          if (!cancelado) setUser(session?.user ?? null)
+        })
+        .catch(() => {})
     })
 
-    return () => subscription.unsubscribe()
+    return () => {
+      cancelado = true
+      cancelarEspera()
+      desuscribir()
+    }
   }, [])
 
   return (
@@ -74,8 +84,9 @@ export function Footer() {
           <div className="flex flex-col gap-3">
             <Link href={rutaEn(idioma, "/")} className="flex items-center gap-2.5 group">
               <div className="rounded-full dark:ring-2 dark:ring-[#C12026]/70 dark:ring-offset-1 dark:ring-offset-background transition-transform duration-200 group-hover:scale-105">
+                {/* Q6-5: el mismo WebP liviano que el navbar. */}
                 <Image
-                  src="/brand/logo-circular.png"
+                  src="/brand/logo-circular-128.webp"
                   alt="Que pinta Salta logo"
                   width={40}
                   height={40}

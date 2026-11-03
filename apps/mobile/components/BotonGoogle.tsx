@@ -14,6 +14,7 @@ import Svg, { Path } from 'react-native-svg'
 import { Texto } from '@/components/Texto'
 import { useColoresQPS } from '@/lib/colores'
 import { leerEnv } from '@/lib/env'
+import { useTextos } from '@/lib/i18n'
 
 export interface BotonGoogleProps {
   onPress: () => void
@@ -26,6 +27,7 @@ export interface BotonGoogleProps {
 export function BotonGoogle({ onPress, cargando, disabled }: BotonGoogleProps) {
   const colores = useColoresQPS()
   const { googleWebClientId } = leerEnv()
+  const t = useTextos().cuenta
 
   if (!googleWebClientId) return null
 
@@ -36,7 +38,7 @@ export function BotonGoogle({ onPress, cargando, disabled }: BotonGoogleProps) {
       onPress={onPress}
       disabled={deshabilitado}
       accessibilityRole="button"
-      accessibilityLabel="Continuar con Google"
+      accessibilityLabel={t.continuarConGoogle}
       style={[
         estilos.boton,
         {
@@ -51,7 +53,7 @@ export function BotonGoogle({ onPress, cargando, disabled }: BotonGoogleProps) {
       ) : (
         <View style={estilos.contenido}>
           <GIcon />
-          <Texto peso="semibold">Google</Texto>
+          <Texto peso="semibold">{t.google}</Texto>
         </View>
       )}
     </Pressable>

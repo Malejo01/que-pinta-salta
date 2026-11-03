@@ -17,6 +17,8 @@ import { transformMovie } from '@qps/core/home/transform'
 import type { DisplayEvent } from '@qps/core/home/types'
 import { quitarComentarios } from '@qps/core/tests/convencion-entorno'
 import { AIRE_CHIP, destinoScrollChip } from '../lib/chips-desplazamiento'
+import { en } from '../lib/i18n/diccionarios/en'
+import { es } from '../lib/i18n/diccionarios/es'
 import {
   anuncioDeLaGrilla,
   chipsDeLaPortada,
@@ -537,7 +539,10 @@ describe('components/ChipsCategorias.tsx: los filtros van aparte', () => {
     const uso = /<ChipsCategorias\b[^>]*\/>/.exec(buscar)
     expect(uso).not.toBeNull()
     expect(uso![0]).not.toMatch(/\bmostrarBarra\b|\bgratis=/)
-    expect(buscar).toMatch(/>\s*Solo gratis\s*</)
+    // Q6-1: el texto sale del diccionario (`buscar.soloGratis`).
+    expect(buscar).toMatch(/>\s*\{t\.buscar\.soloGratis\}\s*</)
+    expect(es.buscar.soloGratis).toBe('Solo gratis')
+    expect(en.buscar.soloGratis).toBe('Free only')
   })
 })
 
@@ -583,7 +588,7 @@ function violacionesPortada(fuenteCruda: string): string[] {
   if (!/const anuncio = datosPortada\s*\?\s*anuncioDeLaGrilla\(\{\s*modoGrilla,\s*gratis,/.test(c)) v.push('el anuncio no sale de anuncioDeLaGrilla')
   // A3 (nube Q1): sin "Para chicos" (la rama del medio de `textoVacio`, que va primero con `paraChicos ?`).
   // Integración R76 (A6): el vacío del modo categoría es `textoVacioCategoria` de `lib/vacios.ts` (con `desdeCache`).
-  if (!/const textoVacio = paraChicos[\s\S]{0,120}?:\s*gratis\s*\?\s*textoVacioGratis\(categoria, nombreCategoria, atajo\)\s*:\s*textoVacioCategoria\(\{[^}]*\}\)/.test(c)) v.push('el texto del vacío no sale de textoVacioGratis/textoVacioCategoria')
+  if (!/const textoVacio = paraChicos[\s\S]{0,120}?:\s*gratis\s*\?\s*textoVacioGratis\(categoria, nombreCategoria, atajo, idioma\)\s*:\s*textoVacioCategoria\(\{[^}]*\}\)/.test(c)) v.push('el texto del vacío no sale de textoVacioGratis/textoVacioCategoria')
   // A8 (nube Q1, QPS-339): el vacío ya NO es una live region (lo anuncia
   // `useAnunciarConteo`, un solo anuncio por cambio; ver `tests/anunciar-conteos.test.ts`).
   if (!/<Texto tono="secundario">\s*\{textoVacio\}/.test(c)) v.push('el vacío de categoría no muestra textoVacio (sin live region)')
@@ -599,7 +604,8 @@ function violacionesPortada(fuenteCruda: string): string[] {
   if (!/\}, \[estado, atajo, categoria, gratis, paraChicos\]\)/.test(c)) v.push('datosPortada no depende de gratis')
 
   // Título.
-  if (!/tituloGratis\(categoria === null \? null : nombreCategoria, atajo\)/.test(c)) v.push('el título de Gratis no sale de tituloGratis')
+  // Q6-1: las funciones de texto reciben además el idioma de la app.
+  if (!/tituloGratis\(categoria === null \? null : nombreCategoria, atajo, idioma\)/.test(c)) v.push('el título de Gratis no sale de tituloGratis')
 
   // Cada salida del vacío de Gratis llama a su handler. A3 (nube Q1): se mira
   // solo el `<VacioGratis … />` (el de "Para chicos" usa los mismos handlers).
@@ -622,7 +628,8 @@ function violacionesPortada(fuenteCruda: string): string[] {
     const cuerpo = vacio[0]
     const pressables = cuerpo.match(/<Pressable\b/g) ?? []
     const roles = cuerpo.match(/accessibilityRole="button"/g) ?? []
-    if (!/>\s*Ver todos los precios\s*</.test(cuerpo)) v.push('el vacío no ofrece "Ver todos los precios"')
+    // Q6-1: el texto sale del diccionario (`portada.verTodosLosPrecios`).
+    if (!/>\s*\{t\.verTodosLosPrecios\}\s*</.test(cuerpo) || es.portada.verTodosLosPrecios !== 'Ver todos los precios') v.push('el vacío no ofrece "Ver todos los precios"')
     if (pressables.length !== roles.length) v.push('un botón del vacío no tiene accessibilityRole="button"')
     if (!/<Pressable\s+onPress=\{onVerTodosLosPrecios\}/.test(cuerpo)) v.push('"Ver todos los precios" no llama onVerTodosLosPrecios')
     if (!/onPress=\{segunda\.tipo === 'todas-las-categorias' \? onTodasLasCategorias : onEstaSemana\}/.test(cuerpo)) v.push('la segunda salida no despacha a su handler')
@@ -673,8 +680,9 @@ describe('app/(tabs)/index.tsx: el modo "Gratis"', () => {
     ['"Ver esta semana" a hoy', (s: string) => enVacioGratis(s, "onEstaSemana={() => cambiarAtajo('semana')}", "onEstaSemana={() => cambiarAtajo('hoy')}"), '"Ver esta semana" no pasa a la semana'],
     ['secundario del vacío de Gratis sin bordeInactivo', (s: string) => enVacioGratis(s, 'bordeSecundario={bordeInactivo}', 'bordeSecundario={colores.border}'), 'el secundario del vacío de Gratis no usa bordeInactivo'],
     ['segunda salida cruzada', (s: string) => s.replace("segunda.tipo === 'todas-las-categorias' ? onTodasLasCategorias : onEstaSemana", "segunda.tipo === 'todas-las-categorias' ? onEstaSemana : onTodasLasCategorias"), 'la segunda salida no despacha a su handler'],
-    ['secundario de categoría con colores.border', (s: string) => s.replace('{ borderWidth: 1, borderColor: bordeInactivo }]}\n                  >\n                    <Texto peso="bold">Todas las categorías', '{ borderWidth: 1, borderColor: colores.border }]}\n                  >\n                    <Texto peso="bold">Todas las categorías'), 'el secundario del vacío de categoría no usa bordeInactivo'],
-    ['sin "Ver todos los precios"', (s: string) => s.replace('Ver todos los precios\n', 'Ver más\n'), 'el vacío no ofrece "Ver todos los precios"'],
+    // Q6-1: las roturas parten de los textos del diccionario.
+    ['secundario de categoría con colores.border', (s: string) => s.replace('{ borderWidth: 1, borderColor: bordeInactivo }]}\n                  >\n                    <Texto peso="bold">{t.portada.todasLasCategorias}', '{ borderWidth: 1, borderColor: colores.border }]}\n                  >\n                    <Texto peso="bold">{t.portada.todasLasCategorias}'), 'el secundario del vacío de categoría no usa bordeInactivo'],
+    ['sin "Ver todos los precios"', (s: string) => s.replace('{t.verTodosLosPrecios}\n', 'Ver más\n'), 'el vacío no ofrece "Ver todos los precios"'],
     ['botón del vacío sin rol', (s: string) => s.replace(/(onPress=\{onVerTodosLosPrecios\}\s*)accessibilityRole="button"/, '$1'), 'un botón del vacío no tiene accessibilityRole="button"'],
   ])('rotura en memoria: %s -> detectada', (_nombre, romper, esperada) => {
     const roto = romper(real)

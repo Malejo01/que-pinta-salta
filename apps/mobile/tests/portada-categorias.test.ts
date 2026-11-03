@@ -13,6 +13,8 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
+import { en } from '../lib/i18n/diccionarios/en'
+import { es } from '../lib/i18n/diccionarios/es'
 
 const MOBILE_ROOT = fileURLToPath(new URL('..', import.meta.url))
 // Saltos de línea normalizados: en Windows el checkout puede traer CRLF.
@@ -132,7 +134,11 @@ describe('components/ChipsCategorias.tsx', () => {
 
   // Mutación: cambiar la etiqueta de "Todas" por 'Todas'.
   it('el primer chip es "Todas" (slug null) y su label dice "Todas las categorías"', () => {
-    expect(codigo).toMatch(/slug:\s*null,\s*nombre:\s*'Todas',\s*etiqueta:\s*'Todas las categorías'/)
+    // Q6-1: los textos salen del diccionario (`chipsCategorias`); en castellano, los de siempre.
+    expect(codigo).toMatch(/slug:\s*null,\s*nombre:\s*t\.todas,\s*etiqueta:\s*t\.todasLasCategorias/)
+    expect(es.chipsCategorias.todas).toBe('Todas')
+    expect(es.chipsCategorias.todasLasCategorias).toBe('Todas las categorías')
+    expect(en.chipsCategorias.todas).not.toBe('Todas')
     expect(pressable).toMatch(/accessibilityLabel=\{chip\.etiqueta\}/)
     // "Todas" va antes que el resto de las categorías.
     expect(codigo.indexOf("slug: null")).toBeLessThan(codigo.indexOf('...categorias.map'))
@@ -240,9 +246,14 @@ describe('portada (app/(tabs)/index.tsx) en modo categoría', () => {
     const vacio = entre(bloqueCategoria, 'eventosCategoria.length === 0', ') : (')
     // 66-r1 (N3): el texto dice a dónde va ("Ver <Nombre> en todas las fechas";
     // el cine, "Ver cartelera").
-    expect(vacio).toContain('en todas las fechas')
-    expect(vacio).toContain('Ver cartelera')
-    expect(vacio).toContain('Todas las categorías')
+    // Q6-1: los textos salen del diccionario (`portada`); en castellano, los de siempre.
+    expect(vacio).toContain('t.portada.verCategoriaEnTodasLasFechas(nombreCategoria)')
+    expect(vacio).toContain('t.portada.verCartelera')
+    expect(vacio).toContain('t.portada.todasLasCategorias')
+    expect(es.portada.verCategoriaEnTodasLasFechas('Música')).toBe('Ver Música en todas las fechas')
+    expect(es.portada.verCartelera).toBe('Ver cartelera')
+    expect(es.portada.todasLasCategorias).toBe('Todas las categorías')
+    expect(en.portada.verCategoriaEnTodasLasFechas('Music')).toBe('See Music on all dates')
     expect(vacio).toMatch(/if \(categoria === 'cine'\) router\.push\('\/cines'\)/)
     // `v`: nonce en el onPress (nunca en el render) para que Buscar reaplique.
     expect(vacio).toMatch(/router\.push\(`\/buscar\?categoria=\$\{encodeURIComponent\(categoria\)\}&v=\$\{Date\.now\(\)\}`\)/)
@@ -306,9 +317,13 @@ describe('portada (app/(tabs)/index.tsx) en modo categoría', () => {
     const conteo = entre(bloqueCategoria, '<Texto tono="secundario">\n                    {conteoCategoria', '</Texto>')
     expect(conteo).not.toMatch(/accessibilityLiveRegion/)
     // R67, 67-c: el texto lo arma `conteoCategoria(películas, eventos)`.
-    expect(conteo).toMatch(/conteoCategoria\(datosPortada\.peliculasCategoria\.length,\s*datosPortada\.eventosSinPelicula\.length\)/)
-    expect(codigo).toMatch(/'evento'\s*:\s*'eventos'/)
-    expect(codigo).toMatch(/'película'\s*:\s*'películas'/)
+    // Q6-1: con el idioma; el singular y el plural viven en el diccionario (`portada.conteo`).
+    expect(conteo).toMatch(/conteoCategoria\(datosPortada\.peliculasCategoria\.length,\s*datosPortada\.eventosSinPelicula\.length, idioma\)/)
+    expect(es.portada.conteo(0, 1)).toBe('1 evento')
+    expect(es.portada.conteo(0, 2)).toBe('2 eventos')
+    expect(es.portada.conteo(1, 0)).toBe('1 película')
+    expect(es.portada.conteo(2, 3)).toBe('2 películas · 3 eventos')
+    expect(en.portada.conteo(1, 1)).toBe('1 film · 1 event')
   })
 
   // A2 (nube Q1): `eventosDeLaGrilla` es `filtrarCombinado` con atajo + categoría + gratis.
@@ -353,7 +368,10 @@ describe('Buscar (app/(tabs)/buscar.tsx) con fecha y categoría', () => {
 
   // Mutación: sacar `etiquetaTodas="Cualquier fecha"` de las pills.
   it('las pills de fecha llevan etiquetaTodas="Cualquier fecha" (atajo null = todas las fechas)', () => {
-    expect(codigo).toMatch(/<PillsAtajos\b[^>]*\betiquetaTodas="Cualquier fecha"/)
+    // Q6-1: el texto sale del diccionario (`buscar.cualquierFecha`).
+    expect(codigo).toMatch(/<PillsAtajos\b[^>]*\betiquetaTodas=\{t\.buscar\.cualquierFecha\}/)
+    expect(es.buscar.cualquierFecha).toBe('Cualquier fecha')
+    expect(en.buscar.cualquierFecha).not.toBe('Cualquier fecha')
     expect(codigo).toMatch(/const \[atajo, setAtajo\] = useState<Atajo \| null>\(atajoParam\)/)
   })
 
@@ -365,7 +383,7 @@ describe('Buscar (app/(tabs)/buscar.tsx) con fecha y categoría', () => {
     const cabeceraLista = codigo.slice(codigo.indexOf('data={resultadosMostrados}'), codigo.indexOf('ListEmptyComponent={\n            <View style={estilos.vacio}>'))
     // A8 (nube Q1, QPS-339): el conteo va después de los chips, ya sin live
     // region (lo anuncia `useAnunciarConteo`).
-    expect(cabeceraLista).toMatch(/ListHeaderComponent=\{[\s\S]*<ChipsCategorias\b[^>]*seleccionada=\{categoriaFiltro\}[^>]*onCambiar=\{setCategoriaFiltro\}[\s\S]*textoResultadosBuscar\(resultadosMostrados\.length, filtrosTexto\)/)
+    expect(cabeceraLista).toMatch(/ListHeaderComponent=\{[\s\S]*<ChipsCategorias\b[^>]*seleccionada=\{categoriaFiltro\}[^>]*onCambiar=\{setCategoriaFiltro\}[\s\S]*textoResultadosBuscar\(resultadosMostrados\.length, filtrosTexto, idioma\)/)
     // Ronda de correcciones de A8: por nodo (el conteo), no en toda la cabecera.
     expect(cabeceraLista).not.toMatch(/<Texto\b[^>]*accessibilityLiveRegion[^>]*>\s*\{textoResultadosBuscar/)
     // Y no quedan chips en la parte fija: una sola aparición del JSX.
@@ -384,10 +402,13 @@ describe('Buscar (app/(tabs)/buscar.tsx) con fecha y categoría', () => {
 
   // Mutación: sacar uno de los dos botones, o dejarlos sin condición.
   it('el vacío ofrece "Ver todas las fechas" (si hay fecha) y "Todas las categorías" (si hay categoría)', () => {
-    expect(codigo).toMatch(/if \(atajo !== null\) accionesVacio\.push\(\{\s*texto:\s*'Ver todas las fechas',\s*alTocar:\s*\(\) => setAtajo\(null\)\s*\}\)/)
+    // Q6-1: los textos salen del diccionario (`vacios`).
+    expect(codigo).toMatch(/if \(atajo !== null\) accionesVacio\.push\(\{\s*texto:\s*t\.vacios\.verTodasLasFechas,\s*alTocar:\s*\(\) => setAtajo\(null\)\s*\}\)/)
     expect(codigo).toMatch(
-      /if \(categoriaFiltro !== null\) accionesVacio\.push\(\{\s*texto:\s*'Todas las categorías',\s*alTocar:\s*\(\) => setCategoriaFiltro\(null\)\s*\}\)/,
+      /if \(categoriaFiltro !== null\) accionesVacio\.push\(\{\s*texto:\s*t\.vacios\.todasLasCategorias,\s*alTocar:\s*\(\) => setCategoriaFiltro\(null\)\s*\}\)/,
     )
+    expect(es.vacios.verTodasLasFechas).toBe('Ver todas las fechas')
+    expect(es.vacios.todasLasCategorias).toBe('Todas las categorías')
     const lista = entre(codigo, 'ListEmptyComponent={\n            <View style={estilos.vacio}>', 'ListFooterComponent')
     expect(lista).toMatch(/accionesVacio\.map\(/)
     expect(lista).toMatch(/accessibilityRole="button"/)
@@ -415,10 +436,12 @@ describe('components/PillsAtajos.tsx: la pill "sin fecha" (etiquetaTodas)', () =
 
   // Mutación: poner la pill `null` siempre, sin mirar `etiquetaTodas`.
   it('sin etiquetaTodas no hay pill extra: quedan solo los 4 atajos (la portada no cambia)', () => {
-    expect(codigo).toMatch(/etiquetaTodas\s*\?\s*\[\{\s*id:\s*null,\s*etiqueta:\s*etiquetaTodas\s*\},\s*\.\.\.ATAJOS\]\s*:\s*ATAJOS/)
+    // Q6-1: ATAJOS es la lista de ids; las etiquetas salen del diccionario (`deAtajos`).
+    expect(codigo).toMatch(/etiquetaTodas\s*\?\s*\[\{\s*id:\s*null,\s*etiqueta:\s*etiquetaTodas\s*\},\s*\.\.\.deAtajos\]\s*:\s*deAtajos/)
+    expect(codigo).toMatch(/const deAtajos = ATAJOS\.map\(\(id\) => \(\{ id, etiqueta: etiquetas\[id\] \}\)\)/)
     const lista = entre(codigo, 'const ATAJOS', ']\n')
-    expect(lista.match(/\bid:\s*'/g)).toHaveLength(4)
-    expect(lista).not.toMatch(/id:\s*null/)
+    expect(lista.match(/'[\w-]+'/g)).toHaveLength(4)
+    expect(lista).not.toMatch(/null/)
   })
 
   it('la unión discriminada: sin etiquetaTodas el atajo es un Atajo; con ella admite null', () => {
@@ -440,7 +463,8 @@ describe('components/PillsAtajos.tsx: la pill "sin fecha" (etiquetaTodas)', () =
   })
 
   it('la clave de CLAVE_TODAS no choca con el id de ningún atajo real', () => {
-    const ids = [...codigo.matchAll(/\{\s*id:\s*'([\w-]+)'/g)].map((m) => m[1])
+    // Q6-1: ATAJOS es la lista de ids (las etiquetas, del diccionario).
+    const ids = [...entre(codigo, 'const ATAJOS', ']\n').matchAll(/'([\w-]+)'/g)].map((m) => m[1])
     expect(ids).toEqual(['hoy', 'esta-noche', 'finde', 'semana'])
     expect(ids).not.toContain('todas')
   })

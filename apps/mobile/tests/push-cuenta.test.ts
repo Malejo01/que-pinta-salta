@@ -16,6 +16,8 @@
 // de su lógica.
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
+import { en } from '../lib/i18n/diccionarios/en'
+import { es } from '../lib/i18n/diccionarios/es'
 import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('react-native', () => ({
@@ -170,9 +172,11 @@ describe('components/SeccionNotificaciones.tsx: monta AvisoActivarPush variante 
     )
   })
 
+  // Q6-1: los textos de la sección salen del diccionario (`notificaciones`): el
+  // orden y los atributos se miden con las claves y el castellano, con `es`.
   it('<AvisoActivarPush variante="cuenta" /> aparece antes de "Recordatorios de favoritos"', () => {
     const idxAviso = SRC_SECCION_NOTIFICACIONES.indexOf('<AvisoActivarPush variante="cuenta"')
-    const idxFavoritos = SRC_SECCION_NOTIFICACIONES.indexOf('Recordatorios de favoritos')
+    const idxFavoritos = SRC_SECCION_NOTIFICACIONES.indexOf('{t.recordatoriosFavoritos}')
     expect(idxAviso).toBeGreaterThan(-1)
     expect(idxFavoritos).toBeGreaterThan(idxAviso)
   })
@@ -180,24 +184,26 @@ describe('components/SeccionNotificaciones.tsx: monta AvisoActivarPush variante 
   // R70 (70-a): "Avisos de Qué Pinta Salta" deja de ser "Pronto" y de estar
   // deshabilitado fijo: se prende y apaga y guarda solo `announcements`.
   it('"Avisos de Qué Pinta Salta" sigue visible, sin "Pronto", con su descripción y accessibilityLabel', () => {
-    const idxFila = SRC_SECCION_NOTIFICACIONES.indexOf('<Texto>Avisos de Qué Pinta Salta</Texto>')
+    const idxFila = SRC_SECCION_NOTIFICACIONES.indexOf('<Texto>{t.equipo}</Texto>')
     const idxSwitch = SRC_SECCION_NOTIFICACIONES.indexOf('<Switch', idxFila)
     expect(idxFila).toBeGreaterThan(-1)
     expect(idxSwitch).toBeGreaterThan(idxFila)
 
     const tramoEtiqueta = SRC_SECCION_NOTIFICACIONES.slice(idxFila, idxSwitch)
     expect(tramoEtiqueta).not.toContain('Pronto')
-    expect(tramoEtiqueta).toContain('Novedades y avisos del equipo de Qué Pinta Salta.')
+    expect(tramoEtiqueta).toContain('{t.equipoDescripcion}')
+    expect(es.notificaciones.equipoDescripcion).toBe('Novedades y avisos del equipo de Qué Pinta Salta.')
 
     const finEtiquetaSwitch = SRC_SECCION_NOTIFICACIONES.indexOf('/>', idxSwitch)
     const tramoSwitch = SRC_SECCION_NOTIFICACIONES.slice(idxSwitch, finEtiquetaSwitch + 2)
     // R46: todo <Switch> lleva accessibilityLabel (tests/accesibilidad-detector.test.ts).
-    expect(tramoSwitch).toContain('accessibilityLabel="Avisos de Qué Pinta Salta"')
+    expect(tramoSwitch).toContain('accessibilityLabel={t.equipo}')
+    expect(es.notificaciones.equipo).toBe('Avisos de Qué Pinta Salta')
     expect(tramoSwitch).toMatch(/accessibilityState=\{\{\s*checked:\s*announcements\s*,\s*busy:\s*guardandoAvisos\s*\}\}/)
   })
 
   it('el interruptor de announcements se puede tocar: onValueChange guarda solo esa columna (cambiarAvisosEquipo)', () => {
-    const idxFila = SRC_SECCION_NOTIFICACIONES.indexOf('<Texto>Avisos de Qué Pinta Salta</Texto>')
+    const idxFila = SRC_SECCION_NOTIFICACIONES.indexOf('<Texto>{t.equipo}</Texto>')
     const idxSwitch = SRC_SECCION_NOTIFICACIONES.indexOf('<Switch', idxFila)
     const finEtiquetaSwitch = SRC_SECCION_NOTIFICACIONES.indexOf('/>', idxSwitch)
     const tramoSwitch = SRC_SECCION_NOTIFICACIONES.slice(idxSwitch, finEtiquetaSwitch + 2)
@@ -216,19 +222,21 @@ describe('components/SeccionNotificaciones.tsx: monta AvisoActivarPush variante 
 
   it('si el canal del Radar es push o ambos, muestra la línea sobre el email', () => {
     expect(SRC_SECCION_NOTIFICACIONES).toContain("radarChannel === 'push' || radarChannel === 'ambos'")
-    expect(SRC_SECCION_NOTIFICACIONES).toContain('Por ahora el Radar te sigue llegando por email.')
+    expect(SRC_SECCION_NOTIFICACIONES).toContain('{t.radarPorEmail}')
+    expect(es.notificaciones.radarPorEmail).toBe('Por ahora el Radar te sigue llegando por email.')
+    expect(en.notificaciones.radarPorEmail).not.toBe(es.notificaciones.radarPorEmail)
   })
 
   // Ronda 51, tarea 51-d: "Avisos patrocinados" va DESPUÉS de "Novedades de
   // lo que seguís" y ANTES de "Avisos de Qué Pinta Salta" (que sigue
   // disabled con "Pronto", QPS-166, sin tocar).
   it('"Avisos patrocinados" aparece después de "Novedades de lo que seguís" y antes de "Avisos de Qué Pinta Salta"', () => {
-    const idxFavoritos = SRC_SECCION_NOTIFICACIONES.indexOf('Recordatorios de favoritos')
-    const idxNovedades = SRC_SECCION_NOTIFICACIONES.indexOf('Novedades de lo que seguís')
+    const idxFavoritos = SRC_SECCION_NOTIFICACIONES.indexOf('{t.recordatoriosFavoritos}')
+    const idxNovedades = SRC_SECCION_NOTIFICACIONES.indexOf('{t.novedadesSeguis}')
     // Ancla por la etiqueta JSX exacta (no el texto plano): "Avisos
     // patrocinados" también aparece antes, en comentarios de cabecera.
-    const idxPatrocinados = SRC_SECCION_NOTIFICACIONES.indexOf('<Texto>Avisos patrocinados</Texto>')
-    const idxAnnouncements = SRC_SECCION_NOTIFICACIONES.indexOf('Avisos de Qué Pinta Salta')
+    const idxPatrocinados = SRC_SECCION_NOTIFICACIONES.indexOf('<Texto>{t.patrocinados}</Texto>')
+    const idxAnnouncements = SRC_SECCION_NOTIFICACIONES.indexOf('<Texto>{t.equipo}</Texto>')
 
     expect(idxFavoritos).toBeGreaterThan(-1)
     expect(idxNovedades).toBeGreaterThan(idxFavoritos)
@@ -237,18 +245,21 @@ describe('components/SeccionNotificaciones.tsx: monta AvisoActivarPush variante 
   })
 
   it('el interruptor de "Avisos patrocinados" tiene su descripción y accessibilityState con checked/busy', () => {
-    const idxFila = SRC_SECCION_NOTIFICACIONES.indexOf('<Texto>Avisos patrocinados</Texto>')
+    const idxFila = SRC_SECCION_NOTIFICACIONES.indexOf('<Texto>{t.patrocinados}</Texto>')
     const idxSwitch = SRC_SECCION_NOTIFICACIONES.indexOf('<Switch', idxFila)
     const finSwitch = SRC_SECCION_NOTIFICACIONES.indexOf('/>', idxSwitch)
     expect(idxFila).toBeGreaterThan(-1)
     expect(idxSwitch).toBeGreaterThan(idxFila)
 
     const tramoEtiqueta = SRC_SECCION_NOTIFICACIONES.slice(idxFila, idxSwitch)
-    expect(tramoEtiqueta).toContain('Hasta 1 por semana, de eventos de Salta.')
-    expect(tramoEtiqueta).toContain('Patrocinado')
+    expect(tramoEtiqueta).toContain('{t.patrocinadosDescripcion}')
+    expect(es.notificaciones.patrocinadosDescripcion).toContain('Hasta 1 por semana, de eventos de Salta.')
+    expect(es.notificaciones.patrocinadosDescripcion).toContain('Patrocinado')
+    expect(en.notificaciones.patrocinadosDescripcion).toContain('Sponsored')
 
     const tramoSwitch = SRC_SECCION_NOTIFICACIONES.slice(idxSwitch, finSwitch + 2)
-    expect(tramoSwitch).toContain('accessibilityLabel="Avisos patrocinados"')
+    expect(tramoSwitch).toContain('accessibilityLabel={t.patrocinados}')
+    expect(es.notificaciones.patrocinados).toBe('Avisos patrocinados')
     expect(tramoSwitch).toMatch(/accessibilityState=\{\{\s*checked:\s*sponsored\s*,\s*busy:\s*guardandoPatrocinados\s*\}\}/)
   })
 

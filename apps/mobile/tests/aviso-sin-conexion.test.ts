@@ -13,6 +13,8 @@
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
+import { en } from '../lib/i18n/diccionarios/en'
+import { es } from '../lib/i18n/diccionarios/es'
 import { TEXTO_GUARDADO_INVALIDO, TITULO_SIN_CONEXION, textoGuardadoEn } from '../lib/sin-conexion/aviso'
 
 const COMPONENTE_PATH = fileURLToPath(new URL('../components/AvisoSinConexion.tsx', import.meta.url))
@@ -91,7 +93,11 @@ describe('AvisoSinConexion: se anuncia como un solo bloque (detector estático)'
     const idxCierre = contenidoComponente.indexOf('>', idxLabel)
     const fragmentoLabel = contenidoComponente.slice(idxLabel, idxCierre)
 
-    expect(fragmentoLabel).toMatch(/\$\{TITULO_SIN_CONEXION\}/)
+    // Q6-1: el título sale del diccionario (`mensajes.tituloSinConexion`, que en castellano es TITULO_SIN_CONEXION).
+    expect(fragmentoLabel).toMatch(/\$\{titulo\}/)
+    expect(contenidoComponente).toMatch(/const titulo = useTextos\(\)\.mensajes\.tituloSinConexion/)
+    expect(es.mensajes.tituloSinConexion).toBe('Sin conexión, mostrando lo último guardado')
+    expect(en.mensajes.tituloSinConexion).not.toBe(es.mensajes.tituloSinConexion)
     // La variable que guarda el resultado de textoGuardadoEn (no una llamada
     // directa: eso duplicaría el cálculo de `new Date()`).
     expect(fragmentoLabel).not.toMatch(/textoGuardadoEn\s*\(/)

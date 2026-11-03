@@ -16,6 +16,9 @@ import {
   type ModoContrasena,
 } from "@qps/core/auth/cuenta"
 import { mensajeErrorContrasena } from "@qps/core/auth/mensajes"
+import { textosDe } from "@/lib/i18n"
+import type { Idioma } from "@/lib/i18n/idiomas"
+import { rutaEn } from "@/lib/i18n/rutas"
 
 interface ChangePasswordFormProps {
   /**
@@ -24,9 +27,14 @@ interface ChangePasswordFormProps {
    * de siempre (cambiar una contraseña que ya existía).
    */
   modo?: ModoContrasena
+  /**
+   * Q6-2: el idioma de la página (/perfil o /en/perfil). Por defecto,
+   * castellano (también en /auth/restablecer, que queda en castellano).
+   */
+  idioma?: Idioma
 }
 
-export function ChangePasswordForm({ modo = "email" }: ChangePasswordFormProps) {
+export function ChangePasswordForm({ modo = "email", idioma = "es" }: ChangePasswordFormProps) {
   const [password, setPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -34,7 +42,12 @@ export function ChangePasswordForm({ modo = "email" }: ChangePasswordFormProps) 
   const [success, setSuccess] = useState(false)
   const errorId = useId()
 
-  const { titulo, descripcion, boton } = textosContrasena(modo)
+  const textos = textosDe(idioma)
+  const t = textos.cambioContrasena
+  // En castellano, los textos de core tal cual; en inglés, su traducción.
+  const { titulo, descripcion, boton } = idioma === "es" ? textosContrasena(modo) : t.modos[modo]
+  // Los mensajes de core (validación y errores) pasan por el diccionario en inglés.
+  const mensaje = (texto: string) => (idioma === "es" ? texto : textos.auth.mensaje(texto))
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
@@ -43,7 +56,7 @@ export function ChangePasswordForm({ modo = "email" }: ChangePasswordFormProps) 
 
     const validacion = validarContrasenaNueva(password, confirmPassword)
     if (!validacion.ok) {
-      setError(validacion.mensaje)
+      setError(mensaje(validacion.mensaje))
       return
     }
 
@@ -70,15 +83,15 @@ export function ChangePasswordForm({ modo = "email" }: ChangePasswordFormProps) 
       setSuccess(true)
       setPassword("")
       setConfirmPassword("")
-      notify.success("Contraseña guardada")
+      notify.success(t.avisoGuardada)
     } catch (err) {
       // QPS-155: nunca el objeto de error crudo (ni su .message) a la
       // consola ni a la pantalla — puede traer datos de la cuenta. Un texto
       // fijo al log (sin el error ni nada derivado de él) y, a la pantalla,
       // el texto que traduce `mensajeErrorContrasena` según el código.
       console.error("Error al guardar la contraseña")
-      setError(mensajeErrorContrasena(err))
-      notify.error("Error al guardar la contraseña")
+      setError(mensaje(mensajeErrorContrasena(err)))
+      notify.error(t.avisoError)
     } finally {
       setIsSubmitting(false)
     }
@@ -107,25 +120,25 @@ export function ChangePasswordForm({ modo = "email" }: ChangePasswordFormProps) 
           )}
 
           {success && (
-            <div className="flex items-start gap-2 rounded-lg border border-green-500/20 bg-green-500/10 p-3 text-sm text-green-600 dark:text-green-400">
+            <div role="status" className="flex items-start gap-2 rounded-lg border border-green-500/20 bg-green-500/10 p-3 text-sm text-green-600 dark:text-green-400">
               <CheckCircle2 className="size-4 shrink-0 mt-0.5" />
               <span>
                 {modo === "restablecer" ? (
                   <>
-                    Listo, ya podés entrar con tu email y esta contraseña.{" "}
-                    <Link href="/" className="font-medium underline">
-                      Ir a la portada
+                    {t.listoRestablecer}{" "}
+                    <Link href={rutaEn(idioma, "/")} className="font-medium underline">
+                      {t.irALaPortada}
                     </Link>
                   </>
                 ) : (
-                  "Contraseña guardada."
+                  t.guardada
                 )}
               </span>
             </div>
           )}
 
           <div className="space-y-2">
-            <Label htmlFor="new-password">Contraseña nueva</Label>
+            <Label htmlFor="new-password">{t.nueva}</Label>
             <PasswordInput
               id="new-password"
               autoComplete="new-password"
@@ -142,7 +155,7 @@ export function ChangePasswordForm({ modo = "email" }: ChangePasswordFormProps) 
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="confirm-password">Confirmar contraseña nueva</Label>
+            <Label htmlFor="confirm-password">{t.confirmar}</Label>
             <PasswordInput
               id="confirm-password"
               autoComplete="new-password"
@@ -162,7 +175,7 @@ export function ChangePasswordForm({ modo = "email" }: ChangePasswordFormProps) 
             {isSubmitting ? (
               <>
                 <Loader2 className="mr-2 size-4 animate-spin" />
-                Guardando...
+                {t.guardando}
               </>
             ) : (
               boton

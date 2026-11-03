@@ -20,7 +20,7 @@
 // que no decían nada ahora dicen por qué: sin sesión (arriba de "Ingresar
 // para armar tu Radar"), sin categorías, y el buscador sin coincidencias (con
 // "Limpiar").
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Animated, Pressable, ScrollView, StyleSheet, View } from 'react-native'
 import { useRouter } from 'expo-router'
 import type { EmailFrequency } from '@qps/core/radar/preferencias'
@@ -40,13 +40,11 @@ import {
   type Seguible,
 } from '@/lib/radar-vista'
 import { reintentarSesion, useSession } from '@/lib/session'
+import { textosDe, useIdioma, useTextos } from '@/lib/i18n'
 import {
   anuncioDeReintento,
   avisoReintentoSesion,
   mensajeErrorCarga,
-  SIN_CONEXION_POR_PANTALLA,
-  TEXTO_RADAR_SIN_CATEGORIAS,
-  TEXTO_RADAR_SIN_SESION,
   vacioBuscadorRadar,
 } from '@/lib/vacios'
 
@@ -56,12 +54,8 @@ import {
 const COLOR_ESMERALDA = '#34d399'
 const COLOR_ROSA = '#f472b6'
 
-const OPCIONES_FRECUENCIA: { valor: EmailFrequency; etiqueta: string }[] = [
-  { valor: 'weekly', etiqueta: 'Semanalmente (Todos los Jueves 18:00hs)' },
-  { valor: 'biweekly', etiqueta: 'Cada 2 semanas (Quincenal)' },
-  { valor: 'monthly', etiqueta: 'Mensualmente' },
-  { valor: 'disabled', etiqueta: 'Desactivado (Pausar alertas)' },
-]
+// Q6-1: las etiquetas salen del diccionario (`radar.frecuencias`).
+const OPCIONES_FRECUENCIA: EmailFrequency[] = ['weekly', 'biweekly', 'monthly', 'disabled']
 
 interface EstadoOk {
   tipo: 'ok'
@@ -86,6 +80,13 @@ export function PantallaRadar() {
   const colores = useColoresQPS()
   const router = useRouter()
   const { session, cargando: cargandoSesion, sinConexion: sesionSinConexion } = useSession()
+  const { idioma } = useIdioma()
+  const textos = useTextos()
+  const t = textos.radar
+  const idiomaRef = useRef(idioma)
+  useEffect(() => {
+    idiomaRef.current = idioma
+  }, [idioma])
   const userId = session?.user.id ?? null
   const email = session?.user.email ?? ''
 
@@ -170,7 +171,8 @@ export function PantallaRadar() {
         const error = mensajeErrorCarga('radar', resultado)
         setEstado({ tipo: 'error', error })
         const anuncioError = anuncioDeReintento(intento > 0, { tipo: 'error', error })
-        if (anuncioError) anunciar(anuncioError)
+        // Q6-1: el error queda en castellano en el estado y se dice y se ve en el idioma de la app.
+        if (anuncioError) anunciar(textosDe(idiomaRef.current).errores.traducir(anuncioError))
         return
       }
       const original: EstadoRadarComparable = {
@@ -211,7 +213,7 @@ export function PantallaRadar() {
     if (reintentandoSesion) return
     setReintentandoSesion(true)
     setNotaSesion(null)
-    const aviso = avisoReintentoSesion(await reintentarSesion())
+    const aviso = avisoReintentoSesion(await reintentarSesion(), idioma)
     setReintentandoSesion(false)
     setNotaSesion(aviso.nota)
     if (aviso.anuncio) anunciar(aviso.anuncio)
@@ -255,7 +257,7 @@ export function PantallaRadar() {
         : [],
     [opcionesActuales, venueIdsActuales, instagramIdsActuales, busqueda],
   )
-  const vacioBuscador = vacioBuscadorRadar({ busqueda, coincideConLoQueYaSeguis: coincidenciasYaSeguidas.length > 0 })
+  const vacioBuscador = vacioBuscadorRadar({ busqueda, coincideConLoQueYaSeguis: coincidenciasYaSeguidas.length > 0, idioma })
   const lugaresSeleccionados = useMemo(
     () => (opcionesActuales && venueIdsActuales ? opcionesActuales.lugares.filter((l) => venueIdsActuales.has(l.id)) : []),
     [opcionesActuales, venueIdsActuales],
@@ -313,18 +315,19 @@ export function PantallaRadar() {
     if (resultado.ok) {
       setMensaje({
         tipo: 'ok',
-        texto: '¡Ya estás en el Radar! 📧',
-        detalle: 'Vas a recibir los mejores eventos en tu correo.',
+        texto: t.guardadoOk,
+        detalle: t.guardadoOkDetalle,
       })
       actualizarOk((previo) => ({ ...previo, original: datos }))
     } else {
       // A6: sin red, `resultado.error` ya es el texto que dice que los
       // cambios siguen acá (`MENSAJE_RADAR_GUARDAR_SIN_CONEXION`): no se toca
       // el estado editado, así que también queda "Tenés cambios sin guardar".
-      setMensaje({ tipo: 'error', texto: resultado.sinConexion ? 'Sin conexión' : 'Error al guardar', detalle: resultado.error })
+      const detalle = textos.errores.traducir(resultado.error)
+      setMensaje({ tipo: 'error', texto: resultado.sinConexion ? t.sinConexion : t.errorGuardar, detalle })
       // A6: el aviso no es live region; sin red se anuncia entero (que puede
       // haber quedado a medias y que los cambios siguen acá).
-      if (resultado.sinConexion) anunciar(`Sin conexión. ${resultado.error}`)
+      if (resultado.sinConexion) anunciar(t.anuncioSinConexion(detalle))
     }
     setGuardando(false)
   }
@@ -336,9 +339,9 @@ export function PantallaRadar() {
     setMensaje(null)
     const resultado = await probarEnvioRadar(token)
     if (resultado.ok) {
-      setMensaje({ tipo: 'ok', texto: 'Prueba enviada', detalle: resultado.mensaje })
+      setMensaje({ tipo: 'ok', texto: t.pruebaEnviada, detalle: resultado.mensaje })
     } else {
-      setMensaje({ tipo: 'error', texto: 'No se pudo enviar la prueba', detalle: resultado.mensaje })
+      setMensaje({ tipo: 'error', texto: t.pruebaFallo, detalle: textos.errores.traducir(resultado.mensaje) })
     }
     setEnviandoPrueba(false)
   }
@@ -360,7 +363,7 @@ export function PantallaRadar() {
     cuerpo = (
       <View style={estilos.vacio}>
         <Texto tono="secundario" style={estilos.textoVacio}>
-          {SIN_CONEXION_POR_PANTALLA.radar}
+          {textos.mensajes.sinConexion.radar}
         </Texto>
         <BotonReintentar onReintentar={reintentarLaSesion} reintentando={reintentandoSesion} />
         {notaSesion ? (
@@ -375,7 +378,7 @@ export function PantallaRadar() {
     cuerpo = (
       <View style={estilos.vacio}>
         <Texto tono="secundario" style={estilos.textoVacio}>
-          {TEXTO_RADAR_SIN_SESION}
+          {textos.vacios.radarSinSesion}
         </Texto>
         <Pressable
           onPress={() => router.push('/cuenta')}
@@ -383,7 +386,7 @@ export function PantallaRadar() {
           style={[estilos.botonPrimario, estilos.anchoCompleto, { backgroundColor: colores.primary }]}
         >
           <Texto peso="bold" style={{ color: colores.primaryForeground }}>
-            Ingresar para armar tu Radar
+            {t.ingresar}
           </Texto>
         </Pressable>
       </View>
@@ -391,31 +394,31 @@ export function PantallaRadar() {
   } else if (estado.tipo === 'cargando') {
     cuerpo = <Cargando />
   } else if (estado.tipo === 'error') {
-    cuerpo = <ErrorCarga mensaje={estado.error} onReintentar={cargar} />
+    cuerpo = <ErrorCarga mensaje={textos.errores.traducir(estado.error)} onReintentar={cargar} />
   } else {
     const { opciones, frecuencia, categoryIds } = estado
     cuerpo = (
       <>
         <Texto tono="secundario" style={estilos.resumen}>
-          {resumenRadar(frecuencia, email)}
+          {resumenRadar(frecuencia, email, idioma)}
         </Texto>
 
         {/* Card 1: Frecuencia y Destinatario */}
         <View style={[estilos.card, { backgroundColor: colores.card, borderColor: colores.border }]}>
           <Texto peso="bold" accessibilityRole="header" style={estilos.tituloCard}>
-            Frecuencia y Destinatario
+            {t.frecuenciaTitulo}
           </Texto>
 
           <Texto peso="semibold" style={estilos.etiquetaCampo}>
-            ¿Cada cuánto querés recibir novedades?
+            {t.cadaCuanto}
           </Texto>
           <View style={estilos.listaFrecuencias}>
-            {OPCIONES_FRECUENCIA.map((opcion) => {
-              const seleccionada = frecuencia === opcion.valor
+            {OPCIONES_FRECUENCIA.map((valor) => {
+              const seleccionada = frecuencia === valor
               return (
                 <Pressable
-                  key={opcion.valor}
-                  onPress={() => actualizarOk((previo) => ({ ...previo, frecuencia: opcion.valor }))}
+                  key={valor}
+                  onPress={() => actualizarOk((previo) => ({ ...previo, frecuencia: valor }))}
                   accessibilityRole="radio"
                   accessibilityState={{ checked: seleccionada }}
                   style={[
@@ -424,7 +427,7 @@ export function PantallaRadar() {
                     seleccionada && { backgroundColor: `${colores.primary}1A` },
                   ]}
                 >
-                  <Texto style={estilos.textoFrecuencia}>{opcion.etiqueta}</Texto>
+                  <Texto style={estilos.textoFrecuencia}>{t.frecuencias[valor]}</Texto>
                   {seleccionada ? <Icono nombre="Check" tamanio={18} color={colores.primary} /> : null}
                 </Pressable>
               )
@@ -432,13 +435,13 @@ export function PantallaRadar() {
           </View>
 
           <Texto peso="semibold" style={estilos.etiquetaCampo}>
-            Dirección de correo electrónico
+            {t.emailEtiqueta}
           </Texto>
           <View style={[estilos.cajaEmail, { backgroundColor: colores.background, borderColor: colores.border }]}>
             <Texto style={{ color: colores.foreground }}>{email}</Texto>
           </View>
           <Texto tono="secundario" style={estilos.textoChico}>
-            Te lo mandamos al email de tu cuenta.
+            {t.emailNota}
           </Texto>
         </View>
 
@@ -449,17 +452,17 @@ export function PantallaRadar() {
               <Icono nombre="Radio" tamanio={20} color={colores.primary} />
             </Animated.View>
             <Texto peso="bold" accessibilityRole="header" style={estilos.tituloCard}>
-              Categorías que te interesan
+              {t.categoriasTitulo}
             </Texto>
           </View>
           <Texto tono="secundario" style={estilos.textoChico}>
-            Recibirás alertas de todos los eventos que se clasifiquen en las categorías seleccionadas.
+            {t.categoriasNota}
           </Texto>
 
           {/* A6: sin categorías para elegir, el porqué (antes, una grilla vacía). */}
           {opciones.categorias.length === 0 ? (
             <Texto tono="secundario" style={estilos.textoChico}>
-              {TEXTO_RADAR_SIN_CATEGORIAS}
+              {textos.vacios.radarSinCategorias}
             </Texto>
           ) : null}
 
@@ -480,7 +483,8 @@ export function PantallaRadar() {
                     seleccionada && { backgroundColor: `${colores.primary}1A` },
                   ]}
                 >
-                  <Texto peso="semibold" style={estilos.textoCategoria} numberOfLines={1}>
+                  {/* Q6-1: con la letra al 200 % el nombre envuelve en vez de cortarse. */}
+                  <Texto peso="semibold" style={estilos.textoCategoria}>
                     {categoria.name}
                   </Texto>
                   {seleccionada ? <Icono nombre="Check" tamanio={18} color={colores.primary} /> : null}
@@ -495,17 +499,16 @@ export function PantallaRadar() {
           <View style={estilos.filaTitulo}>
             <Icono nombre="Search" tamanio={20} color={colores.primary} />
             <Texto peso="bold" accessibilityRole="header" style={estilos.tituloCard}>
-              Lugares y Organizadores Preferidos
+              {t.lugaresTitulo}
             </Texto>
           </View>
           <Texto tono="secundario" style={estilos.textoChico}>
-            Seguí locales físicos o directamente a organizadores/boliches de Instagram (ej: La Metro, Sex Us Machina)
-            para enterarte de sus novedades.
+            {t.lugaresNota}
           </Texto>
 
           <CampoTexto
-            label="Buscar"
-            placeholder="Buscá locales físicos o cuentas de Instagram (ej: Usina, Metro, Sex Us...)"
+            label={t.buscar}
+            placeholder={t.placeholder}
             value={busqueda}
             onChangeText={(texto) => {
               setBusqueda(texto)
@@ -526,7 +529,7 @@ export function PantallaRadar() {
                     style={estilos.filaSugerencia}
                   >
                     <View style={estilos.textoSugerencia}>
-                      <Texto peso="semibold" numberOfLines={1}>
+                      <Texto peso="semibold">
                         {item.nombre}
                       </Texto>
                       {item.tipo === 'instagram' ? (
@@ -542,7 +545,7 @@ export function PantallaRadar() {
                       ]}
                     >
                       <Texto style={[estilos.textoBadge, { color: item.tipo === 'instagram' ? COLOR_ROSA : COLOR_ESMERALDA }]}>
-                        {item.tipo === 'instagram' ? 'Instagram' : 'Lugar'}
+                        {item.tipo === 'instagram' ? t.instagram : t.lugar}
                       </Texto>
                     </View>
                   </Pressable>
@@ -577,7 +580,7 @@ export function PantallaRadar() {
                   <Pressable
                     onPress={() => quitarLugar(venue.id)}
                     accessibilityRole="button"
-                    accessibilityLabel={`Dejar de seguir ${venue.name}`}
+                    accessibilityLabel={t.dejarDeSeguir(venue.name)}
                     // 46-c: el "X" no tiene estilo propio, mide lo que mide el
                     // ícono (14×14) — el chip que lo envuelve (`estilos.chip`,
                     // minHeight: 36) es un View, no el Pressable, así que el
@@ -597,7 +600,7 @@ export function PantallaRadar() {
                   <Pressable
                     onPress={() => quitarCuenta(cuenta.id)}
                     accessibilityRole="button"
-                    accessibilityLabel={`Dejar de seguir @${cuenta.username}`}
+                    accessibilityLabel={t.dejarDeSeguir(`@${cuenta.username}`)}
                     hitSlop={hitSlopPara(14)}
                   >
                     <Icono nombre="X" tamanio={14} color={COLOR_ROSA} />
@@ -607,14 +610,14 @@ export function PantallaRadar() {
             </View>
           ) : (
             <Texto tono="secundario" style={estilos.textoChico}>
-              No estás siguiendo ningún local ni cuenta de Instagram aún. Escribí arriba para buscarlos y agregarlos.
+              {t.sinSeguidos}
             </Texto>
           )}
         </View>
 
         {cambiosSinGuardar ? (
           <Texto tono="secundario" style={estilos.avisoCambios}>
-            Tenés cambios sin guardar
+            {t.cambiosSinGuardar}
           </Texto>
         ) : null}
 
@@ -642,7 +645,7 @@ export function PantallaRadar() {
             style={[estilos.botonSecundario, { borderColor: colores.border, opacity: enviandoPrueba ? 0.7 : 1 }]}
           >
             <Texto peso="bold" style={{ color: colores.foreground }}>
-              {enviandoPrueba ? 'Enviando prueba...' : 'Enviar un email de prueba'}
+              {enviandoPrueba ? t.enviandoPrueba : t.enviarPrueba}
             </Texto>
           </Pressable>
         ) : null}
@@ -654,7 +657,7 @@ export function PantallaRadar() {
           style={[estilos.botonPrimario, { backgroundColor: colores.primary, opacity: guardando ? 0.7 : 1 }]}
         >
           <Texto peso="bold" style={{ color: colores.primaryForeground }}>
-            {guardando ? 'Guardando...' : 'Guardar Preferencias de Radar'}
+            {guardando ? t.guardando : t.guardar}
           </Texto>
         </Pressable>
       </>
@@ -679,11 +682,10 @@ export function PantallaRadar() {
           </Animated.View>
         </View>
         <Texto peso="bold" accessibilityRole="header" style={estilos.tituloEncabezado}>
-          Mi Radar Salteño
+          {t.titulo}
         </Texto>
         <Texto tono="secundario" style={estilos.subtituloEncabezado}>
-          Vos decidís qué eventos ver y recibir. Suscribite a tus categorías, locales u organizadores favoritos de
-          Instagram y recibí alertas a tu correo sin spam.
+          {t.bajada}
         </Texto>
       </View>
 
