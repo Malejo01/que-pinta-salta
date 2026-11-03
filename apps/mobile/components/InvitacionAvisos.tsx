@@ -28,6 +28,7 @@ import {
   suscribirTrasAccion,
 } from '@/lib/push/invitacion'
 import { useSession } from '@/lib/session'
+import { useTextos } from '@/lib/i18n'
 
 export const TITULO_INVITACION = 'Activá los avisos para enterarte de lo que pinta'
 export const TEXTO_INVITACION =
@@ -99,6 +100,7 @@ interface ContenidoProps {
 
 function ContenidoInvitacion({ variante, onPrincipal, onDescartar, conCerrar }: ContenidoProps) {
   const colores = useColoresQPS()
+  const ti = useTextos().invitacion
   const etiquetaPrincipal = variante === 'activar' ? 'Activar' : 'Entrar'
 
   return (
@@ -111,7 +113,7 @@ function ContenidoInvitacion({ variante, onPrincipal, onDescartar, conCerrar }: 
           <Pressable
             onPress={onDescartar}
             accessibilityRole="button"
-            accessibilityLabel="Cerrar"
+            accessibilityLabel={ti.cerrar}
             style={estilos.cerrar}
           >
             <Texto tono="secundario" style={estilos.equis}>✕</Texto>
@@ -131,10 +133,10 @@ function ContenidoInvitacion({ variante, onPrincipal, onDescartar, conCerrar }: 
         <Pressable
           onPress={onDescartar}
           accessibilityRole="button"
-          accessibilityLabel="Ahora no"
+          accessibilityLabel={ti.ahoraNo}
           style={[estilos.boton, { borderWidth: 1, borderColor: colores.border }]}
         >
-          <Texto peso="semibold">Ahora no</Texto>
+          <Texto peso="semibold">{ti.ahoraNo}</Texto>
         </Pressable>
       </View>
     </View>
@@ -172,6 +174,7 @@ export function InvitacionAvisos() {
 /** Hoja chica después del primer Guardar / Voy. Se monta una vez, en el layout raíz. */
 export function InvitacionTrasAccion() {
   const colores = useColoresQPS()
+  const ti = useTextos().invitacion
   const insets = useSafeAreaInsets()
   const { estado, sincronizado } = usePush()
   const { cargando, session } = useSession()
@@ -285,7 +288,7 @@ export function InvitacionTrasAccion() {
           onPress={cerrar}
           accessible={false}
           accessibilityRole="button"
-          accessibilityLabel="Cerrar"
+          accessibilityLabel={ti.cerrar}
           importantForAccessibility="no"
           accessibilityElementsHidden
         />

@@ -47,6 +47,7 @@ import {
   type FiltrosPortada,
 } from '@/lib/portada-filtros'
 import { useReducirMovimiento } from '@/lib/reducir-movimiento'
+import { useTextos } from '@/lib/i18n'
 
 /** Cuánto espera el foco para volver al botón después de cerrar la hoja (el Modal tarda en irse). */
 const ESPERA_FOCO_MS = 350
@@ -161,6 +162,7 @@ export function HojaFiltros({
   botonRef,
 }: HojaFiltrosProps) {
   const colores = useColoresQPS()
+  const t = useTextos().filtros
   const insets = useSafeAreaInsets()
   const reducir = useReducirMovimiento()
   const tituloRef = useRef<View>(null)
@@ -202,7 +204,7 @@ export function HojaFiltros({
           onPress={onCerrar}
           accessible={false}
           accessibilityRole="button"
-          accessibilityLabel="Cerrar"
+          accessibilityLabel={t.cerrar}
           importantForAccessibility="no"
           accessibilityElementsHidden
         />
@@ -215,7 +217,7 @@ export function HojaFiltros({
         >
           <View ref={tituloRef} accessible accessibilityRole="header" style={estilos.tituloCaja}>
             <Texto peso="bold" style={estilos.titulo}>
-              Filtros
+              {t.titulo}
             </Texto>
           </View>
           <ScrollView style={estilos.cuerpo} contentContainerStyle={estilos.cuerpoContenido}>
@@ -226,7 +228,7 @@ export function HojaFiltros({
             {categorias.length > 0 ? (
               <>
                 <Texto peso="bold" tono="secundario" accessibilityRole="header">
-                  Categorías
+                  {t.categorias}
                 </Texto>
                 <ChipsCategorias categorias={categorias} seleccionada={categoria} onCambiar={onCambiarCategoria} envolver />
               </>
@@ -247,14 +249,14 @@ export function HojaFiltros({
               // R81, 81-c: sin filtros activos no hay nada que limpiar.
               disabled={activos === 0}
               accessibilityRole="button"
-              accessibilityLabel="Limpiar filtros"
+              accessibilityLabel={t.limpiarFiltros}
               accessibilityState={{ disabled: activos === 0 }}
               style={[
                 estilos.accion,
                 { borderWidth: 1, borderColor: bordeChipInactivo(colores), opacity: activos === 0 ? 0.5 : 1 },
               ]}
             >
-              <Texto peso="semibold">Limpiar</Texto>
+              <Texto peso="semibold">{t.limpiar}</Texto>
             </Pressable>
           </View>
         </View>

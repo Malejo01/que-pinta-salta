@@ -67,6 +67,7 @@ import { anunciar } from '@/lib/anunciar'
 import { estadoAnunciableCines } from '@/lib/anunciar-conteo'
 import { useAnunciarConteo } from '@/lib/anunciar-conteo-hook'
 import { useColoresQPS } from '@/lib/colores'
+import { useTextos } from '@/lib/i18n'
 import { obtenerCines, type Pelicula } from '@/lib/datos/cines'
 import { anuncioDeReintento, decidirRefresco, mensajeErrorCarga, vacioCines } from '@/lib/vacios'
 
@@ -89,6 +90,8 @@ export function filtrarPeliculasPorTitulo(peliculas: Pelicula[], busqueda: strin
 
 export default function Cines() {
   const colores = useColoresQPS()
+  // Q5-12: textos del diccionario.
+  const tc = useTextos().cines
   const router = useRouter()
   const [estado, setEstado] = useState<Estado>({ tipo: 'cargando' })
   // Estado de refresco aparte del de carga (28-c): mientras se refresca, la
@@ -172,7 +175,7 @@ export default function Cines() {
   return (
     <View style={[estilos.contenedor, { backgroundColor: colores.background }]}>
       <Texto peso="bold" accessibilityRole="header" style={estilos.titulo}>
-        Cines
+        {tc.titulo}
       </Texto>
 
       <View style={[estilos.cajaBusqueda, { backgroundColor: colores.card, borderColor: colores.border }]}>
@@ -181,7 +184,7 @@ export default function Cines() {
           value={busqueda}
           onChangeText={setBusqueda}
           onSubmitEditing={() => setToqueBusqueda((n) => n + 1)}
-          placeholder="Buscar película por nombre..."
+          placeholder={tc.buscar}
           placeholderTextColor={colores.mutedForeground}
           style={[estilos.inputBusqueda, { color: colores.foreground }]}
         />
@@ -189,7 +192,7 @@ export default function Cines() {
           <Pressable
             onPress={() => setBusqueda('')}
             accessibilityRole="button"
-            accessibilityLabel="Limpiar búsqueda"
+            accessibilityLabel={tc.limpiarBusqueda}
             hitSlop={hitSlopPara(18)}
           >
             <Icono nombre="X" tamanio={18} color={colores.mutedForeground} />

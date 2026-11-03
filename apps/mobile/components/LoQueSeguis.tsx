@@ -23,6 +23,7 @@ import { Cargando, ErrorCarga, Vacio } from '@/components/EstadoCarga'
 import { Texto } from '@/components/Texto'
 import { useColoresQPS } from '@/lib/colores'
 import { cambiarSeguimiento, obtenerLoQueSeguis, type LoQueSeguis as ListasDeSeguimiento } from '@/lib/radar'
+import { useTextos } from '@/lib/i18n'
 
 export type TipoDeSeguimiento = 'lugar' | 'cuenta' | 'categoria'
 
@@ -32,11 +33,6 @@ export interface FilaLoQueSeguis {
   etiqueta: string
 }
 
-const TITULO_GRUPO: Record<TipoDeSeguimiento, string> = {
-  lugar: 'Lugares',
-  cuenta: 'Cuentas de Instagram',
-  categoria: 'Categorías',
-}
 
 // Mismo texto que la web (ver el encargo de esta tarea).
 const MENSAJE_SIN_NADA =
@@ -86,6 +82,7 @@ export interface LoQueSeguisProps {
 }
 
 export function LoQueSeguis({ userId }: LoQueSeguisProps) {
+  const t = useTextos().loQueSeguis
   const router = useRouter()
   const colores = useColoresQPS()
 
@@ -153,7 +150,7 @@ export function LoQueSeguis({ userId }: LoQueSeguisProps) {
     return (
       <View style={estilos.seccion}>
         <Texto peso="bold" style={estilos.titulo}>
-          Lo que seguís
+          {t.titulo}
         </Texto>
         <ErrorCarga mensaje={estado.error} onReintentar={cargar} />
       </View>
@@ -164,9 +161,9 @@ export function LoQueSeguis({ userId }: LoQueSeguisProps) {
     return (
       <View style={estilos.seccion}>
         <Texto peso="bold" style={estilos.titulo}>
-          Lo que seguís
+          {t.titulo}
         </Texto>
-        <Vacio mensaje={MENSAJE_SIN_NADA} textoAccion="Ir al Radar" onAccion={() => router.push('/radar')} />
+        <Vacio mensaje={MENSAJE_SIN_NADA} textoAccion={t.irAlRadar} onAccion={() => router.push('/radar')} />
       </View>
     )
   }
@@ -176,7 +173,7 @@ export function LoQueSeguis({ userId }: LoQueSeguisProps) {
   return (
     <View style={estilos.seccion}>
       <Texto peso="bold" style={estilos.titulo}>
-        Lo que seguís
+        {t.titulo}
       </Texto>
 
       {errorAccion ? <Texto style={{ color: COLOR_ERROR }}>{errorAccion}</Texto> : null}
@@ -188,7 +185,7 @@ export function LoQueSeguis({ userId }: LoQueSeguisProps) {
         return (
           <View key={tipo} style={estilos.grupo}>
             <Texto peso="semibold" tono="secundario" style={estilos.tituloGrupo}>
-              {TITULO_GRUPO[tipo]}
+              {tipo === 'lugar' ? t.lugares : tipo === 'cuenta' ? t.cuentas : t.categorias}
             </Texto>
             {filasDelGrupo.map((fila) => {
               const ocupado = enVuelo === claveDeFila(fila)
@@ -199,12 +196,12 @@ export function LoQueSeguis({ userId }: LoQueSeguisProps) {
                     onPress={() => dejarDeSeguir(fila)}
                     disabled={ocupado}
                     accessibilityRole="button"
-                    accessibilityLabel={`Dejar de seguir ${fila.etiqueta}`}
+                    accessibilityLabel={t.dejarDeSeguirA(fila.etiqueta)}
                     accessibilityState={{ busy: ocupado }}
                     style={estilos.boton}
                   >
                     <Texto peso="semibold" tono="primario" style={estilos.textoBoton}>
-                      {ocupado ? 'Dejando de seguir…' : 'Dejar de seguir'}
+                      {ocupado ? t.dejandoDeSeguir : t.dejarDeSeguir}
                     </Texto>
                   </Pressable>
                 </View>

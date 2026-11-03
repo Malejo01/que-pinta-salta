@@ -31,7 +31,8 @@ describe('app/evento/[id].tsx: el orden de la ficha (ops/paridad-web-app.md §3.
   // visible — así el índice no depende de si el CTA dice "Como llegar" o
   // "Cómo llegar". El texto con tilde se verifica aparte, abajo.
   const idxComoLlegar = content.indexOf('onPress={comoLlegar}')
-  const idxComprarTickets = content.indexOf('Comprar tickets')
+  // Q5-12: el texto sale del diccionario (`tf.comprarTickets`); se ancla en el handler.
+  const idxComprarTickets = content.indexOf('onPress={comprar}')
   const idxFilaAccionesEvento = content.indexOf('<FilaAccionesEvento')
 
   it('tiene la fila de fecha, los dos CTAs y FilaAccionesEvento (Guardar/Voy/Compartir)', () => {
@@ -46,7 +47,9 @@ describe('app/evento/[id].tsx: el orden de la ficha (ops/paridad-web-app.md §3.
   })
 
   it('49-d (QPS-244): el texto visible del CTA es "Cómo llegar", con tilde', () => {
-    expect(content).toContain('Cómo llegar')
+    // Q5-12: en el diccionario de castellano (y «Directions» en inglés).
+    expect(content).toContain('{tf.comoLlegar}')
+    expect(readFileSync(join(MOBILE_ROOT, 'lib', 'i18n', 'diccionarios', 'es.ts'), 'utf8')).toContain("comoLlegar: 'Cómo llegar'")
     expect(content).not.toContain('Como llegar')
   })
 

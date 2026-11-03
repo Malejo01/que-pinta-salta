@@ -787,8 +787,9 @@ function violacionesChipParaChicos(fuenteCruda: string): string[] {
   if (!/accessibilityRole="button"/.test(pressable)) v.push('rol: el chip no es accessibilityRole="button"')
   if (!/accessibilityState=\{\{\s*selected:\s*activo\s*\}\}/.test(pressable)) v.push('estado: falta accessibilityState={{ selected: activo }}')
   if (!/onPress=\{\(\) => onCambiar\(!activo\)\}/.test(pressable)) v.push('no es un interruptor: onPress no llama onCambiar(!activo)')
-  if (!/>\s*Para chicos\s*</.test(pressable)) v.push('el texto visible no es "Para chicos"')
-  if (!/accessibilityLabel="Solo eventos para chicos"/.test(pressable)) v.push('etiqueta: falta accessibilityLabel="Solo eventos para chicos"')
+  // Q5-12: el texto sale del diccionario (`t.paraChicos` = «Para chicos»).
+  if (!/>\s*\{t\.paraChicos\}\s*</.test(pressable)) v.push('el texto visible no es "Para chicos"')
+  if (!/accessibilityLabel=\{t\.soloParaChicos\}/.test(pressable)) v.push('etiqueta: falta accessibilityLabel="Solo eventos para chicos"')
 
   const clave = /style=\{\[\s*estilos\.(\w+)/.exec(pressable)
   if (!clave) v.push('el style del Pressable no arranca con una clave de estilos.*')
@@ -851,9 +852,9 @@ describe('components/ChipParaChicos.tsx', () => {
     ['sin rol', (s: string) => s.replace('accessibilityRole="button"\n      accessibilityState', 'accessibilityState'), 'rol: el chip no es accessibilityRole="button"'],
     ['estado fijo', (s: string) => s.replace('selected: activo', 'selected: false'), 'estado: falta accessibilityState={{ selected: activo }}'],
     ['checked en vez de selected', (s: string) => s.replace('selected: activo', 'checked: activo'), 'estado: falta accessibilityState={{ selected: activo }}'],
-    ['etiqueta pelada', (s: string) => s.replace('accessibilityLabel="Solo eventos para chicos"', 'accessibilityLabel="Para chicos"'), 'etiqueta: falta accessibilityLabel="Solo eventos para chicos"'],
-    ['sin etiqueta', (s: string) => s.replace('      accessibilityLabel="Solo eventos para chicos"\n', ''), 'etiqueta: falta accessibilityLabel="Solo eventos para chicos"'],
-    ['texto "Chicos"', (s: string) => s.replace('        Para chicos\n', '        Chicos\n'), 'el texto visible no es "Para chicos"'],
+    ['etiqueta pelada', (s: string) => s.replace('accessibilityLabel={t.soloParaChicos}', 'accessibilityLabel={t.paraChicos}'), 'etiqueta: falta accessibilityLabel="Solo eventos para chicos"'],
+    ['sin etiqueta', (s: string) => s.replace('      accessibilityLabel={t.soloParaChicos}\n', ''), 'etiqueta: falta accessibilityLabel="Solo eventos para chicos"'],
+    ['texto "Chicos"', (s: string) => s.replace('        {t.paraChicos}\n', '        Chicos\n'), 'el texto visible no es "Para chicos"'],
     ['no alterna', (s: string) => s.replace('onCambiar(!activo)', 'onCambiar(true)'), 'no es un interruptor: onPress no llama onCambiar(!activo)'],
     ['minHeight 44', (s: string) => s.replace('minHeight: 48,\n  },\n})', 'minHeight: 44,\n  },\n})'), 'área: la clave "chipParaChicos" no tiene minHeight >= 48'],
     ['contorno igual', (s: string) => s.replace('borderWidth: 2', 'borderWidth: 1'), 'forma: el activo no tiene un contorno más grueso que el inactivo'],

@@ -104,7 +104,9 @@ describe('app/cines.tsx: lectura estática', () => {
   })
 
   it('el placeholder del buscador es el texto literal de la web ("Buscar película por nombre...")', () => {
-    expect(SRC_CINES).toMatch(/placeholder="Buscar película por nombre\.\.\."/)
+    // Q5-12: el texto sale del diccionario; en castellano sigue siendo el de la web.
+    expect(SRC_CINES).toMatch(/placeholder=\{tc\.buscar\}/)
+    expect(readFileSync(new URL('../lib/i18n/diccionarios/es.ts', import.meta.url), 'utf8')).toContain("buscar: 'Buscar película por nombre...'")
   })
 
   // R67, 67-c: la tarjeta y el acordeón viven en `components/`; estas tres

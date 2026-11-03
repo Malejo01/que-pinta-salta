@@ -288,19 +288,20 @@ function violacionesHoja(hojaCruda: string): string[] {
   if (!/accessibilityViewIsModal/.test(c)) v.push('la hoja no lleva accessibilityViewIsModal')
   if (!/ref=\{tituloRef\}[^>]*accessibilityRole="header"/.test(c)) v.push('el título no es un header')
   // R81, 81-c: «Categorías» también es un encabezado.
-  if (!/accessibilityRole="header">\s*Categorías/.test(c)) v.push('«Categorías» no es un header')
+  // Q5-12: los textos salen del diccionario (`t.categorias`, `t.titulo`, `t.limpiar`).
+  if (!/accessibilityRole="header">\s*\{t\.categorias\}/.test(c)) v.push('«Categorías» no es un header')
   // R81, 81-c: «Limpiar» deshabilitado sin filtros activos.
   if (!/onLimpiar: \(\) => void\s*activos: number/.test(c)) v.push('la hoja no recibe la cantidad de activos')
   if (!/disabled=\{activos === 0\}/.test(c)) v.push('«Limpiar» no se deshabilita sin filtros activos')
   if (!/accessibilityState=\{\{ disabled: activos === 0 \}\}/.test(c)) v.push('«Limpiar» no avisa su estado deshabilitado')
   if (!/opacity: activos === 0 \?/.test(c)) v.push('«Limpiar» deshabilitado no se ve atenuado')
-  if (!/>\s*Filtros\s*</.test(c)) v.push('no hay un título «Filtros»')
+  if (!/>\s*\{t\.titulo\}\s*</.test(c)) v.push('no hay un título «Filtros»')
   // Foco: adentro al abrir, de vuelta al botón al cerrar.
   if (!/onShow=\{[\s\S]*?setAccessibilityFocus\(/.test(modal)) v.push('al abrir no manda el foco al título')
   if (!/setAccessibilityFocus\(nodo\)[\s\S]*?\[visible, botonRef\]/.test(c)) v.push('al cerrar no devuelve el foco al botón')
   // Acciones y áreas táctiles.
   if (!/textoVerEventos\(cantidad\)/.test(c)) v.push('falta «Ver N eventos»')
-  if (!/>\s*Limpiar\s*</.test(c)) v.push('falta «Limpiar»')
+  if (!/>\s*\{t\.limpiar\}\s*</.test(c)) v.push('falta «Limpiar»')
   if (!/onPress=\{onLimpiar\}/.test(c)) v.push('«Limpiar» no llama onLimpiar')
   for (const clave of ['boton', 'chipRemovible', 'tituloCaja', 'accion']) {
     const m = new RegExp(`\\b${clave}:\\s*\\{([^}]*)\\}`).exec(c)
