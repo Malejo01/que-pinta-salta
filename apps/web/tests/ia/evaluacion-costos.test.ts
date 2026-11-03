@@ -43,15 +43,19 @@ describe('precios.md', () => {
 
   it('cada fila tiene fuente oficial y fecha de consulta', () => {
     for (const p of precios) {
-      expect(p.fuente, p.clave).toMatch(/^https:\/\/(ai\.google\.dev|www\.anthropic\.com|docs\.claude\.com)\//)
+      expect(p.fuente, p.clave).toMatch(/^https:\/\/(ai\.google\.dev|www\.anthropic\.com|docs\.claude\.com|platform\.claude\.com)\//)
       expect(p.consultado, p.clave).toMatch(/^\d{4}-\d{2}-\d{2}$/)
       expect(p.entradaUsdMtok).toBeGreaterThan(0)
       expect(p.salidaUsdMtok).toBeGreaterThan(p.entradaUsdMtok)
     }
   })
 
-  it('el documento avisa que hay que verificar los precios antes de decidir', () => {
-    expect(PRECIOS_MD).toMatch(/Verificar antes de decidir/i)
+  // Q6-4: los precios por token ya se confirmaron con las fuentes de G-2 (#183);
+  // lo que sigue sin confirmar (tokens por imagen) tiene que estar avisado.
+  it('el documento dice qué está confirmado y qué falta verificar', () => {
+    expect(PRECIOS_MD).toMatch(/confirmados/i)
+    expect(PRECIOS_MD).toMatch(/tokens_por_imagen/)
+    expect(PRECIOS_MD).toMatch(/precios-fuentes\.md/)
     expect(precios.filter((p) => p.estado !== 'referencia').every((p) => p.estado === 'verificar' || p.estado === 'confirmado')).toBe(true)
   })
 

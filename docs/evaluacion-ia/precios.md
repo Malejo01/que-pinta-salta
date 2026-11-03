@@ -1,11 +1,13 @@
 # Precios de los modelos (Q6-4)
 
-> **Verificar antes de decidir.** Estos precios NO se consultaron en vivo: el
-> agente que armó el banco no podía navegar (el proxy bloquea los sitios
-> externos). Son los que el agente conocía al 3/11/2026. Antes de cambiar el
-> proveedor por defecto, abrí las dos páginas de la columna «fuente», corregí
-> la tabla si hace falta y volvé a correr `npx tsx scripts/evaluar-ia.ts`
-> (lee esta tabla cada vez).
+> **Precios por token confirmados** con las páginas oficiales el 3/11/2026.
+> Los consultó Gemini en G-2 (#183) y están en
+> `docs/evaluacion-ia/precios-fuentes.md`. Con eso, Flash-Lite queda en USD 0,30 / 2,50 y no en el
+> 0,25 / 1,50 que había supuesto este banco.
+>
+> **Lo que sigue estimado:** los `tokens_por_imagen`. Las páginas de precios no
+> los dan; hay que medirlos con la primera corrida `--real`. Si cambian, corregí la tabla y volvé a
+> correr `npx tsx scripts/evaluar-ia.ts` (lee esta tabla cada vez).
 
 El script `apps/web/scripts/evaluar-ia.ts` lee la tabla que está entre los dos
 comentarios `precios:inicio` / `precios:fin`. Reglas para editarla:
@@ -22,18 +24,18 @@ comentarios `precios:inicio` / `precios:fin`. Reglas para editarla:
 <!-- precios:inicio -->
 | clave | proveedor | entrada_usd_mtok | salida_usd_mtok | tokens_por_imagen | fuente | consultado | estado |
 |---|---|---|---|---|---|---|---|
-| gemini-3.5-flash-lite | gemini | 0.25 | 1.50 | 1120 | https://ai.google.dev/gemini-api/docs/pricing | 2026-11-03 | verificar |
-| claude-haiku-4-5 | claude | 1.00 | 5.00 | 1532 | https://www.anthropic.com/pricing | 2026-11-03 | verificar |
-| claude-sonnet-4-5 | claude | 3.00 | 15.00 | 1532 | https://www.anthropic.com/pricing | 2026-11-03 | referencia |
+| gemini-3.5-flash-lite | gemini | 0.30 | 2.50 | 1120 | https://ai.google.dev/gemini-api/docs/pricing | 2026-11-03 | confirmado |
+| claude-haiku-4-5 | claude | 1.00 | 5.00 | 1532 | https://platform.claude.com/docs/en/about-claude/pricing | 2026-11-03 | confirmado |
+| claude-sonnet-4-5 | claude | 3.00 | 15.00 | 1532 | https://platform.claude.com/docs/en/about-claude/pricing | 2026-11-03 | referencia |
 <!-- precios:fin -->
 
 ## De dónde sale cada número
 
-- **gemini-3.5-flash-lite** (el modelo de hoy, `GEMINI_MODEL`): el agente no
-  tiene el precio confirmado de esta versión. Se usa el de la generación
-  Flash-Lite anterior que conocía (USD 0,25 entrada / 1,50 salida por millón).
-  Es el número más dudoso de la tabla. En Gemini la imagen se cobra como
-  tokens de entrada al mismo precio que el texto.
+- **gemini-3.5-flash-lite** (el modelo de hoy, `GEMINI_MODEL`): USD 0,30 de
+  entrada (texto o imagen) y 2,50 de salida por millón, incluido el
+  razonamiento. Es la página oficial consultada el 3/11 (G-2,
+  `precios-fuentes.md`). En Gemini, la imagen se cobra como tokens de entrada
+  al mismo precio que el texto.
 - **claude-haiku-4-5** (el default de Claude en `lib/ia/claude.ts`): USD 1
   entrada / 5 salida por millón. La imagen se cobra como tokens de entrada.
 - **claude-sonnet-4-5**: solo de referencia (USD 3 / 15), para ver cuánto

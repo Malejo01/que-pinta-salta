@@ -161,7 +161,7 @@ Ojo al leer:
 ## Qué decisión ayuda a tomar y con qué umbrales
 
 La decisión es, **por uso**, si cambiar el default de Gemini a Claude. Con la
-estimación de hoy los dos cuestan poco (≈ USD 0,23/mes Gemini y ≈ USD 1,3/mes
+estimación de hoy los dos cuestan poco (≈ USD 0,31/mes Gemini y ≈ USD 1,3/mes
 Claude Haiku para los tres usos), así que **decide la calidad**, no el costo.
 Correr primero `--real --proveedor ambos --tope 30 --confirmo-costo` (≈ USD
 0,20) y después:
@@ -203,13 +203,13 @@ Volúmenes de producción (últimos 30 días al 2026-11-03): 252 flyers, 274 tra
 
 | uso           | modelo                   | tokens entrada | tokens salida | por llamada | por 1000   | por mes     |
 |---------------|--------------------------|----------------|---------------|-------------|------------|-------------|
-| Flyers        | gemini-3.5-flash-lite    | 2.063          | 136           | USD 0,00072 | USD 0,7196 | USD 0,1813  |
+| Flyers        | gemini-3.5-flash-lite    | 2.063          | 136           | USD 0,00096 | USD 0,9587 | USD 0,2416  |
 | Flyers        | claude-haiku-4-5         | 2.920          | 180           | USD 0,00382 | USD 3,82   | USD 0,9631  |
 | Flyers        | claude-sonnet-4-5 (ref.) | 2.920          | 180           | USD 0,0115  | USD 11,47  | USD 2,89    |
-| Traducción    | gemini-3.5-flash-lite    | 302            | 57            | USD 0,00016 | USD 0,1606 | USD 0,0440  |
+| Traducción    | gemini-3.5-flash-lite    | 302            | 57            | USD 0,00023 | USD 0,2324 | USD 0,0637  |
 | Traducción    | claude-haiku-4-5         | 655            | 90            | USD 0,00110 | USD 1,10   | USD 0,3027  |
 | Traducción    | claude-sonnet-4-5 (ref.) | 655            | 90            | USD 0,00331 | USD 3,31   | USD 0,9081  |
-| Clasificación | gemini-3.5-flash-lite    | 174            | 5             | USD 0,00005 | USD 0,0508 | USD 0,00203 |
+| Clasificación | gemini-3.5-flash-lite    | 174            | 5             | USD 0,00006 | USD 0,0645 | USD 0,00258 |
 | Clasificación | claude-haiku-4-5         | 509            | 31            | USD 0,00066 | USD 0,6628 | USD 0,0265  |
 | Clasificación | claude-sonnet-4-5 (ref.) | 509            | 31            | USD 0,00199 | USD 1,99   | USD 0,0795  |
 
@@ -217,8 +217,8 @@ Volúmenes de producción (últimos 30 días al 2026-11-03): 252 flyers, 274 tra
 
 | modelo                | USD por mes | precio     |
 |-----------------------|-------------|------------|
-| gemini-3.5-flash-lite | USD 0,2274  | verificar  |
-| claude-haiku-4-5      | USD 1,29    | verificar  |
+| gemini-3.5-flash-lite | USD 0,3079  | confirmado |
+| claude-haiku-4-5      | USD 1,29    | confirmado |
 | claude-sonnet-4-5     | USD 3,88    | referencia |
 
 > Precios de docs/evaluacion-ia/precios.md: «verificar» = sin confirmar en la página oficial. Tokens por aproximación de caracteres (ver README).
