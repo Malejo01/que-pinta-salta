@@ -142,6 +142,8 @@ function RootLayout() {
             <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
             <Stack.Screen name="evento/[id]" options={{ title: 'Evento' }} />
             <Stack.Screen name="cines" options={{ title: 'Cines' }} />
+            <Stack.Screen name="lugares-chicos/index" options={{ title: 'Lugares para chicos' }} />
+            <Stack.Screen name="lugares-chicos/[id]" options={{ title: 'Lugar para chicos' }} />
             <Stack.Screen name="+not-found" options={{ headerShown: false }} />
           </Stack>
         </ThemeProvider>

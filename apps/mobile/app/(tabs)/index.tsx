@@ -173,6 +173,7 @@ import { groupByCategory, selectTodayRow, type CategoryEventsRow } from '@qps/co
 import { eventoEnAtajo, type Atajo } from '@qps/core/home/atajos'
 import type { DisplayEvent } from '@qps/core/home/types'
 import type { Category } from '@qps/core/types'
+import { AccesoLugaresChicos } from '@/components/AccesoLugaresChicos'
 import { AvisoNoSeActualizo, AvisoSinConexion } from '@/components/AvisoSinConexion'
 import { BannerAnuncio } from '@/components/BannerAnuncio'
 import { BannerRadar } from '@/components/BannerRadar'
@@ -914,6 +915,8 @@ export default function Inicio() {
                 {/* El mismo string que va en el anuncio (`tituloGrilla`, A8). */}
                 {tituloGrilla}
               </Texto>
+              {/* Q5-4: con «Para chicos», el acceso a los lugares para chicos (plazas, peloteros…). */}
+              {paraChicos ? <AccesoLugaresChicos /> : null}
               {/* El vacío del modo categoría va primero; el de "Para chicos"
                   (A3), después; el de "Gratis" (A2), en la última. */}
               {datosPortada.eventosCategoria.length === 0 && categoria !== null && !gratis && !paraChicos ? (

@@ -4,8 +4,9 @@
 // por acá, con precisión `Balanced` (≈100 m: alcanza para «qué hay cerca»).
 // `tests/ubicacion-aproximada.test.ts` impide que alguien pida la precisa.
 //
-// Hoy ninguna pantalla lee la ubicación («Cerca mío» todavía no está en la
-// app y el mapa no dibuja la posición): esto queda listo para cuando se use.
+// Q5-4: la primera pantalla que la usa es «Lugares para chicos», y SOLO si el
+// permiso ya estaba concedido (`ubicacionSiYaConcedida`: nunca lo pide); si
+// no, la pantalla ofrece «Elegí tu barrio».
 // Reglas: el permiso se pide solo por una acción de la persona (nunca en
 // frío), solo «mientras se usa», y nunca tira.
 import * as Location from 'expo-location'
@@ -26,6 +27,26 @@ export type ResultadoUbicacion =
 export async function ubicacionAproximada(): Promise<ResultadoUbicacion> {
   try {
     const permiso = await Location.requestForegroundPermissionsAsync()
+    if (permiso.status !== 'granted') return { ok: false, motivo: 'sin-permiso' }
+    const posicion = await Location.getCurrentPositionAsync({ accuracy: PRECISION_UBICACION })
+    return {
+      ok: true,
+      latitud: redondearCoordenada(posicion.coords.latitude),
+      longitud: redondearCoordenada(posicion.coords.longitude),
+    }
+  } catch {
+    return { ok: false, motivo: 'no-disponible' }
+  }
+}
+
+/**
+ * Q5-4: la posición aproximada SOLO si el permiso ya estaba concedido. Nunca
+ * lo pide (no abre el diálogo del sistema): si no está, devuelve
+ * `sin-permiso` y la pantalla ofrece «Elegí tu barrio».
+ */
+export async function ubicacionSiYaConcedida(): Promise<ResultadoUbicacion> {
+  try {
+    const permiso = await Location.getForegroundPermissionsAsync()
     if (permiso.status !== 'granted') return { ok: false, motivo: 'sin-permiso' }
     const posicion = await Location.getCurrentPositionAsync({ accuracy: PRECISION_UBICACION })
     return {
