@@ -258,3 +258,12 @@ export function urlContactoLugar(valor: string | null | undefined, tipo: 'web' |
     return null
   }
 }
+
+/**
+ * Q5-6 · El séptimo origen válido de `openURL` (ver `tests/aperturas-url.test.ts`):
+ * la ficha web de un lugar (`/lugar/<id>`, que la web redirige al slug).
+ * Solo con un uuid; cualquier otra cosa da `null`.
+ */
+export function urlFichaLugarWeb(venueId: string): string | null {
+  return esUuid(venueId) ? `${SITIO}/lugar/${venueId}` : null
+}

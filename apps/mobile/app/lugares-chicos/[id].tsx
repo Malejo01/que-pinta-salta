@@ -7,12 +7,15 @@ import { useEffect, useState } from 'react'
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native'
 import { Stack, useLocalSearchParams } from 'expo-router'
 import * as Linking from 'expo-linking'
+import { BotonSeguir } from '@/components/BotonSeguir'
 import { Cargando, ErrorCarga, Vacio } from '@/components/EstadoCarga'
 import { Icono } from '@/components/Icono'
 import { Texto } from '@/components/Texto'
 import { useColoresQPS } from '@/lib/colores'
 import { obtenerLugaresChicos } from '@/lib/datos/lugares-chicos'
 import { urlContactoLugar } from '@/lib/links'
+import { siguesElLugar } from '@/lib/radar'
+import { useSession } from '@/lib/session'
 import { LEYENDA_LUGARES, fechaVerificado } from '@/lib/lugares-chicos'
 import { urlComoLlegar } from '@qps/core/metricas/links'
 import {
@@ -36,6 +39,20 @@ export default function FichaLugarChicos() {
   const [estado, setEstado] = useState<Estado>({ tipo: 'cargando' })
   const [intento, setIntento] = useState(0)
   const [ahora, setAhora] = useState(() => new Date())
+  // Q5-6: «Seguir» el lugar. `null` hasta saber si ya lo sigue (el botón no se dibuja antes).
+  const { session } = useSession()
+  const userId = session?.user.id ?? null
+  const [siguiendo, setSiguiendo] = useState<boolean | null>(null)
+
+  useEffect(() => {
+    let vigente = true
+    siguesElLugar(id, userId).then((valor) => {
+      if (vigente) setSiguiendo(valor)
+    })
+    return () => {
+      vigente = false
+    }
+  }, [id, userId])
 
   useEffect(() => {
     let cancelado = false
@@ -102,6 +119,10 @@ export default function FichaLugarChicos() {
       </Texto>
       <Texto tono="secundario">{lugar.direccion}</Texto>
       {lugar.descripcion ? <Texto>{lugar.descripcion}</Texto> : null}
+      {siguiendo !== null ? (
+        // `key`: si cambia la sesión, el botón arranca con el estado nuevo.
+        <BotonSeguir key={`${userId ?? 'sin-sesion'}-${siguiendo}`} tipo="lugar" id={lugar.venueId} etiqueta={lugar.nombre} siguiendoInicial={siguiendo} />
+      ) : null}
 
       {llegar ? (
         <Pressable onPress={abrirLlegar} accessibilityRole="link" accessibilityLabel={`Cómo llegar a ${lugar.nombre}`} style={[estilos.ctaLlegar, { backgroundColor: colores.primary }]}>
