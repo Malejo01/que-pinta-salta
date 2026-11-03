@@ -16,6 +16,7 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import { quitarComentarios } from '@qps/core/tests/convencion-entorno'
+import { es } from '../lib/i18n/diccionarios/es'
 
 const MOBILE_ROOT = fileURLToPath(new URL('..', import.meta.url))
 const FICHA_PATH = join(MOBILE_ROOT, 'app', 'evento', '[id].tsx')
@@ -109,11 +110,14 @@ describe('app/evento/[id].tsx: "Agregar al calendario" (BotonCalendario, R42 42-
 describe('components/BotonFavorito.tsx: los dos accessibilityLabel (icono solo, sin texto "Guardar")', () => {
   const content = readFileSync(BOTON_FAVORITO_PATH, 'utf8')
 
+  // Q6-1: las etiquetas salen del diccionario (`tarjeta.agregarFavorito` / `tarjeta.quitarFavorito`).
   it('tiene accessibilityLabel "Agregar a favoritos"', () => {
-    expect(content).toMatch(/Agregar a favoritos/)
+    expect(content).toMatch(/t\.agregarFavorito\(/)
+    expect(es.tarjeta.agregarFavorito()).toBe('Agregar a favoritos')
   })
 
   it('tiene accessibilityLabel "Quitar de favoritos"', () => {
-    expect(content).toMatch(/Quitar de favoritos/)
+    expect(content).toMatch(/t\.quitarFavorito\(/)
+    expect(es.tarjeta.quitarFavorito()).toBe('Quitar de favoritos')
   })
 })

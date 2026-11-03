@@ -45,6 +45,39 @@ export const PANTALLAS_MIGRADAS = [
   'components/BusquedasRecientes.tsx',
   'components/InvitacionAvisos.tsx',
   'components/LoQueSeguis.tsx',
+  // Q6-1: las cinco pestañas y los componentes que usan.
+  'app/(tabs)/index.tsx',
+  'app/(tabs)/buscar.tsx',
+  'app/(tabs)/favoritos.tsx',
+  'app/(tabs)/radar.tsx',
+  'app/(tabs)/cuenta.tsx',
+  'components/PantallaRadar.tsx',
+  'components/SeccionNotificaciones.tsx',
+  'components/AvisosSinSesion.tsx',
+  'components/AvisoActivarPush.tsx',
+  'components/InterruptorFinde.tsx',
+  'components/InterruptorRecordatorios.tsx',
+  'components/BotonGoogle.tsx',
+  'components/EnlacesLegales.tsx',
+  'components/CampoTexto.tsx',
+  'components/Encabezado.tsx',
+  'components/BannerRadar.tsx',
+  'components/BannerAnuncio.tsx',
+  'components/FilaCategoria.tsx',
+  'components/TileCategoria.tsx',
+  'components/ChipsCategorias.tsx',
+  'components/PillsAtajos.tsx',
+  'components/Hero.tsx',
+  'components/InsigniaDestacado.tsx',
+  'components/TarjetaEvento.tsx',
+  'components/TarjetaPelicula.tsx',
+  'components/BloqueCine.tsx',
+  'components/AvisoSinConexion.tsx',
+  'components/Esqueleto.tsx',
+  'components/LugaresQueSeguis.tsx',
+  'components/BotonFavorito.tsx',
+  'components/BotonCompartir.tsx',
+  'components/HojaCompartirTarjeta.tsx',
 ]
 
 /** Textos visibles con un literal: entre etiquetas, o en props que se leen o se ven. */
@@ -55,7 +88,16 @@ export function textosSueltos(codigo: string): string[] {
   for (const m of sin.matchAll(/>\s*([^<>{}\n]*[A-Za-zÁÉÍÓÚáéíóúÑñ¿¡][^<>{}\n]*)\s*</g)) {
     const texto = m[1]!.trim()
     // Código entre dos etiquetas (`) : cond ? (`) no es texto visible.
-    if (texto && !/^[=&|?:)\]]/.test(texto) && !/^\w+\s*=>/.test(texto)) hallados.push(texto)
+    // Q6-1: tampoco lo que sigue a un `/>` o a un `=>` y es código (`return (`,
+    // `if …`), ni los genéricos de TypeScript (`venueIds: Set<string>`,
+    // `(): Set<string>`), que el detector leía como texto entre etiquetas.
+    const previo = sin[m.index! - 1]
+    const esCodigo =
+      previo === '=' ||
+      /^(return|if|else|const|let|var|type|interface|export|import|function)\b/.test(texto) ||
+      /^[\w$]+\??:\s*[\w$.]+$/.test(texto) ||
+      /^,\s*[\w$]+\??:/.test(texto)
+    if (texto && !esCodigo && !/^[=&|?:)\]]/.test(texto) && !/^\w+\s*=>/.test(texto)) hallados.push(texto)
   }
   // Props visibles o leídas por TalkBack con un string literal.
   for (const m of sin.matchAll(/\b(accessibilityLabel|accessibilityHint|placeholder|title|mensaje|textoAccion|texto|etiqueta)=["']([^"']+)["']/g)) {
@@ -69,6 +111,14 @@ describe('el detector (con ejemplos en memoria)', () => {
     expect(textosSueltos('<Texto>Hola mundo</Texto>')).toEqual(['Hola mundo'])
     expect(textosSueltos('<Pressable accessibilityLabel="Cerrar" />')).toEqual(['accessibilityLabel="Cerrar"'])
     expect(textosSueltos('<Vacio mensaje="Nada" />')).toEqual(['mensaje="Nada"'])
+  })
+  it('Q6-1: no confunde código con texto (return después de un `/>`, genéricos, flechas)', () => {
+    expect(textosSueltos('if (!vista) return <Redirect href="/x" />\n  return (\n <View>')).toEqual([])
+    expect(textosSueltos('a: Set<string>\n  venueIds: Set<string>')).toEqual([])
+    expect(textosSueltos('function f(c: Set<string>, id: string): Set<string> {')).toEqual([])
+    expect(textosSueltos('onCerrar: () => Promise<void>')).toEqual([])
+    // Y sigue viendo el texto de verdad después de un `/>`.
+    expect(textosSueltos('<Icono nombre="X" /> Cerrar sesión </Texto>')).toEqual(['Cerrar sesión'])
   })
   it('no marca lo que sale del diccionario ni las expresiones', () => {
     expect(textosSueltos('<Texto>{t.titulo}</Texto>')).toEqual([])
@@ -94,7 +144,21 @@ describe('diccionarios', () => {
     expect(hojas(en).sort()).toEqual(hojas(es).sort())
   })
   it('lo que debe traducirse no quedó igual (salvo los nombres de los idiomas y las marcas)', () => {
-    const iguales = new Set(['idioma.castellano', 'idioma.ingles', 'lugaresChicos.instagram', 'pestanas.radar', 'bienvenida.marca', 'flyer.titulo'])
+    // Q6-1: suman la marca de la tarjeta, «Email», «Google», «Instagram» y el canal «Push».
+    const iguales = new Set([
+      'idioma.castellano',
+      'idioma.ingles',
+      'lugaresChicos.instagram',
+      'pestanas.radar',
+      'bienvenida.marca',
+      'flyer.titulo',
+      'tarjeta.marca',
+      'cuenta.email',
+      'cuenta.google',
+      'radar.instagram',
+      'notificaciones.canales.email',
+      'notificaciones.canales.push',
+    ])
     const plano = (o: unknown, c = ''): [string, unknown][] =>
       typeof o === 'string' ? [[c, o]] : o && typeof o === 'object' ? Object.entries(o).flatMap(([k, v]) => plano(v, c ? `${c}.${k}` : k)) : []
     const esMapa = new Map(plano(es))

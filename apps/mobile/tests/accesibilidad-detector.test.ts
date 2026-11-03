@@ -579,7 +579,8 @@ function lineaDeAncla(archivoRelativo: string, ancla: string): number | null {
 export const EXCEPCIONES_AREA_CHICA: ReadonlyArray<{ archivo: string; linea: number; ancla: string; motivo: string }> = [
   {
     archivo: 'app/(tabs)/buscar.tsx',
-    ancla: 'accessibilityLabel="Limpiar búsqueda"',
+    // Q6-1: la etiqueta sale del diccionario (`buscar.limpiarBusqueda`).
+    ancla: 'accessibilityLabel={t.buscar.limpiarBusqueda}',
     motivo:
       'hitSlop={8} en los dos ejes: 44 (estilos.botonLimpiar, minWidth/minHeight) + 2×8 = 60 ≥ 48 — llega, aunque el estilo por sí solo no.',
   },

@@ -85,6 +85,9 @@ import type { Atajo } from '@qps/core/home/atajos'
 import { textoResultadosBuscar, textoSinResultadosBuscar, type FiltrosTextoBuscar } from '@/lib/buscar-filtros'
 import { SLUG_INFANTIL } from '@/lib/para-chicos'
 import type { TipoAnuncioGrilla } from '@/lib/portada-gratis'
+import { es } from '@/lib/i18n/diccionarios/es'
+import type { Idioma } from '@/lib/i18n/idioma'
+import { textosDe } from '@/lib/i18n/textos'
 
 /** Cuánto se espera sin teclas nuevas antes de anunciar el resultado de lo tipeado. */
 export const DEMORA_TEXTO_MS = 1500
@@ -93,7 +96,8 @@ export const DEMORA_TEXTO_MS = 1500
 export const DEMORA_TOQUE_ANDROID_MS = 400
 
 /** Lo que se anuncia al volver de los resultados de Buscar a la grilla de categorías. */
-export const ANUNCIO_EXPLORAR = 'Sin filtros: explorar por categoría'
+// Q6-1: los textos viven en el diccionario (`anuncios`, `portada.salidaGrilla`).
+export const ANUNCIO_EXPLORAR = es.anuncios.explorar
 
 /** Cómo termina la salida de la portada según la fecha («… de hoy», «… del finde»). */
 export const SALIDA_PORTADA_ATAJO: Record<Atajo, string> = {
@@ -324,12 +328,13 @@ export function estadoAnunciablePortada(p: {
   paraChicos: boolean
   tituloGrilla: string
   anuncio: { texto: string; tipo: TipoAnuncioGrilla } | null
+  idioma?: Idioma
 }): EstadoAnunciable {
   return {
     clave: `${p.atajo}|${p.categoria ?? ''}|${p.gratis ? 'gratis' : ''}|${p.paraChicos ? 'chicos' : ''}`,
     titulo: p.anuncio?.tipo === 'conteo' ? p.tituloGrilla : null,
     conteo: p.anuncio?.texto ?? null,
-    alSalir: `Sin filtros: todos los eventos ${SALIDA_PORTADA_ATAJO[p.atajo]}`,
+    alSalir: textosDe(p.idioma).portada.salidaGrilla[p.atajo],
   }
 }
 
@@ -351,30 +356,37 @@ export function estadoAnunciableBuscar(p: {
   filtros: FiltrosTextoBuscar
   v?: string | null
   toque?: number
+  idioma?: Idioma
 }): EstadoAnunciable {
+  const idioma = p.idioma ?? 'es'
   const f: FiltrosTextoBuscar = { ...p.filtros, texto: p.filtros.texto.trim() }
-  const conteo = !p.mostrarResultados ? null : p.cantidad > 0 ? textoResultadosBuscar(p.cantidad, f) : textoSinResultadosBuscar(f)
+  const conteo = !p.mostrarResultados
+    ? null
+    : p.cantidad > 0
+      ? textoResultadosBuscar(p.cantidad, f, idioma)
+      : textoSinResultadosBuscar(f, idioma)
   return {
     clave: `${f.atajo ?? ''}|${f.categoria ?? ''}|${f.soloGratis ? 'gratis' : ''}|${f.paraChicos ? 'chicos' : ''}|${p.v ?? ''}`,
     texto: f.texto,
     toque: p.toque,
-    titulo: f.texto ? chipsNoNombrados(f) : null,
+    titulo: f.texto ? chipsNoNombrados(f, idioma) : null,
     conteo,
-    alSalir: ANUNCIO_EXPLORAR,
+    alSalir: textosDe(idioma).anuncios.explorar,
   }
 }
 
 /** Con texto, los chips de filtro que el conteo visible no nombra («solo gratis, para chicos»). */
-function chipsNoNombrados(f: FiltrosTextoBuscar): string | null {
+function chipsNoNombrados(f: FiltrosTextoBuscar, idioma: Idioma): string | null {
+  const t = textosDe(idioma).anuncios
   const chips: string[] = []
-  if (f.soloGratis) chips.push('solo gratis')
-  if (f.paraChicos && f.categoria !== SLUG_INFANTIL) chips.push('para chicos')
+  if (f.soloGratis) chips.push(t.soloGratis)
+  if (f.paraChicos && f.categoria !== SLUG_INFANTIL) chips.push(t.paraChicos)
   return chips.length > 0 ? chips.join(', ') : null
 }
 
 /** «1 película» / «N películas». */
-export function conteoPeliculas(cantidad: number): string {
-  return `${cantidad} ${cantidad === 1 ? 'película' : 'películas'}`
+export function conteoPeliculas(cantidad: number, idioma: Idioma = 'es'): string {
+  return textosDe(idioma).anuncios.peliculas(cantidad)
 }
 
 /**
@@ -383,14 +395,22 @@ export function conteoPeliculas(cantidad: number): string {
  * (el vacío visible sigue siendo el de la web); sin texto no hay nada que
  * anunciar, y al limpiar se dice cuántas hay en cartel.
  */
-export function estadoAnunciableCines(p: { busqueda: string; cantidad: number; total: number; toque?: number }): EstadoAnunciable {
+export function estadoAnunciableCines(p: {
+  busqueda: string
+  cantidad: number
+  total: number
+  toque?: number
+  idioma?: Idioma
+}): EstadoAnunciable {
+  const idioma = p.idioma ?? 'es'
+  const t = textosDe(idioma).anuncios
   const busqueda = p.busqueda.trim()
   return {
     clave: '',
     texto: busqueda,
     toque: p.toque,
     titulo: null,
-    conteo: !busqueda ? null : p.cantidad > 0 ? `${conteoPeliculas(p.cantidad)} para ${busqueda}` : `Ninguna película para ${busqueda}`,
-    alSalir: p.total > 0 ? `${conteoPeliculas(p.total)} en cartel` : null,
+    conteo: !busqueda ? null : p.cantidad > 0 ? t.peliculasPara(t.peliculas(p.cantidad), busqueda) : t.ningunaPelicula(busqueda),
+    alSalir: p.total > 0 ? t.enCartel(t.peliculas(p.total)) : null,
   }
 }

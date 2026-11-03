@@ -5,6 +5,10 @@
 // miles de un locale depende de los datos ICU que vengan compilados, y no
 // está garantizado que `es-AR` esté entre ellos. El agrupado de miles se
 // arma a mano, dígito por dígito.
+// Relativos (no `@/`): la web importa este archivo en sus tests (tests/gratis).
+import type { Idioma } from './i18n/idioma'
+import { textosDe } from './i18n/textos'
+
 export type PrecioEvento = 'gratis' | 'confirmar' | number
 
 /** "$12.500": miles separados por punto, sin decimales (los precios de la base son enteros). */
@@ -27,8 +31,8 @@ function agruparMiles(valor: number): string {
  * `'gratis'` -> "Gratis"; un número -> "$12.500"; `'confirmar'`, `null` o
  * `undefined` -> `null` (sin precio para mostrar, igual que la web).
  */
-export function textoPrecio(price: PrecioEvento | null | undefined): string | null {
-  if (price === 'gratis') return 'Gratis'
+export function textoPrecio(price: PrecioEvento | null | undefined, idioma: Idioma = 'es'): string | null {
+  if (price === 'gratis') return textosDe(idioma).tarjeta.gratis
   if (price === 'confirmar' || price === null || price === undefined) return null
   return `$${agruparMiles(price)}`
 }
@@ -38,6 +42,6 @@ export function textoPrecio(price: PrecioEvento | null | undefined): string | nu
  * categoria" de Buscar decía "1 eventos". Mismo criterio que
  * `conteoCategoria` de la portada.
  */
-export function textoCantidadEventos(cantidad: number): string {
-  return `${cantidad} ${cantidad === 1 ? 'evento' : 'eventos'}`
+export function textoCantidadEventos(cantidad: number, idioma: Idioma = 'es'): string {
+  return textosDe(idioma).tarjeta.cantidadEventos(cantidad)
 }

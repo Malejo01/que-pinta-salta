@@ -6,6 +6,8 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
+import { en } from '../lib/i18n/diccionarios/en'
+import { es } from '../lib/i18n/diccionarios/es'
 import {
   buscarSeguibles,
   hayCambios,
@@ -176,18 +178,26 @@ describe('Los textos de la web están copiados literal en PantallaRadar.tsx', ()
   // castellano (sección `radar` de lib/i18n/diccionarios/es.ts).
   const RADAR_FORM = readFileSync(join(WEB_ROOT, 'lib', 'i18n', 'diccionarios', 'es.ts'), 'utf8')
 
+  // Q6-1: en la app los textos viven en su diccionario (`radar`): la pantalla
+  // usa la clave y el castellano de la app sigue siendo el de la web.
   it('"Mi Radar Salteño" (app/radar/page.tsx)', () => {
     expect(RADAR_PAGE).toContain('Mi Radar Salteño')
-    expect(PANTALLA_RADAR).toContain('Mi Radar Salteño')
+    expect(PANTALLA_RADAR).toContain('{t.titulo}')
+    expect(es.radar.titulo).toBe('Mi Radar Salteño')
+    expect(en.radar.titulo).not.toBe(es.radar.titulo)
   })
 
   it('"Guardar Preferencias de Radar" (diccionario es, sección radar)', () => {
     expect(RADAR_FORM).toContain('Guardar Preferencias de Radar')
-    expect(PANTALLA_RADAR).toContain('Guardar Preferencias de Radar')
+    expect(PANTALLA_RADAR).toContain('t.guardar')
+    expect(es.radar.guardar).toBe('Guardar Preferencias de Radar')
+    expect(en.radar.guardar).not.toBe(es.radar.guardar)
   })
 
   it('"¡Ya estás en el Radar!" (diccionario es, sección radar)', () => {
     expect(RADAR_FORM).toContain('¡Ya estás en el Radar!')
-    expect(PANTALLA_RADAR).toContain('¡Ya estás en el Radar!')
+    expect(PANTALLA_RADAR).toContain('texto: t.guardadoOk')
+    expect(es.radar.guardadoOk).toContain('¡Ya estás en el Radar!')
+    expect(en.radar.guardadoOk).not.toBe(es.radar.guardadoOk)
   })
 })

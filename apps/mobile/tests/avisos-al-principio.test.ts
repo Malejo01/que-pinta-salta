@@ -84,6 +84,7 @@ import {
 } from '../lib/push/invitacion'
 import type { EstadoPush } from '../lib/push/estado'
 import { activarPreferenciasAlAceptar, canalRadarAlAceptar } from '../lib/notificaciones'
+import { es } from '../lib/i18n/diccionarios/es'
 
 const leerFuente = (rutaRelativa: string) => readFileSync(fileURLToPath(new URL(`../${rutaRelativa}`, import.meta.url)), 'utf8')
 
@@ -336,10 +337,12 @@ describe('detectores por texto', () => {
   it('bienvenida.tsx: el texto del paso 2 no dice "lo que guardaste" y, sin sesión, ya no dice que se pide al entrar (R82 / Q4-2)', () => {
     const src = leerFuente('app/bienvenida.tsx')
     // Q5-12: el texto vive en el diccionario (lib/i18n/diccionarios/es.ts).
-    const textos = leerFuente('lib/i18n/diccionarios/es.ts')
+    // Q6-1: el diccionario ya tiene otros textos con «lo que guardaste» (el
+    // interruptor de recordatorios de Cuenta, que es correcto ahí): se mira
+    // el texto de la Bienvenida, que es lo que este detector cuida.
     expect(src).toContain('{t.avisosTexto}')
-    expect(textos).not.toMatch(/lo que guardaste/)
-    expect(textos).toMatch(/de lo que guardes/)
+    expect(es.bienvenida.avisosTexto).not.toMatch(/lo que guardaste/)
+    expect(es.bienvenida.avisosTexto).toMatch(/de lo que guardes/)
     // Los avisos andan sin cuenta: «Sí» activa con o sin sesión.
     expect(src).not.toMatch(/Cuando entres a tu cuenta te lo pedimos\./)
     expect(src).not.toMatch(/marcarAvisosPendientesLogin/)

@@ -9,6 +9,8 @@
 // - Si ese día llegó un «Aviso del equipo», no se manda (no duplica).
 import { formatSaltaDayKey, saltaWallClockToDate } from '@qps/core/date-format'
 import { eventoEnAtajo, type EventoParaAtajo } from '@qps/core/home/atajos'
+import type { Idioma } from '@/lib/i18n/idioma'
+import { textosDe } from '@/lib/i18n/textos'
 
 export const IDENTIFICADOR_FINDE = 'finde-pinta'
 export const TIPO_FINDE = 'finde-pinta'
@@ -51,9 +53,9 @@ export function contarFinde(eventos: EventoParaFinde[], jueves: Date): { planes:
   return { planes, gratis }
 }
 
-export function textoFinde(planes: number, gratis: number): string {
-  const p = planes === 1 ? '1 plan' : `${planes} planes`
-  return gratis > 0 ? `Este finde pinta: ${p}, ${gratis} gratis` : `Este finde pinta: ${p}`
+// Q6-1: el texto sale del diccionario (`avisos.finde`), en el idioma elegido.
+export function textoFinde(planes: number, gratis: number, idioma: Idioma = 'es'): string {
+  return textosDe(idioma).avisos.finde(planes, gratis)
 }
 
 export type DecisionFinde =
@@ -66,6 +68,7 @@ export function decidirFinde({
   eventos,
   guardadoEn,
   diaAvisoEquipo,
+  idioma = 'es',
 }: {
   ahora: Date
   activo: boolean
@@ -74,6 +77,8 @@ export function decidirFinde({
   guardadoEn: Date | null
   /** `AAAA-MM-DD` (Salta) del último «Aviso del equipo» que llegó al teléfono. */
   diaAvisoEquipo: string | null
+  /** Q6-1: el idioma del aviso (castellano si no se pasa). */
+  idioma?: Idioma
 }): DecisionFinde {
   if (!activo) return { programar: false, motivo: 'apagado' }
   if (!eventos || !guardadoEn || ahora.getTime() - guardadoEn.getTime() > FRESCURA_MAXIMA_MS) {
@@ -83,5 +88,5 @@ export function decidirFinde({
   if (diaAvisoEquipo && diaAvisoEquipo === formatSaltaDayKey(cuando)) return { programar: false, motivo: 'aviso-del-equipo' }
   const { planes, gratis } = contarFinde(eventos, cuando)
   if (planes === 0) return { programar: false, motivo: 'sin-planes' }
-  return { programar: true, cuando, titulo: textoFinde(planes, gratis), cuerpo: 'Mirá qué hay para el viernes, el sábado y el domingo.' }
+  return { programar: true, cuando, titulo: textoFinde(planes, gratis, idioma), cuerpo: textosDe(idioma).avisos.findeCuerpo }
 }

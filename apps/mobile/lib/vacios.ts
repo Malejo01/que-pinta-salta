@@ -27,34 +27,25 @@
 //     de la pantalla.
 import type { Atajo } from '@qps/core/home/atajos'
 import {
-  MENSAJE_ACTUALIZADO,
-  MENSAJE_ERROR_SERVIDOR_CINES,
-  MENSAJE_ERROR_SERVIDOR_EVENTOS,
-  MENSAJE_ERROR_SERVIDOR_FAVORITOS,
-  MENSAJE_ERROR_SERVIDOR_RADAR,
-  MENSAJE_NO_SE_ACTUALIZO,
-  MENSAJE_NO_SE_ACTUALIZO_SIN_CONEXION,
-  MENSAJE_SEGUIMOS_SIN_CONEXION,
   MENSAJE_SIN_CONEXION_BUSCAR,
   MENSAJE_SIN_CONEXION_CINES,
   MENSAJE_SIN_CONEXION_FAVORITOS,
   MENSAJE_SIN_CONEXION_INICIO,
   MENSAJE_SIN_CONEXION_RADAR,
   MENSAJE_SIN_CONFIGURACION,
-  MENSAJE_VOLVIO_LA_CONEXION,
 } from '@/lib/mensajes'
-import { TITULO_SIN_CONEXION } from '@/lib/sin-conexion/aviso'
+import { es } from '@/lib/i18n/diccionarios/es'
+import type { Idioma } from '@/lib/i18n/idioma'
+import { textosDe } from '@/lib/i18n/textos'
 
 /** Las cinco pantallas con lista del ticket. */
 export type PantallaConLista = 'inicio' | 'buscar' | 'cines' | 'favoritos' | 'radar'
 
 /** Cómo se nombra cada fecha dentro de una frase ("... para hoy", "... para el finde"). */
-export const FRASE_ATAJO: Record<Atajo, string> = {
-  hoy: 'hoy',
-  'esta-noche': 'esta noche',
-  finde: 'el finde',
-  semana: 'esta semana',
-}
+// Q6-1: los textos de este archivo viven en el diccionario (`vacios`,
+// `mensajes`, `portada.frases`); cada función recibe el idioma al final
+// (castellano si no se pasa) y las constantes quedan en castellano.
+export const FRASE_ATAJO: Record<Atajo, string> = es.portada.frases
 
 // ---------------------------------------------------------------------------
 // 1. El mensaje de error de carga: sin red vs. el resto.
@@ -80,13 +71,6 @@ export const SIN_CONEXION_POR_PANTALLA: Record<PantallaConLista, string> = {
   radar: MENSAJE_SIN_CONEXION_RADAR,
 }
 
-const SERVIDOR_POR_PANTALLA: Record<PantallaConLista, string> = {
-  inicio: MENSAJE_ERROR_SERVIDOR_EVENTOS,
-  buscar: MENSAJE_ERROR_SERVIDOR_EVENTOS,
-  cines: MENSAJE_ERROR_SERVIDOR_CINES,
-  favoritos: MENSAJE_ERROR_SERVIDOR_FAVORITOS,
-  radar: MENSAJE_ERROR_SERVIDOR_RADAR,
-}
 
 /**
  * El texto de `ErrorCarga` para `pantalla`. Con `sinConexion`, el de "no
@@ -95,10 +79,11 @@ const SERVIDOR_POR_PANTALLA: Record<PantallaConLista, string> = {
  * no tiene que ver con la red; con cualquier otro error (un 5xx), el neutro
  * de la pantalla, que nunca dice "Revisá tu conexión".
  */
-export function mensajeErrorCarga(pantalla: PantallaConLista, { error, sinConexion }: ErrorDeCarga): string {
-  if (sinConexion) return SIN_CONEXION_POR_PANTALLA[pantalla]
-  if (error === MENSAJE_SIN_CONFIGURACION) return error
-  return SERVIDOR_POR_PANTALLA[pantalla]
+export function mensajeErrorCarga(pantalla: PantallaConLista, { error, sinConexion }: ErrorDeCarga, idioma: Idioma = 'es'): string {
+  const t = textosDe(idioma).mensajes
+  if (sinConexion) return t.sinConexion[pantalla]
+  if (error === MENSAJE_SIN_CONFIGURACION) return t.sinConfiguracion
+  return t.servidor[pantalla]
 }
 
 /**
@@ -165,22 +150,24 @@ export function decidirRefresco<E extends EstadoRefrescable>(
   previo: E,
   nuevo: E,
   notaPrevia: string | null = null,
+  idioma: Idioma = 'es',
 ): DecisionRefresco<E> {
+  const t = textosDe(idioma).mensajes
   if (nuevo.tipo === 'error' && previo.tipo === 'ok') {
-    const texto = nuevo.sinConexion ? MENSAJE_NO_SE_ACTUALIZO_SIN_CONEXION : MENSAJE_NO_SE_ACTUALIZO
+    const texto = nuevo.sinConexion ? t.noSeActualizoSinConexion : t.noSeActualizo
     return { estado: previo, anuncio: texto, nota: texto }
   }
 
   if (nuevo.tipo === 'ok' && nuevo.desdeCache) {
     if (previo.tipo === 'ok' && previo.desdeCache) {
-      return { estado: nuevo, anuncio: MENSAJE_SEGUIMOS_SIN_CONEXION, nota: MENSAJE_SEGUIMOS_SIN_CONEXION }
+      return { estado: nuevo, anuncio: t.seguimosSinConexion, nota: t.seguimosSinConexion }
     }
-    return { estado: nuevo, anuncio: TITULO_SIN_CONEXION, nota: null }
+    return { estado: nuevo, anuncio: t.tituloSinConexion, nota: null }
   }
 
   if (nuevo.tipo === 'ok' && previo.tipo === 'ok') {
-    if (previo.desdeCache) return { estado: nuevo, anuncio: MENSAJE_VOLVIO_LA_CONEXION, nota: null }
-    if (notaPrevia) return { estado: nuevo, anuncio: MENSAJE_ACTUALIZADO, nota: null }
+    if (previo.desdeCache) return { estado: nuevo, anuncio: t.volvioLaConexion, nota: null }
+    if (notaPrevia) return { estado: nuevo, anuncio: t.actualizado, nota: null }
   }
 
   return { estado: nuevo, anuncio: null, nota: null }
@@ -199,9 +186,13 @@ export type ResultadoReintentoSesion = 'volvio' | 'sin-red' | 'sin-sesion'
  * conexión." solo si la red sigue caída; nada si la sesión ya no existe (la
  * pantalla pasa sola a "Entrá…"/"Ingresar…" con el `SIGNED_OUT`).
  */
-export function avisoReintentoSesion(resultado: ResultadoReintentoSesion): { anuncio: string | null; nota: string | null } {
-  if (resultado === 'volvio') return { anuncio: MENSAJE_VOLVIO_LA_CONEXION, nota: null }
-  if (resultado === 'sin-red') return { anuncio: MENSAJE_SEGUIMOS_SIN_CONEXION, nota: MENSAJE_SEGUIMOS_SIN_CONEXION }
+export function avisoReintentoSesion(
+  resultado: ResultadoReintentoSesion,
+  idioma: Idioma = 'es',
+): { anuncio: string | null; nota: string | null } {
+  const t = textosDe(idioma).mensajes
+  if (resultado === 'volvio') return { anuncio: t.volvioLaConexion, nota: null }
+  if (resultado === 'sin-red') return { anuncio: t.seguimosSinConexion, nota: t.seguimosSinConexion }
   return { anuncio: null, nota: null }
 }
 
@@ -231,6 +222,8 @@ export interface EntradaVacioHoy {
   hayEventosEnFinde: boolean
   /** Si lo que se ve es la copia sin conexión. */
   desdeCache: boolean
+  /** Q6-1: el idioma de los textos (castellano si no se pasa). */
+  idioma?: Idioma
 }
 
 /**
@@ -252,32 +245,35 @@ export function vacioHoyEnSalta({
   hayEventosEnAtajo,
   hayEventosEnFinde,
   desdeCache,
+  idioma = 'es',
 }: EntradaVacioHoy): VacioConAccion<DestinoInicio> | null {
-  const verSemana = { texto: 'Ver esta semana', destino: { tipo: 'atajo', atajo: 'semana' } } as const
-  const verHoy = { texto: 'Ver lo de hoy', destino: { tipo: 'atajo', atajo: 'hoy' } } as const
-  const buscarTodas = { texto: 'Buscar en todas las fechas', destino: { tipo: 'buscar' } } as const
+  const t = textosDe(idioma).vacios
+  const p = textosDe(idioma).portada
+  const verSemana = { texto: p.verEstaSemana, destino: { tipo: 'atajo', atajo: 'semana' } } as const
+  const verHoy = { texto: p.verLoDeHoy, destino: { tipo: 'atajo', atajo: 'hoy' } } as const
+  const buscarTodas = { texto: p.buscarEnTodasLasFechas, destino: { tipo: 'buscar' } } as const
 
   if (atajo === 'hoy') {
     if (!desdeCache) return null
-    return { texto: 'Sin conexión no vemos eventos para hoy. Mirá qué viene en los próximos días.', accion: verSemana }
+    return { texto: t.hoySinConexion, accion: verSemana }
   }
 
   if (atajo === 'esta-noche') {
-    if (hayEventosEnAtajo) return { texto: 'Lo de esta noche está más abajo, por categoría.', accion: verHoy }
+    if (hayEventosEnAtajo) return { texto: t.nocheEnFilas, accion: verHoy }
     return {
       texto: desdeCache
-        ? 'Sin conexión no vemos eventos para esta noche. Fijate qué hay durante el día.'
-        : 'No hay eventos para esta noche. Fijate qué hay durante el día.',
+        ? t.nocheSinConexion
+        : t.nocheVacia,
       accion: verHoy,
     }
   }
 
   if (atajo === 'finde') {
-    if (hayEventosEnAtajo) return { texto: 'Lo del finde no es para hoy: está más abajo, por categoría.', accion: verHoy }
+    if (hayEventosEnAtajo) return { texto: t.findeEnFilas, accion: verHoy }
     return {
       texto: desdeCache
-        ? 'Sin conexión no vemos eventos para el finde. Mirá qué viene en la semana.'
-        : 'No hay eventos para el finde. Mirá qué viene en la semana.',
+        ? t.findeSinConexion
+        : t.findeVacio,
       accion: verSemana,
     }
   }
@@ -285,14 +281,14 @@ export function vacioHoyEnSalta({
   // atajo === 'semana'
   if (hayEventosEnAtajo) {
     return {
-      texto: 'Hoy no hay nada, pero esta semana sí: está más abajo, por categoría.',
-      accion: hayEventosEnFinde ? { texto: 'Ver el finde', destino: { tipo: 'atajo', atajo: 'finde' } } : buscarTodas,
+      texto: t.semanaEnFilas,
+      accion: hayEventosEnFinde ? { texto: p.verElFinde, destino: { tipo: 'atajo', atajo: 'finde' } } : buscarTodas,
     }
   }
   return {
     texto: desdeCache
-      ? 'Sin conexión no vemos eventos para esta semana.'
-      : 'No hay eventos para esta semana. Buscá entre todas las fechas.',
+      ? t.semanaSinConexion
+      : t.semanaVacia,
     accion: buscarTodas,
   }
 }
@@ -312,20 +308,18 @@ export function textoVacioCategoria({
   atajo,
   esCine,
   desdeCache,
+  idioma = 'es',
 }: {
   nombre: string
   atajo: Atajo
   esCine: boolean
   desdeCache: boolean
+  idioma?: Idioma
 }): string {
-  if (desdeCache) {
-    return esCine
-      ? 'Sin conexión no podemos mostrarte la cartelera.'
-      : `Sin conexión no vemos eventos de ${nombre} para ${FRASE_ATAJO[atajo]}.`
-  }
-  return esCine
-    ? `No hay películas en cartel ni eventos de ${nombre} para ${FRASE_ATAJO[atajo]}.`
-    : `No hay eventos de ${nombre} para ${FRASE_ATAJO[atajo]}.`
+  const t = textosDe(idioma).vacios
+  const frase = textosDe(idioma).portada.frases[atajo]
+  if (desdeCache) return esCine ? t.cineSinConexion : t.categoriaSinConexion(nombre, frase)
+  return esCine ? t.cineVacio(nombre, frase) : t.categoriaVacia(nombre, frase)
 }
 
 // ---------------------------------------------------------------------------
@@ -346,20 +340,17 @@ export function textoSinResultadosBuscar({
   soloGratis,
   nombreCategoria,
   atajo,
+  idioma = 'es',
 }: {
   texto: string
   soloGratis: boolean
   nombreCategoria: string | null
   atajo: Atajo | null
+  idioma?: Idioma
 }): string {
-  const gratis = soloGratis ? ' gratis' : ''
-  const enCategoria = nombreCategoria ? ` en ${nombreCategoria}` : ''
-  if (texto) {
-    const cuando = atajo ? ` para ${FRASE_ATAJO[atajo]}` : ''
-    return `No encontramos eventos${gratis} con "${texto}"${enCategoria}${cuando}.`
-  }
-  const cuando = atajo ? ` para ${FRASE_ATAJO[atajo]}` : ' por ahora'
-  return `No hay eventos${gratis}${enCategoria}${cuando}.`
+  const t = textosDe(idioma).vacios
+  const frase = atajo ? textosDe(idioma).portada.frases[atajo] : null
+  return texto ? t.buscarConTexto(texto, soloGratis, nombreCategoria, frase) : t.buscarSinTexto(soloGratis, nombreCategoria, frase)
 }
 
 /**
@@ -370,11 +361,17 @@ export function textoSinResultadosBuscar({
  * porque los chips de categoría, con "Todas", están justo arriba del vacío.
  */
 export const ACCIONES_VACIO_BUSCAR = {
-  texto: 'Limpiar búsqueda',
-  atajo: 'Ver todas las fechas',
-  soloGratis: 'Sacar “Solo gratis”',
-  categoria: 'Todas las categorías',
-} as const
+  texto: es.vacios.limpiarBusqueda,
+  atajo: es.vacios.verTodasLasFechas,
+  soloGratis: es.vacios.sacarSoloGratis,
+  categoria: es.vacios.todasLasCategorias,
+}
+
+/** Q6-1: las mismas salidas, en el idioma pedido. */
+export function accionesVacioBuscarEn(idioma: Idioma): typeof ACCIONES_VACIO_BUSCAR {
+  const t = textosDe(idioma).vacios
+  return { texto: t.limpiarBusqueda, atajo: t.verTodasLasFechas, soloGratis: t.sacarSoloGratis, categoria: t.todasLasCategorias }
+}
 
 /**
  * Pura. Qué salidas ofrece el vacío de Buscar (como mucho
@@ -387,22 +384,25 @@ export function accionesVacioBuscar({
   atajo,
   soloGratis,
   categoria,
+  idioma = 'es',
 }: {
   texto: string
   atajo: Atajo | null
   soloGratis: boolean
   categoria: string | null
+  idioma?: Idioma
 }): string[] {
+  const textos = accionesVacioBuscarEn(idioma)
   const acciones: string[] = []
-  if (texto) acciones.push(ACCIONES_VACIO_BUSCAR.texto)
-  if (atajo !== null) acciones.push(ACCIONES_VACIO_BUSCAR.atajo)
-  if (soloGratis) acciones.push(ACCIONES_VACIO_BUSCAR.soloGratis)
-  if (categoria !== null) acciones.push(ACCIONES_VACIO_BUSCAR.categoria)
+  if (texto) acciones.push(textos.texto)
+  if (atajo !== null) acciones.push(textos.atajo)
+  if (soloGratis) acciones.push(textos.soloGratis)
+  if (categoria !== null) acciones.push(textos.categoria)
   return acciones.slice(0, MAXIMO_ACCIONES_VACIO)
 }
 
 /** La grilla "Explorar por categoria" sin categorías (la carga salió bien pero vino vacía): porqué + Reintentar. */
-export const VACIO_CATEGORIAS_BUSCAR = 'Por ahora no hay categorías para mostrar. Tocá Reintentar o buscá por nombre arriba.'
+export const VACIO_CATEGORIAS_BUSCAR = es.vacios.categoriasBuscar
 
 // ---------------------------------------------------------------------------
 // 5. Cines.
@@ -416,17 +416,12 @@ export type AccionCines = 'limpiar-busqueda' | 'ver-eventos-de-hoy'
  * eventos de hoy" (Buscar con la fecha "Hoy"). Sin búsqueda la acción es la
  * única y va rellena (`Vacio` con `accionPrincipal`).
  */
-export function vacioCines(busqueda: string): VacioConAccion<AccionCines> {
+export function vacioCines(busqueda: string, idioma: Idioma = 'es'): VacioConAccion<AccionCines> {
+  const t = textosDe(idioma).vacios
   if (busqueda) {
-    return {
-      texto: `No hay resultados para "${busqueda}". Probá buscando con otro título.`,
-      accion: { texto: 'Limpiar búsqueda', destino: 'limpiar-busqueda' },
-    }
+    return { texto: t.cinesSinResultados(busqueda), accion: { texto: t.limpiarBusqueda, destino: 'limpiar-busqueda' } }
   }
-  return {
-    texto: 'Por ahora no hay películas en cartel. Mientras tanto, mirá qué otros eventos hay hoy.',
-    accion: { texto: 'Ver eventos de hoy', destino: 'ver-eventos-de-hoy' },
-  }
+  return { texto: t.cinesVacio, accion: { texto: t.verEventosDeHoy, destino: 'ver-eventos-de-hoy' } }
 }
 
 // ---------------------------------------------------------------------------
@@ -440,9 +435,9 @@ export function vacioCines(busqueda: string): VacioConAccion<AccionCines> {
  * Acá "guardaste" SÍ es el corazón.
  */
 export const VACIO_FAVORITOS = {
-  mensaje: 'Todavía no guardaste ningún evento en Mis eventos. Tocá el corazón o “Voy” en un evento y aparece acá.',
-  textoAccion: 'Ver la agenda',
-} as const
+  mensaje: es.vacios.favoritos,
+  textoAccion: es.vacios.verLaAgenda,
+}
 
 /**
  * El vacío de Mis eventos mostrando la copia sin conexión. No explica los
@@ -450,21 +445,23 @@ export const VACIO_FAVORITOS = {
  * de verdad se sacaron (una copia que ya venía vacía no tiene pasados).
  */
 export const VACIO_FAVORITOS_SIN_CONEXION = {
-  mensaje: 'No hay eventos por venir en Mis eventos.',
-  textoAccion: 'Ver la agenda',
-} as const
+  mensaje: es.vacios.favoritosSinConexion,
+  textoAccion: es.vacios.verLaAgenda,
+}
 
 /** La línea de más del aviso de Mis eventos, solo si al mostrar la copia se sacaron eventos que ya pasaron (`seOcultaronPasados`). */
-export const DETALLE_FAVORITOS_PASADOS = 'Los eventos que ya pasaron no se muestran.'
+export const DETALLE_FAVORITOS_PASADOS = es.vacios.favoritosPasados
 
 /** Pura. Qué vacío de Mis eventos va. */
-export function vacioFavoritos(desdeCache: boolean): { mensaje: string; textoAccion: string } {
-  return desdeCache ? VACIO_FAVORITOS_SIN_CONEXION : VACIO_FAVORITOS
+export function vacioFavoritos(desdeCache: boolean, idioma: Idioma = 'es'): { mensaje: string; textoAccion: string } {
+  if (idioma === 'es') return desdeCache ? VACIO_FAVORITOS_SIN_CONEXION : VACIO_FAVORITOS
+  const t = textosDe(idioma).vacios
+  return { mensaje: desdeCache ? t.favoritosSinConexion : t.favoritos, textoAccion: t.verLaAgenda }
 }
 
 /** Pura. El detalle del aviso de Mis eventos: solo si se sacaron pasados. */
-export function detalleAvisoFavoritos(seOcultaronPasados: boolean): string | undefined {
-  return seOcultaronPasados ? DETALLE_FAVORITOS_PASADOS : undefined
+export function detalleAvisoFavoritos(seOcultaronPasados: boolean, idioma: Idioma = 'es'): string | undefined {
+  return seOcultaronPasados ? textosDe(idioma).vacios.favoritosPasados : undefined
 }
 
 // ---------------------------------------------------------------------------
@@ -472,11 +469,10 @@ export function detalleAvisoFavoritos(seOcultaronPasados: boolean): string | und
 // ---------------------------------------------------------------------------
 
 /** Encima de "Ingresar para armar tu Radar" (sin sesión, con conexión): para qué entrar. */
-export const TEXTO_RADAR_SIN_SESION = 'Con tu cuenta elegís qué eventos te llegan por correo.'
+export const TEXTO_RADAR_SIN_SESION = es.vacios.radarSinSesion
 
 /** La grilla de categorías del Radar, vacía: por qué, y qué sí se puede hacer mientras tanto. */
-export const TEXTO_RADAR_SIN_CATEGORIAS =
-  'Todavía no hay categorías para elegir. Mientras tanto, podés seguir lugares y cuentas de Instagram acá abajo.'
+export const TEXTO_RADAR_SIN_CATEGORIAS = es.vacios.radarSinCategorias
 
 /**
  * Pura. El buscador de lugares y cuentas del Radar sin sugerencias. Si lo
@@ -487,15 +483,16 @@ export const TEXTO_RADAR_SIN_CATEGORIAS =
 export function vacioBuscadorRadar({
   busqueda,
   coincideConLoQueYaSeguis,
+  idioma = 'es',
 }: {
   busqueda: string
   coincideConLoQueYaSeguis: boolean
+  idioma?: Idioma
 }): { texto: string; textoAccion: string } {
+  const t = textosDe(idioma).vacios
   const buscado = busqueda.trim()
   return {
-    texto: coincideConLoQueYaSeguis
-      ? `Ya seguís todo lo que coincide con "${buscado}".`
-      : `No encontramos lugares ni cuentas con "${buscado}". Probá con otro nombre.`,
-    textoAccion: 'Limpiar búsqueda',
+    texto: coincideConLoQueYaSeguis ? t.radarYaSeguis(buscado) : t.radarSinCoincidencias(buscado),
+    textoAccion: t.limpiarBusqueda,
   }
 }

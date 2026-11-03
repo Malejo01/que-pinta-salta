@@ -25,6 +25,7 @@ import {
 } from 'expo-notifications'
 import { formatSaltaDayKey } from '@qps/core/date-format'
 import { usePush } from '@/lib/push'
+import { useIdioma } from '@/lib/i18n'
 import { avisoDelEquipoDeHoy, esAvisoDelEquipo, programarFinde, registrarAvisoDelEquipo } from '@/lib/finde'
 
 async function revisarBandeja(): Promise<boolean> {
@@ -42,13 +43,17 @@ async function revisarBandeja(): Promise<boolean> {
 
 export function SincronizadorFinde() {
   const { estado } = usePush()
+  // Q6-1: el aviso sale en el idioma de la app; cambiarlo en Cuenta vuelve a
+  // correr este efecto y lo reprograma con el texto nuevo.
+  const { idioma, listo } = useIdioma()
 
   useEffect(() => {
+    if (!listo) return
     let vigente = true
     const correr = async () => {
       if (!vigente) return
-      if (await revisarBandeja()) await registrarAvisoDelEquipo(new Date())
-      else await programarFinde(new Date())
+      if (await revisarBandeja()) await registrarAvisoDelEquipo(new Date(), { idioma })
+      else await programarFinde(new Date(), { idioma })
     }
     void correr().catch(() => {})
 
@@ -56,10 +61,10 @@ export function SincronizadorFinde() {
       if (siguiente === 'active') void correr().catch(() => {})
     })
     const bajaAvisos = addNotificationReceivedListener((n) => {
-      if (esAvisoDelEquipo(n.request.content.data)) void registrarAvisoDelEquipo(new Date()).catch(() => {})
+      if (esAvisoDelEquipo(n.request.content.data)) void registrarAvisoDelEquipo(new Date(), { idioma }).catch(() => {})
     })
     const bajaToques = addNotificationResponseReceivedListener((r) => {
-      if (esAvisoDelEquipo(r.notification.request.content.data)) void registrarAvisoDelEquipo(new Date()).catch(() => {})
+      if (esAvisoDelEquipo(r.notification.request.content.data)) void registrarAvisoDelEquipo(new Date(), { idioma }).catch(() => {})
     })
     return () => {
       vigente = false
@@ -67,7 +72,7 @@ export function SincronizadorFinde() {
       bajaAvisos.remove()
       bajaToques.remove()
     }
-  }, [estado])
+  }, [estado, idioma, listo])
 
   return null
 }

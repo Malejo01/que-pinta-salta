@@ -16,11 +16,13 @@ import { BloqueCine } from '@/components/BloqueCine'
 import { Texto } from '@/components/Texto'
 import { useColoresQPS } from '@/lib/colores'
 import { cantidadDeSalas, funcionesPorCine, type Pelicula } from '@/lib/datos/cines'
+import { useTextos } from '@/lib/i18n'
 
 export function TarjetaPelicula({ pelicula, compacta = false }: { pelicula: Pelicula; compacta?: boolean }) {
   const colores = useColoresQPS()
   const cines = funcionesPorCine(pelicula.showings)
   const cantidad = cantidadDeSalas(pelicula)
+  const t = useTextos()
   // `Accordion type="single" collapsible` de la web: un solo cine abierto a
   // la vez dentro de la misma tarjeta. R67, 67-r1: con `compacta` el valor
   // inicial es el primer cine, para ver horarios sin tocar nada.
@@ -38,7 +40,7 @@ export function TarjetaPelicula({ pelicula, compacta = false }: { pelicula: Peli
               {pelicula.title}
             </Texto>
             <Texto tono="secundario">
-              {cantidad} {cantidad === 1 ? 'Cine' : 'Cines'}
+              {t.tarjeta.cines(cantidad)}
             </Texto>
           </View>
         </View>
@@ -48,7 +50,7 @@ export function TarjetaPelicula({ pelicula, compacta = false }: { pelicula: Peli
             <Afiche url={pelicula.poster_url} llenar />
             <View style={estilos.badge}>
               <Texto peso="semibold" style={estilos.textoBadge}>
-                {cantidad} {cantidad === 1 ? 'Cine' : 'Cines'}
+                {t.tarjeta.cines(cantidad)}
               </Texto>
             </View>
           </View>
@@ -63,7 +65,7 @@ export function TarjetaPelicula({ pelicula, compacta = false }: { pelicula: Peli
 
       {cines.length === 0 ? (
         <Texto tono="secundario" style={estilos.sinFunciones}>
-          Sin funciones para hoy
+          {t.pelicula.sinFunciones}
         </Texto>
       ) : (
         cines.map((cine, indice) => (

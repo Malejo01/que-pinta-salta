@@ -42,12 +42,14 @@
 import { esParaChicos } from '@qps/core/filtros/publico'
 import { filtrarCombinado, type FiltrosCombinados, type ItemFiltrable } from '@qps/core/home/filtros-combinados'
 import type { DisplayEvent } from '@qps/core/home/types'
+import { es } from '@/lib/i18n/diccionarios/es'
 
 /** Slug de la categoría Infantil (toda entera es para chicos). Constante de la app, no de core. */
 export const SLUG_INFANTIL = 'infantil'
 
 /** Texto de la salida que apaga "Para chicos" (portada y Buscar), paralela a "Ver todos los precios". */
-export const TEXTO_VER_TODAS_LAS_EDADES = 'Ver todas las edades'
+// Q6-1: el texto vive en el diccionario (`portada.verTodasLasEdades`).
+export const TEXTO_VER_TODAS_LAS_EDADES = es.portada.verTodasLasEdades
 
 /** Desde qué edad mínima un evento queda fuera de "Para chicos". */
 export const EDAD_SOLO_ADULTOS = 18

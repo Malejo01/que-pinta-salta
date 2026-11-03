@@ -16,6 +16,7 @@ import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import { quitarComentarios } from '@qps/core/tests/convencion-entorno'
+import { es } from '../lib/i18n/diccionarios/es'
 import {
   AREA_TACTIL_MINIMA,
   TARJETA_GAP_ACCIONES,
@@ -187,21 +188,23 @@ function problemasTarjeta(fuenteCruda: string): string[] {
   else if (!/\bconVecino\s*=\s*\{\s*hayCompartir\s*\}/.test(fav[0])) out.push('BotonFavorito sin conVecino={hayCompartir}')
 
   // 5. La etiqueta accesible suma destacado, precio y fechas más.
-  const iExtras = texto.search(/\bconst\s+extras\b/)
+  // Q6-1: la arma el diccionario (`tarjeta.etiquetaEvento` / `tarjeta.etiquetaPelicula`);
+  // la tarjeta tiene que pasarle esos datos y el castellano tiene que decirlos.
   const iEtiqueta = texto.search(/\bconst\s+etiqueta\b/)
   const fin = texto.indexOf('return (', iEtiqueta)
-  const calculo = iExtras >= 0 && iEtiqueta > iExtras && fin > iEtiqueta ? texto.slice(iExtras, fin) : ''
+  const calculo = iEtiqueta >= 0 && fin > iEtiqueta ? texto.slice(iEtiqueta, fin) : ''
   if (!calculo) out.push('etiqueta: no se encontró el cálculo (extras y etiqueta)')
   else {
-    const extras = texto.slice(iExtras, iEtiqueta)
-    if (!/destacado/.test(extras) || !/\bisFeatured\b/.test(extras)) out.push('etiqueta: no menciona destacado')
-    if (!/\bprecio\b/.test(extras)) out.push('etiqueta: no menciona el precio')
-    if (!/fechas? más/.test(extras) || !/\botrasFechas\b/.test(extras)) out.push('etiqueta: no menciona las fechas más')
+    const deEvento = /t\.etiquetaEvento\(\{([\s\S]*?)\}\)/.exec(calculo)?.[1] ?? ''
+    const dePelicula = /t\.etiquetaPelicula\(\{([\s\S]*?)\}\)/.exec(calculo)?.[1] ?? ''
+    if (!/\bdestacado:\s*evento\.isFeatured\b/.test(deEvento)) out.push('etiqueta: no menciona destacado')
+    if (!/\bprecio\b/.test(deEvento)) out.push('etiqueta: no menciona el precio')
+    if (!/\botrasFechas\b/.test(deEvento)) out.push('etiqueta: no menciona las fechas más')
     // Las películas en cartel (rama aparte) también dicen destacado y precio.
-    const desde = calculo.indexOf('en cartel')
-    const hasta = calculo.indexOf('evento.venue', desde)
-    const cartel = desde >= 0 && hasta > desde ? calculo.slice(desde, hasta) : ''
-    if (!/destacado/.test(cartel) || !/\bprecio\b/.test(cartel)) out.push('etiqueta: la rama en cartel no dice destacado/precio')
+    if (!/\bdestacado:\s*evento\.isFeatured\b/.test(dePelicula) || !/\bprecio\b/.test(dePelicula)) out.push('etiqueta: la rama en cartel no dice destacado/precio')
+    const ejemplo = es.tarjeta.etiquetaEvento({ titulo: 'T', fecha: 'sáb 7 nov', hora: '21:30', lugar: 'L', destacado: true, precio: 'Gratis', otrasFechas: 2 })
+    if (!ejemplo.includes(', destacado') || !ejemplo.includes(', Gratis') || !ejemplo.includes('2 fechas más')) out.push('etiqueta: el diccionario no dice destacado, precio y fechas más')
+    if (!es.tarjeta.etiquetaPelicula({ titulo: 'T', destacado: true, precio: 'Gratis' }).includes('en cartel, destacado, Gratis')) out.push('etiqueta: la rama en cartel no dice destacado/precio')
   }
   const tarjeta = et.find((e) => e.nombre === 'Pressable' && /\bonPress\b/.test(e.atributos))
   if (!tarjeta || !/accessibilityLabel\s*=\s*\{\s*etiqueta\s*\}/.test(tarjeta.atributos)) out.push('el Pressable no usa accessibilityLabel={etiqueta}')
@@ -215,14 +218,10 @@ const TARJETA_VALIDA = `
   const TOP_INSIGNIA = MARGEN_ARRIBA + TAMANIO_ACCION + 4
   export function TarjetaEvento() {
     const hayCompartir = esEventoReal(evento)
-    // const extras = 'destacado precio fechas más'
-    const extras =
-      (evento.isFeatured ? ', destacado' : '') +
-      (precio ? \`, \${precio}\` : '') +
-      (otrasFechas > 0 ? \`, \${otrasFechas} fechas más\` : '')
+    // const etiqueta = 'destacado precio fechas más'
     const etiqueta = evento.isCinemaMovie
-      ? \`\${evento.title}, en cartel\${evento.isFeatured ? ', destacado' : ''}\${precio ? \`, \${precio}\` : ''}\`
-      : \`\${evento.title}, en \${evento.venue}\${extras}\`
+      ? t.etiquetaPelicula({ titulo, destacado: evento.isFeatured === true, precio })
+      : t.etiquetaEvento({ titulo, fecha, hora: evento.time, lugar: evento.venue, destacado: evento.isFeatured === true, precio, otrasFechas })
     return (
       <View>
         <Pressable onPress={() => router.push(ruta)} accessibilityRole="button" accessibilityLabel={etiqueta} style={estilos.tarjeta}>
@@ -310,9 +309,10 @@ describe('detector de TarjetaEvento (fixtures inventados)', () => {
   })
 
   it('marca la etiqueta sin destacado, sin precio o sin fechas más', () => {
-    const sinDestacadoEnExtras = TARJETA_VALIDA.replace(`(evento.isFeatured ? ', destacado' : '') +`, '')
+    // Q6-1: las roturas sacan el dato que la tarjeta le pasa al diccionario.
+    const sinDestacadoEnExtras = TARJETA_VALIDA.replace('lugar: evento.venue, destacado: evento.isFeatured === true, ', 'lugar: evento.venue, ')
     expect(problemasTarjeta(sinDestacadoEnExtras).some((x) => x.includes('destacado'))).toBe(true)
-    const sinFechas = TARJETA_VALIDA.replace(/\(otrasFechas[^\n]*\n/, "''\n")
+    const sinFechas = TARJETA_VALIDA.replace(', otrasFechas })', ' })')
     expect(problemasTarjeta(sinFechas).some((x) => x.includes('fechas más'))).toBe(true)
     const sinPrecio = TARJETA_VALIDA.split('precio').join('p')
     expect(problemasTarjeta(sinPrecio).some((x) => x.includes('precio'))).toBe(true)
@@ -326,7 +326,9 @@ describe('detector de TarjetaEvento (fixtures inventados)', () => {
 // ---------------------------------------------------------------------------
 function etiquetaCompartirOk(fuenteCruda: string): boolean {
   const texto = quitarComentarios(fuenteCruda)
-  return /accessibilityLabel\s*=\s*\{\s*`Compartir\s+\$\{\s*titulo\s*\}`\s*\}/.test(texto)
+  // Q6-1: o la etiqueta del diccionario con el título (`t.compartir(titulo)`, que en castellano es «Compartir <título>»).
+  const conDiccionario = /accessibilityLabel\s*=\s*\{\s*t\.compartir\(\s*titulo\s*\)\s*\}/.test(texto) && es.tarjeta.compartir('X') === 'Compartir X'
+  return conDiccionario || /accessibilityLabel\s*=\s*\{\s*`Compartir\s+\$\{\s*titulo\s*\}`\s*\}/.test(texto)
 }
 
 describe('components/BotonCompartir.tsx', () => {

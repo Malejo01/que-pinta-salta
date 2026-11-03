@@ -25,6 +25,7 @@ import { TarjetaCompartir } from '@/components/TarjetaCompartir'
 import { useColoresQPS } from '@/lib/colores'
 import { compartirTarjeta, type ResultadoCompartirTarjeta } from '@/lib/compartir-imagen/compartir'
 import { depsDelDispositivo } from '@/lib/compartir-imagen/dispositivo'
+import { useTextos } from '@/lib/i18n'
 import type { DatosTarjetaCompartir } from '@/lib/compartir'
 
 /** Tope por si la imagen (el afiche o la marca) nunca avisa que está lista. */
@@ -45,6 +46,7 @@ export function HojaCompartirTarjeta({ visible, datos, compartirTexto, onCerrar 
   // El ancho de la ventana se lee con `useWindowDimensions()`, nunca con
   // `Dimensions` a nivel de módulo (QPS-132).
   const { width } = useWindowDimensions()
+  const t = useTextos().tarjeta
   const anchoPreview = Math.min(width - 32, 360)
   const refTarjeta = useRef<View>(null)
 
@@ -82,9 +84,9 @@ export function HojaCompartirTarjeta({ visible, datos, compartirTexto, onCerrar 
 
   const mensaje =
     resultado?.tipo === 'nada'
-      ? 'No pudimos compartir. Probá de nuevo.'
+      ? t.noSePudoCompartir
       : resultado?.tipo === 'texto' && resultado.motivo === 'captura'
-        ? 'No pudimos armar la imagen; compartimos el link.'
+        ? t.compartimosElLink
         : null
 
   const deshabilitado = !listo || compartiendo
@@ -117,7 +119,7 @@ export function HojaCompartirTarjeta({ visible, datos, compartirTexto, onCerrar 
             onPress={alCompartirImagen}
             disabled={deshabilitado}
             accessibilityRole="button"
-            accessibilityLabel="Compartir imagen"
+            accessibilityLabel={t.compartirImagen}
             style={[estilos.ctaPrimario, { backgroundColor: colores.primary, opacity: deshabilitado ? 0.5 : 1 }]}
           >
             {compartiendo ? (
@@ -126,7 +128,7 @@ export function HojaCompartirTarjeta({ visible, datos, compartirTexto, onCerrar 
               <>
                 <Icono nombre="Share2" tamanio={18} color={colores.primaryForeground} />
                 <Texto peso="semibold" style={{ color: colores.primaryForeground }}>
-                  Compartir imagen
+                  {t.compartirImagen}
                 </Texto>
               </>
             )}
@@ -135,14 +137,14 @@ export function HojaCompartirTarjeta({ visible, datos, compartirTexto, onCerrar 
           <Pressable
             onPress={compartirTexto}
             accessibilityRole="button"
-            accessibilityLabel="Compartir link"
+            accessibilityLabel={t.compartirLink}
             style={[estilos.ctaOutline, { borderColor: colores.border }]}
           >
             <Icono nombre="Share2" tamanio={18} color={colores.foreground} />
-            <Texto peso="semibold">Compartir link</Texto>
+            <Texto peso="semibold">{t.compartirLink}</Texto>
           </Pressable>
 
-          <Pressable onPress={onCerrar} accessibilityRole="button" accessibilityLabel="Cerrar" hitSlop={12} style={estilos.cerrar}>
+          <Pressable onPress={onCerrar} accessibilityRole="button" accessibilityLabel={t.cerrar} hitSlop={12} style={estilos.cerrar}>
             <Icono nombre="X" tamanio={20} color={colores.foreground} />
           </Pressable>
         </ScrollView>
