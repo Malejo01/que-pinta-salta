@@ -837,9 +837,10 @@ describe('historialAvisosEquipo', () => {
       ],
     })
     const h = await historialAvisosEquipo()
+    // Q5-14: los dos usuarios tienen cuenta: 0 sin cuenta.
     expect(h).toEqual([
-      { dia: '2026-11-09', personas: 3 },
-      { dia: '2026-11-05', personas: 1 },
+      { dia: '2026-11-09', personas: 3, sinCuenta: 0 },
+      { dia: '2026-11-05', personas: 1, sinCuenta: 0 },
     ])
     sinDatosPersonales(e, 2, h)
   })

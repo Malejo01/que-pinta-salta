@@ -353,11 +353,6 @@ export function conteoCategoria(peliculas: number, eventos: number): string {
   return eventos === 0 ? textoPeliculas : `${textoPeliculas} · ${textoEventos}`
 }
 
-function enFilasDeDos<T>(lista: T[]): T[][] {
-  const filas: T[][] = []
-  for (let i = 0; i < lista.length; i += 2) filas.push(lista.slice(i, i + 2))
-  return filas
-}
 
 /**
  * Vacío del modo "Gratis" (A2, nube Q1): dice por qué está vacío
@@ -982,15 +977,18 @@ export default function Inicio() {
                   {datosPortada.peliculasCategoria.map((pelicula) => (
                     <TarjetaPelicula key={pelicula.id} pelicula={pelicula} compacta />
                   ))}
-                  {enFilasDeDos(datosPortada.eventosSinPelicula).map((fila) => (
-                  <View key={fila[0].id} style={estilos.filaGrilla}>
-                    {fila.map((evento) => (
-                      <View key={evento.id} style={estilos.celda}>
+                  {/* Q5-14 (pendiente 19 de la Q4): UN solo contenedor que envuelve
+                      de a 2, con cada tarjeta por su id. Antes eran filas con
+                      key={fila[0].id}: al cambiar de filtro, un evento que
+                      pasaba de la columna derecha a la izquierda cambiaba de
+                      fila y su tarjeta se remontaba (imagen y corazón otra vez). */}
+                  <View style={estilos.grillaEnvuelta}>
+                    {datosPortada.eventosSinPelicula.map((evento) => (
+                      <View key={evento.id} style={estilos.celdaEnvuelta}>
                         <TarjetaEvento evento={evento} />
                       </View>
                     ))}
                   </View>
-                  ))}
                 </>
               )}
             </View>
@@ -1125,9 +1123,10 @@ const estilos = StyleSheet.create({
   vacioHoyTitulo: { fontSize: 20 },
   bloqueCategoria: { paddingHorizontal: 16, paddingTop: 8, gap: 12 },
   tituloCategoria: { fontSize: 20 },
-  filaGrilla: { flexDirection: 'row', gap: 12 },
+  // Q5-14: 2 columnas con 12 de separación (6 de cada lado), sin filas.
+  grillaEnvuelta: { flexDirection: 'row', flexWrap: 'wrap', marginHorizontal: -6, rowGap: 12 },
+  celdaEnvuelta: { width: '50%', paddingHorizontal: 6 },
   // Evita que la última celda de un número impar se estire a todo el ancho.
-  celda: { flex: 1, maxWidth: '50%' },
   vacioHoyBoton: { borderRadius: 10, paddingVertical: 12, alignItems: 'center' },
   // El bloque de la categoría ya tiene su propio padding horizontal.
   vacioCategoria: { marginHorizontal: 0, marginTop: 0, gap: 12 },

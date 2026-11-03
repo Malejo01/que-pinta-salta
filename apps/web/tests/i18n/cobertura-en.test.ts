@@ -38,8 +38,7 @@ function rutaDe(archivo: string): string {
 
 /** Páginas públicas que quedan SOLO en castellano, con el motivo. */
 const SOLO_CASTELLANO: Record<string, string> = {
-  '/auth/login': 'cuenta (Q4-6: el modal de ingreso ya está en inglés; la página completa queda en castellano)',
-  '/auth/sign-up': 'cuenta',
+  '/auth/sign-up': 'cuenta (Q5-14: el alta en inglés va por el modal de ingreso, que ya está traducido)',
   '/auth/sign-up-success': 'cuenta',
   '/auth/recuperar': 'cuenta',
   '/auth/restablecer': 'cuenta',

@@ -16,6 +16,7 @@
  * tokens, emails ni ids de usuario, ni en respuestas ni en logs.
  */
 import { revalidatePath } from 'next/cache'
+import { agruparHistorialAvisoEquipo } from '@/lib/admin/historial-avisos'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { createAdminClient, createClient } from '@/lib/supabase/server'
 import { enviarPushATokens, modoEnvioReal, tokensDelUsuario } from '@/lib/notificaciones/envio-admin'
@@ -537,10 +538,11 @@ export interface DiaHistorialAvisoEquipo {
   /** `YYYY-MM-DD` (día de Salta). */
   dia: string
   personas: number
+  /** Q5-14: de esas, cuántas fueron a teléfonos SIN cuenta (`user_id` nulo, R82). */
+  sinCuenta: number
 }
 
 const DIAS_HISTORIAL = 30
-const MAX_DIAS_MOSTRADOS = 10
 
 /** Los últimos avisos del equipo, por día de Salta (personas con `status 'SUCCESS'`). `null` si no es ADMIN o falla. */
 export async function historialAvisosEquipo(): Promise<DiaHistorialAvisoEquipo[] | null> {
@@ -551,11 +553,11 @@ export async function historialAvisosEquipo(): Promise<DiaHistorialAvisoEquipo[]
     const admin = createAdminClient()
     const desde = new Date(Date.now() - DIAS_HISTORIAL * 24 * 60 * 60 * 1000).toISOString()
 
-    const resultado = await leerPaginado<{ sent_at: string }>(TAMANIO_PAGINA_TOKENS, (d, h) =>
+    const resultado = await leerPaginado<{ sent_at: string; user_id: string | null }>(TAMANIO_PAGINA_TOKENS, (d, h) =>
       comoPagina(
         admin
           .from('notification_sends')
-          .select('sent_at')
+          .select('sent_at, user_id')
           .eq('kind', 'anuncio')
           .eq('status', 'SUCCESS')
           .gte('sent_at', desde)
@@ -568,15 +570,7 @@ export async function historialAvisosEquipo(): Promise<DiaHistorialAvisoEquipo[]
       return null
     }
 
-    const porDia = new Map<string, number>()
-    for (const fila of resultado.filas) {
-      const dia = formatSaltaDayKey(fila.sent_at)
-      porDia.set(dia, (porDia.get(dia) ?? 0) + 1)
-    }
-    return [...porDia.entries()]
-      .map(([dia, personas]) => ({ dia, personas }))
-      .sort((a, b) => (a.dia < b.dia ? 1 : -1))
-      .slice(0, MAX_DIAS_MOSTRADOS)
+    return agruparHistorialAvisoEquipo(resultado.filas)
   } catch {
     console.error('avisos-equipo: falló la lectura del historial')
     return null
