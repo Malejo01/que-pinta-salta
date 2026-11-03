@@ -140,7 +140,9 @@ function ramaSesion(cuerpoCrearCuenta: string): string | null {
   return fin < 0 ? resto : resto.slice(0, fin)
 }
 
-const llamaAvisar = (rama: string | null) => !!rama && /\bavisar\(\s*MENSAJE_ALTA_CON_SESION\s*\)/.test(rama)
+// Q6-1: el aviso se dice en el idioma de la app (`t.errores.traducir(MENSAJE_ALTA_CON_SESION)`).
+const llamaAvisar = (rama: string | null) =>
+  !!rama && /\bavisar\(\s*(?:t\.errores\.traducir\(\s*MENSAJE_ALTA_CON_SESION\s*\)|MENSAJE_ALTA_CON_SESION)\s*\)/.test(rama)
 const mezclaEnviado = (rama: string | null) =>
   !!rama && /MENSAJE_ALTA_ENVIADA|setAvisoConfirmacion\(\s*true\s*\)/.test(rama)
 const apagaAviso = (cuerpo: string) => /setAvisoAltaConSesionPara\(\s*null\s*\)/.test(cuerpo)

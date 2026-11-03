@@ -10,6 +10,7 @@ import { Icono, iconoPorCategoria } from '@/components/Icono'
 import { Texto } from '@/components/Texto'
 import { bordeChipInactivo, useColoresQPS } from '@/lib/colores'
 import { textoCantidadEventos } from '@/lib/formato'
+import { useIdioma } from '@/lib/i18n'
 
 export interface TileCategoriaProps {
   slug: string
@@ -20,6 +21,7 @@ export interface TileCategoriaProps {
 
 function TileCategoriaSinMemo({ slug, nombre, cantidad, onTocar }: TileCategoriaProps) {
   const colores = useColoresQPS()
+  const { idioma } = useIdioma()
   return (
     <Pressable
       onPress={() => onTocar(slug)}
@@ -34,7 +36,7 @@ function TileCategoriaSinMemo({ slug, nombre, cantidad, onTocar }: TileCategoria
           {nombre}
         </Texto>
         <Texto tono="secundario" style={estilos.cantidadTile}>
-          {textoCantidadEventos(cantidad)}
+          {textoCantidadEventos(cantidad, idioma)}
         </Texto>
       </View>
     </Pressable>

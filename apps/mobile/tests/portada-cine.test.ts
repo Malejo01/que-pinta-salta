@@ -12,6 +12,8 @@ import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import { transformMovie } from '@qps/core/home/transform'
 import type { DisplayEvent } from '@qps/core/home/types'
+import { en } from '../lib/i18n/diccionarios/en'
+import { es } from '../lib/i18n/diccionarios/es'
 
 const MOBILE_ROOT = fileURLToPath(new URL('..', import.meta.url))
 const leer = (...partes: string[]) => readFileSync(join(MOBILE_ROOT, ...partes), 'utf8').replace(/\r\n/g, '\n')
@@ -110,16 +112,14 @@ type ConteoFn = (peliculas: number, eventos: number) => string
  * función es pura (solo plantillas), así que no necesita nada del módulo.
  */
 function cargarConteo(fuenteSinComentarios: string): ConteoFn {
+  // Q6-1: conteoCategoria delega en el diccionario (`portada.conteo`, una
+  // función pura por idioma): se confirma que lo hace y se prueba esa función.
   const inicio = fuenteSinComentarios.indexOf('export function conteoCategoria(')
   expect(inicio, 'conteoCategoria no está exportada en index.tsx').toBeGreaterThan(-1)
   const cierre = fuenteSinComentarios.indexOf('\n}\n', inicio)
   expect(cierre).toBeGreaterThan(inicio)
-  const js = fuenteSinComentarios
-    .slice(inicio, cierre + 2)
-    .replace(/^export /, '')
-    .replace(/\(peliculas: number, eventos: number\): string/, '(peliculas, eventos)')
-  expect(js, 'quedaron tipos de TypeScript sin quitar').not.toMatch(/:\s*(number|string)\b/)
-  return new Function(`${js}\nreturn conteoCategoria`)() as ConteoFn
+  expect(fuenteSinComentarios.slice(inicio, cierre)).toMatch(/return textosDe\(idioma\)\.portada\.conteo\(peliculas, eventos\)/)
+  return (peliculas, eventos) => es.portada.conteo(peliculas, eventos)
 }
 
 describe('conteoCategoria (la función real de app/(tabs)/index.tsx)', () => {
@@ -139,6 +139,12 @@ describe('conteoCategoria (la función real de app/(tabs)/index.tsx)', () => {
 
   it('con películas y 0 eventos no agrega "0 eventos"', () => {
     expect(conteo(4, 0)).not.toContain('evento')
+  })
+
+  it('Q6-1: en inglés, singular y plural', () => {
+    expect(en.portada.conteo(0, 1)).toBe('1 event')
+    expect(en.portada.conteo(1, 2)).toBe('1 film · 2 events')
+    expect(en.portada.conteo(3, 0)).toBe('3 films')
   })
 })
 
@@ -194,7 +200,8 @@ describe('app/(tabs)/index.tsx con el chip "Cine"', () => {
   })
 
   it('el conteo del live region usa las dos listas separadas', () => {
-    expect(codigo).toMatch(/conteoCategoria\(datosPortada\.peliculasCategoria\.length,\s*datosPortada\.eventosSinPelicula\.length\)/)
+    // Q6-1: también con el idioma de la app.
+    expect(codigo).toMatch(/conteoCategoria\(datosPortada\.peliculasCategoria\.length,\s*datosPortada\.eventosSinPelicula\.length, idioma\)/)
   })
 
   it('con otra categoría (no cine) todo cae en eventosSinPelicula y peliculasCategoria queda vacío', () => {
@@ -338,7 +345,10 @@ function violacionesCineAbiertoInicial(tarjeta: string): string[] {
 /** Con "Cine" el título dice "En cartel" (las películas no se filtran por fecha). */
 function violacionesTituloCartel(portada: string): string[] {
   const v: string[] = []
-  if (!/categoria === 'cine' \? 'En cartel' : ETIQUETA_ATAJO\[atajo\]/.test(portada)) v.push("el título con categoria === 'cine' no dice 'En cartel'")
+  // Q6-1: «En cartel» y las etiquetas de la fecha salen del diccionario (`portada`).
+  if (!/categoria === 'cine' \? t\.portada\.enCartel : t\.portada\.atajos\[atajo\]/.test(portada) || es.portada.enCartel !== 'En cartel') {
+    v.push("el título con categoria === 'cine' no dice 'En cartel'")
+  }
   // A8 (nube Q1, QPS-339): el título pasó del JSX a un template literal
   // (`tituloGrilla`, que usan el encabezado y el anuncio).
   if (!/`\$\{nombreCategoria\} · \$\{/.test(portada)) v.push('el título no arranca con el nombre de la categoría')
@@ -389,7 +399,7 @@ describe('R67, 67-r1: tarjeta compacta en la portada', () => {
     })
 
     it('el título con el atajo también para Cine', () => {
-      const roto = portada.replace("categoria === 'cine' ? 'En cartel' : ETIQUETA_ATAJO[atajo]", 'ETIQUETA_ATAJO[atajo]')
+      const roto = portada.replace("categoria === 'cine' ? t.portada.enCartel : t.portada.atajos[atajo]", 't.portada.atajos[atajo]')
       expect(violacionesTituloCartel(roto)).toEqual(["el título con categoria === 'cine' no dice 'En cartel'"])
     })
   })

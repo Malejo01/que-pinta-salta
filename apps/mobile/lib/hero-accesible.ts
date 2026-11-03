@@ -18,6 +18,9 @@
  * que este módulo siga siendo puro. `label` queda obligatorio acá porque las
  * dos acciones de `ACCIONES_HERO` siempre lo llevan.
  */
+import type { Idioma } from '@/lib/i18n/idioma'
+import { textosDe } from '@/lib/i18n/textos'
+
 export interface AccionAccesibilidadHero {
   name: string
   label: string
@@ -29,10 +32,16 @@ export interface AccionAccesibilidadHero {
  * el gesto principal). Se le pasan a `accessibilityActions` solo cuando hay
  * más de una diapositiva (`components/Hero.tsx`: `total > 1`).
  */
-export const ACCIONES_HERO: AccionAccesibilidadHero[] = [
-  { name: 'siguiente', label: 'Siguiente evento' },
-  { name: 'anterior', label: 'Evento anterior' },
-]
+export const ACCIONES_HERO: AccionAccesibilidadHero[] = accionesHero('es')
+
+/** Q6-1: las dos acciones, con la etiqueta en el idioma pedido. */
+export function accionesHero(idioma: Idioma): AccionAccesibilidadHero[] {
+  const t = textosDe(idioma).hero
+  return [
+    { name: 'siguiente', label: t.siguiente },
+    { name: 'anterior', label: t.anterior },
+  ]
+}
 
 /**
  * Resto siempre no negativo (a diferencia de `%` de JS, que puede dar
@@ -78,7 +87,6 @@ export function indiceTrasAccion(accion: string, indice: number, total: number):
  * Con `total === 1` no hay "de cuántas" que anunciar (no tiene sentido decir
  * "1 de 1"): queda `"<título>, ver detalles"`.
  */
-export function etiquetaDiapositiva(titulo: string, indice: number, total: number): string {
-  if (total === 1) return `${titulo}, ver detalles`
-  return `${titulo}, ver detalles, ${indice + 1} de ${total}`
+export function etiquetaDiapositiva(titulo: string, indice: number, total: number, idioma: Idioma = 'es'): string {
+  return textosDe(idioma).hero.diapositiva(titulo, indice, total)
 }

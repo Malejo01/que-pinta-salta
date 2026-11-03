@@ -17,6 +17,8 @@
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
+import { en } from '../lib/i18n/diccionarios/en'
+import { es } from '../lib/i18n/diccionarios/es'
 
 interface PeliculaFixture {
   id: string
@@ -112,13 +114,18 @@ describe('app/cines.tsx: lectura estática', () => {
   // R67, 67-c: la tarjeta y el acordeón viven en `components/`; estas tres
   // comprobaciones leen ahí.
   it('"Comprar Entradas" es el texto literal de la web (con mayúsculas, no "Comprar entradas")', () => {
-    expect(SRC_BLOQUE).toMatch(/Comprar Entradas/)
+    // Q6-1: el texto sale del diccionario (`tarjeta.comprarEntradas`).
+    expect(SRC_BLOQUE).toMatch(/\{t\.comprarEntradas\}/)
+    expect(es.tarjeta.comprarEntradas).toBe('Comprar Entradas')
     expect(SRC_BLOQUE).not.toMatch(/Comprar entradas/)
   })
 
   it('el badge usa singular "Cine" / plural "Cines", como MovieCard', () => {
     expect(SRC_CINES).toMatch(/<TarjetaPelicula\b/)
-    expect(SRC_TARJETA).toMatch(/cantidad === 1 \? 'Cine' : 'Cines'/)
+    // Q6-1: el singular y el plural viven en el diccionario (`tarjeta.cines`).
+    expect(SRC_TARJETA).toMatch(/\{t\.tarjeta\.cines\(cantidad\)\}/)
+    expect([es.tarjeta.cines(1), es.tarjeta.cines(3)]).toEqual(['1 Cine', '3 Cines'])
+    expect([en.tarjeta.cines(1), en.tarjeta.cines(3)]).toEqual(['1 cinema', '3 cinemas'])
   })
 
   it('usa cantidadDeSalas y funcionesPorCine de lib/datos/cines (no cuentas propias)', () => {

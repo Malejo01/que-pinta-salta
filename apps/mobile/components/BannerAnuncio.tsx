@@ -30,6 +30,7 @@ import { ESCALA_MAXIMA_COMPACTA } from '@/lib/accesibilidad'
 import { idBloque, type LugarAnuncio } from '@/lib/anuncios/ids'
 import { anunciosListos, suscribirse } from '@/lib/anuncios/consentimiento'
 import { leerEnv } from '@/lib/env'
+import { useTextos } from '@/lib/i18n'
 
 export interface BannerAnuncioProps {
   lugar: LugarAnuncio
@@ -51,6 +52,7 @@ export function BannerAnuncio({ lugar, sinConexion = false }: BannerAnuncioProps
 
   const [listo, setListo] = useState(anunciosListos)
   const [fallo, setFallo] = useState(false)
+  const t = useTextos().banners
 
   useEffect(() => {
     if (listo) return
@@ -70,9 +72,9 @@ export function BannerAnuncio({ lugar, sinConexion = false }: BannerAnuncioProps
   }
 
   return (
-    <View style={estilos.contenedor} accessible accessibilityLabel="Publicidad">
+    <View style={estilos.contenedor} accessible accessibilityLabel={t.publicidad}>
       <Texto tono="secundario" style={estilos.rotulo} maxFontSizeMultiplier={ESCALA_MAXIMA_COMPACTA}>
-        Publicidad
+        {t.publicidad}
       </Texto>
       {/* Banner adaptativo: el propio SDK calcula su ancho (sin medir la pantalla a mano). */}
       <BannerAd unitId={id} size={BannerAdSize.ANCHORED_ADAPTIVE_BANNER} onAdFailedToLoad={onAdFailedToLoad} />

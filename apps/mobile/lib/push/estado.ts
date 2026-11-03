@@ -5,6 +5,8 @@
 // QPS-113 no está confirmado: ningún texto de abajo lleva cifras de topes ni
 // horarios.
 
+import { es } from '@/lib/i18n/diccionarios/es'
+
 /**
  * - `sin-sesion`: no hay persona logueada (push no aplica).
  * - `sin-pedir`: el permiso todavía no se preguntó.
@@ -30,16 +32,9 @@ export type EstadoPush =
   | 'activo'
 
 /** Un texto corto en voseo por estado, para mostrar en Cuenta. */
-export const TEXTOS_PUSH: Record<EstadoPush, string> = {
-  'sin-sesion': 'Iniciá sesión para activar las notificaciones.',
-  'sin-pedir': 'Activá las notificaciones para enterarte de las novedades.',
-  pidiendo: 'Pidiendo el permiso...',
-  denegado: 'No activaste las notificaciones. Podés intentarlo de nuevo cuando quieras.',
-  bloqueado: 'Tenés las notificaciones bloqueadas para esta app. Activalas desde los ajustes del teléfono.',
-  'no-disponible': 'Por ahora este teléfono no puede recibir notificaciones de la app.',
-  'error-registro': 'No pudimos activar las notificaciones. Probá de nuevo.',
-  activo: 'Las notificaciones están activas en este teléfono.',
-}
+// Q6-1: los textos viven en el diccionario (`notificaciones.estadosPush`);
+// esta constante es el castellano de siempre.
+export const TEXTOS_PUSH: Record<EstadoPush, string> = es.notificaciones.estadosPush
 
 /** La parte de `PermissionResponse` (expo-notifications) que necesita `estadoDesdePermiso`. */
 export interface PermisoPush {

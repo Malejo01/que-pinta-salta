@@ -14,6 +14,7 @@ import { contarFinde, decidirFinde, proximoJueves18, textoFinde, type EventoPara
 import { avisoDelEquipoDeHoy, CLAVE_DIA_AVISO_EQUIPO, CLAVE_FINDE, esAvisoDelEquipo, programarFinde, registrarAvisoDelEquipo, type ModuloNotificacionesFinde } from '../lib/finde'
 import { CLAVE_AGENDA, VERSION_CACHE } from '../lib/sin-conexion/cache'
 import type { Almacen } from '../lib/sin-conexion/almacen'
+import { CLAVE_IDIOMA } from '../lib/i18n/idioma'
 
 const RAIZ_APP = fileURLToPath(new URL('..', import.meta.url))
 
@@ -107,8 +108,11 @@ describe('Q5-16 (nº17): el aviso del equipo de hoy, también el que se tocó co
   })
 })
 
-function dobles(opts: { permiso?: 'granted' | 'denied'; agenda?: unknown; guardadoEn?: Date; preferencia?: string; diaAviso?: string }) {
+function dobles(opts: { permiso?: 'granted' | 'denied'; agenda?: unknown; guardadoEn?: Date; preferencia?: string; diaAviso?: string; idioma?: string | null }) {
   const datos = new Map<string, string>()
+  // Q6-1: el aviso sale en el idioma guardado (Cuenta → Idioma); los dobles
+  // guardan «es» para no depender del idioma de la máquina que corre el test.
+  if (opts.idioma !== null) datos.set(CLAVE_IDIOMA, opts.idioma ?? 'es')
   if (opts.agenda) datos.set(CLAVE_AGENDA, JSON.stringify({ v: VERSION_CACHE, guardadoEn: (opts.guardadoEn ?? MARTES).toISOString(), datos: opts.agenda }))
   if (opts.preferencia) datos.set(CLAVE_FINDE, opts.preferencia)
   if (opts.diaAviso) datos.set(CLAVE_DIA_AVISO_EQUIPO, opts.diaAviso)

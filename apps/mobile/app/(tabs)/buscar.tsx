@@ -186,14 +186,14 @@ import {
   type CategoriaBasica,
   type EventoVigenteParaInicio,
 } from '@/lib/datos/eventos'
-import { filtrarConPublico, SLUG_INFANTIL, TEXTO_VER_TODAS_LAS_EDADES } from '@/lib/para-chicos'
+import { filtrarConPublico, SLUG_INFANTIL } from '@/lib/para-chicos'
+import { textosDe, useIdioma, useTextos } from '@/lib/i18n'
 import {
   anuncioDeReintento,
   decidirRefresco,
   MAXIMO_ACCIONES_VACIO,
   mensajeErrorCarga,
   textoSinResultadosBuscar as textoSinResultadosConTexto,
-  VACIO_CATEGORIAS_BUSCAR,
 } from '@/lib/vacios'
 
 /**
@@ -251,6 +251,14 @@ export default function Buscar() {
   // R72, 72-c (QPS-362): borde de chip gratis, tiles y botón secundario a >= 3:1
   // (antes `colores.border`, ~1,3:1; cálculo en `lib/colores.ts`).
   const bordeInactivo = bordeChipInactivo(colores)
+  // Q6-1: Buscar en el idioma de la app. Los errores y las notas del refresco
+  // se guardan en castellano y se muestran y se anuncian traducidos.
+  const { idioma } = useIdioma()
+  const t = useTextos()
+  const idiomaRef = useRef(idioma)
+  useEffect(() => {
+    idiomaRef.current = idioma
+  }, [idioma])
   const params = useLocalSearchParams<{ categoria?: string; atajo?: string; v?: string }>()
   const categoriaParam = typeof params.categoria === 'string' && params.categoria ? params.categoria : null
   const atajoParam = atajoDesdeParametro(params.atajo)
@@ -342,9 +350,9 @@ export default function Buscar() {
     setEstado(decision.estado)
     setNotaRefresco(decision.nota)
     const aviso = decision.anuncio
-    if (aviso) anunciar(aviso)
+    if (aviso) anunciar(t.errores.traducir(aviso))
     setRefrescando(false)
-  }, [obtenerDatos, estado, notaRefresco])
+  }, [obtenerDatos, estado, notaRefresco, t])
 
   useEffect(() => {
     let cancelado = false
@@ -354,7 +362,7 @@ export default function Buscar() {
       // A6: un "Reintentar" de `ErrorCarga` (`intento > 0`) que vuelve a dar
       // error se anuncia; si no, parecía que el botón no hizo nada.
       const avisoError = anuncioDeReintento(intento > 0, resultado)
-      if (avisoError) anunciar(avisoError)
+      if (avisoError) anunciar(textosDe(idiomaRef.current).errores.traducir(avisoError))
     })
     return () => {
       cancelado = true
@@ -492,7 +500,7 @@ export default function Buscar() {
   // `null` mientras carga o con error: "no hay nada".
   useAnunciarConteo(
     estado.tipo === 'ok'
-      ? estadoAnunciableBuscar({ mostrarResultados, cantidad: resultadosMostrados.length, filtros: filtrosTexto, v: vParam, toque: toqueTexto })
+      ? estadoAnunciableBuscar({ mostrarResultados, cantidad: resultadosMostrados.length, filtros: filtrosTexto, v: vParam, toque: toqueTexto, idioma })
       : null,
   )
 
@@ -509,8 +517,8 @@ export default function Buscar() {
   // nombra "gratis" (antes se perdía); sin texto, el de A3
   // (`lib/buscar-filtros.ts`), que además nombra "para chicos".
   const textoSinResultados = texto
-    ? textoSinResultadosConTexto({ texto, soloGratis: soloGratisActivo, nombreCategoria: nombreCategoriaFiltro, atajo })
-    : textoSinResultadosBuscar(filtrosTexto)
+    ? textoSinResultadosConTexto({ texto, soloGratis: soloGratisActivo, nombreCategoria: nombreCategoriaFiltro, atajo, idioma })
+    : textoSinResultadosBuscar(filtrosTexto, idioma)
 
   // Salidas del vacío (R66): sacar la fecha y/o la categoría. Un botón por
   // cada filtro que se puede sacar. A3: y "Para chicos", primero (la salida
@@ -526,12 +534,12 @@ export default function Buscar() {
   // este archivo.
   const accionesVacio: { texto: string; alTocar: () => void }[] = []
   if (paraChicosActivo && categoriaFiltro !== SLUG_INFANTIL) {
-    accionesVacio.push({ texto: TEXTO_VER_TODAS_LAS_EDADES, alTocar: () => setParaChicosActivo(false) })
+    accionesVacio.push({ texto: t.portada.verTodasLasEdades, alTocar: () => setParaChicosActivo(false) })
   }
-  if (texto) accionesVacio.push({ texto: 'Limpiar búsqueda', alTocar: () => setTexto('') })
-  if (atajo !== null) accionesVacio.push({ texto: 'Ver todas las fechas', alTocar: () => setAtajo(null) })
-  if (soloGratisActivo) accionesVacio.push({ texto: 'Sacar “Solo gratis”', alTocar: () => setSoloGratisActivo(false) })
-  if (categoriaFiltro !== null) accionesVacio.push({ texto: 'Todas las categorías', alTocar: () => setCategoriaFiltro(null) })
+  if (texto) accionesVacio.push({ texto: t.vacios.limpiarBusqueda, alTocar: () => setTexto('') })
+  if (atajo !== null) accionesVacio.push({ texto: t.vacios.verTodasLasFechas, alTocar: () => setAtajo(null) })
+  if (soloGratisActivo) accionesVacio.push({ texto: t.vacios.sacarSoloGratis, alTocar: () => setSoloGratisActivo(false) })
+  if (categoriaFiltro !== null) accionesVacio.push({ texto: t.vacios.todasLasCategorias, alTocar: () => setCategoriaFiltro(null) })
   accionesVacio.splice(MAXIMO_ACCIONES_VACIO)
 
   // A6: un refresco que falló con una lista a la vista. Banda al principio de
@@ -540,7 +548,7 @@ export default function Buscar() {
   // abierto); el margen negativo compensa el padding de la lista.
   const avisoNoSeActualizo = notaRefresco ? (
     <View style={estilos.avisoEnLista}>
-      <AvisoNoSeActualizo texto={notaRefresco} onReintentar={refrescar} reintentando={refrescando} />
+      <AvisoNoSeActualizo texto={t.errores.traducir(notaRefresco)} onReintentar={refrescar} reintentando={refrescando} />
     </View>
   ) : null
 
@@ -549,10 +557,10 @@ export default function Buscar() {
       <View style={estilos.cabecera}>
         <View style={estilos.campo}>
           <CampoTexto
-            label="Buscar"
+            label={t.buscar.etiqueta}
             value={texto}
             onChangeText={setTexto}
-            placeholder="Buscar por evento, lugar o descripción..."
+            placeholder={t.buscar.placeholder}
             autoCapitalize="none"
             // A5, criterio 1: la tecla del teclado dice «Buscar» y al tocarla
             // se guarda la búsqueda (ver la cabecera del archivo). A8: y sube
@@ -567,7 +575,7 @@ export default function Buscar() {
                 <Pressable
                   onPress={() => setTexto('')}
                   accessibilityRole="button"
-                  accessibilityLabel="Limpiar búsqueda"
+                  accessibilityLabel={t.buscar.limpiarBusqueda}
                   style={estilos.botonLimpiar}
                   hitSlop={8}
                 >
@@ -578,7 +586,7 @@ export default function Buscar() {
           />
         </View>
 
-        <PillsAtajos atajo={atajo} onCambiar={setAtajo} etiquetaTodas="Cualquier fecha" />
+        <PillsAtajos atajo={atajo} onCambiar={setAtajo} etiquetaTodas={t.buscar.cualquierFecha} />
 
         {/* A3 (nube Q1): "Solo gratis" y "Para chicos" en la misma fila. */}
         <View style={estilos.filaFiltros}>
@@ -596,7 +604,7 @@ export default function Buscar() {
           >
             {/* R72, 72-c: activo = relleno (no solo matiz) + negrita. */}
             <Texto peso={soloGratisActivo ? 'bold' : 'semibold'} style={{ color: soloGratisActivo ? colores.primaryForeground : colores.foreground }}>
-              Solo gratis
+              {t.buscar.soloGratis}
             </Texto>
           </Pressable>
           {/* A3 (nube Q1): mismo estilo, rol y estado que "Solo gratis"; la
@@ -605,7 +613,7 @@ export default function Buscar() {
             onPress={() => setParaChicosActivo((valor) => !valor)}
             accessibilityRole="button"
             accessibilityState={{ selected: paraChicosActivo }}
-            accessibilityLabel="Solo eventos para chicos"
+            accessibilityLabel={t.filtros.soloParaChicos}
             style={[
               estilos.chipGratis,
               {
@@ -615,7 +623,7 @@ export default function Buscar() {
             ]}
           >
             <Texto peso={paraChicosActivo ? 'bold' : 'semibold'} style={{ color: paraChicosActivo ? colores.primaryForeground : colores.foreground }}>
-              Para chicos
+              {t.filtros.paraChicos}
             </Texto>
           </Pressable>
         </View>
@@ -628,7 +636,7 @@ export default function Buscar() {
           `?categoria=`), la de tarjetas. El pull-to-refresh no cambia. */}
       {estado.tipo === 'cargando' ? <EsqueletoBuscar resultados={mostrarResultados} /> : null}
 
-      {estado.tipo === 'error' ? <ErrorCarga mensaje={estado.error} onReintentar={cargar} /> : null}
+      {estado.tipo === 'error' ? <ErrorCarga mensaje={t.errores.traducir(estado.error)} onReintentar={cargar} /> : null}
 
       {estado.tipo === 'ok' && !mostrarResultados ? (
         <FlatList
@@ -654,13 +662,13 @@ export default function Buscar() {
               <BusquedasRecientes busquedas={recientes} onElegir={repetirBusqueda} onBorrarHistorial={borrarHistorial} />
               {avisoNoSeActualizo}
               <Texto peso="semibold" accessibilityRole="header" style={estilos.tituloSeccion}>
-                Explorar por categoría
+                {t.buscar.explorar}
               </Texto>
             </>
           }
           // A6: la carga salió bien pero no trajo categorías: porqué +
           // "Reintentar" (`refrescar`, así no pasa por `Cargando`).
-          ListEmptyComponent={<ErrorCarga mensaje={VACIO_CATEGORIAS_BUSCAR} onReintentar={refrescar} />}
+          ListEmptyComponent={<ErrorCarga mensaje={t.vacios.categoriasBuscar} onReintentar={refrescar} />}
           // R60, 52-d: con la lista vacía, `null` en vez de `<BannerAnuncio>`
           // — hallazgo de la R52 en la web (ux-ui): una FlatList dibuja
           // `ListFooterComponent` también debajo de `ListEmptyComponent`, así
@@ -704,7 +712,7 @@ export default function Buscar() {
                 </View>
               ) : null}
               <Texto tono="secundario" style={estilos.tituloSeccion}>
-                {textoResultadosBuscar(resultadosMostrados.length, filtrosTexto)}
+                {textoResultadosBuscar(resultadosMostrados.length, filtrosTexto, idioma)}
               </Texto>
             </>
           }

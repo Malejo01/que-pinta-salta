@@ -10,6 +10,11 @@
 // Qué cuenta como filtro: «Gratis», «Para chicos» y la categoría elegida. La
 // fecha NO cuenta (las pills siempre tienen una elegida y «Limpiar» no la toca).
 
+// Q6-1: los textos viven en el diccionario (`filtros`); cada función recibe
+// el idioma al final (castellano si no se pasa).
+import type { Idioma } from '@/lib/i18n/idioma'
+import { textosDe } from '@/lib/i18n/textos'
+
 export interface FiltrosPortada {
   gratis: boolean
   paraChicos: boolean
@@ -23,14 +28,13 @@ export function contarFiltrosActivos(filtros: FiltrosPortada): number {
 }
 
 /** Lo que se lee en el botón: «Filtros» sin activos, «Filtros · 2» con activos. */
-export function etiquetaVisibleFiltros(activos: number): string {
-  return activos > 0 ? `Filtros · ${activos}` : 'Filtros'
+export function etiquetaVisibleFiltros(activos: number, idioma: Idioma = 'es'): string {
+  return textosDe(idioma).filtros.boton(activos)
 }
 
 /** Lo que dice el lector de pantalla: «Filtros», «Filtros, 1 activo», «Filtros, 2 activos». */
-export function etiquetaAccesibleFiltros(activos: number): string {
-  if (activos <= 0) return 'Filtros'
-  return `Filtros, ${activos} ${activos === 1 ? 'activo' : 'activos'}`
+export function etiquetaAccesibleFiltros(activos: number, idioma: Idioma = 'es'): string {
+  return textosDe(idioma).filtros.botonEtiqueta(activos)
 }
 
 /** Qué filtro quita cada chip removible. */
@@ -49,18 +53,19 @@ export interface ChipRemovible {
  * Para chicos, categoría). `nombreCategoria` es el nombre visible de la
  * categoría elegida (si falta, el slug).
  */
-export function chipsRemovibles(filtros: FiltrosPortada, nombreCategoria: string): ChipRemovible[] {
+export function chipsRemovibles(filtros: FiltrosPortada, nombreCategoria: string, idioma: Idioma = 'es'): ChipRemovible[] {
+  const t = textosDe(idioma).filtros
   const chips: ChipRemovible[] = []
-  if (filtros.gratis) chips.push({ clave: 'gratis', texto: 'Gratis', etiqueta: 'Quitar Gratis' })
-  if (filtros.paraChicos) chips.push({ clave: 'para-chicos', texto: 'Para chicos', etiqueta: 'Quitar Para chicos' })
+  if (filtros.gratis) chips.push({ clave: 'gratis', texto: t.gratis, etiqueta: t.quitar(t.gratis) })
+  if (filtros.paraChicos) chips.push({ clave: 'para-chicos', texto: t.paraChicos, etiqueta: t.quitar(t.paraChicos) })
   if (filtros.categoria !== null) {
     const nombre = nombreCategoria || filtros.categoria
-    chips.push({ clave: 'categoria', texto: nombre, etiqueta: `Quitar ${nombre}` })
+    chips.push({ clave: 'categoria', texto: nombre, etiqueta: t.quitar(nombre) })
   }
   return chips
 }
 
 /** El botón de abajo de la hoja, que la cierra: «Ver 1 evento» / «Ver 12 eventos». */
-export function textoVerEventos(cantidad: number): string {
-  return `Ver ${cantidad} ${cantidad === 1 ? 'evento' : 'eventos'}`
+export function textoVerEventos(cantidad: number, idioma: Idioma = 'es'): string {
+  return textosDe(idioma).filtros.verEventos(cantidad)
 }

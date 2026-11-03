@@ -17,6 +17,7 @@ import { AppState, Pressable, StyleSheet, Text, TextInput, View, type TextInputP
 import { Icono } from '@/components/Icono'
 import { hitSlopPara } from '@/lib/accesibilidad'
 import { useColoresQPS } from '@/lib/colores'
+import { useTextos } from '@/lib/i18n'
 
 // El rojo del error del alta/login (R24) seguía el esquema del sistema
 // operativo (`useColorScheme()`): un rojo pensado para fondo claro
@@ -47,6 +48,7 @@ export const CampoTexto = forwardRef<TextInput, CampoTextoProps>(function CampoT
   ref
 ) {
   const colores = useColoresQPS()
+  const t = useTextos().cuenta
   const [enFoco, setEnFoco] = useState(false)
   const [oculto, setOculto] = useState(true)
 
@@ -98,7 +100,7 @@ export const CampoTexto = forwardRef<TextInput, CampoTextoProps>(function CampoT
           <Pressable
             onPress={() => setOculto((valor) => !valor)}
             accessibilityRole="button"
-            accessibilityLabel={oculto ? 'Mostrar contraseña' : 'Ocultar contraseña'}
+            accessibilityLabel={oculto ? t.mostrarContrasena : t.ocultarContrasena}
             // 46-c: el ojito es 44×44 (ver `estilos.ojito`), 4dp corto de los
             // 48 de `AREA_TACTIL_MINIMA`. No se sube el tamaño del estilo (no
             // tiene fondo/borde visible: agrandarlo no cambiaría nada de lo

@@ -22,6 +22,8 @@ import { tmpdir } from 'node:os'
 import { join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { afterAll, describe, expect, it } from 'vitest'
+import { en } from '../lib/i18n/diccionarios/en'
+import { es } from '../lib/i18n/diccionarios/es'
 
 const MOBILE_ROOT = fileURLToPath(new URL('..', import.meta.url))
 const APP_DIR = join(MOBILE_ROOT, 'app')
@@ -366,7 +368,9 @@ describe('app/(tabs)/buscar.tsx: el botón de limpiar vuelve con accionDerecha (
   })
 
   it('el botón de limpiar: mismo accessibilityLabel, hitSlop y onPress que el TextInput suelto de antes', () => {
-    expect(SRC_BUSCAR).toContain('accessibilityLabel="Limpiar búsqueda"')
+    // Q6-1: la etiqueta sale del diccionario (`buscar.limpiarBusqueda`).
+    expect(SRC_BUSCAR).toContain('accessibilityLabel={t.buscar.limpiarBusqueda}')
+    expect(es.buscar.limpiarBusqueda).toBe('Limpiar búsqueda')
     expect(SRC_BUSCAR).toMatch(/hitSlop=\{8\}/)
     expect(SRC_BUSCAR).toMatch(/onPress=\{\(\)\s*=>\s*setTexto\(''\)\}/)
   })
@@ -547,7 +551,9 @@ describe('CampoTexto.tsx: accionDerecha (33-a, vuelta 1, QPS-151)', () => {
   })
 
   it('no toca la rama de conOjito: sigue el "ojito" con los dos accessibilityLabel', () => {
-    expect(SRC_CAMPO_TEXTO).toContain('Mostrar contraseña')
-    expect(SRC_CAMPO_TEXTO).toContain('Ocultar contraseña')
+    // Q6-1: del diccionario.
+    expect(SRC_CAMPO_TEXTO).toContain('accessibilityLabel={oculto ? t.mostrarContrasena : t.ocultarContrasena}')
+    expect([es.cuenta.mostrarContrasena, es.cuenta.ocultarContrasena]).toEqual(['Mostrar contraseña', 'Ocultar contraseña'])
+    expect(en.cuenta.mostrarContrasena).not.toBe(es.cuenta.mostrarContrasena)
   })
 })

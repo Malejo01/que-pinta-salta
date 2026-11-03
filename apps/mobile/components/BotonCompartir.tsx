@@ -25,6 +25,7 @@ import { HojaCompartirTarjeta } from '@/components/HojaCompartirTarjeta'
 import { Icono } from '@/components/Icono'
 import { hitSlopPara } from '@/lib/accesibilidad'
 import { useColoresQPS } from '@/lib/colores'
+import { useTextos } from '@/lib/i18n'
 
 /**
  * `hitSlopPara(tamanio)` sirve para los dos usos: 40 en la ficha
@@ -62,6 +63,7 @@ export interface BotonCompartirProps {
 export function BotonCompartir({ eventId, titulo, fecha, hora, lugar, tamanio = 40, fondo = 'muted', tarjeta }: BotonCompartirProps) {
   const colores = useColoresQPS()
   const [hojaVisible, setHojaVisible] = useState(false)
+  const t = useTextos().tarjeta
 
   async function compartir() {
     const mensaje = mensajeCompartirEvento({ eventId, titulo, fecha, hora, lugar })
@@ -89,7 +91,7 @@ export function BotonCompartir({ eventId, titulo, fecha, hora, lugar, tamanio = 
       <Pressable
         onPress={alTocar}
         accessibilityRole="button"
-        accessibilityLabel={`Compartir ${titulo}`}
+        accessibilityLabel={t.compartir(titulo)}
         hitSlop={hitSlopBotonAccion(tamanio)}
         style={[estilos.boton, { width: tamanio, height: tamanio, borderRadius: tamanio / 2, backgroundColor: fondoColor }]}
       >

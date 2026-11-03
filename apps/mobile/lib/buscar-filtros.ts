@@ -16,14 +16,14 @@
 // es para chicos. Por eso los filtros llevan también el slug (`categoria`).
 import type { Atajo } from '@qps/core/home/atajos'
 import { SLUG_INFANTIL } from '@/lib/para-chicos'
+import { es } from '@/lib/i18n/diccionarios/es'
+import type { Idioma } from '@/lib/i18n/idioma'
+import { textosDe } from '@/lib/i18n/textos'
 
 /** Cómo se nombra cada fecha dentro de una frase ("... · el finde", "... para hoy"). */
-export const NOMBRE_ATAJO: Record<Atajo, string> = {
-  hoy: 'hoy',
-  'esta-noche': 'esta noche',
-  finde: 'el finde',
-  semana: 'esta semana',
-}
+// Q6-1: los textos de los conteos viven en el diccionario (`buscar`); las
+// frases de fecha son las de la portada (`portada.frases`).
+export const NOMBRE_ATAJO: Record<Atajo, string> = es.portada.frases
 
 /** Los filtros de Buscar que entran en los textos. `null` = sin ese filtro. */
 export interface FiltrosTextoBuscar {
@@ -42,28 +42,21 @@ function nombraParaChicos(f: FiltrosTextoBuscar): boolean {
 }
 
 /** La línea de conteo arriba de los resultados ("3 eventos gratis para chicos en Teatro · el finde"). */
-export function textoResultadosBuscar(cantidad: number, f: FiltrosTextoBuscar): string {
-  const plural = cantidad !== 1 ? 's' : ''
-  const enCategoria = f.nombreCategoria ? ` en ${f.nombreCategoria}` : ''
-  const sufijoFecha = f.atajo ? ` · ${NOMBRE_ATAJO[f.atajo]}` : ''
-  if (f.texto) return `${cantidad} resultado${plural} para "${f.texto}"${enCategoria}${sufijoFecha}`
-  const gratis = f.soloGratis ? ' gratis' : ''
-  const chicos = nombraParaChicos(f) ? ' para chicos' : ''
-  return `${cantidad} evento${plural}${gratis}${chicos}${enCategoria}${sufijoFecha}`
+function partes(f: FiltrosTextoBuscar, idioma: Idioma) {
+  return {
+    texto: f.texto,
+    gratis: f.soloGratis,
+    paraChicos: nombraParaChicos(f),
+    nombreCategoria: f.nombreCategoria,
+    frase: f.atajo ? textosDe(idioma).portada.frases[f.atajo] : null,
+  }
+}
+
+export function textoResultadosBuscar(cantidad: number, f: FiltrosTextoBuscar, idioma: Idioma = 'es'): string {
+  return textosDe(idioma).buscar.resultados(cantidad, partes(f, idioma))
 }
 
 /** El texto del vacío de los resultados ("No hay eventos para chicos en Teatro el finde."). */
-export function textoSinResultadosBuscar(f: FiltrosTextoBuscar): string {
-  const enCategoria = f.nombreCategoria ? ` en ${f.nombreCategoria}` : ''
-  if (f.texto) {
-    const sufijoFecha = f.atajo ? ` · ${NOMBRE_ATAJO[f.atajo]}` : ''
-    return `No se encontraron eventos para "${f.texto}"${enCategoria}${sufijoFecha}`
-  }
-  const gratis = f.soloGratis ? ' gratis' : ''
-  if (nombraParaChicos(f)) {
-    const cuando = f.atajo ? ` ${NOMBRE_ATAJO[f.atajo]}` : ' por ahora'
-    return `No hay eventos${gratis} para chicos${enCategoria}${cuando}.`
-  }
-  const cuando = f.atajo ? ` para ${NOMBRE_ATAJO[f.atajo]}` : ' por ahora'
-  return `No hay eventos${gratis}${enCategoria}${cuando}.`
+export function textoSinResultadosBuscar(f: FiltrosTextoBuscar, idioma: Idioma = 'es'): string {
+  return textosDe(idioma).buscar.sinResultados(partes(f, idioma))
 }

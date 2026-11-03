@@ -9,6 +9,8 @@
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { en } from '../lib/i18n/diccionarios/en'
+import { es } from '../lib/i18n/diccionarios/es'
 
 const USER_ID_SESION = 'usuario-de-sesion-1'
 
@@ -172,9 +174,12 @@ describe('components/SeccionNotificaciones.tsx: cambiarPatrocinados y guardar() 
   })
 
   it('el Switch de "Avisos patrocinados" llama (directa o indirectamente) a cambiarPatrocinados en su onValueChange', () => {
-    const idxFila = SRC_SECCION_NOTIFICACIONES.indexOf('<Texto>Avisos patrocinados</Texto>')
+    // Q6-1: el texto de la fila sale del diccionario (`notificaciones.patrocinados`).
+    const idxFila = SRC_SECCION_NOTIFICACIONES.indexOf('<Texto>{t.patrocinados}</Texto>')
     const idxSwitch = SRC_SECCION_NOTIFICACIONES.indexOf('<Switch', idxFila)
     const finSwitch = SRC_SECCION_NOTIFICACIONES.indexOf('/>', idxSwitch)
+    expect(es.notificaciones.patrocinados).toBe('Avisos patrocinados')
+    expect(en.notificaciones.patrocinados).not.toBe('Avisos patrocinados')
     expect(idxFila).toBeGreaterThan(-1)
     expect(idxSwitch).toBeGreaterThan(idxFila)
 

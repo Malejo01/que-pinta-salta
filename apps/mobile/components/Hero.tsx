@@ -55,6 +55,7 @@ import {
 import { useRouter } from 'expo-router'
 import { formatEventDate } from '@qps/core/date-format'
 import { capitalizeFirst } from '@qps/core/event-display'
+import { textoEnIdioma } from '@qps/core/events/traduccion'
 import type { DisplayEvent } from '@qps/core/home/types'
 import { Afiche } from '@/components/Afiche'
 import { Icono } from '@/components/Icono'
@@ -63,7 +64,9 @@ import { Texto } from '@/components/Texto'
 import { AREA_TACTIL_MINIMA, ESCALA_MAXIMA_COMPACTA, hitSlopPara } from '@/lib/accesibilidad'
 import { useColoresQPS } from '@/lib/colores'
 import { textoPrecio } from '@/lib/formato'
-import { ACCIONES_HERO, etiquetaDiapositiva, indiceTrasAccion } from '@/lib/hero-accesible'
+import { accionesHero, etiquetaDiapositiva, indiceTrasAccion } from '@/lib/hero-accesible'
+import { useIdioma, useTextos } from '@/lib/i18n'
+import { localeDeIdioma } from '@/lib/i18n/idioma'
 import { rutaDeEvento } from '@/lib/rutas'
 import LOGO_MARCA from '@/assets/logo-circular.png'
 
@@ -117,6 +120,7 @@ export function Hero({ eventos }: HeroProps) {
   const [lectorActivo, setLectorActivo] = useState(false)
 
   const slides = eventosHero(eventos)
+  const t = useTextos().hero
 
   // WCAG 2.2.2 ("Pausa, detener, ocultar"): con el lector de pantalla
   // prendido el Hero no tiene que avanzar solo, porque quien lo usa necesita
@@ -207,7 +211,7 @@ export function Hero({ eventos }: HeroProps) {
               key={item.id}
               onPress={() => irA(i)}
               accessibilityRole="button"
-              accessibilityLabel={`Ir al evento ${i + 1}`}
+              accessibilityLabel={t.irAlEvento(i + 1)}
               hitSlop={HIT_SLOP_PUNTO}
               style={[
                 estilos.punto,
@@ -235,15 +239,19 @@ interface DiapositivaHeroProps {
 
 function DiapositivaHero({ evento, ancho, alto, indice, total, alCambiarIndice, onPress }: DiapositivaHeroProps) {
   const colores = useColoresQPS()
-  const fecha = capitalizeFirst(formatEventDate(evento.date))
-  const precio = textoPrecio(evento.price)
+  // Q6-1: fecha con Intl en el idioma de la app y, en inglés, el título traducido si lo hay.
+  const { idioma } = useIdioma()
+  const t = useTextos().hero
+  const fecha = capitalizeFirst(formatEventDate(evento.date, false, localeDeIdioma(idioma)))
+  const precio = textoPrecio(evento.price, idioma)
+  const titulo = textoEnIdioma(evento.title, evento.titleEn, idioma).texto
 
   return (
     <Pressable
       onPress={onPress}
       accessibilityRole="button"
-      accessibilityLabel={etiquetaDiapositiva(evento.title, indice, total)}
-      accessibilityActions={total > 1 ? ACCIONES_HERO : undefined}
+      accessibilityLabel={etiquetaDiapositiva(titulo, indice, total, idioma)}
+      accessibilityActions={total > 1 ? accionesHero(idioma) : undefined}
       onAccessibilityAction={(accion) => alCambiarIndice(indiceTrasAccion(accion.nativeEvent.actionName, indice, total))}
       style={[estilos.diapositiva, { width: ancho, height: alto }]}
     >
@@ -292,7 +300,7 @@ function DiapositivaHero({ evento, ancho, alto, indice, total, alCambiarIndice, 
         </View>
 
         <Texto peso="bold" style={estilos.titulo} numberOfLines={2} maxFontSizeMultiplier={ESCALA_MAXIMA_COMPACTA}>
-          {evento.title}
+          {titulo}
         </Texto>
 
         <View style={estilos.filaDatos}>
@@ -315,12 +323,12 @@ function DiapositivaHero({ evento, ancho, alto, indice, total, alCambiarIndice, 
           <View style={[estilos.botonVerDetalles, { backgroundColor: colores.primary }]}>
             <Icono nombre="Ticket" tamanio={14} color={colores.primaryForeground} />
             <Texto peso="semibold" style={estilos.textoBoton} maxFontSizeMultiplier={ESCALA_MAXIMA_COMPACTA}>
-              Ver detalles
+              {t.verDetalles}
             </Texto>
           </View>
           {evento.price !== 'confirmar' ? (
             <Texto peso="bold" style={estilos.textoPrecio} numberOfLines={1} maxFontSizeMultiplier={ESCALA_MAXIMA_COMPACTA}>
-              {evento.price === 'gratis' ? 'Entrada Gratuita' : precio}
+              {evento.price === 'gratis' ? t.entradaGratuita : precio}
             </Texto>
           ) : null}
         </View>

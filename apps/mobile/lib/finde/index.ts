@@ -5,6 +5,7 @@ import { formatSaltaDayKey } from '@qps/core/date-format'
 import { almacenPorDefecto, type Almacen } from '@/lib/sin-conexion/almacen'
 import { CLAVE_AGENDA, leerCache, TTL_AGENDA_MS } from '@/lib/sin-conexion/cache'
 import type { DatosAgenda } from '@/lib/sin-conexion/agenda'
+import { idiomaGuardado, type Idioma } from '@/lib/i18n/idioma'
 import { decidirFinde, IDENTIFICADOR_FINDE, TIPO_FINDE, type DecisionFinde } from './finde'
 
 /** Preferencia del interruptor de Cuenta: '1' / '0' / sin valor (= según el permiso). */
@@ -32,6 +33,11 @@ export function avisoDelEquipoDeHoy(data: unknown, fecha: number, hoy: string): 
 export interface DependenciasFinde {
   notificaciones?: ModuloNotificacionesFinde
   almacen?: Almacen
+  /**
+   * Q6-1: el idioma del aviso. Sin pasarlo, el guardado en el teléfono
+   * (Cuenta → Idioma, o el del dispositivo con «Automático»).
+   */
+  idioma?: Idioma
 }
 
 async function leer(almacen: Almacen, clave: string): Promise<string | null> {
@@ -77,10 +83,11 @@ export async function registrarAvisoDelEquipo(ahora: Date, deps: DependenciasFin
 export async function programarFinde(ahora: Date, deps: DependenciasFinde = {}): Promise<DecisionFinde> {
   const notificaciones = deps.notificaciones ?? Notificaciones
   const almacen = deps.almacen ?? almacenPorDefecto
-  const [activo, cache, diaAvisoEquipo] = await Promise.all([
+  const [activo, cache, diaAvisoEquipo, idioma] = await Promise.all([
     findeActivo(deps),
     leerCache<DatosAgenda>(CLAVE_AGENDA, { ahora, ttlMs: TTL_AGENDA_MS, almacen }),
     leer(almacen, CLAVE_DIA_AVISO_EQUIPO),
+    deps.idioma ?? idiomaGuardado(almacen),
   ])
   const decision = decidirFinde({
     ahora,
@@ -88,6 +95,7 @@ export async function programarFinde(ahora: Date, deps: DependenciasFinde = {}):
     eventos: cache?.datos.eventos.map((item) => ({ paraAtajo: item.paraAtajo, gratis: item.evento.price === 'gratis' })) ?? null,
     guardadoEn: cache?.guardadoEn ?? null,
     diaAvisoEquipo,
+    idioma,
   })
 
   try {
