@@ -190,7 +190,8 @@ describe('privacidad: lib/publicidad y la ruta del cron (detectores sobre el tex
     // `envios` (los user_id de los destinatarios) solo se usa para contar y para pasárselo a quien cuenta.
     const usos = [...cuerpo.matchAll(/\benvios\b(?!\s*=)/g)].map((m) => cuerpo.slice(Math.max(0, m.index - 20), m.index + 12))
     expect(usos.length).toBeGreaterThan(0)
-    for (const uso of usos) expect(uso).toMatch(/envios\.size|contarBajas\(admin, envios/)
+    // Q5-16: con y sin cuenta (porUsuario / porToken): solo los tamaños y los contadores.
+    for (const uso of usos) expect(uso).toMatch(/destinatarios = envios\.por|\.size \+ envios\.por|(?:contarBajas|SinCuenta)\(admin, envios/)
     // Y el resultado declarado son números y un booleano, nada más.
     const resultado = /interface ResultadoBajas\s*\{/.exec(texto)
     expect(resultado).not.toBeNull()

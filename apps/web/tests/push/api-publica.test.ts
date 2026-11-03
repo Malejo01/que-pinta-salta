@@ -230,10 +230,14 @@ describe('POST /api/push/registrar', () => {
   it('429 con Retry-After al pasar el límite por dispositivo', async () => {
     crearAdmin()
     const { registrar } = await rutas()
+    // Q5-16 (decisión nº5): 6 por hora por dispositivo; el 7º es 429.
+    const estados: number[] = []
     let ultimo: Response | null = null
-    for (let i = 0; i < 21; i++) {
+    for (let i = 0; i < 7; i++) {
       ultimo = await registrar(pedido('/api/push/registrar', { token: TOKEN, plataforma: 'android', deviceId: DEVICE }))
+      estados.push(ultimo.status)
     }
+    expect(estados.slice(0, 6).every((s) => s === 200)).toBe(true)
     expect(ultimo!.status).toBe(429)
     expect(Number(ultimo!.headers.get('retry-after'))).toBeGreaterThan(0)
   })

@@ -1,4 +1,8 @@
 // Q4-11: «Este finde pinta». Lógica pura + aplicación con dobles (sin teléfono).
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { quitarComentarios } from '@qps/core/tests/convencion-entorno'
 import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('expo-notifications', () => ({ SchedulableTriggerInputTypes: { DATE: 'date' } }))
@@ -7,9 +11,11 @@ vi.mock('@/lib/sin-conexion/almacen', () => ({ almacenPorDefecto: { leer: async 
 import { formatSaltaDayKey, saltaWallClockToDate, saltaWallClockToUtcISO } from '@qps/core/date-format'
 import { datosPushAvisoEquipo } from '@qps/core/notificaciones/equipo'
 import { contarFinde, decidirFinde, proximoJueves18, textoFinde, type EventoParaFinde } from '../lib/finde/finde'
-import { CLAVE_DIA_AVISO_EQUIPO, CLAVE_FINDE, esAvisoDelEquipo, programarFinde, registrarAvisoDelEquipo, type ModuloNotificacionesFinde } from '../lib/finde'
+import { avisoDelEquipoDeHoy, CLAVE_DIA_AVISO_EQUIPO, CLAVE_FINDE, esAvisoDelEquipo, programarFinde, registrarAvisoDelEquipo, type ModuloNotificacionesFinde } from '../lib/finde'
 import { CLAVE_AGENDA, VERSION_CACHE } from '../lib/sin-conexion/cache'
 import type { Almacen } from '../lib/sin-conexion/almacen'
+
+const RAIZ_APP = fileURLToPath(new URL('..', import.meta.url))
 
 // Martes 3/11/2026, 10:00 de Salta. El jueves es el 5/11.
 const MARTES = saltaWallClockToDate('2026-11-03T10:00:00')
@@ -80,6 +86,24 @@ describe('el aviso del equipo se reconoce por { aviso: "equipo" }', () => {
     expect(esAvisoDelEquipo(datosPushAvisoEquipo({ tipo: 'inicio' }))).toBe(true)
     expect(esAvisoDelEquipo({ tipo: 'patrocinado' })).toBe(false)
     expect(esAvisoDelEquipo(null)).toBe(false)
+  })
+})
+
+describe('Q5-16 (nº17): el aviso del equipo de hoy, también el que se tocó con la app cerrada', () => {
+  it('avisoDelEquipoDeHoy: marca y día de Salta', () => {
+    const jueves1130 = Date.parse('2026-11-05T14:30:00Z') // jueves 5/11 11:30 en Salta
+    expect(avisoDelEquipoDeHoy({ aviso: 'equipo' }, jueves1130, '2026-11-05')).toBe(true)
+    expect(avisoDelEquipoDeHoy({ aviso: 'equipo' }, jueves1130, '2026-11-06')).toBe(false)
+    expect(avisoDelEquipoDeHoy({ tipo: 'patrocinado' }, jueves1130, '2026-11-05')).toBe(false)
+    expect(avisoDelEquipoDeHoy({ aviso: 'equipo' }, Number.NaN, '2026-11-05')).toBe(false)
+  })
+
+  it('el sincronizador mira la bandeja, la última notificación tocada y los toques', () => {
+    const src = quitarComentarios(readFileSync(join(RAIZ_APP, 'components', 'SincronizadorFinde.tsx'), 'utf8'))
+    expect(src).toContain('getPresentedNotificationsAsync()')
+    expect(src).toContain('getLastNotificationResponseAsync()')
+    expect(src).toMatch(/addNotificationResponseReceivedListener\(\(r\) => \{\s*if \(esAvisoDelEquipo\(r\.notification\.request\.content\.data\)\) void registrarAvisoDelEquipo/)
+    expect(src).toContain('bajaToques.remove()')
   })
 })
 

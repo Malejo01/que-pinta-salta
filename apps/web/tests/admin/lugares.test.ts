@@ -147,7 +147,7 @@ describe('guardarUbicacionManual: id o texto inválidos, sin crear el cliente', 
 })
 
 describe('guardarUbicacionManual: admin + texto bueno', () => {
-  it('hace un solo update sobre venues, con exactamente los cuatro campos, geocode_source: "manual" y .eq("id", venueId)', async () => {
+  it('hace un solo update sobre venues, con los cuatro campos de la ubicación (y la sugerencia en null, Q5-16), geocode_source: "manual" y .eq("id", venueId)', async () => {
     const { cliente, updates } = construirCliente({
       user: { id: 'admin-1' },
       profile: { role: 'ADMIN' },
@@ -159,7 +159,22 @@ describe('guardarUbicacionManual: admin + texto bueno', () => {
     expect(resultado).toEqual({ ok: true })
     expect(updates).toHaveLength(1)
     const valores = updates[0] as Record<string, unknown>
-    expect(Object.keys(valores).sort()).toEqual(['geocode_source', 'geocoded_at', 'latitude', 'longitude'])
+    // Q5-16: además de los cuatro campos de la ubicación, limpia las cuatro
+    // columnas de la sugerencia de Nominatim (decisión nº7: cargado a mano, ya no hace falta).
+    expect(Object.keys(valores).sort()).toEqual([
+      'geocode_source',
+      'geocode_sugerencia_at',
+      'geocode_sugerencia_lat',
+      'geocode_sugerencia_lng',
+      'geocode_sugerencia_texto',
+      'geocoded_at',
+      'latitude',
+      'longitude',
+    ])
+    expect(valores.geocode_sugerencia_lat).toBeNull()
+    expect(valores.geocode_sugerencia_lng).toBeNull()
+    expect(valores.geocode_sugerencia_texto).toBeNull()
+    expect(valores.geocode_sugerencia_at).toBeNull()
     expect(valores.geocode_source).toBe('manual')
     expect(valores.latitude).toBe(-24.7883)
     expect(valores.longitude).toBe(-65.4106)

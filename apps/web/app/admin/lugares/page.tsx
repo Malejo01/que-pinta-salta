@@ -8,6 +8,7 @@ import { traerTodasLasFilas } from '@/lib/images/paginar-filas'
 import { urlBuscarEnOsm, urlVerEnOsm } from '@/lib/venues/coordenadas-manuales'
 import { LugarUbicacionForm } from '@/components/admin/lugar-ubicacion-form'
 import { LugarMapaUbicar } from '@/components/admin/lugar-mapa-ubicar'
+import { LugarSugerenciaAcciones } from '@/components/admin/lugar-sugerencia-acciones'
 import { isUuid } from '@/lib/metricas'
 import { direccionUtil } from '@/lib/venues/geocodificacion/consultas'
 import { proximaFuentePorLugar, type FilaFuente } from '@/lib/admin/fuente-lugar'
@@ -28,6 +29,11 @@ interface VenueFila {
   longitude: number | null
   geocode_source: string | null
   geocoded_at: string | null
+  /** Q5-16: la mejor sugerencia de Nominatim sin match seguro (lat, lng y at van juntas). */
+  geocode_sugerencia_lat: number | null
+  geocode_sugerencia_lng: number | null
+  geocode_sugerencia_texto: string | null
+  geocode_sugerencia_at: string | null
 }
 
 /** Fila de evento con el lugar propio del evento (como lo dibuja el mapa). */
@@ -103,7 +109,9 @@ export default async function AdminLugaresPage({
     traerTodasLasFilas<VenueFila>((desde, hasta) =>
       supabase
         .from('venues')
-        .select('id, name, address, latitude, longitude, geocode_source, geocoded_at')
+        .select(
+          'id, name, address, latitude, longitude, geocode_source, geocoded_at, geocode_sugerencia_lat, geocode_sugerencia_lng, geocode_sugerencia_texto, geocode_sugerencia_at'
+        )
         .is('canonical_venue_id', null)
         .is('merged_at', null)
         .eq('is_placeholder', false)
@@ -216,6 +224,19 @@ export default async function AdminLugaresPage({
             const cantidadEventos = conteoPorVenue.get(venue.id) ?? 0
             const fuente = fuentePorVenue.get(venue.id) ?? null
             const parecidos = duplicadosPorVenue.get(venue.id) ?? []
+            // Q5-16: la sugerencia solo se ofrece en «Sin ubicación» (un lugar con coordenadas no la necesita).
+            const sugerencia =
+              pestañaActual === 'sin-ubicacion' &&
+              venue.latitude === null &&
+              venue.geocode_sugerencia_lat !== null &&
+              venue.geocode_sugerencia_lng !== null
+                ? {
+                    lat: venue.geocode_sugerencia_lat,
+                    lng: venue.geocode_sugerencia_lng,
+                    texto: venue.geocode_sugerencia_texto,
+                    at: venue.geocode_sugerencia_at,
+                  }
+                : null
             return (
               <Card key={venue.id}>
                 <CardHeader className="pb-2">
@@ -244,6 +265,46 @@ export default async function AdminLugaresPage({
                         <li key={otro.id}>¿Es el mismo lugar que «{otro.name}»?</li>
                       ))}
                     </ul>
+                  )}
+                  {sugerencia && (
+                    <section
+                      aria-label={`Ubicación sugerida para ${venue.name}`}
+                      className="flex flex-col gap-2 rounded-md border border-border bg-muted/30 p-3"
+                    >
+                      <p className="text-sm font-medium text-foreground">Ubicación sugerida (sin un match seguro)</p>
+                      <p className="break-words text-sm text-foreground">
+                        {sugerencia.texto ?? 'Nominatim no devolvió una dirección para este punto'}
+                      </p>
+                      <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                        <span>
+                          {sugerencia.lat}, {sugerencia.lng}
+                        </span>
+                        {sugerencia.at && <span>Sugerida: {formatGeocodedAt(sugerencia.at)}</span>}
+                        <span>
+                          Datos: ©{' '}
+                          <a
+                            href="https://www.openstreetmap.org/copyright"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="underline"
+                          >
+                            colaboradores de OpenStreetMap
+                          </a>{' '}
+                          (ODbL)
+                        </span>
+                      </div>
+                      <a
+                        href={urlVerEnOsm(sugerencia.lat, sugerencia.lng)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        aria-label={`Ver en OpenStreetMap la ubicación sugerida para ${venue.name}`}
+                        className="inline-flex min-h-11 items-center gap-1 self-start text-xs font-medium text-primary hover:underline"
+                      >
+                        Ver la sugerencia en OpenStreetMap
+                        <ExternalLink className="size-3" />
+                      </a>
+                      <LugarSugerenciaAcciones venueId={venue.id} nombre={venue.name} />
+                    </section>
                   )}
                   <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
                     <span>
