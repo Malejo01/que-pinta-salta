@@ -1,8 +1,12 @@
 "use client"
 
 import { createContext, useContext, useState, ReactNode } from "react"
-import { createClient, signInWithGoogle } from "@/lib/supabase/client"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
+// Q6-5: supabase-js se pide al usarlo (al enviar), no viaja en el JavaScript
+// inicial de cada página (el provider vive en el layout raíz).
+import { cargarModuloCliente, clienteSupabase } from "@/lib/supabase/cliente-diferido"
+// Q6-5: Radix Dialog diferido (components/ui/dialog-diferido.tsx): el modal
+// vive en el layout raíz y se monta recién la primera vez que se abre.
+import { PiezasDeDialogo } from "@/components/ui/dialog-diferido"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { PasswordInput } from "@/components/ui/password-input"
@@ -41,6 +45,9 @@ const GoogleIcon = () => (
 
 export function AuthModalProvider({ children }: { children: ReactNode }) {
   const [isOpen, setIsOpen] = useState(false)
+  // Q6-5: el diálogo (y Radix con él) se monta la primera vez que se abre y
+  // después queda montado, para que la animación de cierre no se corte.
+  const [seAbrio, setSeAbrio] = useState(false)
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [error, setError] = useState<string | null>(null)
@@ -55,6 +62,7 @@ export function AuthModalProvider({ children }: { children: ReactNode }) {
     setIsLoading(true)
     setError(null)
     try {
+      const { signInWithGoogle } = await cargarModuloCliente()
       const { error } = await signInWithGoogle()
       if (error) throw error
     } catch {
@@ -71,17 +79,18 @@ export function AuthModalProvider({ children }: { children: ReactNode }) {
     setEmail("")
     setPassword("")
     setMode("login")
+    setSeAbrio(true)
     setIsOpen(true)
   }
   const close = () => setIsOpen(false)
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault()
-    const supabase = createClient()
     setIsLoading(true)
     setError(null)
 
     try {
+      const supabase = await clienteSupabase()
       if (mode === "login") {
         const { error } = await supabase.auth.signInWithPassword({
           email,
@@ -152,151 +161,155 @@ export function AuthModalProvider({ children }: { children: ReactNode }) {
   return (
     <AuthModalContext.Provider value={{ open, close }}>
       {children}
-      <Dialog open={isOpen} onOpenChange={setIsOpen}>
-        <DialogContent className="sm:max-w-[400px]">
-          <DialogHeader>
-            <DialogTitle className="text-xl font-bold text-center">
-              {mode === "login" ? t.tituloIngresar : t.tituloCrear}
-            </DialogTitle>
-            <DialogDescription className="text-center">
-              {mode === "login" ? t.descripcionIngresar : t.descripcionCrear}
-            </DialogDescription>
-          </DialogHeader>
-          <form onSubmit={handleAuth} className="space-y-4 pt-4">
-            <div className="space-y-2">
-              <Label htmlFor="modal-email">{t.email}</Label>
-              <Input
-                id="modal-email"
-                type="email"
-                autoComplete="email"
-                aria-invalid={errorVisible ? true : undefined}
-                aria-describedby={errorVisible ? "modal-auth-error" : undefined}
-                placeholder={t.emailPlaceholder}
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="modal-password">{t.contrasena}</Label>
-              <PasswordInput
-                id="modal-password"
-                autoComplete={mode === "login" ? "current-password" : "new-password"}
-                aria-invalid={errorVisible ? true : undefined}
-                aria-describedby={errorVisible ? "modal-auth-error" : undefined}
-                etiquetaMostrar={t.mostrarContrasena}
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-              />
-              {mode === "login" && (
-                <Link
-                  href="/auth/recuperar"
-                  hrefLang={hrefLangDestino(idioma, "/auth/recuperar")}
-                  onClick={close}
-                  className="text-sm text-muted-foreground underline underline-offset-4 hover:text-foreground"
+      {seAbrio && (
+        <PiezasDeDialogo>{({ Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription }) => (
+          <Dialog open={isOpen} onOpenChange={setIsOpen}>
+            <DialogContent className="sm:max-w-[400px]">
+              <DialogHeader>
+                <DialogTitle className="text-xl font-bold text-center">
+                  {mode === "login" ? t.tituloIngresar : t.tituloCrear}
+                </DialogTitle>
+                <DialogDescription className="text-center">
+                  {mode === "login" ? t.descripcionIngresar : t.descripcionCrear}
+                </DialogDescription>
+              </DialogHeader>
+              <form onSubmit={handleAuth} className="space-y-4 pt-4">
+                <div className="space-y-2">
+                  <Label htmlFor="modal-email">{t.email}</Label>
+                  <Input
+                    id="modal-email"
+                    type="email"
+                    autoComplete="email"
+                    aria-invalid={errorVisible ? true : undefined}
+                    aria-describedby={errorVisible ? "modal-auth-error" : undefined}
+                    placeholder={t.emailPlaceholder}
+                    required
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="modal-password">{t.contrasena}</Label>
+                  <PasswordInput
+                    id="modal-password"
+                    autoComplete={mode === "login" ? "current-password" : "new-password"}
+                    aria-invalid={errorVisible ? true : undefined}
+                    aria-describedby={errorVisible ? "modal-auth-error" : undefined}
+                    etiquetaMostrar={t.mostrarContrasena}
+                    required
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                  />
+                  {mode === "login" && (
+                    <Link
+                      href="/auth/recuperar"
+                      hrefLang={hrefLangDestino(idioma, "/auth/recuperar")}
+                      onClick={close}
+                      className="text-sm text-muted-foreground underline underline-offset-4 hover:text-foreground"
+                    >
+                      {t.olvidasteContrasena}
+                    </Link>
+                  )}
+                </div>
+                {errorVisible && (
+                  <p id="modal-auth-error" role="alert" className="rounded-md bg-destructive/10 p-3 text-sm text-destructive text-center" lang={langError}>
+                    {errorVisible}
+                  </p>
+                )}
+                <Button 
+                  type="submit" 
+                  className="w-full bg-primary text-primary-foreground hover:bg-primary/90 font-semibold" 
+                  disabled={isLoading}
                 >
-                  {t.olvidasteContrasena}
-                </Link>
-              )}
-            </div>
-            {errorVisible && (
-              <p id="modal-auth-error" role="alert" className="rounded-md bg-destructive/10 p-3 text-sm text-destructive text-center" lang={langError}>
-                {errorVisible}
-              </p>
-            )}
-            <Button 
-              type="submit" 
-              className="w-full bg-primary text-primary-foreground hover:bg-primary/90 font-semibold" 
-              disabled={isLoading}
-            >
-              {isLoading 
-                ? (mode === "login" ? t.iniciandoSesion : t.creandoCuenta) 
-                : (mode === "login" ? t.botonIngresar : t.botonRegistrarse)}
-            </Button>
+                  {isLoading 
+                    ? (mode === "login" ? t.iniciandoSesion : t.creandoCuenta) 
+                    : (mode === "login" ? t.botonIngresar : t.botonRegistrarse)}
+                </Button>
 
-            <div className="relative my-2">
-              <div className="absolute inset-0 flex items-center">
-                <span className="w-full border-t" />
-              </div>
-              <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-background px-2 text-muted-foreground">{t.oContinuarCon}</span>
-              </div>
-            </div>
+                <div className="relative my-2">
+                  <div className="absolute inset-0 flex items-center">
+                    <span className="w-full border-t" />
+                  </div>
+                  <div className="relative flex justify-center text-xs uppercase">
+                    <span className="bg-background px-2 text-muted-foreground">{t.oContinuarCon}</span>
+                  </div>
+                </div>
 
-            <Button
-              variant="outline"
-              type="button"
-              className="w-full flex items-center justify-center gap-2 bg-background hover:bg-muted/30 border-input hover:border-muted-foreground/30 transition-all duration-200 shadow-xs hover:shadow-sm hover:-translate-y-[1px] active:translate-y-0"
-              onClick={handleGoogleLogin}
-              disabled={isLoading}
-            >
-              <GoogleIcon />
-              <span>Google</span>
-            </Button>
+                <Button
+                  variant="outline"
+                  type="button"
+                  className="w-full flex items-center justify-center gap-2 bg-background hover:bg-muted/30 border-input hover:border-muted-foreground/30 transition-all duration-200 shadow-xs hover:shadow-sm hover:-translate-y-[1px] active:translate-y-0"
+                  onClick={handleGoogleLogin}
+                  disabled={isLoading}
+                >
+                  <GoogleIcon />
+                  <span>Google</span>
+                </Button>
 
-            <p className="text-xs text-muted-foreground text-center">
-              {mode === "login" ? (
-                <>
-                  {t.aceptasConGoogle}{" "}
-                  <Link href="/terminos" onClick={close} {...langLegales} className="text-primary underline underline-offset-4">
-                    {t.terminos}
-                  </Link>{" "}
-                  {t.yLa}{" "}
-                  <Link href="/privacidad" onClick={close} {...langLegales} className="text-primary underline underline-offset-4">
-                    {t.privacidad}
-                  </Link>
-                  {t.cierreLegales}
-                </>
-              ) : (
-                <>
-                  {t.aceptasAlCrear}{" "}
-                  <Link href="/terminos" onClick={close} {...langLegales} className="text-primary underline underline-offset-4">
-                    {t.terminos}
-                  </Link>{" "}
-                  {t.yLa}{" "}
-                  <Link href="/privacidad" onClick={close} {...langLegales} className="text-primary underline underline-offset-4">
-                    {t.privacidad}
-                  </Link>
-                  {t.cierreLegales}
-                </>
-              )}
-            </p>
+                <p className="text-xs text-muted-foreground text-center">
+                  {mode === "login" ? (
+                    <>
+                      {t.aceptasConGoogle}{" "}
+                      <Link href="/terminos" onClick={close} {...langLegales} className="text-primary underline underline-offset-4">
+                        {t.terminos}
+                      </Link>{" "}
+                      {t.yLa}{" "}
+                      <Link href="/privacidad" onClick={close} {...langLegales} className="text-primary underline underline-offset-4">
+                        {t.privacidad}
+                      </Link>
+                      {t.cierreLegales}
+                    </>
+                  ) : (
+                    <>
+                      {t.aceptasAlCrear}{" "}
+                      <Link href="/terminos" onClick={close} {...langLegales} className="text-primary underline underline-offset-4">
+                        {t.terminos}
+                      </Link>{" "}
+                      {t.yLa}{" "}
+                      <Link href="/privacidad" onClick={close} {...langLegales} className="text-primary underline underline-offset-4">
+                        {t.privacidad}
+                      </Link>
+                      {t.cierreLegales}
+                    </>
+                  )}
+                </p>
 
-            <div className="text-center text-sm text-muted-foreground mt-4">
-              {mode === "login" ? (
-                <>
-                  {t.noTenesCuenta}{" "}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setError(null)
-                      setMode("signup")
-                    }}
-                    className="text-primary hover:underline font-semibold bg-transparent border-none cursor-pointer"
-                  >
-                    {t.registrate}
-                  </button>
-                </>
-              ) : (
-                <>
-                  {t.yaTenesCuenta}{" "}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setError(null)
-                      setMode("login")
-                    }}
-                    className="text-primary hover:underline font-semibold bg-transparent border-none cursor-pointer"
-                  >
-                    {t.iniciaSesion}
-                  </button>
-                </>
-              )}
-            </div>
-          </form>
-        </DialogContent>
-      </Dialog>
+                <div className="text-center text-sm text-muted-foreground mt-4">
+                  {mode === "login" ? (
+                    <>
+                      {t.noTenesCuenta}{" "}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setError(null)
+                          setMode("signup")
+                        }}
+                        className="text-primary hover:underline font-semibold bg-transparent border-none cursor-pointer"
+                      >
+                        {t.registrate}
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      {t.yaTenesCuenta}{" "}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setError(null)
+                          setMode("login")
+                        }}
+                        className="text-primary hover:underline font-semibold bg-transparent border-none cursor-pointer"
+                      >
+                        {t.iniciaSesion}
+                      </button>
+                    </>
+                  )}
+                </div>
+              </form>
+            </DialogContent>
+          </Dialog>
+        )}</PiezasDeDialogo>
+      )}
     </AuthModalContext.Provider>
   )
 }

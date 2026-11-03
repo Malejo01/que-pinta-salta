@@ -1,10 +1,19 @@
 'use client'
 
 import { useSyncExternalStore } from 'react'
-import { GoogleTagManager } from '@next/third-parties/google'
+import dynamic from 'next/dynamic'
 import { CONSENT_EVENT, readConsent, type ConsentValue } from '@/lib/consent'
 
 const GTM_ID = 'GTM-WZK9W6BJ'
+
+// Q6-5: el componente de @next/third-parties (con third-party-capital) se pide
+// recién cuando hay consentimiento; antes viajaba en el JavaScript inicial de
+// todas las páginas aunque casi nunca se montara. Sin SSR: nunca va en el HTML
+// del servidor (ver abajo).
+const GoogleTagManager = dynamic(
+  () => import('@next/third-parties/google').then((m) => m.GoogleTagManager),
+  { ssr: false },
+)
 
 /** Durante el render del servidor (y la hidratación) nunca leemos `localStorage`: no existe. */
 type Snapshot = ConsentValue | 'unknown'

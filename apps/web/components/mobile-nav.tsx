@@ -77,8 +77,11 @@ export function MobileNav() {
                 // `outline-hidden` y no `outline-none`: en alto contraste de
                 // Windows la sombra no se pinta y el contorno transparente sí.
                 "flex min-w-[48px] flex-col items-center gap-0.5 rounded-md px-1.5 py-2 text-[0.6875rem] whitespace-nowrap transition-colors outline-hidden focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
+                // Q6-5 (color-contrast): en modo oscuro el rojo de `primary`
+                // daba 4,3:1 sobre el fondo con letra de 11 px; el tono claro
+                // (el mismo de los links rojos en oscuro) da 5,9:1.
                 isActive
-                  ? "text-primary"
+                  ? "text-primary dark:text-[#F0585D]"
                   : "text-muted-foreground hover:text-foreground"
               )}
             >
