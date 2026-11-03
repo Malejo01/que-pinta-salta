@@ -16,6 +16,7 @@ import { ETIQUETA_ESTADO, ETIQUETA_FUENTE } from '@/lib/lugares-chicos/textos-ad
 import { pestañaDeLugar, PESTAÑAS_LUGARES_CHICOS, type PestañaLugaresChicos } from '@/lib/lugares-chicos/pestanas'
 import { FichaLugarChicosForm } from '@/components/admin/lugares-chicos/ficha-form'
 import { AccionesLugarChicos } from '@/components/admin/lugares-chicos/acciones'
+import { PedidoLugarChicos, type PedidoAdmin } from '@/components/admin/lugares-chicos/pedidos'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 
 export const dynamic = 'force-dynamic'
@@ -62,7 +63,7 @@ function fecha(iso: string): string {
 export default async function AdminLugaresChicosPage({
   searchParams,
 }: {
-  searchParams: Promise<{ ver?: string; editar?: string; nuevo?: string; q?: string; venue?: string }>
+  searchParams: Promise<{ ver?: string; editar?: string; nuevo?: string; q?: string; venue?: string; pedidos?: string }>
 }) {
   const supabase = await createClient()
   const {
@@ -93,6 +94,18 @@ export default async function AdminLugaresChicosPage({
   for (const l of lugares) {
     porPestaña.get(pestañaDeLugar(l.estado, esTipoLugar(l.tipo) ? estadoDeRevision(l.tipo, l.verificado_at, ahora) : 'sin_verificar'))!.push(l)
   }
+  // Q5-3: pedidos del formulario público (los nuevos arriba, con aviso).
+  const verPedidosRevisados = params.pedidos === 'todos'
+  let consultaPedidos = supabase
+    .from('lugares_chicos_pedidos')
+    .select('id, nombre, direccion, tipo, comentario, link, contacto, idioma, estado, created_at')
+    .order('created_at', { ascending: false })
+    .limit(100)
+  if (!verPedidosRevisados) consultaPedidos = consultaPedidos.eq('estado', 'nuevo')
+  const { data: pedidosData } = await consultaPedidos
+  const pedidos: PedidoAdmin[] = pedidosData ?? []
+  const pedidosNuevos = pedidos.filter((p) => p.estado === 'nuevo').length
+
   const lista = (porPestaña.get(pestaña) ?? []).sort((a, b) => (a.venue?.name ?? '').localeCompare(b.venue?.name ?? '', 'es'))
   const vencidos = porPestaña.get('vencidos')?.length ?? 0
 
@@ -131,6 +144,13 @@ export default async function AdminLugaresChicosPage({
         <p role="status" className="text-sm font-medium">
           {vencidos === 1 ? '1 lugar para volver a verificar' : `${vencidos} lugares para volver a verificar`}
         </p>
+        {pedidosNuevos > 0 ? (
+          <p className="rounded-md border border-primary bg-primary/10 p-3 text-sm font-medium">
+            <a href="#pedidos" className="underline underline-offset-2">
+              {pedidosNuevos === 1 ? '1 pedido nuevo del formulario público' : `${pedidosNuevos} pedidos nuevos del formulario público`}
+            </a>
+          </p>
+        ) : null}
         <div className="flex flex-wrap gap-2">
           <Link href="/admin/lugares-chicos?nuevo=1" className="inline-flex min-h-11 items-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground">
             Sumar lugar para chicos
@@ -206,6 +226,29 @@ export default async function AdminLugaresChicosPage({
           </CardContent>
         </Card>
       ) : null}
+
+      <section id="pedidos" aria-labelledby="titulo-pedidos" className="flex flex-col gap-3">
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <h2 id="titulo-pedidos" className="text-lg font-semibold">
+            Pedidos del formulario «Sumá un lugar»
+          </h2>
+          <Link
+            href={verPedidosRevisados ? '/admin/lugares-chicos#pedidos' : '/admin/lugares-chicos?pedidos=todos#pedidos'}
+            className="inline-flex min-h-11 items-center text-sm font-medium underline underline-offset-2"
+          >
+            {verPedidosRevisados ? 'Ver solo los nuevos' : 'Ver también los revisados'}
+          </Link>
+        </div>
+        {pedidos.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No hay pedidos {verPedidosRevisados ? '' : 'nuevos'}.</p>
+        ) : (
+          <ul className="flex flex-col gap-3">
+            {pedidos.map((p) => (
+              <PedidoLugarChicos key={p.id} pedido={p} />
+            ))}
+          </ul>
+        )}
+      </section>
 
       <nav aria-label="Estados" className="flex flex-wrap gap-2">
         {PESTAÑAS_LUGARES_CHICOS.map((p) => (

@@ -3,8 +3,8 @@ import { describe, expect, it } from 'vitest'
 import { RUTAS_EN_INGLES, hrefLangDestino, rutaEn, rutaEnOtroIdioma, separarIdioma } from '@/lib/i18n/rutas'
 
 describe('RUTAS_EN_INGLES', () => {
-  it('la portada, /cines, /mapa, /buscar, /radar, /anunciantes y la ficha del evento (/evento/<id>)', () => {
-    expect([...RUTAS_EN_INGLES]).toEqual(['/', '/cines', '/mapa', '/buscar', '/radar', '/anunciantes', '/evento/*'])
+  it('la portada, /cines, /mapa, /buscar, /radar, /anunciantes, la ficha del evento (/evento/<id>) y «Sumá un lugar» (Q5-3)', () => {
+    expect([...RUTAS_EN_INGLES]).toEqual(['/', '/cines', '/mapa', '/buscar', '/radar', '/anunciantes', '/evento/*', '/lugares-chicos/sumar'])
   })
 })
 

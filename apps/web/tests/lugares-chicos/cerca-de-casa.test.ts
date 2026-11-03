@@ -49,7 +49,7 @@ describe('la ubicación del navegador', () => {
     }
     const imports = [...codigo.matchAll(/from "([^"]+)"/g)].map((m) => m[1])
     expect(imports.sort()).toEqual(
-      ['@/lib/i18n', '@/lib/i18n/idiomas', '@qps/core/date-format', '@qps/core/datos/barrios', '@qps/core/lugares/permanentes', '@qps/core/mapa/lugares-chicos', 'lucide-react', 'react'].sort(),
+      ['@/lib/i18n', '@/lib/i18n/idiomas', '@/lib/i18n/rutas', '@qps/core/date-format', '@qps/core/datos/barrios', '@qps/core/lugares/permanentes', '@qps/core/mapa/lugares-chicos', 'lucide-react', 'react'].sort(),
     )
   })
 })

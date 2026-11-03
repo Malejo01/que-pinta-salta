@@ -229,6 +229,40 @@ export const es = {
     tambienTieneEventos: 'Este lugar también tiene eventos en el mapa',
     seleccionado: (nombre: string) => `${nombre}, lugar para chicos seleccionado`,
   },
+  // Q5-3: «Sumá un lugar para chicos» (/lugares-chicos/sumar).
+  sumarLugar: {
+    titulo: 'Sumá un lugar para chicos',
+    bajada:
+      '¿Conocés una plaza con juegos, un pelotero, un salón de juegos o un espacio cultural para chicos en Salta Capital que no está en el mapa? Contanos y lo verificamos antes de publicarlo.',
+    nombre: 'Nombre del lugar',
+    direccion: 'Dirección o esquina',
+    tipo: 'Qué tipo de lugar es (opcional)',
+    tipoNoSe: 'No sé',
+    link: 'Web o Instagram del lugar (opcional)',
+    comentario: 'Algo más que nos sirva (opcional): horarios, edades, si hay que reservar',
+    contacto: 'Tu email o teléfono (opcional)',
+    contactoAyuda:
+      'Solo lo usamos para avisarte cuando el lugar esté publicado o si tenemos una duda. No lo publicamos, no lo compartimos y lo borramos cuando terminamos de revisar el pedido.',
+    noCasas: 'No sumamos emprendimientos que funcionan en casas particulares.',
+    enviar: 'Enviar',
+    enviando: 'Enviando…',
+    gracias: '¡Gracias! Lo vamos a verificar antes de publicarlo.',
+    otroMas: 'Sumar otro lugar',
+    volverAlMapa: 'Ver los lugares para chicos en el mapa',
+    sitioNoCompletar: 'No completes este campo',
+    errores: {
+      nombre: 'Escribí el nombre del lugar (al menos 3 letras).',
+      direccion: 'Escribí la dirección o una esquina (al menos 3 letras).',
+      tipo: 'Elegí un tipo de la lista.',
+      link: 'El link no parece válido.',
+      contacto: 'El contacto es muy corto.',
+      comentario: 'El comentario es muy largo (hasta 1000 caracteres).',
+      vencido: 'El formulario estuvo abierto mucho tiempo. Recargá la página y probá de nuevo.',
+      limite: 'Ya recibimos varios pedidos desde tu conexión. Probá de nuevo en un rato.',
+      servidor: 'No pudimos guardar el pedido. Probá de nuevo en un rato.',
+    },
+    linkDesdeMapa: '¿Falta un lugar? Sumalo',
+  },
   // /buscar (buscar-content.tsx)
   buscar: {
     volver: 'Volver',

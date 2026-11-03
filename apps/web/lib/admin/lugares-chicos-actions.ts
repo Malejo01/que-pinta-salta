@@ -14,7 +14,7 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { isUuid } from '@/lib/metricas'
 import { coordenadasEnSalta } from '@qps/core/mapa/zona'
-import { faltantesParaPublicar } from '@qps/core/lugares/permanentes'
+import { esTipoLugar, faltantesParaPublicar } from '@qps/core/lugares/permanentes'
 import { slugDeLugar } from '@/lib/lugares-chicos/slug'
 import {
   leerDeFormData,
@@ -197,4 +197,112 @@ export async function cambiarEstadoLugarChicos(_prev: EstadoAccionLugar, fd: For
     archivar: 'Archivado.',
   }
   return { ok: true, mensaje: textos[accion], id }
+}
+
+// ---------------------------------------------------------------------------
+// Q5-3 · Pedidos del formulario público
+// ---------------------------------------------------------------------------
+
+/**
+ * Pasa un pedido a BORRADOR: usa el venue canónico con el mismo nombre si
+ * existe (si ya tiene ficha, solo enlaza el pedido) o crea uno nuevo, y crea
+ * la ficha con fuente `pedido_publico` (no alcanza para publicar).
+ */
+export async function pasarPedidoABorrador(_prev: EstadoAccionLugar, fd: FormData): Promise<EstadoAccionLugar> {
+  const leer = leerDeFormData(fd)
+  const id = leer('id')
+  if (!isUuid(id)) return { ok: false, mensaje: 'El pedido no es válido.' }
+  const tipoElegido = leer('tipo')
+
+  const auth = await requireAdmin()
+  if ('error' in auth) return { ok: false, mensaje: auth.error }
+  const { supabase, userId } = auth
+
+  const { data: pedido, error: errorPedido } = await supabase
+    .from('lugares_chicos_pedidos')
+    .select('id, nombre, direccion, tipo, link, estado')
+    .eq('id', id)
+    .maybeSingle()
+  if (errorPedido) return errorBase('leer pedido', errorPedido.code, 'No se pudo leer el pedido.')
+  if (!pedido) return { ok: false, mensaje: 'No encontramos ese pedido.' }
+  if (pedido.estado !== 'nuevo') return { ok: false, mensaje: 'Ese pedido ya se revisó.' }
+  const tipo = esTipoLugar(tipoElegido) ? tipoElegido : esTipoLugar(pedido.tipo) ? pedido.tipo : null
+  if (!tipo) return { ok: false, mensaje: 'Elegí el tipo de lugar antes de pasarlo a borrador.' }
+
+  const nombreEscapado = pedido.nombre.replace(/[%_\\]/g, (c: string) => `\\${c}`)
+  const { data: existentes } = await supabase
+    .from('venues')
+    .select('id')
+    .is('canonical_venue_id', null)
+    .ilike('name', nombreEscapado)
+    .limit(1)
+  let venueId = existentes?.[0]?.id ?? null
+  if (!venueId) {
+    const { data: venue, error } = await supabase
+      .from('venues')
+      .insert({ name: pedido.nombre, address: pedido.direccion, slug: slugDeLugar(pedido.nombre) })
+      .select('id')
+      .single()
+    if (error || !venue) return errorBase('pedido → venue', error?.code, 'No se pudo crear el lugar.')
+    venueId = venue.id
+  }
+
+  const { data: fichaExistente } = await supabase.from('lugares_permanentes').select('id').eq('venue_id', venueId).maybeSingle()
+  let lugarId = fichaExistente?.id ?? null
+  if (!lugarId) {
+    const { data: ficha, error } = await supabase
+      .from('lugares_permanentes')
+      .insert({
+        venue_id: venueId,
+        tipo,
+        estado: 'borrador',
+        fuente: 'pedido_publico',
+        fuente_detalle: pedido.link,
+        cargado_por: userId,
+        horarios: tipo === 'plaza_juegos' ? { version: 1, siempre_abierto: true, semana: {} } : { version: 1, semana: {} },
+      })
+      .select('id')
+      .single()
+    if (error || !ficha) return errorBase('pedido → ficha', error?.code, 'No se pudo crear el borrador.')
+    lugarId = ficha.id
+  }
+
+  const { error } = await supabase
+    .from('lugares_chicos_pedidos')
+    .update({ estado: 'convertido', lugar_id: lugarId, revisado_at: new Date().toISOString() })
+    .eq('id', id)
+  if (error) return errorBase('pedido convertido', error.code, 'El borrador se creó, pero no se pudo marcar el pedido.')
+  revalidatePath(RUTA)
+  return {
+    ok: true,
+    mensaje: fichaExistente ? 'Ese lugar ya tenía ficha: el pedido quedó enlazado a ella.' : 'Borrador creado: completalo y verificalo.',
+    id: lugarId,
+  }
+}
+
+/** Descartar (spam, casa particular, fuera de Capital…): borra también el contacto. */
+export async function descartarPedido(_prev: EstadoAccionLugar, fd: FormData): Promise<EstadoAccionLugar> {
+  const id = leerDeFormData(fd)('id')
+  if (!isUuid(id)) return { ok: false, mensaje: 'El pedido no es válido.' }
+  const auth = await requireAdmin()
+  if ('error' in auth) return { ok: false, mensaje: auth.error }
+  const { error } = await auth.supabase
+    .from('lugares_chicos_pedidos')
+    .update({ estado: 'descartado', contacto: null, revisado_at: new Date().toISOString() })
+    .eq('id', id)
+  if (error) return errorBase('descartar pedido', error.code, 'No se pudo descartar el pedido.')
+  revalidatePath(RUTA)
+  return { ok: true, mensaje: 'Pedido descartado.' }
+}
+
+/** Ya se le avisó a quien pidió (o no hace falta): el contacto se borra. */
+export async function borrarContactoPedido(_prev: EstadoAccionLugar, fd: FormData): Promise<EstadoAccionLugar> {
+  const id = leerDeFormData(fd)('id')
+  if (!isUuid(id)) return { ok: false, mensaje: 'El pedido no es válido.' }
+  const auth = await requireAdmin()
+  if ('error' in auth) return { ok: false, mensaje: auth.error }
+  const { error } = await auth.supabase.from('lugares_chicos_pedidos').update({ contacto: null }).eq('id', id)
+  if (error) return errorBase('borrar contacto', error.code, 'No se pudo borrar el contacto.')
+  revalidatePath(RUTA)
+  return { ok: true, mensaje: 'Contacto borrado.' }
 }
