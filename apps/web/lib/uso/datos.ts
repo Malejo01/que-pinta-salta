@@ -74,8 +74,8 @@ export async function leerDatosUso(ahora: Date = new Date()): Promise<DatosUso> 
     contar(admin.from('push_tokens').select('id', { count: 'exact', head: true }).is('user_id', null), 'avisos sin cuenta'),
     contar(admin.from('user_favorites').select('id', { count: 'exact', head: true }).gte('created_at', hace30), 'guardados 30 d'),
     contar(admin.from('user_favorites').select('id', { count: 'exact', head: true }), 'guardados'),
-    contar(admin.from('event_attendance').select('id', { count: 'exact', head: true }).eq('kind', KIND_VOY).gte('created_at', hace30), 'voy 30 d'),
-    contar(admin.from('event_attendance').select('id', { count: 'exact', head: true }).eq('kind', KIND_VOY), 'voy'),
+    contar(admin.from('event_attendance').select('id', { count: 'exact', head: true }).eq('kind', KIND_VOY).gte('created_at', hace30), 'asistencias 30 d'),
+    contar(admin.from('event_attendance').select('id', { count: 'exact', head: true }).eq('kind', KIND_VOY), 'asistencias'),
   ])
 
   return {
