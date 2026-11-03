@@ -8,8 +8,14 @@
  * Anti-spam: el campo `sitio` es un honeypot (fuera de la vista y del orden de
  * tabulación, con aria-hidden) e `iniciado` es la hora en que el servidor
  * dibujó el formulario (tiempo mínimo). La server action decide.
+ *
+ * Q6-7: con JavaScript, el envío pasa por `onSubmit` (preventDefault + la
+ * acción dentro de una transición) y no por el `action` del form: React 19
+ * VACÍA el formulario después de cada acción del `action`, también cuando la
+ * respuesta es un error, y la persona perdía todo lo que había escrito por un
+ * link mal copiado. Sin JavaScript, el `action` sigue funcionando igual.
  */
-import { useActionState, useEffect, useRef } from "react"
+import { startTransition, useActionState, useEffect, useRef, type FormEvent } from "react"
 import Link from "next/link"
 import { sumarLugarChicos, type EstadoPedido } from "@/lib/actions/sumar-lugar-chicos"
 import { ETIQUETA_TIPO, TIPOS_LUGAR } from "@qps/core/lugares/permanentes"
@@ -67,11 +73,18 @@ export function FormularioSumarLugar({ idioma, iniciado }: { idioma: Idioma; ini
     )
   }
 
+  // Q6-7: la acción a mano, para que React no vacíe el formulario (ver arriba).
+  const alEnviar = (evento: FormEvent<HTMLFormElement>) => {
+    evento.preventDefault()
+    const datos = new FormData(evento.currentTarget)
+    startTransition(() => accion(datos))
+  }
+
   const error = estado.estado === "error" ? estado.codigo : null
   const errorDe = (campo: string) => (error && CAMPO_DEL_ERROR[error] === campo ? "error-sumar" : undefined)
 
   return (
-    <form ref={formulario} action={accion} className="flex flex-col gap-4" noValidate>
+    <form ref={formulario} action={accion} onSubmit={alEnviar} className="flex flex-col gap-4" noValidate>
       <input type="hidden" name="iniciado" value={iniciado} />
       <input type="hidden" name="idioma" value={idioma} />
       {/* Honeypot: una persona no lo ve ni llega con Tab. */}
