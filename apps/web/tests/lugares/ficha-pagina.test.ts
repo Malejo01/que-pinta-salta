@@ -37,6 +37,15 @@ function filtrar<T extends Record<string, unknown>>(filas: T[], filtros: Consult
       if (op === 'eq') return f[col] === v
       if (op === 'in') return (v as unknown[]).includes(f[col])
       if (op === 'gte') return String(f[col]) >= String(v)
+      if (op === 'or') {
+        // Solo la forma que usa la ficha: «a.gte.X,b.gte.Y».
+        return String(v)
+          .split(',')
+          .some((parte) => {
+            const [c, o, ...valor] = parte.split('.')
+            return o === 'gte' && f[c!] != null && String(f[c!]) >= valor.join('.')
+          })
+      }
       return true
     }),
   )
@@ -69,6 +78,7 @@ vi.mock('@/lib/supabase/server', () => ({
         then: (res: (v: unknown) => unknown, rej: (e: unknown) => unknown) => Promise.resolve(filas()).then(res, rej),
       }
       for (const m of ['eq', 'in', 'gte']) b[m] = (col: string, v: unknown) => (c.filtros.push([m, col, v]), b)
+      b.or = (expr: string) => (c.filtros.push(['or', '', expr]), b)
       return b
     },
   }),
@@ -169,6 +179,18 @@ describe('obtenerFichaLugar', () => {
     const eventos = estado.consultas.find((c) => c.tabla === 'events')!
     expect(eventos.filtros).toContainEqual(['eq', 'status', 'PUBLISHED'])
     expect(eventos.filtros).toContainEqual(['in', 'venue_id', [TEATRO, VIEJO]])
+  })
+
+  it('bug R-1: una muestra que empezó hace más de 60 días y sigue abierta aparece en «Próximos»', async () => {
+    estado.eventos.push(
+      evento('muestra-larga', TEATRO, '2026-08-01T13:00:00Z', { end_date: '2026-12-20T23:00:00Z' }),
+      evento('vieja-terminada', TEATRO, '2026-08-01T13:00:00Z', { end_date: '2026-08-30T23:00:00Z' }),
+    )
+    const f = await obtenerFichaLugar('teatro-provincial')
+    expect(f.tipo === 'ok' && f.proximos.map((e) => e.id)).toEqual(['muestra-larga', 'e1', 'e2'])
+    expect(f.tipo === 'ok' && f.pasados.map((e) => e.id)).toEqual(['e3'])
+    const eventos = estado.consultas.find((c) => c.tabla === 'events')!
+    expect(eventos.filtros).toContainEqual(['or', '', 'start_date.gte.2026-09-04T18:00:00.000Z,end_date.gte.2026-11-03T18:00:00.000Z'])
   })
 
   it('por uuid o por el slug de un venue fusionado: redirige al slug canónico', async () => {
