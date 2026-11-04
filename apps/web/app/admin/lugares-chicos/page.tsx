@@ -240,7 +240,7 @@ export default async function AdminLugaresChicosPage({
           </Link>
         </div>
         {pedidos.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No hay pedidos {verPedidosRevisados ? '' : 'nuevos'}.</p>
+          <p className="text-sm text-muted-foreground">{verPedidosRevisados ? 'No hay pedidos.' : 'No hay pedidos nuevos.'}</p>
         ) : (
           <ul className="flex flex-col gap-3">
             {pedidos.map((p) => (
