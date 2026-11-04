@@ -59,7 +59,8 @@ vi.mock('@supabase/supabase-js', () => ({
   },
 }))
 vi.mock('@/lib/supabase/server', () => ({ createClient: async () => fake(), createAdminClient: () => fake() }))
-vi.mock('@/lib/ai/gemini', () => ({
+// Q6-3: la clasificación pasa por la capa de IA (lib/ai/llamadas-ia, antes lib/ai/gemini).
+vi.mock('@/lib/ai/llamadas-ia', () => ({
   generarJsonDeTexto: async (_sistema: string, _texto: string, schema: unknown) => {
     estado.ia.push({ schema })
     return { slug: estado.respuestaIa }
