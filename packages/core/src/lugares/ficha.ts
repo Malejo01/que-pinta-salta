@@ -13,7 +13,15 @@ const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
 
 /** El parámetro de la URL: un slug, un uuid (se redirige al slug) o nada. */
 export function leerParametroLugar(valor: string): { tipo: 'slug'; slug: string } | { tipo: 'id'; id: string } | null {
-  const v = decodeURIComponent(valor).trim().toLowerCase()
+  // R-1: un «%» suelto o mal codificado hacía tirar a decodeURIComponent (un
+  // 500 en /lugar/<…>); no es un slug ni un uuid: es «no existe» (404).
+  let decodificado: string
+  try {
+    decodificado = decodeURIComponent(valor)
+  } catch {
+    return null
+  }
+  const v = decodificado.trim().toLowerCase()
   if (UUID.test(v)) return { tipo: 'id', id: v }
   if (v.length <= 100 && SLUG.test(v)) return { tipo: 'slug', slug: v }
   return null
