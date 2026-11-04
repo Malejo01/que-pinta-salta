@@ -17,6 +17,8 @@ vi.mock('next/headers', () => ({ headers: async () => new Headers({ 'x-forwarded
 vi.mock('@/lib/supabase/server', () => ({
   createClient: vi.fn(),
   createAdminClient: () => ({
+    // Q6-7: el cupo diario en la base (acá, siempre hay cupo).
+    rpc: async () => ({ data: true, error: null }),
     from: (tabla: string) => ({
       insert: async (fila: Record<string, unknown>) => {
         estado.inserts.push({ tabla, ...fila })
@@ -49,6 +51,8 @@ async function enviar() {
 }
 
 beforeEach(() => {
+  // Q6-7: la acción usa la service key como secreto del HMAC del cupo.
+  vi.stubEnv('SUPABASE_SERVICE_ROLE_KEY', 'secreto-de-prueba-qa')
   estado.inserts = []
   estado.error = null
   estado.ip++
@@ -57,6 +61,7 @@ beforeEach(() => {
   vi.spyOn(console, 'error').mockImplementation(() => {})
 })
 afterEach(() => {
+  vi.unstubAllEnvs()
   cleanup()
   vi.restoreAllMocks()
 })
