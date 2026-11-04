@@ -12,6 +12,9 @@ import { fileURLToPath } from 'node:url'
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { React, crearRaiz, type RaizDeReact } from './dobles/react-raiz'
 import FichaLugarChicos from '@/app/lugares-chicos/[id]'
+import { IdiomaProvider } from '@/lib/i18n'
+import { CLAVE_IDIOMA } from '@/lib/i18n/idioma'
+import type { Almacen } from '@/lib/sin-conexion/almacen'
 
 // El teléfono en castellano desde antes de importar (el idioma por omisión
 // del contexto se calcula al cargar `lib/i18n`).
@@ -46,6 +49,7 @@ vi.mock('react-native', async () => {
     role: p.accessibilityRole as string | undefined,
     'aria-label': p.accessibilityLabel as string | undefined,
     'aria-selected': (p.accessibilityState as { selected?: boolean } | undefined)?.selected,
+    lang: p.accessibilityLanguage as string | undefined,
   })
   const caja = (tag: string) => (p: P) => R.createElement(tag, a(p), p.children as never)
   return {
@@ -121,15 +125,24 @@ const lugar = (extra: Record<string, unknown> = {}) => ({
   ...extra,
 })
 
-async function montar() {
+async function montar(idioma: 'es' | 'en' = 'es') {
   crearRaiz()
   const doc = (globalThis as Global).document
   div = doc.createElement('div')
   doc.body.appendChild(div)
   const { createRoot } = requerir('react-dom/client') as { createRoot: (c: unknown) => RaizDeReact }
   raiz = createRoot(div)
+  // En inglés, con el provider real y «en» guardado en el teléfono (Cuenta › Idioma).
+  const almacen: Almacen = {
+    leer: async (k) => (k === CLAVE_IDIOMA && idioma === 'en' ? 'en' : null),
+    escribir: async () => {},
+    borrar: async () => {},
+    claves: async () => [],
+    borrarVarias: async () => {},
+  }
+  const Provider = IdiomaProvider as unknown as (p: { almacen: Almacen; children?: unknown }) => null
   await React.act(async () => {
-    raiz!.render(React.createElement(FichaLugarChicos))
+    raiz!.render(idioma === 'es' ? React.createElement(FichaLugarChicos) : React.createElement(Provider, { almacen }, React.createElement(FichaLugarChicos)))
   })
 }
 const boton = (nombre: string) => div.querySelector(`button[aria-label="${nombre}"]`) as HTMLButtonElement | null
@@ -211,6 +224,18 @@ describe('Ficha de un lugar para chicos (app)', () => {
     estado.resultado = { ok: true, lugares: [lugar({ venueId: 'otro' })] }
     await montar()
     expect(div.querySelector('#vacio')?.textContent).toBe('Este lugar ya no está publicado.')
+  })
+
+  it('en inglés (Cuenta › Idioma): la interfaz en inglés y lo cargado por el equipo marcado en castellano', async () => {
+    estado.resultado = { ok: true, lugares: [lugar({ descripcion: 'Pelotero techado con cumpleaños' })] }
+    await montar('en')
+    await saberSiSigue()
+    expect(div.textContent).toContain('Open space')
+    expect(boton('Directions to Pelotero Feliz')).not.toBeNull()
+    expect(boton('Follow Pelotero Feliz')).not.toBeNull()
+    const descripcion = [...div.querySelectorAll('span[lang="es-AR"]')].map((e) => e.textContent)
+    expect(descripcion).toContain('Güemes 123')
+    expect(descripcion).toContain('Pelotero techado con cumpleaños (in Spanish)')
   })
 
   it('si falla la carga: el error con «Reintentar», que vuelve a pedir', async () => {
