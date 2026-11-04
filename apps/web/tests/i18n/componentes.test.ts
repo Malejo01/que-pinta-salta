@@ -46,7 +46,8 @@ describe('el castellano no cambió', () => {
       region: 'Aviso de cookies',
       textoConAnuncios: 'Usamos Google Analytics y anuncios de Google. Si aceptás, los anuncios pueden ser personalizados.',
       textoSinAnuncios: 'Usamos Google Analytics para saber qué se usa del sitio. Solo si aceptás.',
-      masInfoAria: 'Más información sobre cookies en la Política de Privacidad',
+      // R-2: «Política de privacidad», como el link del resto del sitio.
+      masInfoAria: 'Más información sobre cookies en la Política de privacidad',
       masInfo: 'Más info',
       rechazar: 'Rechazar',
       aceptar: 'Aceptar',

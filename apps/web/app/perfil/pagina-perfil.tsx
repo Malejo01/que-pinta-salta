@@ -60,13 +60,16 @@ export async function PaginaPerfil({ idioma }: { idioma: Idioma }) {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    // Q6-6: el <main> (destino de «Saltar al contenido») empieza en el banner,
+    // que tiene el <h1>: antes el salto pasaba de largo el título de la página.
+    <main id="contenido" tabIndex={-1} className="min-h-screen bg-background focus:outline-none">
       {/* Banner superior de perfil */}
       <div className="relative overflow-hidden border-b border-border/40 bg-gradient-to-b from-primary/10 via-primary/5 to-transparent py-12 md:py-16">
         <div className="container mx-auto px-4">
           <div className="flex flex-col items-center gap-4 text-center md:flex-row md:items-start md:gap-6 md:text-left">
             <div className="flex size-20 items-center justify-center rounded-full bg-primary/10 border border-primary/20 shadow-inner">
-              <User className="size-10 text-primary animate-pulse" />
+              {/* Q6-6: el pulso, solo si no se pidió menos movimiento (WCAG 2.2.2 / 2.3.3). */}
+              <User className="size-10 text-primary motion-safe:animate-pulse" />
             </div>
             <div className="space-y-1">
               <h1 className="text-2xl font-bold tracking-tight text-foreground md:text-3xl">{t.titulo}</h1>
@@ -82,7 +85,7 @@ export async function PaginaPerfil({ idioma }: { idioma: Idioma }) {
       </div>
 
       {/* Grid principal de contenidos */}
-      <main id="contenido" tabIndex={-1} className="container mx-auto px-4 py-8 md:py-12 focus:outline-none">
+      <div className="container mx-auto px-4 py-8 md:py-12">
         <div className="grid gap-8 lg:grid-cols-3">
           
           {/* Columna de eventos creados (2/3 de ancho) */}
@@ -103,7 +106,7 @@ export async function PaginaPerfil({ idioma }: { idioma: Idioma }) {
             </div>
 
             {error && (
-              <div className="flex items-center gap-2 rounded-lg border border-destructive bg-destructive/10 p-4 text-sm text-destructive">
+              <div className="flex items-center gap-2 rounded-lg border border-destructive bg-destructive/10 p-4 text-sm text-error">
                 <AlertCircle className="size-4 shrink-0" />
                 <span>{t.errorHistorial}</span>
               </div>
@@ -155,30 +158,32 @@ export async function PaginaPerfil({ idioma }: { idioma: Idioma }) {
                             </div>
                           )}
                           
-                          {/* Badge de Estado flotante */}
+                          {/* Badge de Estado flotante. Q6-6: fondos sólidos y más oscuros (antes
+                              ámbar/esmeralda/rosa/pizarra 500–600 al 90 %, de 2,1 a 4,4:1 con el
+                              blanco); ver tests/a11y/q6-6-contraste.test.ts. */}
                           <div className="absolute left-3 top-3">
                             {isPending && (
-                              <Badge className="bg-amber-500/90 text-white font-semibold shadow border-0 hover:bg-amber-500">
+                              <Badge className="bg-amber-800 text-white font-semibold shadow border-0 hover:bg-amber-800">
                                 {t.estadoPendiente}
                               </Badge>
                             )}
                             {isDraft && (
-                              <Badge className="bg-slate-500/90 text-white font-semibold shadow border-0 hover:bg-slate-500">
+                              <Badge className="bg-slate-600 text-white font-semibold shadow border-0 hover:bg-slate-600">
                                 {t.estadoBorrador}
                               </Badge>
                             )}
                             {isPublished && (
-                              <Badge className="bg-emerald-600/90 text-white font-semibold shadow border-0 hover:bg-emerald-600">
+                              <Badge className="bg-emerald-700 text-white font-semibold shadow border-0 hover:bg-emerald-700">
                                 {t.estadoPublicado}
                               </Badge>
                             )}
                             {isCancelled && (
-                              <Badge className="bg-rose-500/90 text-white font-semibold shadow border-0 hover:bg-rose-500">
+                              <Badge className="bg-rose-700 text-white font-semibold shadow border-0 hover:bg-rose-700">
                                 {t.estadoCancelado}
                               </Badge>
                             )}
                             {event.status === "PAST" && (
-                              <Badge className="bg-slate-500/90 text-white font-semibold shadow border-0 hover:bg-slate-500">
+                              <Badge className="bg-slate-600 text-white font-semibold shadow border-0 hover:bg-slate-600">
                                 {t.estadoFinalizado}
                               </Badge>
                             )}
@@ -212,8 +217,9 @@ export async function PaginaPerfil({ idioma }: { idioma: Idioma }) {
 
                       {/* Footer de la Card */}
                       <div className="p-4 pt-0 border-t border-border/20 mt-2 flex justify-end">
+                        {/* Q6-6: --primary sobre la tarjeta en oscuro da 4,3:1 (texto chico): el rojo claro de la barra inferior. */}
                         {isPublished ? (
-                          <Button asChild variant="ghost" size="sm" className="text-primary hover:text-primary/80 gap-1 font-semibold">
+                          <Button asChild variant="ghost" size="sm" className="text-primary dark:text-[#F0585D] hover:underline gap-1 font-semibold">
                             <Link href={rutaEn(idioma, `/evento/${event.id}`)}>
                               {t.verPublicado}
                               <ArrowRight className="size-3.5" />
@@ -257,7 +263,7 @@ export async function PaginaPerfil({ idioma }: { idioma: Idioma }) {
               variant="ghost"
               size="sm"
               // Q6-2: con la letra grande (o la nota «in Spanish») el texto puede ocupar dos líneas.
-              className="h-auto min-h-8 w-full justify-start whitespace-normal py-1.5 text-left text-destructive hover:text-destructive hover:bg-destructive/10"
+              className="h-auto min-h-8 w-full justify-start whitespace-normal py-1.5 text-left text-error hover:text-error hover:bg-destructive/10"
             >
               {/* Q6-2: la página de eliminar la cuenta queda en castellano; en inglés, el link lo avisa. */}
               <Link href="/perfil/eliminar-cuenta" hrefLang={hrefLangDestino(idioma, "/perfil/eliminar-cuenta")}>
@@ -269,7 +275,7 @@ export async function PaginaPerfil({ idioma }: { idioma: Idioma }) {
           </div>
 
         </div>
-      </main>
-    </div>
+      </div>
+    </main>
   )
 }

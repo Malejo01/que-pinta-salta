@@ -187,10 +187,11 @@ describe('Los textos de la web están copiados literal en PantallaRadar.tsx', ()
     expect(en.radar.titulo).not.toBe(es.radar.titulo)
   })
 
-  it('"Guardar Preferencias de Radar" (diccionario es, sección radar)', () => {
-    expect(RADAR_FORM).toContain('Guardar Preferencias de Radar')
+  // R-2: mayúscula de oración y «del Radar», en la web y en la app a la vez.
+  it('"Guardar preferencias del Radar" (diccionario es, sección radar)', () => {
+    expect(RADAR_FORM).toContain('Guardar preferencias del Radar')
     expect(PANTALLA_RADAR).toContain('t.guardar')
-    expect(es.radar.guardar).toBe('Guardar Preferencias de Radar')
+    expect(es.radar.guardar).toBe('Guardar preferencias del Radar')
     expect(en.radar.guardar).not.toBe(es.radar.guardar)
   })
 

@@ -74,7 +74,8 @@ describe('/en/nuevo-evento: el formulario', () => {
     expect(html).toContain('aria-label="Back to home"')
     expect(html).toContain('href="/en"')
     expect(html).toMatch(/<label[^>]*for="title"[^>]*>Event title \*<\/label>/)
-    expect(html).toContain('placeholder="E.g.: Folk music night (peña) at La Casona"')
+    // R-2: «E.g.» sin los dos puntos (inglés natural).
+    expect(html).toContain('placeholder="E.g. Folk music night (peña) at La Casona"')
     expect(html).toMatch(/<label[^>]*for="isFree"[^>]*>Free event<\/label>/)
     expect(html).toContain('Choose a category')
     // (El valor elegido de un desplegable no sale en el HTML del servidor: se mira el fuente.)
@@ -85,7 +86,8 @@ describe('/en/nuevo-evento: el formulario', () => {
     const cancelar = html.match(/<a[^>]*href="\/mis-eventos"[^>]*>[^<]*<\/a>/)?.[0] ?? ''
     expect(cancelar).toContain('hrefLang="es-AR"')
     expect(cancelar).toContain('>Cancel</a>')
-    for (const texto of ['Crear Nuevo Evento', 'Título del Evento', 'Selecciona una categoría', 'Cancelar']) {
+    // R-2: el castellano actual (mayúscula de oración y voseo: «Elegí una categoría»).
+    for (const texto of ['Crear nuevo evento', 'Título del evento', 'Elegí una categoría', 'Cancelar']) {
       expect(html, texto).not.toContain(texto)
     }
   })
@@ -98,11 +100,13 @@ describe('/en/nuevo-evento: el formulario', () => {
 
   it('en castellano (por defecto): los textos de siempre', () => {
     const html = render()
-    expect(html).toContain('>Crear Nuevo Evento</h1>')
-    expect(html).toMatch(/<label[^>]*for="title"[^>]*>Título del Evento \*<\/label>/)
+    // R-2: mayúscula de oración y voseo («Elegí», antes «Selecciona»).
+    expect(html).toContain('>Crear nuevo evento</h1>')
+    expect(html).toMatch(/<label[^>]*for="title"[^>]*>Título del evento \*<\/label>/)
     expect(html).toContain('placeholder="Ej: Peña Folklórica en La Casona"')
-    expect(html).toContain('Selecciona una categoría')
-    expect(html).toContain('>Crear Evento</button>')
+    expect(html).toContain('Elegí una categoría')
+    expect(html).not.toContain('Selecciona una categoría')
+    expect(html).toContain('>Crear evento</button>')
     expect(html).toMatch(/<a[^>]*href="\/mis-eventos"[^>]*>Cancelar<\/a>/)
     expect(html).not.toContain('hrefLang')
   })
@@ -142,7 +146,8 @@ describe('/en/nuevo-evento: errores de las acciones', () => {
       expect(es.formularioEvento.error(m)).toBe(m)
       expect(en.formularioEvento.error(m), m).not.toBe(m)
     }
-    expect(en.formularioEvento.error('Debes iniciar sesión para crear un evento')).toBe('You need to sign in to add an event.')
+    // R-2: el mensaje de lib/actions.ts ahora vosea («Tenés que», antes «Debes»).
+    expect(en.formularioEvento.error('Tenés que iniciar sesión para crear un evento')).toBe('You need to sign in to add an event.')
   })
 
   it('los que llevan detalle traducen el comienzo y dejan el detalle como viene', () => {

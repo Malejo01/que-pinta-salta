@@ -4,9 +4,12 @@
 // tests/lugares-chicos.test.ts). Los datos y las reglas de horarios son los
 // de @qps/core/lugares/permanentes, los mismos que la web.
 import {
+  ETIQUETA_ACCESO,
   ETIQUETA_TIPO,
   abiertoAhora,
   textoDistancia,
+  textoEdades,
+  textoHorarioDeHoy,
   type TipoLugarPermanente,
 } from '@qps/core/lugares/permanentes'
 import { ordenarPorDistancia, type LugarChicosMapa } from '@qps/core/mapa/lugares-chicos'
@@ -45,6 +48,29 @@ export function lugaresParaMostrar(
 export function subtituloLugar(lugar: LugarChicosMapa & { metros: number | null }, idioma: 'es' | 'en' = 'es'): string {
   const tipo = ETIQUETA_TIPO[idioma][lugar.tipo]
   return lugar.metros === null ? tipo : `${tipo} · ${textoDistancia(lugar.metros, idioma)}`
+}
+
+/**
+ * Q6-6 · Lo que TalkBack lee de la tarjeta de un lugar en la lista: TODO lo
+ * que se ve, en el mismo orden (nombre, tipo y distancia, horario de hoy,
+ * acceso y edades). Antes faltaban las edades, que sí estaban a la vista.
+ */
+export function etiquetaTarjetaLugar(lugar: LugarChicosMapa & { metros: number | null }, ahora: Date, idioma: 'es' | 'en' = 'es'): string {
+  return [
+    lugar.nombre,
+    subtituloLugar(lugar, idioma),
+    textoHorarioDeHoy(lugar.horarios, ahora, idioma),
+    `${ETIQUETA_ACCESO[idioma][lugar.acceso]}, ${textoEdades(lugar.edadMin, lugar.edadMax, idioma)}`,
+  ].join('. ')
+}
+
+/**
+ * Q6-6 · El idioma (BCP 47) de lo que carga el equipo en la ficha de un lugar
+ * (descripción, dirección, notas de horario), que no se traduce: `'es-AR'`
+ * con la app en inglés, `undefined` en castellano (ya es el idioma de la app).
+ */
+export function langContenidoLugar(idioma: 'es' | 'en'): 'es-AR' | undefined {
+  return idioma === 'en' ? 'es-AR' : undefined
 }
 
 /** El conteo que se anuncia y se ve: «3 lugares», «1 lugar», «Ningún lugar con estos filtros». */

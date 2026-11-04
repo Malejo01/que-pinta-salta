@@ -183,7 +183,7 @@ export default function LoginPage() {
                   </Link>
                 </div>
                 {error && (
-                  <p id="login-error" role="alert" className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
+                  <p id="login-error" role="alert" className="rounded-md bg-destructive/10 p-3 text-sm text-error">
                     {error}
                   </p>
                 )}

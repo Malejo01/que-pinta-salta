@@ -53,7 +53,8 @@ describe('app/cines.tsx: la tarjeta de la lista ya no navega a /pelicula/ (R29, 
     expect(tarjeta).toMatch(/<Afiche\b/)
     // Q6-1: el badge sale del diccionario (`tarjeta.cines`).
     expect(tarjeta).toMatch(/\{t\.tarjeta\.cines\(cantidad\)\}/)
-    expect(es.tarjeta.cines(2)).toBe('2 Cines')
+    // R-2: en minúscula, como la web (`cines.cantidadCines`).
+    expect(es.tarjeta.cines(2)).toBe('2 cines')
     expect(en.tarjeta.cines(2)).toBe('2 cinemas')
   })
 

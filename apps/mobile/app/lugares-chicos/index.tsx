@@ -10,20 +10,22 @@
 //
 // Se llega desde el acceso «Lugares para chicos» que aparece en Inicio y en
 // Buscar con el chip «Para chicos» prendido (components/AccesoLugaresChicos).
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { FlatList, Pressable, ScrollView, StyleSheet, View } from 'react-native'
 import { useRouter } from 'expo-router'
 import { ChipFiltroLugar } from '@/components/ChipFiltroLugar'
 import { Cargando, ErrorCarga, Vacio } from '@/components/EstadoCarga'
 import { Icono } from '@/components/Icono'
 import { Texto } from '@/components/Texto'
-import { anunciar } from '@/lib/anunciar'
+import { estadoAnunciableLugaresChicos } from '@/lib/anunciar-conteo'
+import { useAnunciarConteo } from '@/lib/anunciar-conteo-hook'
 import { useColoresQPS } from '@/lib/colores'
 import { obtenerLugaresChicos } from '@/lib/datos/lugares-chicos'
 import {
   SIN_FILTROS_LUGARES,
   lugaresParaMostrar,
   rutaLugarChicos,
+  etiquetaTarjetaLugar,
   subtituloLugar,
   type FiltrosLugares,
   type OrigenLugares,
@@ -72,19 +74,23 @@ export default function LugaresChicos() {
     [estado, filtros, origen, ahora],
   )
 
-  const cambiarFiltros = useCallback(
-    (nuevos: FiltrosLugares) => {
-      setFiltros(nuevos)
-      if (estado.tipo === 'ok') anunciar(t.conteo(lugaresParaMostrar(estado.lugares, nuevos, origen, ahora).length))
-    },
-    [estado, origen, ahora, t],
+  // Q6-6: el conteo («N lugares») se anuncia con el hook de siempre
+  // (lib/anunciar-conteo-hook.ts), no a mano en el toque: en Android espera a
+  // que TalkBack termine el «Seleccionado» del chip (o la relectura del foco
+  // cuando la lista de barrios se cierra), no se repite y se calla si la
+  // pantalla pierde el foco. Con barrio, suma «Ordenados por cercanía a …».
+  useAnunciarConteo(
+    estado.tipo === 'ok'
+      ? estadoAnunciableLugaresChicos({ filtros, barrio: origen?.tipo === 'barrio' ? origen.nombre : null, cantidad: lugares.length, idioma })
+      : null,
   )
+
+  const cambiarFiltros = (nuevos: FiltrosLugares) => setFiltros(nuevos)
 
   const elegirBarrio = (id: string | null) => {
     const barrio = BARRIOS_SALTA_CAPITAL.find((b) => b.id === id)
     setOrigen(barrio ? { tipo: 'barrio', id: barrio.id, nombre: barrio.nombre, lat: barrio.lat, lng: barrio.lng } : null)
     setVerBarrios(false)
-    anunciar(barrio ? t.ordenadosPorBarrio(barrio.nombre) : t.sinOrdenar)
   }
 
   const encabezado = (
@@ -126,7 +132,10 @@ export default function LugaresChicos() {
             style={[estilos.botonBarrio, { borderColor: colores.border, backgroundColor: colores.card }]}
           >
             <Icono nombre="MapPin" tamanio={16} color={colores.foreground} />
-            <Texto peso="semibold">{origen?.tipo === 'barrio' ? t.cercaDe(origen.nombre) : t.elegiTuBarrio}</Texto>
+            {/* Q6-6: con la letra al 200 % el texto envuelve en vez de salirse del botón. */}
+            <Texto peso="semibold" style={estilos.textoBarrio}>
+              {origen?.tipo === 'barrio' ? t.cercaDe(origen.nombre) : t.elegiTuBarrio}
+            </Texto>
           </Pressable>
           {verBarrios ? (
             <View style={estilos.listaBarrios}>
@@ -185,7 +194,7 @@ export default function LugaresChicos() {
         <Pressable
           onPress={() => router.push(rutaLugarChicos(item.venueId))}
           accessibilityRole="button"
-          accessibilityLabel={`${item.nombre}. ${subtituloLugar(item, idioma)}. ${textoHorarioDeHoy(item.horarios, ahora, idioma)}. ${ETIQUETA_ACCESO[idioma][item.acceso]}`}
+          accessibilityLabel={etiquetaTarjetaLugar(item, ahora, idioma)}
           accessibilityHint={t.abreLaFicha}
           style={[estilos.tarjetaLugar, { backgroundColor: colores.card, borderColor: colores.border }]}
         >
@@ -219,7 +228,9 @@ const estilos = StyleSheet.create({
     borderRadius: 8,
     paddingHorizontal: 14,
     alignSelf: 'flex-start',
+    maxWidth: '100%',
   },
+  textoBarrio: { flexShrink: 1 },
   listaBarrios: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   nota: { fontSize: 13 },
   tarjetaLugar: { minHeight: 48, borderWidth: 1, borderRadius: 12, padding: 14, gap: 4 },
