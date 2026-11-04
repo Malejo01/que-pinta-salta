@@ -5,6 +5,7 @@
 // (vi.resetModules) para empezar con los limitadores en memoria vacíos.
 import { createHash } from 'node:crypto'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { userAgentApp } from '@qps/core/metricas/vista-app'
 
 const createAdminClient = vi.fn()
 vi.mock('@/lib/supabase/server', () => ({
@@ -13,7 +14,8 @@ vi.mock('@/lib/supabase/server', () => ({
 }))
 
 const ID = '0123456789abcdef0123456789abcdef'
-const UA_APP = 'QuePintaSaltaApp/1.0.9 (android)'
+// El mismo User-Agent que arma la app (apps/mobile/lib/apertura.ts usa userAgentApp de core).
+const UA_APP = userAgentApp('1.0.9')
 // Martes 3/11/2026 23:30 de Salta = miércoles 4/11 02:30 UTC.
 const AHORA = new Date('2026-11-04T02:30:00Z')
 
@@ -83,6 +85,14 @@ describe('POST /api/app/apertura: lo que llega a la base', () => {
     })
     // El id crudo nunca sale del handler.
     expect(JSON.stringify(llamadas)).not.toContain(ID)
+  })
+
+  it('el cuerpo que manda la app sin versión (version: null, UA «QuePintaSaltaApp/0»): p_version null y p_con_cuenta como venga', async () => {
+    const { llamadas } = crearAdmin()
+    const POST = await ruta()
+    const r = await POST(pedido({ idMetricas: ID, plataforma: 'android', version: null, conCuenta: false }, { ua: userAgentApp('') }))
+    expect(r.status).toBe(200)
+    expect(llamadas[0]!.args).toMatchObject({ p_version: null, p_con_cuenta: false })
   })
 
   it('sin versión ni conCuenta: p_version null (la función no tiene defaults) y p_con_cuenta false', async () => {
