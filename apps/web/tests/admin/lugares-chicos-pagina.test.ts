@@ -179,6 +179,16 @@ describe('/admin/lugares-chicos', () => {
     expect(todos).toContain('Pedido Viejo')
   })
 
+  // Q6 (texto que vio R-1): sin pedidos, el vacío no deja un espacio antes del punto.
+  it('sin pedidos: «No hay pedidos nuevos.» y, con ?pedidos=todos, «No hay pedidos.»', async () => {
+    estado.pedidos = []
+    const html = await render()
+    expect(html).toContain('No hay pedidos nuevos.')
+    const todos = await render({ pedidos: 'todos' })
+    expect(todos).toContain('No hay pedidos.')
+    expect(todos).not.toContain('No hay pedidos .')
+  })
+
   it('alta: busca entre los venues canónicos, con el texto escapado para ILIKE, y marca los que ya tienen ficha', async () => {
     estado.venues = [
       { id: 'v1', name: 'Pelotero Borrador', address: 'Calle 1' },
