@@ -2,6 +2,10 @@
  * Q5-13 · Gráfico de barras en SVG, sin dependencias (Server Component).
  * Accesible: `role="img"` con un resumen en `aria-label`, y la tabla con los
  * mismos datos en un <details> (la alternativa completa al gráfico).
+ *
+ * Q6-6: los números del eje van en `--muted-foreground` sin transparencia
+ * (antes `--primary` al 70 %: 2,7:1 en oscuro), la tabla tiene <caption> y el
+ * «Ver los datos» dice de qué gráfico es (eran cinco iguales en la página).
  */
 import type { PuntoSerie } from '@/lib/uso/panel'
 
@@ -30,7 +34,7 @@ export function GraficoBarras({
       <figcaption className="text-sm font-semibold">{titulo}</figcaption>
       <svg viewBox={`0 0 ${ancho} ${alto + margen}`} role="img" aria-label={resumen} className="h-auto w-full text-primary">
         <line x1={margen} y1={alto} x2={ancho} y2={alto} stroke="currentColor" strokeOpacity={0.3} />
-        <text x={0} y={12} fontSize={10} fill="currentColor" fillOpacity={0.7}>
+        <text x={0} y={12} fontSize={10} className="fill-muted-foreground">
           {maximo}
         </text>
         {serie.map((p, i) => {
@@ -41,7 +45,7 @@ export function GraficoBarras({
                 <title>{`${p.clave}: ${p.valor}`}</title>
               </rect>
               {serie.length <= 16 || i % Math.ceil(serie.length / 8) === 0 ? (
-                <text x={margen + i * paso + paso / 2} y={alto + 14} fontSize={9} textAnchor="middle" fill="currentColor" fillOpacity={0.7}>
+                <text x={margen + i * paso + paso / 2} y={alto + 14} fontSize={9} textAnchor="middle" className="fill-muted-foreground">
                   {etiqueta(p.clave)}
                 </text>
               ) : null}
@@ -50,8 +54,11 @@ export function GraficoBarras({
         })}
       </svg>
       <details className="text-xs">
-        <summary className="cursor-pointer text-muted-foreground">Ver los datos en una tabla</summary>
+        <summary className="inline-flex min-h-6 cursor-pointer items-center text-muted-foreground">
+          Ver los datos en una tabla<span className="sr-only">: {titulo}</span>
+        </summary>
         <table className="mt-2 w-full max-w-sm text-left">
+          <caption className="sr-only">{titulo}</caption>
           <thead>
             <tr>
               <th scope="col" className="pr-4 font-medium">Período</th>

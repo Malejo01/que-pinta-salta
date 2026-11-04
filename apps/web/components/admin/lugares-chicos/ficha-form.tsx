@@ -263,7 +263,7 @@ export function FichaLugarChicosForm({
         <Button type="submit" disabled={pendiente} className="h-11 min-h-11 px-5">
           {esAlta ? 'Crear borrador' : 'Guardar cambios'}
         </Button>
-        <p id="ficha-estado" role="status" aria-live="polite" className={estado?.ok === false ? 'text-sm text-destructive' : 'text-sm text-muted-foreground'}>
+        <p id="ficha-estado" role="status" aria-live="polite" className={estado?.ok === false ? 'text-sm text-error' : 'text-sm text-muted-foreground'}>
           {estado?.mensaje ?? ''}
         </p>
       </div>

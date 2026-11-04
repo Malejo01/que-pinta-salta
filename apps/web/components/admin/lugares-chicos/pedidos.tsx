@@ -31,7 +31,7 @@ const CAMPO = 'h-11 rounded-md border border-input bg-background px-3 text-sm'
 
 function Mensaje({ estado }: { estado: EstadoAccionLugar }) {
   return (
-    <p role="status" aria-live="polite" className={estado?.ok === false ? 'text-sm text-destructive' : 'text-sm text-muted-foreground'}>
+    <p role="status" aria-live="polite" className={estado?.ok === false ? 'text-sm text-error' : 'text-sm text-muted-foreground'}>
       {estado?.mensaje ?? ''}
     </p>
   )
@@ -54,8 +54,9 @@ export function PedidoLugarChicos({ pedido }: { pedido: PedidoAdmin }) {
       {pedido.comentario ? <p className="whitespace-pre-line">{pedido.comentario}</p> : null}
       {pedido.link ? (
         <p>
-          <a href={pedido.link} target="_blank" rel="noopener noreferrer nofollow" className="underline underline-offset-2">
+          <a href={pedido.link} target="_blank" rel="noopener noreferrer nofollow" className="underline underline-offset-2 break-all">
             {pedido.link}
+            <span className="sr-only">, se abre en otra pestaña</span>
           </a>
         </p>
       ) : null}
@@ -65,7 +66,10 @@ export function PedidoLugarChicos({ pedido }: { pedido: PedidoAdmin }) {
           <form action={pasar} className="flex flex-wrap items-end gap-2">
             <input type="hidden" name="id" value={pedido.id} />
             <label className="flex flex-col gap-1 text-xs font-medium">
-              Tipo
+              {/* Q6-6: los botones y el «Tipo» se repiten en cada pedido: el nombre lleva de cuál es. */}
+              <span>
+                Tipo<span className="sr-only">: {pedido.nombre}</span>
+              </span>
               <select name="tipo" defaultValue={esTipoLugar(pedido.tipo) ? pedido.tipo : ''} className={CAMPO}>
                 <option value="">Elegí uno</option>
                 {TIPOS_LUGAR.map((t) => (
@@ -76,7 +80,7 @@ export function PedidoLugarChicos({ pedido }: { pedido: PedidoAdmin }) {
               </select>
             </label>
             <Button type="submit" disabled={pasando} className="h-11 min-h-11 px-4">
-              Pasar a borrador
+              Pasar a borrador<span className="sr-only">: {pedido.nombre}</span>
             </Button>
           </form>
         ) : null}
@@ -84,7 +88,7 @@ export function PedidoLugarChicos({ pedido }: { pedido: PedidoAdmin }) {
           <form action={descartar}>
             <input type="hidden" name="id" value={pedido.id} />
             <Button type="submit" variant="outline" disabled={descartando} className="h-11 min-h-11 px-4">
-              Descartar
+              Descartar<span className="sr-only">: {pedido.nombre}</span>
             </Button>
           </form>
         ) : null}
@@ -92,7 +96,7 @@ export function PedidoLugarChicos({ pedido }: { pedido: PedidoAdmin }) {
           <form action={borrar}>
             <input type="hidden" name="id" value={pedido.id} />
             <Button type="submit" variant="outline" disabled={borrando} className="h-11 min-h-11 px-4">
-              Borrar contacto
+              Borrar contacto<span className="sr-only">: {pedido.nombre}</span>
             </Button>
           </form>
         ) : null}

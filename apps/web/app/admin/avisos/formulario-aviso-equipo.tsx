@@ -173,6 +173,8 @@ export function FormularioAvisoEquipo() {
             <Label htmlFor="aviso-titulo">Título</Label>
             <Input
               id="aviso-titulo"
+              aria-invalid={erroresPorCampo.titulo ? true : undefined}
+              aria-describedby={erroresPorCampo.titulo ? 'aviso-titulo-error' : undefined}
               value={titulo}
               onChange={(e) => cambiar(setTitulo)(e.target.value)}
               maxLength={LARGO_MAXIMO_TITULO_EQUIPO}
@@ -181,13 +183,15 @@ export function FormularioAvisoEquipo() {
             <p className="text-xs text-muted-foreground">
               {titulo.length} / {LARGO_MAXIMO_TITULO_EQUIPO}
             </p>
-            {erroresPorCampo.titulo && <p className="text-xs text-destructive">{erroresPorCampo.titulo}</p>}
+            {erroresPorCampo.titulo && <p id="aviso-titulo-error" className="text-xs text-error">{erroresPorCampo.titulo}</p>}
           </div>
 
           <div className="space-y-2">
             <Label htmlFor="aviso-cuerpo">Texto</Label>
             <Textarea
               id="aviso-cuerpo"
+              aria-invalid={erroresPorCampo.cuerpo ? true : undefined}
+              aria-describedby={erroresPorCampo.cuerpo ? 'aviso-cuerpo-error' : undefined}
               value={cuerpo}
               onChange={(e) => cambiar(setCuerpo)(e.target.value)}
               maxLength={LARGO_MAXIMO_CUERPO_EQUIPO}
@@ -196,7 +200,7 @@ export function FormularioAvisoEquipo() {
             <p className="text-xs text-muted-foreground">
               {cuerpo.length} / {LARGO_MAXIMO_CUERPO_EQUIPO}
             </p>
-            {erroresPorCampo.cuerpo && <p className="text-xs text-destructive">{erroresPorCampo.cuerpo}</p>}
+            {erroresPorCampo.cuerpo && <p id="aviso-cuerpo-error" className="text-xs text-error">{erroresPorCampo.cuerpo}</p>}
           </div>
 
           <fieldset className="space-y-2" disabled={isPending}>
@@ -215,7 +219,7 @@ export function FormularioAvisoEquipo() {
                 </label>
               ))}
             </div>
-            {erroresPorCampo.destino && <p className="text-xs text-destructive">{erroresPorCampo.destino}</p>}
+            {erroresPorCampo.destino && <p className="text-xs text-error">{erroresPorCampo.destino}</p>}
           </fieldset>
 
           {tipoDestino === 'evento' && (
@@ -223,15 +227,17 @@ export function FormularioAvisoEquipo() {
               <Label htmlFor="aviso-evento">Evento</Label>
               <Input
                 id="aviso-evento"
+                aria-invalid={erroresPorCampo.eventId || (eventoTexto.trim().length > 0 && !eventoId) ? true : undefined}
+                aria-describedby={[eventoTexto.trim().length > 0 && !eventoId ? 'aviso-evento-no-reconocido' : null, erroresPorCampo.eventId ? 'aviso-evento-error' : null].filter(Boolean).join(' ') || undefined}
                 placeholder="Pegá el link de la ficha o el id del evento"
                 value={eventoTexto}
                 onChange={(e) => cambiar(setEventoTexto)(e.target.value)}
                 disabled={isPending}
               />
               {eventoTexto.trim().length > 0 && !eventoId && (
-                <p className="text-xs text-destructive">No se reconoció un id de evento válido en ese texto.</p>
+                <p id="aviso-evento-no-reconocido" className="text-xs text-error">No se reconoció un id de evento válido en ese texto.</p>
               )}
-              {erroresPorCampo.eventId && <p className="text-xs text-destructive">{erroresPorCampo.eventId}</p>}
+              {erroresPorCampo.eventId && <p id="aviso-evento-error" className="text-xs text-error">{erroresPorCampo.eventId}</p>}
             </div>
           )}
 
