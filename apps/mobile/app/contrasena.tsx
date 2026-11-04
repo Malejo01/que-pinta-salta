@@ -35,6 +35,7 @@ import { useColoresQPS } from '@/lib/colores'
 import { guardarContrasena } from '@/lib/contrasena'
 import { useTextos } from '@/lib/i18n'
 import { useSession } from '@/lib/session'
+import { useAnunciarAviso } from '@/lib/anunciar-aviso-hook'
 
 // Mismo criterio que `app/(tabs)/cuenta.tsx` y `app/eliminar-cuenta.tsx`: un
 // rojo fijo para el error, nunca leído de `useColorScheme()` (D1, 29-g: la
@@ -58,6 +59,11 @@ export default function Contrasena() {
   useEffect(() => {
     if (!cargando && !session) router.replace('/cuenta')
   }, [cargando, session, router])
+
+  // Q6-6: el error y el «Listo» se le dicen al lector de pantalla. El «Listo»
+  // reemplaza el formulario entero: sin el anuncio, TalkBack perdía el foco y
+  // no decía nada.
+  useAnunciarAviso(error ? t.errores.traducir(error) : guardada ? tc.guardada : null)
 
   if (cargando || !session) {
     return (
@@ -137,6 +143,8 @@ export default function Contrasena() {
         onPress={guardar}
         disabled={guardando}
         accessibilityRole="button"
+        // Q6-6: con la ruedita no hay texto: el nombre va aparte.
+        accessibilityLabel={textos.boton}
         accessibilityState={{ busy: guardando }}
         style={estilos.boton(guardando, colores.primary, colores.border)}
       >

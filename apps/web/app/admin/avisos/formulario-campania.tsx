@@ -169,6 +169,8 @@ export function FormularioCampania({ campaniaInicial = null }: FormularioCampani
             <Label htmlFor="titulo">Título</Label>
             <Input
               id="titulo"
+              aria-invalid={erroresPorCampo.titulo ? true : undefined}
+              aria-describedby={erroresPorCampo.titulo ? 'titulo-error' : undefined}
               value={titulo}
               onChange={(e) => setTitulo(e.target.value)}
               maxLength={LARGO_MAXIMO_TITULO}
@@ -178,13 +180,15 @@ export function FormularioCampania({ campaniaInicial = null }: FormularioCampani
             <p className="text-xs text-muted-foreground">
               {titulo.length} / {LARGO_MAXIMO_TITULO}
             </p>
-            {erroresPorCampo.titulo && <p className="text-xs text-destructive">{erroresPorCampo.titulo}</p>}
+            {erroresPorCampo.titulo && <p id="titulo-error" className="text-xs text-error">{erroresPorCampo.titulo}</p>}
           </div>
 
           <div className="space-y-2">
             <Label htmlFor="cuerpo">Cuerpo</Label>
             <Textarea
               id="cuerpo"
+              aria-invalid={erroresPorCampo.cuerpo ? true : undefined}
+              aria-describedby={erroresPorCampo.cuerpo ? 'cuerpo-error' : undefined}
               value={cuerpo}
               onChange={(e) => setCuerpo(e.target.value)}
               maxLength={LARGO_MAXIMO_CUERPO}
@@ -194,13 +198,15 @@ export function FormularioCampania({ campaniaInicial = null }: FormularioCampani
             <p className="text-xs text-muted-foreground">
               {cuerpo.length} / {LARGO_MAXIMO_CUERPO}
             </p>
-            {erroresPorCampo.cuerpo && <p className="text-xs text-destructive">{erroresPorCampo.cuerpo}</p>}
+            {erroresPorCampo.cuerpo && <p id="cuerpo-error" className="text-xs text-error">{erroresPorCampo.cuerpo}</p>}
           </div>
 
           <div className="space-y-2">
             <Label htmlFor="evento">Evento</Label>
             <Input
               id="evento"
+              aria-invalid={erroresPorCampo.eventId || (eventoTexto.trim().length > 0 && !eventoId) ? true : undefined}
+              aria-describedby={[eventoTexto.trim().length > 0 && !eventoId ? 'evento-no-reconocido' : null, erroresPorCampo.eventId ? 'evento-error' : null].filter(Boolean).join(' ') || undefined}
               placeholder="Pegá el link de la ficha o el id del evento"
               value={eventoTexto}
               onChange={(e) => setEventoTexto(e.target.value)}
@@ -208,22 +214,24 @@ export function FormularioCampania({ campaniaInicial = null }: FormularioCampani
               required
             />
             {eventoTexto.trim().length > 0 && !eventoId && (
-              <p className="text-xs text-destructive">No se reconoció un id de evento válido en ese texto.</p>
+              <p id="evento-no-reconocido" className="text-xs text-error">No se reconoció un id de evento válido en ese texto.</p>
             )}
-            {erroresPorCampo.eventId && <p className="text-xs text-destructive">{erroresPorCampo.eventId}</p>}
+            {erroresPorCampo.eventId && <p id="evento-error" className="text-xs text-error">{erroresPorCampo.eventId}</p>}
           </div>
 
           <div className="space-y-2">
             <Label htmlFor="url">Link (opcional)</Label>
             <Input
               id="url"
+              aria-invalid={erroresPorCampo.url ? true : undefined}
+              aria-describedby={erroresPorCampo.url ? 'url-error' : undefined}
               type="url"
               placeholder="https://..."
               value={url}
               onChange={(e) => setUrl(e.target.value)}
               disabled={isPending}
             />
-            {erroresPorCampo.url && <p className="text-xs text-destructive">{erroresPorCampo.url}</p>}
+            {erroresPorCampo.url && <p id="url-error" className="text-xs text-error">{erroresPorCampo.url}</p>}
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">
@@ -231,32 +239,36 @@ export function FormularioCampania({ campaniaInicial = null }: FormularioCampani
               <Label htmlFor="desde">Desde</Label>
               <Input
                 id="desde"
+                aria-invalid={erroresPorCampo.startsAt ? true : undefined}
+                aria-describedby={erroresPorCampo.startsAt ? 'desde-error' : undefined}
                 type="datetime-local"
                 value={desde}
                 onChange={(e) => setDesde(e.target.value)}
                 disabled={isPending}
                 required
               />
-              {erroresPorCampo.startsAt && <p className="text-xs text-destructive">{erroresPorCampo.startsAt}</p>}
+              {erroresPorCampo.startsAt && <p id="desde-error" className="text-xs text-error">{erroresPorCampo.startsAt}</p>}
             </div>
             <div className="space-y-2">
               <Label htmlFor="hasta">Hasta</Label>
               <Input
                 id="hasta"
+                aria-invalid={erroresPorCampo.endsAt ? true : undefined}
+                aria-describedby={erroresPorCampo.endsAt ? 'hasta-error' : undefined}
                 type="datetime-local"
                 value={hasta}
                 onChange={(e) => setHasta(e.target.value)}
                 disabled={isPending}
                 required
               />
-              {erroresPorCampo.endsAt && <p className="text-xs text-destructive">{erroresPorCampo.endsAt}</p>}
+              {erroresPorCampo.endsAt && <p id="hasta-error" className="text-xs text-error">{erroresPorCampo.endsAt}</p>}
             </div>
           </div>
           <p className="text-xs text-muted-foreground">
             La ventana tiene que durar de 1 a {DIAS_MAXIMOS_VENTANA} días.
           </p>
 
-          {erroresPorCampo.general && <p className="text-sm text-destructive">{erroresPorCampo.general}</p>}
+          {erroresPorCampo.general && <p role="alert" className="text-sm text-error">{erroresPorCampo.general}</p>}
 
           {/* Vista previa, tal como se va a ver el push */}
           <div className="rounded-lg border border-dashed border-border bg-muted/30 p-4">
@@ -338,7 +350,7 @@ export function BotonCancelarCampania({ id }: BotonCancelarCampaniaProps) {
       <Button type="button" variant="outline" size="sm" disabled={isPending} onClick={handleCancelar}>
         Cancelar
       </Button>
-      {mensaje && <p className="text-xs text-destructive">{mensaje}</p>}
+      {mensaje && <p role="alert" className="text-xs text-error">{mensaje}</p>}
     </div>
   )
 }

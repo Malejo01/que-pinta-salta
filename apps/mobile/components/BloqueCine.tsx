@@ -12,7 +12,7 @@ import { urlCompraCineSegura, type FuncionesDeCine } from '@/lib/datos/cines'
 import { useTextos } from '@/lib/i18n'
 
 /** El nombre del cine como trigger y, abierto, los formatos con sus horarios
- * en chips y "Comprar Entradas". */
+ * en chips y "Comprar entradas". */
 export function BloqueCine({
   cine,
   abierto,

@@ -50,6 +50,7 @@ import { desvincularTokenDeEsteTelefono } from '@/lib/push/registro'
 import { supabase } from '@/lib/supabase'
 import { avisar } from '@/lib/aviso'
 import { useSession } from '@/lib/session'
+import { useAnunciarAviso } from '@/lib/anunciar-aviso-hook'
 import { textoVersion } from '@/lib/version'
 import { useTextos } from '@/lib/i18n'
 
@@ -188,6 +189,11 @@ export default function Cuenta() {
   const mostrarAvisoAltaConSesion =
     avisoAltaConSesionPara !== null &&
     session?.user.email?.trim().toLowerCase() === avisoAltaConSesionPara
+  // Q6-6: el error (de «Entrar», «Crear cuenta», Google o «Cerrar sesión») y
+  // «Te mandamos un mail…» se le dicen al lector de pantalla cuando aparecen:
+  // antes se dibujaban en silencio, lejos del botón que se tocó. El alta con
+  // sesión no: ya sale como aviso de Android (`avisar`), que TalkBack lee.
+  useAnunciarAviso(error ? t.errores.traducir(error) : avisoConfirmacion ? t.errores.traducir(MENSAJE_ALTA_ENVIADA) : null)
 
   const estilos = {
     pantalla: { flex: 1, backgroundColor: colores.background },
@@ -490,6 +496,9 @@ export default function Cuenta() {
           onPress={salir}
           disabled={accionEnCurso !== null}
           accessibilityRole="button"
+          // Q6-6: con la ruedita no hay texto: el nombre va aparte, y «ocupado» también.
+          accessibilityLabel={tc.cerrarSesion}
+          accessibilityState={{ busy: accionEnCurso === 'salir' }}
           style={estilos.salir}
         >
           {accionEnCurso === 'salir' ? (
@@ -577,6 +586,8 @@ export default function Cuenta() {
             onPress={entrar}
             disabled={accionEnCurso !== null}
             accessibilityRole="button"
+            // Q6-6: con la ruedita no hay texto: sin esto TalkBack decía solo «botón, ocupado».
+            accessibilityLabel={tc.entrar}
             accessibilityState={{ busy: accionEnCurso !== null }}
             style={estilos.boton(accionEnCurso !== null)}
           >
@@ -593,6 +604,7 @@ export default function Cuenta() {
             onPress={crearCuenta}
             disabled={accionEnCurso !== null}
             accessibilityRole="button"
+            accessibilityLabel={tc.crearCuenta}
             accessibilityState={{ busy: accionEnCurso !== null }}
             style={estilos.boton(accionEnCurso !== null)}
           >

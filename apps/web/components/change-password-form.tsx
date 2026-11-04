@@ -112,7 +112,7 @@ export function ChangePasswordForm({ modo = "email", idioma = "es" }: ChangePass
             <div
               id={errorId}
               role="alert"
-              className="flex items-start gap-2 rounded-lg border border-destructive bg-destructive/10 p-3 text-sm text-destructive"
+              className="flex items-start gap-2 rounded-lg border border-destructive bg-destructive/10 p-3 text-sm text-error"
             >
               <AlertCircle className="size-4 shrink-0 mt-0.5" />
               <span>{error}</span>
@@ -120,7 +120,7 @@ export function ChangePasswordForm({ modo = "email", idioma = "es" }: ChangePass
           )}
 
           {success && (
-            <div role="status" className="flex items-start gap-2 rounded-lg border border-green-500/20 bg-green-500/10 p-3 text-sm text-green-600 dark:text-green-400">
+            <div role="status" className="flex items-start gap-2 rounded-lg border border-green-500/20 bg-green-500/10 p-3 text-sm text-green-800 dark:text-green-400">
               <CheckCircle2 className="size-4 shrink-0 mt-0.5" />
               <span>
                 {modo === "restablecer" ? (

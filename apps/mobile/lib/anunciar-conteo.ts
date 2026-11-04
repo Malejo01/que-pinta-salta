@@ -85,6 +85,7 @@ import type { Atajo } from '@qps/core/home/atajos'
 import { textoResultadosBuscar, textoSinResultadosBuscar, type FiltrosTextoBuscar } from '@/lib/buscar-filtros'
 import { SLUG_INFANTIL } from '@/lib/para-chicos'
 import type { TipoAnuncioGrilla } from '@/lib/portada-gratis'
+import type { FiltrosLugares } from '@/lib/lugares-chicos'
 import { es } from '@/lib/i18n/diccionarios/es'
 import type { Idioma } from '@/lib/i18n/idioma'
 import { textosDe } from '@/lib/i18n/textos'
@@ -412,5 +413,28 @@ export function estadoAnunciableCines(p: {
     titulo: null,
     conteo: !busqueda ? null : p.cantidad > 0 ? t.peliculasPara(t.peliculas(p.cantidad), busqueda) : t.ningunaPelicula(busqueda),
     alSalir: p.total > 0 ? t.enCartel(t.peliculas(p.total)) : null,
+  }
+}
+
+/**
+ * Q6-6 · Lugares para chicos (`app/lugares-chicos/index.tsx`): «N lugares»
+ * cuando cambia un filtro (tipo, «Gratis», «Abierto ahora») o el barrio
+ * elegido. Antes la pantalla anunciaba a mano en el mismo toque y, en
+ * Android, el «Seleccionado» de TalkBack (o la relectura del foco cuando la
+ * lista de barrios se cierra) pisaba el conteo. Con el barrio, el detalle
+ * dice el orden («12 lugares, Ordenados por cercanía a Tres Cerritos»).
+ */
+export function estadoAnunciableLugaresChicos(p: {
+  filtros: FiltrosLugares
+  /** El nombre del barrio elegido para ordenar; `null` sin barrio. */
+  barrio: string | null
+  cantidad: number
+  idioma?: Idioma
+}): EstadoAnunciable {
+  const t = textosDe(p.idioma).lugaresChicos
+  return {
+    clave: `${p.filtros.tipo ?? ''}|${p.filtros.gratis ? 'gratis' : ''}|${p.filtros.abiertoAhora ? 'abierto' : ''}|${p.barrio ?? ''}`,
+    titulo: p.barrio ? t.ordenadosPorBarrio(p.barrio) : null,
+    conteo: t.conteo(p.cantidad),
   }
 }

@@ -5,7 +5,7 @@
 //
 // Por defecto, el idioma del teléfono («Automático»). La elección se guarda
 // en el teléfono (`qps.idioma`); no viaja al servidor.
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { almacenPorDefecto, type Almacen } from '@/lib/sin-conexion/almacen'
 import type { Diccionario } from './diccionarios/es'
 import { textosDe } from './textos'
@@ -46,11 +46,16 @@ const ContextoIdioma = createContext<ValorIdioma>({
 export function IdiomaProvider({ children, almacen = almacenPorDefecto }: { children: ReactNode; almacen?: Almacen }) {
   const [preferencia, setPreferencia] = useState<PreferenciaIdioma>('auto')
   const [listo, setListo] = useState(false)
+  // R-1: lo que se eligió en Cuenta antes de que terminara la lectura del
+  // teléfono. Sin esto, la lectura (que empezó antes del toque, con el valor
+  // viejo) pisaba la elección en pantalla aunque en el teléfono quedara la nueva.
+  const elegidaAntesDeLeer = useRef<PreferenciaIdioma | null>(null)
 
   useEffect(() => {
     let vigente = true
-    leerPreferenciaIdioma(almacen).then((p) => {
+    leerPreferenciaIdioma(almacen).then((leida) => {
       if (!vigente) return
+      const p = elegidaAntesDeLeer.current ?? leida
       setPreferencia(p)
       setListo(true)
     })
@@ -61,6 +66,7 @@ export function IdiomaProvider({ children, almacen = almacenPorDefecto }: { chil
 
   const cambiarPreferencia = useCallback(
     (p: PreferenciaIdioma) => {
+      elegidaAntesDeLeer.current = p
       setPreferencia(p)
       void guardarPreferenciaIdioma(almacen, p)
     },

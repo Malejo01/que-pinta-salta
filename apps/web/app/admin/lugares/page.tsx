@@ -297,11 +297,14 @@ export default async function AdminLugaresPage({
                         href={urlVerEnOsm(sugerencia.lat, sugerencia.lng)}
                         target="_blank"
                         rel="noopener noreferrer"
-                        aria-label={`Ver en OpenStreetMap la ubicación sugerida para ${venue.name}`}
-                        className="inline-flex min-h-11 items-center gap-1 self-start text-xs font-medium text-primary hover:underline"
+                        // Q6-6: el nombre accesible empieza con el texto visible (WCAG 2.5.3,
+                        // antes era otra frase) y el rojo claro en oscuro (--primary sobre la
+                        // tarjeta da 4,3:1 con letra chica).
+                        className="inline-flex min-h-11 items-center gap-1 self-start text-xs font-medium text-primary dark:text-[#F0585D] hover:underline"
                       >
                         Ver la sugerencia en OpenStreetMap
-                        <ExternalLink className="size-3" />
+                        <span className="sr-only">: {venue.name}, se abre en otra pestaña</span>
+                        <ExternalLink className="size-3" aria-hidden="true" />
                       </a>
                       <LugarSugerenciaAcciones venueId={venue.id} nombre={venue.name} />
                     </section>

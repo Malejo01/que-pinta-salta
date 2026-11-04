@@ -78,7 +78,8 @@ export const obtenerFichaLugar = cache(async (parametro: string): Promise<Result
   // Los venues fusionados en este también cuentan (sus eventos viejos pueden apuntar a ellos).
   const { data: fusionados } = await supabase.from('venues').select('id').eq('canonical_venue_id', venue.id).limit(50)
   const ids = [venue.id, ...((fusionados ?? []) as { id: string }[]).map((f) => f.id)]
-  const desde = new Date(Date.now() - DIAS_PASADOS_RECIENTES * 24 * 60 * 60 * 1000).toISOString()
+  const ahora = Date.now()
+  const desde = new Date(ahora - DIAS_PASADOS_RECIENTES * 24 * 60 * 60 * 1000).toISOString()
 
   const [eventos, permanente] = await Promise.all([
     supabase
@@ -86,7 +87,9 @@ export const obtenerFichaLugar = cache(async (parametro: string): Promise<Result
       .select('id, title, start_date, end_date, is_free')
       .eq('status', 'PUBLISHED')
       .in('venue_id', ids)
-      .gte('start_date', desde)
+      // R-1: también lo que empezó antes pero sigue en curso (una muestra de
+      // tres meses): con solo `start_date >= desde` no aparecía en «Próximos».
+      .or(`start_date.gte.${desde},end_date.gte.${new Date(ahora).toISOString()}`)
       .order('start_date', { ascending: true })
       .limit(200),
     supabase.from('lugares_permanentes').select(SELECT_LUGARES_CHICOS).eq('venue_id', venue.id).eq('estado', 'publicado').limit(1),

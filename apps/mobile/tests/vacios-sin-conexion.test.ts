@@ -665,7 +665,7 @@ describe('accionesVacioBuscar: una salida por filtro, por prioridad, como mucho 
     expect(accionesVacioBuscar({ texto: 'x', atajo: 'hoy', soloGratis: true, categoria: 'musica' })).toEqual([
       'Limpiar búsqueda',
       'Ver todas las fechas',
-      'Sacar “Solo gratis”',
+      'Sacar «Solo gratis»', // R-2: comillas «» (el estilo del diccionario de la app)
     ])
   })
 })
@@ -692,7 +692,8 @@ describe('app/(tabs)/buscar.tsx: el vacío, el tile y la grilla vacía (detector
       /if \(soloGratisActivo\) accionesVacio\.push\(\{ texto: t\.vacios\.sacarSoloGratis, alTocar: \(\) => setSoloGratisActivo\(false\) \}\)/,
     )
     expect(es.vacios.limpiarBusqueda).toBe('Limpiar búsqueda')
-    expect(es.vacios.sacarSoloGratis).toBe('Sacar “Solo gratis”')
+    // R-2: comillas «» (el estilo del diccionario de la app), misma clave.
+    expect(es.vacios.sacarSoloGratis).toBe('Sacar «Solo gratis»')
     expect(en.vacios.limpiarBusqueda).not.toBe(es.vacios.limpiarBusqueda)
     expect(en.vacios.sacarSoloGratis).not.toBe(es.vacios.sacarSoloGratis)
   })
@@ -807,7 +808,8 @@ describe('app/(tabs)/favoritos.tsx (detector estático)', () => {
       /<Vacio\s+\{\.\.\.vacioFavoritos\(estado\.tipo === 'ok' && estado\.desdeCache !== null, idioma\)\}\s+onAccion=\{\(\) => router\.push\('\/'\)\}\s+accionPrincipal/,
     )
     expect(vacioFavoritos(false)).toBe(VACIO_FAVORITOS)
-    expect(VACIO_FAVORITOS.mensaje).toBe('Todavía no guardaste ningún evento en Mis eventos. Tocá el corazón o “Voy” en un evento y aparece acá.')
+    // R-2: «Voy» con las comillas del diccionario (`vacios.favoritos`).
+    expect(VACIO_FAVORITOS.mensaje).toBe('Todavía no guardaste ningún evento en Mis eventos. Tocá el corazón o «Voy» en un evento y aparece acá.')
     expect(vacioFavoritos(false, 'en').mensaje).toContain('My events')
   })
 

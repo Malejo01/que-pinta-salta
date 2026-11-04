@@ -94,7 +94,7 @@ export type EventVibe = "familiar" | "adultos" | "exterior"
 export const vibeLabels: Record<EventVibe, string> = {
   familiar: "Familiar",
   adultos: "Adultos",
-  exterior: "Al Aire Libre",
+  exterior: "Al aire libre", // R-2: mayúscula de oración (antes «Al Aire Libre»)
 }
 
 // Cinema Types

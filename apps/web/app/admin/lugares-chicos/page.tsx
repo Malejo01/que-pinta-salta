@@ -267,6 +267,10 @@ export default async function AdminLugaresChicosPage({
         ))}
       </nav>
 
+      {/* Q6-6: la lista de la pestaña tenía solo los botones de arriba como título: ahora tiene su <h2>. */}
+      <h2 className="sr-only">
+        {PESTAÑAS_LUGARES_CHICOS.find((p) => p.ver === pestaña)?.label}: {lista.length === 1 ? '1 lugar' : `${lista.length} lugares`}
+      </h2>
       {lista.length === 0 ? (
         <p className="text-sm text-muted-foreground">No hay lugares en esta lista.</p>
       ) : (

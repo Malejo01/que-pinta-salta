@@ -67,7 +67,7 @@ export async function toggleFavorite(
   const { data: { user }, error: authError } = await supabase.auth.getUser()
 
   if (!user || authError) {
-    return { success: false, error: "AUTH_REQUIRED", message: "Debes iniciar sesión para guardar favoritos" }
+    return { success: false, error: "AUTH_REQUIRED", message: "Tenés que iniciar sesión para guardar favoritos" }
   }
 
   // Sanitizar prefijos comunes del frontend

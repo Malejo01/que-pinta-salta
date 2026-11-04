@@ -2,7 +2,9 @@
 // mismos de Cuenta › Lo que seguís), cada uno abre su ficha en la web
 // (`urlFichaLugarWeb`, la ficha /lugar de Q5-5). Se recarga al volver a la
 // pestaña. Sin lugares, una línea que explica cómo seguir uno. Con error, no
-// se dibuja (Mis eventos sigue con los guardados).
+// se dibuja (Mis eventos sigue con los guardados). R-1: antes, con error, se
+// leía con `obtenerLoQueSeguis` (que da `[]` si falla) y decía «Todavía no
+// seguís ningún lugar»; ahora `obtenerLugaresQueSeguis` devuelve `null`.
 import { useCallback, useState } from 'react'
 import { Pressable, StyleSheet, View } from 'react-native'
 import { useFocusEffect } from 'expo-router'
@@ -11,7 +13,7 @@ import { Icono } from '@/components/Icono'
 import { Texto } from '@/components/Texto'
 import { useColoresQPS } from '@/lib/colores'
 import { urlFichaLugarWeb } from '@/lib/links'
-import { obtenerLoQueSeguis } from '@/lib/radar'
+import { obtenerLugaresQueSeguis } from '@/lib/radar'
 import { useTextos } from '@/lib/i18n'
 import { es } from '@/lib/i18n/diccionarios/es'
 
@@ -27,8 +29,8 @@ export function LugaresQueSeguis({ userId }: { userId: string }) {
   useFocusEffect(
     useCallback(() => {
       let vigente = true
-      obtenerLoQueSeguis(userId).then((r) => {
-        if (vigente) setLugares([...r.lugares].sort((a, b) => a.nombre.localeCompare(b.nombre, 'es')))
+      void obtenerLugaresQueSeguis(userId).then((r) => {
+        if (vigente) setLugares(r === null ? null : [...r].sort((a, b) => a.nombre.localeCompare(b.nombre, 'es')))
       })
       return () => {
         vigente = false

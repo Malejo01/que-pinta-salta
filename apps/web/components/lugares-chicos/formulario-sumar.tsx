@@ -145,7 +145,7 @@ export function FormularioSumarLugar({ idioma, iniciado }: { idioma: Idioma; ini
       </label>
       <p className="text-xs text-muted-foreground">{t.noCasas}</p>
 
-      <p id="error-sumar" ref={mensaje} tabIndex={-1} role="alert" className="text-sm font-medium text-destructive focus:outline-none">
+      <p id="error-sumar" ref={mensaje} tabIndex={-1} role="alert" className="text-sm font-medium text-error focus:outline-none">
         {error ? t.errores[error] : ""}
       </p>
       <button
