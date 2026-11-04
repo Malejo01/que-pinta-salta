@@ -1,5 +1,5 @@
 // Q4-7: traducción de eventos al inglés. Sin red, sin base y SIN llamar al
-// modelo: el traductor se inyecta; `@/lib/ai/gemini` se mockea para que un
+// modelo: el traductor se inyecta; `@/lib/ai/llamadas-ia` se mockea para que un
 // descuido no termine en una llamada paga.
 import { describe, expect, it, vi } from 'vitest'
 import { ApiError } from '@google/genai'
@@ -7,7 +7,9 @@ import { ApiError } from '@google/genai'
 const generarJsonDeTexto = vi.fn(async () => {
   throw new Error('no se llama al modelo en los tests')
 })
-vi.mock('@/lib/ai/gemini', () => ({ generarJsonDeTexto: (...a: unknown[]) => generarJsonDeTexto(...(a as [])) }))
+// Q6-3: las llamadas a la IA pasaron de lib/ai/gemini.ts a lib/ai/llamadas-ia.ts (capa lib/ia);
+// el doble sigue reemplazando la única puerta a la IA, así que el test sigue sin red ni gasto.
+vi.mock('@/lib/ai/llamadas-ia', () => ({ generarJsonDeTexto: (...a: unknown[]) => generarJsonDeTexto(...(a as [])) }))
 
 import {
   cupoDeLaCorrida,

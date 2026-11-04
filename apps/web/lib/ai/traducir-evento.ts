@@ -1,12 +1,13 @@
 /**
  * Q4-7: traduce al inglés el título y la descripción de un evento con el
- * cliente de IA que el pipeline ya usa (`lib/ai/gemini.ts`, `GEMINI_MODEL`).
+ * proveedor de IA del pipeline (Q6-3: `lib/ai/llamadas-ia.ts` → `lib/ia`,
+ * Gemini por defecto; cada llamada queda en `ia_llamadas` como `traduccion`).
  * Los nombres de lugares y artistas nunca se traducen: se le pasan al modelo
  * como «no traducir» y `validarTraduccion` (core) descarta la respuesta si los
  * cambió. Nunca tira: devuelve `null` si algo falla (el evento se muestra en
  * castellano con «(in Spanish)»).
  */
-import { generarJsonDeTexto } from '@/lib/ai/gemini'
+import { generarJsonDeTexto } from '@/lib/ai/llamadas-ia'
 import {
   descripcionParaTraducir,
   validarTraduccionConMotivo,
@@ -35,7 +36,7 @@ const ESQUEMA = {
 
 export type Traductor = (texto: string) => Promise<unknown>
 
-const traductorReal: Traductor = (texto) => generarJsonDeTexto(INSTRUCCION, texto, ESQUEMA)
+const traductorReal: Traductor = (texto) => generarJsonDeTexto(INSTRUCCION, texto, ESQUEMA, { uso: 'traduccion' })
 
 export function textoParaElModelo(evento: EventoParaTraducir): string {
   const protegidos = [evento.venueName, ...evento.artists].filter((n): n is string => !!n && n.trim().length > 0)

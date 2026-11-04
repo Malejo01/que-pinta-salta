@@ -309,6 +309,19 @@ isOneToOne: false
       referencedColumns: ["id"]
     }
                   ]
+                },"ia_llamadas": {
+                  Row: {
+                    "created_at": string,"error_codigo": string | null,"id": number,"latencia_ms": number,"modelo": string,"ok": boolean,"proveedor": string,"tokens_entrada": number | null,"tokens_salida": number | null,"uso": string
+                  }
+                  Insert: {
+                    "created_at"?: string,"error_codigo"?: string | null,"id"?: never,"latencia_ms": number,"modelo": string,"ok": boolean,"proveedor": string,"tokens_entrada"?: number | null,"tokens_salida"?: number | null,"uso": string
+                  }
+                  Update: {
+                    "created_at"?: string,"error_codigo"?: string | null,"id"?: never,"latencia_ms"?: number,"modelo"?: string,"ok"?: boolean,"proveedor"?: string,"tokens_entrada"?: number | null,"tokens_salida"?: number | null,"uso"?: string
+                  }
+                  Relationships: [
+                    
+                  ]
                 },"instagram_accounts": {
                   Row: {
                     "created_at": string,"default_category": string,"default_maps_url": string | null,"default_venue_name": string | null,"display_name": string,"id": string,"instagram_url": string | null,"is_active": boolean,"notes": string | null,"profile_pic_url": string | null,"updated_at": string,"username": string

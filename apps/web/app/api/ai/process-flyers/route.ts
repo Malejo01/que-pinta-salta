@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
 import { processFlyerWithAI } from '@/lib/ai/process-flyer-ai'
-import { GEMINI_MODEL } from '@/lib/ai/gemini'
+import { proveedorYModeloActivos } from '@/lib/ia/seleccion'
 import { hasBearerSecret } from '@/lib/api-auth'
 import { summarizeVenueErrors } from '@/lib/venues/resolve'
 import { withJobRun, jobTriggerFrom, type JobOutcome } from '@/lib/job-runs'
@@ -14,7 +14,7 @@ export const dynamic = 'force-dynamic'
  * POST /api/ai/process-flyers
  *
  * Endpoint desacoplado que busca flyers pendientes (ai_status = 'PENDING' y status = 'ACTIVE')
- * y los procesa por lotes llamando a la API de Gemini Vision.
+ * y los procesa por lotes con la IA de visión (Gemini por defecto; Q6-3: `lib/ia`).
  *
  * Parámetros de consulta (Query Params):
  * - limit: cantidad máxima de flyers a procesar en esta ejecución (default: 3)
@@ -194,9 +194,12 @@ export async function GET(request: Request) {
       supabase.from('instagram_flyers').select('*', { count: 'exact', head: true }).eq('ai_status', 'FAILED'),
     ])
 
+    // Q6-3: el proveedor y el modelo activos (IA_PROVEEDOR; gemini por defecto).
+    const activo = proveedorYModeloActivos()
     return NextResponse.json({
       status: 'active',
-      model: GEMINI_MODEL,
+      model: activo.modelo,
+      provider: activo.proveedor,
       stats: {
         pending_active_flyers: pendingCount ?? 0,
         processed_flyers: processedCount ?? 0,
