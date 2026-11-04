@@ -19,7 +19,7 @@ const CAMPO = 'h-11 w-full rounded-md border border-input bg-background px-3 tex
 
 function Mensaje({ estado, id }: { estado: EstadoAccionLugar; id: string }) {
   return (
-    <p id={id} role="status" aria-live="polite" className={estado?.ok === false ? 'text-sm text-destructive' : 'text-sm text-muted-foreground'}>
+    <p id={id} role="status" aria-live="polite" className={estado?.ok === false ? 'text-sm text-error' : 'text-sm text-muted-foreground'}>
       {estado?.mensaje ?? ''}
     </p>
   )

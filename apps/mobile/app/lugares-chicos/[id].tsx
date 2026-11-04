@@ -14,6 +14,7 @@ import { Texto } from '@/components/Texto'
 import { useColoresQPS } from '@/lib/colores'
 import { obtenerLugaresChicos } from '@/lib/datos/lugares-chicos'
 import { urlContactoLugar } from '@/lib/links'
+import { langContenidoLugar } from '@/lib/lugares-chicos'
 import { siguesElLugar } from '@/lib/radar'
 import { useSession } from '@/lib/session'
 import { useIdioma, useTextos } from '@/lib/i18n'
@@ -111,6 +112,11 @@ export default function FichaLugarChicos() {
     if (urlOsm) void Linking.openURL(urlOsm)
   }
   const reserva = lugar.horarios.solo_con_reserva === true
+  // Q6-6: lo que escribe el equipo (descripción, dirección, notas) queda en
+  // castellano también con la app en inglés: se marca para que el lector lo
+  // lea con la voz en castellano (VoiceOver; TalkBack no tiene esa opción en
+  // React Native) y la descripción lleva «(in Spanish)», como la ficha de un evento.
+  const langContenido = langContenidoLugar(idioma)
 
   return (
     <ScrollView style={{ backgroundColor: colores.background }} contentContainerStyle={estilos.contenido}>
@@ -121,8 +127,15 @@ export default function FichaLugarChicos() {
       <Texto tono="secundario">
         {ETIQUETA_TIPO[idioma][lugar.tipo]} · {textoEdades(lugar.edadMin, lugar.edadMax, idioma)}
       </Texto>
-      <Texto tono="secundario">{lugar.direccion}</Texto>
-      {lugar.descripcion ? <Texto>{lugar.descripcion}</Texto> : null}
+      <Texto tono="secundario" accessibilityLanguage={langContenido}>
+        {lugar.direccion}
+      </Texto>
+      {lugar.descripcion ? (
+        <Texto accessibilityLanguage={langContenido}>
+          {lugar.descripcion}
+          {langContenido ? ` ${textos.ficha.contenidoEnCastellano}` : ''}
+        </Texto>
+      ) : null}
       {siguiendo !== null ? (
         // `key`: si cambia la sesión, el botón arranca con el estado nuevo.
         <BotonSeguir key={`${userId ?? 'sin-sesion'}-${siguiendo}`} tipo="lugar" id={lugar.venueId} etiqueta={lugar.nombre} siguiendoInicial={siguiendo} />
@@ -151,12 +164,18 @@ export default function FichaLugarChicos() {
             {filasDeHorarios(lugar.horarios, idioma).map((fila) => (
               <View key={fila.dia} style={estilos.filaHorario} accessible accessibilityLabel={`${fila.etiqueta}: ${fila.texto}`}>
                 <Texto>{fila.etiqueta}</Texto>
-                <Texto tono="secundario">{fila.texto}</Texto>
+                <Texto tono="secundario" style={estilos.textoHorario}>
+                  {fila.texto}
+                </Texto>
               </View>
             ))}
           </>
         )}
-        {lugar.horarios.nota ? <Texto tono="secundario">{lugar.horarios.nota}</Texto> : null}
+        {lugar.horarios.nota ? (
+          <Texto tono="secundario" accessibilityLanguage={langContenido}>
+            {lugar.horarios.nota}
+          </Texto>
+        ) : null}
       </View>
 
       <View style={[estilos.bloque, { borderColor: colores.border }]}>
@@ -217,7 +236,9 @@ const estilos = StyleSheet.create({
     paddingHorizontal: 16,
   },
   bloque: { gap: 6, borderTopWidth: 1, paddingTop: 12 },
+  // Q6-6: con la letra al 200 % las franjas («10:00 a 13:00 y 16:00 a 20:00») envuelven, no se salen.
   filaHorario: { flexDirection: 'row', justifyContent: 'space-between', gap: 12 },
+  textoHorario: { flexShrink: 1, textAlign: 'right' },
   filaContacto: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   botonContacto: { minHeight: 48, minWidth: 48, borderWidth: 1, borderRadius: 8, paddingHorizontal: 16, justifyContent: 'center' },
   botonOsm: { minHeight: 48, justifyContent: 'center' },

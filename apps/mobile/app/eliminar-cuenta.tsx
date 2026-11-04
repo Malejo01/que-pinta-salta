@@ -35,6 +35,7 @@ import { useColoresQPS } from '@/lib/colores'
 import { useTextos } from '@/lib/i18n'
 import { completarEliminacionDeCuenta, confirmacionValida } from '@/lib/cuenta'
 import { useSession } from '@/lib/session'
+import { useAnunciarAviso } from '@/lib/anunciar-aviso-hook'
 
 // Mismo criterio que `app/(tabs)/cuenta.tsx` (ver su comentario: F4 de la
 // R24, D1 de 29-g): un rojo fijo para texto de error/acción destructiva,
@@ -55,6 +56,9 @@ export default function EliminarCuenta() {
   const [error, setError] = useState<string | null>(null)
 
   const habilitado = confirmacionValida(texto) && !enviando && Boolean(session?.access_token)
+  // Q6-6: si el borrado falla, el error se le dice al lector de pantalla
+  // (antes aparecía en silencio arriba del botón).
+  useAnunciarAviso(error ? textos.errores.traducir(error) : null)
 
   async function eliminar() {
     if (!habilitado || !session?.access_token) return
@@ -139,6 +143,8 @@ export default function EliminarCuenta() {
         disabled={!habilitado}
         accessibilityRole="button"
         accessibilityLabel={t.boton}
+        // Q6-6: mientras borra, «ocupado» (el `disabled` ya lo suma el Pressable).
+        accessibilityState={{ busy: enviando }}
         style={estilos.boton(habilitado ? COLOR_ERROR : colores.border)}
       >
         {enviando ? (

@@ -2,17 +2,24 @@
 // English. Se guarda en el teléfono. Tres botones de opción (radio) con
 // `checked`, 48 dp de alto; el elegido se distingue por forma (relleno,
 // borde de 2 y tilde), no solo por color. El cambio se anuncia.
+// Q6-6: el anuncio sale en el idioma NUEVO (`anuncioCambioDeIdioma`) y por
+// `useAnunciarAviso`, que en Android espera a que TalkBack termine de leer la
+// opción tocada (antes se decía en el idioma viejo y en el mismo toque).
+import { useState } from 'react'
 import { Pressable, StyleSheet, View } from 'react-native'
 import { Icono } from '@/components/Icono'
 import { Texto } from '@/components/Texto'
-import { anunciar } from '@/lib/anunciar'
+import { useAnunciarAviso } from '@/lib/anunciar-aviso-hook'
 import { bordeChipInactivo, useColoresQPS } from '@/lib/colores'
 import { useIdioma, useTextos, type PreferenciaIdioma } from '@/lib/i18n'
+import { anuncioCambioDeIdioma } from '@/lib/i18n/textos'
 
 export function SelectorIdioma() {
   const colores = useColoresQPS()
   const t = useTextos()
   const { preferencia, cambiarPreferencia } = useIdioma()
+  const [anuncio, setAnuncio] = useState<string | null>(null)
+  useAnunciarAviso(anuncio)
   const opciones: { valor: PreferenciaIdioma; texto: string; lang?: string }[] = [
     { valor: 'auto', texto: t.idioma.automatico },
     { valor: 'es', texto: t.idioma.castellano, lang: 'es' },
@@ -35,7 +42,7 @@ export function SelectorIdioma() {
               key={o.valor}
               onPress={() => {
                 cambiarPreferencia(o.valor)
-                anunciar(t.idioma.cambiadoA(o.texto))
+                setAnuncio(anuncioCambioDeIdioma(o.valor))
               }}
               accessibilityRole="radio"
               accessibilityState={{ checked: activa }}
