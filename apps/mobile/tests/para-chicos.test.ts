@@ -606,7 +606,7 @@ describe('vacío de "Para chicos" (textoVacioParaChicos y la segunda salida)', (
     ['musica', 'Música', 'semana', false, 'No hay eventos de Música para chicos esta semana.'],
     ['musica', 'Música', 'hoy', true, 'No hay eventos gratis de Música para chicos hoy.'],
     ['infantil', 'Infantil', 'hoy', false, 'No hay eventos de Infantil para hoy.'],
-    ['cine', 'Cine', 'hoy', false, 'No hay eventos de Cine para chicos hoy. Las películas en cartel no tienen la edad cargada, así que no aparecen con "Para chicos".'],
+    ['cine', 'Cine', 'hoy', false, 'No hay eventos de Cine para chicos hoy. Las películas en cartel no tienen la edad cargada, así que no aparecen con «Para chicos».'], // R-2: comillas «» del repo
     ['cine', 'Cine', 'finde', true, 'No hay eventos gratis de Cine para chicos el finde. Las películas en cartel no son gratis.'],
   ] as const)('%s, %s, gratis %s -> "%s"', (categoria, nombre, atajo, gratis, esperado) => {
     expect(textoVacioParaChicos(categoria, nombre, atajo, gratis)).toBe(esperado)

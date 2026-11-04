@@ -123,19 +123,25 @@ describe('/en/perfil: el HTML', () => {
     expect(enlace).toContain('hrefLang="es-AR"')
     expect(enlace).toContain('Delete my account')
     expect(enlace).toContain('(in Spanish)')
-    for (const texto of ['Mi Perfil', 'Pendiente de revisión', 'Lo que seguís', 'Contraseña nueva', 'Dejar de seguir']) {
+    // R-2: «Mi perfil» ya en mayúscula de oración.
+    for (const texto of ['Mi perfil', 'Pendiente de revisión', 'Lo que seguís', 'Contraseña nueva', 'Dejar de seguir']) {
       expect(html, texto).not.toContain(texto)
     }
   })
 
   it('en castellano: los mismos textos de siempre', async () => {
     const html = await render('es')
-    expect(html).toContain('>Mi Perfil</h1>')
+    // R-2: mayúscula de oración («Mi perfil»), «Eventos que cargaste» (como el
+    // menú, antes «Mis Eventos Colaborados») y «Enviado a revisión» (antes «Sometido»).
+    expect(html).toContain('>Mi perfil</h1>')
     expect(html).toContain('1 evento subido')
-    expect(html).toContain('Mis Eventos Colaborados')
+    expect(html).toContain('Eventos que cargaste')
+    expect(html).not.toContain('Mis Eventos Colaborados')
     expect(html).toContain('Pendiente de revisión')
-    expect(html).toContain('Sometido a revisión el ')
-    expect(html).toContain(' hs</span>')
+    expect(html).toContain('Enviado a revisión el ')
+    // R-2: la hora en 12 horas («09:00 p. m.») ya no lleva «hs» al final.
+    expect(html).toMatch(/<span>\d{2}:\d{2} [ap]\. m\.<\/span>/)
+    expect(html).not.toContain(' hs</span>')
     expect(html).toContain('href="/nuevo-evento"')
     expect(html).toContain('href="/lugar/teatro-provincial"')
     expect(html).toContain('Lo que seguís')

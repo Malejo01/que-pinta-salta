@@ -130,8 +130,8 @@ export const en = {
     bajada: 'Everything happening in Salta, in one place.',
     empezar: 'Get started',
     entrar: 'Sign in',
-    avisosTitulo: 'Shall we let you know what is on?',
-    avisosTexto: 'We remind you before the things you save and send you news from Qué Pinta Salta. You can change it any time in Account.',
+    avisosTitulo: 'Shall we let you know what’s on?',
+    avisosTexto: 'We remind you before the events you save and send you news from Qué Pinta Salta. You can change this any time in Account.',
     siAvisame: 'Yes, notify me',
     ahoraNo: 'Not now',
   },
@@ -213,7 +213,7 @@ export const en = {
   },
   idioma: {
     titulo: 'Language',
-    descripcion: 'The app language. «Automatic» follows your phone.',
+    descripcion: 'The app language. “Automatic” follows your phone.',
     automatico: 'Automatic',
     castellano: 'Español',
     ingles: 'English',
@@ -268,7 +268,7 @@ export const en = {
     verLoDeHoy: 'See today',
     verElFinde: 'See the weekend',
     buscarEnTodasLasFechas: 'Search all dates',
-    verCartelera: 'See what is showing',
+    verCartelera: 'See what’s showing',
     verCategoriaEnTodasLasFechas: (nombre: string) => `See ${nombre} on all dates`,
     todasLasCategorias: 'All categories',
     verTodosLosPrecios: 'See all prices',
@@ -300,7 +300,7 @@ export const en = {
       const base = `No${conGratis} ${nombreCategoria} events for kids ${frase}.`
       if (!esCine) return base
       if (gratis) return `${base} Films now showing are not free.`
-      return `${base} Films now showing have no age rating, so they do not appear under "For kids".`
+      return `${base} Films now showing have no age rating, so they do not appear under “For kids”.`
     },
     salidaGrilla: { hoy: 'No filters: all events today', 'esta-noche': 'No filters: all events tonight', finde: 'No filters: all events this weekend', semana: 'No filters: all events this week' },
   },
@@ -309,13 +309,13 @@ export const en = {
     nocheEnFilas: 'Tonight’s events are further down, by category.',
     nocheSinConexion: 'You are offline, so we cannot see tonight’s events. Check what is on during the day.',
     nocheVacia: 'No events tonight. Check what is on during the day.',
-    findeEnFilas: 'The weekend is not today: its events are further down, by category.',
+    findeEnFilas: 'This weekend’s events are further down, by category.',
     findeSinConexion: 'You are offline, so we cannot see the weekend’s events. See what is on during the week.',
     findeVacio: 'No events this weekend. See what is on during the week.',
-    semanaEnFilas: 'Nothing today, but there is this week: it is further down, by category.',
+    semanaEnFilas: 'Nothing today, but there are events this week: they are further down, by category.',
     semanaSinConexion: 'You are offline, so we cannot see this week’s events.',
     semanaVacia: 'No events this week. Search all dates.',
-    cineSinConexion: 'You are offline, so we cannot show you what is showing.',
+    cineSinConexion: 'You are offline, so we cannot show the cinema listings.',
     categoriaSinConexion: (nombre: string, frase: string) => `You are offline, so we cannot see ${nombre} events ${frase}.`,
     cineVacio: (nombre: string, frase: string) => `No films showing and no ${nombre} events ${frase}.`,
     categoriaVacia: (nombre: string, frase: string) => `No ${nombre} events ${frase}.`,
@@ -460,7 +460,7 @@ export const en = {
     cadaCuanto: 'How often do you want to get updates?',
     emailEtiqueta: 'Email address',
     emailNota: 'We send it to your account email.',
-    categoriasTitulo: 'Categories you are into',
+    categoriasTitulo: 'Categories you like',
     categoriasNota: 'You will get alerts for every event filed under the categories you pick.',
     lugaresTitulo: 'Favourite venues and organisers',
     lugaresNota:
@@ -489,7 +489,7 @@ export const en = {
     recordatoriosFavoritos: 'Reminders for favourites',
     novedadesSeguis: 'News from what you follow',
     patrocinados: 'Sponsored notifications',
-    patrocinadosDescripcion: 'Up to 1 a week, about events in Salta. They are labelled "Sponsored".',
+    patrocinadosDescripcion: 'Up to 1 a week, about events in Salta. They are labelled “Sponsored”.',
     equipo: 'Qué Pinta Salta notifications',
     equipoDescripcion: 'News and notices from the Qué Pinta Salta team.',
     canalRadar: 'Radar channel',
@@ -520,7 +520,7 @@ export const en = {
     sinSesionTexto:
       'Without an account we can send you notices from the team and, if you turn them on, sponsored ones. For reminders of what you save and your Radar, sign in.',
     noSePudoCambiar: 'We could not change the notifications. Please try again in a while.',
-    patrocinadosSinSesion: 'Paid ads: up to 1 a week, about events in Salta. They are labelled "Sponsored".',
+    patrocinadosSinSesion: 'Paid ads: up to 1 a week, about events in Salta. They are labelled “Sponsored”.',
     patrocinadosPista: 'Paid ads: up to 1 a week.',
     sinPermiso: 'Not turned on: the phone did not give Qué Pinta Salta permission to send notifications.',
     pidePermiso: 'When you turn it on, the phone asks for permission to send you notifications.',
