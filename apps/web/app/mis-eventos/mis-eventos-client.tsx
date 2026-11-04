@@ -74,7 +74,7 @@ export default function MisEventosClient({ initialEvents }: { initialEvents: unk
         <CalendarDays className="size-12 text-muted-foreground mb-4" />
         <h3 className="text-xl font-semibold mb-2">No tenés eventos creados</h3>
         <p className="text-muted-foreground mb-6 max-w-sm">
-          Aún no has creado ningún evento. ¡Empieza a compartir lo que pasa en Salta!
+          Todavía no cargaste ningún evento. ¡Empezá a compartir lo que pasa en Salta!
         </p>
         <Button asChild>
           <Link href="/nuevo-evento">Crear mi primer evento</Link>
