@@ -4,6 +4,7 @@
 // cómo avisa un error o la falta de red. Antes, lugares-chicos.test.ts solo
 // leía el fuente de esta función.
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { MENSAJE_ERROR_LUGARES, obtenerLugaresChicos } from '@/lib/datos/lugares-chicos'
 
 const estado = vi.hoisted(() => ({
   respuesta: { data: [] as unknown, error: null as unknown } as { data: unknown; error: unknown } | Error,
@@ -28,8 +29,6 @@ vi.mock('@/lib/supabase', () => ({
     },
   },
 }))
-
-import { MENSAJE_ERROR_LUGARES, obtenerLugaresChicos } from '@/lib/datos/lugares-chicos'
 
 const fila = (id: string, extra: Record<string, unknown> = {}) => ({
   id,

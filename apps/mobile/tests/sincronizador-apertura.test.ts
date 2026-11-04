@@ -11,6 +11,9 @@ import { fileURLToPath } from 'node:url'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { React, crearRaiz, type RaizDeReact } from './dobles/react-raiz'
 import { reiniciar } from './dobles/async-storage'
+import { SincronizadorApertura } from '@/components/SincronizadorApertura'
+import { CLAVE_DIA_APERTURA, URL_APERTURA } from '@/lib/apertura'
+import { almacenPorDefecto } from '@/lib/sin-conexion/almacen'
 
 const estado = vi.hoisted(() => ({
   sesion: { session: null as null | { user: { id: string } }, cargando: true },
@@ -38,10 +41,6 @@ vi.mock('react-native', () => ({
 }))
 vi.mock('expo-constants', () => ({ default: { expoConfig: { version: '1.0.9' } } }))
 vi.mock('@/lib/session', () => ({ useSession: () => estado.sesion }))
-
-import { SincronizadorApertura } from '@/components/SincronizadorApertura'
-import { CLAVE_DIA_APERTURA, URL_APERTURA } from '@/lib/apertura'
-import { almacenPorDefecto } from '@/lib/sin-conexion/almacen'
 
 type Global = typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean; document: Document }
 const requerir = createRequire(resolve(dirname(fileURLToPath(import.meta.url)), '../../../package.json'))

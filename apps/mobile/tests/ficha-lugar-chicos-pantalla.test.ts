@@ -11,6 +11,7 @@ import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { React, crearRaiz, type RaizDeReact } from './dobles/react-raiz'
+import FichaLugarChicos from '@/app/lugares-chicos/[id]'
 
 // El teléfono en castellano desde antes de importar (el idioma por omisión
 // del contexto se calcula al cargar `lib/i18n`).
@@ -86,8 +87,6 @@ vi.mock('@/lib/radar', () => ({
     return { ok: true, siguiendo: seguir }
   },
 }))
-
-import FichaLugarChicos from '@/app/lugares-chicos/[id]'
 
 const VENUE = '33333333-3333-4333-8333-333333333333'
 type Global = typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean; document: Document }

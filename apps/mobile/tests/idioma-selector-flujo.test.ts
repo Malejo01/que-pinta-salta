@@ -14,6 +14,10 @@ import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { React, crearRaiz, type RaizDeReact } from './dobles/react-raiz'
+import { IdiomaProvider, useIdioma, useTextos } from '@/lib/i18n'
+import { CLAVE_IDIOMA } from '@/lib/i18n/idioma'
+import type { Almacen } from '@/lib/sin-conexion/almacen'
+import { SelectorIdioma } from '@/components/SelectorIdioma'
 
 vi.mock('react', async () => {
   const { React: R } = await import('./dobles/react-raiz')
@@ -50,11 +54,6 @@ vi.mock('@/lib/anunciar-aviso-hook', async () => {
   }
 })
 vi.mock('@/components/Icono', () => ({ Icono: () => null }))
-
-import { IdiomaProvider, useIdioma, useTextos } from '@/lib/i18n'
-import { CLAVE_IDIOMA } from '@/lib/i18n/idioma'
-import type { Almacen } from '@/lib/sin-conexion/almacen'
-import { SelectorIdioma } from '@/components/SelectorIdioma'
 
 type Global = typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean; document: Document }
 
@@ -142,7 +141,6 @@ afterEach(async () => {
   ;(globalThis as Global).document.body.innerHTML = ''
   vi.restoreAllMocks()
 })
-
 
 describe('Cuenta › Idioma: el selector con el provider real', () => {
   it('sin nada guardado: «Automático» marcado y la app en el idioma del teléfono', async () => {

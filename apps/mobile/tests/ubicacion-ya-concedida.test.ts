@@ -3,6 +3,7 @@
 // usa la ubicación si ya estaba concedida, y aproximada (2 decimales, ~1 km).
 // Antes, lugares-chicos.test.ts lo fijaba leyendo el fuente.
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { ubicacionSiYaConcedida } from '@/lib/ubicacion'
 
 const loc = vi.hoisted(() => ({
   estado: 'granted' as string,
@@ -25,8 +26,6 @@ vi.mock('expo-location', () => ({
     return loc.posicion
   },
 }))
-
-import { ubicacionSiYaConcedida } from '@/lib/ubicacion'
 
 beforeEach(() => {
   loc.estado = 'granted'

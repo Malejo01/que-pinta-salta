@@ -13,6 +13,8 @@ import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { React, crearRaiz, type RaizDeReact } from './dobles/react-raiz'
+import { obtenerLugaresQueSeguis, siguesElLugar } from '@/lib/radar'
+import { LugaresQueSeguis, TEXTO_SIN_LUGARES_SEGUIDOS, TITULO_LUGARES_QUE_SEGUIS } from '@/components/LugaresQueSeguis'
 
 // El teléfono en castellano desde antes de importar: el valor por omisión del
 // contexto de idioma (sin provider) se calcula al cargar `lib/i18n`.
@@ -78,9 +80,6 @@ vi.mock('expo-linking', () => ({
   },
 }))
 vi.mock('@/components/Icono', () => ({ Icono: () => null }))
-
-import { obtenerLugaresQueSeguis, siguesElLugar } from '@/lib/radar'
-import { LugaresQueSeguis, TEXTO_SIN_LUGARES_SEGUIDOS, TITULO_LUGARES_QUE_SEGUIS } from '@/components/LugaresQueSeguis'
 
 const USER = 'usuario-de-prueba'
 const TEATRO = '11111111-1111-4111-8111-111111111111'
