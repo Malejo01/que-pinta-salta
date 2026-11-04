@@ -3,7 +3,7 @@
 // eventos de `selectCarouselEvents` (de core), el afiche entero sobre su
 // versión desenfocada (ver el comentario de abajo sobre las dos capas) y un
 // degradé, badge de categoría, título en 2 líneas, `Calendar` + fecha,
-// `MapPin` + lugar, "Ver detalles" y el precio o "Entrada Gratuita", puntos
+// `MapPin` + lugar, "Ver detalles" y el precio o "Entrada gratuita", puntos
 // arriba a la derecha.
 //
 // 36-b (G1 del feedback del teléfono 2, "el carrusel se ve muy chico"):

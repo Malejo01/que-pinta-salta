@@ -446,7 +446,7 @@ export const es = {
     comoLlegar: 'Cómo llegar',
     comprarTickets: 'Comprar tickets',
     verEnElMapa: 'Ver en el mapa',
-    // Las de core, tal cual (Familiar / Adultos / Al Aire Libre).
+    // Las de core, tal cual (Familiar / Adultos / Al aire libre).
     etiquetasVibe: { ...vibeLabels },
   },
   // Fila ♥ Guardar / ✓ Voy (fila-acciones-evento.tsx, botones-asistencia.tsx).
