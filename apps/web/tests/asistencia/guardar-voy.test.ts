@@ -459,7 +459,8 @@ describe('toggleFavorite: sin sesión, ninguna escritura', () => {
 
     const resultado = await toggleFavorite('evento-1', 'event')
 
-    expect(resultado).toEqual({ success: false, error: 'AUTH_REQUIRED', message: 'Debes iniciar sesión para guardar favoritos' })
+    // R-2: el mensaje en voseo («Tenés que», antes «Debes»); el código sigue siendo AUTH_REQUIRED.
+    expect(resultado).toEqual({ success: false, error: 'AUTH_REQUIRED', message: 'Tenés que iniciar sesión para guardar favoritos' })
     expect(from).not.toHaveBeenCalled()
   })
 

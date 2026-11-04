@@ -62,6 +62,25 @@ const FORMAS_TUTEO_SACADAS: { archivo: string; texto: string }[] = [
   { archivo: 'lib/i18n/diccionarios/es.ts', texto: '¿Ya tienes cuenta?' },
   { archivo: 'lib/i18n/diccionarios/es.ts', texto: 'Regístrate' },
   { archivo: 'lib/i18n/diccionarios/es.ts', texto: 'Inicia Sesión' },
+  // R-2 (nube Q6): lo heredado que Q6-2 pasó al diccionario tuteando
+  // (perfil y formulario de eventos) y los errores de las acciones del
+  // formulario (lib/actions.ts, con su traducción en en.ts por el texto).
+  { archivo: 'lib/i18n/diccionarios/es.ts', texto: 'que has subido' },
+  { archivo: 'lib/i18n/diccionarios/es.ts', texto: 'Inténtalo más tarde' },
+  { archivo: 'lib/i18n/diccionarios/es.ts', texto: 'Aún no has colaborado' },
+  { archivo: 'lib/i18n/diccionarios/es.ts', texto: 'Comparte peñas' },
+  { archivo: 'lib/i18n/diccionarios/es.ts', texto: 'Sube una imagen' },
+  { archivo: 'lib/i18n/diccionarios/es.ts', texto: 'Describe el evento' },
+  { archivo: 'lib/i18n/diccionarios/es.ts', texto: 'Selecciona una categoría' },
+  { archivo: 'lib/i18n/diccionarios/es.ts', texto: 'Selecciona un lugar' },
+  { archivo: 'lib/actions.ts', texto: 'Debes iniciar sesión' },
+  { archivo: 'lib/actions.ts', texto: 'Debes cambiar' },
+  { archivo: 'lib/actions.ts', texto: 'No tienes permiso' },
+  { archivo: 'lib/actions/favorites.ts', texto: 'Debes iniciar sesión' },
+  { archivo: 'lib/i18n/diccionarios/en.ts', texto: "'Debes " },
+  { archivo: 'lib/i18n/diccionarios/en.ts', texto: 'No tienes permiso' },
+  { archivo: 'app/mis-eventos/mis-eventos-client.tsx', texto: 'Aún no has creado' },
+  { archivo: 'app/mis-eventos/mis-eventos-client.tsx', texto: '¡Empieza a compartir' },
 ]
 
 describe('Voseo rioplatense (30-e): las formas de tuteo que se sacaron no vuelven a aparecer', () => {

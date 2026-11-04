@@ -24,7 +24,7 @@ export async function createEvent(formData: FormData) {
   
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) {
-    return { error: "Debes iniciar sesión para crear un evento" }
+    return { error: "Tenés que iniciar sesión para crear un evento" }
   }
 
   const title = formData.get("title") as string
@@ -54,7 +54,7 @@ export async function createEvent(formData: FormData) {
       const newDate = new Date(startDate).getTime()
       
       if (originalDate === newDate && originalEvent.image_url === imageUrl) {
-        return { error: "Debes cambiar la fecha o la imagen para duplicar este evento" }
+        return { error: "Tenés que cambiar la fecha o la imagen para duplicar este evento" }
       }
     }
   }
@@ -141,7 +141,7 @@ export async function uploadFlyer(formData: FormData) {
   
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) {
-    return { error: "Debes iniciar sesión para subir imágenes" }
+    return { error: "Tenés que iniciar sesión para subir imágenes" }
   }
 
   const file = formData.get("file") as File
@@ -176,7 +176,7 @@ export async function toggleFavorite(eventId: string) {
   
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) {
-    return { error: "Debes iniciar sesión para guardar favoritos" }
+    return { error: "Tenés que iniciar sesión para guardar favoritos" }
   }
 
   // Check if already favorited
@@ -245,7 +245,7 @@ export async function deleteUserEvent(eventId: string) {
     .single()
     
   if (!event || event.created_by !== user.id) {
-    return { error: "No tienes permiso para eliminar este evento" }
+    return { error: "No tenés permiso para eliminar este evento" }
   }
 
   const { error } = await supabase
@@ -266,7 +266,7 @@ export async function updateUserEvent(formData: FormData) {
   
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) {
-    return { error: "Debes iniciar sesión para actualizar un evento" }
+    return { error: "Tenés que iniciar sesión para actualizar un evento" }
   }
 
   const editId = formData.get("editId") as string
@@ -282,7 +282,7 @@ export async function updateUserEvent(formData: FormData) {
     .single()
     
   if (!existingEvent || existingEvent.created_by !== user.id) {
-    return { error: "No tienes permiso para editar este evento" }
+    return { error: "No tenés permiso para editar este evento" }
   }
 
   const title = formData.get("title") as string

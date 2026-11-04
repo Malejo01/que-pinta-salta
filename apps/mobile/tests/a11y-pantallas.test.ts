@@ -98,8 +98,9 @@ describe('CTAs externos: accessibilityRole="link" (ficha, flyer, película, cine
     const content = leer('components', 'BloqueCine.tsx')
     // Q6-1: el texto sale del diccionario (`tarjeta.comprarEntradas`).
     expect(aperturaPressableQueContiene(content, '{t.comprarEntradas}')).toMatch(/accessibilityRole="link"/)
-    expect(es.tarjeta.comprarEntradas).toBe('Comprar Entradas')
-    expect(en.tarjeta.comprarEntradas).not.toBe('Comprar Entradas')
+    // R-2: mayúscula de oración («Comprar entradas»), igual que la web (`cines.comprarEntradas`).
+    expect(es.tarjeta.comprarEntradas).toBe('Comprar entradas')
+    expect(en.tarjeta.comprarEntradas).not.toBe('Comprar entradas')
   })
 
   it('app/cines.tsx: "Comprar Entradas" (por TarjetaPelicula → BloqueCine) es link', () => {
@@ -108,8 +109,9 @@ describe('CTAs externos: accessibilityRole="link" (ficha, flyer, película, cine
     const content = leer('components', 'BloqueCine.tsx')
     // Q6-1: el texto sale del diccionario (`tarjeta.comprarEntradas`).
     expect(aperturaPressableQueContiene(content, '{t.comprarEntradas}')).toMatch(/accessibilityRole="link"/)
-    expect(es.tarjeta.comprarEntradas).toBe('Comprar Entradas')
-    expect(en.tarjeta.comprarEntradas).not.toBe('Comprar Entradas')
+    // R-2: mayúscula de oración («Comprar entradas»), igual que la web (`cines.comprarEntradas`).
+    expect(es.tarjeta.comprarEntradas).toBe('Comprar entradas')
+    expect(en.tarjeta.comprarEntradas).not.toBe('Comprar entradas')
   })
 })
 

@@ -43,7 +43,8 @@ describe('/en/auth/sign-up: la página', () => {
   })
 
   it('los textos salen del diccionario (no quedan literales en castellano)', () => {
-    for (const texto of ['Crear Cuenta', 'Registrate para publicar', 'Nombre completo', 'Repetir Contraseña', '¿Ya tenés cuenta?', 'O continuar con', 'Volver a inicio']) {
+    // R-2: los textos ya en mayúscula de oración («Crear cuenta», «Repetir contraseña»).
+    for (const texto of ['Crear cuenta', 'Registrate para publicar', 'Nombre completo', 'Repetir contraseña', '¿Ya tenés cuenta?', 'O continuar con', 'Volver a inicio']) {
       expect(pagina, texto).not.toContain(texto)
     }
     expect(pagina).toContain('{t.titulo}')
@@ -53,7 +54,7 @@ describe('/en/auth/sign-up: la página', () => {
   it('las dos versiones tienen las mismas claves y el inglés está traducido', () => {
     expect(Object.keys(en.paginaAlta)).toEqual(Object.keys(es.paginaAlta))
     expect(en.paginaAlta.titulo).toBe('Create an account')
-    expect(es.paginaAlta.titulo).toBe('Crear Cuenta')
+    expect(es.paginaAlta.titulo).toBe('Crear cuenta') // R-2: mayúscula de oración
   })
 })
 
@@ -71,16 +72,17 @@ describe('/en/auth/sign-up: el HTML', () => {
     expect(html).toMatch(/<a hrefLang="es-AR"[^>]*href="\/terminos"/)
     expect(html).toMatch(/<a hrefLang="es-AR"[^>]*href="\/privacidad"/)
     expect(html).toContain(' (in Spanish).')
-    expect(html).not.toContain('Crear Cuenta')
+    expect(html).not.toContain('Crear cuenta') // R-2: el título en castellano, ya en mayúscula de oración
     expect(html).not.toContain('Contraseña')
   })
 
   it('en castellano: como siempre (mismos textos y links, sin hrefLang)', () => {
     const html = render('/auth/sign-up')
-    expect(html).toContain('Crear Cuenta')
+    // R-2: mayúscula de oración («Crear cuenta», «Repetir contraseña») y «Pérez» con tilde.
+    expect(html).toContain('Crear cuenta')
     expect(html).toContain('Registrate para publicar eventos y guardar favoritos')
-    expect(html).toMatch(/<label[^>]*for="repeat-password"[^>]*>Repetir Contraseña \*<\/label>/)
-    expect(html).toContain('placeholder="Juan Perez"')
+    expect(html).toMatch(/<label[^>]*for="repeat-password"[^>]*>Repetir contraseña \*<\/label>/)
+    expect(html).toContain('placeholder="Juan Pérez"')
     expect(html).toContain('href="/auth/login"')
     expect(html).toContain('Al crear tu cuenta aceptás los')
     expect(html).not.toContain('hrefLang')
