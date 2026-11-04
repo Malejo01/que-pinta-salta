@@ -1,0 +1,251 @@
+{
+  "version": 1,
+  "uso": "clasificacion",
+  "descripcion": "Q6-4 · Banco de evaluación de IA: 30 eventos publicados reales con su categoría (slug) publicada.",
+  "extraido": "2026-11-03",
+  "criterio": "Eventos PUBLISHED con categoría, descripción de más de 40 caracteres y que no vienen de Instagram (los flyers ya tienen su banco). Se priorizaron los de classification_source = 'manual' (categoría puesta por una persona) y se completó con los de 'scraper' / 'alias' / sin dato para cubrir las 16 categorías (fuente_categoria lo dice en cada caso: solo 'manual' es revisión humana segura; los demás son lo que quedó publicado). descripcion = short_description + ' ' + description, como la arma lib/calidad/revision.ts antes de llamar a la IA, recortada a 700 caracteres. Sin datos personales.",
+  "consulta": "select e.id, c.slug, e.classification_source, e.title, left(coalesce(e.short_description,'') || ' ' || coalesce(e.description,''), 700) from events e join categories c on c.id = e.category_id where e.status = 'PUBLISHED' and coalesce(e.scrape_source_key,'') not like '%instagram%' (solo select, proyecto de producción)",
+  "categorias": ["penas", "humor", "infantil", "ballet", "recitales", "teatro", "boliches", "cine", "ferias", "talleres", "deportes", "congresos", "automovilismo", "espectaculos", "museos", "alternativo"],
+  "casos": [
+    {
+      "id": "clas-01",
+      "origen": { "tabla": "events", "id": "2a4ae80a-4329-40a8-927d-8436efaf242b" },
+      "titulo": "Sex Us Machina: Especial Tim Burton",
+      "descripcion": "■ SEX-US-MACHINA \n■ Industrial Sexy Party 45TH EDITION \n■ ESPECIAL: TIM BURTON ///\n■ SEX US MACHINA recibe nuevamente un Octubre muy extraño y aterrador. En este año de previas de Halloween te proponemos celebrar este SAMHAIN con el responsable de darnos un poco de brillo a nuestra naturaleza incomprendida. TIM BURTON creador de grandes obras que nos maravillaron en nuestra juventud, hoy lo traemos para celebrar una fiesta que celebra sus grandes musicales, escenas e iconicos personajes. Desde A NIGHTMARE BEFORE CHRISTMAS, pasando por SWEENEY TODD, y llegando hasta momento inolvidables con CORPSE BRIDE. Entre otras muchisimas peliculas que recordaremos y bailaremos.\nComo todas las SEX-US-MA",
+      "esperado": { "categoria": "alternativo" },
+      "fuente_categoria": "manual"
+    },
+    {
+      "id": "clas-02",
+      "origen": { "tabla": "events", "id": "de0bb0cf-7b86-4dd3-89fd-5668111e1b33" },
+      "titulo": "Party is Dead: Cardamomo Indie Vegan Edition - 80s Indie Classics",
+      "descripcion": "Este sábado 10 de octubre CARDAMOMO y PARTY IS DEAD unen fuerzas para brindarte una edición única la CARDAMOMO INDIE VEGAN EDITION: 80´S INDIE CLASSICS !! \n\nCARDAMOMO nos abre sus puertas con lo mejor de su gastronomía VEGETARIANA y VEGANA, con un menú y tragos únicos para que celebremos una PARTY IS DEAD distinta y en un horario atípico especial para disfrutar de los mejores CLÁSICOS INDIE DE LOS 80'S del paladar de DARS DJ y JOACO DJ !! Tambíen tendremos un mini especial de THE SMITHS / MORRISSEY, celebrando la carrera de los mancunianos !!\n\nPrepárense para COMER y BEBER rico lo mejor de CARDAMAMO y BAILAR aquellos CLÁSICOS DE LOS 80'S inolvidables de la PARTY IS DEAD, de artistas como: T",
+      "esperado": { "categoria": "alternativo" },
+      "fuente_categoria": "manual"
+    },
+    {
+      "id": "clas-03",
+      "origen": { "tabla": "events", "id": "2569bbe5-3222-4d83-b232-7b70ee1b1585" },
+      "titulo": "TC 2000 EN SALTA 2026",
+      "descripcion": "Las entradas son para ambos días. Las entradas son para ambos días.",
+      "esperado": { "categoria": "automovilismo" },
+      "fuente_categoria": "manual"
+    },
+    {
+      "id": "clas-04",
+      "origen": { "tabla": "events", "id": "2b6235b5-20bf-44e2-befe-3cbf6362ec59" },
+      "titulo": "El Lago De Los Cisnes",
+      "descripcion": "El Lago De Los Cisnes en Teatro Provincial Juan Carlos Saravia Evento importado automáticamente desde entradauno",
+      "esperado": { "categoria": "ballet" },
+      "fuente_categoria": "manual"
+    },
+    {
+      "id": "clas-05",
+      "origen": { "tabla": "events", "id": "05a03f72-d602-48bf-acc3-e54f37ea8a1b" },
+      "titulo": "CONCERT UZZI 2026 - NIVEL PRIMARIO",
+      "descripcion": "CONCERT 2026 | NIVEL PRIMARIO \n\nUbicación: Colegio UZZI - Av. Robustiano\n        Patrón Costas S/N\n\nTítulo: “El Misterio de los Beatles”\n\nFecha: 24/09/26\n\nHorar... CONCERT 2026 | NIVEL PRIMARIO \n\nUbicación: Colegio UZZI - Av. Robustiano\n        Patrón Costas S/N\n\nTítulo: “El Misterio de los Beatles”\n\nFecha: 24/09/26\n\nHorario: 19:30\n\n \n\nEl misterio de los Beatles es un viaje musical, divertido y emotivo por la historia de una de\n        las bandas más influyentes de todos los tiempos. A través de personajes tan\n        singulares como Mafalda, Homero Simpson, Charly García, Frida Kahlo y Murakami,\n        la obra intenta responder una pregunta: ¿qué hizo a los Beatles tan\n            extraord",
+      "esperado": { "categoria": "ballet" },
+      "fuente_categoria": "scraper"
+    },
+    {
+      "id": "clas-06",
+      "origen": { "tabla": "events", "id": "2ae2ad26-6cec-46f8-be50-0565fbe2b14d" },
+      "titulo": "RETRO HALLOWEEN por REWIND RETRO SPACE",
+      "descripcion": "RETRO HALLOWEEN por REWIND RETRO SPACE en Balcarce 980 - Rewind Evento importado automáticamente desde alpogo",
+      "esperado": { "categoria": "boliches" },
+      "fuente_categoria": "sin-dato"
+    },
+    {
+      "id": "clas-07",
+      "origen": { "tabla": "events", "id": "4793ebc6-e329-4534-ae70-4b0721c83d57" },
+      "titulo": "FIESTA RETRO EN SALTA",
+      "descripcion": "FIESTA RETRO EN SALTA en El Teatrino, Salta, Salta Evento importado automáticamente desde norteticket",
+      "esperado": { "categoria": "boliches" },
+      "fuente_categoria": "scraper"
+    },
+    {
+      "id": "clas-08",
+      "origen": { "tabla": "events", "id": "ae58031a-39b2-43c0-9a48-b28197420218" },
+      "titulo": "Semana del Cine - Dia 9",
+      "descripcion": "Semana del Cine SEMANA DE CINE 💕 Del 6 al 14 de agosto\r\n.\r\n🎫Entrada GRATUITA a todas las funciones de cine y actividades en la USINA CULTURAL\r\n🎫Entradas de $2.500 a $5.000 para las funciones de cine en CINE OPERA\r\n.\r\nVisitá nuestra web saltacine.gob.ar",
+      "esperado": { "categoria": "cine" },
+      "fuente_categoria": "sin-dato"
+    },
+    {
+      "id": "clas-09",
+      "origen": { "tabla": "events", "id": "891c3601-eafc-4324-94f8-354cf7610d12" },
+      "titulo": "Cumbre Noa",
+      "descripcion": "Cumbre Noa en Teatro Provincial Juan Carlos Saravia Evento importado automáticamente desde entradauno",
+      "esperado": { "categoria": "congresos" },
+      "fuente_categoria": "manual"
+    },
+    {
+      "id": "clas-10",
+      "origen": { "tabla": "events", "id": "a4d26f65-c5fb-4508-855b-147ea878a040" },
+      "titulo": "COMO CURAR UN CORAZÓN ROTO EN SALTA",
+      "descripcion": "COMO CURAR UN CORAZÓN ROTO EN SALTA en Teatro del Huerto, Salta, Salta Evento importado automáticamente desde norteticket",
+      "esperado": { "categoria": "congresos" },
+      "fuente_categoria": "manual"
+    },
+    {
+      "id": "clas-11",
+      "origen": { "tabla": "events", "id": "88e4e884-4f59-4880-940d-8f818b36581b" },
+      "titulo": "II CONGRESO POLIARTE",
+      "descripcion": "II CONGRESO POLIARTE en Teatro Provincial Juan Carlos Saravia Evento importado automáticamente desde entradauno",
+      "esperado": { "categoria": "congresos" },
+      "fuente_categoria": "scraper"
+    },
+    {
+      "id": "clas-12",
+      "origen": { "tabla": "events", "id": "02e1d998-57f8-4776-9890-23c71863d2b3" },
+      "titulo": "Boca vs Athletico Paranaense",
+      "descripcion": "En el marco de la pretemporada de invierno 2026 regresa el fútbol sudámericano con el Desafío de Invierno Betwarrior, en el que Boca Juniors enfrentará a Athlet... En el marco de la pretemporada de invierno 2026 regresa el fútbol sudámericano con el Desafío de Invierno Betwarrior, en el que Boca Juniors enfrentará a Athletico Paranaense Brasil en el Estadio Padre Martearena de Salta..El próximo miércoles 8 de julio a las 21:00hs, volverá a rodar la pelota para el Xeneize. En lo que será el reestreno del Vasco Arruabarrena como director técnico del equipo de la ribera, por su parte el elenco brasileño, continuará su preparación para la segunda mitad del año en Argentina, en un partido con un ",
+      "esperado": { "categoria": "deportes" },
+      "fuente_categoria": "scraper"
+    },
+    {
+      "id": "clas-13",
+      "origen": { "tabla": "events", "id": "e087f6a4-fba7-4407-8f86-4988fb808fae" },
+      "titulo": "La Tortilla ¿Yo Tuve la Culpa?",
+      "descripcion": "La Tortilla ¿Yo Tuve la Culpa? en Casa de la Cultura Evento importado automáticamente desde entradauno",
+      "esperado": { "categoria": "espectaculos" },
+      "fuente_categoria": "scraper"
+    },
+    {
+      "id": "clas-14",
+      "origen": { "tabla": "events", "id": "d51e7cef-a470-4c65-8501-ef4ae2ccb59f" },
+      "titulo": "Semana de la Tradición",
+      "descripcion": "Semana de la Tradición en Casa de la Cultura Evento importado automáticamente desde entradauno",
+      "esperado": { "categoria": "espectaculos" },
+      "fuente_categoria": "sin-dato"
+    },
+    {
+      "id": "clas-15",
+      "origen": { "tabla": "events", "id": "578de47a-8cee-4342-80c5-83344b3441eb" },
+      "titulo": "Feria americana",
+      "descripcion": "Feria americana en Casa de la Cultura Evento importado automáticamente desde entradauno",
+      "esperado": { "categoria": "ferias" },
+      "fuente_categoria": "scraper"
+    },
+    {
+      "id": "clas-16",
+      "origen": { "tabla": "events", "id": "2e61c13c-46e2-43f9-99b2-62a164377aee" },
+      "titulo": "Dos tipos siniestros",
+      "descripcion": "Dos tipos siniestros en Casa de la Cultura Evento importado automáticamente desde entradauno",
+      "esperado": { "categoria": "humor" },
+      "fuente_categoria": "manual"
+    },
+    {
+      "id": "clas-17",
+      "origen": { "tabla": "events", "id": "dc50e6a8-16ac-41dc-b3f7-68daee2ff66d" },
+      "titulo": "La Jenny - Cachicalientas Tour",
+      "descripcion": "La Jenny - Cachicalientas Tour en Teatro Provincial Juan Carlos Saravia Evento importado automáticamente desde entradauno",
+      "esperado": { "categoria": "humor" },
+      "fuente_categoria": "manual"
+    },
+    {
+      "id": "clas-18",
+      "origen": { "tabla": "events", "id": "5f3f6499-8301-4af9-a23b-99a095f64ee7" },
+      "titulo": "Gordillo 20 Años + 1",
+      "descripcion": "Gordillo 20 Años + 1 en Teatro Provincial Juan Carlos Saravia Evento importado automáticamente desde entradauno",
+      "esperado": { "categoria": "humor" },
+      "fuente_categoria": "manual"
+    },
+    {
+      "id": "clas-19",
+      "origen": { "tabla": "events", "id": "038428cd-11db-4070-99b4-c778da427228" },
+      "titulo": "Cenicienta, un Cuento de Amor y Magia",
+      "descripcion": "Cenicienta, un Cuento de Amor y Magia en Casa de la Cultura Evento importado automáticamente desde entradauno",
+      "esperado": { "categoria": "infantil" },
+      "fuente_categoria": "sin-dato"
+    },
+    {
+      "id": "clas-20",
+      "origen": { "tabla": "events", "id": "1baf0d85-c23a-44d4-ace6-5c7186a173eb" },
+      "titulo": "Erase una vez, la magia de crecer",
+      "descripcion": "Erase una vez, la magia de crecer en Casa de la Cultura Evento importado automáticamente desde entradauno",
+      "esperado": { "categoria": "infantil" },
+      "fuente_categoria": "scraper"
+    },
+    {
+      "id": "clas-21",
+      "origen": { "tabla": "events", "id": "47c42a80-e051-450f-9f9d-4717c75ffebd" },
+      "titulo": "Museo de Antropologia - MAS",
+      "descripcion": "Museo de Antropologia - MAS en Museo Antropologico Evento importado automáticamente desde entradauno",
+      "esperado": { "categoria": "museos" },
+      "fuente_categoria": "alias"
+    },
+    {
+      "id": "clas-22",
+      "origen": { "tabla": "events", "id": "c88a2090-bcff-412e-9d07-33de00c4b106" },
+      "titulo": "Rodrigo Moro - SALTEÑO - Presentación oficial del nuevo disco",
+      "descripcion": "Rodrigo Moro - SALTEÑO - Presentación oficial del nuevo disco en Usina Cultural Evento importado automáticamente desde entradauno",
+      "esperado": { "categoria": "penas" },
+      "fuente_categoria": "scraper"
+    },
+    {
+      "id": "clas-23",
+      "origen": { "tabla": "events", "id": "06cc17eb-cdab-4e01-8d64-20134da67287" },
+      "titulo": "Peña folklórica en La Vieja Estación",
+      "descripcion": "Peña con show folklórico en vivo, todos los días a las 22 hs. Peña folklórica con show en vivo en La Vieja Estación, sobre calle Balcarce, en Salta Capital. El espectáculo comienza a las 22 hs, todos los días. Conviene confirmar la cartelera y los precios directamente con el local antes de ir.",
+      "esperado": { "categoria": "penas" },
+      "fuente_categoria": "sin-dato"
+    },
+    {
+      "id": "clas-24",
+      "origen": { "tabla": "events", "id": "bac3644c-0f7b-425a-adda-aaa022144ede" },
+      "titulo": "NO TE VA GUSTAR EN SALTA 2026",
+      "descripcion": "NO TE VA GUSTAR EN SALTA 2026 en LA ROKA, salta, Salta Evento importado automáticamente desde norteticket",
+      "esperado": { "categoria": "recitales" },
+      "fuente_categoria": "manual"
+    },
+    {
+      "id": "clas-25",
+      "origen": { "tabla": "events", "id": "89999748-9613-47aa-8591-b2289287d90f" },
+      "titulo": "Jorge Rojas Piano y Voz",
+      "descripcion": "Jorge Rojas Piano y Voz en Teatro Provincial Juan Carlos Saravia Evento importado automáticamente desde entradauno",
+      "esperado": { "categoria": "recitales" },
+      "fuente_categoria": "scraper"
+    },
+    {
+      "id": "clas-26",
+      "origen": { "tabla": "events", "id": "33f59c8b-6a5e-45ef-9c8a-7b174fce0453" },
+      "titulo": "VINIENDO VOY - Silvia Katz - canciones",
+      "descripcion": "VINIENDO VOY - Silvia Katz - canciones en Usina Cultural Evento importado automáticamente desde entradauno",
+      "esperado": { "categoria": "recitales" },
+      "fuente_categoria": "scraper"
+    },
+    {
+      "id": "clas-27",
+      "origen": { "tabla": "events", "id": "c790edb6-b48d-4df3-bdeb-e91d01417a18" },
+      "titulo": "MIX-TAPE EN SALTA",
+      "descripcion": "MIX-TAPE EN SALTA en El Taller, Salta, Salta Evento importado automáticamente desde norteticket",
+      "esperado": { "categoria": "talleres" },
+      "fuente_categoria": "scraper"
+    },
+    {
+      "id": "clas-28",
+      "origen": { "tabla": "events", "id": "0cb6e45a-86b6-42cb-9763-fa1848e29a83" },
+      "titulo": "Taller Arte Y Sueños",
+      "descripcion": "Taller Arte Y Sueños en Casa de la Cultura Evento importado automáticamente desde entradauno",
+      "esperado": { "categoria": "talleres" },
+      "fuente_categoria": "sin-dato"
+    },
+    {
+      "id": "clas-29",
+      "origen": { "tabla": "events", "id": "6e9c203a-4d9f-40e2-868a-e49be438d100" },
+      "titulo": "El Hombre Inesperado",
+      "descripcion": "Interpretada por Germán Palacios e Inés Estévez y dirigida por los mismos actores, a pedido del Publico “EL HOMBRE INESPERADO” vuelve a Salta. Un viaje, un encu Interpretada por Germán Palacios e Inés Estévez y dirigida por los mismos actores, a pedido del Publico “EL HOMBRE INESPERADO” vuelve a Salta. Un viaje, un encuentro impensado, suspenso y misterio. Dos soledades coinciden en un mismo vagón de tren. Sus pensamientos vuelan hasta entrecruzarse en un intercambio pleno de poesía, humor, inteligencia y giros sorprendentes llenos de intriga que podrían transformar sus vidas. ¿Cuánto de esto es azar? ¿Cuánto es destino? El espectador va a decidirlo mientras viaja con ellos.Una comedia román",
+      "esperado": { "categoria": "teatro" },
+      "fuente_categoria": "manual"
+    },
+    {
+      "id": "clas-30",
+      "origen": { "tabla": "events", "id": "80deaac7-1b79-4f03-884c-604bc4fcacd2" },
+      "titulo": "Zuuummmm - Teatro Sensorial",
+      "descripcion": "Zuuummmm - Teatro Sensorial en Casa de la Cultura Evento importado automáticamente desde entradauno",
+      "esperado": { "categoria": "teatro" },
+      "fuente_categoria": "scraper"
+    }
+  ]
+}

@@ -8,6 +8,7 @@
  * castellano con «(in Spanish)»).
  */
 import { generarJsonDeTexto } from '@/lib/ai/llamadas-ia'
+import type { ProveedorIA } from '@/lib/ia/tipos'
 import {
   descripcionParaTraducir,
   validarTraduccionConMotivo,
@@ -36,7 +37,16 @@ const ESQUEMA = {
 
 export type Traductor = (texto: string) => Promise<unknown>
 
-const traductorReal: Traductor = (texto) => generarJsonDeTexto(INSTRUCCION, texto, ESQUEMA, { uso: 'traduccion' })
+/**
+ * Q6-4: el traductor con el prompt y el esquema reales. Sin `ia`, el proveedor
+ * activo (como siempre); con `ia`, ese proveedor (el banco de evaluación lo
+ * usa con un doble que solo captura el pedido, o con Gemini/Claude en --real).
+ */
+export function crearTraductor(ia?: ProveedorIA): Traductor {
+  return (texto) => generarJsonDeTexto(INSTRUCCION, texto, ESQUEMA, ia ? { uso: 'traduccion', ia } : { uso: 'traduccion' })
+}
+
+const traductorReal: Traductor = crearTraductor()
 
 export function textoParaElModelo(evento: EventoParaTraducir): string {
   const protegidos = [evento.venueName, ...evento.artists].filter((n): n is string => !!n && n.trim().length > 0)
