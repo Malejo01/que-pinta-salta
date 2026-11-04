@@ -462,6 +462,27 @@ export async function probarEnvioRadar(accessToken: string): Promise<ResultadoPr
 }
 
 /**
+ * R-1 · Los lugares seguidos para «Lugares que seguís» en Mis eventos, o
+ * `null` si no se pudieron leer (sin cliente, error de la base o de red). Así
+ * la sección no se dibuja en vez de decir «Todavía no seguís ningún lugar»
+ * cuando en realidad falló la lectura (`obtenerLoQueSeguis` devuelve `[]` en
+ * los dos casos). Solo lectura.
+ */
+export async function obtenerLugaresQueSeguis(userId: string): Promise<{ id: string; nombre: string }[] | null> {
+  if (!supabase) return null
+  try {
+    const { data, error } = await supabase.from('user_followed_venues').select('venue:venues(id, name)').eq('user_id', userId)
+    if (error) return null
+    return ((data ?? []) as { venue: { id: string; name: string } | null }[])
+      .map((fila) => fila.venue)
+      .filter((venue): venue is { id: string; name: string } => venue !== null)
+      .map((venue) => ({ id: venue.id, nombre: venue.name }))
+  } catch {
+    return null
+  }
+}
+
+/**
  * Q5-6: si el usuario de la sesión ya sigue el lugar (para el botón «Seguir»
  * de la ficha de un lugar para chicos). Solo lectura; las escrituras siguen
  * pasando únicamente por `cambiarSeguimiento`. Sin sesión o con error, `false`.

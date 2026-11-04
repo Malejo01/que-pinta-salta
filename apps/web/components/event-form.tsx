@@ -87,7 +87,9 @@ export function EventForm({ categories, venues, initialData, cloneId, editId, id
     }
   }
   return (
-    <div className="min-h-screen bg-background">
+    // Q6-6: el <main> (destino de «Saltar al contenido») incluye la cabecera con
+    // el <h1> y el «Volver»: antes el salto dejaba afuera el título de la página.
+    <main id="contenido" tabIndex={-1} className="min-h-screen bg-background focus:outline-none">
       <header className="sticky top-0 z-50 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="container mx-auto flex h-16 items-center gap-4 px-4">
           <Button variant="ghost" size="icon" asChild>
@@ -100,7 +102,7 @@ export function EventForm({ categories, venues, initialData, cloneId, editId, id
         </div>
       </header>
 
-      <main id="contenido" tabIndex={-1} className="container mx-auto max-w-2xl px-4 py-8 focus:outline-none">
+      <div className="container mx-auto max-w-2xl px-4 py-8">
         <form onSubmit={handleSubmit} className="space-y-8">
           {cloneId && (
             <input type="hidden" name="cloneId" value={cloneId} />
@@ -110,7 +112,7 @@ export function EventForm({ categories, venues, initialData, cloneId, editId, id
           )}
           {/* Q6-2: el error se anuncia (antes aparecía sin aviso para el lector de pantalla). */}
           {error && (
-            <div role="alert" className="rounded-lg border border-destructive bg-destructive/10 p-4 text-sm text-destructive">
+            <div role="alert" className="rounded-lg border border-destructive bg-destructive/10 p-4 text-sm text-error">
               {error}
             </div>
           )}
@@ -358,7 +360,7 @@ export function EventForm({ categories, venues, initialData, cloneId, editId, id
             </Button>
           </div>
         </form>
-      </main>
-    </div>
+      </div>
+    </main>
   )
 }

@@ -42,7 +42,7 @@ describe('el castellano no cambió', () => {
     expect(es.ficha.comprarTickets).toBe('Comprar tickets')
     expect(es.ficha.verEnElMapa).toBe('Ver en el mapa')
     expect(es.ficha.etiquetasVibe).toEqual(vibeLabels)
-    expect(es.portada.entradaGratuita).toBe('Entrada Gratuita')
+    expect(es.portada.entradaGratuita).toBe('Entrada gratuita') // R-2: mayúscula de oración
     expect(es.portada.lugarPorConfirmar).toBe('Lugar por confirmar')
   })
 
@@ -94,6 +94,8 @@ const LITERALES = [
   ...Object.values(es.asistencia).filter((v): v is string => typeof v === 'string' && v !== 'Error'),
   es.seguir.error,
   'Entrada Gratuita',
+  // R-2: el texto actual (mayúscula de oración) tampoco puede aparecer suelto.
+  'Entrada gratuita',
   'Lugar por confirmar',
 ]
 

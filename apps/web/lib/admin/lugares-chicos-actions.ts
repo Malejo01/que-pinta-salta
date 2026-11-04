@@ -286,11 +286,17 @@ export async function descartarPedido(_prev: EstadoAccionLugar, fd: FormData): P
   if (!isUuid(id)) return { ok: false, mensaje: 'El pedido no es válido.' }
   const auth = await requireAdmin()
   if ('error' in auth) return { ok: false, mensaje: auth.error }
-  const { error } = await auth.supabase
+  // R-1: solo un pedido NUEVO se descarta. Antes, una pestaña vieja (u otro
+  // admin) podía descartar uno ya convertido y dejarlo «descartado» con la
+  // ficha enlazada. Sin filas: ya se revisó (o no existe).
+  const { data, error } = await auth.supabase
     .from('lugares_chicos_pedidos')
     .update({ estado: 'descartado', contacto: null, revisado_at: new Date().toISOString() })
     .eq('id', id)
+    .eq('estado', 'nuevo')
+    .select('id')
   if (error) return errorBase('descartar pedido', error.code, 'No se pudo descartar el pedido.')
+  if (!data || data.length === 0) return { ok: false, mensaje: 'Ese pedido ya se revisó.' }
   revalidatePath(RUTA)
   return { ok: true, mensaje: 'Pedido descartado.' }
 }

@@ -20,6 +20,10 @@
   --accent-foreground: oklch(0.45 0.18 25);
   --destructive: oklch(0.577 0.245 27.325);
   --destructive-foreground: oklch(0.577 0.245 27.325);
+  /* Q6-6: texto de error (`text-error`), >= 4,5:1 sobre el fondo, la tarjeta y
+     el recuadro `bg-destructive/10` (`--destructive` como texto daba 4,50 sobre
+     el fondo y 3,8 en el recuadro; en oscuro, 2,0). Rojo 700 de Tailwind. */
+  --error: oklch(0.505 0.213 27.518);
   --border: oklch(0.9 0 0);
   --input: oklch(0.9 0 0);
   --ring: oklch(0.45 0.18 25);
@@ -56,6 +60,8 @@
   --accent-foreground: oklch(0.95 0 0);
   --destructive: oklch(0.396 0.141 25.723);
   --destructive-foreground: oklch(0.637 0.237 25.331);
+  /* Q6-6: el mismo texto de error en oscuro (rojo 400 de Tailwind, ~7:1). */
+  --error: oklch(0.704 0.191 22.216);
   --border: oklch(0.25 0 0);
   --input: oklch(0.25 0 0);
   --ring: oklch(0.55 0.2 25);
@@ -95,6 +101,7 @@
   --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--destructive-foreground);
+  --color-error: var(--error);
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
@@ -118,8 +125,11 @@
 }
 
 @layer base {
+  /* Q6-6: el contorno de foco por defecto (links, <summary>, campos sin
+     estilo propio) con --ring entero: al 50 % daba 2,9:1 en claro y 1,7:1 en
+     oscuro, abajo del 3:1 que pide un indicador de foco (WCAG 1.4.11). */
   * {
-    @apply border-border outline-ring/50;
+    @apply border-border outline-ring;
   }
   body {
     @apply bg-background text-foreground;

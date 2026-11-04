@@ -95,7 +95,7 @@ export function LoQueSeguisVista({ lugares, cuentas, categorias, onDejarDeSeguir
                   type="button"
                   variant="ghost"
                   size="sm"
-                  className="shrink-0 text-muted-foreground hover:text-destructive"
+                  className="shrink-0 text-muted-foreground hover:text-error"
                   aria-label={t.dejarDeSeguirAria(lugar.nombre)}
                   onClick={() => onDejarDeSeguir("lugar", lugar.id)}
                 >
@@ -121,7 +121,7 @@ export function LoQueSeguisVista({ lugares, cuentas, categorias, onDejarDeSeguir
                   type="button"
                   variant="ghost"
                   size="sm"
-                  className="shrink-0 text-muted-foreground hover:text-destructive"
+                  className="shrink-0 text-muted-foreground hover:text-error"
                   aria-label={t.dejarDeSeguirAria(`@${cuenta.username}`)}
                   onClick={() => onDejarDeSeguir("cuenta", cuenta.id)}
                 >
@@ -147,7 +147,7 @@ export function LoQueSeguisVista({ lugares, cuentas, categorias, onDejarDeSeguir
                   type="button"
                   variant="ghost"
                   size="sm"
-                  className="shrink-0 text-muted-foreground hover:text-destructive"
+                  className="shrink-0 text-muted-foreground hover:text-error"
                   aria-label={t.dejarDeSeguirAria(categoria.nombre)}
                   onClick={() => onDejarDeSeguir("categoria", categoria.id)}
                 >

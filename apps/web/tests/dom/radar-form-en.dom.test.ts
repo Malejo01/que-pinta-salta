@@ -68,8 +68,8 @@ describe('RadarForm en inglés', () => {
     expect(screen.getByRole('button', { name: 'Save Radar preferences' })).toBeTruthy()
     expect(screen.getByText(/You are not following any venue or Instagram account yet/)).toBeTruthy()
     expect((screen.getByPlaceholderText(/Search venues or Instagram accounts/) as HTMLInputElement).type).toBe('text')
-    // Nada del castellano de siempre.
-    for (const es of ['Frecuencia y Destinatario', 'Guardar Preferencias de Radar', 'Categorías que te interesan', 'Dirección de correo electrónico']) {
+    // Nada del castellano de siempre (R-2: ya en mayúscula de oración).
+    for (const es of ['Frecuencia y destinatario', 'Guardar preferencias del Radar', 'Categorías que te interesan', 'Dirección de correo electrónico']) {
       expect(container.textContent).not.toContain(es)
     }
   })
@@ -133,11 +133,12 @@ describe('RadarForm en inglés', () => {
 describe('RadarForm por omisión es el de siempre', () => {
   it('sin idioma: textos de castellano y ningún lang', () => {
     const { container } = montar(undefined)
-    expect(screen.getByText('Frecuencia y Destinatario')).toBeTruthy()
+    // R-2: mayúscula de oración (`radar.frecuenciaTitulo` y `radar.guardar`).
+    expect(screen.getByText('Frecuencia y destinatario')).toBeTruthy()
     expect(screen.getByText('¿Cada cuánto querés recibir novedades?')).toBeTruthy()
     expect(screen.getByText('Dirección de correo electrónico')).toBeTruthy()
     expect(screen.getByText('Categorías que te interesan')).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Guardar Preferencias de Radar' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Guardar preferencias del Radar' })).toBeTruthy()
     expect(screen.getByText('Teatro')).toBeTruthy()
     expect(container.querySelectorAll('[lang]')).toHaveLength(0)
   })
@@ -146,14 +147,15 @@ describe('RadarForm por omisión es el de siempre', () => {
     const { container } = montar(undefined)
     buscar('de prueba')
     expect(screen.getByText('Calle de Prueba 123')).toBeTruthy()
-    expect(screen.getByText('@productora_de_prueba (Organizador / Boliche)')).toBeTruthy()
+    // R-2: en minúscula (`radar.subtituloCuenta`).
+    expect(screen.getByText('@productora_de_prueba (organizador / boliche)')).toBeTruthy()
     expect(screen.getAllByText('Lugar').length).toBeGreaterThan(0)
     expect(container.querySelectorAll('[lang]')).toHaveLength(0)
   })
 
   it('idioma="es" explícito es lo mismo que por omisión', () => {
     const { container } = montar('es')
-    expect(screen.getByText('Frecuencia y Destinatario')).toBeTruthy()
+    expect(screen.getByText('Frecuencia y destinatario')).toBeTruthy() // R-2
     expect(container.querySelectorAll('[lang]')).toHaveLength(0)
   })
 })
