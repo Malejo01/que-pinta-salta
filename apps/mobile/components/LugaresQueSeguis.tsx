@@ -2,7 +2,9 @@
 // mismos de Cuenta › Lo que seguís), cada uno abre su ficha en la web
 // (`urlFichaLugarWeb`, la ficha /lugar de Q5-5). Se recarga al volver a la
 // pestaña. Sin lugares, una línea que explica cómo seguir uno. Con error, no
-// se dibuja (Mis eventos sigue con los guardados).
+// se dibuja (Mis eventos sigue con los guardados). R-1: antes, con error, se
+// leía con `obtenerLoQueSeguis` (que da `[]` si falla) y decía «Todavía no
+// seguís ningún lugar»; ahora `obtenerLugaresQueSeguis` devuelve `null`.
 import { useCallback, useState } from 'react'
 import { Pressable, StyleSheet, View } from 'react-native'
 import { useFocusEffect } from 'expo-router'
@@ -11,20 +13,24 @@ import { Icono } from '@/components/Icono'
 import { Texto } from '@/components/Texto'
 import { useColoresQPS } from '@/lib/colores'
 import { urlFichaLugarWeb } from '@/lib/links'
-import { obtenerLoQueSeguis } from '@/lib/radar'
+import { obtenerLugaresQueSeguis } from '@/lib/radar'
+import { useTextos } from '@/lib/i18n'
+import { es } from '@/lib/i18n/diccionarios/es'
 
-export const TITULO_LUGARES_QUE_SEGUIS = 'Lugares que seguís'
-export const TEXTO_SIN_LUGARES_SEGUIDOS = 'Todavía no seguís ningún lugar. Tocá «Seguir» en la ficha de un evento y te avisamos cuando anuncie algo nuevo.'
+// Q6-1: los textos viven en el diccionario (`misEventos`); estas constantes son el castellano.
+export const TITULO_LUGARES_QUE_SEGUIS = es.misEventos.lugaresQueSeguis
+export const TEXTO_SIN_LUGARES_SEGUIDOS = es.misEventos.sinLugares
 
 export function LugaresQueSeguis({ userId }: { userId: string }) {
   const colores = useColoresQPS()
+  const t = useTextos().misEventos
   const [lugares, setLugares] = useState<{ id: string; nombre: string }[] | null>(null)
 
   useFocusEffect(
     useCallback(() => {
       let vigente = true
-      obtenerLoQueSeguis(userId).then((r) => {
-        if (vigente) setLugares([...r.lugares].sort((a, b) => a.nombre.localeCompare(b.nombre, 'es')))
+      void obtenerLugaresQueSeguis(userId).then((r) => {
+        if (vigente) setLugares(r === null ? null : [...r].sort((a, b) => a.nombre.localeCompare(b.nombre, 'es')))
       })
       return () => {
         vigente = false
@@ -37,10 +43,10 @@ export function LugaresQueSeguis({ userId }: { userId: string }) {
   return (
     <View style={estilos.seccion}>
       <Texto peso="bold" accessibilityRole="header" style={estilos.titulo}>
-        {TITULO_LUGARES_QUE_SEGUIS}
+        {t.lugaresQueSeguis}
       </Texto>
       {lugares.length === 0 ? (
-        <Texto tono="secundario">{TEXTO_SIN_LUGARES_SEGUIDOS}</Texto>
+        <Texto tono="secundario">{t.sinLugares}</Texto>
       ) : (
         lugares.map((lugar) => {
           const url = urlFichaLugarWeb(lugar.id)
@@ -52,7 +58,7 @@ export function LugaresQueSeguis({ userId }: { userId: string }) {
               key={lugar.id}
               onPress={abrir}
               accessibilityRole="link"
-              accessibilityLabel={`${lugar.nombre}: ver la ficha del lugar`}
+              accessibilityLabel={t.verFichaDelLugar(lugar.nombre)}
               style={[estilos.filaLugar, { borderColor: colores.border, backgroundColor: colores.card }]}
             >
               <Icono nombre="MapPin" tamanio={16} color={colores.primary} />

@@ -131,14 +131,16 @@ describe('ChangePasswordForm: QPS-155 — nunca el error crudo a la pantalla ni 
   })
 })
 
-describe('app/perfil/page.tsx: le pasa a ChangePasswordForm el tipo de cuenta', () => {
+// Q6-2: el cuerpo de /perfil pasó a app/perfil/pagina-perfil.tsx (compartido con /en/perfil).
+describe('app/perfil/pagina-perfil.tsx: le pasa a ChangePasswordForm el tipo de cuenta', () => {
   it('contiene modo={tipoDeCuenta(', () => {
-    const source = readSource('app/perfil/page.tsx')
+    const source = readSource('app/perfil/pagina-perfil.tsx')
     expect(source).toContain('modo={tipoDeCuenta(')
+    expect(readSource('app/perfil/page.tsx')).toContain('PaginaPerfil({ idioma: "es" })')
   })
 
   it('importa tipoDeCuenta de @qps/core/auth/cuenta', () => {
-    const source = readSource('app/perfil/page.tsx')
+    const source = readSource('app/perfil/pagina-perfil.tsx')
     expect(source).toMatch(/import\s*\{[^}]*tipoDeCuenta[^}]*\}\s*from\s*['"]@qps\/core\/auth\/cuenta['"]/)
   })
 })

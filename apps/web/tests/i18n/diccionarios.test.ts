@@ -67,10 +67,11 @@ describe.each(Object.entries(DICCIONARIOS))('diccionario %s', (_nombre, dic) => 
 
 describe('plurales', () => {
   it('cantidad de cines: singular y plural en los dos idiomas', () => {
-    expect(es.cines.cantidadCines(1)).toBe('1 Cine')
-    expect(es.cines.cantidadCines(3)).toBe('3 Cines')
-    expect(en.cines.cantidadCines(1)).toBe('1 Cinema')
-    expect(en.cines.cantidadCines(3)).toBe('3 Cinemas')
+    // R-2: en minúscula, como `portada.cinesDeSalta` y la app (`tarjeta.cines`).
+    expect(es.cines.cantidadCines(1)).toBe('1 cine')
+    expect(es.cines.cantidadCines(3)).toBe('3 cines')
+    expect(en.cines.cantidadCines(1)).toBe('1 cinema')
+    expect(en.cines.cantidadCines(3)).toBe('3 cinemas')
     expect(en.portada.cinesDeSalta(1)).toBe('1 cinema in Salta')
     expect(en.portada.cinesDeSalta(2)).toBe('2 cinemas in Salta')
   })

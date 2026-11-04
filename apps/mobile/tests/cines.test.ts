@@ -17,6 +17,8 @@
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
+import { en } from '../lib/i18n/diccionarios/en'
+import { es } from '../lib/i18n/diccionarios/es'
 
 interface PeliculaFixture {
   id: string
@@ -111,14 +113,22 @@ describe('app/cines.tsx: lectura estática', () => {
 
   // R67, 67-c: la tarjeta y el acordeón viven en `components/`; estas tres
   // comprobaciones leen ahí.
-  it('"Comprar Entradas" es el texto literal de la web (con mayúsculas, no "Comprar entradas")', () => {
-    expect(SRC_BLOQUE).toMatch(/Comprar Entradas/)
-    expect(SRC_BLOQUE).not.toMatch(/Comprar entradas/)
+  it('"Comprar entradas" es el texto literal de la web (y sale del diccionario, no suelto en el componente)', () => {
+    // Q6-1: el texto sale del diccionario (`tarjeta.comprarEntradas`).
+    expect(SRC_BLOQUE).toMatch(/\{t\.comprarEntradas\}/)
+    // R-2: mayúscula de oración en la app y en la web (`cines.comprarEntradas`
+    // de apps/web/lib/i18n/diccionarios/es.ts): la paridad sigue, con «entradas».
+    expect(es.tarjeta.comprarEntradas).toBe('Comprar entradas')
+    expect(SRC_BLOQUE).not.toMatch(/'Comprar entradas'/)
   })
 
-  it('el badge usa singular "Cine" / plural "Cines", como MovieCard', () => {
+  it('el badge usa singular "cine" / plural "cines", como MovieCard', () => {
     expect(SRC_CINES).toMatch(/<TarjetaPelicula\b/)
-    expect(SRC_TARJETA).toMatch(/cantidad === 1 \? 'Cine' : 'Cines'/)
+    // Q6-1: el singular y el plural viven en el diccionario (`tarjeta.cines`).
+    expect(SRC_TARJETA).toMatch(/\{t\.tarjeta\.cines\(cantidad\)\}/)
+    // R-2: en minúscula («3 cines»), como la web (`cines.cantidadCines`).
+    expect([es.tarjeta.cines(1), es.tarjeta.cines(3)]).toEqual(['1 cine', '3 cines'])
+    expect([en.tarjeta.cines(1), en.tarjeta.cines(3)]).toEqual(['1 cinema', '3 cinemas'])
   })
 
   it('usa cantidadDeSalas y funcionesPorCine de lib/datos/cines (no cuentas propias)', () => {
@@ -138,9 +148,11 @@ describe('app/cines.tsx: lectura estática', () => {
 
 describe('app/pelicula/[id].tsx: mismo armado que la tarjeta abierta (lectura estática)', () => {
   // R67, 67-c: el botón es de `components/BloqueCine.tsx`, que esta ficha usa.
-  it('"Comprar Entradas" es el texto literal de la web', () => {
+  it('"Comprar entradas" es el texto literal de la web', () => {
     expect(SRC_PELICULA).toMatch(/<BloqueCine\b/)
-    expect(SRC_BLOQUE).toMatch(/Comprar Entradas/)
+    // R-2: antes buscaba «Comprar Entradas» en el comentario del componente; el
+    // texto vive en el diccionario (`tarjeta.comprarEntradas`, ver arriba).
+    expect(SRC_BLOQUE).toMatch(/\{t\.comprarEntradas\}/)
   })
 
   it('usa el mismo helper urlCompraCineSegura para el booking_url (ver tests/aperturas-url.test.ts)', () => {

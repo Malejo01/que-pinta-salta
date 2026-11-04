@@ -30,22 +30,17 @@ import { categoriasDisponibles, filtrarCombinado } from '@qps/core/home/filtros-
 import { soloGratis } from '@qps/core/home/filtros-extra'
 import type { DisplayEvent } from '@qps/core/home/types'
 import { filtrarConPublico, filtrarParaChicos, type ItemConPublico } from '@/lib/para-chicos'
+import { es } from '@/lib/i18n/diccionarios/es'
+import type { Idioma } from '@/lib/i18n/idioma'
+import { textosDe } from '@/lib/i18n/textos'
 
 /** Etiqueta del atajo para el título de la grilla ("Música · Finde"). */
-export const ETIQUETA_ATAJO: Record<Atajo, string> = {
-  hoy: 'Hoy',
-  'esta-noche': 'Esta noche',
-  finde: 'Finde',
-  semana: 'Semana',
-}
+// Q6-1: los textos viven en el diccionario (`portada.atajos`); esta
+// constante queda como el castellano de siempre para quien la importa.
+export const ETIQUETA_ATAJO: Record<Atajo, string> = es.portada.atajos
 
 /** Frase del atajo para el vacío ("No hay eventos de Música para hoy."). */
-export const FRASE_ATAJO: Record<Atajo, string> = {
-  hoy: 'hoy',
-  'esta-noche': 'esta noche',
-  finde: 'el finde',
-  semana: 'esta semana',
-}
+export const FRASE_ATAJO: Record<Atajo, string> = es.portada.frases
 
 /**
  * Los filtros de la portada. `categoria: null` = "Todas". `paraChicos` (A3)
@@ -122,9 +117,9 @@ export function chipsDeLaPortada(
  * cartel": con "Gratis" no hay películas, solo eventos con fecha.
  * `nombreCategoria: null` = "Todas".
  */
-export function tituloGratis(nombreCategoria: string | null, atajo: Atajo): string {
-  const quien = nombreCategoria === null ? 'Gratis' : `${nombreCategoria} gratis`
-  return `${quien} · ${ETIQUETA_ATAJO[atajo]}`
+export function tituloGratis(nombreCategoria: string | null, atajo: Atajo, idioma: Idioma = 'es'): string {
+  const t = textosDe(idioma).portada
+  return `${t.quienGratis(nombreCategoria)} · ${t.atajos[atajo]}`
 }
 
 /**
@@ -134,11 +129,9 @@ export function tituloGratis(nombreCategoria: string | null, atajo: Atajo): stri
  *   - "Cine": lo mismo, más "Las películas en cartel no son gratis." (si no,
  *     no se entiende por qué desaparecieron las películas).
  */
-export function textoVacioGratis(categoria: string | null, nombreCategoria: string, atajo: Atajo): string {
-  const cuando = FRASE_ATAJO[atajo]
-  if (categoria === null) return `No hay eventos gratis para ${cuando}.`
-  const base = `No hay eventos gratis de ${nombreCategoria} para ${cuando}.`
-  return categoria === 'cine' ? `${base} Las películas en cartel no son gratis.` : base
+export function textoVacioGratis(categoria: string | null, nombreCategoria: string, atajo: Atajo, idioma: Idioma = 'es'): string {
+  const t = textosDe(idioma).portada
+  return t.vacioGratis(categoria === null ? null : nombreCategoria, t.frases[atajo], categoria === 'cine')
 }
 
 /** Segunda salida del vacío de "Gratis" (la primera es siempre "Ver todos los precios"). */
@@ -152,15 +145,17 @@ export type SegundaSalidaGratis = { tipo: 'todas-las-categorias'; texto: string 
  *     vacío de "Hoy en Salta");
  *   - con "Todas" y la semana: ninguna (la única salida es "Ver todos los precios").
  */
-export function segundaSalidaVacioGratis(categoria: string | null, atajo: Atajo): SegundaSalidaGratis | null {
-  if (categoria !== null) return { tipo: 'todas-las-categorias', texto: 'Todas las categorías' }
-  if (atajo !== 'semana') return { tipo: 'esta-semana', texto: 'Ver esta semana' }
+export function segundaSalidaVacioGratis(categoria: string | null, atajo: Atajo, idioma: Idioma = 'es'): SegundaSalidaGratis | null {
+  const t = textosDe(idioma).portada
+  if (categoria !== null) return { tipo: 'todas-las-categorias', texto: t.todasLasCategorias }
+  if (atajo !== 'semana') return { tipo: 'esta-semana', texto: t.verEstaSemana }
   return null
 }
 
 /** Texto del vacío del modo categoría sin "Gratis" (R66, 66-c): "No hay eventos de Música para hoy." */
-export function textoVacioCategoria(nombreCategoria: string, atajo: Atajo): string {
-  return `No hay eventos de ${nombreCategoria} para ${FRASE_ATAJO[atajo]}.`
+export function textoVacioCategoria(nombreCategoria: string, atajo: Atajo, idioma: Idioma = 'es'): string {
+  const t = textosDe(idioma).portada
+  return t.vacioCategoriaSimple(nombreCategoria, t.frases[atajo])
 }
 
 /**

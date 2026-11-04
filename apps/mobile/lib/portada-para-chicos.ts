@@ -30,20 +30,24 @@
 //     precios"), y el caso Cine explica que las películas no tienen la edad
 //     cargada (con "Gratis", que no son gratis, como en A2).
 import type { Atajo } from '@qps/core/home/atajos'
-import { SLUG_INFANTIL, TEXTO_VER_TODAS_LAS_EDADES } from '@/lib/para-chicos'
-import { ETIQUETA_ATAJO, FRASE_ATAJO } from '@/lib/portada-gratis'
+import { SLUG_INFANTIL } from '@/lib/para-chicos'
+import type { Idioma } from '@/lib/i18n/idioma'
+import { textosDe } from '@/lib/i18n/textos'
 
 /**
  * Título de la grilla con "Para chicos" prendido (con o sin "Gratis").
  * `nombreCategoria: null` = "Todas".
  */
-export function tituloParaChicos(nombreCategoria: string | null, categoria: string | null, atajo: Atajo, gratis: boolean): string {
-  const conGratis = gratis ? ' gratis' : ''
-  let quien: string
-  if (categoria === null || nombreCategoria === null) quien = gratis ? 'Gratis para chicos' : 'Para chicos'
-  else if (categoria === SLUG_INFANTIL) quien = `${nombreCategoria}${conGratis}`
-  else quien = `${nombreCategoria}${conGratis} para chicos`
-  return `${quien} · ${ETIQUETA_ATAJO[atajo]}`
+export function tituloParaChicos(
+  nombreCategoria: string | null,
+  categoria: string | null,
+  atajo: Atajo,
+  gratis: boolean,
+  idioma: Idioma = 'es',
+): string {
+  const t = textosDe(idioma).portada
+  const nombre = categoria === null || nombreCategoria === null ? null : nombreCategoria
+  return `${t.quienParaChicos(nombre, categoria === SLUG_INFANTIL, gratis)} · ${t.atajos[atajo]}`
 }
 
 /**
@@ -54,14 +58,15 @@ export function tituloParaChicos(nombreCategoria: string | null, categoria: stri
  *   - "Cine": lo mismo, más por qué no están las películas (sin la edad
  *     cargada; con "Gratis", que no son gratis).
  */
-export function textoVacioParaChicos(categoria: string | null, nombreCategoria: string, atajo: Atajo, gratis: boolean): string {
-  const conGratis = gratis ? ' gratis' : ''
-  if (categoria === null) return `No hay eventos${conGratis} para chicos ${FRASE_ATAJO[atajo]}.`
-  if (categoria === SLUG_INFANTIL) return `No hay eventos${conGratis} de ${nombreCategoria} para ${FRASE_ATAJO[atajo]}.`
-  const base = `No hay eventos${conGratis} de ${nombreCategoria} para chicos ${FRASE_ATAJO[atajo]}.`
-  if (categoria !== 'cine') return base
-  if (gratis) return `${base} Las películas en cartel no son gratis.`
-  return `${base} Las películas en cartel no tienen la edad cargada, así que no aparecen con "Para chicos".`
+export function textoVacioParaChicos(
+  categoria: string | null,
+  nombreCategoria: string,
+  atajo: Atajo,
+  gratis: boolean,
+  idioma: Idioma = 'es',
+): string {
+  const t = textosDe(idioma).portada
+  return t.vacioParaChicos(categoria === null ? null : nombreCategoria, categoria === SLUG_INFANTIL, categoria === 'cine', gratis, t.frases[atajo])
 }
 
 /** Una salida del vacío de "Para chicos". */
@@ -71,10 +76,6 @@ export type SalidaParaChicos =
   | { tipo: 'esta-semana'; texto: string }
   | { tipo: 'todos-los-precios'; texto: string }
 
-const TODAS_LAS_EDADES: SalidaParaChicos = { tipo: 'todas-las-edades', texto: TEXTO_VER_TODAS_LAS_EDADES }
-const TODAS_LAS_CATEGORIAS: SalidaParaChicos = { tipo: 'todas-las-categorias', texto: 'Todas las categorías' }
-const ESTA_SEMANA: SalidaParaChicos = { tipo: 'esta-semana', texto: 'Ver esta semana' }
-const TODOS_LOS_PRECIOS: SalidaParaChicos = { tipo: 'todos-los-precios', texto: 'Ver todos los precios' }
 
 /**
  * Las salidas del vacío con "Para chicos" prendido: la principal (botón
@@ -92,7 +93,14 @@ export function salidasVacioParaChicos(
   categoria: string | null,
   atajo: Atajo,
   gratis: boolean,
+  idioma: Idioma = 'es',
 ): { principal: SalidaParaChicos; segunda: SalidaParaChicos | null } {
+  // Q6-1: los textos de las salidas, del diccionario del idioma.
+  const t = textosDe(idioma).portada
+  const TODAS_LAS_EDADES: SalidaParaChicos = { tipo: 'todas-las-edades', texto: t.verTodasLasEdades }
+  const TODAS_LAS_CATEGORIAS: SalidaParaChicos = { tipo: 'todas-las-categorias', texto: t.todasLasCategorias }
+  const ESTA_SEMANA: SalidaParaChicos = { tipo: 'esta-semana', texto: t.verEstaSemana }
+  const TODOS_LOS_PRECIOS: SalidaParaChicos = { tipo: 'todos-los-precios', texto: t.verTodosLosPrecios }
   if (categoria === SLUG_INFANTIL) {
     const principal = atajo !== 'semana' ? ESTA_SEMANA : gratis ? TODOS_LOS_PRECIOS : TODAS_LAS_CATEGORIAS
     return { principal, segunda: principal === TODAS_LAS_CATEGORIAS ? null : TODAS_LAS_CATEGORIAS }

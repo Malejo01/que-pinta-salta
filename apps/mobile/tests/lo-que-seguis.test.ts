@@ -31,6 +31,8 @@ import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { afterEach, describe, expect, it } from 'vitest'
+import { en } from '../lib/i18n/diccionarios/en'
+import { es } from '../lib/i18n/diccionarios/es'
 
 const MOBILE_ROOT = fileURLToPath(new URL('..', import.meta.url))
 const RUTA_COMPONENTE = join(MOBILE_ROOT, 'components', 'LoQueSeguis.tsx')
@@ -200,10 +202,12 @@ describe('components/LoQueSeguis.tsx: grupo vacío, vacío total y estados de ca
   })
 
   it('sin nada seguido: el mismo texto que la web, con "Vacio" y un acceso al Radar', () => {
-    expect(CONTENIDO_CRUDO).toContain(
+    // Q6-1: el texto vive en el diccionario (`cuenta.seguis.vacio`), el mismo de la web.
+    expect(es.cuenta.seguis.vacio).toBe(
       'Todavía no seguís nada. Seguí un lugar desde la ficha de un evento, o elegí categorías en el Radar.',
     )
-    expect(CONTENIDO).toMatch(/<Vacio\s+mensaje=\{MENSAJE_SIN_NADA\}[^>]*textoAccion=\{t\.irAlRadar\}/)
+    expect(en.cuenta.seguis.vacio).not.toBe(es.cuenta.seguis.vacio)
+    expect(CONTENIDO).toMatch(/<Vacio\s+mensaje=\{s\.vacio\}[^>]*textoAccion=\{t\.irAlRadar\}/)
     expect(CONTENIDO).toMatch(/onAccion=\{\(\)\s*=>\s*router\.push\(\s*['"]\/radar['"]\s*\)\}/)
   })
 
@@ -214,7 +218,8 @@ describe('components/LoQueSeguis.tsx: grupo vacío, vacío total y estados de ca
   })
 
   it('el estado de error usa ErrorCarga con onReintentar (vuelve a llamar a cargar)', () => {
-    expect(CONTENIDO).toMatch(/<ErrorCarga\s+mensaje=\{estado\.error\}\s+onReintentar=\{cargar\}/)
+    // Q6-1: el error se guarda en castellano y se muestra en el idioma de la app.
+    expect(CONTENIDO).toMatch(/<ErrorCarga\s+mensaje=\{enIdioma\(estado\.error\)\}\s+onReintentar=\{cargar\}/)
   })
 })
 

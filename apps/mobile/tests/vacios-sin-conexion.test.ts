@@ -68,6 +68,8 @@ import {
   type PantallaConLista,
 } from '../lib/vacios'
 import { textoCantidadEventos } from '../lib/formato'
+import { en } from '../lib/i18n/diccionarios/en'
+import { es } from '../lib/i18n/diccionarios/es'
 import { reintentarSesion } from '../lib/session'
 import { TITULO_SIN_CONEXION } from '../lib/sin-conexion/aviso'
 import type { Almacen } from '../lib/sin-conexion/almacen'
@@ -553,8 +555,13 @@ describe('textoVacioCategoria (modo categoría de Inicio)', () => {
 describe('app/(tabs)/index.tsx usa lib/vacios (detector estático)', () => {
   it('el vacío de "Hoy en Salta" pasa por vacioHoyEnSalta, con el texto de la web como caso de siempre', () => {
     expect(SRC_INICIO).toMatch(/vacioHoyEnSalta\(\{\s*atajo,\s*hayEventosEnAtajo: datosPortada\.hayEventosEnAtajo,\s*hayEventosEnFinde: datosPortada\.hayEventosEnFinde,/)
-    expect(SRC_INICIO).toContain(`{vacioHoy ? vacioHoy.texto : '${TEXTO_HOY_WEB}'}`)
-    expect(SRC_INICIO).toContain(`{vacioHoy ? vacioHoy.accion.texto : 'Ver esta semana'}`)
+    // Q6-1: el caso de siempre sale del diccionario; en castellano es el texto de la web.
+    expect(SRC_INICIO).toContain('{vacioHoy ? vacioHoy.texto : t.portada.vacioHoy}')
+    expect(SRC_INICIO).toContain('{vacioHoy ? vacioHoy.accion.texto : t.portada.verEstaSemana}')
+    expect(es.portada.vacioHoy).toBe(TEXTO_HOY_WEB)
+    expect(es.portada.verEstaSemana).toBe('Ver esta semana')
+    expect(en.portada.vacioHoy).not.toBe(es.portada.vacioHoy)
+    expect(en.portada.verEstaSemana).not.toBe(es.portada.verEstaSemana)
     expect(SRC_INICIO).toMatch(/onPress=\{\(\) => \(vacioHoy \? irADestino\(vacioHoy\.accion\.destino\) : cambiarAtajo\('semana'\)\)\}/)
   })
 
@@ -570,7 +577,8 @@ describe('app/(tabs)/index.tsx usa lib/vacios (detector estático)', () => {
   it('el modo categoría usa textoVacioCategoria con desdeCache', () => {
     // Integración R76: el texto se arma una vez (`textoVacio`) y lo usan el nodo
     // visible y el anuncio de A8, así que el desdeCache sale de `estado.tipo === 'ok'`.
-    expect(SRC_INICIO).toMatch(/textoVacioCategoria\(\{[\s\S]*?desdeCache: estado\.tipo === 'ok' && estado\.desdeCache !== null,?\s*\}\)/)
+    // Q6-1: también recibe el idioma de la app.
+    expect(SRC_INICIO).toMatch(/textoVacioCategoria\(\{[\s\S]*?desdeCache: estado\.tipo === 'ok' && estado\.desdeCache !== null,\s*idioma,?\s*\}\)/)
     expect(SRC_INICIO).toMatch(/<Texto tono="secundario">\s*\{textoVacio\}\s*<\/Texto>/)
   })
 
@@ -582,14 +590,16 @@ describe('app/(tabs)/index.tsx usa lib/vacios (detector estático)', () => {
   it('refrescar usa decidirRefresco (con la nota previa) y anuncia con anunciar() (lib/anunciar.ts)', () => {
     const refrescar = SRC_INICIO.slice(SRC_INICIO.indexOf('const refrescar = useCallback('), SRC_INICIO.indexOf('const datosPortada'))
     expect(refrescar).toMatch(/decidirRefresco\(estado, await cargarDatos\(\), notaRefresco\)/)
-    expect(refrescar).toMatch(/const aviso = decision\.anuncio\s*if \(aviso\) anunciar\(aviso\)/)
+    // Q6-1: el anuncio (armado en castellano por decidirRefresco) se dice en el idioma de la app.
+    expect(refrescar).toMatch(/const aviso = decision\.anuncio\s*if \(aviso\) anunciar\(t\.errores\.traducir\(aviso\)\)/)
     expect(refrescar).not.toMatch(/AccessibilityInfo/)
-    expect(refrescar).toMatch(/\[cargarDatos, estado, notaRefresco\]/)
+    expect(refrescar).toMatch(/\[cargarDatos, estado, notaRefresco, t\]/)
   })
 
   it('el aviso de sin conexión lleva "Reintentar" (onReintentar={refrescar}) y la nota del refresco', () => {
-    expect(SRC_INICIO).toMatch(/<AvisoSinConexion guardadoEn=\{estado\.desdeCache\.guardadoEn\} onReintentar=\{refrescar\}[^>]*nota=\{notaRefresco\}/)
-    expect(SRC_INICIO).toMatch(/<AvisoNoSeActualizo texto=\{notaRefresco\} onReintentar=\{refrescar\}/)
+    // Q6-1: la nota se guarda en castellano y se muestra traducida.
+    expect(SRC_INICIO).toMatch(/<AvisoSinConexion guardadoEn=\{estado\.desdeCache\.guardadoEn\} onReintentar=\{refrescar\}[^>]*nota=\{notaRefresco \? t\.errores\.traducir\(notaRefresco\) : null\}/)
+    expect(SRC_INICIO).toMatch(/<AvisoNoSeActualizo texto=\{t\.errores\.traducir\(notaRefresco\)\} onReintentar=\{refrescar\}/)
   })
 })
 
@@ -655,14 +665,18 @@ describe('accionesVacioBuscar: una salida por filtro, por prioridad, como mucho 
     expect(accionesVacioBuscar({ texto: 'x', atajo: 'hoy', soloGratis: true, categoria: 'musica' })).toEqual([
       'Limpiar búsqueda',
       'Ver todas las fechas',
-      'Sacar “Solo gratis”',
+      'Sacar «Solo gratis»', // R-2: comillas «» (el estilo del diccionario de la app)
     ])
   })
 })
 
 describe('app/(tabs)/buscar.tsx: el vacío, el tile y la grilla vacía (detector estático)', () => {
   it('los accionesVacio.push están en el orden de ACCIONES_VACIO_BUSCAR, con esos textos y las MISMAS condiciones que accionesVacioBuscar', () => {
-    const pushes = [...SRC_BUSCAR.matchAll(/if \(([^)]+?)\) accionesVacio\.push\(\{ texto: '([^']+)'/g)].map((m) => [m[1], m[2]])
+    // Q6-1: los textos salen del diccionario (`t.vacios.<clave>`); en castellano son los de ACCIONES_VACIO_BUSCAR.
+    const pushes = [...SRC_BUSCAR.matchAll(/if \(([^)]+?)\) accionesVacio\.push\(\{ texto: t\.vacios\.(\w+)/g)].map((m) => [
+      m[1],
+      es.vacios[m[2] as keyof typeof es.vacios],
+    ])
     expect(pushes).toEqual([
       ['texto', ACCIONES_VACIO_BUSCAR.texto],
       ['atajo !== null', ACCIONES_VACIO_BUSCAR.atajo],
@@ -672,10 +686,16 @@ describe('app/(tabs)/buscar.tsx: el vacío, el tile y la grilla vacía (detector
   })
 
   it('cada push nuevo tiene su acción', () => {
-    expect(SRC_BUSCAR).toMatch(/if \(texto\) accionesVacio\.push\(\{ texto: 'Limpiar búsqueda', alTocar: \(\) => setTexto\(''\) \}\)/)
+    // Q6-1: con la clave del diccionario (el castellano, en `es.vacios`).
+    expect(SRC_BUSCAR).toMatch(/if \(texto\) accionesVacio\.push\(\{ texto: t\.vacios\.limpiarBusqueda, alTocar: \(\) => setTexto\(''\) \}\)/)
     expect(SRC_BUSCAR).toMatch(
-      /if \(soloGratisActivo\) accionesVacio\.push\(\{ texto: 'Sacar “Solo gratis”', alTocar: \(\) => setSoloGratisActivo\(false\) \}\)/,
+      /if \(soloGratisActivo\) accionesVacio\.push\(\{ texto: t\.vacios\.sacarSoloGratis, alTocar: \(\) => setSoloGratisActivo\(false\) \}\)/,
     )
+    expect(es.vacios.limpiarBusqueda).toBe('Limpiar búsqueda')
+    // R-2: comillas «» (el estilo del diccionario de la app), misma clave.
+    expect(es.vacios.sacarSoloGratis).toBe('Sacar «Solo gratis»')
+    expect(en.vacios.limpiarBusqueda).not.toBe(es.vacios.limpiarBusqueda)
+    expect(en.vacios.sacarSoloGratis).not.toBe(es.vacios.sacarSoloGratis)
   })
 
   it('corta en MAXIMO_ACCIONES_VACIO después de los push', () => {
@@ -694,7 +714,10 @@ describe('app/(tabs)/buscar.tsx: el vacío, el tile y la grilla vacía (detector
   it('el tile ya no dice "1 eventos": textoCantidadEventos', () => {
     // Q4-13: el tile vive en components/TileCategoria.tsx.
     const tile = readFileSync(new URL('../components/TileCategoria.tsx', import.meta.url), 'utf8')
-    expect(tile).toMatch(/\{textoCantidadEventos\(cantidad\)\}/)
+    // Q6-1: con el idioma de la app.
+    expect(tile).toMatch(/\{textoCantidadEventos\(cantidad, idioma\)\}/)
+    expect(textoCantidadEventos(1, 'en')).toBe('1 event')
+    expect(textoCantidadEventos(7, 'en')).toBe('7 events')
     expect(tile).not.toMatch(/\{cantidad\} eventos/)
     expect(SRC_BUSCAR).not.toMatch(/\{cantidad\} eventos/)
     expect(textoCantidadEventos(1)).toBe('1 evento')
@@ -703,14 +726,18 @@ describe('app/(tabs)/buscar.tsx: el vacío, el tile y la grilla vacía (detector
   })
 
   it('la grilla de categorías vacía ofrece Reintentar (ErrorCarga con refrescar)', () => {
-    expect(SRC_BUSCAR).toMatch(/ListEmptyComponent=\{<ErrorCarga mensaje=\{VACIO_CATEGORIAS_BUSCAR\} onReintentar=\{refrescar\} \/>\}/)
+    // Q6-1: el texto, del diccionario (en castellano es VACIO_CATEGORIAS_BUSCAR).
+    expect(SRC_BUSCAR).toMatch(/ListEmptyComponent=\{<ErrorCarga mensaje=\{t\.vacios\.categoriasBuscar\} onReintentar=\{refrescar\} \/>\}/)
+    expect(es.vacios.categoriasBuscar).toBe(VACIO_CATEGORIAS_BUSCAR)
+    expect(en.vacios.categoriasBuscar).not.toBe(VACIO_CATEGORIAS_BUSCAR)
     expect(VACIO_CATEGORIAS_BUSCAR).toBe('Por ahora no hay categorías para mostrar. Tocá Reintentar o buscá por nombre arriba.')
   })
 
   it('el error pasa por mensajeErrorCarga("buscar", ...), el refresco por decidirRefresco y un reintento con error se anuncia', () => {
     expect(SRC_BUSCAR.match(/mensajeErrorCarga\('buscar', \{ \.\.\.resultado(Eventos|Categorias), sinConexion \}\)/g)).toHaveLength(2)
     expect(SRC_BUSCAR).toMatch(/decidirRefresco\(estado, await obtenerDatos\(\), notaRefresco\)/)
-    expect(SRC_BUSCAR).toMatch(/<AvisoNoSeActualizo texto=\{notaRefresco\} onReintentar=\{refrescar\}/)
+    // Q6-1: la nota se guarda en castellano y se muestra traducida.
+    expect(SRC_BUSCAR).toMatch(/<AvisoNoSeActualizo texto=\{t\.errores\.traducir\(notaRefresco\)\} onReintentar=\{refrescar\}/)
     expect(SRC_BUSCAR).toMatch(/anuncioDeReintento\(intento > 0, resultado\)/)
   })
 })
@@ -775,15 +802,23 @@ describe('vacioFavoritos', () => {
 
 describe('app/(tabs)/favoritos.tsx (detector estático)', () => {
   it('el literal del vacío con red es el mismo que VACIO_FAVORITOS (espejo en lib/vacios.ts), va a "/" y es la acción principal', () => {
-    expect(SRC_FAVORITOS).toContain(
-      `<Vacio\n                mensaje="${VACIO_FAVORITOS.mensaje}"\n                textoAccion="${VACIO_FAVORITOS.textoAccion}"\n                onAccion={() => router.push('/')}\n                accionPrincipal`,
+    // Q6-1: el vacío sale de vacioFavoritos (con el idioma); en castellano,
+    // con red, es VACIO_FAVORITOS (el mismo texto de siempre, con "Mis eventos").
+    expect(SRC_FAVORITOS).toMatch(
+      /<Vacio\s+\{\.\.\.vacioFavoritos\(estado\.tipo === 'ok' && estado\.desdeCache !== null, idioma\)\}\s+onAccion=\{\(\) => router\.push\('\/'\)\}\s+accionPrincipal/,
     )
+    expect(vacioFavoritos(false)).toBe(VACIO_FAVORITOS)
+    // R-2: «Voy» con las comillas del diccionario (`vacios.favoritos`).
+    expect(VACIO_FAVORITOS.mensaje).toBe('Todavía no guardaste ningún evento en Mis eventos. Tocá el corazón o «Voy» en un evento y aparece acá.')
+    expect(vacioFavoritos(false, 'en').mensaje).toContain('My events')
   })
 
   it('sin conexión, el vacío es VACIO_FAVORITOS_SIN_CONEXION y el detalle de los pasados solo si seOcultaronPasados', () => {
-    expect(SRC_FAVORITOS).toMatch(/mensaje=\{VACIO_FAVORITOS_SIN_CONEXION\.mensaje\}/)
+    // Q6-1: sin conexión, el mismo vacioFavoritos (true) y el detalle con el idioma.
+    expect(vacioFavoritos(true)).toBe(VACIO_FAVORITOS_SIN_CONEXION)
+    expect(vacioFavoritos(true, 'en').mensaje).not.toBe(VACIO_FAVORITOS_SIN_CONEXION.mensaje)
     expect(SRC_FAVORITOS).toMatch(
-      /<AvisoSinConexion\s+guardadoEn=\{estado\.desdeCache\.guardadoEn\}\s+detalle=\{detalleAvisoFavoritos\(estado\.seOcultaronPasados === true\)\}\s+onReintentar=\{refrescar\}/,
+      /<AvisoSinConexion\s+guardadoEn=\{estado\.desdeCache\.guardadoEn\}\s+detalle=\{detalleAvisoFavoritos\(estado\.seOcultaronPasados === true, idioma\)\}\s+onReintentar=\{refrescar\}/,
     )
     // Las tres lecturas de la copia pasan la marca al estado.
     expect(SRC_FAVORITOS.match(/seOcultaronPasados: (resultado|cache)\.seOcultaronPasados/g)).toHaveLength(4)
@@ -795,7 +830,10 @@ describe('app/(tabs)/favoritos.tsx (detector estático)', () => {
     expect(idxSinRed).toBeGreaterThan(-1)
     expect(idxInvitar).toBeGreaterThan(idxSinRed)
     const bloque = sinComentariosDeLinea(SRC_FAVORITOS.slice(idxSinRed, idxInvitar))
-    expect(bloque).toMatch(/\{SIN_CONEXION_POR_PANTALLA\.favoritos\}/)
+    // Q6-1: el texto, del diccionario (en castellano, el de SIN_CONEXION_POR_PANTALLA).
+    expect(bloque).toMatch(/\{t\.mensajes\.sinConexion\.favoritos\}/)
+    expect(es.mensajes.sinConexion.favoritos).toBe(SIN_CONEXION_POR_PANTALLA.favoritos)
+    expect(en.mensajes.sinConexion.favoritos).not.toBe(SIN_CONEXION_POR_PANTALLA.favoritos)
     expect(bloque).toMatch(/<BotonReintentar onReintentar=\{refrescar\} reintentando=\{refrescando\} \/>/)
     expect(bloque).not.toMatch(/Entrá|Ingresar|\/cuenta/)
   })
@@ -860,26 +898,36 @@ describe('components/PantallaRadar.tsx (detector estático)', () => {
     expect(idxSinRed).toBeGreaterThan(-1)
     expect(idxSinSesion).toBeGreaterThan(idxSinRed)
     const bloque = sinComentariosDeLinea(SRC_RADAR.slice(idxSinRed, idxSinSesion))
-    expect(bloque).toMatch(/\{SIN_CONEXION_POR_PANTALLA\.radar\}/)
+    // Q6-1: el texto, del diccionario (en castellano, el de SIN_CONEXION_POR_PANTALLA).
+    expect(bloque).toMatch(/\{textos\.mensajes\.sinConexion\.radar\}/)
+    expect(es.mensajes.sinConexion.radar).toBe(SIN_CONEXION_POR_PANTALLA.radar)
+    expect(en.mensajes.sinConexion.radar).not.toBe(SIN_CONEXION_POR_PANTALLA.radar)
     expect(bloque).toMatch(/<BotonReintentar onReintentar=\{reintentarLaSesion\} reintentando=\{reintentandoSesion\} \/>/)
     expect(bloque).not.toMatch(/Ingresar/)
   })
 
   it('reintentarLaSesion usa avisoReintentoSesion (solo "sin-red" dice que seguimos sin conexión)', () => {
-    expect(SRC_RADAR).toMatch(/const aviso = avisoReintentoSesion\(await reintentarSesion\(\)\)/)
+    // Q6-1: con el idioma de la app.
+    expect(SRC_RADAR).toMatch(/const aviso = avisoReintentoSesion\(await reintentarSesion\(\), idioma\)/)
   })
 
   it('arriba de "Ingresar para armar tu Radar" hay un texto que dice para qué', () => {
     const idxSinSesion = SRC_RADAR.indexOf('} else if (!userId) {')
-    const idxBoton = SRC_RADAR.indexOf('Ingresar para armar tu Radar', idxSinSesion)
-    const idxTexto = SRC_RADAR.indexOf('{TEXTO_RADAR_SIN_SESION}', idxSinSesion)
+    // Q6-1: los dos textos salen del diccionario (`t.radar.ingresar`, `textos.vacios.radarSinSesion`).
+    const idxBoton = SRC_RADAR.indexOf('{t.ingresar}', idxSinSesion)
+    const idxTexto = SRC_RADAR.indexOf('{textos.vacios.radarSinSesion}', idxSinSesion)
+    expect(es.radar.ingresar).toBe('Ingresar para armar tu Radar')
+    expect(es.vacios.radarSinSesion).toBe(vacios.TEXTO_RADAR_SIN_SESION)
+    expect(en.vacios.radarSinSesion).not.toBe(es.vacios.radarSinSesion)
     expect(idxTexto).toBeGreaterThan(idxSinSesion)
     expect(idxBoton).toBeGreaterThan(idxTexto)
     expect(vacios.TEXTO_RADAR_SIN_SESION).toBe('Con tu cuenta elegís qué eventos te llegan por correo.')
   })
 
   it('las categorías vacías y el buscador sin coincidencias dicen algo (y el buscador ofrece Limpiar búsqueda)', () => {
-    expect(SRC_RADAR).toMatch(/opciones\.categorias\.length === 0 \? \(\s*<Texto[^>]*>\s*\{TEXTO_RADAR_SIN_CATEGORIAS\}/)
+    // Q6-1: el texto, del diccionario (en castellano, TEXTO_RADAR_SIN_CATEGORIAS).
+    expect(SRC_RADAR).toMatch(/opciones\.categorias\.length === 0 \? \(\s*<Texto[^>]*>\s*\{textos\.vacios\.radarSinCategorias\}/)
+    expect(es.vacios.radarSinCategorias).toBe(vacios.TEXTO_RADAR_SIN_CATEGORIAS)
     expect(SRC_RADAR).toMatch(/\{vacioBuscador\.texto\}/)
     expect(SRC_RADAR).toMatch(/onPress=\{\(\) => setBusqueda\(''\)\}\s*accessibilityRole="button"/)
     expect(SRC_RADAR).not.toContain('No se encontraron coincidencias.')
@@ -887,9 +935,14 @@ describe('components/PantallaRadar.tsx (detector estático)', () => {
 
   it('el error de carga pasa por mensajeErrorCarga("radar", ...); guardar sin red se titula "Sin conexión" y se anuncia', () => {
     expect(SRC_RADAR).toMatch(/mensajeErrorCarga\('radar', resultado\)/)
-    expect(SRC_RADAR).toMatch(/resultado\.sinConexion \? 'Sin conexión' : 'Error al guardar'/)
+    // Q6-1: los títulos y el anuncio salen del diccionario; el detalle (el error de lib/radar) se traduce.
+    expect(SRC_RADAR).toMatch(/resultado\.sinConexion \? t\.sinConexion : t\.errorGuardar/)
+    expect(es.radar.sinConexion).toBe('Sin conexión')
+    expect(es.radar.errorGuardar).toBe('Error al guardar')
     // R76: los anuncios pasan por anunciar() de lib/anunciar.ts (#122).
-    expect(SRC_RADAR).toMatch(/if \(resultado\.sinConexion\) anunciar\(`Sin conexión\. \$\{resultado\.error\}`\)/)
+    expect(SRC_RADAR).toMatch(/const detalle = textos\.errores\.traducir\(resultado\.error\)/)
+    expect(SRC_RADAR).toMatch(/if \(resultado\.sinConexion\) anunciar\(t\.anuncioSinConexion\(detalle\)\)/)
+    expect(es.radar.anuncioSinConexion('X')).toBe('Sin conexión. X')
     expect(SRC_RADAR).toMatch(/anuncioDeReintento\(intento > 0, \{ tipo: 'error', error \}\)/)
   })
 })

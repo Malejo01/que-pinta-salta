@@ -12,6 +12,7 @@ import { Texto } from '@/components/Texto'
 import { hitSlopPara } from '@/lib/accesibilidad'
 import { useColoresQPS } from '@/lib/colores'
 import { useSession } from '@/lib/session'
+import { useTextos } from '@/lib/i18n'
 
 // El aro del logo en la web (navbar.tsx): `dark:ring-2 dark:ring-[#C12026]/70
 // dark:ring-offset-1 dark:ring-offset-background`. La app siempre está en
@@ -23,6 +24,7 @@ export function Encabezado() {
   const colores = useColoresQPS()
   const insets = useSafeAreaInsets()
   const { session } = useSession()
+  const t = useTextos().encabezado
   const conSesion = Boolean(session)
 
   return (
@@ -36,7 +38,7 @@ export function Encabezado() {
         },
       ]}
     >
-      <Pressable onPress={() => router.push('/')} accessibilityRole="button" accessibilityLabel="Ir a Inicio">
+      <Pressable onPress={() => router.push('/')} accessibilityRole="button" accessibilityLabel={t.irAInicio}>
         <View style={[estilos.aroLogo, { borderColor: ARO_LOGO, backgroundColor: colores.background }]}>
           <Image source={LOGO_MARCA} style={estilos.logo} />
         </View>
@@ -46,7 +48,7 @@ export function Encabezado() {
         <Pressable
           onPress={() => router.push('/cuenta')}
           accessibilityRole="button"
-          accessibilityLabel="Ir a Cuenta"
+          accessibilityLabel={t.irACuenta}
           // 46-c: 40×40 (ver `estilos.botonUsuario`), 8dp corto de los 48 de
           // `AREA_TACTIL_MINIMA`. Sin fondo/borde propio (solo el ícono
           // centrado): subir el tamaño del estilo movería el logo de la
@@ -62,12 +64,12 @@ export function Encabezado() {
         <Pressable
           onPress={() => router.push('/cuenta')}
           accessibilityRole="button"
-          accessibilityLabel="Ingresar"
+          accessibilityLabel={t.ingresar}
           style={[estilos.botonIngresar, { backgroundColor: colores.primary }]}
         >
           <Icono nombre="LogIn" color={colores.primaryForeground} tamanio={18} />
           <Texto peso="semibold" style={{ color: colores.primaryForeground, fontSize: 14 }}>
-            Ingresar
+            {t.ingresar}
           </Texto>
         </Pressable>
       )}

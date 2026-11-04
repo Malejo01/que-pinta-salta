@@ -9,7 +9,10 @@
  *  2. Límite por IP en memoria: 5 pedidos por hora (por instancia, ver
  *     lib/push/limite.ts).
  *  3. Validación (errores como códigos; el texto lo pone la interfaz).
- *  4. Insert con la service key: la tabla no tiene policy de INSERT.
+ *  4. Q6-7: el cupo del día EN LA BASE (lib/lugares-chicos/cupo.ts: 10 por
+ *     conexión y 100 en total), que no depende de la instancia. A la base
+ *     llega un HMAC de la IP con el día, nunca la IP.
+ *  5. Insert con la service key: la tabla no tiene policy de INSERT.
  *
  * No se loguea nada de lo que escribió la persona (ni el contacto ni la IP):
  * solo el `code` de un error de la base.
@@ -18,6 +21,7 @@ import { headers } from 'next/headers'
 import { createAdminClient } from '@/lib/supabase/server'
 import { crearLimitador, ipDeRequest } from '@/lib/push/limite'
 import { evaluarAntiSpam, validarPedido, type CodigoPedido } from '@/lib/lugares-chicos/pedido'
+import { claveDeCupo, secretoDeCupo, tomarCupoPedido } from '@/lib/lugares-chicos/cupo'
 
 export type EstadoPedido = { estado: 'inicial' } | { estado: 'enviado' } | { estado: 'error'; codigo: CodigoPedido }
 
@@ -33,15 +37,25 @@ export async function sumarLugarChicos(_prev: EstadoPedido, fd: FormData): Promi
   if (antiSpam === 'bot') return { estado: 'enviado' }
   if (antiSpam === 'vencido') return { estado: 'error', codigo: 'vencido' }
 
-  const limite = porIp.permitir(ipDeRequest(await headers()))
+  const ip = ipDeRequest(await headers())
+  const limite = porIp.permitir(ip)
   if (!limite.ok) return { estado: 'error', codigo: 'limite' }
 
   const validado = validarPedido(leer)
   if (!validado.ok) return { estado: 'error', codigo: validado.codigo }
 
   const idioma = leer('idioma') === 'en' ? 'en' : 'es'
+  const secreto = secretoDeCupo()
+  if (!secreto) {
+    console.error('[sumar-lugar-chicos] falta la configuración del servidor')
+    return { estado: 'error', codigo: 'servidor' }
+  }
   try {
-    const { error } = await createAdminClient()
+    const admin = createAdminClient()
+    if ((await tomarCupoPedido(admin, claveDeCupo(ip, new Date(), secreto))) === 'agotado') {
+      return { estado: 'error', codigo: 'limite' }
+    }
+    const { error } = await admin
       .from('lugares_chicos_pedidos')
       .insert({ ...validado.datos, idioma })
     if (error) {

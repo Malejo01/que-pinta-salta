@@ -313,7 +313,8 @@ describe('sonPropsDeTarjetaIguales (la comparación del memo de TarjetaEvento)',
   })
   it('cambia cualquier campo que la tarjeta usa: se vuelve a dibujar', () => {
     const otros: Partial<DisplayEvent> = {
-      id: 'otro', title: 'x', venue: 'x', date: '2026-11-01', time: '22:00', categoryName: 'x', price: 'confirmar',
+      // Q6-1: `titleEn` (en inglés se muestra el título traducido).
+      id: 'otro', title: 'x', titleEn: 'y', venue: 'x', date: '2026-11-01', time: '22:00', categoryName: 'x', price: 'confirmar',
       image: 'https://x', isFeatured: true, isCinemaMovie: true, isInstagramFlyer: true, flyerId: 'f',
       occurrences: [{ id: 'a', date: '2026-11-01', time: '' }, { id: 'b', date: '2026-11-02', time: '' }],
     }

@@ -2,7 +2,7 @@ import { PaginaRadar } from "@/components/radar/pagina-radar"
 import type { Metadata } from "next"
 
 // /radar en inglés. Privada: `noindex, follow` y sin hreflang. Sin sesión
-// redirige al ingreso (en castellano) y vuelve a /en/radar. `absolute`: sin la
+// redirige al ingreso en inglés (/en/auth/login, Q6-1b) y vuelve a /en/radar. `absolute`: sin la
 // plantilla del layout (que está en castellano).
 export const metadata: Metadata = {
   title: { absolute: "My Salta Radar | Qué Pinta Salta" },

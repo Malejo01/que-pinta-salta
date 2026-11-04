@@ -38,6 +38,8 @@ import { armarMensajeWhatsApp } from '@qps/core/favoritos/armar'
 import { idsDeEventosVoy, separarMisEventos, type FilaConKind } from '@qps/core/favoritos/mis-eventos'
 import type { ResultadoFavoritosArmados } from '@qps/core/favoritos/armar'
 import type { DisplayEvent } from '@qps/core/home/types'
+import { en } from '../lib/i18n/diccionarios/en'
+import { es } from '../lib/i18n/diccionarios/es'
 
 const MOBILE_ROOT = fileURLToPath(new URL('..', import.meta.url))
 const PANTALLA = readFileSync(`${MOBILE_ROOT}/app/(tabs)/favoritos.tsx`, 'utf8')
@@ -59,7 +61,9 @@ describe('app/(tabs)/favoritos.tsx: textos copiados literal de favoritos-list.ts
   )
 
   it('"Ingresar" (sin sesión, logo al 30%) está en la pantalla', () => {
-    expect(PANTALLA).toContain('Ingresar')
+    // Q6-1: el texto sale del diccionario (`misEventos.ingresar`).
+    expect(PANTALLA).toContain('{t.misEventos.ingresar}')
+    expect(es.misEventos.ingresar).toBe('Ingresar')
   })
 
   it('el logo (assets/logo-circular.png) se usa con opacity: 0.3 en el estado sin sesión', () => {
@@ -75,9 +79,12 @@ describe('app/(tabs)/favoritos.tsx: textos copiados literal de favoritos-list.ts
 describe('app/(tabs)/favoritos.tsx: el título de la pantalla es "Mis eventos" (R47, 47-g)', () => {
   it('el encabezado de la lista dice "Mis eventos"', () => {
     // R46: el título es un encabezado (accessibilityRole="header"), en cualquier orden de props.
+    // Q6-1: el texto sale del diccionario (`misEventos.titulo`).
     expect(PANTALLA).toMatch(
-      /<Texto(?=[^>]*peso="bold")(?=[^>]*accessibilityRole="header")(?=[^>]*style=\{estilos\.titulo\})[^>]*>\s*Mis eventos\s*<\/Texto>/,
+      /<Texto(?=[^>]*peso="bold")(?=[^>]*accessibilityRole="header")(?=[^>]*style=\{estilos\.titulo\})[^>]*>\s*\{t\.misEventos\.titulo\}\s*<\/Texto>/,
     )
+    expect(es.misEventos.titulo).toBe('Mis eventos')
+    expect(en.misEventos.titulo).toBe('My events')
   })
 
   it('ya no queda el título viejo ("Mi Agenda de Eventos") en el archivo', () => {
@@ -85,7 +92,10 @@ describe('app/(tabs)/favoritos.tsx: el título de la pantalla es "Mis eventos" (
   })
 
   it('el vacío (nada de nada) está ajustado al nombre nuevo: menciona "Mis eventos"', () => {
-    expect(PANTALLA).toMatch(/<Vacio\s+mensaje="[^"]*Mis eventos[^"]*"/)
+    // Q6-1: el vacío sale de vacioFavoritos (lib/vacios.ts → diccionario `vacios.favoritos`).
+    expect(PANTALLA).toMatch(/<Vacio\s+\{\.\.\.vacioFavoritos\(/)
+    expect(es.vacios.favoritos).toContain('Mis eventos')
+    expect(en.vacios.favoritos).toContain('My events')
   })
 })
 
@@ -270,8 +280,9 @@ describe('app/(tabs)/favoritos.tsx: "Voy" primero, sin re-filtrar entre listas, 
   })
 
   it('la pantalla pasa estado.voy y estado.eventos directo (sin un .filter/.concat propio entre las dos: confía en separarMisEventos)', () => {
-    expect(PANTALLA).toMatch(/seccionVoy\(estado\.voy\)/)
-    expect(PANTALLA).toMatch(/agruparFavoritosParaSecciones\(estado\.eventos\)/)
+    // Q6-1: con el idioma de la app (los títulos de las secciones).
+    expect(PANTALLA).toMatch(/seccionVoy\(estado\.voy, idioma\)/)
+    expect(PANTALLA).toMatch(/agruparFavoritosParaSecciones\(estado\.eventos, idioma\)/)
     // Si alguien agregara un filtro manual entre las dos listas (por
     // ejemplo, para "no repetir"), sería una señal de que ya no confía en
     // separarMisEventos: no debería existir ese código acá.

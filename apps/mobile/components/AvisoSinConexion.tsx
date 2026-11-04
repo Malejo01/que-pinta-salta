@@ -39,7 +39,8 @@ import { StyleSheet, View } from 'react-native'
 import { BotonReintentar } from '@/components/EstadoCarga'
 import { Texto } from '@/components/Texto'
 import { useColoresQPS } from '@/lib/colores'
-import { TITULO_SIN_CONEXION, textoGuardadoEn } from '@/lib/sin-conexion/aviso'
+import { textoGuardadoEn } from '@/lib/sin-conexion/aviso'
+import { useIdioma, useTextos } from '@/lib/i18n'
 
 export interface AvisoSinConexionProps {
   /** Cuándo se guardó lo que se está mostrando (sale de `leerCache`, ya validado). */
@@ -61,7 +62,10 @@ export function AvisoSinConexion({ guardadoEn, detalle, onReintentar, reintentan
   // cada lugar) con dos `new Date()` distintos, podrían caer en lados
   // opuestos de la medianoche de Salta y el lector de pantalla anunciaría
   // algo distinto de lo que se ve.
-  const textoSegundaLinea = textoGuardadoEn(guardadoEn, new Date())
+  // Q6-1: el título y la segunda línea, en el idioma de la app.
+  const { idioma } = useIdioma()
+  const titulo = useTextos().mensajes.tituloSinConexion
+  const textoSegundaLinea = textoGuardadoEn(guardadoEn, new Date(), idioma)
 
   return (
     <View style={[estilos.contenedor, { backgroundColor: colores.muted, borderBottomColor: colores.border }]}>
@@ -69,11 +73,11 @@ export function AvisoSinConexion({ guardadoEn, detalle, onReintentar, reintentan
         <View
           accessible
           accessibilityLiveRegion="polite"
-          accessibilityLabel={`${TITULO_SIN_CONEXION}. ${textoSegundaLinea}${detalle ? `. ${detalle}` : ''}`}
+          accessibilityLabel={`${titulo}. ${textoSegundaLinea}${detalle ? `. ${detalle}` : ''}`}
           style={estilos.bloqueTexto}
         >
           <Texto peso="semibold" tono="secundario">
-            {TITULO_SIN_CONEXION}
+            {titulo}
           </Texto>
           <Texto tono="secundario" style={estilos.subtitulo}>
             {textoSegundaLinea}

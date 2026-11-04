@@ -25,6 +25,7 @@ import { Texto } from '@/components/Texto'
 import { AREA_TACTIL_MINIMA, hitSlopPara } from '@/lib/accesibilidad'
 import { bordeChipInactivo, useColoresQPS } from '@/lib/colores'
 import { useReducirMovimiento } from '@/lib/reducir-movimiento'
+import { useTextos } from '@/lib/i18n'
 
 // 46-c: `estilos.pill` mide 44 de alto (minHeight), 4dp corto de
 // `AREA_TACTIL_MINIMA`. El ancho sí llega (paddingHorizontal 16 + texto), así
@@ -36,12 +37,8 @@ import { useReducirMovimiento } from '@/lib/reducir-movimiento'
 // estático no ve `hitSlop`: sigue en `tests/a11y/pendientes-componentes.ts`.
 const HIT_SLOP_PILL = hitSlopPara(AREA_TACTIL_MINIMA, 44)
 
-const ATAJOS: { id: Atajo; etiqueta: string }[] = [
-  { id: 'hoy', etiqueta: 'Hoy' },
-  { id: 'esta-noche', etiqueta: 'Esta noche' },
-  { id: 'finde', etiqueta: 'Finde' },
-  { id: 'semana', etiqueta: 'Semana' },
-]
+// Q6-1: los textos de las pills salen del diccionario (`portada.atajos`).
+const ATAJOS: Atajo[] = ['hoy', 'esta-noche', 'finde', 'semana']
 
 interface Medida {
   x: number
@@ -75,9 +72,11 @@ export function PillsAtajos(props: PillsAtajosProps) {
   // R72, 72-c (QPS-362): borde de la pill inactiva a >= 3:1 (cálculo en `lib/colores.ts`).
   const bordeInactivo = bordeChipInactivo(colores)
   const [medidas, setMedidas] = useState<Record<string, Medida>>({})
+  const etiquetas = useTextos().portada.atajos
+  const deAtajos = ATAJOS.map((id) => ({ id, etiqueta: etiquetas[id] }))
   const pills: { id: Atajo | null; etiqueta: string }[] = etiquetaTodas
-    ? [{ id: null, etiqueta: etiquetaTodas }, ...ATAJOS]
-    : ATAJOS
+    ? [{ id: null, etiqueta: etiquetaTodas }, ...deAtajos]
+    : deAtajos
   const [animX] = useState(() => new Animated.Value(0))
   const [animWidth] = useState(() => new Animated.Value(0))
 

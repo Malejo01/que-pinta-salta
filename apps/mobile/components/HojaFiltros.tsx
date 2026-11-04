@@ -47,7 +47,7 @@ import {
   type FiltrosPortada,
 } from '@/lib/portada-filtros'
 import { useReducirMovimiento } from '@/lib/reducir-movimiento'
-import { useTextos } from '@/lib/i18n'
+import { useIdioma, useTextos } from '@/lib/i18n'
 
 /** Cuánto espera el foco para volver al botón después de cerrar la hoja (el Modal tarda en irse). */
 const ESPERA_FOCO_MS = 350
@@ -63,13 +63,15 @@ export function BotonFiltros({
   botonRef: Ref<View>
 }) {
   const colores = useColoresQPS()
+  // Q6-1: «Filtros · N» y su etiqueta, en el idioma de la app.
+  const { idioma } = useIdioma()
   const hay = activos > 0
   return (
     <Pressable
       ref={botonRef}
       onPress={onPress}
       accessibilityRole="button"
-      accessibilityLabel={etiquetaAccesibleFiltros(activos)}
+      accessibilityLabel={etiquetaAccesibleFiltros(activos, idioma)}
       style={[
         estilos.boton,
         // Con filtros activos va con tinte y contorno de `primary` (como el chip
@@ -82,7 +84,7 @@ export function BotonFiltros({
     >
       {/* Sin ícono de "filtros" en `Icono`: la flecha hacia abajo dice que se despliega algo. */}
       <Icono nombre="ChevronDown" tamanio={16} color={hay ? colores.primary : colores.foreground} />
-      <Texto peso={hay ? 'bold' : 'semibold'}>{etiquetaVisibleFiltros(activos)}</Texto>
+      <Texto peso={hay ? 'bold' : 'semibold'}>{etiquetaVisibleFiltros(activos, idioma)}</Texto>
     </Pressable>
   )
 }
@@ -103,7 +105,8 @@ export function ChipsRemovibles({
 }) {
   const colores = useColoresQPS()
   const bordeInactivo = bordeChipInactivo(colores)
-  const chips = chipsRemovibles(filtros, nombreCategoria)
+  const { idioma } = useIdioma()
+  const chips = chipsRemovibles(filtros, nombreCategoria, idioma)
   if (chips.length === 0) return null
   return (
     <>
@@ -163,6 +166,7 @@ export function HojaFiltros({
 }: HojaFiltrosProps) {
   const colores = useColoresQPS()
   const t = useTextos().filtros
+  const { idioma } = useIdioma()
   const insets = useSafeAreaInsets()
   const reducir = useReducirMovimiento()
   const tituloRef = useRef<View>(null)
@@ -241,7 +245,7 @@ export function HojaFiltros({
               style={[estilos.accion, estilos.accionPrincipal, { backgroundColor: colores.primary }]}
             >
               <Texto peso="bold" style={{ color: colores.primaryForeground }}>
-                {textoVerEventos(cantidad)}
+                {textoVerEventos(cantidad, idioma)}
               </Texto>
             </Pressable>
             <Pressable

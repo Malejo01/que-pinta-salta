@@ -20,6 +20,7 @@ import {
 } from '../lib/recordatorios/programacion'
 import { CLAVE_RECORDATORIOS, sincronizarRecordatorios, type DependenciasRecordatorios, type ModuloNotificacionesLocales } from '../lib/recordatorios'
 import type { Almacen } from '../lib/sin-conexion/almacen'
+import { CLAVE_IDIOMA } from '../lib/i18n/idioma'
 import { avisarCambioGuardados, suscribirCambiosGuardados } from '../lib/recordatorios/cambios'
 
 const AHORA = saltaWallClockToDate('2026-11-05T10:00:00')
@@ -103,7 +104,7 @@ describe('programación (pura)', () => {
   })
 })
 
-function dobles(opts: { permiso: 'granted' | 'denied'; preferencia?: string | null; yaProgramadas?: string[] }) {
+function dobles(opts: { permiso: 'granted' | 'denied'; preferencia?: string | null; yaProgramadas?: string[]; idioma?: string }) {
   const programadas = new Map<string, unknown>((opts.yaProgramadas ?? []).map((id) => [id, {}]))
   const llamadas: string[] = []
   const notificaciones = {
@@ -121,7 +122,11 @@ function dobles(opts: { permiso: 'granted' | 'denied'; preferencia?: string | nu
     }),
   }
   const almacen = {
-    leer: vi.fn(async (clave: string) => (clave === CLAVE_RECORDATORIOS ? (opts.preferencia ?? null) : null)),
+    // Q6-1: el idioma guardado (Cuenta → Idioma) es «es» salvo que el test pida otro,
+    // para no depender del idioma de la máquina que corre el test.
+    leer: vi.fn(async (clave: string) =>
+      clave === CLAVE_RECORDATORIOS ? (opts.preferencia ?? null) : clave === CLAVE_IDIOMA ? (opts.idioma ?? 'es') : null,
+    ),
     escribir: vi.fn(async () => {}),
     borrar: vi.fn(async () => {}),
   }

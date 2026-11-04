@@ -11,6 +11,9 @@
  * los dos documentos. Cambiar este valor pide un build nuevo de EAS, porque
  * la constante se empaqueta en el binario.
  */
+import type { Idioma } from '@/lib/i18n/idioma'
+import { textosDe } from '@/lib/i18n/textos'
+
 export const TERMINOS_PUBLICADOS = true
 
 export const RUTA_PRIVACIDAD = '/privacidad'
@@ -25,10 +28,13 @@ export interface EnlaceLegal {
  * Los links legales a mostrar: Política de privacidad siempre, Términos y
  * condiciones solo si `terminosPublicados` (por defecto, `TERMINOS_PUBLICADOS`).
  */
-export function enlacesLegales(terminosPublicados: boolean = TERMINOS_PUBLICADOS): EnlaceLegal[] {
-  const enlaces: EnlaceLegal[] = [{ ruta: RUTA_PRIVACIDAD, texto: 'Política de privacidad' }]
+export function enlacesLegales(terminosPublicados: boolean = TERMINOS_PUBLICADOS, idioma: Idioma = 'es'): EnlaceLegal[] {
+  // Q6-1: los textos, del diccionario (`cuenta.privacidad` / `cuenta.terminos`).
+  // Las páginas existen solo en castellano: en inglés el texto lo aclara.
+  const t = textosDe(idioma).cuenta
+  const enlaces: EnlaceLegal[] = [{ ruta: RUTA_PRIVACIDAD, texto: t.privacidad }]
   if (terminosPublicados) {
-    enlaces.push({ ruta: RUTA_TERMINOS, texto: 'Términos y condiciones' })
+    enlaces.push({ ruta: RUTA_TERMINOS, texto: t.terminos })
   }
   return enlaces
 }
@@ -38,8 +44,7 @@ export function enlacesLegales(terminosPublicados: boolean = TERMINOS_PUBLICADOS
  * sentido que la línea de la web (#74): nombra los dos documentos solo
  * cuando los dos están publicados.
  */
-export function textoAceptacion(terminosPublicados: boolean = TERMINOS_PUBLICADOS): string {
-  return terminosPublicados
-    ? 'Al crear tu cuenta o continuar con Google aceptás los Términos y condiciones y la Política de privacidad.'
-    : 'Al crear tu cuenta o continuar con Google aceptás la Política de privacidad.'
+export function textoAceptacion(terminosPublicados: boolean = TERMINOS_PUBLICADOS, idioma: Idioma = 'es'): string {
+  const t = textosDe(idioma).cuenta
+  return terminosPublicados ? t.aceptacion : t.aceptacionSoloPrivacidad
 }

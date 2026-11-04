@@ -20,8 +20,9 @@ const entorno = process.env.CRON_SECRET
  * Cliente falso que falla SOLO en la n-ésima llamada a `.from(...)` (0-based), en el mismo
  * orden en que la ruta las arma dentro del Promise.all: ticketeras(0), cines(1),
  * instagram-último(2), oldestPending(3), lastProcessed(4), job_last_runs(5), sinLugar(6),
- * sinLugarUrgente(7). Las demás devuelven datos vacíos/benignos (no importan: la ruta
- * corta apenas detecta el primer error de los índices 0,1,2,3,4,6,7).
+ * sinLugarUrgente(7), y (Q6-10) la última corrida con trabajo de la traducción(8). Las demás
+ * devuelven datos vacíos/benignos (no importan: la ruta corta apenas detecta el primer error
+ * de los índices 0,1,2,3,4,6,7; el 5 y el 8 se toleran).
  */
 function clienteConFalla(indiceQueFalla: number, mensajeCrudo: string) {
   let contador = -1
@@ -81,6 +82,15 @@ describe('GET /api/cron/health: 503 con texto fijo, sin filtrar el mensaje crudo
       expect(JSON.stringify(body)).not.toContain('events_pkey')
     })
   }
+
+  // Q6-10: igual que job_last_runs, la lectura de la última corrida de la traducción se tolera.
+  it('la corrida de la traducción fallando SOLO (índice 8) se tolera: sale el chequeo normal', async () => {
+    createAdminClient.mockReturnValue(clienteConFalla(8, 'no debería importar'))
+    const res = await pedir()
+    const body = await res.json()
+    expect(body.error).toBeUndefined()
+    expect(body.checks.find((c: { name: string }) => c.name === 'traduccion')).toMatchObject({ ok: true })
+  })
 
   it('job_last_runs fallando SOLO (índice 5) no entra en el chequeo de error de base (se tolera)', async () => {
     createAdminClient.mockReturnValue(clienteConFalla(5, 'no debería importar'))

@@ -78,6 +78,7 @@ import {
   OPACIDAD_MINIMA,
 } from '@/lib/esqueleto'
 import { useReducirMovimiento } from '@/lib/reducir-movimiento'
+import { useTextos } from '@/lib/i18n'
 
 /**
  * La opacidad animada del pulso y si se está animando. Iniciar y parar el
@@ -144,13 +145,14 @@ export function Bloque({ ancho, alto, radio = 6, encima = false, style }: Bloque
  */
 export function PantallaEsqueleto({ children, style }: { children: ReactNode; style?: StyleProp<ViewStyle> }) {
   const colores = useColoresQPS()
+  const t = useTextos().esqueleto
   const { opacidad, anima } = usePulso()
 
   return (
     <View
       accessible
       accessibilityRole="progressbar"
-      accessibilityLabel="Cargando"
+      accessibilityLabel={t.cargando}
       accessibilityState={{ busy: true }}
       style={[estilos.pantalla, { backgroundColor: colores.background }, style]}
     >

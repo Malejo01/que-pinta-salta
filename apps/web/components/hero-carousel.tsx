@@ -222,7 +222,14 @@ export function HeroCarousel({ events }: HeroCarouselProps) {
         <ChevronRight className="size-4 sm:size-6" />
       </button>
 
-      <div className="absolute right-3 top-3 z-10 flex gap-1.5 sm:bottom-4 sm:left-1/2 sm:right-auto sm:top-auto sm:-translate-x-1/2 sm:gap-2">
+      {/* Q6-5 (target-size, WCAG 2.5.8): cada botón mide al menos 24×24 px
+          (antes el botón era el punto de 8 px y el área ampliada era un
+          pseudo-elemento, que Lighthouse no cuenta). El punto visible va
+          adentro, sin cambiar de tamaño; los botones quedan pegados, así que
+          los puntos se separan 16 px. En celular el pseudo-elemento sigue
+          estirando la zona hasta 44 px de alto (los dots están solos arriba a
+          la derecha); desde sm: se acota para no tapar el texto del pie. */}
+      <div className="absolute right-1 top-1 z-10 flex sm:bottom-2 sm:left-1/2 sm:right-auto sm:top-auto sm:-translate-x-1/2">
         {events.map((_, index) => (
           <button
             key={index}
@@ -230,20 +237,19 @@ export function HeroCarousel({ events }: HeroCarouselProps) {
               setIsInitialSlide(false)
               setCurrentIndex(index)
             }}
-            /* Área de toque ampliada con pseudo-elemento invisible; el dot visible no cambia.
-               En mobile los dots están aislados arriba a la derecha (right-3 top-3), así que se
-               estira 18px arriba y abajo para llegar a 44 de alto. A partir de sm: el contenedor
-               pasa a bottom-4 left-1/2, pegado al pie del hero y cerca del bloque de texto y del
-               botón "Ver detalles": ahí la zona se acota a 8px para no taparlos. Horizontal:
-               siempre la mitad del gap entre dots (3px en mobile, 4px en sm:) para que las zonas
-               vecinas no se pisen. */
-            className={`relative h-2 rounded-full transition-all after:absolute after:content-[''] after:-left-[3px] after:-right-[3px] after:-top-[18px] after:-bottom-[18px] sm:after:-left-1 sm:after:-right-1 sm:after:-top-2 sm:after:-bottom-2 ${
-              index === currentIndex
-                ? "w-8 bg-primary"
-                : "w-2 bg-foreground/30 hover:bg-foreground/50"
-            }`}
+            className="group/punto relative flex h-6 min-w-6 items-center justify-center px-2 after:absolute after:content-[''] after:inset-x-0 after:-top-[10px] after:-bottom-[10px] sm:after:-top-1 sm:after:-bottom-1"
             aria-label={t.irAlEvento(index + 1)}
-          />
+            aria-current={index === currentIndex ? "true" : undefined}
+          >
+            <span
+              aria-hidden="true"
+              className={`block h-2 rounded-full transition-all ${
+                index === currentIndex
+                  ? "w-8 bg-primary"
+                  : "w-2 bg-foreground/30 group-hover/punto:bg-foreground/50"
+              }`}
+            />
+          </button>
         ))}
       </div>
     </div>

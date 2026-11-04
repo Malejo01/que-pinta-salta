@@ -11,11 +11,15 @@
  * - Cada intento marca `traducido_en_at` (con o sin traducción válida): un
  *   evento no se reintenta y cuenta para el tope. Nunca toca `title` ni
  *   `description`.
+ * - Q6-10: si falla la LLAMADA (sin crédito, clave, límite, red…), el evento
+ *   NO se marca (se reintenta otro día y no gasta tope) y la corrida se corta
+ *   ahí, sin seguir llamando. Los descartes y el fallo van con su motivo.
  */
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { formatSaltaDayKey, saltaWallClockToUtcISO } from '@qps/core/date-format'
 import { cupoDeLaCorrida, topeDiario, type EventoParaTraducir } from '@qps/core/events/traduccion'
-import { traducirEvento, type Traductor } from '@/lib/ai/traducir-evento'
+import { traducirEventoConMotivo, type ResultadoTraduccionEvento, type Traductor } from '@/lib/ai/traducir-evento'
+import type { CodigoFalloTraduccion } from '@/lib/traduccion/motivos'
 
 export const LOTE_POR_CORRIDA = 10
 
@@ -28,7 +32,15 @@ export interface ResultadoTraduccion {
   errores: number
   /** Hay más eventos esperando (para que el workflow vuelva a llamar). */
   quedan: boolean
+  /** Q6-10: descartes por motivo (validación o formato de la respuesta). */
+  descartesPorMotivo: Partial<Record<MotivoDescarte, number>>
+  /** Q6-10: el fallo de la llamada que cortó la corrida (null si no hubo). */
+  errorProveedor: CodigoFalloTraduccion | null
+  /** Q6-10: eventos del lote que no se intentaron por el corte (quedan sin marcar). */
+  sinIntentar: number
 }
+
+type MotivoDescarte = Extract<ResultadoTraduccionEvento, { tipo: 'descartado' }>['motivo']
 
 type FilaEvento = {
   id: string
@@ -51,7 +63,18 @@ export async function traducirPendientes(
 ): Promise<ResultadoTraduccion> {
   const tope = topeDiario(topeTexto)
   const inicioDelDia = saltaWallClockToUtcISO(`${formatSaltaDayKey(ahora)}T00:00:00`)
-  const vacio = { tope, traducidosHoyAntes: 0, intentados: 0, traducidos: 0, descartados: 0, errores: 0, quedan: false }
+  const vacio: ResultadoTraduccion = {
+    tope,
+    traducidosHoyAntes: 0,
+    intentados: 0,
+    traducidos: 0,
+    descartados: 0,
+    errores: 0,
+    quedan: false,
+    descartesPorMotivo: {},
+    errorProveedor: null,
+    sinIntentar: 0,
+  }
   if (tope === 0) return vacio
 
   const hoy = await admin
@@ -76,9 +99,12 @@ export async function traducirPendientes(
   const filas = (pendientes.data ?? []) as unknown as FilaEvento[]
   const aTraducir = filas.slice(0, cupo)
 
+  let intentados = 0
   let traducidos = 0
   let descartados = 0
   let errores = 0
+  const descartesPorMotivo: Partial<Record<MotivoDescarte, number>> = {}
+  let errorProveedor: CodigoFalloTraduccion | null = null
   for (const fila of aTraducir) {
     const evento: EventoParaTraducir = {
       id: fila.id,
@@ -87,7 +113,14 @@ export async function traducirPendientes(
       venueName: fila.venue?.name ?? null,
       artists: artistasDe(fila.ai_metadata),
     }
-    const traduccion = await traducirEvento(evento, traductor)
+    const resultado = await traducirEventoConMotivo(evento, traductor)
+    if (resultado.tipo === 'error_proveedor') {
+      // Q6-10: sin marcar y sin seguir llamando (con 402 o 429 la próxima también falla).
+      errorProveedor = resultado.codigo
+      break
+    }
+    intentados += 1
+    const traduccion = resultado.tipo === 'traducido' ? resultado.traduccion : null
     const { error } = await admin
       .from('events')
       .update({
@@ -98,16 +131,22 @@ export async function traducirPendientes(
       .is('traducido_en_at', null)
     if (error) errores += 1
     else if (traduccion) traducidos += 1
-    else descartados += 1
+    else if (resultado.tipo === 'descartado') {
+      descartados += 1
+      descartesPorMotivo[resultado.motivo] = (descartesPorMotivo[resultado.motivo] ?? 0) + 1
+    }
   }
 
   return {
     tope,
     traducidosHoyAntes,
-    intentados: aTraducir.length,
+    intentados,
     traducidos,
     descartados,
     errores,
-    quedan: filas.length > cupo && traducidosHoyAntes + aTraducir.length < tope,
+    quedan: errorProveedor === null && filas.length > cupo && traducidosHoyAntes + intentados < tope,
+    descartesPorMotivo,
+    errorProveedor,
+    sinIntentar: aTraducir.length - intentados,
   }
 }

@@ -21,6 +21,10 @@ export const RUTAS_EN_INGLES: readonly string[] = [
   '/lugares-chicos/sumar',
   '/lugar/*',
   '/auth/login',
+  // Q6-2: el alta, el perfil y la carga de eventos.
+  '/auth/sign-up',
+  '/perfil',
+  '/nuevo-evento',
 ]
 
 const PREFIJO_EN = '/en'

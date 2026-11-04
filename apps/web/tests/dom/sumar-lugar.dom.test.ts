@@ -50,6 +50,27 @@ describe('FormularioSumarLugar', () => {
     expect(screen.getByRole('alert').textContent).toMatch(/dirección/)
   })
 
+  // Q6-7: con `action={…}` React 19 vaciaba el formulario también cuando la
+  // respuesta era un error: la persona perdía todo lo escrito. Este caso
+  // fallaba antes del arreglo (el nombre volvía vacío).
+  it('un error no borra lo que la persona escribió, y la acción corre una sola vez', async () => {
+    accion.mockResolvedValue({ estado: 'error', codigo: 'link' })
+    render(React.createElement(FormularioSumarLugar, { idioma: 'es', iniciado: 1 }))
+    fireEvent.change(screen.getByLabelText('Nombre del lugar'), { target: { value: 'Plaza QA' } })
+    fireEvent.change(screen.getByLabelText('Dirección o esquina'), { target: { value: 'Calle QA 1' } })
+    fireEvent.change(screen.getByLabelText(/Web o Instagram/), { target: { value: 'no es un link' } })
+    await enviar()
+    expect(accion).toHaveBeenCalledTimes(1)
+    const enviado = accion.mock.calls[0]![1] as FormData
+    expect(enviado.get('nombre')).toBe('Plaza QA')
+    expect(enviado.get('iniciado')).toBe('1')
+    expect((screen.getByLabelText('Nombre del lugar') as HTMLInputElement).value).toBe('Plaza QA')
+    expect((screen.getByLabelText('Dirección o esquina') as HTMLInputElement).value).toBe('Calle QA 1')
+    const link = screen.getByLabelText(/Web o Instagram/) as HTMLInputElement
+    expect(link.value).toBe('no es un link')
+    expect(document.activeElement).toBe(link)
+  })
+
   it('enviado: gracias con el foco en el mensaje y links para seguir', async () => {
     accion.mockResolvedValue({ estado: 'enviado' })
     render(React.createElement(FormularioSumarLugar, { idioma: 'es', iniciado: 1 }))

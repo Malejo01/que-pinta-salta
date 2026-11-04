@@ -1,18 +1,22 @@
 /**
  * Q4-7: traduce al inglés el título y la descripción de un evento con el
- * cliente de IA que el pipeline ya usa (`lib/ai/gemini.ts`, `GEMINI_MODEL`).
+ * proveedor de IA del pipeline (Q6-3: `lib/ai/llamadas-ia.ts` → `lib/ia`,
+ * Gemini por defecto; cada llamada queda en `ia_llamadas` como `traduccion`).
  * Los nombres de lugares y artistas nunca se traducen: se le pasan al modelo
  * como «no traducir» y `validarTraduccion` (core) descarta la respuesta si los
  * cambió. Nunca tira: devuelve `null` si algo falla (el evento se muestra en
  * castellano con «(in Spanish)»).
  */
-import { generarJsonDeTexto } from '@/lib/ai/gemini'
+import { generarJsonDeTexto } from '@/lib/ai/llamadas-ia'
+import type { ProveedorIA } from '@/lib/ia/tipos'
 import {
   descripcionParaTraducir,
-  validarTraduccion,
+  validarTraduccionConMotivo,
   type EventoParaTraducir,
+  type MotivoDescarteTraduccion,
   type TraduccionPropuesta,
 } from '@qps/core/events/traduccion'
+import { codigoDelFallo, esRespuestaDelModelo, type CodigoFalloTraduccion } from '@/lib/traduccion/motivos'
 
 const INSTRUCCION = `You translate cultural event listings from Salta, Argentina, from Spanish into clear, neutral English for tourists.
 RULES:
@@ -33,7 +37,16 @@ const ESQUEMA = {
 
 export type Traductor = (texto: string) => Promise<unknown>
 
-const traductorReal: Traductor = (texto) => generarJsonDeTexto(INSTRUCCION, texto, ESQUEMA)
+/**
+ * Q6-4: el traductor con el prompt y el esquema reales. Sin `ia`, el proveedor
+ * activo (como siempre); con `ia`, ese proveedor (el banco de evaluación lo
+ * usa con un doble que solo captura el pedido, o con Gemini/Claude en --real).
+ */
+export function crearTraductor(ia?: ProveedorIA): Traductor {
+  return (texto) => generarJsonDeTexto(INSTRUCCION, texto, ESQUEMA, ia ? { uso: 'traduccion', ia } : { uso: 'traduccion' })
+}
+
+const traductorReal: Traductor = crearTraductor()
 
 export function textoParaElModelo(evento: EventoParaTraducir): string {
   const protegidos = [evento.venueName, ...evento.artists].filter((n): n is string => !!n && n.trim().length > 0)
@@ -44,16 +57,42 @@ export function textoParaElModelo(evento: EventoParaTraducir): string {
   ].join('\n')
 }
 
+/**
+ * Q6-10: el resultado con su motivo, para que la corrida distinga:
+ *  - `traducido`: la traducción validada.
+ *  - `descartado`: el modelo contestó, pero la respuesta no sirve (validación
+ *    o formato). El evento se marca y no se reintenta.
+ *  - `error_proveedor`: la llamada falló (sin crédito, clave, límite, red…).
+ *    El evento NO se marca y la corrida se corta.
+ * Nunca tira y nunca loguea el mensaje del error (puede traer el texto del
+ * evento o datos de la API): solo el código.
+ */
+export type ResultadoTraduccionEvento =
+  | { tipo: 'traducido'; traduccion: TraduccionPropuesta }
+  | { tipo: 'descartado'; motivo: MotivoDescarteTraduccion | 'respuesta_invalida' }
+  | { tipo: 'error_proveedor'; codigo: CodigoFalloTraduccion }
+
+export async function traducirEventoConMotivo(
+  evento: EventoParaTraducir,
+  traductor: Traductor = traductorReal
+): Promise<ResultadoTraduccionEvento> {
+  let respuesta: unknown
+  try {
+    respuesta = await traductor(textoParaElModelo(evento))
+  } catch (error) {
+    const codigo = codigoDelFallo(error)
+    console.error(`[traducir-evento] la traducción falló: ${codigo}`)
+    return esRespuestaDelModelo(codigo) ? { tipo: 'descartado', motivo: 'respuesta_invalida' } : { tipo: 'error_proveedor', codigo }
+  }
+  const validacion = validarTraduccionConMotivo(evento, respuesta)
+  return validacion.ok ? { tipo: 'traducido', traduccion: validacion.traduccion } : { tipo: 'descartado', motivo: validacion.motivo }
+}
+
+/** La traducción validada, o `null` si se descartó o falló la llamada. */
 export async function traducirEvento(
   evento: EventoParaTraducir,
   traductor: Traductor = traductorReal
 ): Promise<TraduccionPropuesta | null> {
-  try {
-    const respuesta = await traductor(textoParaElModelo(evento))
-    return validarTraduccion(evento, respuesta)
-  } catch {
-    // Sin el mensaje: puede traer el texto del evento o datos de la API.
-    console.error('[traducir-evento] la traducción falló')
-    return null
-  }
+  const r = await traducirEventoConMotivo(evento, traductor)
+  return r.tipo === 'traducido' ? r.traduccion : null
 }

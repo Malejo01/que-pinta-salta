@@ -527,7 +527,9 @@ describe('estadoAnunciableCines', () => {
  * Es POR NODO (ronda de correcciones de A8): otras live regions de la misma
  * pantalla (p. ej. `AvisoSinConexion`, A6) no son asunto de este detector.
  */
-const NODOS_ANUNCIADOS = /<(?:Texto|View|Text)\b[^>]*accessibilityLiveRegion[^>]*>\s*\{(?:conteoCategoria\(|textoVacio\}|texto\}|textoResultadosBuscar\()/
+// Q6-6: suma `t.conteo(` (el conteo visible de Lugares para chicos, que desde
+// Q6-6 anuncia el hook); los demás nodos siguen siendo los mismos.
+const NODOS_ANUNCIADOS = /<(?:Texto|View|Text)\b[^>]*accessibilityLiveRegion[^>]*>\s*\{(?:conteoCategoria\(|textoVacio\}|texto\}|textoResultadosBuscar\(|t\.conteo\()/
 const VACIO_DE_LISTA_CON_LIVE_REGION = /ListEmptyComponent=\{\s*(?:<View\b[^>]*accessibilityLiveRegion|<Vacio\b[^>]*accessibilityLiveRegion)/
 /** Un anuncio de un conteo hecho a mano en la pantalla (en vez del hook). */
 const ANUNCIO_DIRECTO_DE_CONTEO = /\banunciar\([^)]*(?:conteo|textoResultados|textoSinResultados|anuncio|textoVacio|filtradas|resultadosMostrados|mensajeVacio)/
@@ -543,7 +545,8 @@ const PANTALLAS: { ruta: string[]; llamada: RegExp; romperNodo: (s: string) => s
   {
     ruta: ['app', '(tabs)', 'buscar.tsx'],
     llamada:
-      /useAnunciarConteo\(\s*estado\.tipo === 'ok'\s*\?\s*estadoAnunciableBuscar\(\{\s*mostrarResultados,\s*cantidad: resultadosMostrados\.length,\s*filtros: filtrosTexto,\s*v: vParam,\s*toque: toqueTexto\s*\}\)\s*:\s*null,?\s*\)/,
+      // Q6-1: también le pasa el idioma de la app.
+      /useAnunciarConteo\(\s*estado\.tipo === 'ok'\s*\?\s*estadoAnunciableBuscar\(\{\s*mostrarResultados,\s*cantidad: resultadosMostrados\.length,\s*filtros: filtrosTexto,\s*v: vParam,\s*toque: toqueTexto,\s*idioma\s*\}\)\s*:\s*null,?\s*\)/,
     romperNodo: (s) => s.replace('<Texto tono="secundario" style={estilos.tituloSeccion}>', '<Texto tono="secundario" accessibilityLiveRegion="polite" style={estilos.tituloSeccion}>'),
   },
   {
@@ -552,6 +555,16 @@ const PANTALLAS: { ruta: string[]; llamada: RegExp; romperNodo: (s: string) => s
       /useAnunciarConteo\(\s*estado\.tipo === 'ok'\s*\?\s*estadoAnunciableCines\(\{\s*busqueda,\s*cantidad: filtradas\.length,\s*total: peliculas\.length,\s*toque: toqueBusqueda\s*\}\)\s*:\s*null,?\s*\)/,
     // Integración R76 (A6): el vacío de Cines ahora es `<Vacio mensaje={vacio.texto} … />` con acción.
     romperNodo: (s) => s.replace('<Vacio mensaje={vacio.texto}', '<Vacio accessibilityLiveRegion="polite" mensaje={vacio.texto}'),
+  },
+  // Q6-6: Lugares para chicos entra en la misma estrategia (antes anunciaba
+  // el conteo a mano en el toque, sin la espera de Android). Sigue midiendo lo
+  // mismo que en las otras tres: el hook con su armador, una sola vez, y el
+  // conteo visible sin live region.
+  {
+    ruta: ['app', 'lugares-chicos', 'index.tsx'],
+    llamada:
+      /useAnunciarConteo\(\s*estado\.tipo === 'ok'\s*\?\s*estadoAnunciableLugaresChicos\(\{\s*filtros,\s*barrio: origen\?\.tipo === 'barrio' \? origen\.nombre : null,\s*cantidad: lugares\.length,\s*idioma\s*\}\)\s*:\s*null,?\s*\)/,
+    romperNodo: (s) => s.replace('<Texto peso="semibold" style={estilos.nota}>\n          {t.conteo(', '<Texto peso="semibold" style={estilos.nota} accessibilityLiveRegion="polite">\n          {t.conteo('),
   },
 ]
 

@@ -13,6 +13,8 @@
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
+import { en } from '../lib/i18n/diccionarios/en'
+import { es } from '../lib/i18n/diccionarios/es'
 
 /** `true` si `content` tiene algún `router.push`/`router.replace` hacia una
  * ruta `/pelicula/...`. */
@@ -49,7 +51,11 @@ describe('app/cines.tsx: la tarjeta de la lista ya no navega a /pelicula/ (R29, 
   it('cada película de la lista es una tarjeta con el afiche a sangre y el badge "N Cines"', () => {
     expect(src).toMatch(/<TarjetaPelicula\b/)
     expect(tarjeta).toMatch(/<Afiche\b/)
-    expect(tarjeta).toMatch(/\{cantidad\}\s*\{cantidad === 1 \? 'Cine' : 'Cines'\}/)
+    // Q6-1: el badge sale del diccionario (`tarjeta.cines`).
+    expect(tarjeta).toMatch(/\{t\.tarjeta\.cines\(cantidad\)\}/)
+    // R-2: en minúscula, como la web (`cines.cantidadCines`).
+    expect(es.tarjeta.cines(2)).toBe('2 cines')
+    expect(en.tarjeta.cines(2)).toBe('2 cinemas')
   })
 
   it('el acordeón por cine (BloqueCine) toggle con un estado local, no con router', () => {

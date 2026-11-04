@@ -50,7 +50,9 @@ import { desvincularTokenDeEsteTelefono } from '@/lib/push/registro'
 import { supabase } from '@/lib/supabase'
 import { avisar } from '@/lib/aviso'
 import { useSession } from '@/lib/session'
+import { useAnunciarAviso } from '@/lib/anunciar-aviso-hook'
 import { textoVersion } from '@/lib/version'
+import { useTextos } from '@/lib/i18n'
 
 // Mapeo corto de códigos conocidos de @supabase/auth-js a mensajes en
 // español. Nunca se muestra el texto crudo de la API.
@@ -124,7 +126,9 @@ function FilaAcceso({ icono, texto, onPress }: FilaAccesoProps) {
     >
       <View style={estilosFila.izquierda}>
         <Icono nombre={icono} color={colores.primary} tamanio={20} />
-        <Texto peso="semibold">{texto}</Texto>
+        <Texto peso="semibold" style={estilosFila.texto}>
+          {texto}
+        </Texto>
       </View>
       <View style={{ transform: [{ rotate: '-90deg' }] }}>
         <Icono nombre="ChevronDown" color={colores.mutedForeground} tamanio={18} />
@@ -142,21 +146,31 @@ const estilosFila = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     paddingVertical: 14,
   },
-  izquierda: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  // Q6-1: con la letra al 200 % (y en inglés) el texto envuelve y no empuja
+  // la flecha fuera de la pantalla.
+  izquierda: { flexDirection: 'row', alignItems: 'center', gap: 10, flexShrink: 1 },
+  texto: { flexShrink: 1 },
 })
 
 export default function Cuenta() {
   const colores = useColoresQPS()
   const router = useRouter()
   const { session, cargando } = useSession()
+  // Q6-1: Cuenta en el idioma de la app. Los errores se guardan como los arman
+  // core y este archivo (en castellano) y se muestran traducidos
+  // (`t.errores.traducir`), igual que el modal de ingreso de la web en /en.
+  const t = useTextos()
+  const tc = t.cuenta
   const { googleWebClientId } = leerEnv()
   // 28-c: línea chica al pie, con y sin sesión. `textoVersion` es pura y
   // nunca devuelve algo fuera de `\d+\.\d+\.\d+` / la lista de entornos, así
   // que una clave puesta por error en `extra` no podría llegar a mostrarse.
-  const version = textoVersion({
-    version: Constants.expoConfig?.version,
-    entorno: Constants.expoConfig?.extra?.entorno,
-  })
+  const version = tc.version(
+    textoVersion({
+      version: Constants.expoConfig?.version,
+      entorno: Constants.expoConfig?.extra?.entorno,
+    }),
+  )
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -175,6 +189,11 @@ export default function Cuenta() {
   const mostrarAvisoAltaConSesion =
     avisoAltaConSesionPara !== null &&
     session?.user.email?.trim().toLowerCase() === avisoAltaConSesionPara
+  // Q6-6: el error (de «Entrar», «Crear cuenta», Google o «Cerrar sesión») y
+  // «Te mandamos un mail…» se le dicen al lector de pantalla cuando aparecen:
+  // antes se dibujaban en silencio, lejos del botón que se tocó. El alta con
+  // sesión no: ya sale como aviso de Android (`avisar`), que TalkBack lee.
+  useAnunciarAviso(error ? t.errores.traducir(error) : avisoConfirmacion ? t.errores.traducir(MENSAJE_ALTA_ENVIADA) : null)
 
   const estilos = {
     pantalla: { flex: 1, backgroundColor: colores.background },
@@ -316,7 +335,7 @@ export default function Cuenta() {
         // levanta con `onAuthStateChange`: la pantalla pasa sola a la vista
         // con sesión. Toast en Android (`avisar`) y texto en línea en todas.
         setAvisoAltaConSesionPara(email.trim().toLowerCase())
-        avisar(MENSAJE_ALTA_CON_SESION)
+        avisar(t.errores.traducir(MENSAJE_ALTA_CON_SESION))
       } else {
         setAvisoConfirmacion(true)
       }
@@ -423,9 +442,9 @@ export default function Cuenta() {
           </Texto>
         </View>
         <Texto peso="semibold">{session.user.email}</Texto>
-        {mostrarAvisoAltaConSesion ? <Texto tono="secundario">{MENSAJE_ALTA_CON_SESION}</Texto> : null}
+        {mostrarAvisoAltaConSesion ? <Texto tono="secundario">{t.errores.traducir(MENSAJE_ALTA_CON_SESION)}</Texto> : null}
 
-        {error ? <Texto style={estilos.error}>{error}</Texto> : null}
+        {error ? <Texto style={estilos.error}>{t.errores.traducir(error)}</Texto> : null}
 
         <SeccionNotificaciones />
         {/* Q4-10: recordatorios locales de lo guardado (la tarde anterior). */}
@@ -434,8 +453,8 @@ export default function Cuenta() {
         {/* Q4-11: «Este finde pinta» (jueves 18:00, local). */}
         <InterruptorFinde />
 
-        <FilaAcceso icono="Radio" texto="Mi Radar Salteño" onPress={() => router.push('/radar')} />
-        <FilaAcceso icono="Heart" texto="Mis eventos" onPress={() => router.push('/favoritos')} />
+        <FilaAcceso icono="Radio" texto={tc.miRadar} onPress={() => router.push('/radar')} />
+        <FilaAcceso icono="Heart" texto={t.misEventos.titulo} onPress={() => router.push('/favoritos')} />
         {/* R48, tarea 48-d: con Google dice "Contraseña" (crea la primera),
             con email "Cambiar contraseña" — mismo componente de fila que
             Radar/Favoritos, antes de "Cerrar sesión". El ícono "User" es el
@@ -446,7 +465,7 @@ export default function Cuenta() {
             futura que sume el ícono correcto. */}
         <FilaAcceso
           icono="User"
-          texto={textosContrasena(tipoDeCuenta(session.user)).titulo}
+          texto={tc.filaContrasena(textosContrasena(tipoDeCuenta(session.user)).titulo)}
           onPress={() => router.push('/contrasena')}
         />
 
@@ -459,7 +478,7 @@ export default function Cuenta() {
         {/* F9: volver a ver la Bienvenida, al pie de Cuenta. */}
         <Pressable onPress={() => router.push('/bienvenida')} accessibilityRole="button" style={estilos.linkBienvenida}>
           <Texto peso="semibold" style={{ fontSize: 13, textDecorationLine: 'underline' }}>
-            Ver la bienvenida
+            {tc.verBienvenida}
           </Texto>
         </Pressable>
         <Texto tono="secundario" style={estilos.version}>
@@ -477,13 +496,16 @@ export default function Cuenta() {
           onPress={salir}
           disabled={accionEnCurso !== null}
           accessibilityRole="button"
+          // Q6-6: con la ruedita no hay texto: el nombre va aparte, y «ocupado» también.
+          accessibilityLabel={tc.cerrarSesion}
+          accessibilityState={{ busy: accionEnCurso === 'salir' }}
           style={estilos.salir}
         >
           {accionEnCurso === 'salir' ? (
             <ActivityIndicator color={colores.mutedForeground} />
           ) : (
             <Texto tono="secundario" style={{ fontSize: 13 }}>
-              Cerrar sesión
+              {tc.cerrarSesion}
             </Texto>
           )}
         </Pressable>
@@ -494,10 +516,10 @@ export default function Cuenta() {
         <Pressable
           onPress={() => router.push('/eliminar-cuenta')}
           accessibilityRole="button"
-          accessibilityLabel="Eliminar mi cuenta"
+          accessibilityLabel={tc.eliminarCuenta}
           style={estilos.eliminarCuenta}
         >
-          <Texto style={{ fontSize: 12, color: COLOR_ERROR }}>Eliminar mi cuenta</Texto>
+          <Texto style={{ fontSize: 12, color: COLOR_ERROR }}>{tc.eliminarCuenta}</Texto>
         </Pressable>
       </ScrollView>
     )
@@ -523,23 +545,23 @@ export default function Cuenta() {
 
         <View style={estilos.card}>
           <Texto peso="bold" accessibilityRole="header" style={{ fontSize: 20 }}>
-            Iniciar sesión
+            {tc.iniciarSesion}
           </Texto>
 
           <CampoTexto
-            label="Email"
+            label={tc.email}
             value={email}
             onChangeText={setEmail}
-            placeholder="Email"
+            placeholder={tc.email}
             autoCapitalize="none"
             autoComplete="email"
             keyboardType="email-address"
           />
           <CampoTexto
-            label="Contraseña"
+            label={tc.contrasena}
             value={password}
             onChangeText={setPassword}
-            placeholder="Contraseña"
+            placeholder={tc.contrasena}
             secureTextEntry
             mostrarOcultar
             autoCapitalize="none"
@@ -553,17 +575,19 @@ export default function Cuenta() {
               es mucho más ancho que 48). */}
           <Pressable onPress={abrirRecuperarContrasenia} accessibilityRole="link" hitSlop={hitSlopPara(300, 18)}>
             <Texto style={{ fontSize: 13, textDecorationLine: 'underline' }}>
-              ¿Olvidaste tu contraseña?
+              {tc.olvidaste}
             </Texto>
           </Pressable>
 
-          {error ? <Texto style={estilos.error}>{error}</Texto> : null}
-          {avisoConfirmacion ? <Texto tono="secundario">{MENSAJE_ALTA_ENVIADA}</Texto> : null}
+          {error ? <Texto style={estilos.error}>{t.errores.traducir(error)}</Texto> : null}
+          {avisoConfirmacion ? <Texto tono="secundario">{t.errores.traducir(MENSAJE_ALTA_ENVIADA)}</Texto> : null}
 
           <Pressable
             onPress={entrar}
             disabled={accionEnCurso !== null}
             accessibilityRole="button"
+            // Q6-6: con la ruedita no hay texto: sin esto TalkBack decía solo «botón, ocupado».
+            accessibilityLabel={tc.entrar}
             accessibilityState={{ busy: accionEnCurso !== null }}
             style={estilos.boton(accionEnCurso !== null)}
           >
@@ -571,7 +595,7 @@ export default function Cuenta() {
               <ActivityIndicator color={colores.primaryForeground} />
             ) : (
               <Texto peso="semibold" style={{ color: colores.primaryForeground }}>
-                Entrar
+                {tc.entrar}
               </Texto>
             )}
           </Pressable>
@@ -580,6 +604,7 @@ export default function Cuenta() {
             onPress={crearCuenta}
             disabled={accionEnCurso !== null}
             accessibilityRole="button"
+            accessibilityLabel={tc.crearCuenta}
             accessibilityState={{ busy: accionEnCurso !== null }}
             style={estilos.boton(accionEnCurso !== null)}
           >
@@ -587,7 +612,7 @@ export default function Cuenta() {
               <ActivityIndicator color={colores.primaryForeground} />
             ) : (
               <Texto peso="semibold" style={{ color: colores.primaryForeground }}>
-                Crear cuenta
+                {tc.crearCuenta}
               </Texto>
             )}
           </Pressable>
@@ -596,7 +621,7 @@ export default function Cuenta() {
             <View style={estilos.separador}>
               <View style={estilos.lineaSeparador} />
               <Texto tono="secundario" style={{ fontSize: 11 }}>
-                O continuar con
+                {tc.oContinuarCon}
               </Texto>
               <View style={estilos.lineaSeparador} />
             </View>
@@ -623,7 +648,7 @@ export default function Cuenta() {
         {/* F9: volver a ver la Bienvenida, al pie de Cuenta. */}
         <Pressable onPress={() => router.push('/bienvenida')} accessibilityRole="button" style={estilos.linkBienvenida}>
           <Texto peso="semibold" style={{ fontSize: 13, textDecorationLine: 'underline' }}>
-            Ver la bienvenida
+            {tc.verBienvenida}
           </Texto>
         </Pressable>
         <Texto tono="secundario" style={estilos.version}>

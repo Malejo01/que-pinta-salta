@@ -152,9 +152,10 @@ describe("eliminar-cuenta-form.tsx (cliente)", () => {
   })
 })
 
-describe("/perfil/page.tsx", () => {
+// Q6-2: el cuerpo de /perfil pasó a app/perfil/pagina-perfil.tsx (compartido con /en/perfil).
+describe("/perfil/pagina-perfil.tsx", () => {
   it("linkea a /perfil/eliminar-cuenta", () => {
-    const archivo = leer("app/perfil/page.tsx")
+    const archivo = leer("app/perfil/pagina-perfil.tsx")
     expect(archivo).toContain("/perfil/eliminar-cuenta")
   })
 })

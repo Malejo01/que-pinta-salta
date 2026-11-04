@@ -11,6 +11,8 @@
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
+import { en } from '../lib/i18n/diccionarios/en'
+import { es } from '../lib/i18n/diccionarios/es'
 import { buscarEventosPorTexto } from '@qps/core/home/busqueda'
 import { soloGratis } from '@qps/core/home/filtros-extra'
 import type { DisplayEvent } from '@qps/core/home/types'
@@ -204,7 +206,10 @@ describe('buscar.tsx: lectura estática', () => {
   // A5 (nube Q1): con tilde, como la web (`apps/web/app/buscar/buscar-content.tsx`,
   // que fija `apps/web/tests/buscar/buscar-tildes.test.ts`).
   it('el placeholder es el texto literal de la web (con tilde en «descripción»)', () => {
-    expect(SRC_BUSCAR).toMatch(/placeholder="Buscar por evento, lugar o descripción\.\.\."/)
+    // Q6-1: el texto sale del diccionario (`buscar.placeholder`); en castellano, el de la web.
+    expect(SRC_BUSCAR).toMatch(/placeholder=\{t\.buscar\.placeholder\}/)
+    expect(es.buscar.placeholder).toBe('Buscar por evento, lugar o descripción...')
+    expect(en.buscar.placeholder).not.toBe(es.buscar.placeholder)
     expect(SRC_BUSCAR).not.toMatch(/lugar o descripcion/)
   })
 

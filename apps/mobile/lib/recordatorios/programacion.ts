@@ -8,7 +8,10 @@
 // - Nunca películas ni flyers (no tienen una fecha de función propia).
 // - Si las 18:00 del día anterior ya pasaron, no se programa (no se avisa tarde).
 import { formatSaltaDayKey, saltaWallClockToDate } from '@qps/core/date-format'
+import { textoEnIdioma } from '@qps/core/events/traduccion'
 import type { DisplayEvent } from '@qps/core/home/types'
+import type { Idioma } from '@/lib/i18n/idioma'
+import { textosDe } from '@/lib/i18n/textos'
 
 export const HORA_RECORDATORIO = '18:00'
 /** Android limita las alarmas por app: con 40 sobra para lo que se guarda. */
@@ -38,9 +41,9 @@ export function momentoDelRecordatorio(inicio: string): Date {
 }
 
 /** «Mañana: <evento> a las <hora>», o sin la hora si el evento no la tiene. */
-export function textoDelRecordatorio(titulo: string, hora: string | null | undefined): string {
-  const limpio = titulo.trim()
-  return hora && hora.trim() ? `Mañana: ${limpio} a las ${hora.trim()}` : `Mañana: ${limpio}`
+export function textoDelRecordatorio(titulo: string, hora: string | null | undefined, idioma: Idioma = 'es'): string {
+  // Q6-1: «Mañana: …» / «Tomorrow: …», del diccionario (`avisos.recordatorio`).
+  return textosDe(idioma).avisos.recordatorio(titulo.trim(), hora && hora.trim() ? hora.trim() : null)
 }
 
 function esEventoDeVerdad(evento: DisplayEvent): boolean {
@@ -48,7 +51,13 @@ function esEventoDeVerdad(evento: DisplayEvent): boolean {
   return !evento.id.startsWith('movie-') && !evento.id.startsWith('ig-')
 }
 
-export function planificarRecordatorios(eventos: DisplayEvent[], ahora: Date, max = MAX_RECORDATORIOS): RecordatorioPlanificado[] {
+export function planificarRecordatorios(
+  eventos: DisplayEvent[],
+  ahora: Date,
+  max = MAX_RECORDATORIOS,
+  idioma: Idioma = 'es',
+): RecordatorioPlanificado[] {
+  const t = textosDe(idioma).avisos
   const vistos = new Set<string>()
   const plan: RecordatorioPlanificado[] = []
   for (const evento of eventos) {
@@ -63,8 +72,9 @@ export function planificarRecordatorios(eventos: DisplayEvent[], ahora: Date, ma
       identificador: `${PREFIJO_RECORDATORIO}${evento.id}`,
       eventId: evento.id,
       cuando,
-      titulo: textoDelRecordatorio(evento.title, evento.time),
-      cuerpo: evento.venue && evento.venue !== 'Lugar por confirmar' ? evento.venue : 'Tocá para ver el evento.',
+      // En inglés, el título traducido si lo hay (`title_en`); si no, el original.
+      titulo: textoDelRecordatorio(textoEnIdioma(evento.title, evento.titleEn, idioma).texto, evento.time, idioma),
+      cuerpo: evento.venue && evento.venue !== 'Lugar por confirmar' ? evento.venue : t.recordatorioCuerpo,
     })
   }
   return plan.sort((a, b) => a.cuando.getTime() - b.cuando.getTime()).slice(0, max)

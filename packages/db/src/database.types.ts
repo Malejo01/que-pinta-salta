@@ -309,6 +309,19 @@ isOneToOne: false
       referencedColumns: ["id"]
     }
                   ]
+                },"ia_llamadas": {
+                  Row: {
+                    "created_at": string,"error_codigo": string | null,"id": number,"latencia_ms": number,"modelo": string,"ok": boolean,"proveedor": string,"tokens_entrada": number | null,"tokens_salida": number | null,"uso": string
+                  }
+                  Insert: {
+                    "created_at"?: string,"error_codigo"?: string | null,"id"?: never,"latencia_ms": number,"modelo": string,"ok": boolean,"proveedor": string,"tokens_entrada"?: number | null,"tokens_salida"?: number | null,"uso": string
+                  }
+                  Update: {
+                    "created_at"?: string,"error_codigo"?: string | null,"id"?: never,"latencia_ms"?: number,"modelo"?: string,"ok"?: boolean,"proveedor"?: string,"tokens_entrada"?: number | null,"tokens_salida"?: number | null,"uso"?: string
+                  }
+                  Relationships: [
+                    
+                  ]
                 },"instagram_accounts": {
                   Row: {
                     "created_at": string,"default_category": string,"default_maps_url": string | null,"default_venue_name": string | null,"display_name": string,"id": string,"instagram_url": string | null,"is_active": boolean,"notes": string | null,"profile_pic_url": string | null,"updated_at": string,"username": string
@@ -372,6 +385,19 @@ isOneToOne: false
       referencedRelation: "lugares_permanentes"
       referencedColumns: ["id"]
     }
+                  ]
+                },"lugares_chicos_pedidos_cupos": {
+                  Row: {
+                    "cantidad": number,"clave": string,"dia": string
+                  }
+                  Insert: {
+                    "cantidad"?: number,"clave": string,"dia": string
+                  }
+                  Update: {
+                    "cantidad"?: number,"clave"?: string,"dia"?: string
+                  }
+                  Relationships: [
+                    
                   ]
                 },"lugares_permanentes": {
                   Row: {
@@ -816,6 +842,9 @@ isOneToOne: true
                            },
 "set_push_preferences":
 { Args: { "p_avisos_equipo"?: boolean,"p_avisos_patrocinados"?: boolean,"p_device_id": string,"p_token": string }; Returns: boolean
+                           },
+"tomar_cupo_pedido_lugar_chicos":
+{ Args: { "p_clave": string,"p_max_por_clave"?: number,"p_max_por_dia"?: number }; Returns: boolean
                            },
 "unlink_push_token":
 { Args: { "p_token": string }; Returns: boolean

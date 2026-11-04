@@ -14,6 +14,9 @@ import { ArrowLeft, Loader2, ImageIcon } from "lucide-react"
 import { createEvent, uploadFlyer, updateUserEvent } from "@/lib/actions"
 import { formatSaltaInputValue } from "@/lib/date-format"
 import type { Category, Venue } from "@/lib/types"
+import { langDeCategoria, textosDe } from "@/lib/i18n"
+import type { Idioma } from "@/lib/i18n/idiomas"
+import { hrefLangDestino, rutaEn } from "@/lib/i18n/rutas"
 
 interface EventFormProps {
   categories: Category[]
@@ -22,9 +25,17 @@ interface EventFormProps {
   initialData?: any
   cloneId?: string
   editId?: string
+  /**
+   * Q6-2: el idioma de la página (/nuevo-evento o /en/nuevo-evento). Por
+   * defecto, castellano. En inglés, las categorías ya vienen con su nombre
+   * traducido (`localizarCategorias`); los lugares, con el de la base.
+   */
+  idioma?: Idioma
 }
 
-export function EventForm({ categories, venues, initialData, cloneId, editId }: EventFormProps) {
+export function EventForm({ categories, venues, initialData, cloneId, editId, idioma = "es" }: EventFormProps) {
+  const t = textosDe(idioma).formularioEvento
+  const langContenido = idioma === "en" ? "es-AR" : undefined
   const fileInputRef = useRef<HTMLInputElement>(null)
   
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -46,7 +57,8 @@ export function EventForm({ categories, venues, initialData, cloneId, editId }: 
     const result = await uploadFlyer(formData)
 
     if (result.error) {
-      setError(result.error)
+      // En inglés, el error de la acción traducido (los textos de lib/actions.ts).
+      setError(t.error(result.error))
     } else if (result.url) {
       setImageUrl(result.url)
     }
@@ -70,24 +82,27 @@ export function EventForm({ categories, venues, initialData, cloneId, editId }: 
       : await createEvent(formData)
 
     if (result?.error) {
-      setError(result.error)
+      setError(t.error(result.error))
       setIsSubmitting(false)
     }
   }
   return (
-    <div className="min-h-screen bg-background">
+    // Q6-6: el <main> (destino de «Saltar al contenido») incluye la cabecera con
+    // el <h1> y el «Volver»: antes el salto dejaba afuera el título de la página.
+    <main id="contenido" tabIndex={-1} className="min-h-screen bg-background focus:outline-none">
       <header className="sticky top-0 z-50 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="container mx-auto flex h-16 items-center gap-4 px-4">
           <Button variant="ghost" size="icon" asChild>
-            <Link href="/">
-              <ArrowLeft className="size-5" />
+            {/* Q6-2: el botón solo tenía el ícono; ahora tiene nombre accesible. */}
+            <Link href={rutaEn(idioma, "/")} aria-label={t.volver}>
+              <ArrowLeft className="size-5" aria-hidden="true" />
             </Link>
           </Button>
-          <h1 className="text-xl font-bold">{editId ? "Editar Evento" : "Crear Nuevo Evento"}</h1>
+          <h1 className="text-xl font-bold">{editId ? t.tituloEditar : t.tituloCrear}</h1>
         </div>
       </header>
 
-      <main id="contenido" tabIndex={-1} className="container mx-auto max-w-2xl px-4 py-8 focus:outline-none">
+      <div className="container mx-auto max-w-2xl px-4 py-8">
         <form onSubmit={handleSubmit} className="space-y-8">
           {cloneId && (
             <input type="hidden" name="cloneId" value={cloneId} />
@@ -95,8 +110,9 @@ export function EventForm({ categories, venues, initialData, cloneId, editId }: 
           {editId && (
             <input type="hidden" name="editId" value={editId} />
           )}
+          {/* Q6-2: el error se anuncia (antes aparecía sin aviso para el lector de pantalla). */}
           {error && (
-            <div className="rounded-lg border border-destructive bg-destructive/10 p-4 text-sm text-destructive">
+            <div role="alert" className="rounded-lg border border-destructive bg-destructive/10 p-4 text-sm text-error">
               {error}
             </div>
           )}
@@ -104,35 +120,42 @@ export function EventForm({ categories, venues, initialData, cloneId, editId }: 
           {/* Image Upload */}
           <Card>
             <CardHeader>
-              <CardTitle>Flyer del Evento</CardTitle>
-              <CardDescription>Sube una imagen para tu evento (máx. 5MB)</CardDescription>
+              <CardTitle>{t.flyer}</CardTitle>
+              <CardDescription id="flyer-ayuda">{t.flyerBajada}</CardDescription>
             </CardHeader>
             <CardContent>
-              <div
+              {/* Q6-2: un botón (antes un div con onClick, que no se alcanzaba con el teclado). */}
+              <button
+                type="button"
                 onClick={() => fileInputRef.current?.click()}
-                className="relative flex aspect-[2/3] max-w-xs cursor-pointer flex-col items-center justify-center overflow-hidden rounded-lg border-2 border-dashed border-border bg-muted/50 transition-colors hover:border-primary hover:bg-muted"
+                aria-label={isUploading ? t.flyerSubiendo : t.flyerSubir}
+                aria-describedby="flyer-ayuda"
+                aria-busy={isUploading || undefined}
+                className="relative flex aspect-[2/3] w-full max-w-xs cursor-pointer flex-col items-center justify-center overflow-hidden rounded-lg border-2 border-dashed border-border bg-muted/50 transition-colors hover:border-primary hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 {imageUrl ? (
                   <Image
                     src={imageUrl}
-                    alt="Preview"
+                    alt={t.flyerVistaPrevia}
                     fill
                     className="object-cover"
                   />
                 ) : isUploading ? (
-                  <Loader2 className="size-8 animate-spin text-muted-foreground" />
+                  <Loader2 className="size-8 animate-spin text-muted-foreground" aria-hidden="true" />
                 ) : (
                   <>
-                    <ImageIcon className="mb-2 size-8 text-muted-foreground" />
-                    <span className="text-sm text-muted-foreground">Click para subir imagen</span>
+                    <ImageIcon className="mb-2 size-8 text-muted-foreground" aria-hidden="true" />
+                    <span className="text-sm text-muted-foreground">{t.flyerSubir}</span>
                   </>
                 )}
-              </div>
+              </button>
               <input
                 ref={fileInputRef}
                 type="file"
                 accept="image/jpeg,image/png,image/webp,image/gif"
                 onChange={handleImageUpload}
+                tabIndex={-1}
+                aria-hidden="true"
                 className="hidden"
               />
             </CardContent>
@@ -141,51 +164,52 @@ export function EventForm({ categories, venues, initialData, cloneId, editId }: 
           {/* Basic Info */}
           <Card>
             <CardHeader>
-              <CardTitle>Información Básica</CardTitle>
+              <CardTitle>{t.infoBasica}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="title">Título del Evento *</Label>
+                <Label htmlFor="title">{t.tituloEvento} *</Label>
                 <Input
                   id="title"
                   name="title"
-                  placeholder="Ej: Peña Folklórica en La Casona"
+                  placeholder={t.tituloPlaceholder}
                   defaultValue={initialData?.title}
                   required
                 />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="shortDescription">Descripción Corta</Label>
+                <Label htmlFor="shortDescription">{t.descripcionCorta}</Label>
                 <Input
                   id="shortDescription"
                   name="shortDescription"
-                  placeholder="Una línea describiendo el evento"
+                  placeholder={t.descripcionCortaPlaceholder}
                   defaultValue={initialData?.short_description}
                   maxLength={500}
                 />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="description">Descripción Completa</Label>
+                <Label htmlFor="description">{t.descripcionCompleta}</Label>
                 <Textarea
                   id="description"
                   name="description"
-                  placeholder="Describe el evento en detalle..."
+                  placeholder={t.descripcionCompletaPlaceholder}
                   defaultValue={initialData?.description}
                   rows={4}
                 />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="categoryId">Categoría *</Label>
+                <Label htmlFor="categoryId">{t.categoria} *</Label>
                 <Select name="categoryId" defaultValue={initialData?.category_id} required>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecciona una categoría" />
+                  {/* Q6-2: el id asocia el <Label> con el desplegable. */}
+                  <SelectTrigger id="categoryId">
+                    <SelectValue placeholder={t.categoriaPlaceholder} />
                   </SelectTrigger>
                   <SelectContent>
                     {categories.map((cat) => (
-                      <SelectItem key={cat.id} value={cat.id}>
+                      <SelectItem key={cat.id} value={cat.id} lang={langDeCategoria(idioma, cat.slug)}>
                         {cat.name}
                       </SelectItem>
                     ))}
@@ -194,14 +218,14 @@ export function EventForm({ categories, venues, initialData, cloneId, editId }: 
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="venueId">Lugar</Label>
+                <Label htmlFor="venueId">{t.lugar}</Label>
                 <Select name="venueId" defaultValue={initialData?.venue_id || undefined}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecciona un lugar (opcional)" />
+                  <SelectTrigger id="venueId">
+                    <SelectValue placeholder={t.lugarPlaceholder} />
                   </SelectTrigger>
                   <SelectContent>
                     {venues.map((venue) => (
-                      <SelectItem key={venue.id} value={venue.id}>
+                      <SelectItem key={venue.id} value={venue.id} lang={langContenido}>
                         {venue.name}
                       </SelectItem>
                     ))}
@@ -214,12 +238,12 @@ export function EventForm({ categories, venues, initialData, cloneId, editId }: 
           {/* Date & Time */}
           <Card>
             <CardHeader>
-              <CardTitle>Fecha y Hora</CardTitle>
+              <CardTitle>{t.fechaYHora}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
-                  <Label htmlFor="startDate">Inicio *</Label>
+                  <Label htmlFor="startDate">{t.inicio} *</Label>
                   <Input
                     id="startDate"
                     name="startDate"
@@ -229,7 +253,7 @@ export function EventForm({ categories, venues, initialData, cloneId, editId }: 
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="endDate">Fin (opcional)</Label>
+                  <Label htmlFor="endDate">{t.fin}</Label>
                   <Input
                     id="endDate"
                     name="endDate"
@@ -244,11 +268,11 @@ export function EventForm({ categories, venues, initialData, cloneId, editId }: 
           {/* Price */}
           <Card>
             <CardHeader>
-              <CardTitle>Precio</CardTitle>
+              <CardTitle>{t.precio}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex items-center justify-between">
-                <Label htmlFor="isFree">Evento gratuito</Label>
+                <Label htmlFor="isFree">{t.gratuito}</Label>
                 <Switch
                   id="isFree"
                   checked={isFree}
@@ -259,7 +283,7 @@ export function EventForm({ categories, venues, initialData, cloneId, editId }: 
               {!isFree && (
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
-                    <Label htmlFor="priceMin">Precio Mínimo (ARS)</Label>
+                    <Label htmlFor="priceMin">{t.precioMinimo}</Label>
                     <Input
                       id="priceMin"
                       name="priceMin"
@@ -270,7 +294,7 @@ export function EventForm({ categories, venues, initialData, cloneId, editId }: 
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="priceMax">Precio Máximo (ARS)</Label>
+                    <Label htmlFor="priceMax">{t.precioMaximo}</Label>
                     <Input
                       id="priceMax"
                       name="priceMax"
@@ -284,7 +308,7 @@ export function EventForm({ categories, venues, initialData, cloneId, editId }: 
               )}
 
               <div className="space-y-2">
-                <Label htmlFor="ticketUrl">Link de Entradas (opcional)</Label>
+                <Label htmlFor="ticketUrl">{t.linkEntradas}</Label>
                 <Input
                   id="ticketUrl"
                   name="ticketUrl"
@@ -299,17 +323,17 @@ export function EventForm({ categories, venues, initialData, cloneId, editId }: 
           {/* Atmosphere */}
           <Card>
             <CardHeader>
-              <CardTitle>Ambiente</CardTitle>
+              <CardTitle>{t.ambiente}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="space-y-2">
-                <Label htmlFor="ageRestriction">Restricción de Edad</Label>
+                <Label htmlFor="ageRestriction">{t.restriccionEdad}</Label>
                 <Select name="ageRestriction" defaultValue={initialData?.age_restriction?.toString() || "0"}>
-                  <SelectTrigger>
+                  <SelectTrigger id="ageRestriction">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="0">Todas las edades</SelectItem>
+                    <SelectItem value="0">{t.todasLasEdades}</SelectItem>
                     <SelectItem value="16">+16</SelectItem>
                     <SelectItem value="18">+18</SelectItem>
                     <SelectItem value="21">+21</SelectItem>
@@ -322,21 +346,21 @@ export function EventForm({ categories, venues, initialData, cloneId, editId }: 
           {/* Submit */}
           <div className="flex gap-4">
             <Button type="button" variant="outline" className="flex-1" asChild>
-              <Link href="/mis-eventos">Cancelar</Link>
+              <Link href={rutaEn(idioma, "/mis-eventos")} hrefLang={hrefLangDestino(idioma, "/mis-eventos")}>{t.cancelar}</Link>
             </Button>
             <Button type="submit" className="flex-1" disabled={isSubmitting}>
               {isSubmitting ? (
                 <>
                   <Loader2 className="mr-2 size-4 animate-spin" />
-                  {editId ? "Actualizando..." : "Creando..."}
+                  {editId ? t.actualizando : t.creando}
                 </>
               ) : (
-                editId ? "Actualizar Evento" : "Crear Evento"
+                editId ? t.actualizar : t.crear
               )}
             </Button>
           </div>
         </form>
-      </main>
-    </div>
+      </div>
+    </main>
   )
 }

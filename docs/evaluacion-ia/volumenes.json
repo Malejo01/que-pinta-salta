@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "consultado": "2026-11-03",
+  "ventana_dias": 30,
+  "por_mes": {
+    "flyers": 252,
+    "traduccion": 274,
+    "clasificacion": 40
+  },
+  "notas": {
+    "flyers": "Flyers que pasaron por la IA en los últimos 30 días (ai_processed_at en la ventana y ai_metadata con extracted_data). Coincide con job_runs: cola_ia = 172 corridas y 251 ítems en la ventana; instagram = 255 posteos bajados.",
+    "traduccion": "Régimen estable: eventos PUBLISHED creados en los últimos 30 días (274), uno por evento nuevo. Además hay 115 vigentes sin title_en (cola atrasada, una sola vez) y el tope es 100 por día (máximo teórico 3000/mes). Ojo: job_runs traduccion del 3/11 muestra 100 intentos y 100 descartados, 0 traducidos.",
+    "clasificacion": "Escenario de tope, no medición: hoy hay 0 eventos publicados sin categoría (vigentes y creados en 30 días), y scripts/revisar-calidad.ts --ia se corre a mano con tope de 10 llamadas por corrida. Se supone 4 corridas por mes al tope = 40."
+  },
+  "consultas": {
+    "flyers": "select count(*) from instagram_flyers where ai_processed_at >= now() - interval '30 days' and ai_metadata ? 'extracted_data';",
+    "traduccion": "select count(*) from events where status = 'PUBLISHED' and created_at >= now() - interval '30 days';",
+    "traduccion_atrasada": "select count(*) from events where status = 'PUBLISHED' and start_date >= now() - interval '1 day' and title_en is null;",
+    "clasificacion_necesaria": "select count(*) from events where status = 'PUBLISHED' and start_date >= now() - interval '1 day' and category_id is null;",
+    "job_runs": "select job_key, count(*), sum(items_processed) from job_runs where started_at >= now() - interval '30 days' group by job_key;"
+  }
+}

@@ -36,6 +36,9 @@ import { useColoresQPS } from '@/lib/colores'
 import { invitarTrasAccion } from '@/lib/push/invitacion'
 import type { ObjetivoFavorito } from '@/lib/rutas'
 import { useSession } from '@/lib/session'
+import { useIdioma, useTextos } from '@/lib/i18n'
+import type { Idioma } from '@/lib/i18n/idioma'
+import { textosDe } from '@/lib/i18n/textos'
 
 /**
  * `hitSlopPara(tamanio)` sirve para los dos usos: 40 en la ficha
@@ -84,9 +87,10 @@ export interface BotonFavoritoProps {
 }
 
 /** La etiqueta del lector de pantalla; con `nombre` dice qué se guarda. */
-export function etiquetaFavorito(marcado: boolean, nombre?: string): string {
-  if (!nombre) return marcado ? 'Quitar de favoritos' : 'Agregar a favoritos'
-  return marcado ? `Quitar ${nombre} de favoritos` : `Agregar ${nombre} a favoritos`
+export function etiquetaFavorito(marcado: boolean, nombre?: string, idioma: Idioma = 'es'): string {
+  // Q6-1: del diccionario (`tarjeta.agregarFavorito` / `tarjeta.quitarFavorito`).
+  const t = textosDe(idioma).tarjeta
+  return marcado ? t.quitarFavorito(nombre || undefined) : t.agregarFavorito(nombre || undefined)
 }
 
 type Estado = { tipo: 'cargando' } | { tipo: 'ok'; marcado: boolean } | { tipo: 'error'; error: string }
@@ -98,6 +102,8 @@ export function BotonFavorito({ objetivo, tamanio = 40, fondo = 'muted', nombre,
   const router = useRouter()
   const colores = useColoresQPS()
   const { session, cargando: cargandoSesion } = useSession()
+  const { idioma } = useIdioma()
+  const t = useTextos()
   const userId = session?.user.id ?? null
 
   // El estado se guarda con la clave (objetivo + usuario) a la que pertenece:
@@ -143,7 +149,7 @@ export function BotonFavorito({ objetivo, tamanio = 40, fondo = 'muted', nombre,
     if (marcadoAntes) {
       const resultado = await desmarcarFavorito(id, userId, tipoFavorito)
       if (resultado.ok) {
-        if (resultado.voyQuitado) avisar(TEXTO_SACASTE_GUARDADO_CON_VOY)
+        if (resultado.voyQuitado) avisar(t.errores.traducir(TEXTO_SACASTE_GUARDADO_CON_VOY))
         setEstado({ tipo: 'ok', marcado: false })
       } else {
         setEstado({ tipo: 'error', error: resultado.error })
@@ -169,7 +175,7 @@ export function BotonFavorito({ objetivo, tamanio = 40, fondo = 'muted', nombre,
       onPress={alternar}
       disabled={cargando}
       accessibilityRole="button"
-      accessibilityLabel={etiquetaFavorito(marcado, nombre)}
+      accessibilityLabel={etiquetaFavorito(marcado, nombre, idioma)}
       accessibilityState={{ busy: cargando }}
       hitSlop={hitSlopBotonAccion(tamanio, conVecino)}
       style={[

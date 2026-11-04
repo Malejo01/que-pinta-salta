@@ -9,7 +9,9 @@ const upsertEventWithDeduplication = vi.fn()
 vi.mock('@/lib/supabase/server', () => ({
   createAdminClient: (...a: unknown[]) => createAdminClient(...a),
 }))
-vi.mock('@/lib/ai/gemini', () => ({
+// Q6-3: las llamadas a la IA pasaron de lib/ai/gemini.ts a lib/ai/llamadas-ia.ts (capa lib/ia);
+// el doble sigue reemplazando la única puerta a la IA, así que el test sigue sin red ni gasto.
+vi.mock('@/lib/ai/llamadas-ia', () => ({
   extractEventFromFlyer: (...a: unknown[]) => extractEventFromFlyer(...a),
 }))
 vi.mock('@/lib/scraper/save-to-supabase', () => ({

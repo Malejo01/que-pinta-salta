@@ -30,7 +30,9 @@ vi.mock('@/lib/supabase/server', () => ({
     },
   }),
 }))
-vi.mock('@/lib/ai/gemini', () => ({ extractEventFromFlyer: extract }))
+// Q6-3: las llamadas a la IA pasaron de lib/ai/gemini.ts a lib/ai/llamadas-ia.ts (capa lib/ia);
+// el doble sigue reemplazando la única puerta a la IA, así que el test sigue sin red ni gasto.
+vi.mock('@/lib/ai/llamadas-ia', () => ({ extractEventFromFlyer: extract }))
 vi.mock('@/lib/scraper/save-to-supabase', () => ({
   upsertVenue: async () => 'venue-de-prueba-id',
   resolveCategoryId: async () => 'categoria-de-prueba-id',

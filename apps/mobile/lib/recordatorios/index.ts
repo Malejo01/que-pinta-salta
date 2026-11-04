@@ -4,6 +4,7 @@
 import * as Notificaciones from 'expo-notifications'
 import type { DisplayEvent } from '@qps/core/home/types'
 import { almacenPorDefecto, type Almacen } from '@/lib/sin-conexion/almacen'
+import { idiomaGuardado, type Idioma } from '@/lib/i18n/idioma'
 import {
   PREFIJO_RECORDATORIO,
   TIPO_RECORDATORIO,
@@ -22,6 +23,11 @@ export type ModuloNotificacionesLocales = Pick<
 export interface DependenciasRecordatorios {
   notificaciones?: ModuloNotificacionesLocales
   almacen?: Almacen
+  /**
+   * Q6-1: el idioma de los avisos. Sin pasarlo, el guardado en el teléfono
+   * (Cuenta → Idioma, o el del dispositivo con «Automático»).
+   */
+  idioma?: Idioma
 }
 
 export async function leerPreferencia(almacen: Almacen = almacenPorDefecto): Promise<'1' | '0' | null> {
@@ -88,8 +94,9 @@ export async function sincronizarRecordatorios(
   const cancelados = await cancelarLosNuestros(notificaciones)
   if (!activos) return { activos, programados: 0, cancelados }
 
+  const idioma = deps.idioma ?? (await idiomaGuardado(deps.almacen ?? almacenPorDefecto))
   let programados = 0
-  for (const r of planificarRecordatorios(eventos, ahora)) {
+  for (const r of planificarRecordatorios(eventos, ahora, undefined, idioma)) {
     try {
       await notificaciones.scheduleNotificationAsync({
         identifier: r.identificador,

@@ -13,7 +13,8 @@
  * Topes: 200 escrituras y 10 llamadas a la IA por corrida (la IA es paga).
  * Se corre a mano desde `apps/web`, de día; no está programado (lo fija
  * tests/calidad/revision.test.ts). Necesita NEXT_PUBLIC_SUPABASE_URL y
- * SUPABASE_SERVICE_ROLE_KEY (y GEMINI_API_KEY solo con --ia). No imprime
+ * SUPABASE_SERVICE_ROLE_KEY (y, solo con --ia, GEMINI_API_KEY o, con
+ * IA_PROVEEDOR=claude, ANTHROPIC_API_KEY). No imprime
  * ningún valor de entorno ni datos personales.
  */
 import { readFileSync } from 'node:fs'
@@ -108,15 +109,28 @@ async function main() {
   }
 
   let clasificar: Clasificador | undefined
+  // Q6-3: por la capa de IA (Gemini por defecto; IA_PROVEEDOR=claude para Claude),
+  // registrada en ia_llamadas como `clasificacion`.
   if (opciones.ia) {
-    const { generarJsonDeTexto } = await import('../lib/ai/gemini')
+    const { generarJsonDeTexto } = await import('../lib/ai/llamadas-ia')
+    const { ErrorIA } = await import('../lib/ia/tipos')
+    // Q6-4: el prompt y el esquema viven en lib/ai/clasificar-categoria (los usa también el banco de evaluación).
+    const { INSTRUCCION_CLASIFICACION, MAX_TOKENS_CLASIFICACION, esquemaClasificacion, textoClasificacion } = await import(
+      '../lib/ai/clasificar-categoria'
+    )
     const slugs = (categorias.data ?? []).map((c) => c.slug as string)
     clasificar = async (titulo, descripcion) => {
-      const r = (await generarJsonDeTexto(
-        'Clasificás eventos culturales de Salta (Argentina) en UNA categoría de la lista. Respondé solo el slug.',
-        `Título: ${titulo}\nDescripción: ${descripcion}`,
-        { type: 'object', properties: { slug: { type: 'string', enum: slugs } }, required: ['slug'] },
-      )) as { slug?: unknown }
+      let r: { slug?: unknown }
+      try {
+        r = (await generarJsonDeTexto(INSTRUCCION_CLASIFICACION, textoClasificacion(titulo, descripcion), esquemaClasificacion(slugs), {
+          uso: 'clasificacion',
+          maxTokens: MAX_TOKENS_CLASIFICACION,
+        })) as { slug?: unknown }
+      } catch (error) {
+        // Un slug fuera de la lista se salteaba en silencio antes de Q6-3: sigue igual.
+        if (error instanceof ErrorIA && error.codigo === 'respuesta_invalida') return null
+        throw error
+      }
       return typeof r.slug === 'string' && slugs.includes(r.slug) ? r.slug : null
     }
   }

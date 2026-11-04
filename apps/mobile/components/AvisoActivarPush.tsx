@@ -15,7 +15,10 @@ import { Pressable, StyleSheet, View } from 'react-native'
 import { Texto } from '@/components/Texto'
 import { useColoresQPS } from '@/lib/colores'
 import { usePush } from '@/lib/push'
-import { TEXTOS_PUSH, type EstadoPush } from '@/lib/push/estado'
+import type { EstadoPush } from '@/lib/push/estado'
+import { useIdioma, useTextos } from '@/lib/i18n'
+import type { Idioma } from '@/lib/i18n/idioma'
+import { textosDe } from '@/lib/i18n/textos'
 
 export type VarianteAvisoPush = 'cuenta' | 'favoritos'
 
@@ -39,17 +42,19 @@ export interface BotonPush {
  *   de `TEXTOS_PUSH.pidiendo`.
  * - `no-disponible`, `activo`, `sin-sesion`: sin botón.
  */
-export function botonParaEstado(estado: EstadoPush): BotonPush | null {
+export function botonParaEstado(estado: EstadoPush, idioma: Idioma = 'es'): BotonPush | null {
+  // Q6-1: las etiquetas, del diccionario (`notificaciones`).
+  const t = textosDe(idioma).notificaciones
   switch (estado) {
     case 'sin-pedir':
     case 'denegado':
-      return { etiqueta: 'Activar notificaciones', accion: 'activar' }
+      return { etiqueta: t.activar, accion: 'activar' }
     case 'bloqueado':
-      return { etiqueta: 'Abrir ajustes', accion: 'abrirAjustes' }
+      return { etiqueta: t.abrirAjustes, accion: 'abrirAjustes' }
     case 'error-registro':
-      return { etiqueta: 'Reintentar', accion: 'reintentar' }
+      return { etiqueta: t.reintentar, accion: 'reintentar' }
     case 'pidiendo':
-      return { etiqueta: TEXTOS_PUSH.pidiendo, accion: null }
+      return { etiqueta: t.estadosPush.pidiendo, accion: null }
     case 'no-disponible':
     case 'activo':
     case 'sin-sesion':
@@ -66,9 +71,6 @@ export function seMuestraAvisoFavoritos(estado: EstadoPush): boolean {
   return estado === 'sin-pedir' || estado === 'denegado'
 }
 
-const EXPLICACION_CUENTA =
-  'Te avisamos antes de tus favoritos y cuando haya algo nuevo de lo que seguís en tu Radar. Podés elegir qué te llega y el horario de silencio.'
-const PREGUNTA_FAVORITOS = '¿Querés que te avisemos antes de tus favoritos?'
 
 export interface AvisoActivarPushProps {
   variante: VarianteAvisoPush
@@ -77,11 +79,13 @@ export interface AvisoActivarPushProps {
 export function AvisoActivarPush({ variante }: AvisoActivarPushProps) {
   const colores = useColoresQPS()
   const { estado, activar, reintentar, abrirAjustes } = usePush()
+  const { idioma } = useIdioma()
+  const t = useTextos().notificaciones
 
   if (estado === 'sin-sesion') return null
   if (variante === 'favoritos' && !seMuestraAvisoFavoritos(estado)) return null
 
-  const boton = botonParaEstado(estado)
+  const boton = botonParaEstado(estado, idioma)
   const accionesPorNombre: Record<AccionBotonPush, () => void> = {
     activar: () => {
       activar()
@@ -102,11 +106,11 @@ export function AvisoActivarPush({ variante }: AvisoActivarPushProps) {
     >
       {variante === 'cuenta' ? (
         <Fragment>
-          <Texto tono="secundario">{EXPLICACION_CUENTA}</Texto>
-          <Texto tono="secundario">{TEXTOS_PUSH[estado]}</Texto>
+          <Texto tono="secundario">{t.explicacionCuenta}</Texto>
+          <Texto tono="secundario">{t.estadosPush[estado]}</Texto>
         </Fragment>
       ) : (
-        <Texto peso="semibold">{PREGUNTA_FAVORITOS}</Texto>
+        <Texto peso="semibold">{t.preguntaFavoritos}</Texto>
       )}
 
       {boton ? (

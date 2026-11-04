@@ -25,9 +25,11 @@ const fuente = readFileSync(join(ROOT, 'components/auth-modal.tsx'), 'utf8')
   .replace(/\/\*[\s\S]*?\*\//g, '')
   .replace(/(^|[^:"'])\/\/.*$/gm, '$1')
 
+// R-2: mayúscula de oración en títulos y botones («Iniciar sesión», «Crear
+// cuenta», «Iniciá sesión», «Política de privacidad»); el resto, igual.
 const ES_ANTES = {
-  tituloIngresar: 'Iniciar Sesión',
-  tituloCrear: 'Crear Cuenta',
+  tituloIngresar: 'Iniciar sesión',
+  tituloCrear: 'Crear cuenta',
   descripcionIngresar: 'Guardá tus eventos favoritos para tenerlos siempre a mano.',
   descripcionCrear: 'Sumate para guardar favoritos y personalizar tu agenda.',
   email: 'Email',
@@ -37,19 +39,19 @@ const ES_ANTES = {
   olvidasteContrasena: '¿Olvidaste tu contraseña?',
   iniciandoSesion: 'Iniciando sesión...',
   creandoCuenta: 'Creando cuenta...',
-  botonIngresar: 'Iniciar Sesión',
+  botonIngresar: 'Iniciar sesión',
   botonRegistrarse: 'Registrarse',
   oContinuarCon: 'O continuar con',
   aceptasConGoogle: 'Al continuar con Google aceptás los',
   aceptasAlCrear: 'Al crear tu cuenta aceptás los',
   terminos: 'Términos y condiciones',
   yLa: 'y la',
-  privacidad: 'Política de Privacidad',
+  privacidad: 'Política de privacidad',
   cierreLegales: '.',
   noTenesCuenta: '¿No tenés cuenta?',
   registrate: 'Registrate',
   yaTenesCuenta: '¿Ya tenés cuenta?',
-  iniciaSesion: 'Iniciá Sesión',
+  iniciaSesion: 'Iniciá sesión',
   errorGoogle: 'Ocurrió un error al iniciar sesión con Google. Probá de nuevo.',
   bienvenidoDeNuevo: '¡Bienvenido de nuevo!',
   sesionIniciada: 'Sesión iniciada correctamente.',

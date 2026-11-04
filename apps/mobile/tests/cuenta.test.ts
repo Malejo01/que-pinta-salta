@@ -6,6 +6,8 @@ import { readFileSync } from 'node:fs'
 import { quitarComentarios } from '@qps/core/tests/convencion-entorno'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
+import { en } from '../lib/i18n/diccionarios/en'
+import { es } from '../lib/i18n/diccionarios/es'
 
 const RUTA_CUENTA = fileURLToPath(new URL('../app/(tabs)/cuenta.tsx', import.meta.url))
 const RUTA_BOTON_GOOGLE = fileURLToPath(new URL('../components/BotonGoogle.tsx', import.meta.url))
@@ -53,14 +55,19 @@ describe('cuenta.tsx: están los accesos del menú de la web (navbar.tsx)', () =
 
 describe('cuenta.tsx: "Cerrar sesión" es lo último del bloque con sesión', () => {
   it('tiene el texto "Cerrar sesión"', () => {
-    expect(SRC_CUENTA).toContain('Cerrar sesión')
+    // Q6-1: el texto sale del diccionario (`cuenta.cerrarSesion`).
+    expect(SRC_CUENTA).toContain('{tc.cerrarSesion}')
+    expect(es.cuenta.cerrarSesion).toBe('Cerrar sesión')
+    expect(en.cuenta.cerrarSesion).not.toBe('Cerrar sesión')
   })
 
   it('aparece después de "Mi Radar Salteño", "Mis Favoritos" y "Ver la bienvenida" (en ese orden)', () => {
-    const idxRadar = SRC_CUENTA.indexOf('Mi Radar Salteño')
-    const idxFavoritos = SRC_CUENTA.indexOf('Mis Favoritos')
-    const idxBienvenida = SRC_CUENTA.indexOf('Ver la bienvenida')
-    const idxCerrarSesion = SRC_CUENTA.lastIndexOf('Cerrar sesión')
+    // Q6-1: mismo orden, con las claves del diccionario (en el código, sin comentarios).
+    const idxRadar = CODIGO_CUENTA.indexOf('texto={tc.miRadar}')
+    const idxFavoritos = CODIGO_CUENTA.indexOf('texto={t.misEventos.titulo}')
+    const idxBienvenida = CODIGO_CUENTA.indexOf('{tc.verBienvenida}')
+    const idxCerrarSesion = CODIGO_CUENTA.lastIndexOf('{tc.cerrarSesion}')
+    expect(es.cuenta.miRadar).toBe('Mi Radar Salteño')
 
     expect(idxRadar).toBeGreaterThan(-1)
     expect(idxFavoritos).toBeGreaterThan(idxRadar)
@@ -179,7 +186,10 @@ describe('cuenta.tsx: conserva piezas de la R28 (no se pierden en el rediseño)'
   })
 
   it('"Ver la bienvenida" (F9)', () => {
-    expect(SRC_CUENTA).toContain('Ver la bienvenida')
+    // Q6-1: del diccionario.
+    expect(SRC_CUENTA).toContain('{tc.verBienvenida}')
+    expect(es.cuenta.verBienvenida).toBe('Ver la bienvenida')
+    expect(en.cuenta.verBienvenida).not.toBe('Ver la bienvenida')
   })
 
   it('registra el código de error de Google (F8), nunca el message crudo', () => {
@@ -204,11 +214,14 @@ describe('cuenta.tsx: texto secundario en mutedForeground, nunca en border', () 
 // 49-a (QPS-244): "Iniciar Sesion" (sin tilde) pasa a "Iniciar sesión".
 describe('cuenta.tsx: "Iniciar sesión" con tilde', () => {
   it('tiene el texto con tilde', () => {
-    expect(SRC_CUENTA).toContain('Iniciar sesión')
+    // Q6-1: el texto vive en el diccionario (`cuenta.iniciarSesion`).
+    expect(SRC_CUENTA).toContain('{tc.iniciarSesion}')
+    expect(es.cuenta.iniciarSesion).toBe('Iniciar sesión')
   })
 
   it('no queda "Iniciar Sesion" sin tilde', () => {
     expect(SRC_CUENTA).not.toContain('Iniciar Sesion')
+    expect(JSON.stringify(es)).not.toContain('Iniciar Sesion')
   })
 })
 
@@ -222,12 +235,15 @@ describe('cuenta.tsx: QPS-241, sin tono="primario" para texto chico', () => {
   })
 
   it('"Ver la bienvenida" sigue subrayado (las dos ramas)', () => {
-    const apariciones = [...CODIGO_CUENTA.matchAll(/Ver la bienvenida/g)]
+    // Q6-1: el texto sale del diccionario (`tc.verBienvenida`), en las dos ramas, subrayado.
+    const apariciones = [...CODIGO_CUENTA.matchAll(/textDecorationLine: 'underline' \}\}>\s*\{tc\.verBienvenida\}/g)]
     expect(apariciones).toHaveLength(2)
   })
 
   it('"¿Olvidaste tu contraseña?" sigue subrayado', () => {
-    const idx = CODIGO_CUENTA.indexOf('¿Olvidaste tu contraseña?')
+    // Q6-1: del diccionario (`cuenta.olvidaste`).
+    expect(es.cuenta.olvidaste).toBe('¿Olvidaste tu contraseña?')
+    const idx = CODIGO_CUENTA.indexOf('{tc.olvidaste}')
     expect(idx).toBeGreaterThan(-1)
     const antes = CODIGO_CUENTA.slice(Math.max(0, idx - 150), idx)
     expect(antes).toContain("textDecorationLine: 'underline'")
@@ -379,6 +395,9 @@ describe('BotonGoogle.tsx: outline (con borderWidth) y detrás de la condición 
   })
 
   it('el texto es "Google", como la web', () => {
-    expect(SRC_BOTON_GOOGLE).toContain('Google</Texto>')
+    // Q6-1: del diccionario (`cuenta.google`, igual en los dos idiomas: es la marca).
+    expect(SRC_BOTON_GOOGLE).toContain('{t.google}</Texto>')
+    expect(es.cuenta.google).toBe('Google')
+    expect(en.cuenta.google).toBe('Google')
   })
 })

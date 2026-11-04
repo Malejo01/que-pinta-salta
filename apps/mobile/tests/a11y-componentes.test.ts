@@ -12,6 +12,8 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
+import { en } from '../lib/i18n/diccionarios/en'
+import { es } from '../lib/i18n/diccionarios/es'
 
 const MOBILE_ROOT = fileURLToPath(new URL('..', import.meta.url))
 const COMPONENTS_DIR = join(MOBILE_ROOT, 'components')
@@ -96,10 +98,15 @@ describe('Hero.tsx: la superposición de la diapositiva usa ESCALA_MAXIMA_COMPAC
   // argumento — si esto quedara en `accessibilityLabel={etiquetaDiapositiva}`
   // sin invocar o con otro argumento, el `toMatch` fallaría.
   it('la diapositiva (DiapositivaHero) lleva accessibilityRole="button" y su etiqueta sale de etiquetaDiapositiva(evento.title, ...)', () => {
-    expect(SRC_HERO).toMatch(/accessibilityRole="button"[\s\S]{0,160}accessibilityLabel=\{etiquetaDiapositiva\(\s*evento\.title/)
+    // Q6-1: con el título que se muestra (`titulo`: en inglés, el traducido si hay) y el idioma.
+    expect(SRC_HERO).toMatch(/accessibilityRole="button"[\s\S]{0,160}accessibilityLabel=\{etiquetaDiapositiva\(\s*titulo, indice, total, idioma\)/)
+    expect(SRC_HERO).toMatch(/const titulo = textoEnIdioma\(evento\.title, evento\.titleEn, idioma\)\.texto/)
   })
 
   it('los puntos de paginación siguen con su propia etiqueta ("Ir al evento N")', () => {
-    expect(SRC_HERO).toMatch(/accessibilityLabel=\{`Ir al evento \$\{i \+ 1\}`\}/)
+    // Q6-1: del diccionario (`hero.irAlEvento`).
+    expect(SRC_HERO).toMatch(/accessibilityLabel=\{t\.irAlEvento\(i \+ 1\)\}/)
+    expect(es.hero.irAlEvento(2)).toBe('Ir al evento 2')
+    expect(en.hero.irAlEvento(2)).toBe('Go to event 2')
   })
 })

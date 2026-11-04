@@ -19,16 +19,23 @@
 // `lib/contrasena.ts`, no acá — ver ese archivo para la garantía de que la
 // contraseña nunca se loguea ni se guarda en ningún lado. Esta pantalla solo
 // arma la UI y le pasa los dos valores que escribió la persona.
+//
+// Q6-1b: los textos salen del diccionario (`t.contrasena`): en castellano,
+// `modos` son los mismos de `textosContrasena` de core; en inglés, los de la
+// web. Los errores de `lib/contrasena.ts` (validación y Supabase, de core) se
+// guardan en castellano y se muestran con `t.errores.traducir`.
 import { useEffect, useState } from 'react'
 import { ActivityIndicator, Pressable, ScrollView, View } from 'react-native'
 import { Stack, useRouter } from 'expo-router'
-import { textosContrasena, tipoDeCuenta } from '@qps/core/auth/cuenta'
+import { tipoDeCuenta } from '@qps/core/auth/cuenta'
 import { CampoTexto } from '@/components/CampoTexto'
 import { Cargando } from '@/components/EstadoCarga'
 import { Texto } from '@/components/Texto'
 import { useColoresQPS } from '@/lib/colores'
 import { guardarContrasena } from '@/lib/contrasena'
+import { useTextos } from '@/lib/i18n'
 import { useSession } from '@/lib/session'
+import { useAnunciarAviso } from '@/lib/anunciar-aviso-hook'
 
 // Mismo criterio que `app/(tabs)/cuenta.tsx` y `app/eliminar-cuenta.tsx`: un
 // rojo fijo para el error, nunca leído de `useColorScheme()` (D1, 29-g: la
@@ -40,6 +47,8 @@ export default function Contrasena() {
   const router = useRouter()
   const colores = useColoresQPS()
   const { session, cargando } = useSession()
+  const t = useTextos()
+  const tc = t.contrasena
 
   const [nueva, setNueva] = useState('')
   const [repetida, setRepetida] = useState('')
@@ -51,6 +60,11 @@ export default function Contrasena() {
     if (!cargando && !session) router.replace('/cuenta')
   }, [cargando, session, router])
 
+  // Q6-6: el error y el «Listo» se le dicen al lector de pantalla. El «Listo»
+  // reemplaza el formulario entero: sin el anuncio, TalkBack perdía el foco y
+  // no decía nada.
+  useAnunciarAviso(error ? t.errores.traducir(error) : guardada ? tc.guardada : null)
+
   if (cargando || !session) {
     return (
       <View style={[estilos.centrado, { backgroundColor: colores.background }]}>
@@ -59,7 +73,7 @@ export default function Contrasena() {
     )
   }
 
-  const textos = textosContrasena(tipoDeCuenta(session.user))
+  const textos = tc.modos[tipoDeCuenta(session.user)]
 
   async function guardar() {
     setError(null)
@@ -77,12 +91,10 @@ export default function Contrasena() {
     return (
       <View style={[estilos.centrado, { backgroundColor: colores.background, padding: 24, gap: 16 }]}>
         <Stack.Screen options={{ title: textos.titulo }} />
-        <Texto style={{ textAlign: 'center' }}>
-          Contraseña guardada. Ya podés entrar con tu email y esta contraseña.
-        </Texto>
+        <Texto style={{ textAlign: 'center' }}>{tc.guardada}</Texto>
         <Pressable onPress={() => router.back()} accessibilityRole="button" style={estilos.botonVolver(colores.primary)}>
-          <Texto peso="semibold" style={{ color: colores.primaryForeground }}>
-            Volver
+          <Texto peso="semibold" style={{ color: colores.primaryForeground, textAlign: 'center' }}>
+            {tc.volver}
           </Texto>
         </Pressable>
       </View>
@@ -103,10 +115,10 @@ export default function Contrasena() {
       <Texto tono="secundario">{textos.descripcion}</Texto>
 
       <CampoTexto
-        label="Contraseña nueva"
+        label={tc.contrasenaNueva}
         value={nueva}
         onChangeText={setNueva}
-        placeholder="Contraseña nueva"
+        placeholder={tc.contrasenaNueva}
         secureTextEntry
         mostrarOcultar
         autoCapitalize="none"
@@ -114,10 +126,10 @@ export default function Contrasena() {
         editable={!guardando}
       />
       <CampoTexto
-        label="Repetila"
+        label={tc.repetila}
         value={repetida}
         onChangeText={setRepetida}
-        placeholder="Repetila"
+        placeholder={tc.repetila}
         secureTextEntry
         mostrarOcultar
         autoCapitalize="none"
@@ -125,19 +137,21 @@ export default function Contrasena() {
         editable={!guardando}
       />
 
-      {error ? <Texto style={{ color: COLOR_ERROR }}>{error}</Texto> : null}
+      {error ? <Texto style={{ color: COLOR_ERROR }}>{t.errores.traducir(error)}</Texto> : null}
 
       <Pressable
         onPress={guardar}
         disabled={guardando}
         accessibilityRole="button"
+        // Q6-6: con la ruedita no hay texto: el nombre va aparte.
+        accessibilityLabel={textos.boton}
         accessibilityState={{ busy: guardando }}
         style={estilos.boton(guardando, colores.primary, colores.border)}
       >
         {guardando ? (
           <ActivityIndicator color={colores.primaryForeground} />
         ) : (
-          <Texto peso="semibold" style={{ color: colores.primaryForeground }}>
+          <Texto peso="semibold" style={{ color: colores.primaryForeground, textAlign: 'center' }}>
             {textos.boton}
           </Texto>
         )}
@@ -164,6 +178,8 @@ const estilos = {
   botonVolver: (color: string) => ({
     minHeight: 48,
     minWidth: 48,
+    // Q6-1b: sin pasarse del ancho con la letra al 200 % (el texto envuelve).
+    maxWidth: '100%' as const,
     paddingHorizontal: 20,
     borderRadius: 8,
     alignItems: 'center' as const,
