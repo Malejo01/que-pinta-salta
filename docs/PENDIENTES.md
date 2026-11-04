@@ -8,6 +8,56 @@ Cada ítem dice **dónde** se toca y **qué se midió**, para no re-diagnosticar
 
 ---
 
+## Tanda Q6 (3–4/11/2026) — hecho y pendiente
+
+Integración: PR Malejo01/que-pinta-salta#189 (`ronda/integracion-q6` → `main`). El detalle está en cada PR; el SQL para producción, en `docs/tanda-q6/sql-produccion.md`.
+
+### Hecho (mergeado en la integración)
+- **La app completa en inglés** (#190, #193):
+  - Inicio, Buscar, Mis eventos, Radar, Cuenta, la ficha, Contraseña, Eliminar cuenta y la pantalla de error.
+  - Los avisos locales salen en el idioma elegido.
+  - Los botones funcionan con letra al 200 %.
+- **La web completa en inglés** (#188): `/en/auth/sign-up`, `/en/perfil` y `/en/nuevo-evento`. Sin sesión, las páginas en inglés mandan al ingreso en inglés.
+- **«Este finde pinta» con la app cerrada** (#192): si la app se abre el jueves antes de las 18, pregunta al servidor si ya hubo aviso del equipo (`GET /api/app/aviso-equipo`).
+- **Traducción** (#194): un error del proveedor (por ejemplo, 402 sin crédito) ya no cuenta como descarte. Corta la corrida, falla el workflow y el chequeo de salud `traduccion` se pone en rojo.
+- **Rendimiento** (#195): menos JavaScript inicial. Accesibilidad 100 en Lighthouse local en `/`, `/mapa`, `/lugar`, `/en` y `/evento`.
+- **Accesibilidad** (#196):
+  - App: anuncios de TalkBack, contenido en castellano marcado como tal y tamaños táctiles.
+  - Web: token `--error` con contraste y foco visible.
+- **Textos** (#198): voseo, mayúsculas y tildes, inglés consistente. **Docs** (#197): README y guía del build 9.
+
+### Pendiente (lo decide o lo hace Mauro)
+- [ ] **Aplicar las migraciones de Q6** y mergear lo que espera (`docs/tanda-q6/sql-produccion.md`):
+  - B `q6_ia_llamadas` → #187 (capa de IA) y #191 (banco de evaluación);
+  - C1 o C2 `q6_revision_q5` → #186 (revisión de Q5: privacidad de `lugares_permanentes`, cupo anti-spam, el formulario que borraba lo escrito).
+- [ ] **Alinear `schema_migrations` de Q5** (bloque A del mismo archivo).
+- [ ] **GitGuardian marcó un falso positivo en #196**: el texto `'components/change-password-form.tsx'` de un test. No hay ninguna clave. Marcalo como *false positive* en el panel de GitGuardian para que el check de #189 quede verde.
+- [ ] **Traducción**:
+  - con crédito en Gemini, liberar los 100 eventos marcados el 3/11 (SQL en #194);
+  - correr una tanda de prueba;
+  - mirar `descartesPorMotivo`.
+- [ ] **IA, Gemini o Claude**:
+  - correr `npx tsx scripts/evaluar-ia.ts --real --proveedor ambos --tope 30 --confirmo-costo` (≈ USD 0,20, necesita las dos claves);
+  - decidir por uso con los umbrales de `docs/evaluacion-ia/README.md`.
+- [ ] **Rendimiento**: ninguna página llega a 90 en la medición local.
+  - Decidir si se saca `app/mapa/loading.tsx` (de 47 a 61 en `/mapa`).
+  - Decidir si el mapa chico de `/lugar` se carga al tocarlo.
+  - Decidir si framer-motion de la portada pasa a carga diferida.
+- [ ] **«Este finde pinta»**: el caso de la app que no se abre entre el aviso y las 18 necesita `expo-task-manager`, una dependencia nueva con build nativo (opción detallada en #192).
+- [ ] **Privacidad (texto legal propuesto en #186)**: el id de métricas de la app y el contacto del formulario de lugares. **Play**: sumar «Estadísticas» al «ID de dispositivo u otros».
+- [ ] **Purga a 90 días del contacto de los pedidos de lugares** (propuesta en #186).
+- [ ] **Todavía en castellano**:
+  - `/perfil/eliminar-cuenta` y `/auth/sign-up-success`;
+  - lo que se comparte por WhatsApp;
+  - los nombres de categoría (no hay `name_en`).
+- [ ] **Textos**:
+  - el panel admin todavía tutea («No tienes permisos…»);
+  - la marca aparece con y sin tilde («Que pinta Salta»);
+  - en las listas de la web la hora sale en formato de 12 h.
+- [ ] **Contraste**: quedan 43 usos de `text-destructive` fuera de Q6 que no llegan al contraste mínimo en modo oscuro (#196).
+
+---
+
 ## Tanda Q5 (3/11/2026) — hecho y pendiente
 
 Integración: PR Malejo01/que-pinta-salta#166 (`ronda/integracion-q5` → `main`). El detalle de cada ticket está en su PR; las decisiones de Mauro, en `docs/tanda-q5/README.md`.
@@ -39,14 +89,14 @@ Integración: PR Malejo01/que-pinta-salta#166 (`ronda/integracion-q5` → `main`
   - Migración **aplicada**.
 
 ### Pendiente (lo decide o lo hace Mauro)
-- [ ] `supabase migration repair` de las 5 migraciones Q5 aplicadas con el conector. Quedaron con la versión de la hora en que se aplicaron; los comandos están en #166.
-- [ ] **Créditos de IA agotados** (respuesta 402 en la auditoría de #172): sin créditos no corren la cola de flyers ni la traducción.
+- [ ] Alinear `schema_migrations` de las 5 migraciones de Q5: hay que pegar el bloque A de `docs/tanda-q6/sql-produccion.md` en el editor de Supabase.
+- [x] Créditos de IA: Mauro cargó USD 10 el 3/11. Lo que queda es liberar la traducción (ver Q6).
 - [ ] Textos legales propuestos (en #166): pedidos de lugares para chicos (#168), aperturas de la app (#178) y «Cerca mío» en el mapa (#167).
 - [ ] Revisar los 20 barrios con puntos aproximados (`packages/core/src/datos/barrios.ts`, #167).
 - [ ] `inferCategorySlug` no reconoce «Peña» sola (#173). Se propone sumar `\bpena(s)?\b` a la regex.
-- [ ] La app en inglés, segunda parte: Inicio, Buscar, Mis eventos, Radar y Cuenta. Hay que reescribir unos 40 detectores (#177).
-- [ ] La web en inglés: `/auth/sign-up`, `/perfil` y `/nuevo-evento` siguen en castellano (#179).
-- [ ] «Este finde pinta» con la app cerrada y el aviso del equipo descartado sin tocarlo. Necesita `expo-task-manager`, que es una dependencia nueva (#180).
+- [x] La app en inglés, segunda parte: hecho en Q6 (#190, #193).
+- [x] La web en inglés: alta, perfil y carga de eventos, hecho en Q6 (#188).
+- [~] «Este finde pinta» con la app cerrada: achicado en Q6 (#192). Lo que queda necesita `expo-task-manager`.
 - [ ] Fuentes candidatas de `docs/fuentes/candidatas.md`: probarlas desde una red sin el proxy de la sesión (#175).
 - [ ] Purgas sin automatizar: pedidos de lugares para chicos (#168) y `app_aperturas_diarias` (#178).
 - [ ] Sigue de Q4: los secrets de GitHub de la geocodificación diaria (#147), el ciclo de publicidad `2026-10-01` (#149) y el pedido de producción en Play del 9/11.
