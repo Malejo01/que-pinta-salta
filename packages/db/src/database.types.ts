@@ -386,6 +386,19 @@ isOneToOne: false
       referencedColumns: ["id"]
     }
                   ]
+                },"lugares_chicos_pedidos_cupos": {
+                  Row: {
+                    "cantidad": number,"clave": string,"dia": string
+                  }
+                  Insert: {
+                    "cantidad"?: number,"clave": string,"dia": string
+                  }
+                  Update: {
+                    "cantidad"?: number,"clave"?: string,"dia"?: string
+                  }
+                  Relationships: [
+                    
+                  ]
                 },"lugares_permanentes": {
                   Row: {
                     "acceso": string,"cargado_por": string | null,"contacto_instagram": string | null,"contacto_telefono": string | null,"contacto_web": string | null,"created_at": string,"descripcion_corta": string | null,"edad_max": number | null,"edad_min": number | null,"estado": string,"fuente": string,"fuente_detalle": string | null,"horarios": NonNullable<Json>,"id": string,"motivo_archivo": string | null,"nota_precio": string | null,"osm_ref": string | null,"techado": string | null,"tiene_bano_adaptado": boolean | null,"tiene_cambiador": boolean | null,"tiene_rampa": boolean | null,"tipo": string,"updated_at": string,"venue_id": string,"verificado_at": string | null,"verificado_por": string | null
@@ -829,6 +842,9 @@ isOneToOne: true
                            },
 "set_push_preferences":
 { Args: { "p_avisos_equipo"?: boolean,"p_avisos_patrocinados"?: boolean,"p_device_id": string,"p_token": string }; Returns: boolean
+                           },
+"tomar_cupo_pedido_lugar_chicos":
+{ Args: { "p_clave": string,"p_max_por_clave"?: number,"p_max_por_dia"?: number }; Returns: boolean
                            },
 "unlink_push_token":
 { Args: { "p_token": string }; Returns: boolean

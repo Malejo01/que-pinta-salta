@@ -23,6 +23,8 @@ vi.mock('@/lib/supabase/server', () => ({
   createAdminClient: () => {
     estado.adminCreado++
     return {
+      // Q6-7: el cupo diario en la base (acá, siempre hay cupo).
+      rpc: async () => ({ data: true, error: null }),
       from: (tabla: string) => ({
         insert: async (fila: Record<string, unknown>) => {
           estado.inserts.push({ tabla, fila })
@@ -59,6 +61,8 @@ const INICIAL = { estado: 'inicial' } as const
 let errores: ReturnType<typeof vi.spyOn>
 let logs: ReturnType<typeof vi.spyOn>
 beforeEach(() => {
+  // Q6-7: la acción usa la service key como secreto del HMAC del cupo.
+  vi.stubEnv('SUPABASE_SERVICE_ROLE_KEY', 'secreto-de-prueba-qa')
   estado.ip = '200.1.1.1'
   estado.inserts = []
   estado.resultado = { error: null }
@@ -69,6 +73,7 @@ beforeEach(() => {
   logs = vi.spyOn(console, 'log').mockImplementation(() => {})
 })
 afterEach(() => {
+  vi.unstubAllEnvs()
   vi.useRealTimers()
   vi.restoreAllMocks()
 })
