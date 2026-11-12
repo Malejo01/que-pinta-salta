@@ -1,4 +1,4 @@
-# CI: typecheck y esquema de la base.
+# CI: typecheck, lint, tests, build y esquema de la base.
 #
 # Monorepo (R22): npm workspaces y Turborepo. npm ci corre en la raíz; el
 # typecheck pasa por turbo (apps/web y packages/*); supabase/ sigue en la raíz.
@@ -39,6 +39,58 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run typecheck
+
+  # Ahorro de builds (ronda/ahorro-vercel): Vercel ya no construye cada push de
+  # rama (solo con [preview] en el commit), así que lint, tests y build se
+  # verifican acá. GitHub Actions es gratis en repo público; Vercel cobra el
+  # Build CPU.
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+
+  unit:
+    name: Tests unitarios
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      # Casos del Ignored Build Step de Vercel (scripts/vercel-ignore.sh)
+      - run: bash scripts/vercel-ignore.test.sh
+
+  build:
+    name: Build de la web
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    # Valores de prueba: el build no se conecta a nada y no usa secretos de producción
+    env:
+      NEXT_TELEMETRY_DISABLED: 1
+      NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54321
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-anon-key-de-prueba
+      NEXT_PUBLIC_SITE_URL: http://localhost:3000
+      SUPABASE_SERVICE_ROLE_KEY: ci-service-key-de-prueba
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
 
   database:
     name: Migraciones y tipos
