@@ -11,7 +11,13 @@
  */
 import { cache } from 'react'
 import { createClient } from '@/lib/supabase/server'
-import { DIAS_PASADOS_RECIENTES, leerParametroLugar, separarEventosDeLugar, type EventoDeLugar } from '@qps/core/lugares/ficha'
+import {
+  COLUMNAS_EVENTO_DE_LUGAR,
+  DIAS_PASADOS_RECIENTES,
+  leerParametroLugar,
+  separarEventosDeLugar,
+  type EventoDeLugar,
+} from '@qps/core/lugares/ficha'
 import { armarLugaresChicos, type FilaLugarChicos, type LugarChicosMapa } from '@qps/core/mapa/lugares-chicos'
 import { SELECT_LUGARES_CHICOS } from '@/lib/lugares-chicos/publicos'
 
@@ -84,7 +90,8 @@ export const obtenerFichaLugar = cache(async (parametro: string): Promise<Result
   const [eventos, permanente] = await Promise.all([
     supabase
       .from('events')
-      .select('id, title, start_date, end_date, is_free')
+      // Q7-3: también lo que pide el JSON-LD (descripción, imagen y oferta).
+      .select(COLUMNAS_EVENTO_DE_LUGAR)
       .eq('status', 'PUBLISHED')
       .in('venue_id', ids)
       // R-1: también lo que empezó antes pero sigue en curso (una muestra de

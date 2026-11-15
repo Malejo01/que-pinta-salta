@@ -3,6 +3,7 @@ import { findMergeRedirect } from "@/lib/events/merged"
 
 import { getEventById } from "@/lib/data"
 import { textosJsonLdEvento } from "@/lib/seo/json-ld-evento-idioma"
+import { imagenJsonLdEvento, ofertaJsonLdEvento } from "@/lib/seo/json-ld-evento"
 import { getCategories } from "@/lib/data"
 import { EventDetailPage } from "@/components/event-detail-page"
 import { createClient, createAdminClient } from "@/lib/supabase/server"
@@ -233,27 +234,12 @@ export default async function EventPage({ params, searchParams, idioma = "es" }:
       }),
       ...(venue?.google_maps_url && { 'hasMap': venue.google_maps_url }),
     },
-    'image': event.image_url ? [event.image_url] : ['https://www.quepintasalta.com.ar/og-image.png'],
+    // Q7-3: imagen, descripción y oferta con las mismas funciones que los
+    // `Event` de la ficha del lugar (lib/seo/json-ld-evento.ts). B2: precio 0
+    // solo si es gratis; pago sin precio, sin `price` ni `priceCurrency`.
+    'image': imagenJsonLdEvento(event.image_url),
     'description': textosJsonLd.description,
-    'offers': {
-      '@type': 'Offer',
-      'name': event.is_free ? 'Entrada libre y gratuita' : 'Entrada',
-      'url': event.ticket_url || eventUrl,
-      // B2: precio 0 solo si es gratis. Antes un evento pago sin precio
-      // cargado decía 0, que para Google es «gratis». Sin precio conocido no
-      // va ni `price` ni `priceCurrency`. Un `price_min` de 0 en un evento
-      // pago también es «sin precio»: el sitio lo muestra como «A confirmar»
-      // (`transformEvent` en @qps/core/home/transform).
-      ...(event.is_free
-        ? { 'price': 0, 'priceCurrency': 'ARS' }
-        : typeof event.price_min === 'number' && event.price_min > 0
-          ? { 'price': event.price_min, 'priceCurrency': 'ARS' }
-          : {}),
-      'availability': isCancelled
-        ? 'https://schema.org/SoldOut'
-        : 'https://schema.org/InStock',
-      'validFrom': event.created_at,
-    },
+    'offers': ofertaJsonLdEvento(event, { urlFicha: eventUrl, cancelado: isCancelled }),
     ...(event.category?.name && {
       'about': { '@type': 'Thing', 'name': event.category.name },
     }),
