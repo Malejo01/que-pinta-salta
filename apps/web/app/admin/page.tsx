@@ -64,6 +64,17 @@ export default async function AdminHomePage() {
 
   if (profile?.role !== 'ADMIN') redirect('/?error=unauthorized')
 
+  // Q7-2: las ubicaciones sugeridas esperan un botón en /admin/lugares y,
+  // mientras tanto, la geocodificación diaria no vuelve a mirar esos lugares:
+  // se avisan acá para que no queden sin ver. Si la consulta falla, no se muestra nada.
+  const { count: sugerenciasPendientes } = await supabase
+    .from('venues')
+    .select('id', { count: 'exact', head: true })
+    .is('latitude', null)
+    .not('geocode_sugerencia_lat', 'is', null)
+    .is('canonical_venue_id', null)
+    .is('merged_at', null)
+
   return (
     <div className="min-h-screen bg-background">
       <div className="container mx-auto max-w-5xl px-4 py-8">
@@ -95,6 +106,13 @@ export default async function AdminHomePage() {
                     {section.title}
                   </CardTitle>
                   <CardDescription>{section.description}</CardDescription>
+                  {section.href === '/admin/lugares' && (sugerenciasPendientes ?? 0) > 0 && (
+                    <p className="text-sm font-medium text-foreground">
+                      {sugerenciasPendientes === 1
+                        ? '1 ubicación sugerida para confirmar'
+                        : `${sugerenciasPendientes} ubicaciones sugeridas para confirmar`}
+                    </p>
+                  )}
                 </CardHeader>
                 <CardContent>
                   <Button asChild>

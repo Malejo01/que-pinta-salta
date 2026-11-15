@@ -5,16 +5,22 @@
 # OpenStreetMap). Reglas propias, fijadas en
 # `apps/web/lib/venues/geocodificacion/programado.ts` y en
 # `apps/web/tests/venues/geocodificacion/no-programado.test.ts`:
-#   - una corrida por día, como mucho 10 lugares;
-#   - menos de 4 pedidos por minuto (15,1 s entre pedidos);
+#   - una corrida por día, como mucho 20 lugares a Nominatim (Q7-2; se cambia
+#     con la variable de repositorio GEOCODIFICACION_TOPE, hasta 30), primero
+#     los que tienen eventos próximos y después el resto;
+#   - menos de 4 pedidos por minuto (15,1 s entre pedidos; nunca más de 1 por
+#     segundo);
 #   - un lugar ya intentado no se repite antes de 30 días (venues.geocode_intentado_at);
 #   - User-Agent propio (`QuePintaSalta/1.0 (geocodificación de lugares; …)`);
 #   - registro en job_runs (job_key `geocodificacion`).
 # Los de confianza alta se guardan; los demás quedan en la pestaña «Sin
 # ubicación» de /admin/lugares. Nunca pisa coordenadas cargadas a mano.
+# Q7-2: los lugares cuyos eventos traen un link de Google Maps con coordenadas
+# quedan con esa sugerencia (sin pedirle nada a Google ni a Nominatim).
 #
-# Corre en el runner (no en una función de Vercel): a 4 pedidos por minuto, 10
-# lugares pueden llevar hasta 10 minutos. Necesita los secrets
+# Corre en el runner (no en una función de Vercel): a 4 pedidos por minuto, 20
+# lugares pueden llevar hasta 20 minutos; el script no empieza un lugar nuevo
+# pasados 35 minutos. Necesita los secrets
 # NEXT_PUBLIC_SUPABASE_URL y SUPABASE_SERVICE_ROLE_KEY; si faltan, avisa y no
 # hace nada (no falla todos los días).
 name: Lugares al mapa (geocodificación diaria)
@@ -34,10 +40,12 @@ concurrency:
 jobs:
   geocodificar:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 45
     env:
       NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      # Q7-2: tope de lugares por corrida (vacío = 20; el script no pasa de 30).
+      GEOCODIFICACION_TOPE: ${{ vars.GEOCODIFICACION_TOPE }}
     steps:
       - name: Revisar los secrets
         id: secrets

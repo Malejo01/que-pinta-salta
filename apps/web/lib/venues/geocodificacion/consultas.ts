@@ -14,7 +14,7 @@
 import { CONTACTO_EMAIL } from '@qps/core/contacto'
 import { ZONA_SALTA } from '@qps/core/mapa/zona'
 import { calleYNumero, normalizarDireccion } from './direccion'
-import { localidadDelLugar, type Localidad, type Zona } from './localidades'
+import { localidadDelLugar, SALTA_CAPITAL, type Localidad, type Zona } from './localidades'
 
 /** User-Agent exigido por la política de uso de Nominatim: identifica el sitio y un contacto real. */
 export const USER_AGENT = `QuePintaSalta/1.0 (geocodificación de lugares; +https://www.quepintasalta.com.ar; ${CONTACTO_EMAIL})`
@@ -25,8 +25,32 @@ export const REFERER = 'https://www.quepintasalta.com.ar'
 /** Política de uso de Nominatim que este cliente tiene que cumplir (máx. 1 pedido/segundo, etc.). */
 export const URL_POLITICA = 'https://operations.osmfoundation.org/policies/nominatim/'
 
-/** Direcciones que llegan de las fuentes pero no aportan nada para geocodificar (ya normalizadas). */
-const DIRECCIONES_INUTILES = new Set(['salta', 'salta capital', 'a confirmar', 'sin direccion'])
+/**
+ * Direcciones que llegan de las fuentes pero no aportan nada para geocodificar
+ * (ya normalizadas con `normalizarConsulta`). Q7-2: también las genéricas que
+ * solo nombran la ciudad, el país o el centro.
+ */
+const DIRECCIONES_INUTILES = new Set([
+  'salta',
+  'salta capital',
+  'a confirmar',
+  'sin direccion',
+  // Q7-2
+  'salta, argentina',
+  'salta capital, argentina',
+  'salta capital, salta',
+  'salta, salta',
+  'capital',
+  'argentina',
+  'centro',
+  'microcentro',
+  'centro, salta',
+  'salta centro',
+  'a definir',
+  'por confirmar',
+  'sin datos',
+  's/d',
+])
 
 /**
  * Clave de comparación: minúsculas, sin tildes, espacios colapsados y
@@ -56,6 +80,8 @@ export function direccionUtil(address: string | null | undefined, nombre: string
   if (direccionNorm.length === 0) return false
   if (direccionNorm === normalizarConsulta(nombre ?? '')) return false
   if (DIRECCIONES_INUTILES.has(direccionNorm)) return false
+  // Q7-2: «Salta - Argentina», «Salta.» y parecidos (solo separadores entre palabras genéricas).
+  if (DIRECCIONES_INUTILES.has(direccionNorm.replace(/\s*[-–.;/]\s*/g, ', ').replace(/,\s*$/, '').trim())) return false
   return true
 }
 
@@ -102,6 +128,8 @@ function consultaProvincia(q: string): ConsultaLibre {
 /**
  * Las consultas de un lugar, en orden, sin repetidas (por `claveDeConsulta`):
  *
+ *   0. Q7-2: si la dirección no sirve (vacía o genérica), "nombre, Salta,
+ *      Argentina" en la ciudad.
  *   1. Si la dirección (normalizada: `normalizarDireccion`) es calle +
  *      número: búsqueda estructurada en la ciudad del lugar.
  *   2. "nombre, <ciudad>" en la ciudad ("La Metro, Salta Capital").
@@ -111,7 +139,7 @@ function consultaProvincia(q: string): ConsultaLibre {
  *   5. Último recurso, en toda la provincia: "dirección, Salta, Argentina"
  *      si la dirección sirve, si no "nombre, Salta, Argentina".
  *
- * La 1 y la 4 se excluyen entre sí: nunca son más de 4 consultas.
+ * La 0, la 1 y la 4 se excluyen entre sí: nunca son más de 4 consultas.
  *
  * La ciudad es Salta Capital salvo que el nombre o la dirección mencionen
  * otra localidad conocida (`localidadDelLugar`).
@@ -130,6 +158,15 @@ export function consultasParaLugar({
   const conNumero = direccionNormalizada ? calleYNumero(direccionNormalizada) : null
 
   const candidatas: ConsultaGeocodificacion[] = []
+  // Q7-2: sin una dirección que sirva (vacía o genérica, «Salta»), primero el
+  // nombre con «Salta, Argentina», acotado al rectángulo de la ciudad: es la
+  // forma en que Nominatim mejor reconoce la ciudad, y con `bounded=1` no se
+  // escapa a otra provincia.
+  if (!direccionNormalizada) {
+    const conProvincia =
+      localidad.ciudad === SALTA_CAPITAL.ciudad ? `${nombre}, Salta, Argentina` : `${nombre}, ${localidad.ciudad}, Salta, Argentina`
+    candidatas.push({ tipo: 'libre', q: conProvincia, ...enCiudad })
+  }
   if (conNumero) {
     candidatas.push({ tipo: 'estructurada', calle: conNumero.calle, numero: conNumero.numero, ciudad: localidad.ciudad, ...enCiudad })
   }

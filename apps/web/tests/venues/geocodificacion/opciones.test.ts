@@ -12,20 +12,61 @@ describe('leerOpciones: valores por defecto', () => {
       salida: undefined,
       cache: undefined,
       programado: false,
+      seco: false,
+      prioridadEventos: false,
     })
   })
 })
 
 describe('leerOpciones: --programado (Q4-3)', () => {
-  it('implica apply, sin --todos y como mucho 10 lugares', () => {
-    expect(leerOpciones(['--programado'])).toMatchObject({ programado: true, apply: true, todos: false, rehacerNominatim: false, limite: 10 })
-    expect(leerOpciones(['--programado', '--limite', '50']).limite).toBe(10)
+  it('implica apply y --prioridad-eventos, sin --todos y como mucho 20 lugares (Q7-2)', () => {
+    expect(leerOpciones(['--programado'])).toMatchObject({
+      programado: true,
+      apply: true,
+      todos: false,
+      rehacerNominatim: false,
+      limite: 20,
+      prioridadEventos: true,
+      seco: false,
+    })
+    expect(leerOpciones(['--programado', '--limite', '50']).limite).toBe(20)
     expect(leerOpciones(['--programado', '--limite', '3']).limite).toBe(3)
+  })
+
+  it('Q7-2: el tope sale de GEOCODIFICACION_TOPE, sin pasar de 30', () => {
+    expect(leerOpciones(['--programado'], { GEOCODIFICACION_TOPE: '12' }).limite).toBe(12)
+    expect(leerOpciones(['--programado'], { GEOCODIFICACION_TOPE: '500' }).limite).toBe(30)
+    expect(leerOpciones(['--programado'], { GEOCODIFICACION_TOPE: '' }).limite).toBe(20)
+    expect(leerOpciones(['--programado'], { GEOCODIFICACION_TOPE: 'mucho' }).limite).toBe(20)
+    expect(leerOpciones(['--programado'], { GEOCODIFICACION_TOPE: '0' }).limite).toBe(20)
+    // --limite solo puede bajarlo.
+    expect(leerOpciones(['--programado', '--limite', '5'], { GEOCODIFICACION_TOPE: '25' }).limite).toBe(5)
+    expect(leerOpciones(['--programado', '--limite', '28'], { GEOCODIFICACION_TOPE: '25' }).limite).toBe(25)
+  })
+
+  it('Q7-2: con --seco no escribe (apply false), para ver la corrida de mañana', () => {
+    expect(leerOpciones(['--programado', '--seco'])).toMatchObject({ programado: true, seco: true, apply: false, limite: 20 })
   })
 
   it('no se combina con lo que afloja sus reglas', () => {
     expect(() => leerOpciones(['--programado', '--todos'])).toThrow(/--programado/)
     expect(() => leerOpciones(['--programado', '--rehacer-nominatim'])).toThrow(/--programado/)
+  })
+})
+
+describe('leerOpciones: --seco y --prioridad-eventos (Q7-2)', () => {
+  it('--seco --prioridad-eventos: no escribe y mira todos, primero los con eventos', () => {
+    expect(leerOpciones(['--seco', '--prioridad-eventos'])).toMatchObject({ seco: true, prioridadEventos: true, apply: false, todos: false })
+  })
+
+  it('--seco no se combina con --apply ni --aplicar', () => {
+    expect(() => leerOpciones(['--seco', '--apply'])).toThrow(/--seco/)
+    expect(() => leerOpciones(['--aplicar', '--seco'])).toThrow(/--seco/)
+  })
+
+  it('no llevan valor', () => {
+    expect(() => leerOpciones(['--seco=si'])).toThrow()
+    expect(() => leerOpciones(['--prioridad-eventos=1'])).toThrow()
   })
 })
 
@@ -144,6 +185,8 @@ describe('leerOpciones: todas las banderas juntas', () => {
       salida: 'ops/x',
       cache: 'ops/y.json',
       programado: false,
+      seco: false,
+      prioridadEventos: false,
     })
   })
 })
