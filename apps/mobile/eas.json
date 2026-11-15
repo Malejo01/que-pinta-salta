@@ -13,6 +13,12 @@
     "production": {
       "environment": "production",
       "autoIncrement": true
+    },
+    "production-r8": {
+      "extends": "production",
+      "env": {
+        "QPS_R8": "1"
+      }
     }
   },
   "submit": {
