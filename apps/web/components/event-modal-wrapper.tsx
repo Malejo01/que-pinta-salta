@@ -44,6 +44,7 @@ import type { CantidadesAsistencia } from "@/lib/asistencia"
 import { debenMostrarseBotonesAsistencia } from "@/lib/asistencia-visibilidad"
 import type { TipoAsistencia } from "@qps/core/asistencia"
 import type { obtenerSeguimientoDeEvento } from "@/lib/actions/radar"
+import { AdminModalEvento } from "@/components/admin/admin-modal-evento"
 
 type EventWithRelations = Event & { category: Category | null; venue: Venue | null }
 
@@ -267,6 +268,9 @@ export function EventModalWrapper({
               )}
             </DialogTitle>
           </DialogHeader>
+
+          {/* Q7-4: el estado del destacado y el link a la ficha completa (isAdmin se lee en el servidor). */}
+          {isAdmin && <AdminModalEvento eventId={event.id} featuredUntil={event.featured_until} />}
 
           {isAdmin && (
             <div className="mb-6 rounded-lg border bg-muted/40 p-3">
