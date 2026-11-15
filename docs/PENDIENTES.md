@@ -8,6 +8,26 @@ Cada ítem dice **dónde** se toca y **qué se midió**, para no re-diagnosticar
 
 ---
 
+## Tanda Q7 (15/11/2026) — hecho y pendiente
+
+Integración: PR Malejo01/que-pinta-salta#204 (`ronda/integracion-q7` → `main`). El detalle, las decisiones y los pasos manuales están en `docs/tanda-q7/README.md`; el SQL, en `docs/tanda-q7/sql-produccion.md` (no hay migraciones).
+
+### Hecho (mergeado en la integración)
+- **Geocodificación** (#205): la corrida diaria mira todos los lugares sin coordenadas, primero los que tienen eventos, con un tope de 20 configurable. Suma la consulta «nombre, Salta, Argentina» en la ciudad, los links de Google Maps de los eventos, `--seco` y las sugerencias visibles en el admin.
+- **JSON-LD de `/lugar/<slug>`** (#206): `description`, `image` y `offers` en cada `Event`.
+- **Modal del evento para ADMIN** (#207): el estado del destacado y «Abrir ficha completa».
+- **Peso de la app** (#208): R8 y `shrinkResources` detrás del perfil `production-r8`. Línea base: AAB del build 9 = 96,5 MB.
+- **«Peña» sola** clasifica como peña (#209, el pendiente de #173).
+
+### Pendiente (lo decide o lo hace Mauro)
+- [ ] Las 8 decisiones de `docs/tanda-q7/README.md`, en especial el build 10 con R8 y sacar MapLibre (≈ 15,6 MB del AAB).
+- [ ] Correr las consultas A1 y A2 del diagnóstico y, si se decide, el bloque B.
+- [ ] Confirmar los secrets de la geocodificación diaria y confirmar las sugerencias en `/admin/lugares`.
+- [ ] Search Console: «Validar corrección» de Eventos después del merge a `main`.
+- [ ] Desglose del AAB con bundletool (`docs/tanda-q7/peso-app.md`): desde la nube no se pudo bajar el AAB.
+
+---
+
 ## Tanda Q6 (3–4/11/2026) — hecho y pendiente
 
 Integración: PR Malejo01/que-pinta-salta#189 (`ronda/integracion-q6` → `main`). El detalle está en cada PR; el SQL para producción, en `docs/tanda-q6/sql-produccion.md`.
@@ -93,7 +113,7 @@ Integración: PR Malejo01/que-pinta-salta#166 (`ronda/integracion-q5` → `main`
 - [x] Créditos de IA: Mauro cargó USD 10 el 3/11. Lo que queda es liberar la traducción (ver Q6).
 - [ ] Textos legales propuestos (en #166): pedidos de lugares para chicos (#168), aperturas de la app (#178) y «Cerca mío» en el mapa (#167).
 - [ ] Revisar los 20 barrios con puntos aproximados (`packages/core/src/datos/barrios.ts`, #167).
-- [ ] `inferCategorySlug` no reconoce «Peña» sola (#173). Se propone sumar `\bpena(s)?\b` a la regex.
+- [x] `inferCategorySlug` no reconoce «Peña» sola (#173): arreglado en Q7 (#209), solo en el título y el lugar.
 - [x] La app en inglés, segunda parte: hecho en Q6 (#190, #193).
 - [x] La web en inglés: alta, perfil y carga de eventos, hecho en Q6 (#188).
 - [~] «Este finde pinta» con la app cerrada: achicado en Q6 (#192). Lo que queda necesita `expo-task-manager`.

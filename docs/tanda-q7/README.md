@@ -32,5 +32,46 @@ Contexto: el acceso a producción en Play se pidió el 15/11 (Google tarda hasta
 | Q7-5 | `nube/q7-peso-app` | Peso del AAB: R8, shrink de recursos, reglas de ProGuard y mapeo a Sentry; propuesta de dependencias y assets |
 | Q7-6 | `nube/q7-cierre` | Integración y resumen |
 
-## Avance
-_Se completa en el cierre (Q7-6)._
+## Cierre (Q7-6)
+
+Todo está mergeado en `ronda/integracion-q7`, con CI en verde. El PR a `main` es Malejo01/que-pinta-salta#204 (draft): **lo integra el supervisor**. En la punta de la integración pasan el typecheck del monorepo, los tests de la web (13 128) y los de la app (7 692).
+
+### Qué se hizo
+| Ticket | PR | Qué |
+|---|---|---|
+| Q7-1 · Base | #203 | Rama de integración, PR draft y este README |
+| Q7-2 · Geocodificación | #205 | La corrida diaria mira **todos** los lugares sin coordenadas, primero los que tienen eventos (antes, solo esos: por eso la cola no avanzaba).<br>Tope de 20 por corrida (`GEOCODIFICACION_TOPE`, hasta 30), siempre a menos de 4 pedidos por minuto.<br>«nombre, Salta, Argentina» acotado a la ciudad cuando la dirección es vacía o genérica.<br>Coordenadas sacadas de los **links de Google Maps** de los eventos (solo se parsea el link) como sugerencia de confianza alta.<br>`--seco --prioridad-eventos`.<br>En `/admin/lugares`, las sugerencias van primero, con contador; la portada del admin avisa cuántas hay |
+| Q7-3 · JSON-LD | #206 | Los `Event` de `/lugar/<slug>` suman `description`, `image` y `offers` con funciones compartidas con la ficha del evento (`lib/seo/json-ld-evento.ts`). La portada, `/cines` y `/finde` (que no existe como ruta) no tienen `Event` embebidos |
+| Q7-4 · Admin en el modal | #207 | En el modal del evento (la ruta interceptada `@modal`, que abren la portada y `/buscar`), para ADMIN: el estado del destacado y «Abrir ficha completa». El rol se lee en el servidor. Preview: https://quepintasalta-git-nube-q7-admin-modal-lizarraga-mauros-projects.vercel.app |
+| Q7-5 · Peso de la app | #208 | **Requiere build 10.**<br>R8 y `shrinkResources` con `expo-build-properties`, más reglas para las librerías nativas. Todo detrás del perfil `production-r8`, así que `production` no cambia.<br>El mapeo de R8 sube a Sentry si hay token; sin token, `-dontobfuscate`.<br>Línea base: AAB del build 9 = 96,5 MB, sin R8. Detalle y checklist en `docs/tanda-q7/peso-app.md` |
+| Pendiente de #173 | #209 | «Peña» sola en el título o en el lugar clasifica como peña. El texto se normalizaba sin tildes y `/peña/` nunca coincidía |
+
+### SQL para Mauro
+`docs/tanda-q7/sql-produccion.md`. **No hay migraciones en esta tanda.** El archivo trae:
+- **A1–A4**, solo lectura: diagnóstico de la geocodificación (historial de `job_runs`, por qué no avanzan los lugares, sugerencias pendientes y links de Maps en los eventos).
+- **B**, opcional: que los 20 lugares ya intentados vuelvan a la cola sin esperar los 30 días.
+
+### Decisiones abiertas
+1. **Coordenadas por link de Maps:** A) quedan como sugerencia que confirma un admin con un botón (lo que hace #205, sin migración); B) migración aditiva para `geocode_source = 'enlace'` y guardado directo, sin clic.
+2. **Bloque B del SQL:** A) correrlo ahora, y los 20 se reintentan desde mañana con la consulta nueva; B) esperar a que vuelvan solos (30 días desde su intento).
+3. **Tope de la geocodificación:** A) dejar 20 por corrida (no hace falta tocar nada); B) subir a 30 con la variable `GEOCODIFICACION_TOPE`.
+4. **Build 10:** A) sale del perfil `production-r8` (con R8) después de la prueba manual de `peso-app.md`; B) sale de `production` como siempre y R8 se prueba en un build aparte.
+5. **Mapeo de R8 en Sentry:** A) cargar `SENTRY_AUTH_TOKEN`, `SENTRY_ORG` y `SENTRY_PROJECT` en EAS y sacar `SENTRY_DISABLE_AUTO_UPLOAD`, para ofuscar y subir el mapeo; B) seguir sin token, con R8 sin ofuscar (`-dontobfuscate`).
+6. **MapLibre**, que la app no importa en ningún lado: A) sacarlo en la próxima tanda (≈ 15,6 MB menos de AAB y ≈ 10,8 MB menos instalada en arm64); B) mantenerlo para un mapa nativo futuro.
+7. **Solo ABIs ARM** (`buildArchs`): A) sí, el AAB baja ≈ 40 % del peso nativo; B) no, para seguir cubriendo x86 (emuladores, algunos Chromebooks).
+8. **`components/event-modal.tsx`**, que `/buscar` monta pero nunca abre: A) borrarlo junto con `selectedEvent` en `buscar-content.tsx`; B) dejarlo.
+
+### Pasos manuales
+1. **Supabase**, SQL Editor (https://supabase.com/dashboard → proyecto → SQL Editor): correr **A1** y **A2** de `sql-produccion.md` y, según la decisión 2, el **B**.
+2. **GitHub:**
+   - confirmar que estén los secrets `NEXT_PUBLIC_SUPABASE_URL` y `SUPABASE_SERVICE_ROLE_KEY`: https://github.com/Malejo01/que-pinta-salta/settings/secrets/actions (sin ellos, la geocodificación diaria termina en verde sin hacer nada);
+   - opcional: la variable `GEOCODIFICACION_TOPE` en https://github.com/Malejo01/que-pinta-salta/settings/variables/actions;
+   - para probar ya: Actions → «Lugares al mapa (geocodificación diaria)» → *Run workflow* (https://github.com/Malejo01/que-pinta-salta/actions/workflows/geocodificar-lugares.yml).
+3. **Admin:** después del merge, entrar a https://www.quepintasalta.com.ar/admin/lugares y confirmar o descartar las sugerencias. Ahora van primero.
+4. **Search Console**, después del merge a `main`: https://search.google.com/search-console → Mejoras → Eventos → «Validar corrección».
+5. **EAS** (si la decisión 5 es A): https://expo.dev/accounts/malejo01/projects/que-pinta-salta/environment-variables → entorno `production`.
+6. **Build 10:** `eas build -p android --profile production-r8`, el checklist de `docs/tanda-q7/peso-app.md` y la comparación con el AAB de 96,5 MB.
+7. **Vercel** (de la lista de Mauro): https://vercel.com/dashboard → quepintasalta → Settings:
+   - en Build & Deployment, la build machine estándar y el «Ignored Build Step» del panel vacío;
+   - en Deployment Retention, los previews a 7 o 14 días.
+8. **Play Console:** declarar el estado de operador en https://play.google.com/console/u/0/developers/8560134222829965882/home («Empezar»). Es obligatorio antes de febrero de 2027.
