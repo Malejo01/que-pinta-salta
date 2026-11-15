@@ -122,10 +122,11 @@ describe('consultasParaLugar', () => {
     expect(b).toMatchObject({ tipo: 'estructurada', calle: 'Avenida Uruguay', numero: '750' })
   })
 
-  it('sin dirección útil (placeholder, vacía, undefined, igual al nombre): nombre+ciudad, nombre y provincia por nombre', () => {
+  it('sin dirección útil (placeholder, vacía, undefined, igual al nombre): nombre+«Salta, Argentina» en la ciudad, nombre+ciudad, nombre y provincia', () => {
     for (const direccion of ['Salta', 'A confirmar', '', undefined, 'La Casona']) {
       const consultas = consultasParaLugar({ nombre: 'La Casona', direccion })
       expect(resumen(consultas), String(direccion)).toEqual([
+        'La Casona, Salta, Argentina [en Salta Capital]',
         'La Casona, Salta Capital [en Salta Capital]',
         'La Casona [en Salta Capital]',
         'La Casona, Salta, Argentina [toda la provincia]',
@@ -134,12 +135,33 @@ describe('consultasParaLugar', () => {
   })
 
   it('un placeholder con tildes/mayúsculas ("SALTA CAPITAL") tampoco cuenta como dirección', () => {
-    expect(consultasParaLugar({ nombre: 'La Casona', direccion: 'SALTA CAPITAL' })).toHaveLength(3)
+    expect(consultasParaLugar({ nombre: 'La Casona', direccion: 'SALTA CAPITAL' })).toHaveLength(4)
+  })
+
+  it('Q7-2: las direcciones genéricas (ciudad, país, centro) tampoco cuentan como dirección', () => {
+    for (const direccion of ['Salta, Argentina', 'Salta - Argentina', 'Salta Capital, Salta', 'Centro', 'Microcentro', 'A definir', 'Salta.', 's/d']) {
+      expect(direccionUtil(direccion, 'La Casona'), direccion).toBe(false)
+      const [primera] = consultasParaLugar({ nombre: 'La Casona', direccion })
+      expect(primera, direccion).toMatchObject({ tipo: 'libre', q: 'La Casona, Salta, Argentina', alcance: 'ciudad', donde: 'Salta Capital' })
+      expect(primera.zona).toEqual(ZONA_SALTA_CAPITAL)
+    }
+    // Una dirección de verdad sigue sirviendo, y no suma la consulta nueva.
+    expect(direccionUtil('Centro Cultural América, Mitre 23', 'La Casona')).toBe(true)
+    expect(consultasParaLugar({ nombre: 'La Casona', direccion: 'Balcarce 123' }).some((c) => c.tipo === 'libre' && c.q === 'La Casona, Salta, Argentina' && c.alcance === 'ciudad')).toBe(false)
+  })
+
+  it('Q7-2: la consulta nueva va con bounded=1 y el viewbox de la ciudad', () => {
+    const [primera] = consultasParaLugar({ nombre: 'La Casona', direccion: 'Salta' })
+    const p = new URL(urlDeBusqueda(primera, { email: 'prueba@example.com' })).searchParams
+    expect(p.get('q')).toBe('La Casona, Salta, Argentina')
+    expect(p.get('bounded')).toBe('1')
+    expect(p.get('viewbox')).toBe(`${ZONA_SALTA_CAPITAL.lngMin},${ZONA_SALTA_CAPITAL.latMax},${ZONA_SALTA_CAPITAL.lngMax},${ZONA_SALTA_CAPITAL.latMin}`)
   })
 
   it('Cachi: el nombre manda la búsqueda al rectángulo de Cachi, no al de la capital', () => {
     const consultas = consultasParaLugar({ nombre: 'Museo Arqueológico de Cachi' })
-    expect(consultas[0]).toMatchObject({ q: 'Museo Arqueológico de Cachi, Cachi', alcance: 'ciudad', donde: 'Cachi' })
+    expect(consultas[0]).toMatchObject({ q: 'Museo Arqueológico de Cachi, Cachi, Salta, Argentina', alcance: 'ciudad', donde: 'Cachi' })
+    expect(consultas[1]).toMatchObject({ q: 'Museo Arqueológico de Cachi, Cachi', alcance: 'ciudad', donde: 'Cachi' })
     expect(consultas[0].zona).not.toEqual(ZONA_SALTA_CAPITAL)
     expect(consultas.at(-1)?.alcance).toBe('provincia')
   })

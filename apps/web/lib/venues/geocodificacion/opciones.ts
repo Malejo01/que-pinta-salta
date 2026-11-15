@@ -1,4 +1,4 @@
-import { MAX_LUGARES_PROGRAMADO } from './programado'
+import { topeProgramado } from './programado'
 
 /**
  * Línea de comandos de `scripts/geocodificar-lugares.ts`: qué banderas
@@ -24,12 +24,26 @@ export interface Opciones {
   /** Archivo de la caché de geocodificación. Por defecto, `ops/geocodificacion/cache-nominatim.json` de la raíz del repo. */
   cache?: string
   /**
-   * Q4-3: corrida diaria del workflow (`--programado`). Implica `apply`, como
-   * mucho `MAX_LUGARES_PROGRAMADO` lugares, sin `--todos` ni
+   * Q4-3: corrida diaria del workflow (`--programado`). Implica `apply`
+   * (salvo con `--seco`) y `--prioridad-eventos`; como mucho el tope de
+   * `GEOCODIFICACION_TOPE` (Q7-2, ver `topeProgramado`), sin `--todos` ni
    * `--rehacer-nominatim`, a menos de 4 pedidos por minuto y sin repetir un
    * lugar intentado hace menos de 30 días (ver `./programado`).
    */
   programado: boolean
+  /**
+   * Q7-2: `--seco`. No le pide NADA a Nominatim ni escribe en la base: lista
+   * qué haría la corrida (qué lugares, en qué orden, con qué consultas y qué
+   * links de Google Maps encontró). Se combina con `--programado` para ver la
+   * corrida de mañana.
+   */
+  seco: boolean
+  /**
+   * Q7-2: `--prioridad-eventos`. Mira todos los elegibles, primero los que
+   * tienen eventos próximos publicados (de más a menos) y después el resto.
+   * `--programado` lo implica.
+   */
+  prioridadEventos: boolean
 }
 
 /** Las banderas que entiende el script, en el orden en que se listan en los mensajes de error. */
@@ -40,13 +54,24 @@ const BANDERAS_VALIDAS = [
   '--sin-cache',
   '--todos',
   '--programado',
+  '--seco',
+  '--prioridad-eventos',
   '--limite',
   '--salida',
   '--cache',
 ] as const
 
 /** Banderas que no llevan valor (su sola presencia alcanza). */
-const BANDERAS_BOOLEANAS = new Set(['--apply', '--aplicar', '--rehacer-nominatim', '--sin-cache', '--todos', '--programado'])
+const BANDERAS_BOOLEANAS = new Set([
+  '--apply',
+  '--aplicar',
+  '--rehacer-nominatim',
+  '--sin-cache',
+  '--todos',
+  '--programado',
+  '--seco',
+  '--prioridad-eventos',
+])
 
 /** Banderas que necesitan un valor, como `--limite 20` o `--limite=20`. */
 const BANDERAS_DE_VALOR = new Set(['--limite', '--salida', '--cache'])
@@ -71,8 +96,10 @@ function listaDeBanderas(): string {
  *     argumento es otra bandera);
  *   - `--limite` no es un entero mayor que 0.
  */
-export function leerOpciones(argv: string[]): Opciones {
+export function leerOpciones(argv: string[], entorno: { GEOCODIFICACION_TOPE?: string } = {}): Opciones {
   let apply = false
+  let seco = false
+  let prioridadEventos = false
   let rehacerNominatim = false
   let sinCache = false
   let todos = false
@@ -99,6 +126,8 @@ export function leerOpciones(argv: string[]): Opciones {
       else if (nombre === '--rehacer-nominatim') rehacerNominatim = true
       else if (nombre === '--todos') todos = true
       else if (nombre === '--programado') programado = true
+      else if (nombre === '--seco') seco = true
+      else if (nombre === '--prioridad-eventos') prioridadEventos = true
       else sinCache = true
       continue
     }
@@ -128,13 +157,30 @@ export function leerOpciones(argv: string[]): Opciones {
     limite = numero
   }
 
+  if (seco && apply) {
+    throw new Error('--seco no se combina con --apply/--aplicar: en seco no se escribe nada.')
+  }
+
   if (programado) {
     // La corrida programada tiene reglas fijas: nada de lo que las afloja.
     if (todos || rehacerNominatim) {
       throw new Error('--programado no se combina con --todos ni con --rehacer-nominatim.')
     }
-    return { apply: true, limite: Math.min(limite, MAX_LUGARES_PROGRAMADO), rehacerNominatim: false, sinCache, todos: false, salida, cache, programado }
+    // Q7-2: el tope sale de GEOCODIFICACION_TOPE (por defecto 20, hasta 30); --limite solo puede bajarlo.
+    const tope = topeProgramado(entorno.GEOCODIFICACION_TOPE)
+    return {
+      apply: !seco,
+      limite: limiteTexto !== undefined ? Math.min(limite, tope) : tope,
+      rehacerNominatim: false,
+      sinCache,
+      todos: false,
+      salida,
+      cache,
+      programado,
+      seco,
+      prioridadEventos: true,
+    }
   }
 
-  return { apply, limite, rehacerNominatim, sinCache, todos, salida, cache, programado }
+  return { apply, limite, rehacerNominatim, sinCache, todos, salida, cache, programado, seco, prioridadEventos }
 }

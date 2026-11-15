@@ -72,6 +72,81 @@ export function admobAppIds(env: Record<string, string | undefined>): { androidA
   }
 }
 
+/**
+ * Q7-5 · Peso de la app: R8 (minify) y `shrinkResources` en el build de
+ * release, con `expo-build-properties`. R8 puede romper librerías nativas en
+ * release y no hay forma de validarlo sin un build, así que va DETRÁS de una
+ * variable: solo con `QPS_R8=1`, que pone el perfil `production-r8` de
+ * `eas.json`. El perfil `production` sale igual que el build 9, para
+ * comparar los dos.
+ */
+export function r8Activado(env: Record<string, string | undefined>): boolean {
+  return env.QPS_R8?.trim() === '1'
+}
+
+/**
+ * Reglas de R8 que se suman a `android/app/proguard-rules.pro` (que ya trae
+ * las de React Native y Hermes). Cada librería que se llama por JNI o por
+ * reflexión desde el puente de React Native y NO trae reglas de consumidor en
+ * su AAR se conserva entera; las que sí traen (expo-modules-core,
+ * expo-notifications, react-native-svg, reanimated, los SDK de Google Play
+ * Services y el de Sentry para Android) se repiten acá solo cuando la
+ * librería lo recomienda en su documentación. Mejor unos KB de más que un
+ * cierre en release.
+ */
+export const REGLAS_PROGUARD = [
+  '# Q7-5 · reglas propias (apps/mobile/app.config.ts, REGLAS_PROGUARD)',
+  '# Sentry: el puente de React Native (el SDK de Android ya trae sus reglas).',
+  '-keep class io.sentry.react.** { *; }',
+  '# Google Sign-In: el módulo de React Native.',
+  '-keep class com.reactnativegooglesignin.** { *; }',
+  '# expo-notifications (ya trae esta regla; se repite por si cambia) y el servicio de Firebase.',
+  '-keep class expo.modules.notifications.** { *; }',
+  '-keep class com.google.firebase.messaging.FirebaseMessagingService { *; }',
+  '# AdMob: el módulo de React Native y la UMP (consentimiento).',
+  '-keep class io.invertase.googlemobileads.** { *; }',
+  '-keep class com.google.android.ump.** { *; }',
+  '# react-native-svg (lo pide su README) y react-native-view-shot.',
+  '-keep public class com.horcrux.svg.** { *; }',
+  '-keep class fr.greweb.reactnativeviewshot.** { *; }',
+  '# AsyncStorage.',
+  '-keep class com.reactnativecommunity.asyncstorage.** { *; }',
+].join('\n')
+
+/**
+ * Sin `SENTRY_AUTH_TOKEN` no se puede subir el mapeo de R8 a Sentry: en ese
+ * caso los nombres no se ofuscan (`-dontobfuscate`), así los stack traces de
+ * Java siguen legibles. Se pierde una parte del ahorro (el de los nombres
+ * cortos), no el de sacar código y recursos sin usar.
+ */
+export function reglasProguard(env: Record<string, string | undefined>): string {
+  return env.SENTRY_AUTH_TOKEN?.trim()
+    ? REGLAS_PROGUARD
+    : `${REGLAS_PROGUARD}\n# Sin SENTRY_AUTH_TOKEN no se sube el mapeo: sin ofuscar, los stack traces siguen legibles.\n-dontobfuscate`
+}
+
+/**
+ * El plugin de Sentry. Con R8 y token, suma el plugin de Gradle de Sentry
+ * para que el mapeo de R8 se suba solo en cada build (`autoUploadProguardMapping`).
+ * Los símbolos nativos no se suben (no hacen falta para leer los de Java).
+ */
+export function pluginSentry(env: Record<string, string | undefined>): Plugin {
+  if (!r8Activado(env)) return '@sentry/react-native/expo'
+  return [
+    '@sentry/react-native/expo',
+    {
+      experimental_android: {
+        enableAndroidGradlePlugin: true,
+        includeProguardMapping: true,
+        autoUploadProguardMapping: true,
+        uploadNativeSymbols: false,
+        autoUploadNativeSymbols: false,
+        includeNativeSources: false,
+      },
+    },
+  ]
+}
+
 export function plugins(env: Record<string, string | undefined>): Plugin[] {
   const base: Plugin[] = [
     'expo-router',
@@ -90,9 +165,7 @@ export function plugins(env: Record<string, string | undefined>): Plugin[] {
     // expo-sharing (R42) NO lleva plugin: el plugin es para RECIBIR lo que
     // otra app comparte (share extension / intent filters), y la app solo
     // comparte hacia afuera con shareAsync, que no lo necesita.
-    // R54/R55: mapa con MapLibre. Sin opciones: motor de ubicación "default"
-    // (el de MapLibre, sin Google Play Services de ubicación).
-    '@maplibre/maplibre-react-native',
+    // Q7: MapLibre se sacó (la app abre /mapa de la web; ≈ 15,6 MB menos de AAB).
     // R55: "Cerca mío". Solo "mientras se usa": los textos de "siempre" se
     // borran del Info.plist (false) y en Android no entran
     // ACCESS_BACKGROUND_LOCATION ni el servicio en primer plano.
@@ -113,7 +186,23 @@ export function plugins(env: Record<string, string | undefined>): Plugin[] {
     // UMP (lo recomienda la doc de la librería, "European user consent").
     ['react-native-google-mobile-ads', { ...admobAppIds(env), delayAppMeasurementInit: true }],
   ]
-  return env.SENTRY_AUTH_TOKEN?.trim() ? [...base, '@sentry/react-native/expo'] : base
+  // Q7-5: R8 y shrinkResources solo con QPS_R8=1 (perfil production-r8).
+  const conR8: Plugin[] = r8Activado(env)
+    ? [
+        ...base,
+        [
+          'expo-build-properties',
+          {
+            android: {
+              enableMinifyInReleaseBuilds: true,
+              enableShrinkResourcesInReleaseBuilds: true,
+              extraProguardRules: reglasProguard(env),
+            },
+          },
+        ],
+      ]
+    : base
+  return env.SENTRY_AUTH_TOKEN?.trim() ? [...conR8, pluginSentry(env)] : conR8
 }
 
 /**

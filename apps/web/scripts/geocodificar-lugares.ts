@@ -18,6 +18,22 @@
  *   npx tsx scripts/geocodificar-lugares.ts --todos               # incluye los lugares sin eventos próximos
  *   npx tsx scripts/geocodificar-lugares.ts --rehacer-nominatim
  *   npx tsx scripts/geocodificar-lugares.ts --programado          # la corrida diaria del workflow (Q4-3)
+ *   npx tsx apps/web/scripts/geocodificar-lugares.ts --seco --prioridad-eventos   # Q7-2: lista qué haría, sin pedir ni escribir nada
+ *   npx tsx scripts/geocodificar-lugares.ts --programado --seco   # Q7-2: la corrida de mañana, en seco
+ *
+ * Q7-2:
+ *   - `--seco`: lee la base (solo lectura) y lista qué haría la corrida: qué
+ *     lugares, en qué orden, con qué consultas y qué links de Google Maps
+ *     encontró. No le pide NADA a Nominatim ni escribe nada (ni job_runs).
+ *   - `--prioridad-eventos`: mira todos los elegibles, primero los que tienen
+ *     eventos próximos publicados. `--programado` lo implica (antes solo
+ *     miraba los que tenían eventos, así que la cola no avanzaba).
+ *   - Links de Google Maps: si los eventos de un lugar traen un link de Maps
+ *     con coordenadas (en `ticket_url`, la descripción o `ticket_sources`), se
+ *     propone ese punto como sugerencia de confianza alta para confirmar en
+ *     /admin/lugares, sin pedirle nada a Google ni a Nominatim.
+ *   - El tope de `--programado` sale de `GEOCODIFICACION_TOPE` (por defecto
+ *     20, hasta 30).
  *
  * Por defecto mira solo los lugares con al menos un evento próximo; `--todos`
  * mira todos los elegibles. Imprime una tabla (lugar, eventos, resultado,
@@ -54,19 +70,25 @@ import {
   contarEventosProximos,
   filtroDeActualizacion,
   geocodificarLugares,
-  lugaresAGeocodificar,
   ordenarPorEventosProximos,
   quedanParaCargarAMano,
-  soloConEventosProximos,
   type FilaReporteGeocodificacion,
   type VenueParaGeocodificar,
 } from '../lib/venues/geocodificacion/plan'
+import { listadoEnSeco, pedidosMaximos, planDeCorrida } from '../lib/venues/geocodificacion/corrida'
+import { textoSugerenciaEnlace, type EventoConEnlaces } from '../lib/venues/geocodificacion/enlaces-maps'
+import {
+  columnasSugerenciaEnlace,
+  DIAS_EVENTOS_PARA_ENLACES,
+  lecturasPorLugarCanonico,
+} from '../lib/venues/geocodificacion/enlaces-eventos'
+import { limpiarParaImprimir } from '../lib/events/revisar-gratis'
 import { aCsv, resumen, tablaDeConsola, urlOpenStreetMap, type FilaCsv } from '../lib/venues/geocodificacion/reporte'
 import { traerTodasLasFilas } from '../lib/images/paginar-filas'
 import {
   INTERVALO_PROGRAMADO_MS,
+  PRESUPUESTO_PROGRAMADO_MS,
   resultadoDeCorrida,
-  sinIntentoReciente,
 } from '../lib/venues/geocodificacion/programado'
 import { FILTRO_NO_MANUAL, sugerenciaVacia, type ColumnasSugerencia } from '../lib/venues/geocodificacion/sugerencia'
 
@@ -76,11 +98,15 @@ import { FILTRO_NO_MANUAL, sugerenciaVacia, type ColumnasSugerencia } from '../l
  * entorno, para que las variables de CI o del shell tengan precedencia. No
  * se imprime ningún valor cargado.
  */
+/** `apps/web/`, resuelta desde este archivo: el script se puede correr desde la raíz del repo (Q7-2). */
+const WEB_DIR = fileURLToPath(new URL('../', import.meta.url))
+
 function loadEnvLocal() {
-  for (const file of ['.env.local', '.env']) {
+  const rutas = [...new Set([process.cwd(), WEB_DIR])].flatMap((dir) => ['.env.local', '.env'].map((file) => join(dir, file)))
+  for (const ruta of rutas) {
     let raw: string
     try {
-      raw = readFileSync(join(process.cwd(), file), 'utf8')
+      raw = readFileSync(ruta, 'utf8')
     } catch {
       continue
     }
@@ -137,20 +163,38 @@ async function main() {
 
   let opciones
   try {
-    opciones = leerOpciones(process.argv.slice(2))
+    opciones = leerOpciones(process.argv.slice(2), { GEOCODIFICACION_TOPE: process.env.GEOCODIFICACION_TOPE })
   } catch (error) {
     console.error(`[geocodificar-lugares] ${error instanceof Error ? error.message : String(error)}`)
     process.exit(1)
     return
   }
 
-  const { apply, limite, rehacerNominatim, sinCache, todos, salida, cache: archivoCacheOpcion, programado } = opciones
+  const {
+    apply,
+    limite,
+    rehacerNominatim,
+    sinCache,
+    todos,
+    salida,
+    cache: archivoCacheOpcion,
+    programado,
+    seco,
+    prioridadEventos,
+  } = opciones
 
-  if (programado) console.log('[geocodificar-lugares] PROGRAMADO (Q4-3): ≤ 10 lugares, < 4 pedidos por minuto, registro en job_runs.')
+  if (programado)
+    console.log(
+      `[geocodificar-lugares] PROGRAMADO (Q4-3, Q7-2): ≤ ${limite} lugares a Nominatim, < 4 pedidos por minuto, ` +
+        'primero los que tienen eventos próximos' +
+        (seco ? '.' : ', registro en job_runs.')
+    )
   console.log(
-    apply
-      ? '[geocodificar-lugares] APPLY: escribe latitude/longitude en venues de producción.'
-      : '[geocodificar-lugares] CONSULTA: no se escribe nada en la base.'
+    seco
+      ? '[geocodificar-lugares] EN SECO: no se le pide nada a Nominatim ni se escribe nada en la base.'
+      : apply
+        ? '[geocodificar-lugares] APPLY: escribe latitude/longitude en venues de producción.'
+        : '[geocodificar-lugares] CONSULTA: no se escribe nada en la base.'
   )
   console.log(`[geocodificar-lugares] Política de uso de Nominatim: ${URL_POLITICA}`)
   console.log(`[geocodificar-lugares] User-Agent: ${USER_AGENT}`)
@@ -177,7 +221,7 @@ async function main() {
   // abrir, se sigue igual: el registro no frena la geocodificación.
   let jobRunId: string | null = null
   const inicioCorrida = Date.now()
-  if (programado) {
+  if (programado && !seco) {
     const { data, error } = await supabase
       .from('job_runs')
       .insert({ job_key: 'geocodificacion', status: 'RUNNING', trigger_source: 'github-actions' })
@@ -204,11 +248,11 @@ async function main() {
 
   let venues: VenueParaGeocodificar[]
   try {
-    // Solo la corrida programada lee las columnas de la Q4-3 y la Q5-16 (la
-    // sugerencia pendiente la deja afuera de la corrida).
+    // Las columnas de la Q4-3 y la Q5-16 (la sugerencia pendiente) y, desde la
+    // Q7-2, su texto (para saber si salió de un link de Google Maps).
     const columnas =
-      'id, name, address, latitude, longitude, canonical_venue_id, merged_at, is_placeholder, geocode_source, geocoded_at' +
-      (programado ? ', geocode_intentado_at, geocode_sugerencia_lat' : '')
+      'id, name, address, latitude, longitude, canonical_venue_id, merged_at, is_placeholder, geocode_source, geocoded_at, ' +
+      'geocode_intentado_at, geocode_sugerencia_lat, geocode_sugerencia_texto'
     venues = await traerTodasLasFilas<VenueParaGeocodificar>(
       (desde, hasta) =>
         // Con un select armado en tiempo de ejecución supabase-js no infiere
@@ -246,26 +290,79 @@ async function main() {
   }
   const conteoEventos = contarEventosProximos(eventosProximos, venues)
 
-  const { elegibles, paraRevisarPrevios: previosSinOrden } = lugaresAGeocodificar(venues, { rehacerNominatim })
-  const paraRevisarPrevios = ordenarPorEventosProximos(previosSinOrden, conteoEventos)
-  // Por defecto solo los que tienen algún evento próximo; con --todos, todos los elegibles.
-  const conEventos = todos ? elegibles : soloConEventosProximos(elegibles, conteoEventos)
-  // Q4-3: la corrida programada no repite un lugar intentado hace menos de 30 días.
-  // Q5-16: ni uno con una sugerencia pendiente de confirmar en el admin.
-  const aMirar = programado ? sinIntentoReciente(conEventos, new Date()) : conEventos
-  const sinEventosProximos = elegibles.length - aMirar.length
-  const recortados = ordenarPorEventosProximos(aMirar, conteoEventos).slice(0, limite)
-  const descartadosPorTope = aMirar.length - recortados.length
+  // Q7-2: los links de Google Maps de los eventos publicados de los últimos
+  // 180 días (y los que vienen), por lugar canónico. Solo se parsea el texto.
+  let eventosConEnlaces: EventoConEnlaces[]
+  try {
+    const desdeISO = new Date(Date.now() - DIAS_EVENTOS_PARA_ENLACES * 24 * 60 * 60 * 1000).toISOString()
+    eventosConEnlaces = await traerTodasLasFilas<EventoConEnlaces>((desde, hasta) =>
+      supabase
+        .from('events')
+        .select('id, venue_id, ticket_url, description, ticket_sources')
+        .eq('status', 'PUBLISHED')
+        .gte('start_date', desdeISO)
+        .not('venue_id', 'is', null)
+        .order('id')
+        .range(desde, hasta)
+    )
+  } catch (error) {
+    console.error(`[geocodificar-lugares] Error consultando los links de los eventos: ${error instanceof Error ? error.message : String(error)}`)
+    process.exit(1)
+    return
+  }
+  const lecturasPorLugar = lecturasPorLugarCanonico(eventosConEnlaces, venues)
+
+  const plan = planDeCorrida({
+    venues,
+    conteoEventos,
+    lecturasPorLugar,
+    opciones: { programado, prioridadEventos, todos, rehacerNominatim, limite },
+    ahora: new Date(),
+  })
+  const { elegibles } = plan
+  const paraRevisarPrevios = ordenarPorEventosProximos(plan.paraRevisarPrevios, conteoEventos)
+  const recortados = plan.aNominatim
+  const descartadosPorTope = plan.afuera.tope
+  const sinEventosProximos = plan.afuera['sin-eventos']
+  const aMirarCantidad = recortados.length + descartadosPorTope
 
   const segundosPorPedido = programado ? INTERVALO_PROGRAMADO_MS / 1000 : 1.1
-  const tiempoEstimadoSeg = Math.ceil(recortados.length * 4 * segundosPorPedido)
+  const pedidos = pedidosMaximos(plan)
+  const tiempoEstimadoSeg = Math.ceil(pedidos * segundosPorPedido)
   console.log(
-    `[geocodificar-lugares] lugares a mirar: ${recortados.length} de ${aMirar.length} (de ${elegibles.length} elegibles` +
-      (todos ? ', con --todos' : `; ${sinEventosProximos} sin eventos próximos quedan afuera, usá --todos para incluirlos`) +
-      '), de más a menos eventos próximos' +
-      (descartadosPorTope > 0 ? ` (${descartadosPorTope} quedaron afuera por --limite ${limite})` : '') +
-      `. Tiempo estimado: hasta ${tiempoEstimadoSeg}s (hasta 4 consultas por lugar, ${segundosPorPedido}s entre pedidos).`
+    `[geocodificar-lugares] ${elegibles.length} elegibles. Por link de Google Maps: ${plan.porEnlace.length}. ` +
+      `A Nominatim: ${recortados.length}` +
+      (descartadosPorTope > 0 ? ` (${descartadosPorTope} quedan para otra corrida por el tope de ${limite})` : '') +
+      `, de más a menos eventos próximos. Afuera: ${plan.afuera['intento-reciente']} por un intento de hace menos de 30 días, ` +
+      `${plan.afuera['sugerencia-pendiente']} con una sugerencia pendiente en /admin/lugares, ` +
+      `${sinEventosProximos} sin eventos próximos` +
+      (todos || prioridadEventos || programado ? '' : ' (usá --prioridad-eventos para incluirlos)') +
+      `. Hasta ${pedidos} pedidos, ${segundosPorPedido}s entre pedidos: hasta ${tiempoEstimadoSeg}s.`
   )
+  const cortos = [...plan.enlacesCortos.values()].reduce((a, b) => a + b, 0)
+  if (cortos > 0) {
+    console.log(
+      `[geocodificar-lugares] ${cortos} link(s) corto(s) de Maps (maps.app.goo.gl) en ${plan.enlacesCortos.size} lugar(es): ` +
+        'no se resuelven (sería pedirle a Google). Abrilos a mano si hace falta.'
+    )
+  }
+
+  if (seco) {
+    const lineas = listadoEnSeco(plan, conteoEventos)
+    if (lineas.length === 0) console.log('[geocodificar-lugares] EN SECO: no hay nada para hacer.')
+    for (const l of lineas) {
+      console.log(
+        `${String(l.orden).padStart(3)}. ${limpiarParaImprimir(l.nombre)} · ${l.eventos} evento(s) próximo(s) · ${l.accion}\n     ${limpiarParaImprimir(l.detalle)}`
+      )
+    }
+    for (const [id, propuesta] of plan.enlacesParaRevisar) {
+      if (recortados.some((v) => v.id === id)) continue
+      const lugar = venues.find((v) => v.id === id)
+      console.log(`  · link para revisar (no entra hoy): ${limpiarParaImprimir(lugar?.name ?? id)} · ${propuesta.motivo}`)
+    }
+    console.log('[geocodificar-lugares] EN SECO: no se pidió nada a Nominatim ni se escribió nada.')
+    return
+  }
 
   const cliente = crearClienteNominatim({
     fetch: globalThis.fetch,
@@ -345,18 +442,67 @@ async function main() {
     return (data?.length ?? 0) > 0
   }
 
-  const filas = await geocodificarLugares({ lugares: recortados, cliente, cache, apply, guardar, guardarSugerencia })
+  // Q7-2: primero los que se resuelven por un link de Google Maps de sus
+  // eventos: quedan como sugerencia (confianza alta) para confirmar con un
+  // botón en /admin/lugares. Sin pedirle nada a nadie.
+  const filasPorEnlace: FilaReporteGeocodificacion[] = []
+  for (const { lugar, propuesta } of plan.porEnlace) {
+    let estado: FilaReporteGeocodificacion['estado'] = 'para-revisar'
+    let motivo: string | null = 'link de Google Maps: con --aplicar queda como sugerencia en /admin/lugares'
+    if (apply) {
+      const guardada = await guardarSugerencia(lugar.id, columnasSugerenciaEnlace(propuesta, new Date()))
+      estado = guardada ? 'sugerido' : 'no-se-pisó'
+      motivo = guardada ? 'link de Google Maps: confirmalo en /admin/lugares' : 'cambió mientras corría'
+    }
+    filasPorEnlace.push({
+      id: lugar.id,
+      nombre: lugar.name,
+      direccion: lugar.address,
+      consulta: 'link de Google Maps de un evento',
+      display_name: textoSugerenciaEnlace(propuesta.links),
+      lat: propuesta.lat,
+      lon: propuesta.lng,
+      category: null,
+      type: null,
+      place_rank: null,
+      importance: null,
+      confianza: 'alta',
+      estado,
+      motivo,
+      openStreetMapUrl: urlOpenStreetMap(propuesta.lat, propuesta.lng),
+    })
+  }
 
-  // El corte por bloqueado se calcula con `filas` tal como las devolvió
-  // `geocodificarLugares`, ANTES de agregarle `previosSinOrigen`: esos
-  // previos no dependen de Nominatim, así que concatenarlos antes de esta
-  // comparación "completaría" la cuenta y escondería el 403 en silencio.
-  const bloqueado = filas.length < recortados.length
+  // Q7-2: la programada no empieza un lugar nuevo pasado el presupuesto de
+  // tiempo (los que faltan van mañana, sin marcarse como intentados).
+  let cortePorTiempo = false
+  const seguir = () => {
+    if (!programado) return true
+    if (Date.now() - inicioCorrida < PRESUPUESTO_PROGRAMADO_MS) return true
+    cortePorTiempo = true
+    return false
+  }
 
-  // Q4-3: los lugares mirados quedan marcados (con o sin resultado) para no
-  // repetirlos antes de 30 días, y la corrida se cierra en job_runs.
+  const filasNominatim = await geocodificarLugares({ lugares: recortados, cliente, cache, apply, guardar, guardarSugerencia, seguir })
+
+  // El corte por bloqueado se calcula con las filas de Nominatim tal como las
+  // devolvió `geocodificarLugares`, ANTES de agregarle `previosSinOrigen`:
+  // esos previos no dependen de Nominatim, así que concatenarlos antes de esta
+  // comparación "completaría" la cuenta y escondería el 403 en silencio. Un
+  // corte por el presupuesto de tiempo no es un 403.
+  const bloqueado = filasNominatim.length < recortados.length && !cortePorTiempo
+  if (cortePorTiempo) {
+    console.warn(
+      `[geocodificar-lugares] Se terminó el tiempo de la corrida: ${recortados.length - filasNominatim.length} lugar(es) quedan para mañana.`
+    )
+  }
+  const filas = [...filasPorEnlace, ...filasNominatim]
+
+  // Q4-3: los lugares mirados por Nominatim quedan marcados (con o sin
+  // resultado) para no repetirlos antes de 30 días, y la corrida se cierra en
+  // job_runs.
   if (programado) {
-    const mirados = filas.map((fila) => fila.id)
+    const mirados = filasNominatim.map((fila) => fila.id)
     if (mirados.length > 0) {
       const { error } = await supabase
         .from('venues')
@@ -364,7 +510,7 @@ async function main() {
         .in('id', mirados)
       if (error) console.error(`[geocodificar-lugares] No se pudo marcar el intento (${error.code ?? 'sin código'})`)
     }
-    await cerrarCorrida(resultadoDeCorrida(filas, { candidatos: recortados.length, bloqueado }))
+    await cerrarCorrida(resultadoDeCorrida(filas, { candidatos: recortados.length + plan.porEnlace.length, bloqueado }))
   }
 
   // `paraRevisarPrevios` (venues con coordenadas pero sin `geocode_source`,
@@ -387,8 +533,10 @@ async function main() {
     todos,
     elegibles: elegibles.length,
     sinEventosProximos,
-    paraMirar: aMirar.length,
+    paraMirar: aMirarCantidad,
     mirados: recortados.length,
+    porEnlace: plan.porEnlace.length,
+    afuera: plan.afuera,
     descartadosPorTope,
     resumen: resumen(filas),
     quedanParaCargarAMano: quedanParaCargarAMano(filas),

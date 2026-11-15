@@ -105,7 +105,6 @@ describe('app.config.ts para EAS (QPS-143)', () => {
       '@react-native-google-signin/google-signin',
       'expo-notifications',
       'expo-calendar',
-      '@maplibre/maplibre-react-native',
       'expo-location',
       'react-native-google-mobile-ads',
     ])
@@ -211,8 +210,8 @@ describe('app.config.ts: dependencias de la etapa 2 (mapa, ubicación, AdMob)', 
     return typeof p === 'string' || p === undefined ? undefined : p[1]
   }
 
-  it('MapLibre entra con su plugin y sin opciones (motor de ubicación por defecto)', () => {
-    expect(plugins({})).toContain('@maplibre/maplibre-react-native')
+  it('MapLibre no entra (la app usa el mapa de la web)', () => {
+    expect(plugins({})).not.toContain('@maplibre/maplibre-react-native')
   })
 
   it('expo-location pide solo "mientras se usa", con el texto en español', () => {

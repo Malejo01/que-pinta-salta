@@ -11,6 +11,8 @@ import { LugarMapaUbicar } from '@/components/admin/lugar-mapa-ubicar'
 import { LugarSugerenciaAcciones } from '@/components/admin/lugar-sugerencia-acciones'
 import { isUuid } from '@/lib/metricas'
 import { direccionUtil } from '@/lib/venues/geocodificacion/consultas'
+import { esSugerenciaDeEnlace } from '@/lib/venues/geocodificacion/enlaces-maps'
+import { ordenarLugaresAdmin } from '@/lib/admin/orden-lugares'
 import { proximaFuentePorLugar, type FilaFuente } from '@/lib/admin/fuente-lugar'
 import { coberturaDelMapa, textoCoberturaMapa } from '@/lib/admin/cobertura-mapa'
 import { posiblesDuplicados } from '@/lib/venues/posibles-duplicados'
@@ -147,11 +149,12 @@ export default async function AdminLugaresPage({
     'a-mano': venues.filter((v) => perteneceA(v, 'a-mano')),
   }
 
-  const lugares = [...porPestaña[pestañaActual]].sort((a, b) => {
-    const diff = (conteoPorVenue.get(b.id) ?? 0) - (conteoPorVenue.get(a.id) ?? 0)
-    if (diff !== 0) return diff
-    return a.name.localeCompare(b.name, 'es')
+  // Q7-2: en «Sin ubicación», primero los que tienen una sugerencia para
+  // confirmar (es un botón); después, de más a menos eventos próximos.
+  const lugares = ordenarLugaresAdmin(porPestaña[pestañaActual], conteoPorVenue, {
+    sugerenciasPrimero: pestañaActual === 'sin-ubicacion',
   })
+  const conSugerencia = porPestaña['sin-ubicacion'].filter((v) => v.geocode_sugerencia_lat !== null).length
 
   // Un lugar a la vez: `?ubicar=<id>` abre el mapa solo si es un uuid de la lista de la pestaña.
   const ubicarId = isUuid(params?.ubicar) && lugares.some((v) => v.id === params.ubicar) ? params.ubicar : null
@@ -179,7 +182,8 @@ export default async function AdminLugaresPage({
           <h1 className="text-2xl font-bold text-foreground">Lugares sin ubicación</h1>
           <p className="text-sm text-muted-foreground">
             Sin ubicación: {porPestaña['sin-ubicacion'].length} · Para revisar: {porPestaña['para-revisar'].length} ·
-            A mano: {porPestaña['a-mano'].length} — Los ubica el script{' '}
+            A mano: {porPestaña['a-mano'].length}
+            {conSugerencia > 0 ? ` · Con una sugerencia para confirmar: ${conSugerencia}` : ''} — Los ubica el script{' '}
             <code className="rounded bg-muted px-1 py-0.5 text-xs">geocodificar-lugares.ts</code>, que corre Mauro;
             acá se corrige a mano.
           </p>
@@ -235,6 +239,7 @@ export default async function AdminLugaresPage({
                     lng: venue.geocode_sugerencia_lng,
                     texto: venue.geocode_sugerencia_texto,
                     at: venue.geocode_sugerencia_at,
+                    deEnlace: esSugerenciaDeEnlace(venue.geocode_sugerencia_texto),
                   }
                 : null
             return (
@@ -271,7 +276,11 @@ export default async function AdminLugaresPage({
                       aria-label={`Ubicación sugerida para ${venue.name}`}
                       className="flex flex-col gap-2 rounded-md border border-border bg-muted/30 p-3"
                     >
-                      <p className="text-sm font-medium text-foreground">Ubicación sugerida (sin un match seguro)</p>
+                      <p className="text-sm font-medium text-foreground">
+                        {sugerencia.deEnlace
+                          ? 'Ubicación sugerida por el link de Google Maps de un evento'
+                          : 'Ubicación sugerida (sin un match seguro)'}
+                      </p>
                       <p className="break-words text-sm text-foreground">
                         {sugerencia.texto ?? 'Nominatim no devolvió una dirección para este punto'}
                       </p>
@@ -280,18 +289,20 @@ export default async function AdminLugaresPage({
                           {sugerencia.lat}, {sugerencia.lng}
                         </span>
                         {sugerencia.at && <span>Sugerida: {formatGeocodedAt(sugerencia.at)}</span>}
-                        <span>
-                          Datos: ©{' '}
-                          <a
-                            href="https://www.openstreetmap.org/copyright"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="underline"
-                          >
-                            colaboradores de OpenStreetMap
-                          </a>{' '}
-                          (ODbL)
-                        </span>
+                        {!sugerencia.deEnlace && (
+                          <span>
+                            Datos: ©{' '}
+                            <a
+                              href="https://www.openstreetmap.org/copyright"
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="underline"
+                            >
+                              colaboradores de OpenStreetMap
+                            </a>{' '}
+                            (ODbL)
+                          </span>
+                        )}
                       </div>
                       <a
                         href={urlVerEnOsm(sugerencia.lat, sugerencia.lng)}

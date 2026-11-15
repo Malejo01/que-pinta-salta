@@ -246,7 +246,7 @@ describe('geocodificar-lugares.ts: corte por bloqueado (403)', () => {
     // `geocodificarLugares` (53-a) corta la corrida entera sin agregar nada
     // al reporte en cuanto Nominatim devuelve 403: por eso "menos filas que
     // lugares procesados" (no un flag separado) es la señal de bloqueo.
-    expect(CONTENIDO).toMatch(/filas\.length\s*<\s*\w+\.length/)
+    expect(CONTENIDO).toMatch(/filas\w*\.length\s*<\s*\w+\.length/)
   })
 
   it('el mensaje exacto de corte por 403 está en el archivo', () => {
@@ -309,7 +309,7 @@ describe('geocodificar-lugares.ts: paraRevisarPrevios va al reporte, no solo a u
 
 describe('geocodificar-lugares.ts: el corte por bloqueado se calcula antes de agregar los previos', () => {
   it('"filas.length < ...length" aparece ANTES de la asignación que mapea paraRevisarPrevios', () => {
-    const idxBloqueado = CONTENIDO.search(/filas\.length\s*<\s*\w+\.length/)
+    const idxBloqueado = CONTENIDO.search(/filas\w*\.length\s*<\s*\w+\.length/)
     const idxAsignacion = CONTENIDO.search(/const\s+\w+(?:\s*:\s*[^=]+)?=\s*paraRevisarPrevios\.map\(/)
     expect(idxBloqueado).toBeGreaterThan(-1)
     expect(idxAsignacion).toBeGreaterThan(-1)
