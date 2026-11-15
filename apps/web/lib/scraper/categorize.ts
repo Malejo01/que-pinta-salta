@@ -9,8 +9,15 @@ export function inferCategorySlug(title: string, description: string = '', venue
   const venueClean = venueName.toLowerCase()
     .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
   const combined = `${textClean} ${venueClean}`;
+  const titleClean = title.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 
-  if (/peña|folklore|folkloric|chacarera|zamba|carnavalito|copla|baguala|chamame|atuel/.test(combined)) return 'penas';
+  // Q7 (pendiente de #173): el texto ya viene sin tildes, así que «peña» llega
+  // como «pena» y la regex vieja (/peña/) nunca coincidía. «Peña» sola cuenta
+  // en el título o en el nombre del lugar, no en la descripción, y nunca
+  // después de «la», «sin», «una», «da» o «que» («vale la pena», «sin pena ni
+  // gloria», «una pena», «da pena»).
+  if (/(?<!\b(?:la|sin|una|da|que) )\bpenas?\b/.test(`${titleClean} ${venueClean}`)) return 'penas';
+  if (/folklore|folkloric|chacarera|zamba|carnavalito|copla|baguala|chamame|atuel/.test(combined)) return 'penas';
   if (/stand.?up|standup|comedia|humor|monolo|unipersonal|chistes|camilo nicolas|juampi gonzalez|trinche/.test(combined)) return 'humor';
   if (/infantil|niños|para chicos|titeres|magia|circo|plim plim|payaso|canticuenticos|pequeño pez/.test(combined)) return 'infantil';
   
