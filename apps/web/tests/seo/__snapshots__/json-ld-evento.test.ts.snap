@@ -1,0 +1,171 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`Q7-3 · JSON-LD de /lugar/<slug>: ningún Event sin description, image ni offers > snapshot del JSON-LD de la ficha del lugar (castellano) 1`] = `
+{
+  "@context": "https://schema.org",
+  "@id": "https://www.quepintasalta.com.ar/lugar/teatro-de-prueba",
+  "@type": "EventVenue",
+  "address": {
+    "@type": "PostalAddress",
+    "addressCountry": "AR",
+    "addressLocality": "Salta",
+    "addressRegion": "Salta",
+    "streetAddress": "Calle Inventada 123",
+  },
+  "event": [
+    {
+      "@id": "https://www.quepintasalta.com.ar/evento/e-completo",
+      "@type": "Event",
+      "description": "Una obra inventada para el test. Con funciones el fin de semana.",
+      "endDate": "2026-11-20T22:00:00-03:00",
+      "eventAttendanceMode": "https://schema.org/OfflineEventAttendanceMode",
+      "eventStatus": "https://schema.org/EventScheduled",
+      "image": [
+        "https://cdn.example.com/obra.jpg",
+      ],
+      "inLanguage": "es-AR",
+      "isAccessibleForFree": false,
+      "location": {
+        "@id": "https://www.quepintasalta.com.ar/lugar/teatro-de-prueba",
+        "@type": "Place",
+        "address": {
+          "@type": "PostalAddress",
+          "addressCountry": "AR",
+          "addressLocality": "Salta",
+          "addressRegion": "Salta",
+          "streetAddress": "Calle Inventada 123",
+        },
+        "name": "Teatro de Prueba",
+      },
+      "name": "Obra de prueba",
+      "offers": {
+        "@type": "Offer",
+        "availability": "https://schema.org/InStock",
+        "name": "Entrada",
+        "price": 8000,
+        "priceCurrency": "ARS",
+        "url": "https://ticketera.example/obra",
+        "validFrom": "2026-11-01T12:00:00Z",
+      },
+      "startDate": "2026-11-20T20:00:00-03:00",
+      "url": "https://www.quepintasalta.com.ar/evento/e-completo",
+    },
+    {
+      "@id": "https://www.quepintasalta.com.ar/evento/e-gratis",
+      "@type": "Event",
+      "description": "Peña con entrada libre.",
+      "eventAttendanceMode": "https://schema.org/OfflineEventAttendanceMode",
+      "eventStatus": "https://schema.org/EventScheduled",
+      "image": [
+        "https://www.quepintasalta.com.ar/og-image.png",
+      ],
+      "inLanguage": "es-AR",
+      "isAccessibleForFree": true,
+      "location": {
+        "@id": "https://www.quepintasalta.com.ar/lugar/teatro-de-prueba",
+        "@type": "Place",
+        "address": {
+          "@type": "PostalAddress",
+          "addressCountry": "AR",
+          "addressLocality": "Salta",
+          "addressRegion": "Salta",
+          "streetAddress": "Calle Inventada 123",
+        },
+        "name": "Teatro de Prueba",
+      },
+      "name": "Peña de prueba",
+      "offers": {
+        "@type": "Offer",
+        "availability": "https://schema.org/InStock",
+        "name": "Entrada libre y gratuita",
+        "price": 0,
+        "priceCurrency": "ARS",
+        "url": "https://www.quepintasalta.com.ar/evento/e-gratis",
+        "validFrom": "2026-11-02T12:00:00Z",
+      },
+      "startDate": "2026-11-21T21:30:00-03:00",
+      "url": "https://www.quepintasalta.com.ar/evento/e-gratis",
+    },
+    {
+      "@id": "https://www.quepintasalta.com.ar/evento/e-sin-precio",
+      "@type": "Event",
+      "description": "Recital de prueba en Salta Capital.",
+      "eventAttendanceMode": "https://schema.org/OfflineEventAttendanceMode",
+      "eventStatus": "https://schema.org/EventScheduled",
+      "image": [
+        "https://www.quepintasalta.com.ar/flyers/recital.jpg",
+      ],
+      "inLanguage": "es-AR",
+      "isAccessibleForFree": false,
+      "location": {
+        "@id": "https://www.quepintasalta.com.ar/lugar/teatro-de-prueba",
+        "@type": "Place",
+        "address": {
+          "@type": "PostalAddress",
+          "addressCountry": "AR",
+          "addressLocality": "Salta",
+          "addressRegion": "Salta",
+          "streetAddress": "Calle Inventada 123",
+        },
+        "name": "Teatro de Prueba",
+      },
+      "name": "Recital de prueba",
+      "offers": {
+        "@type": "Offer",
+        "availability": "https://schema.org/InStock",
+        "name": "Entrada",
+        "url": "https://www.quepintasalta.com.ar/evento/e-sin-precio",
+      },
+      "startDate": "2026-11-25T20:30:00-03:00",
+      "url": "https://www.quepintasalta.com.ar/evento/e-sin-precio",
+    },
+  ],
+  "geo": {
+    "@type": "GeoCoordinates",
+    "latitude": -24.7889,
+    "longitude": -65.4106,
+  },
+  "name": "Teatro de Prueba",
+  "url": "https://www.quepintasalta.com.ar/lugar/teatro-de-prueba",
+}
+`;
+
+exports[`Q7-3 · JSON-LD de /lugar/<slug>: ningún Event sin description, image ni offers > snapshot del primer Event en inglés (título y descripción traducidos) 1`] = `
+{
+  "@id": "https://www.quepintasalta.com.ar/evento/e-completo",
+  "@type": "Event",
+  "description": "A made-up play for the test.",
+  "endDate": "2026-11-20T22:00:00-03:00",
+  "eventAttendanceMode": "https://schema.org/OfflineEventAttendanceMode",
+  "eventStatus": "https://schema.org/EventScheduled",
+  "image": [
+    "https://cdn.example.com/obra.jpg",
+  ],
+  "inLanguage": "en",
+  "isAccessibleForFree": false,
+  "location": {
+    "@id": "https://www.quepintasalta.com.ar/lugar/teatro-de-prueba",
+    "@type": "Place",
+    "address": {
+      "@type": "PostalAddress",
+      "addressCountry": "AR",
+      "addressLocality": "Salta",
+      "addressRegion": "Salta",
+      "streetAddress": "Calle Inventada 123",
+    },
+    "name": "Teatro de Prueba",
+  },
+  "name": "Test play",
+  "offers": {
+    "@type": "Offer",
+    "availability": "https://schema.org/InStock",
+    "name": "Entrada",
+    "price": 8000,
+    "priceCurrency": "ARS",
+    "url": "https://ticketera.example/obra",
+    "validFrom": "2026-11-01T12:00:00Z",
+  },
+  "startDate": "2026-11-20T20:00:00-03:00",
+  "url": "https://www.quepintasalta.com.ar/en/evento/e-completo",
+}
+`;

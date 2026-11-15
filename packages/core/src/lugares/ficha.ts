@@ -40,11 +40,61 @@ export interface EventoDeLugar {
   titulo: string
   inicio: string
   gratis: boolean
+  /**
+   * Q7-3: lo que necesita el `Event` del JSON-LD de la ficha del lugar
+   * (descripción, imagen y oferta, igual que la ficha del evento). Opcionales:
+   * solo vienen si la consulta trae esas columnas.
+   */
+  fin?: string | null
+  descripcion?: string | null
+  descripcionCorta?: string | null
+  tituloEn?: string | null
+  descripcionEn?: string | null
+  imagen?: string | null
+  precioMin?: number | null
+  enlaceEntradas?: string | null
+  creado?: string | null
+}
+
+/** Las columnas de `events` que lee la ficha del lugar (Q7-3: las del JSON-LD incluidas). */
+export const COLUMNAS_EVENTO_DE_LUGAR =
+  'id, title, start_date, end_date, is_free, description, short_description, title_en, description_en, image_url, price_min, ticket_url, created_at'
+
+/** Una fila de `events` con esas columnas (todas opcionales salvo id, título e inicio). */
+export interface FilaEventoDeLugar {
+  id: string
+  title: string
+  start_date: string
+  end_date?: string | null
+  is_free?: boolean | null
+  description?: string | null
+  short_description?: string | null
+  title_en?: string | null
+  description_en?: string | null
+  image_url?: string | null
+  price_min?: number | null
+  ticket_url?: string | null
+  created_at?: string | null
+}
+
+/** La fila como `EventoDeLugar`. Los campos del JSON-LD van solo si la fila los trae. */
+function aEventoDeLugar(e: FilaEventoDeLugar): EventoDeLugar {
+  const item: EventoDeLugar = { id: e.id, titulo: e.title, inicio: e.start_date, gratis: e.is_free === true }
+  if (e.end_date !== undefined) item.fin = e.end_date
+  if (e.description !== undefined) item.descripcion = e.description
+  if (e.short_description !== undefined) item.descripcionCorta = e.short_description
+  if (e.title_en !== undefined) item.tituloEn = e.title_en
+  if (e.description_en !== undefined) item.descripcionEn = e.description_en
+  if (e.image_url !== undefined) item.imagen = e.image_url
+  if (e.price_min !== undefined) item.precioMin = e.price_min
+  if (e.ticket_url !== undefined) item.enlaceEntradas = e.ticket_url
+  if (e.created_at !== undefined) item.creado = e.created_at
+  return item
 }
 
 /** Separa en próximos (de más cerca a más lejos) y pasados recientes (de más nuevo a más viejo). */
 export function separarEventosDeLugar(
-  eventos: readonly { id: string; title: string; start_date: string; end_date?: string | null; is_free?: boolean | null }[],
+  eventos: readonly FilaEventoDeLugar[],
   ahora: Date,
 ): { proximos: EventoDeLugar[]; pasados: EventoDeLugar[] } {
   const corte = ahora.getTime() - DIAS_PASADOS_RECIENTES * 24 * 60 * 60 * 1000
@@ -54,7 +104,7 @@ export function separarEventosDeLugar(
     const inicio = new Date(e.start_date).getTime()
     const fin = e.end_date ? new Date(e.end_date).getTime() : inicio
     if (!Number.isFinite(inicio)) continue
-    const item = { id: e.id, titulo: e.title, inicio: e.start_date, gratis: e.is_free === true }
+    const item = aEventoDeLugar(e)
     if (Math.max(inicio, fin) >= ahora.getTime()) proximos.push(item)
     else if (inicio >= corte) pasados.push(item)
   }
