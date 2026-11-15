@@ -20,6 +20,7 @@
     "@sentry/react-native": "~7.11.0",
     "@supabase/supabase-js": "^2.106.0",
     "expo": "~57.0.28",
+    "expo-build-properties": "~57.0.22",
     "expo-calendar": "~57.0.5",
     "expo-constants": "~57.0.21",
     "expo-font": "~57.0.4",
