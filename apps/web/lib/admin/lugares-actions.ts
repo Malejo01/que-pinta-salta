@@ -25,6 +25,7 @@ import {
   resultadosParaAdmin,
 } from '@/lib/venues/geocodificacion/busqueda-admin'
 import { FILTRO_NO_MANUAL, sugerenciaVacia } from '@/lib/venues/geocodificacion/sugerencia'
+import { esSugerenciaDeEnlace } from '@/lib/venues/geocodificacion/enlaces-maps'
 
 export type UbicacionManualResult = { ok: true } | { ok: false; error: string }
 
@@ -193,7 +194,7 @@ export async function confirmarSugerenciaUbicacion(venueId: unknown): Promise<Ub
 
   const { data: venue, error: errorLectura } = await auth.supabase
     .from('venues')
-    .select('id, geocode_source, geocode_sugerencia_lat, geocode_sugerencia_lng')
+    .select('id, geocode_source, geocode_sugerencia_lat, geocode_sugerencia_lng, geocode_sugerencia_texto')
     .eq('id', venueId)
     .maybeSingle()
 
@@ -212,7 +213,10 @@ export async function confirmarSugerenciaUbicacion(venueId: unknown): Promise<Ub
     .update({
       latitude: lat,
       longitude: lng,
-      geocode_source: 'nominatim',
+      // Q7-2: una sugerencia que salió de un link de Google Maps de un evento
+      // no es de Nominatim: confirmada por un admin queda como carga a mano
+      // (y así `--rehacer-nominatim` nunca la pisa).
+      geocode_source: esSugerenciaDeEnlace(venue.geocode_sugerencia_texto) ? 'manual' : 'nominatim',
       geocoded_at: new Date().toISOString(),
       ...sugerenciaVacia(),
     })

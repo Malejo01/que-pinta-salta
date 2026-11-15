@@ -15,7 +15,7 @@
  * Q4-3 (pregunta 21, opción 1, decisión de Mauro en docs/tanda-q4/README.md):
  * la regla cambia a «UN SOLO proceso programado, con reglas propias». El
  * único permitido es `.github/workflows/geocodificar-lugares.yml`
- * (`WORKFLOW_PERMITIDO`), una vez por día, con `--programado` (≤ 10 lugares,
+ * (`WORKFLOW_PERMITIDO`), una vez por día, con `--programado` (≤ 20 lugares desde la Q7-2,
  * < 4 pedidos por minuto, sin repetir un lugar antes de 30 días); el bloque
  * «el único workflow permitido» de abajo fija esas reglas. Cualquier OTRO
  * workflow, un cron de `vercel.json` o una ruta de API que lo mencione sigue
@@ -216,7 +216,7 @@ describe(`el único workflow permitido (${WORKFLOW_PERMITIDO}) respeta sus regla
     expect(crons).toEqual(['30 9 * * *'])
   })
 
-  it('corre el script con --programado (≤ 10 lugares, < 4 pedidos por minuto, registro en job_runs)', () => {
+  it('corre el script con --programado (≤ 20 lugares, < 4 pedidos por minuto, registro en job_runs)', () => {
     const corridas = [...sinComentarios.matchAll(/geocodificar-lugares\.ts([^\n]*)/g)].map((m) => m[1])
     expect(corridas).toHaveLength(1)
     expect(corridas[0]).toMatch(/--programado\b/)

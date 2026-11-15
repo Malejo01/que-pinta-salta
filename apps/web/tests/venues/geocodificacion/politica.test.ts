@@ -264,11 +264,12 @@ function construirRespuestas(lugares: VenueParaGeocodificar[]) {
     registrar('h1', consulta, generadorDeSecuencia([{ status: 503 }, { status: 503 }, OK_BUENO]))
   }
 
-  // I: fuera de zona en las 3 consultas (sin dirección: nombre+ciudad, nombre, provincia).
+  // I: fuera de zona en las 4 consultas (sin dirección: nombre+«Salta, Argentina»
+  // en la ciudad (Q7-2), nombre+ciudad, nombre, provincia).
   {
     const v = lugares.find((x) => x.id === 'i1')!
     const consultas = consultasParaLugar({ nombre: v.name, direccion: v.address })
-    expect(consultas).toHaveLength(3)
+    expect(consultas).toHaveLength(4)
     for (const consulta of consultas) registrar('i1', consulta, generadorDeSecuencia([OK_FUERA_DE_ZONA]))
   }
 

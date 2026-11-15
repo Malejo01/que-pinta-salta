@@ -30,9 +30,15 @@ export interface VenueParaGeocodificar {
    * `--programado`: con una sugerencia pendiente el lugar no se vuelve a consultar.
    */
   geocode_sugerencia_lat?: number | null
+  /** Q7-2: el texto de la sugerencia pendiente (para saber si salió de un link de Google Maps). */
+  geocode_sugerencia_texto?: string | null
 }
 
-export type EstadoFilaGeocodificacion = 'guardado' | 'para-revisar' | 'sin-resultado' | 'error' | 'no-se-pisó'
+/**
+ * `'sugerido'` (Q7-2): el lugar quedó con una sugerencia por un link de
+ * Google Maps de sus eventos, para confirmar en /admin/lugares.
+ */
+export type EstadoFilaGeocodificacion = 'guardado' | 'para-revisar' | 'sin-resultado' | 'error' | 'no-se-pisó' | 'sugerido'
 
 export interface FilaReporteGeocodificacion {
   id: string
@@ -164,6 +170,7 @@ export async function geocodificarLugares({
   guardar,
   guardarSugerencia,
   ahora = () => new Date(),
+  seguir = () => true,
 }: {
   lugares: VenueParaGeocodificar[]
   cliente: ClienteGeocodificacion
@@ -174,6 +181,12 @@ export async function geocodificarLugares({
   guardarSugerencia?: (id: string, sugerencia: ColumnasSugerencia) => boolean | void | Promise<boolean | void>
   /** La hora de la sugerencia (inyectable para los tests). */
   ahora?: () => Date
+  /**
+   * Q7-2: se consulta antes de empezar cada lugar; si devuelve `false`, la
+   * corrida termina ahí (los que faltan no van al reporte). Lo usa el
+   * presupuesto de tiempo de `--programado`.
+   */
+  seguir?: () => boolean
 }): Promise<FilaReporteGeocodificacion[]> {
   const filas: FilaReporteGeocodificacion[] = []
 
@@ -222,6 +235,7 @@ export async function geocodificarLugares({
   }
 
   for (const lugar of lugares) {
+    if (!seguir()) break
     const consultas = consultasParaLugar({ nombre: lugar.name, direccion: lugar.address })
     let consultaUsada = consultas[0] ? describirConsulta(consultas[0]) : ''
     let filaDelLugar: FilaReporteGeocodificacion | null = null
@@ -363,5 +377,6 @@ export function ordenarPorEventosProximos<T extends { id: string; nombre?: strin
  * confianza alta que no se pisó porque cambió mientras corría también queda.
  */
 export function quedanParaCargarAMano(filas: Array<Pick<FilaReporteGeocodificacion, 'confianza' | 'estado'>>): number {
-  return filas.filter((f) => f.confianza !== 'alta' || f.estado === 'no-se-pisó').length
+  // Q7-2: una sugerencia por link (confianza alta) igual espera el botón del admin.
+  return filas.filter((f) => f.confianza !== 'alta' || f.estado === 'no-se-pisó' || f.estado === 'sugerido').length
 }
