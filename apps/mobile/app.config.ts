@@ -96,10 +96,6 @@ export function r8Activado(env: Record<string, string | undefined>): boolean {
  */
 export const REGLAS_PROGUARD = [
   '# Q7-5 · reglas propias (apps/mobile/app.config.ts, REGLAS_PROGUARD)',
-  '# MapLibre: el SDK nativo usa JNI; maplibre-react-native no trae reglas de consumidor.',
-  '-keep class org.maplibre.android.** { *; }',
-  '-keep class org.maplibre.reactnative.** { *; }',
-  '-dontwarn org.maplibre.**',
   '# Sentry: el puente de React Native (el SDK de Android ya trae sus reglas).',
   '-keep class io.sentry.react.** { *; }',
   '# Google Sign-In: el módulo de React Native.',
@@ -169,9 +165,7 @@ export function plugins(env: Record<string, string | undefined>): Plugin[] {
     // expo-sharing (R42) NO lleva plugin: el plugin es para RECIBIR lo que
     // otra app comparte (share extension / intent filters), y la app solo
     // comparte hacia afuera con shareAsync, que no lo necesita.
-    // R54/R55: mapa con MapLibre. Sin opciones: motor de ubicación "default"
-    // (el de MapLibre, sin Google Play Services de ubicación).
-    '@maplibre/maplibre-react-native',
+    // Q7: MapLibre se sacó (la app abre /mapa de la web; ≈ 15,6 MB menos de AAB).
     // R55: "Cerca mío". Solo "mientras se usa": los textos de "siempre" se
     // borran del Info.plist (false) y en Android no entran
     // ACCESS_BACKGROUND_LOCATION ni el servicio en primer plano.

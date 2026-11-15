@@ -45,8 +45,6 @@ describe('R8 solo con QPS_R8=1', () => {
 
 describe('reglas de ProGuard/R8', () => {
   it.each([
-    ['MapLibre (SDK nativo)', '-keep class org.maplibre.android.** { *; }'],
-    ['MapLibre (módulo RN)', '-keep class org.maplibre.reactnative.** { *; }'],
     ['Sentry (puente RN)', '-keep class io.sentry.react.** { *; }'],
     ['Google Sign-In', '-keep class com.reactnativegooglesignin.** { *; }'],
     ['expo-notifications', '-keep class expo.modules.notifications.** { *; }'],
@@ -85,9 +83,9 @@ describe('reglas de ProGuard/R8', () => {
     expect(pluginSentry({ SENTRY_AUTH_TOKEN: 't' })).toBe('@sentry/react-native/expo')
   })
 
-  it('las reglas no esconden errores de compilación de todo el proyecto (-dontwarn solo de MapLibre) ni apagan R8', () => {
+  it('las reglas no esconden errores de compilación de todo el proyecto (sin -dontwarn) ni apagan R8', () => {
     const lineas = reglasProguard({}).split('\n').filter((l) => !l.startsWith('#'))
-    expect(lineas.filter((l) => l.startsWith('-dontwarn'))).toEqual(['-dontwarn org.maplibre.**'])
+    expect(lineas.filter((l) => l.startsWith('-dontwarn'))).toEqual([])
     expect(lineas.join('\n')).not.toMatch(/-dontshrink|-dontoptimize|-keep class \*\* /)
   })
 })
